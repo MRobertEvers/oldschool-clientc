@@ -132,8 +132,19 @@ On the special's tick S (10/10):
   - d=36: the arm tiles one further out, three wide, on all four sides;
   - d=38: the arm's middle tile two out; d=40: three out;
   - every tile clipped to the 9x9 arena (10/10, §1).
-- At S+3, every raider standing on a star tile (their tile at the end of S+2)
-  is hit (13 hits: 20..33; ours 20..33 typeless, unverified max).
+- The star beats twice, with the two 12441s (delay 90 = S+3, 150 = S+5);
+  each beat judges the tile at the end of the tick before
+  (`tools/ez_beats.py`, 63 specials of 4300, 4301, 4304, 4314, 4315, 4319,
+  4320):
+  - S+3: every raider on a star tile (54/54 hit, 0 hits off it);
+  - S+5: every raider on a star tile (9/9: 4314 [590] B0aty 21 then 27,
+    4320 [10452] Kenshiro 31 then 26, 4314 [1049], 4315 [890], [921]) OR
+    under his 3x3 (3/3: 4304 [1427] John B Shigg, [1458], [1494] Song19);
+    0 hits elsewhere. He is rooted to S+4, so his 3x3 is the one at S.
+  - Under him at S+2: never seen (no raider stood there), so whether the
+    first beat reaches there is unverified; ours does not.
+  - Damage 20..34 on both beats (54 + 12 hits), typeless. Until 2026-10-22
+    ours hit only at S+3.
 - The swords (`tfa_ezekiel_sword` 16653, "Animated Sword", size 3, Attack,
   80 hp, cache) spawn with the special, one of five layouts on the arena's
   lanes (absolute; the arena's border lines x=4056/4068, z=5528/5540):
@@ -423,7 +434,7 @@ Run: the same test on a private pack (`TORIRSSERVER_SCRIPTS`), tick log
 | clock | M, M, S; S+7; W+12 and the cycle restarts | same (198, 205, 210, 215; W 212, 220, 224) | matched |
 | melee | seq 14685, 13 `tfa_wave_dust` delays 5..7 | same | matched |
 | special | seq 14687, `ezekiel_special_crack_vfx01` slot 2, a line, 12454/12441 x2 r31 size 31, the star's three stages at 34/36/38/40 (+30, +60) clipped to the 9x9 | same | matched |
-| star hit | S+3 on the star tiles | same | matched (damage unverified) |
+| star hit | S+3 on the star tiles; S+5 on the star tiles or under his 3x3 (§5) | S+3 only, until 2026-10-22; now both (5 seeds: S+3 35/35, S+5 35/35 star + 2/2 under, 0 off) | fixed |
 | swords | five layouts, spawn facing south, fade-in, flight at S+14 (+1 a line sword), exact move 30, yaw, ops 0, fade-out, del +2, a flight sound 12458..61 r10 | same | matched |
 | weaken | lane = his sw x/z; seq, "Agh!", 7115 r10 + 12455 r20, 12398 W+1, `weaken_to_idle01` W+8 | same (212..224) | matched |
 | finale | F tele + exact move 60 + walk01 + 12458; F+1 9 blocking; F+3 finale01 + cast01 + glow01 s1; F+5 glow_loop01 s5 + 12407 r20; F+6 72 blocking + raiders pulled in + 7 fence swords; F+8 the V + 3x 12400 | same ticks (312..320) | matched |
@@ -477,6 +488,7 @@ the seq beside the raider.
 | melee wave | 1..9 under protect from melee (32/38 nonzero), 14..27 unprayed | 0..28, half prayed | 0..28, a third prayed | fixed |
 | special / star | 21..33 (9) and 24..34 on the star tiles (6) | 20..33 | 21..34 | fixed |
 | special / star (4314/4315) | 20..34 (15), star tiles 21..34 (8) | | 21..34 | the floor is 20 in the new data (two 20s): **approximate** |
+| special / star, both beats (4300..4320) | S+3 20..34 (54, five 20s), S+5 21..34 (12) | 21..34, S+3 only | 20..34, both beats | fixed |
 | swords | 28, 51, 59, 63 | 28..52 | 28..63 | fixed |
 | sword burn | 2 every 5 ticks, three times (4304 [1411..1421]); more on its trail | none | the burn; no trail | fixed (the trail open) |
 | volley | 6, 19 (2) | 15..30 | same | unverified |
