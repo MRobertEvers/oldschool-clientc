@@ -46,6 +46,20 @@ return {
         ok = t.await({ level = function() return in_lobby(t) end, note = "the lobby again" }, 10)
         t.check("lobby.out", ok == "ok", "not back in the lobby")
 
+        -- `::tfa 1`: south of the sleeping Guardian's 5x5, middle column.
+        t.cheat("::tfa 1", false)
+        ok = t.await({ level = function() return present(t, "tfa_guardian_start") end, note = "the Guardian, ::tfa 1" }, 20)
+        t.check("guardian.archive", ok == "ok", "not in the Archive")
+        t.ticks(4)
+        local r, _, rows = t.npc.tiles("tfa_guardian_start", 40)
+        local sw = (r == "ok" and type(rows) == "table") and rows[1] or nil
+        local _, tile = t.world.tile()
+        t.check("guardian.beside", sw ~= nil and tile.x == sw.x + 2 and tile.z == sw.z - 1,
+            "at " .. tostring(tile and tile.x) .. "," .. tostring(tile and tile.z) .. ", Guardian sw " .. tostring(sw and sw.x) .. "," .. tostring(sw and sw.z))
+        t.cheat("::tfa lobby", false)
+        ok = t.await({ level = function() return in_lobby(t) end, note = "the lobby, from the Guardian" }, 10)
+        t.check("lobby.from_guardian", ok == "ok", "not back in the lobby")
+
         t.cheat("::tfa 5", false)
         ok = t.await({ level = function() return present(t, "tfa_xarth") end, note = "Xarth" }, 40)
         t.check("room.xarth", ok == "ok", "not at Xarth")
