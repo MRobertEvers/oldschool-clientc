@@ -34,6 +34,20 @@ the script command that emits it. Keep it open.
    death_delay, defend_anim, the forms' headicons). The generated npc blocks default to
    `hitpoints=10`, `attack=1`, null sounds and `huntmode=none`: assume they are wrong until a
    config states otherwise.
+
+   **Then take the block-kind inventory, before any per-block diff:**
+   `python3 tools/rsprox/npc_block_inventory.py <txt>... --ours <ticklog.tsv> --match '<regex>'
+   --values`. It lists EVERY npc-info block kind each npc type gets on the wire (`[bas]`,
+   `[body_customisation]`, `[headicon_customisation]`, `[transformation]`, `[transparency]`,
+   `[exact_move]`, ...), with our count and the distinct values on both sides, and flags a kind
+   the recording has and ours never sends. The timeline tools print a CHOSEN set of blocks:
+   `npc_timeline.py` and `rsprox_tells.py` never show `[bas]` or `[body_customisation]`, so an
+   audit built on them cannot see a kind is missing. Ezekiel's finale passed three "every
+   block" audits that way and shipped with no stances or models: the fence swords played their
+   type's animated template forever, the V swords drew nothing so the lightning struck bare
+   floor, the death sword showed over him as he died (2026-10-22). Every MISSING row and
+   every value only one side has is a defect or a named reason (the raiders' kit: a
+   `windsurge_impact` on a sword is a raider's spell).
 4. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
 5. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
@@ -279,6 +293,21 @@ index reuse):
   - Note **when** it re-faces (every attack? only on target change?).
   - Several bosses swing with the facing **held** into the swing (Tekton).
   - `playerface` drops past the npc's `maxrange` from spawn (default 7).
+- **Stances (`[bas]`) and models (`[body_customisation]`) -- read them on EVERY add and form:**
+  - `[bas] ready=.., walk=.., turnleft=.., turnright=..` replaces the type's stance set (an
+    empty `[bas]` is the reset to the type's): `npc_basready`, `npc_baswalk`, `npc_basturn`,
+    `npc_basreset`. A vfx npc's TYPE often idles on an animated template (the Ezekiel fence:
+    `vfx_ezekiel_fence_template`, 13 frames) that Jagex always overrides on the add; without
+    the `[bas]` it animates for ever.
+  - `[body_customisation] [model] id=N` draws model N in place of the type's:
+    `npc_bodymodel(N)`; `id=-1` in the list is HIDDEN (`npc_bodyhide`), and a later bare
+    `[body_customisation]` with no model line is the reset (`npc_bodymodel(-1)`). The
+    transcript prints the V3 block and a second one (V2/V4) both as `[body_customisation]`;
+    ours sends V3. Per-life values matter: the same npc type can take a different model and
+    stance per copy (Ezekiel's V: 62639 / 62641 / 62642).
+  - Which variant (drop seq, idle, model) a copy gets is often fixed by WHERE it is: tabulate
+    variant x tile across every session before assuming loop order or random (the fence's
+    seven drops are fixed per arena cell, 4300 and 4301 agree on every shared cell).
 - **Transforms:**
   - `transformation` + `level_change` on every form change (`npc_changetype`), and Jagex re-sends `enabled_ops 0b11111`.
   - On death start, `enabled_ops 0b00000` (`npc_setops`).
@@ -411,6 +440,60 @@ Write the table per attack in the analysis doc: recorded n, zero %, max, base-eq
 prayed distribution, ours from the test's tick log, verdict. A zero rate or a max that matches
 only one band is not a match.
 
+## 14. Tile hazards, random placements and the player's own reactions
+
+A rule that matches the recording's shapes can still be wrong in WHEN and WHICH TILE.
+Ezekiel's dodges (2026-10-21) and Dreadnoth's blood (2026-10-22) both passed shape audits.
+- **Which tile a hazard judges.** For every hazard that hits a raider by tile (a band, a
+  pool, a landing, a swing's reach), split the raiders who MOVED on its tick: hit by the tile
+  they left, or the one they reached? `docs/rsprox-analysis/guthixian_archive/tools/
+  dn_phase.py` is the template (start/end tile x hit, per mechanic). Then check ours judges
+  the same: a room tick runs from a raider's queue, BEFORE every raider moves; an npc timer
+  before that; a roll (`p_dodgewindow`) lands at the click, before both. Recorded: walks are
+  judged on the start tile, rolls after the roll (Ezekiel's swords, 20/20 vs 6/6).
+- **Something new this tick** (blood laid, a pool spawned) usually hurts from the NEXT tick:
+  check a raider standing still when it appears (Dreadnoth: 48/48 hit at +1) and one stepping
+  off that tick (47/47 never). Anything that adds it before the room's check (an npc's death
+  in the npc phase) must defer the add.
+- **Repeat cadence:** the first hit's offset from stepping on, the gap, and the hit the tick
+  after stepping off (dn_bloodrule.py). Simulate ours against every recorded raider-tick.
+- **Random placements and counts** (blood tiles, spawn tiles, how many): fit, don't eyeball.
+  Count per event against the state before it (existing hazards, walls), compare models by
+  likelihood and EM over the number of tries (dn_boxmodels.py, dn_jellyblood_fit.py), and look
+  for what NEVER happens (no tile twice, never the middle, never over an existing one, never
+  off the floor: 9/9, 0/63, 0/1162).
+- **A death cancels what is in flight, selectively:** list every pending landing/shot at each
+  recorded death and what still arrived (Dreadnoth: the heavy shot never lands, the light shot's
+  hit still does, a landing due on the death tick does).
+- **The raider's own reaction to a hit:** the defend seq on every hit the content deals
+  (`anim(%varp6959_com_defendanim)`), unless an attack takes the slot; measure it per room
+  (dn_block.py: Dreadnoth 2167/2167, Ezekiel 202/203, but two other Archive rooms mostly
+  not). A spectated recording shows every raider's seqs: use `--all-players`.
+
+## 15. When the wire matches and it still looks wrong: the client
+
+The owner's visual complaint is real. If our packets now match the recording block for block
+(the inventory above, every value), the remaining cause is in what the client does with them.
+Do not close a visual complaint on a wire diff alone (Ezekiel's facing: wire matched since
+2026-10-21, the client still faced him away, found 2026-10-22).
+- **Read the client's own state first**: the live driver's npc rows (`t.npc.tiles(sym)` third
+  return) carry `yaw`, `dst_yaw`, `face_x/z`, `ready_anim`, `walk_anim`, `pose_anim`,
+  `body_model` per tick. Log them through the section (a `t.note` per tick) and compare with
+  what the wire told it (Ezekiel: face at the cage north, `yaw 0 dst 0` for 180 ticks).
+- **Then the deob for the client rule** (`~/Documents/git_repos/Deobfuscator/
+  src_osrs239_rl1_12_33/deob`, never Client-TS): Ezekiel's coord face is held by the deob
+  (`class105.method3531` clears only the instant flag), ours consumed it on an exact move's
+  last cycle.
+- **Photographs when needed** (live client, private everything): build the client with
+  `make -C src OPT=1 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_<x> PLATFORM_TARGET=torirs_<x>`,
+  compile the content into a private pack, and run the test through a wrapper that imports
+  `tools/quest_gate/run.py` with `ensure_scripts` / `ensure_server_pack` stubbed (they rebuild
+  the SHARED pack from a tree others are editing) under `QUEST_BINARY=` and
+  `TORIRSSERVER_SCRIPTS=`. `t.shot` re-aims away from "occluders" (a cage's blocking locs):
+  set `t.drive._shot_plan = function() return nil, nil, "fixed" end` and
+  `t.drive.camera(yaw, pitch, zoom)` (a SMALLER zoom is closer); crop with PIL. The npc seed is
+  the run name: rerun under the same name to compare two packs on one fight.
+
 ## Traps that have each cost a wrong fix
 
 - One recording = one roll. Count across sessions and quote counts ("37/37").
@@ -419,4 +502,9 @@ only one band is not a match.
 - Instance tiles are template-translated. Measure player-to-npc distances on `--raw`.
 - Do not invent lines, messages or sounds the recording lacks. Do not drop ones it has.
 - A behaviour no recording shows is labelled *unverified* in the write-up, with its source (wiki/reference).
+- **A tool's silence is not the wire's.** Before trusting "matched" from any timeline tool, check
+  it prints the block kind at all (`npc_block_inventory.py`); `[bas]` and `[body_customisation]`
+  were invisible to every audit of Ezekiel.
+- **"Matched" on counts per window is not matched per life:** a value the recording varies per
+  copy (models, stances, drop variants) needs the per-life table.
 - **Never mutate shared source to test** (CLAUDE.md). Build private (`PLATFORM_OBJ_BASE=build_<x>`). If another session broke the shared pack, use the private packs recipe from memory.
