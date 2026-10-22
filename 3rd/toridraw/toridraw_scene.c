@@ -1988,10 +1988,29 @@ td_scene_element_apply_animation(
             return;
         if( frame < 0 || frame >= skeletal->frame_count )
             frame = 0;
-        if( td_scene_element_pose_matches(element, primary, frame, 0, skeletal, NULL, reuse) )
+
+        /* Skeletal walkmerge (class394.method9194): an action seq with an
+         * opcode-17 mask leaves the masked bones to the walk seq bound
+         * beside it, when that walk is Animaya on the same rig. */
+        const struct ToriDraw_SkeletalAnim* walk = NULL;
+        int frame2 = 0;
+        if( primary && element->animation && element->animation->maya_masks &&
+            element->secondary_animation && element->secondary_animation->skeletal &&
+            ToriDraw_SkeletalAnimSharesRig(skeletal, element->secondary_animation->skeletal) )
+        {
+            walk = element->secondary_animation->skeletal;
+            frame2 = element->anim2_frame;
+            if( frame2 < 0 || frame2 >= walk->frame_count )
+                frame2 = 0;
+        }
+        if( td_scene_element_pose_matches(element, primary, frame, frame2, skeletal, walk, reuse) )
             return;
-        ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
-        td_scene_element_pose_record(element, primary, frame, 0, skeletal, NULL);
+        if( walk )
+            ToriDraw_ModelAnimateSkeletalMasked(
+                model, skeletal, frame, walk, frame2, element->animation->maya_masks);
+        else
+            ToriDraw_ModelAnimateSkeletal(model, skeletal, frame);
+        td_scene_element_pose_record(element, primary, frame, frame2, skeletal, walk);
     }
     else
     {

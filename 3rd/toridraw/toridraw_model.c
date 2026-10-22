@@ -1025,22 +1025,14 @@ tori_skeletal_apply_alpha(
     }
 }
 
-void
-ToriDraw_ModelAnimateSkeletal(
+/* Skin every animaya vertex by the weighted sum of its bones' matrices.
+ * frame_matrices[bone * 16 .. +15] is the column-major mat4 for that bone. */
+static void
+tori_skeletal_skin(
     struct ToriDraw_Model* model,
-    const struct ToriDraw_SkeletalAnim* skeletal,
-    int frame_index)
+    const float* frame_matrices,
+    int bone_count)
 {
-    assert(model && skeletal && frame_index >= 0 && frame_index < skeletal->frame_count);
-    assert(model->original_vertices_x && model->original_vertices_y && model->original_vertices_z);
-    assert(model->animaya_group_counts && model->animaya_groups && model->animaya_scales);
-    assert(skeletal->matrices);
-
-    /* Pointer to the 4x4 skinning matrices for this frame:
-     *   frame_matrices[(bone) * 16 .. +15] is the column-major mat4 for that bone */
-    const float* frame_matrices =
-        &skeletal->matrices[(size_t)frame_index * (size_t)skeletal->bone_count * 16];
-
     int vc = model->animaya_vertex_count;
     if( vc <= 0 )
         vc = model->vertex_count;
@@ -1068,7 +1060,7 @@ ToriDraw_ModelAnimateSkeletal(
         {
             int bone = model->animaya_groups[vi] ? (int)model->animaya_groups[vi][j] : 0;
             int scale = model->animaya_scales[vi] ? (int)model->animaya_scales[vi][j] : 0;
-            if( bone < 0 || bone >= skeletal->bone_count || scale == 0 )
+            if( bone < 0 || bone >= bone_count || scale == 0 )
                 continue;
 
             /* Column-major mat4 multiply: out = (scale/255) * M * [ox, oy, oz, 1] */
@@ -1096,12 +1088,129 @@ ToriDraw_ModelAnimateSkeletal(
             model->vertices_z[vi] = model->original_vertices_z[vi];
         }
     }
+}
+
+void
+ToriDraw_ModelAnimateSkeletal(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* skeletal,
+    int frame_index)
+{
+    assert(model && skeletal && frame_index >= 0 && frame_index < skeletal->frame_count);
+    assert(model->original_vertices_x && model->original_vertices_y && model->original_vertices_z);
+    assert(model->animaya_group_counts && model->animaya_groups && model->animaya_scales);
+    assert(skeletal->matrices);
+
+    tori_skeletal_skin(
+        model,
+        &skeletal->matrices[(size_t)frame_index * (size_t)skeletal->bone_count * 16],
+        skeletal->bone_count);
 
     /* After the bones, as the client's method4872. */
     tori_skeletal_apply_alpha(model, skeletal, frame_index);
 
     /* Same order as the classic path above: the palette poses the authored
      * bind, the resize follows it. */
+    ToriDraw_ModelApplyPostTransforms(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
+}
+
+/* out = a * b, column-major. */
+static void
+tori_mat4_mul(
+    float* out,
+    const float* a,
+    const float* b)
+{
+    for( int c = 0; c < 4; c++ )
+        for( int r = 0; r < 4; r++ )
+            out[c * 4 + r] = a[0 * 4 + r] * b[c * 4 + 0] + a[1 * 4 + r] * b[c * 4 + 1] +
+                             a[2 * 4 + r] * b[c * 4 + 2] + a[3 * 4 + r] * b[c * 4 + 3];
+}
+
+/* Bone `b`'s animModelMatrix from the merged locals: parent's, then its own
+ * (class509.method11464). state 0 = not yet, 1 = on the stack, 2 = done; a
+ * parent still on the stack is a cycle in a corrupt rig and is treated as a
+ * root, as the palette bake's mark-before-recurse does. */
+static void
+tori_skeletal_compose(
+    float* model_matrices,
+    uint8_t* state,
+    const int* parents,
+    const float* const* bone_locals,
+    int b)
+{
+    if( state[b] )
+        return;
+    state[b] = 1;
+    int const p = parents[b];
+    if( p >= 0 && state[p] != 1 )
+    {
+        tori_skeletal_compose(model_matrices, state, parents, bone_locals, p);
+        tori_mat4_mul(&model_matrices[b * 16], &model_matrices[p * 16], bone_locals[b]);
+    }
+    else
+        memcpy(&model_matrices[b * 16], bone_locals[b], 16 * sizeof(float));
+    state[b] = 2;
+}
+
+void
+ToriDraw_ModelAnimateSkeletalMasked(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* action,
+    int action_frame,
+    const struct ToriDraw_SkeletalAnim* walk,
+    int walk_frame,
+    const bool* masks)
+{
+    assert(model);
+    assert(action);
+    assert(walk);
+    assert(masks);
+    assert(action_frame >= 0 && action_frame < action->frame_count);
+    assert(walk_frame >= 0 && walk_frame < walk->frame_count);
+    assert(ToriDraw_SkeletalAnimSharesRig(action, walk));
+    assert(action->locals);
+    assert(action->parents);
+    assert(walk->locals);
+    assert(walk->inverse_binds);
+    assert(model->original_vertices_x && model->original_vertices_y && model->original_vertices_z);
+    assert(model->animaya_group_counts && model->animaya_groups && model->animaya_scales);
+
+    int const bones = action->bone_count;
+    const float* action_locals = &action->locals[(size_t)action_frame * (size_t)bones * 16];
+    const float* walk_locals = &walk->locals[(size_t)walk_frame * (size_t)bones * 16];
+    const float** bone_locals = TORIDRAW_MALLOC((size_t)bones * sizeof(*bone_locals));
+    float* model_matrices = TORIDRAW_MALLOC((size_t)bones * 16 * sizeof(float));
+    float* palette = TORIDRAW_MALLOC((size_t)bones * 16 * sizeof(float));
+    uint8_t* state = TORIDRAW_CALLOC((size_t)bones, 1);
+    assert(bone_locals);
+    assert(model_matrices);
+    assert(palette);
+    assert(state);
+
+    /* class128.method4376: the action pass poses every bone whose mask is
+     * false, the walk pass every bone whose mask is true. The mask is 256
+     * wide; a bone past it the client would never reach. */
+    for( int b = 0; b < bones; b++ )
+        bone_locals[b] = (b < 256 && masks[b]) ? &walk_locals[b * 16] : &action_locals[b * 16];
+    for( int b = 0; b < bones; b++ )
+        tori_skeletal_compose(model_matrices, state, action->parents, bone_locals, b);
+    /* Skinned once, after the walk pass, with the walk anim's pose
+     * (class174.method5754 with var6 only on the second pass). */
+    for( int b = 0; b < bones; b++ )
+        tori_mat4_mul(&palette[b * 16], &model_matrices[b * 16], &walk->inverse_binds[b * 16]);
+
+    tori_skeletal_skin(model, palette, bones);
+
+    TORIDRAW_FREE(state);
+    TORIDRAW_FREE(palette);
+    TORIDRAW_FREE(model_matrices);
+    TORIDRAW_FREE(bone_locals);
+
+    /* Transparency is the action's alone (method5754's `!var5`). */
+    tori_skeletal_apply_alpha(model, action, action_frame);
+
     ToriDraw_ModelApplyPostTransforms(model);
     ToriDraw_ModelSetBoundsCylinder(model);
 }

@@ -112,6 +112,7 @@ seq_apply_meta(
 
     meta = (struct ToriDraw_AnimSeqMeta){
         .walkmerge = seq->interleave_leave,
+        .maya_masks = seq->anim_maya_masks,
         .priority = seq->forced_priority,
         .max_loops = seq->max_loops,
         .preanim_move = seq->precedence_animating,

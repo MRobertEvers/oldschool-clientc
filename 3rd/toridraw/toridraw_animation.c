@@ -41,6 +41,14 @@ ToriDraw_AnimationSetSeqMeta(
         assert(anim->walkmerge);
         memcpy(anim->walkmerge, meta->walkmerge, ((size_t)count + 1) * sizeof(int));
     }
+    TORIDRAW_FREE(anim->maya_masks);
+    anim->maya_masks = NULL;
+    if( meta->maya_masks )
+    {
+        anim->maya_masks = TORIDRAW_MALLOC(256 * sizeof(bool));
+        assert(anim->maya_masks);
+        memcpy(anim->maya_masks, meta->maya_masks, 256 * sizeof(bool));
+    }
     anim->priority = meta->priority;
     anim->max_loops = meta->max_loops;
     anim->preanim_move = meta->preanim_move;
@@ -183,6 +191,7 @@ ToriDraw_AnimationFree(struct ToriDraw_Animation* anim)
     }
 
     TORIDRAW_FREE(anim->walkmerge);
+    TORIDRAW_FREE(anim->maya_masks);
     ToriDraw_SkeletalAnimFree(anim->skeletal);
     TORIDRAW_FREE(anim->frame_sounds.frame_indices);
     TORIDRAW_FREE(anim->frame_sounds.sounds);
@@ -200,5 +209,8 @@ ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal)
     TORIDRAW_FREE(skeletal->alpha_labels);
     TORIDRAW_FREE(skeletal->alpha_label_counts);
     TORIDRAW_FREE(skeletal->alpha_values);
+    TORIDRAW_FREE(skeletal->parents);
+    TORIDRAW_FREE(skeletal->locals);
+    TORIDRAW_FREE(skeletal->inverse_binds);
     TORIDRAW_FREE(skeletal);
 }

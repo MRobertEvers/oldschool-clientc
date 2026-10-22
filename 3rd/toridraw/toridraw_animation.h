@@ -78,6 +78,11 @@ struct ToriDraw_Animation
      * this animation plays as primary, 9999999-terminated (seq opcode 3).
      * NULL = no merge: primary drives every group. Owned. */
     int* walkmerge;
+    /** The skeletal walkmerge (seq opcode 17): [256] by bone index, true where
+     * the SECONDARY (walk) seq poses the bone while this one plays as primary
+     * (rev-241 class394.field4919, read by class128.method4376). NULL = no
+     * merge: a skeletal primary poses every bone. Owned. */
+    bool* maya_masks;
     int priority;           /* seq opcode 5 (reference default 5) */
     int max_loops;          /* seq opcode 8 (reference default 99) */
     int preanim_move;       /* seq opcode 9 (PreanimMove) */
@@ -118,6 +123,7 @@ struct ToriDraw_Animation
 struct ToriDraw_AnimSeqMeta
 {
     int const* walkmerge;
+    bool const* maya_masks; /* [256], may be NULL; copied */
     int priority;
     int max_loops;
     int preanim_move;
@@ -196,7 +202,26 @@ struct ToriDraw_SkeletalAnim
     int* alpha_label_counts; /* [alpha_group_count] */
     int** alpha_labels;      /* [alpha_group_count][alpha_label_counts[g]] */
     float* alpha_values;     /* [frame_count * alpha_group_count] */
+    /* The walkmerge half (ToriDraw_ModelAnimateSkeletalMasked). The palette
+     * has the hierarchy multiplied in, so a pose that takes some bones from
+     * another animation needs each bone's own matrix and the rig to compose
+     * them through (rev-241 class128.method4376, class174.method5804). */
+    int base_id;          /* the SeqBase the rig is from */
+    int* parents;         /* [bone_count], -1 = root */
+    float* locals;        /* [frame_count * bone_count * 16] animMatrix */
+    float* inverse_binds; /* [bone_count * 16] this animation's pose */
 };
+
+/* Whether `walk` can pose bones of `action`'s rig: the walk seq's curves are
+ * applied to the action's skeleton by bone index (class394.method9194 hands
+ * the walk anim the action's class148). */
+static inline bool
+ToriDraw_SkeletalAnimSharesRig(
+    struct ToriDraw_SkeletalAnim const* action,
+    struct ToriDraw_SkeletalAnim const* walk)
+{
+    return action->base_id == walk->base_id && action->bone_count == walk->bone_count;
+}
 
 void
 ToriDraw_SkeletalAnimFree(struct ToriDraw_SkeletalAnim* skeletal);

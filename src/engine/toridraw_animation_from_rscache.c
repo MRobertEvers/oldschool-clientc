@@ -322,6 +322,42 @@ skeletal_alpha_from_rscache(
     }
 }
 
+/*
+ * What a walkmerge needs that the palette has multiplied away: each bone's own
+ * matrix per frame, the parent it composes through, and this animation's
+ * inverse bind (the pose the walk pass skins with, class174.method5754 ->
+ * method5708 with the walk anim's pose id).
+ */
+static void
+skeletal_rig_from_rscache(
+    struct ToriDraw_SkeletalAnim* skeletal,
+    struct RSCache_Dat2AnimMaya const* maya,
+    struct RSCache_Dat2SkeletalBase* base)
+{
+    int const bones = skeletal->bone_count;
+    float* locals = RSCache_Dat2SkeletalBaseBakeLocals(maya, base, skeletal->frame_count);
+
+    skeletal->base_id = base->id;
+    if( ToriMem_ToriDrawInstalled() )
+        locals = ToriMem_Adopt(locals, ToriMem_LibToriDraw());
+    skeletal->locals = locals;
+    skeletal->parents = TORIDRAW_MALLOC((size_t)bones * sizeof(int));
+    skeletal->inverse_binds = TORIDRAW_MALLOC((size_t)bones * 16 * sizeof(float));
+    assert(skeletal->parents);
+    assert(skeletal->inverse_binds);
+    for( int b = 0; b < bones; b++ )
+    {
+        /* The resolved link, as the palette composed through: an id out of
+         * range or naming the bone itself is a root there too. */
+        skeletal->parents[b] =
+            base->bones[b].parent ? (int)(base->bones[b].parent - base->bones) : -1;
+        memcpy(
+            &skeletal->inverse_binds[(size_t)b * 16],
+            *RSCache_Dat2SkeletalBoneInvertedModelMatrix(base, b, maya->pose_id),
+            16 * sizeof(float));
+    }
+}
+
 struct ToriDraw_SkeletalAnim*
 ToriDraw_SkeletalAnimFromRSCache(
     int seq_id,
@@ -361,5 +397,6 @@ ToriDraw_SkeletalAnimFromRSCache(
         palette = ToriMem_Adopt(palette, ToriMem_LibToriDraw());
     skeletal->matrices = palette;
     skeletal_alpha_from_rscache(skeletal, maya, framemap);
+    skeletal_rig_from_rscache(skeletal, maya, base);
     return skeletal;
 }

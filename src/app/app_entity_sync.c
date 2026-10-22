@@ -179,14 +179,22 @@ app_world_apply_entity_anim_tracks(
             ToriDraw_ElementSetAnim(el, pa);
             el->anim_seq_id = anim->primary.anim_id;
             el->anim_frame = anim->primary.frame < pa->frame_count ? anim->primary.frame : 0;
-            /* The walkmerge blend is a frame-animator operation (it masks
-             * transform groups), so a skeletal primary never takes a secondary. */
-            if( !pa->skeletal && secondary_active && idle &&
-                anim->secondary.anim_id != (uint16_t)idle->readyanim )
+            /* The walkmerge blend takes the walk alongside: a classic primary
+             * masks transform groups with a classic walk's frames, an Animaya
+             * primary with an opcode-17 mask hands bones to an Animaya walk
+             * on its rig (rev-241 class394.method9194). An Animaya primary
+             * with no mask poses every bone itself, so it takes none. */
+            if( secondary_active && idle && anim->secondary.anim_id != (uint16_t)idle->readyanim &&
+                (!pa->skeletal || pa->maya_masks) )
             {
                 struct ToriDraw_Animation* sa =
                     ToriDraw_SceneAnimationGet(app->scene, anim->secondary.anim_id);
-                if( sa && sa->frame_count > 0 && sa->frames )
+                int merges = 0;
+                if( sa && sa->frame_count > 0 )
+                    merges = pa->skeletal
+                                 ? sa->skeletal && ToriDraw_SkeletalAnimSharesRig(pa->skeletal, sa->skeletal)
+                                 : sa->frames != NULL;
+                if( merges )
                 {
                     el->secondary_animation = sa;
                     el->anim2_seq_id = anim->secondary.anim_id;

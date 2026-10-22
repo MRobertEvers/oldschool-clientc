@@ -104,6 +104,23 @@ RSCache_Dat2SkeletalBaseBakePalette(
     int* frame_count_out,
     int* bone_count_out);
 
+/**
+ * The same ticks as RSCache_Dat2SkeletalBaseBakePalette, before the hierarchy:
+ * each bone's own animMatrix (its curves over this animation's bind pose),
+ *
+ *   locals[(frame * bone_count + bone) * 16 .. +15]
+ *
+ * A walkmerge poses some bones from one animation and the rest from another,
+ * then composes them through the parents (rev-241 class128.method4376, then
+ * class174.method5804), so it needs the matrices the palette has already
+ * multiplied together. `frame_count` is the palette's. Caller owns the array.
+ */
+float*
+RSCache_Dat2SkeletalBaseBakeLocals(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int frame_count);
+
 void
 RSCache_Dat2SkeletalBaseFree(struct RSCache_Dat2SkeletalBase* base);
 

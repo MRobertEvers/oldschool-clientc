@@ -242,6 +242,21 @@ ToriDraw_ModelAnimateSkeletal(
     const struct ToriDraw_SkeletalAnim* skeletal,
     int frame_index);
 
+/* The skeletal walkmerge (rev-241 class394.method9194 with both seqs Animaya):
+ * each bone takes the WALK frame's local matrix where masks[bone] is true and
+ * the ACTION frame's elsewhere, the pose is composed through the action's rig
+ * and skinned with the walk's bind. Transparency is the action's. `masks` is
+ * the action seq's opcode-17 set, [256]; the two must share a rig
+ * (ToriDraw_SkeletalAnimSharesRig). */
+void
+ToriDraw_ModelAnimateSkeletalMasked(
+    struct ToriDraw_Model* model,
+    const struct ToriDraw_SkeletalAnim* action,
+    int action_frame,
+    const struct ToriDraw_SkeletalAnim* walk,
+    int walk_frame,
+    const bool* masks);
+
 static inline bool
 ToriDraw_ModelIsLightable(const struct ToriDraw_Model* model)
 {

@@ -6,6 +6,7 @@
 
 #include "../rsbuffer.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -597,4 +598,25 @@ RSCache_Dat2SkeletalBaseBakePalette(
     *frame_count_out = frame_count;
     *bone_count_out = bone_count;
     return palette;
+}
+
+float*
+RSCache_Dat2SkeletalBaseBakeLocals(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int frame_count)
+{
+    float* locals;
+
+    assert(maya);
+    assert(base);
+    assert(base->bone_count > 0);
+    assert(frame_count > 0);
+
+    locals = RSCACHE_MALLOC((size_t)frame_count * (size_t)base->bone_count * 16 * sizeof(float));
+    assert(locals);
+    for( int f = 0; f < frame_count; f++ )
+        for( int b = 0; b < base->bone_count; b++ )
+            skb_build_anim_matrix(&locals[((size_t)f * (size_t)base->bone_count + (size_t)b) * 16], maya, base, b, f);
+    return locals;
 }
