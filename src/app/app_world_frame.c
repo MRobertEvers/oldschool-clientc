@@ -289,6 +289,7 @@ app_world_frame(
     app_world_sync_player_tints(app);
     app_world_sync_npc_tints(app);
     app_world_sync_npc_transparency(app);
+    app_world_sync_player_transparency(app);
 
     /* Expire P_LOCMERGE markers once the ride window ends. */
     {

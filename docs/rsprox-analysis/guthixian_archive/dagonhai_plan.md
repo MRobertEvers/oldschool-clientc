@@ -19,7 +19,7 @@ Monks: 0 the Elder (`tfa_dagonhai_leader`), 1 and 2 (`tfa_dagonhai_minion_1/2`,
 
 | fact | evidence |
 |---|---|
-| Template square (63,87); raiders arrive at (4079..4081, 5598..5600) | 4/4 |
+| Template square (63,87); raiders arrive on any tile of (4082..4084, 5598..5600), facing west, and run on to the transporter's tile (4080,5599) (`nexus_plan.md` §6; the earlier (4079..4081) were raiders seen after that run) | 7/7 |
 | The transporter is `tfa_boss_teleporter` at (4079,5599) rot 3 (the map's (47,31)): ten across, (4080,5599) -> (4069,5599) | 8/8 crossings |
 | The three and the cauldron stand from the room's build: Elder (4057,5599), monk 1 (4058,5600), monk 2 (4058,5598) facing west, the cauldron (4064,5598) facing south; level 427 (452 at three) | 4/4 |
 | Before anyone crosses: the Elder "Ah, the Book of Life and Death." at +14, monk 1 "What does it do?" 6 on, monk 2 "Gives us power, of course!" 7 after | 4314 [2157..2170]; 4315 [1736..1749] (+19) |

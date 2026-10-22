@@ -778,10 +778,25 @@ player_apply_op(
     }
     case PKT_PLAYER_INFO_OP_FACE_ANGLE:
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\n", core->tick, op->_face_angle.angle);
+            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\t%d\n", core->tick, op->_face_angle.angle,
+                    op->_face_angle.instant ? 1 : 0);
         if( op->_face_angle.modern )
             World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);
         World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
+        break;
+    case PKT_PLAYER_INFO_OP_TRANSPARENCY:
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\ttransparency\t%d\t%d\t%d\t%d\t%d\n", core->tick,
+                    op->_transparency.start_cycle_delta, op->_transparency.end_cycle_delta,
+                    op->_transparency.from, op->_transparency.to, op->_transparency.use_start ? 1 : 0);
+        World_PlayerSetTransparency(
+            world,
+            idx,
+            op->_transparency.start_cycle_delta,
+            op->_transparency.end_cycle_delta,
+            op->_transparency.from,
+            op->_transparency.to,
+            op->_transparency.use_start);
         break;
     default:
         break;

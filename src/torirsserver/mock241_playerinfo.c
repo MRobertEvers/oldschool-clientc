@@ -16,8 +16,8 @@
  *
  * Flags (RSProx 241): APPEARANCE 0x2, SPOTANIM 0x4, SAY 0x10, FACE 0x20,
  * SEQUENCE 0x40, CHAT 0x400, EXACT_MOVE 0x800, TINTING 0x1000,
- * TEMP_MOVE_SPEED 0x4000, HITMARKS 0x20000, HEADBARS 0x80000; continuation
- * bits 0x80 (second byte) and 0x2000 (third byte).
+ * TEMP_MOVE_SPEED 0x4000, TRANSPARENCY 0x10000, HITMARKS 0x20000, HEADBARS
+ * 0x80000; continuation bits 0x80 (second byte) and 0x2000 (third byte).
  *
  * Block order (RSProx 241): SAY, MOVE_SPEED, FACE, NAME_EXTRAS, SPOTANIM,
  * HEADBARS, APPEARANCE, TEMP_MOVE_SPEED, CHAT, HITMARKS, TINTING, SEQUENCE,
@@ -36,6 +36,7 @@ enum
     EXT241_TINTING = 0x1000,
     EXT241_NEXT_BYTE_2 = 0x2000,
     EXT241_TEMP_MOVE_SPEED = 0x4000,
+    EXT241_TRANSPARENCY = 0x10000,
     EXT241_HITMARKS = 0x20000,
     EXT241_HEADBARS = 0x80000,
 };
@@ -57,6 +58,7 @@ mock241_write_player_extended(
     int const has_temp_move_speed = ext && ext->has_temp_move_speed;
     int const has_exact_move = ext && ext->has_exact_move;
     int const has_tint = ext && ext->has_tint;
+    int const has_transparency = ext && ext->has_transparency;
     uint32_t flag = 0;
 
     assert(buf);
@@ -78,6 +80,8 @@ mock241_write_player_extended(
         flag |= EXT241_EXACT_MOVE;
     if( has_tint )
         flag |= EXT241_TINTING;
+    if( has_transparency )
+        flag |= EXT241_TRANSPARENCY;
     if( has_appearance )
         flag |= EXT241_APPEARANCE;
     if( flag == 0 )
@@ -204,5 +208,17 @@ mock241_write_player_extended(
         rsab_p2_alt1(buf, ext->exact_start_cycle);
         rsab_p2_alt2(buf, ext->exact_end_cycle);
         rsab_p2_alt2(buf, ext->exact_facing);
+    }
+    /* decodeTransparency (deob class81, flag 0x10000): g2sAlt3 start and
+     * g2sAlt3 end (each added to the client cycle), g1sAlt1 from, g1sAlt1 to,
+     * g1Alt3 use-start (class643.method13958 / method13948,
+     * Statics.method13899), handed to class17.method328. */
+    if( has_transparency )
+    {
+        rsab_p2_alt3(buf, ext->transparency_start_cycle & 0xffff);
+        rsab_p2_alt3(buf, ext->transparency_end_cycle & 0xffff);
+        rsab_p1_alt1(buf, ext->transparency_from & 0xff);
+        rsab_p1_alt1(buf, ext->transparency_to & 0xff);
+        rsab_p1_alt3(buf, ext->transparency_use_start ? 1 : 0);
     }
 }

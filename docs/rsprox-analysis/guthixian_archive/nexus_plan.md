@@ -36,11 +36,13 @@ wait) is not recorded: ours, solo, both ops take the player straight in.
 |---|---|
 | section 1 west (4113,5584) | Ezekiel (4300, 4301) |
 | section 1 east (4141,5584) | Bork (4302, 4303, 4294) |
-| section 2 west (4113,5597) | Moia: **not built** (no recording); the door says so |
+| section 2 west (4113,5597) | Moia (4314, 4315: 9/9) |
 | section 2 east (4141,5597) | Dreadnoth (4301, 4302, 4303) |
-| section 3 west (4113,5610) | the Dagon'hai: **not built** |
+| section 3 west (4113,5610) | the Dagon'hai (4314, 4315: 8/8) |
 | section 3 east (4141,5610) | Xarth (4301, 4302) |
 | Ocellus door (4124,5621) | Ocellus, plane 1 (4301 [867..876]) |
+
+When each one moves the raider and where it lands: §6.
 
 ## 3. Moving between rooms (the spectator's own packets: 4301 [49..54], [283..288], [559..567], [868..877])
 
@@ -59,9 +61,9 @@ are added in the new room facing their arrival angle.
 ## 4. The atrium (the nexus on plane 2)
 
 Each visit is a fresh instance of square (64,87) on plane 2, built with the
-room's state for that stage. Arrival tiles: from a west room (4116,5586)
-facing east (`angle=1536`); from an east room (4139,5587) / (4139,5600) /
-(4136,5612) facing west (`angle=512`), the party spread over a few tiles.
+room's state for that stage. Arrival: any tile of a 3x3 by the side and the
+visit, from a west room facing east (`angle=1536`), from an east room facing
+west (`angle=512`); §6 has the boxes.
 
 | visit | locs (all shape 10) | npcs | evidence |
 |---|---|---|---|
@@ -86,7 +88,71 @@ The Quartermaster's shop is not recorded (the spectator's ops get no answer,
 | tick | recorded | evidence |
 |---|---|---|
 | boss line +3 | `tfa_room_navigator` (Follow, Quick-follow) added beside the boss's spot, facing back toward the entry, fade-in over 30 cycles | Ezekiel (4067,5535) W 4301 [276]; Dreadnoth (4184,5663) E [549]; Xarth (4183,5535) E [847]; Bork (4184,5599) 4302 [105], 4303 [694], [2368] |
-| op | Follow: the raider walks up, faces it, and leaves 3..4 ticks later (the transition of §3, into the atrium visit for the next stage) | 4301 [279..285] |
+| op | Follow: the raider walks up, faces it, and is gone at O+2 (the transition of §3, into the atrium visit for the next stage) | 4301 [281] -> [283], [283] -> [285] |
+
+## 6. Every way between the rooms (audit 2026-10-22)
+
+Every raider's move between rooms in all 24 sessions (index 4293..4316,
+`--all-players`; `tools/doors.py --summary`): 497 moves. A raider added to
+the new room still facing their arrival `angle=` had not moved since they
+landed (the spectator was already there), so those adds are the landing
+tiles; one added with `type=reset` was seen late, wherever they had run to.
+O is the op tick: the face on the loc the tick after the last step, or for an
+npc the face turning from the npc to a tile. Timing for loc doors is the
+FIRST raider of each party through (the others leave when the spectator does).
+
+| way (op) | recorded | ours before | ours now | verdict |
+|---|---|---|---|---|
+| lobby door (Enter) | O+3 staging teleport (4127,5608) facing north; O+4 a tile of (4126..4128, 5571..5573) (the recorder's own 4/4: 4297 [96..97], [352..353], [816..817], 4298 [130..131]) | O+4 to (4126,5573), no staging | staging at O+3; O+4 the box's north row | fixed; the south rows **open (engine)**: our npc view stops at 24 tiles, so the sleeping Guardian (29,29) is not sent from them (Jagex adds him from (31,3), 4298 [131]) |
+| Guardian's west door (Enter, Quick-enter) | Ezekiel: O+4 (with all section doors: the first raider of 36 of 43 parties; 5..7 the rest); (4080..4082, 5534..5536) facing west, 15/15 | O+2, (4080,5535) | O+4, the box | fixed |
+| Guardian's east door | Bork: O+4; (4170..4172, 5598..5600) facing east, 37/37 | O+2, (4174,5600): outside the box | O+4, the box | fixed |
+| atrium section 2 east | Dreadnoth: O+4; (4172..4174, 5662..5664) east, 38/38 | O+2, (4172,5662) | O+4, the box | fixed |
+| atrium section 2 west | Moia: O+4; (4080..4082, 5662..5664) west, 8/8 | O+2, (4080,5663) | O+4, the box | fixed |
+| atrium section 3 east | Xarth: O+4; (4172..4174, 5534..5536) east, 24/24 | O+2, (4172,5535) | O+4, the box | fixed |
+| atrium section 3 west | the Dagon'hai: O+4; (4082..4084, 5598..5600) west, 7/7, then running on to the transporter's tile (4080,5599) | O+2, (4080,5599): outside the box | O+4, the box | fixed |
+| section 3 doors still `_slightly` (5 visits of 13 add them a tick before `_slightly_opened`) | Enter, Quick-enter as the opened ones | no handler (nothing happened) | handled | fixed |
+| Ocellus door (Enter, Quick-enter) | O+1 a glide to (4127,5622), O+2 one to (4127,5624) (two tiles each, from (4128,5620) and (4129,5620): `[walk]` 2 tiles a tick), the model fading out 30..60; O+8 a tile of (4126..4128, 5635..5637), facing reset, fading in 0..30 (O+8 5 of 7 first raiders: 4308 [1451] -> [1459], 4309, 4312 x2, 4315; O+9, O+10) | Enter only, O+2, (4126,5636) facing north, no glides | both ops; the glides at O+1, O+2 with `p_transparency(30, 60, 0, 255, false)`; O+8, the box, no face, `p_transparency(0, 30, 255, 0, false)`; fade 30 out | fixed (2026-10-22: `p_transparency`, the rev-241 PLAYER_INFO TRANSPARENCY block) |
+| navigator (Follow, Quick-follow) | O+2 (above); atrium boxes by side and visit: from the west (4114..4116, 5585..5587) A1 11/11, (5598..5600) A2 6/6, (5611..5613) A3 2/2 facing east; from the east (4138..4140, 5585..5587) A1 26/26, (5598..5600) A2 20/20, (5611..5613) A3 11/11 facing west | O+2; (4116,5586), (4139,5587), (4139,5600), (4136,5612) (outside the box), (4116,5600), (4116,5612) | O+2; the boxes | fixed (tiles) |
+| The Blade (Commune, Travel) | O+4 (4316 [2845] -> [2849] twice, 4301 [1965] -> [1969]); (4127,5774) facing north up the one-tile hall, 4 of 5 (the fifth, landing beside another, (4127,5775)) | O+2, (4127,5777) | O+4, (4127,5774) | fixed |
+| the vault's Rift (Leave, Quick-leave) | the lobby on the world's 5-tick clock (map_clock 1 mod 5, 6 of 7; 4308 [2431] three raiders with ops [2424], [2427], [2429]), O+2..O+7; (4128..4130, 5559..5561) facing south (`angle=0`), 36/36 lobby arrivals in the box, 34 south | O+2, (4130,5559), no face | first clock tick from O+2; the box; facing south | fixed |
+| dying (to the lobby) | the same box and face; the same clock (62 of 83) | (4130,5559), no face | the box, facing south | tiles fixed; the death's clock **open** (not a door: D+13 stays) |
+| the Archive transporters (Use, Quick-use) | across on the loc's row, whatever row the raider stood on | `coordx(coord) > coordx(loc)` picked the side, so a raider level with the loc (north or south of it) went the wrong way; the Dagon'hai's new landing walks there | level with the loc counts as outside | fixed (`tfa_dagonhai.lua` went east, over the wrong wall) |
+| `tfa_exit_large` (Exit) | no raider used it | the lobby | the lobby's box, facing south | unverified |
+| `tfa_nexus_section{1,2,3}_door_{west,east}` (no suffix; the atrium's beaten doors) | the spectator's click (4316 [1093]) got only the spectate line | no handler | no handler | unverified (no raider's click) |
+
+Every landing box is uniform enough to call random (Bork's 37: 2..8 a tile;
+Dreadnoth's 38: 1..7). The landing face is an `angle=` on Jagex's wire, and
+ours now is too (`p_faceangle`, below); the lobby's `angle=0` the same.
+
+### The engine side (2026-10-22)
+
+Two PLAYER_INFO blocks our server could not send, checked against the rev-241
+deob (`Deobfuscator/src_osrs241_rl1_13_3`):
+
+| block | deob | ours |
+|---|---|---|
+| FACING, angle kind | class64.method1691: header (bits 0-2 walk mode, 3-5 kind, 6 instant), kind 2 = one smart, the angle; it replaces the coord/entity face (one state) | `p_faceangle(int $angle, boolean $instant)` (opcode 11280), written by mock241's FACE block; a `facesquare` the same tick loses to it |
+| TRANSPARENCY | class81 flag 0x10000: g2sAlt3 start, g2sAlt3 end (each + the client cycle), g1sAlt1 from, g1sAlt1 to, g1Alt3 use-start, into class17.method328 -- the same state an npc's fade lives in (class83.field844) | `p_transparency(int $start, int $end, int $from, int $to, boolean $usestart)` (opcode 11281), after EXACT_MOVE in mock241's tail; the client's 241 reader now keeps it (PKT_PLAYER_INFO_OP_TRANSPARENCY) and fades the player's body as it does an npc's (`app_world_sync_player_transparency`) |
+
+Both are rev 241 only, like `npc_transparency`. `src/torirsserver/test/
+mock241_playerinfo_test.c` round-trips them through the client's reader.
+
+Found on the way: on the tick a move into another instance armed the rebuild
+barrier, `maybe_rebuild` sent that tick's PLAYER_INFO but phase 11 kept the
+player's masks for the barrier, so the first PLAYER_INFO after
+MAP_BUILD_COMPLETE sent every arrival block a second time (and a zero-length
+teleport). The tick that sent the prefix now cleans up like any other
+(`cleanup_held`, torirs_server_world.c); the arrivals' faces and the fade-in
+go out once, as Jagex's do.
+`test/guthixian_archive/tfa_doors.lua` walks every door above but the
+navigator and The Blade (both behind a boss) and checks each landing and
+the ticks against the lobby door's (44/44).
+
+Open: the landing box draws two `random()` calls, which shifts every roll
+after it. `tfa_ezekiel.lua` (its first special must be the cross) and
+`tfa_bork.lua` (its bot never leaves a stomp, and one sequence lands 43, 48,
+50 and 28 in seven ticks) fail on the shifted rolls and pass with the new
+tiles and no draws (2026-10-22): both tests lean on one roll sequence.
 
 ## NPC info audit (2026-10-21)
 

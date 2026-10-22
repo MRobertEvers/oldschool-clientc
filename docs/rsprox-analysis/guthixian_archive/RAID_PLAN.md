@@ -30,16 +30,19 @@ boss's south-west tile), `tools/room_inv.py <txt>:<from>:<to> ...` (counts).
 
 | stage | room | template square | arrives at | spec | built (test) |
 |---|---|---|---|---|---|
-| 1 | Archive Guardian (the nexus, plane 0) | (64,87) | (4126,5573,0) | `guardian_plan.md` | yes (`tfa_guardian*.lua`) |
-| 2 west | Ezekiel | (63,86) | (4080,5535,0) facing west | `ezekiel_plan.md` | yes, audited (`tfa_ezekiel.lua`) |
-| 2 east | Bork and the Smorks | (65,87) | (4174,5600,0) | `bork_plan.md` | yes, audited (`tfa_bork.lua`, `tfa_bork_smorks_first.lua`) |
+| 1 | Archive Guardian (the nexus, plane 0) | (64,87) | (4126..4128, 5571..5573, 0) (ours: its north row) | `guardian_plan.md` | yes (`tfa_guardian*.lua`) |
+| 2 west | Ezekiel | (63,86) | (4080..4082, 5534..5536, 0) facing west | `ezekiel_plan.md` | yes, audited (`tfa_ezekiel.lua`) |
+| 2 east | Bork and the Smorks | (65,87) | (4170..4172, 5598..5600, 0) facing east | `bork_plan.md` | yes, audited (`tfa_bork.lua`, `tfa_bork_smorks_first.lua`) |
 | - | atrium, after each of stages 2..4 (the nexus, plane 2) | (64,87) | see `nexus_plan.md` | `nexus_plan.md` | yes |
-| 3 east | Dreadnoth the Jellied | (65,88) | (4172,5662,0) | `dreadnoth_plan.md` | yes, audited (`tfa_dreadnoth.lua`) |
-| 4 east | Xarth | (65,86) | (4172,5535,0) | `xarth_plan.md` | yes, audited (`tfa_xarth.lua`) |
-| 3 west | Moia | (63,88) | (4080,5663,0) facing west | `moia_plan.md` | yes, audited (`tfa_moia.lua`) |
-| 4 west | the Dagon'hai | (63,87) | (4080,5599,0) facing west | `dagonhai_plan.md` | yes, audited (`tfa_dagonhai.lua`) |
-| 5 | Ocellus (plane 1) | (64,88) | (4126,5636,1) | `ocellus_plan.md` | yes, audited (`tfa_ocellus.lua`) |
-| - | the vault (plane 2) | (64,90) | (4127,5777,2) | `vault_plan.md` | yes, audited (`tfa_vault.lua`; loot per the wiki) |
+| 3 east | Dreadnoth the Jellied | (65,88) | (4172..4174, 5662..5664, 0) facing east | `dreadnoth_plan.md` | yes, audited (`tfa_dreadnoth.lua`) |
+| 4 east | Xarth | (65,86) | (4172..4174, 5534..5536, 0) facing east | `xarth_plan.md` | yes, audited (`tfa_xarth.lua`) |
+| 3 west | Moia | (63,88) | (4080..4082, 5662..5664, 0) facing west | `moia_plan.md` | yes, audited (`tfa_moia.lua`) |
+| 4 west | the Dagon'hai | (63,87) | (4082..4084, 5598..5600, 0) facing west | `dagonhai_plan.md` | yes, audited (`tfa_dagonhai.lua`) |
+| 5 | Ocellus (plane 1) | (64,88) | (4126..4128, 5635..5637, 1) | `ocellus_plan.md` | yes, audited (`tfa_ocellus.lua`) |
+| - | the vault (plane 2) | (64,90) | (4127,5774,2) facing north | `vault_plan.md` | yes, audited (`tfa_vault.lua`; loot per the wiki) |
+
+Each arrival is any tile of the 3x3 (every door, the navigator, The Blade:
+`nexus_plan.md` §6, the counts and the ticks).
 
 Every room is its own instance (the raw transcripts show a new region per
 room, 4301 `--raw`), built from its template square; ours: one

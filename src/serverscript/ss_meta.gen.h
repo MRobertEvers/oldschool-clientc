@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11268] = {
+static const char* const g_ss_opcode_names[11282] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -601,6 +601,8 @@ static const char* const g_ss_opcode_names[11268] = {
     [11265] = "NPC_TELESLIDE",
     [11266] = "NPC_BASWALK",
     [11267] = "NPC_BODYHIDE",
+    [11280] = "P_FACEANGLE",
+    [11281] = "P_TRANSPARENCY",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -610,7 +612,7 @@ static const char* const g_ss_opcode_names[11268] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11268] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11282] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1205,6 +1207,8 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11268] = {
     [11265] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_TELESLIDE */
     [11266] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_BASWALK */
     [11267] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_BODYHIDE */
+    [11280] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_FACEANGLE */
+    [11281] = { 5, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_TRANSPARENCY */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

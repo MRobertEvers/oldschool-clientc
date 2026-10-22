@@ -61,11 +61,11 @@ return {
         t.cheat("::tfaroom 7 6", false)
         ok = t.await({ level = function() return present(t, "tfa_rewards_chest_vault_1_closed") end, note = "chests" }, 30)
         t.check("vault.chests", ok == "ok", "no chests")
-        -- The arrival tile is the square's (31,17): chest 1 at (28,33), chest 2
+        -- The arrival tile is the square's (31,14): chest 1 at (28,33), chest 2
         -- at (34,33).
         local _, a = t.world.tile()
-        local c1 = { a.x - 3, a.z + 16 }
-        local c2 = { a.x + 3, a.z + 16 }
+        local c1 = { a.x - 3, a.z + 19 }
+        local c2 = { a.x + 3, a.z + 19 }
         t.ticks(10)
         local _, v = t.var.varp("varp5922_tfa_loot_temp_1")
         t.check("vault.own_chest", v ~= nil and v % 16 == 1, "own chest " .. tostring(v))

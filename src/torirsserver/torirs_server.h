@@ -883,6 +883,17 @@ enum
      * written: a bit there with no body would eat the next block.
      */
     TORIRSSERVER_PMASK_TINT = 0x800,
+    /*
+     * `p_faceangle`: the FACING block's angle kind, rev-241's writer only
+     * (deob class64.method1691, kind 2: one smart, the angle). Like TINT it
+     * has no classic field, so PMASK_CLASSIC strips it.
+     */
+    TORIRSSERVER_PMASK_FACE_ANGLE = 0x1000,
+    /*
+     * `p_transparency`: the rev-241 TRANSPARENCY block (deob class81, player
+     * flag 0x10000). Rev 241's writer only; older revisions send nothing.
+     */
+    TORIRSSERVER_PMASK_TRANSPARENCY = 0x2000,
 };
 
 /** The masks the classic (rev-230) PLAYER_INFO writer can express. */
@@ -4216,6 +4227,21 @@ struct ToriRSServerPlayer
     int tint_saturation;
     int tint_lightness;
     int tint_weight;
+    /** `p_faceangle` -- the angle (0 south .. 1536 east) and whether the turn
+     *  is instant, read only while TORIRSSERVER_PMASK_FACE_ANGLE is set. */
+    int face_angle;
+    int face_angle_instant;
+    /**
+     * `p_transparency` -- the TRANSPARENCY block's fields, read only while
+     * TORIRSSERVER_PMASK_TRANSPARENCY is set: client cycles relative to
+     * arrival (signed shorts), the alphas (0 opaque .. 255 gone), and whether
+     * the fade starts from `from` rather than the alpha the client shows now.
+     */
+    int transparency_start_cycle;
+    int transparency_end_cycle;
+    int transparency_from;
+    int transparency_to;
+    int transparency_use_start;
     /**
      * `p_exactmove` — the pair `p_locmerge` belongs to. The two tiles the
      * client glides between, in **absolute world** coordinates, plus the cycle
@@ -4525,6 +4551,13 @@ struct ToriRSServerPlayer
      *  ephemeral zone event cannot expire while the client is still replacing
      *  its WorldView. */
     int rebuild_scene_pending;
+    /** The tick `maybe_rebuild` armed that barrier and sent the rebuild/GPI
+     *  prefix: that PLAYER_INFO carried the tick's extended info and the
+     *  placement, so phase 11 still clears them on that tick. Left set, the
+     *  first PLAYER_INFO after MAP_BUILD_COMPLETE sent them a second time --
+     *  every face, fade or splat of an instance move twice, and a zero-length
+     *  teleport. */
+    int rebuild_prefix_tick;
     /**
      * A temporary, player-scoped normal-world scene shown without moving the
      * authoritative player (Construction scrying). While active, scene-local

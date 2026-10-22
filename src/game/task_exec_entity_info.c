@@ -861,6 +861,16 @@ player_apply_op(
             World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);
         World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
         break;
+    case PKT_PLAYER_INFO_OP_TRANSPARENCY:
+        World_PlayerSetTransparency(
+            world,
+            idx,
+            op->_transparency.start_cycle_delta,
+            op->_transparency.end_cycle_delta,
+            op->_transparency.from,
+            op->_transparency.to,
+            op->_transparency.use_start);
+        break;
     default:
         break;
     }

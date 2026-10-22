@@ -94,7 +94,9 @@ enum PktPlayerInfoOpKind
     PKT_PLAYER_INFO_OP_EXACT_MOVE,
     PKT_PLAYER_INFO_OP_FACE_ANGLE,
     /* Revision 239's TINTING block (player flag 0x200). */
-    PKT_PLAYER_INFO_OP_TINT
+    PKT_PLAYER_INFO_OP_TINT,
+    /* Revision 241's TRANSPARENCY block (player flag 0x10000). */
+    PKT_PLAYER_INFO_OP_TRANSPARENCY
 };
 
 struct PktPlayerInfo_LocalXZLevel
@@ -242,6 +244,21 @@ struct PktPlayerInfo_Tint
     int8_t weight;
 };
 
+/*
+ * Revision 241's TRANSPARENCY block (deob class81, flag 0x10000): signed
+ * cycle deltas from arrival, the alphas (0 opaque .. 255 gone), and whether
+ * the fade starts from `from` rather than the alpha shown now
+ * (class17.method328) -- the npc block's state, on a player.
+ */
+struct PktPlayerInfo_Transparency
+{
+    int16_t start_cycle_delta;
+    int16_t end_cycle_delta;
+    uint8_t from;
+    uint8_t to;
+    bool use_start;
+};
+
 struct PktPlayerInfoOp
 {
     enum PktPlayerInfoOpKind kind;
@@ -261,6 +278,7 @@ struct PktPlayerInfoOp
         struct PktPlayerInfo_ExactMove _exactmove;
         struct PktPlayerInfo_FaceAngle _face_angle;
         struct PktPlayerInfo_Tint _tint;
+        struct PktPlayerInfo_Transparency _transparency;
         struct PktPlayerInfo_LocalXZLevel _local_xz_level;
         struct PktPlayerInfo_DeltaXZ _delta_xz;
     };

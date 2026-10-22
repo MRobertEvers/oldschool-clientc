@@ -1157,6 +1157,26 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (0, 600, 0, 6, 24, 112), cleared with (0, 0, 255, 255, 255, 0).
     "P_TINT": (11159, 6, 0, 0, 0),
 
+    # p_faceangle(int $angle, boolean $instant)
+    #
+    # The active player turns to an angle (0 south, 512 west, 1024 north,
+    # 1536 east): PLAYER_INFO's FACING block, angle kind (deob class64
+    # method1691 kind 2; RSProx `[facing] angle=..[, instant=true]`). Raiders
+    # land in a Fractured Archive room turned into it (`angle=512` / 1536,
+    # nexus_plan.md §6). Rev 241's writer only.
+    "P_FACEANGLE": (11280, 2, 0, 0, 0),
+
+    # p_transparency(int $start_cycle, int $end_cycle, int $from, int $to,
+    #                boolean $usestart)
+    #
+    # The active player's body fades from `$from` to `$to` (0 opaque .. 255
+    # gone) between two client cycles after arrival: PLAYER_INFO's
+    # TRANSPARENCY block (deob class81, flag 0x10000; class17.method328).
+    # `$usestart` false starts the fade from the alpha shown now. The Ocellus
+    # door: (30, 60, 0, 255, false) as the raider walks through, (0, 30, 255,
+    # 0, false) on arrival (RSProx 4308 [1453], [1459]). Rev 241's writer only.
+    "P_TRANSPARENCY": (11281, 5, 0, 0, 0),
+
     # npc_tint(int $start_cycle, int $end_cycle, int $hue, int $saturation,
     #          int $lightness, int $weight)
     #
@@ -1831,6 +1851,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_PROJANIM_PL": (1 << POINTER_BITS["active_npc"], 0),
     "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
+    "P_FACEANGLE": (1 << POINTER_BITS["active_player"], 0),
+    "P_TRANSPARENCY": (1 << POINTER_BITS["active_player"], 0),
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),
     "HITMARK_BAR": (0, 0),
     "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),

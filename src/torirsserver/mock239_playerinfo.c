@@ -138,6 +138,9 @@ write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
         has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
         has_temp_move_speed || has_exact_move || has_headbar || has_tint;
 
+    /* Rev 239 has no TRANSPARENCY block; the encoder sets it at 241 only. */
+    assert(!ext || !ext->has_transparency);
+
     /*
      * Extended info, byte-aligned, in the order the indices were flagged.
      *
@@ -378,6 +381,9 @@ mock239_playerinfo_write(
         has_appearance || has_hit || has_face || has_seq || has_chat || has_spotanim ||
         has_temp_move_speed || has_exact_move || has_headbar || has_tint;
 
+    /* Rev 239 has no TRANSPARENCY block; the encoder sets it at 241 only. */
+    assert(!ext || !ext->has_transparency);
+
     /*
      * Unused while the local player is the only high-resolution entry: the
      * section-1 loop is one iteration and does not need to name whose. It stays
@@ -561,7 +567,7 @@ player_update_extended(const struct Mock239PlayerUpdate* update)
     const struct Mock239PlayerExt* e = update->ext;
     return e && (e->has_face || e->has_hit || e->has_headbar || e->has_seq ||
                  e->has_chat || e->has_spotanim || e->has_temp_move_speed ||
-                 e->has_exact_move || e->has_tint);
+                 e->has_exact_move || e->has_tint || e->has_transparency);
 }
 
 static int

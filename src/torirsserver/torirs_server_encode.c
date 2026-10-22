@@ -5017,10 +5017,31 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     ext.spotanims[i].height_delay = subject->spotanims[i].height_delay;
                 }
             }
-            ext.has_face = v5_face_from_classic(
-                &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
-                TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
-                subject->face_z, 0);
+            if( (subject->masks & TORIRSSERVER_PMASK_FACE_ANGLE) && srv_wire_revision(viewer) >= 241 )
+            {
+                /* `p_faceangle`: the FACING block's angle kind (deob
+                 * class64.method1691 kind 2), which replaces whatever the
+                 * client was facing. */
+                mock239_face_init(&ext.face);
+                ext.face.kind = MOCK239_FACE_ANGLE;
+                ext.face.angle = subject->face_angle;
+                ext.face.instant = subject->face_angle_instant;
+                ext.has_face = 1;
+            }
+            else
+                ext.has_face = v5_face_from_classic(
+                    &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
+                    TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
+                    subject->face_z, 0);
+            if( (subject->masks & TORIRSSERVER_PMASK_TRANSPARENCY) && srv_wire_revision(viewer) >= 241 )
+            {
+                ext.has_transparency = 1;
+                ext.transparency_start_cycle = subject->transparency_start_cycle;
+                ext.transparency_end_cycle = subject->transparency_end_cycle;
+                ext.transparency_from = subject->transparency_from;
+                ext.transparency_to = subject->transparency_to;
+                ext.transparency_use_start = subject->transparency_use_start;
+            }
             if( subject->running && subject->move_count > 1 &&
                 movement != MOCK239_PLAYER_TELEPORT )
             {

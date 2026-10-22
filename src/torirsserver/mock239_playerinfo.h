@@ -200,6 +200,16 @@ struct Mock239PlayerExt
     int tint_saturation;
     int tint_lightness;
     int tint_weight;
+    /** TRANSPARENCY (rev 241 only, player flag 0x10000; deob class81): signed
+     * cycles relative to arrival, the alphas (0 opaque .. 255 gone), and
+     * whether the fade starts from `from` (class17.method328). The 239
+     * writer has no block for it, so it is never set there. */
+    int has_transparency;
+    int transparency_start_cycle;
+    int transparency_end_cycle;
+    int transparency_from;
+    int transparency_to;
+    int transparency_use_start;
 };
 
 /** The rev-239 high-resolution movement opcode.  `movement_value` below is a

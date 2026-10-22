@@ -20,7 +20,7 @@ Below, C = the ring's middle tile (4063,5663); tiles relative to C unless absolu
 
 | fact | evidence |
 |---|---|
-| Template square (63,88); raiders arrive at (4079..4081, 5662..5664) | 4314 [1635], 4315 [3076..3083], [4822..4828] |
+| Template square (63,88); raiders arrive on any tile of (4080..4082, 5662..5664), facing west (`nexus_plan.md` §6: 8/8) | 4314 [1635], 4315 [3076..3083], [4822..4828] |
 | The transporter is its own loc, `tfa_teleporter_moia` at (4074,5663) rot 3 (the map's (42,31)); a raider beside it is put 8 tiles across, (4075,5663) -> (4066,5663), with `abyssal_demon_teleport` | 4/4 fights, 11 crossings |
 | Song 892 from the first crossing E | 4/4 |
 | E+3: Moia added at the west point (4055,5662), `spawnangle=east`, `[facing] coord=(4081,5663)`, `moia_teleport_in_spotanim`, `level_change`, transparency 255->0 over 15 cycles; the bar (`hpbar_hud_npc` 16667, base 2760 at three raiders) | 4/4 |

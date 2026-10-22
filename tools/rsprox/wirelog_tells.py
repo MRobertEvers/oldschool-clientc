@@ -94,6 +94,12 @@ def parse_rec(path, t0, t1):
                 elif body.startswith("type=reset"):
                     out[tick].append("face_reset")
                 continue
+            tm = re.match(r"\[transparency\] start=(-?\d+), end=(-?\d+), starttransparency=(\d+), "
+                          r"endtransparency=(\d+), usestarttransparency=(true|false)", s)
+            if tm:
+                g = tm.groups()
+                out[tick].append(f"transparency {g[0]} {g[1]} {g[2]} {g[3]} {1 if g[4] == 'true' else 0}")
+                continue
             em = re.match(r"\[exactmove\] to1=\((\d+), (\d+), \d+\), delay1=(\d+), "
                           r"to2=\((\d+), (\d+), \d+\), delay2=(\d+), angle=(\d+)", s)
             if em:
@@ -285,6 +291,8 @@ def parse_ours(path, t0, t1, xlate, by_varp):
             ev = f"face_angle {a[0]}"
         elif kind == "face_entity":
             ev = f"face_entity {a[0]}"
+        elif kind == "transparency":
+            ev = f"transparency {a[0]} {a[1]} {a[2]} {a[3]} {a[4]}"
         elif kind == "exactmove":
             (sx, sz), (ex, ez) = (map(int, a[0].split(",")), map(int, a[1].split(",")))
             ev = f"exactmove {sx - dx},{sz - dz} {ex - dx},{ez - dz} {a[2]} {a[3]} {a[4]}"

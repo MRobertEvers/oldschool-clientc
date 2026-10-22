@@ -19460,6 +19460,7 @@ phase_client_out(struct ToriRSServerPlayer* player)
             ToriRSServer_SendPlayerInfo(player);
             ToriRSServer_SendNpcInfo(player);
             ToriRSServer_SendTickEnd(player);
+            player->rebuild_prefix_tick = srv->tick;
             return;
         }
         /* Doors. REBUILD_NORMAL rebuilds the client's scene from the cache,
@@ -19568,6 +19569,21 @@ phase_clients_out(struct ToriRSServer* srv)
     }
 }
 
+/*
+ * Whether a scene barrier holds this player's tick state for later. The login
+ * barrier always does: nothing of the tick has gone out. A rebuild barrier
+ * does on every tick but the one that armed it -- that tick's PLAYER_INFO went
+ * out in the rebuild prefix (maybe_rebuild), so its masks and placement are
+ * spent like any other tick's.
+ */
+static int
+cleanup_held(const struct ToriRSServer* srv, const struct ToriRSServerPlayer* player)
+{
+    if( player->login_scene_pending )
+        return 1;
+    return player->rebuild_scene_pending && player->rebuild_prefix_tick != srv->tick;
+}
+
 /** 11. Drop everything that described only this tick. */
 static void
 phase_cleanup_player(struct ToriRSServerPlayer* player)
@@ -19629,7 +19645,7 @@ ToriRSServer_WorldPublish(struct ToriRSServer* srv)
      * clear the player masks that have just been sent. NPC cleanup belongs
      * to the next actual tick; it also advances death timers. */
     TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
-        if( !player->login_scene_pending && !player->rebuild_scene_pending )
+        if( !cleanup_held(srv, player) )
             phase_cleanup_player(player);
     ToriRSServer_WorldSetActive(srv, caller);
 }
@@ -19641,7 +19657,7 @@ phase_cleanup(struct ToriRSServer* srv)
 
     TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
     {
-        if( player->login_scene_pending || player->rebuild_scene_pending )
+        if( cleanup_held(srv, player) )
             continue;
         phase_cleanup_player(player);
     }

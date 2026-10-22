@@ -10150,6 +10150,85 @@ script_command(
     }
 
     /*
+     * `p_faceangle(int $angle, boolean $instant)` -- the active player turns
+     * to an angle (0 south, 512 west, 1024 north, 1536 east): the FACING
+     * block's angle kind (deob class64.method1691, kind 2), `[facing]
+     * angle=..[, instant=true]` in RSProx. A raider lands in each Fractured
+     * Archive room turned into it (nexus_plan.md §6).
+     */
+    case SS_OP_P_FACEANGLE:
+    {
+        int32_t angle;
+        int32_t instant;
+
+        if( !SSVM_PopInt(state, &instant) || !SSVM_PopInt(state, &angle) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "p_faceangle with no active player");
+            return 1;
+        }
+        if( angle < 0 || angle > 2047 )
+        {
+            SSVM_Abort(state, "p_faceangle %d: must be 0..2047", (int)angle);
+            return 1;
+        }
+        player->face_angle = (int)angle;
+        player->face_angle_instant = instant != 0;
+        player->masks |= TORIRSSERVER_PMASK_FACE_ANGLE;
+        /* The client's facing is one state (class64): an angle replaces a
+         * coord or entity face, so a later re-send of either must not revert
+         * it. A coord face sent this tick loses to the angle. */
+        player->masks &= ~(uint32_t)TORIRSSERVER_PMASK_FACE_COORD;
+        return 1;
+    }
+
+    /*
+     * `p_transparency(int $start_cycle, int $end_cycle, int $from, int $to,
+     * boolean $usestart)` -- the active player's body fades from `$from` to
+     * `$to` (0 opaque .. 255 gone) between two client cycles after arrival:
+     * the TRANSPARENCY block (deob class81, player flag 0x10000), which the
+     * client keeps in the same state an npc's lives in (class17.method328).
+     * `$usestart` false fades from whatever alpha the body shows now. The
+     * Ocellus door: (30, 60, 0, 255, false) out, (0, 30, 255, 0, false) in
+     * (RSProx 4308 [1453], [1459]).
+     */
+    case SS_OP_P_TRANSPARENCY:
+    {
+        int32_t values[5];
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !player )
+        {
+            SSVM_Abort(state, "p_transparency with no active player");
+            return 1;
+        }
+        if( values[0] < -0x8000 || values[0] > 0x7fff || values[1] < -0x8000 || values[1] > 0x7fff )
+        {
+            SSVM_Abort(state, "p_transparency cycles %d..%d: each must be -32768..32767",
+                       (int)values[0], (int)values[1]);
+            return 1;
+        }
+        if( values[2] < 0 || values[2] > 255 || values[3] < 0 || values[3] > 255 )
+        {
+            SSVM_Abort(state, "p_transparency %d -> %d: each must be 0..255", (int)values[2],
+                       (int)values[3]);
+            return 1;
+        }
+        player->transparency_start_cycle = (int)values[0];
+        player->transparency_end_cycle = (int)values[1];
+        player->transparency_from = (int)values[2];
+        player->transparency_to = (int)values[3];
+        player->transparency_use_start = values[4] != 0;
+        player->masks |= TORIRSSERVER_PMASK_TRANSPARENCY;
+        return 1;
+    }
+
+    /*
      * npc_tint(start_cycle, end_cycle, hue, saturation, lightness, weight) --
      * the active npc's NPC_INFO tinting block (RSProt NpcTintingEncoder, flag
      * 0x100), sent this tick: the npc counterpart of `p_tint`, the same six

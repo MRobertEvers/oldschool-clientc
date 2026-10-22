@@ -10,7 +10,7 @@ square (64,90), plane 2; tiles below are local to it.
 
 | tick | recorded |
 |---|---|
-| A | the raiders at (31,17) (4301 [1969]: Vampyire at (4127,5777,2)), running north to the chests; the timer HUD frozen at the raid's total with its stopped flag (clientscript 10036 `(2115, 1)` every tick from Ocellus's death, 4301 [1943..2044]); song 147 |
+| A | each raider lands at (31,14) (4127,5774,2) facing north, four tiles south of where 4301 [1969] first shows Vampyire (he had run on; `nexus_plan.md` §6: 4 of 5 landings seen standing), and runs north to the chests; the timer HUD frozen at the raid's total with its stopped flag (clientscript 10036 `(2115, 1)` every tick from Ocellus's death, 4301 [1943..2044]); song 147 |
 | A | `tfa_vault_scoreboard` "Merit scroll" (33,18) r1 shape 10; `tfa_vault_exit` "Rift" (31,13) r0 shape 10 |
 | A | the eight chests `tfa_rewards_chest_vault_N_closed` (multinpc on varbit 16433 `tfa_vault_own_chest`: chest N is `_closed_mine` to the raider whose varbit is N, `_closed_notmine` to everyone else), each `[facing] coord=` (31,40): 1 (28,33), 2 (34,33), 3 (25,36), 4 (37,36), 5 (24,40), 6 (38,40), 7 (25,43), 8 (37,43) (2/2) |
 | A | five `tfa_butterfly01` at (35,35), (34,40), (27,34), (31,37), (21,47), wandering a tile a tick (2/2) |

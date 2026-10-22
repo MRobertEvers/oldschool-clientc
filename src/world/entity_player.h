@@ -3,6 +3,7 @@
 
 #include "entity_facets.h"
 #include "entity_tint.h"
+#include "entity_transparency.h"
 
 /* WorldEntity_Player.body.npc_id when the mounted model is not an npc's: built
  * from the appearance slots, or an empty model because the transmog's multinpc
@@ -82,6 +83,10 @@ struct WorldEntity_Player
      *  while world->cycle is in its window. Zeroed (weight 0) = none. Applied
      *  per frame by app_world_sync_player_tints. */
     struct WorldEntityTint tint;
+    /** Rev-241 PLAYER_INFO transparency (`p_transparency`, flag 0x10000): the
+     *  same state an npc's fade lives in (deob class83.field844, class17).
+     *  Applied per frame by app_world_sync_player_transparency. */
+    struct WorldEntityTransparency transparency;
 
     int loc_start_cycle;
     int loc_stop_cycle;

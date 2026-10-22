@@ -1352,3 +1352,33 @@ app_world_sync_npc_transparency(struct App* app)
     }
 }
 
+/* The player half: rev-241 PLAYER_INFO transparency (`p_transparency`). The
+ * deob keeps a player's fade in the same Actor field an npc's lives in
+ * (class83.field844, class17) and Player.getModel hands it to the body as
+ * Npc.getModel does, so it shares the saves and the revert above. */
+void
+app_world_sync_player_transparency(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+    if( !app->world )
+        return;
+    pool = &app->world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        int alpha;
+
+        if( !player || player->element_id < 0 || !player->transparency.set )
+            continue;
+        alpha = WorldEntityTransparency_Alpha(&player->transparency, app->world->cycle);
+        if( alpha <= 0 )
+            continue;
+        if( !app_fade_element(app, player->element_id,
+                              WORLD_ENTITY_ID(WORLD_ENTITY_KIND_PLAYER, player->server_pid), alpha) )
+            break;
+    }
+}
+

@@ -65,13 +65,13 @@ The recorder's own player only, unless the transcript was made with `--all-playe
 | `[spotanim] slot=, id=, delay=, height=` | slot 0..255 (absent = 0); height in raw units (92 chest, 124 head) | a graphic on the player | `spotanim_pl(spot, height, delay)`, `spotanim_pl_slot(spot, slot, height, delay)` |
 | `[face_angle] angle=[, instant=true]` (rev ≤237) | 0..2047 | turn to a fixed angle. A face on a LOC also arrives as this in ≤237. | `facesquare(coord)` (the server computes the angle) |
 | `[face_pathingentity] npc=/player=/entity=null` (≤237) | | keep facing an entity / stop | interaction engine: talk-to, attack, follow |
-| `[facing] ...` (rev 238+, one packet for all of the above) | `coord=(..)[, sizex=, sizez=]` faces a tile or a loc's footprint; `angle=`; `npc=/player=(...), fallbackangle=`; `type=reset` | as the three ≤237 kinds | as above |
+| `[facing] ...` (rev 238+, one packet for all of the above) | `coord=(..)[, sizex=, sizez=]` faces a tile or a loc's footprint; `angle=[, instant=true]`; `npc=/player=(...), fallbackangle=`; `type=reset` | as the three ≤237 kinds | as above; a player's `angle=` is `p_faceangle(angle, instant)` (rev 241) |
 | `[exactmove] to1=, delay1=, to2=, delay2=, angle=` | to1/to2 absolute tiles; delays in cycles; angle 0..2047 | forced movement (agility, knockback). Slides from to1 (reached at delay1) to to2 (at delay2), facing `angle`. The player's real tile is set separately (a teleport line) | `p_exactmove(start, end, startcyc, endcyc, dir)` + `p_teleport` |
 | `[hit] id=, value=` | hitsplat type, amount | splat | combat / `hitmark` / `hitmark_bar` |
 | `[headbar] id=, fill=` | healthbar type; fill out of the bar's width (30 for id 0) | hp bar. Ours: `1 + left*(w-1)/span`, 0 when dead | automatic on damage |
 | `[say] text=` | | overhead text | `say(text)` |
 | `[tinting] start=, end=, hue=, saturation=, lightness=, weight=` | cycles; hsl 0..255 (-1/255 leaves a channel alone); weight 0 clears | colour overlay (freeze, poison) | `p_tint(start, end, h, s, l, weight)` |
-| `[transparency] start=, end=, starttransparency=, endtransparency=` | cycles, 0..255 | fade in/out | (no command yet) |
+| `[transparency] start=, end=, starttransparency=, endtransparency=, usestarttransparency=` | cycles from arrival (signed), alpha 0 opaque..255 gone | the body fades in/out (rev 241, player flag 0x10000) | `p_transparency(start, end, from, to, usestart)`; npcs `npc_transparency(start, end, from, to)` |
 | `[appearance]` + `[details] name, combatlevel, gender` / `[bas]` / `[model]` | | worn kit; BAS = the stance/walk anims. **BAS and equipment are filtered out** unless transcribed with `--bas`. | equipment, `p_transmogrify`, `walkanim` etc. |
 | `[player_reset] value=` | | clears the client's per-player animation state | |
 | `[name_change]`, `[freeze] delay, duration` | | rare | |

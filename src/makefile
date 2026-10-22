@@ -3591,9 +3591,19 @@ RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o
 test-mock239-playerinfo: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
+		torirsserver/mock241_playerinfo.c \
 		net/rev/osrs239/osrs239_entity_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
+
+# PLAYER_INFO's rev-241 tail: the server's writer against the client's 241
+# reader, block by block (the face angle and TRANSPARENCY above all).
+test-mock241-playerinfo: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock241_playerinfo_test $(TORIMEM_SRCS) \
+		torirsserver/test/mock241_playerinfo_test.c torirsserver/mock239_playerinfo.c \
+		torirsserver/mock241_playerinfo.c net/rev/osrs241/osrs241_entity_info.c \
+		net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c -lm
+	./$(OBJ_DIR)/mock241_playerinfo_test
 
 # Golden client->server interface callback layouts. Kept independent of the
 # world/server link so byte order, inner framing and typed-tail losslessness can

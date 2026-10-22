@@ -11,7 +11,7 @@ tile), `tools/room_inv.py`. Bork is 4x4, the Smorks' cart 3x3 (cache).
 
 | fact | evidence |
 |---|---|
-| Template square (65,87); raiders arrive west of the arena at (4174,5600) | 4303 [331] |
+| Template square (65,87); raiders arrive west of the arena on any tile of (4170..4172, 5598..5600), facing east (`nexus_plan.md` §6) | 37/37 |
 | Added with the room: `tfa_bork` (4194,5603) spawnangle west (9 of 13 adds; the other four, 4303's (4192,5601) south-west among them, were re-adds after a wander); `tfa_smork` ("The Smorks", the cart) (4190,5598) west; `tfa_bork_smork_hp_ui_handler` (4161,5569) south (the bar's npc, no ops) | 2/2 |
 | The Archive transporter (4180,5599) rot 1: over the wall to (4187,5599), sprite 409 | 4303 [345], [347] |
 | Bork wanders the arena until the fight starts, the whole of it: 10 tiles west and 11 south of his spawn recorded (a 12-tile walk at 4316 [555..566]) | 4294, 4303, 4316 |

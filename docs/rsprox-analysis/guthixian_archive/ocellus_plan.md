@@ -12,7 +12,7 @@ projectiles of a window).
 
 | fact | evidence |
 |---|---|
-| Raiders arrive at (4126,5636,1), local (30,4), facing north up the hall; the arena is 33 tiles on | 4301 [876..892] |
+| Raiders arrive on any tile of (4126..4128, 5635..5637, 1), local (30..32, 3..5), their facing reset, O+8 after the door (`nexus_plan.md` §6); the arena is 33 tiles on | 4301 [876..892] |
 | Added with the room: `tfa_ocellus_intro` ("Hooded Figure" until `varb16384_tfa_ocellus_met`) at (-1,-4) facing north, `invisible_type8_blocking` on his 9 tiles; the four censers `tfa_ocellus_artifact_heal` (11,-11), `_damage_ranged` (-11,-11), `_damage_melee` (11,11), `_spec` (-11,11) | 4301 [875], 4308 [1458] |
 | Until the fight, `vfx_ocellus_sword_repair_particles_01` at the middle every 3 ticks | 4301 [878..911] |
 | Talk-to (not met) / Proceed (met) start it; no recording holds his dialogue (both are spectators') | |

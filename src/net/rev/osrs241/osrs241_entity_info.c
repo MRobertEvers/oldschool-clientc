@@ -1176,11 +1176,23 @@ player_extended(
          * g1sAlt1 end alpha, g1Alt3 use-start. */
         if( (flag & V5_PLAYER_TRANSPARENCY) != 0 )
         {
-            (void)tail_g2_alt3(data, len, &pos);
-            (void)tail_g2_alt3(data, len, &pos);
-            (void)tail_g1_alt1(data, len, &pos);
-            (void)tail_g1_alt1(data, len, &pos);
-            (void)tail_g1_alt3(data, len, &pos);
+            /* deob class81 flag 0x10000 -> class78.method1997 ->
+             * class17.method328, the state an npc's fade lives in. */
+            int start = tail_g2_alt3(data, len, &pos);
+            int end = tail_g2_alt3(data, len, &pos);
+            int from = tail_g1_alt1(data, len, &pos);
+            int to = tail_g1_alt1(data, len, &pos);
+            int use_start = tail_g1_alt3(data, len, &pos);
+            struct PktPlayerInfoOp* op = player_op(r, PKT_PLAYER_INFO_OP_TRANSPARENCY);
+
+            if( op )
+            {
+                op->_transparency.start_cycle_delta = (int16_t)start;
+                op->_transparency.end_cycle_delta = (int16_t)end;
+                op->_transparency.from = (uint8_t)from;
+                op->_transparency.to = (uint8_t)to;
+                op->_transparency.use_start = use_start != 0;
+            }
         }
         /* decodePlayerReset: g1. */
         if( (flag & V5_PLAYER_RESET) != 0 )

@@ -1473,6 +1473,18 @@ World_PlayerSetTint(
     int lightness,
     int weight);
 
+/* Rev-241 PLAYER_INFO transparency (flag 0x10000): World_NpcSetTransparency's
+ * rules on a player (deob class81 -> class17.method328). */
+void
+World_PlayerSetTransparency(
+    struct World* world,
+    int idx,
+    int start_cycle_delta,
+    int end_cycle_delta,
+    int from,
+    int to,
+    bool use_start);
+
 /* Rev-239 NPC_INFO tinting block (flag 0x100): World_PlayerSetTint's rules on
  * an npc -- the cycles are deltas from the client cycle the block lands on. */
 void
