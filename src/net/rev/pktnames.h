@@ -281,6 +281,10 @@ enum GameProtoPktName
     /* A varp's long value (rev 241 VARP_LONG). Appended likewise. */
     PKT_NAME_VARP_LONG,
 
+    /* A projectile flown by three curve clientscripts (rev 241 zone
+     * SCRIPTEDPROJ_ADD, struct PktScriptedProjAdd). Appended likewise. */
+    PKT_NAME_SCRIPTEDPROJ_ADD,
+
     PKT_NAME_COUNT
 };
 

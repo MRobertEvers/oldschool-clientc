@@ -376,6 +376,9 @@ zone_sub_packet_copy(
     case PKT_NAME_MAP_PROJANIM:
         dst->_map_projanim = *(struct PktMapProjAnim const*)payload;
         return 1;
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+        dst->_scriptedproj_add = *(struct PktScriptedProjAdd const*)payload;
+        return 1;
     default:
         return 0;
     }
@@ -913,6 +916,52 @@ exec_zone_sub_packet_at(
             pkt->arc,
             pkt->target,
             pkt->source);
+        break;
+    }
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+    {
+        /* Rev-241 scripted projectile (deob class278.field3437 -> new class56):
+         * the source is the zone tile, the target an absolute coord taken to
+         * scene tiles against the rebuild origin as MAP_PROJANIM's is. */
+        struct PktScriptedProjAdd const* pkt = payload;
+        int origin_x = (ctx->app->rebuild_zone_x - 6) * 8;
+        int origin_z = (ctx->app->rebuild_zone_z - 6) * 8;
+        struct AppScriptedProj sp;
+
+        zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
+        assert(app->world);
+        App_DriveProjectileNote(
+            app,
+            app->world->_base_tile_x + tile_x,
+            app->world->_base_tile_z + tile_z,
+            pkt->target_x,
+            pkt->target_z,
+            pkt->target_level,
+            pkt->spotanim,
+            pkt->target,
+            pkt->start_delay,
+            pkt->end_delay);
+        sp = (struct AppScriptedProj){
+            .src_x = tile_x,
+            .src_z = tile_z,
+            .src_level = level,
+            .src_offset_x = pkt->source_offset_x,
+            .src_offset_z = pkt->source_offset_z,
+            .src_height = pkt->source_height,
+            .source = pkt->source,
+            .dst_x = pkt->target_x - origin_x,
+            .dst_z = pkt->target_z - origin_z,
+            .dst_level = pkt->target_level,
+            .dst_offset_x = pkt->target_offset_x,
+            .dst_offset_z = pkt->target_offset_z,
+            .dst_height = pkt->target_height,
+            .target = pkt->target,
+            .spotanim_id = pkt->spotanim,
+            .start_delay = pkt->start_delay,
+            .end_delay = pkt->end_delay,
+            .curve = { pkt->curve_h, pkt->curve_a, pkt->curve_t },
+        };
+        App_WorldScriptedProjSpawn(app, &sp);
         break;
     }
     case PKT_NAME_LOC_MERGE:
@@ -1901,6 +1950,9 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_MAP_PROJANIM:
         exec_zone_sub_packet(ctx, PKT_NAME_MAP_PROJANIM, &packet->_map_projanim);
+        break;
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+        exec_zone_sub_packet(ctx, PKT_NAME_SCRIPTEDPROJ_ADD, &packet->_scriptedproj_add);
         break;
     case PKT_NAME_LOC_MERGE:
         exec_zone_sub_packet(ctx, PKT_NAME_LOC_MERGE, &packet->_loc_merge);

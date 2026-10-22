@@ -1275,6 +1275,18 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # (`[bas]`), as the Guardian lifts (4297 [536], [1005]).
     "NPC_BASRESET": (11261, 0, 0, 0, 0),
 
+    # npc_scriptedproj_pl(coord $from, player_uid $to, spotanim $spotanim,
+    #     int $fromHeight, int $toHeight, int $delay, int $duration,
+    #     int $curve_h, int $curve_a, int $curve_t)
+    #
+    # A rev-241 SCRIPTEDPROJ_ADD from the active npc to a player: the flight
+    # is not an arc but three clientscripts the client runs every cycle on the
+    # progress (0..65535) -- `$curve_h` sideways, `$curve_a` up, `$curve_t`
+    # along -- deob class56.method1439. Heights are raw (not x4). Ocellus's
+    # strike, "Embrace... annihilation...", is 10024/10018/10017 (RSProx 4301
+    # [1140]).
+    "NPC_SCRIPTEDPROJ_PL": (11262, 10, 0, 0, 0),
+
     # npc_setlevel(int $level)
     #
     # The active npc's drawn combat level, NPC_INFO's LEVEL_CHANGE now and on
@@ -1877,6 +1889,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACERESET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_BASREADY": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_BASRESET": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SCRIPTEDPROJ_PL": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETLEVEL": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEWALKTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),

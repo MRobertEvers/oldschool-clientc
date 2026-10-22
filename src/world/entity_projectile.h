@@ -77,6 +77,28 @@ struct WorldEntity_Projectile
     double velocity;
     double ay;
     struct WorldEntityFacet_OrientationPYR orientation;
+
+    /*
+     * A rev-241 scripted projectile (SCRIPTEDPROJ_ADD, deob class56): no arc,
+     * no velocity. Every cycle from t1 the position is the ORIGIN plus the
+     * three curve clientscripts' answers on the progress, along the axes of
+     * origin -> target (class56.method1439). The fields above that it shares
+     * are the ends (src/dst, levels, heights, source/target ids), the times and
+     * x/y/z/orientation; vx..ay go unused.
+     */
+    bool scripted;
+    /** H (sideways), A (up) and T (along) curve clientscript ids. */
+    int curve[3];
+    /** Fine offsets added to each end after its actor or tile is found. */
+    int src_offset_x;
+    int src_offset_z;
+    int dst_offset_x;
+    int dst_offset_z;
+    /** The fixed start, read once at the first launched cycle (the deob's
+     *  field508/field517/field510). */
+    float origin_x;
+    float origin_y;
+    float origin_z;
 };
 
 #endif

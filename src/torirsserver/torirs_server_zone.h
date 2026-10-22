@@ -141,6 +141,15 @@ enum ToriRSServerZoneEventKind
      * drop-off range, `shape` the loop count.
      */
     TORIRSSERVER_ZONE_EV_SOUNDAREA,
+    /**
+     * A rev-241 scripted projectile -- `npc_scriptedproj_pl`. Wire
+     * SCRIPTEDPROJ_ADD. The PROJANIM fields carry the ends, the spotanim and
+     * the two delays; `src_height`/`dst_height` are RAW heights (the packet
+     * has no x4); the path is the three curve clientscripts and `slot` names
+     * the shot. Revision 241 only: no other wire has the packet, and the event
+     * is dropped there.
+     */
+    TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ,
 };
 
 /**
@@ -214,6 +223,10 @@ struct ToriRSServerZoneEvent
     /** Client-TS `angle` and `startpos` — how high the arc goes and how far
      *  along it the projectile is drawn at spawn. */
     int peak, arc;
+    /** SCRIPTEDPROJ: the H (sideways), A (up) and T (along) curve
+     *  clientscripts and the client-side slot. */
+    int curve_h, curve_a, curve_t;
+    int slot;
 
     /**
      * OBJ_ADD: ticks until this obj vanishes, or 0 for one that never does.
@@ -507,6 +520,30 @@ ToriRSServer_ZoneProjanim(
     int end_delay,
     int peak,
     int arc);
+
+/**
+ * Queue SCRIPTEDPROJ_ADD (rev 241): a projectile whose path is three curve
+ * clientscripts. Filed in the source tile's zone like ToriRSServer_ZoneProjanim;
+ * `target`/`source` use the same encoding. Heights are raw.
+ */
+void
+ToriRSServer_ZoneScriptedProj(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int source,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int curve_h,
+    int curve_a,
+    int curve_t);
 
 /**
  * Queue MAP_ANIM: free-standing spotanim at (x,z,level). Filed in that tile's

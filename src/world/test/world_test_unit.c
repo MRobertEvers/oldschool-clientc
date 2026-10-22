@@ -508,6 +508,98 @@ test_projectile_source(void)
     World_Free(world);
 }
 
+/* The three curve clientscripts Ocellus's strike names, transcribed from the
+ * 239 cache's CS2 (OSRS-Content scripts/int_sin_fixed.cs2 and friends) so the
+ * world's flight can be checked without a VM. */
+static int
+test_int_sin_fixed(int v)
+{
+    int sign = 1;
+    int a;
+    int b;
+
+    v &= 65535;
+    if( v >= 32768 )
+    {
+        v -= 32768;
+        sign = -1;
+    }
+    if( v > 16384 )
+        v = 32768 - v;
+    a = v * (32768 - v) / 4096;
+    b = a * (65536 - a);
+    b = 29 * (b / 65535);
+    b /= 128;
+    a -= b;
+    if( a > 65535 )
+        a = 65535;
+    if( a < 0 )
+        a = 0;
+    return sign * a;
+}
+
+static int
+test_curve_fn(
+    void* userdata,
+    int script_id,
+    int progress)
+{
+    (void)userdata;
+    if( script_id == 10024 ) /* int_sin3_half */
+        return test_int_sin_fixed(progress * 3) / 2;
+    if( script_id == 10018 ) /* int_zero_stub */
+        return 0;
+    assert(script_id == 10017); /* int_identity_stub */
+    return progress;
+}
+
+/* Deob class56.method1439: a scripted projectile is the start plus the curves'
+ * answers along the axes of start -> target -- here a flight east, 10 tiles,
+ * from 500 up to 124 up over flat ground at 500, weaving by int_sin3_half.
+ * A quarter of one weave (progress 1/12) is half a tile to the SOUTH: the
+ * side axis is UP x dir with UP (0, 1, 0) in this negative-up frame. */
+void
+test_projectile_scripted(void)
+{
+    printf("TEST: scripted projectile\n");
+
+    struct World* world = World_TestMakeReady(104);
+    World_SetHeightFn(world, test_height_fn, NULL);
+    World_SetCurveFn(world, test_curve_fn, NULL);
+
+    int idx = World_ProjectileSpawn(
+        world, 44, 0, 0, 10 * 128 + 64, 10 * 128 + 64, 20 * 128 + 64, 10 * 128 + 64, 500 - 500, 500, 124,
+        0, 36, 0, 0, WORLD_PROJECTILE_TARGET_NONE, WORLD_PROJECTILE_TARGET_NONE);
+    World_ProjectileMakeScripted(world, idx, 10024, 10018, 10017, 0, 0, 0, 0);
+    struct WorldEntity_Projectile* proj = World_EntityPoolGet(&world->entities.projectile, idx);
+
+    for( int t = 0; t < 3; t++ )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(proj->launched, "launched");
+    TEST_ASSERT(proj->origin_x == 10 * 128 + 64 && proj->origin_y == 0.0f &&
+                    proj->origin_z == 10 * 128 + 64,
+                "origin is the source at its height");
+    TEST_ASSERT(fabs(proj->z - (10 * 128 + 64 - 64)) < 1.0, "a quarter weave is half a tile south");
+    {
+        /* T is the identity: 1/12 of the way along the 3D line. */
+        double len = sqrt(1280.0 * 1280.0 + 376.0 * 376.0);
+        double along = (5461.0 / 65536.0) * len;
+        TEST_ASSERT(fabs(proj->x - (10 * 128 + 64 + along * 1280.0 / len)) < 1.0, "x along the line");
+        TEST_ASSERT(fabs(proj->y - along * 376.0 / len) < 1.0, "y along the line");
+    }
+    TEST_ASSERT(proj->orientation.yaw != 0, "yaw follows the step");
+
+    while( proj->cycle < proj->t2 )
+        World_TestCycle(world, 1);
+    TEST_ASSERT(fabs(proj->x - (20 * 128 + 64)) < 1.0 && fabs(proj->z - (10 * 128 + 64)) < 1.0,
+                "lands on the target tile");
+    TEST_ASSERT(fabs(proj->y - (500 - 124)) < 1.0, "at the target height");
+    World_TestCycle(world, 1);
+    TEST_ASSERT(world->entities.projectile.active_count == 0, "gone after t2");
+
+    World_Free(world);
+}
+
 /* Reference addProjectiles (Client.ts:4593): a projectile with a target entity
  * re-reads that entity's live position every cycle and re-aims, so the arc
  * bends to follow a target that moved after the cast. Wire ids: npc slot + 1,

@@ -1500,6 +1500,25 @@ core_zone_sub(
         p->end_delay = pkt->end_delay;
         break;
     }
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+    {
+        struct PktScriptedProjAdd const* pkt = payload;
+        struct ScriptrunProjectile* p;
+        assert(core->projectile_count < SCRIPTRUN_PROJECTILES);
+        core_zone_tile(core, pkt->pos, &x, &z, &level);
+        p = &core->projectiles[core->projectile_count++];
+        p->spotanim = pkt->spotanim;
+        p->src_x = x;
+        p->src_z = z;
+        p->dst_x = pkt->target_x;
+        p->dst_z = pkt->target_z;
+        p->level = pkt->target_level;
+        p->target = pkt->target;
+        p->launch_cycle = (int)core->world->cycle;
+        p->start_delay = pkt->start_delay;
+        p->end_delay = pkt->end_delay;
+        break;
+    }
     default:
         break;
     }

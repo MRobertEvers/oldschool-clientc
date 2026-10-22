@@ -5041,6 +5041,14 @@ struct ToriRSServer
     int projectile_tick;
     int projectile_target;
     int projectile_land_cycle;
+    /**
+     * The next SCRIPTEDPROJ_ADD `slot`. The client files a scripted projectile
+     * under its slot and ignores an add for a slot it already holds (deob
+     * class278.field3437: `field1698.method14323(slot) == null`), so each shot
+     * takes a fresh one; Jagex's count up by one a shot (RSProx 4301 [1140]:
+     * 5349, 5350, 5351).
+     */
+    int scriptedproj_slot;
     /** While a queued hit runs: the landing cycle its entry carried, else 0.
      *  Hitmarks added then wait for it (`ToriRSServer_HitClientDelay`). */
     int hit_land_cycle;

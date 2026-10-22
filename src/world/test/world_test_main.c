@@ -16,6 +16,7 @@ main(void)
     test_obj_stack_placeholder();
     test_projectile_target();
     test_projectile_source();
+    test_projectile_scripted();
     test_spotanim();
     test_spotanim_immediate_activation();
     test_spotanim_catchup_activation();

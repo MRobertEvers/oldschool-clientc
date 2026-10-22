@@ -90,7 +90,7 @@ static const struct Osrs241PacketInDef g_packet_in_definitions_osrs241[] = {
     {  105, 6,                     PKT_NAME_MAP_ANIM,                   "MAP_ANIM" },
     {   -1, 24,                    PKT_NAME_MAP_PROJANIM,               "MAP_PROJANIM_V2" },
     {  106, 7,                     PKT_NAME_NONE,                       "SOUND_AREA" },
-    {   -1, 37,                    PKT_NAME_NONE,                       "SCRIPTEDPROJ_ADD" },
+    {   -1, 37,                    PKT_NAME_SCRIPTEDPROJ_ADD,           "SCRIPTEDPROJ_ADD" },
     {   -1, 18,                    PKT_NAME_NONE,                       "SCRIPTEDPROJ_CHANGE" },
     {   99, 27,                    PKT_NAME_NONE,                       "PROJANIM_SPECIFIC_V4" },
     {  109, 8,                     PKT_NAME_MAP_ANIM_SPECIFIC,          "MAP_ANIM_SPECIFIC" },

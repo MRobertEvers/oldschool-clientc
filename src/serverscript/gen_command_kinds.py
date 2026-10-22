@@ -70,6 +70,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_facereset]",
     "[command,npc_basready](seq $seq)",
     "[command,npc_basreset]",
+    "[command,npc_scriptedproj_pl](coord $from, player_uid $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $curve_h, int $curve_a, int $curve_t)",
     "[command,npc_setlevel](int $level)",
     "[command,npc_facewalktype](int $type)",
     "[command,npc_facesquareinstant](coord $coord)",

@@ -11720,6 +11720,64 @@ script_command(
     }
 
     /*
+     * npc_scriptedproj_pl(coord $from, player_uid $to, spotanim, fromHeight,
+     * toHeight, delay, duration, curve_h, curve_a, curve_t) -- rev 241
+     * SCRIPTEDPROJ_ADD from the active npc. The client runs the three curve
+     * clientscripts on the flight's progress every cycle (deob
+     * class56.method1439) instead of flying an arc, so this has no peak or
+     * progress; the heights are raw, not x4.
+     *
+     * A revision without the packet gets the nearest plain shot instead -- a
+     * flat MAP_PROJANIM at the same heights (/4) and times -- rather than
+     * nothing at all.
+     */
+    case SS_OP_NPC_SCRIPTEDPROJ_PL:
+    {
+        int32_t values[10];
+        struct ToriRSServerNpc* from = active_npc(state);
+        struct ToriRSServerPlayer* target_player;
+        int target;
+        int source;
+
+        for( int i = 9; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( !from )
+        {
+            SSVM_Abort(state, "npc_scriptedproj_pl with no active npc");
+            return 1;
+        }
+        target_player = player_by_uid(srv, values[1]);
+        if( !target_player )
+        {
+            SSVM_Abort(state, "npc_scriptedproj_pl: player uid %d is not a live player",
+                       (int)values[1]);
+            return 1;
+        }
+        source = (int)(from - srv->npcs) + 1;
+        target = -target_player->pid - 1;
+        if( ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ) )
+            ToriRSServer_ZoneScriptedProj(
+                srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
+                ToriRSServer_CoordLevel(values[0]), target_player->x, target_player->z, target,
+                source, (int)values[2], (int)values[3], (int)values[4], (int)values[5],
+                (int)values[6], (int)values[7], (int)values[8], (int)values[9]);
+        else
+            ToriRSServer_ZoneProjanim(
+                srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
+                ToriRSServer_CoordLevel(values[0]), target_player->x, target_player->z, target,
+                source, (int)values[2], (int)values[3] / 4, (int)values[4] / 4, (int)values[5],
+                (int)values[6], 0, 0);
+        srv->projectile_tick = srv->tick;
+        srv->projectile_target = target;
+        srv->projectile_land_cycle =
+            srv->tick * TORIRSSERVER_CLIENT_CYCLES_PER_TICK + (int)values[6];
+        return 1;
+    }
+
+    /*
      * The hint arrow family -- `hint_npc`, `hint_coord`, `hint_pl`, `hint_stop`.
      *
      * These were in `k_opcode_gap_allowed` with the note "blocked on the

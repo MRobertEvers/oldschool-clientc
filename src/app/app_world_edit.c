@@ -201,6 +201,24 @@ App_WorldProjectileSpawn(
     app_spawn_effect_queue(app, task);
 }
 
+void
+App_WorldScriptedProjSpawn(
+    struct App* app,
+    struct AppScriptedProj const* sp)
+{
+    struct Task_AppSpawn* task;
+    assert(app);
+    assert(sp);
+    task = app_spawn_task_new(app, APP_SPAWN_SCRIPTED_PROJ, sp->dst_x, sp->dst_z, sp->dst_level);
+    task->spotanim_id = sp->spotanim_id;
+    task->scripted = *sp;
+    for( int i = 0; i < 3; i++ )
+        task->curve_scripts[i] = sp->curve[i];
+    task->curve_script_count = 3;
+    task->curve_script_cursor = 0;
+    app_spawn_effect_queue(app, task);
+}
+
 /* Zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate + locChangeDoQueue):
  * enqueue an async change that awaits the loc config + its models (+ seq), then
  * applies it via WorldBuilder_ApplyLocChange. loc_id < 0 = delete. Public so the

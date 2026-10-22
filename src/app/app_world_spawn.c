@@ -9,6 +9,10 @@
 #include "app/app_internal.h"
 #include "mem/torirs_mem.h"
 
+#include "cs2vm2/cs2_opcode.h"
+#include "cs2vm2/cs2vm2_host.h"
+#include "cs2vm2/cs2vm2_script.h"
+
 /* Has this npc id already been reported as unavailable?  16384 bits is 2KB and
  * covers the whole npc id space of every revision here (osrs239 tops out near
  * 13000); an id past the end warns every time rather than being dropped. */
@@ -59,6 +63,12 @@ app_world_spawn_projectile_spot_now(
     int arc,
     int target,
     int source,
+    int late);
+static void
+app_world_spawn_scripted_proj_now(
+    struct App* app,
+    struct World* world,
+    struct AppScriptedProj const* sp,
     int late);
 static void
 app_loc_change_apply_ops(
@@ -1165,6 +1175,182 @@ app_world_spawn_projectile_spot_now(
     app->need_redraw = 1;
 }
 
+/*
+ * The curve VM's host. A curve clientscript is pure arithmetic: the only thing
+ * it asks of a host is a GOSUB, and the spawn task made every script it can
+ * call resident (app_spawn_curve_callees), so a callee is never awaited here.
+ * Anything else is a curve script this client cannot run synchronously.
+ */
+static int
+app_curve_host_exec(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest* request)
+{
+    struct App* app = (struct App*)CS2VM_USER(thread);
+    struct CS2VM2_Script* script;
+
+    assert(app);
+    assert(request);
+    assert(request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS);
+    script = CacheProvider_ClientScriptGet(app->provider, request->u.GOSUB_WITH_PARAMS.script_id);
+    assert(script);
+    return CS2VM2_PushCallScript(thread, script);
+}
+
+/*
+ * World_CurveFn: one curve clientscript run synchronously on `progress`
+ * (deob class56.method1470 -- a script event of [script, progress], its first
+ * int result read back). Resident by construction: the spawn task loaded the
+ * script and its callees before the projectile existed.
+ */
+static int
+app_world_curve(
+    void* userdata,
+    int script_id,
+    int progress)
+{
+    struct App* app = (struct App*)userdata;
+    struct CS2VM2_Script* script;
+    struct CS2VM2_Thread* thread;
+    struct CS2VM2_ThreadError err = { 0 };
+    enum CS2VM2_ThreadStatus status;
+    int value = 0;
+
+    assert(app);
+    script = CacheProvider_ClientScriptGet(app->provider, script_id);
+    assert(script);
+    if( !app->curve_vm )
+    {
+        app->curve_vm = CS2VM2_Acquire();
+        assert(app->curve_vm);
+        CS2VM2_BindHost(app->curve_vm, app, app_curve_host_exec);
+    }
+    thread = CS2VM2_ThreadMain(app->curve_vm);
+    CS2VM2_ThreadStart(thread, script);
+    CS2VM2_SetIntCurrentFrameLocal(thread, 0, progress);
+    status = CS2VM2_ThreadRun(thread, &err);
+    if( status != CS2VM2_THREAD_DONE || CS2VM2_PopInt(thread, &value) != CS2VM_EXECNO_OK )
+    {
+        TORIRS_ERR("curve script %d failed at opcode %d (script %d pc %d)\n",
+            script_id, err.opcode, err.script_id, err.pc);
+        return 0;
+    }
+    return value;
+}
+
+/* Every script the curve scripts GOSUB, appended to the task's list (each
+ * once): the world runs them synchronously, so nothing may be loaded late. */
+static void
+app_spawn_curve_callees(
+    struct Task_AppSpawn* self,
+    struct CS2VM2_Script const* script)
+{
+    assert(self);
+    assert(script);
+    for( int i = 0; i < script->op_count; i++ )
+    {
+        int callee;
+        int seen = 0;
+
+        if( script->opcodes[i] != CS2_OP_GOSUB_WITH_PARAMS )
+            continue;
+        callee = script->int_operands[i];
+        for( int j = 0; j < self->curve_script_count; j++ )
+            seen |= self->curve_scripts[j] == callee;
+        if( seen )
+            continue;
+        assert(self->curve_script_count < (int)(sizeof(self->curve_scripts) / sizeof(self->curve_scripts[0])));
+        self->curve_scripts[self->curve_script_count++] = callee;
+    }
+}
+
+/* A rev-241 scripted projectile (deob class56). SYNCHRONOUS -- the spotanim,
+ * its model and seq, and every curve script must be resident (Task_AppSpawn
+ * awaits them). Placed as a MAP_PROJANIM is, then handed to the world as
+ * scripted: the world flies it by the curves, not by an arc. */
+static void
+app_world_spawn_scripted_proj_now(
+    struct App* app,
+    struct World* world,
+    struct AppScriptedProj const* sp,
+    int late)
+{
+    struct ToriRS_Spotanimtype* spot;
+    struct ToriDraw_Model* model;
+    int src_x, src_z, src_y;
+    int element_id;
+    int idx;
+    struct WorldEntity_Projectile* p;
+
+    assert(app);
+    assert(world);
+    assert(sp);
+    assert(late >= 0);
+    if( late > sp->end_delay )
+        return;
+    spot = CacheProvider_SpotanimtypeGet(app->provider, sp->spotanim_id);
+    if( !spot )
+    {
+        TORIRS_LOG("spawn_scripted_proj: spotanim %d not resident\n", sp->spotanim_id);
+        return;
+    }
+    model = app_world_build_spotanim_model(app, spot);
+    if( !model )
+    {
+        TORIRS_ERR("spawn_scripted_proj: spotanim %d model %d failed\n", sp->spotanim_id, spot->model);
+        return;
+    }
+
+    src_x = sp->src_x * 128 + 64;
+    src_z = sp->src_z * 128 + 64;
+    /* Raw: the deob subtracts the packet's height from the ground as it is. */
+    src_y = app_world_ground_composed(app, src_x, src_z, sp->src_level) - sp->src_height;
+    element_id = app_world_scene_element_create(
+        app, TORIDRAW_ELEMENT_KIND_PROJECTILE, model, src_x, src_y, src_z);
+    if( element_id < 0 )
+        return;
+
+    World_SetCurveFn(world, app_world_curve, app);
+    idx = World_ProjectileSpawn(
+        world,
+        element_id,
+        sp->src_level,
+        sp->dst_level,
+        src_x,
+        src_z,
+        sp->dst_x * 128 + 64,
+        sp->dst_z * 128 + 64,
+        src_y,
+        sp->src_height,
+        sp->dst_height,
+        sp->start_delay,
+        sp->end_delay,
+        0,
+        0,
+        sp->target,
+        sp->source);
+    World_ProjectileMakeScripted(
+        world,
+        idx,
+        sp->curve[0],
+        sp->curve[1],
+        sp->curve[2],
+        sp->src_offset_x,
+        sp->src_offset_z,
+        sp->dst_offset_x,
+        sp->dst_offset_z);
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    assert(p);
+    p->spotanim_id = sp->spotanim_id;
+    p->unbound_seq = spot->seq;
+    if( late > 0 )
+        p->cycle = late;
+    ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, true);
+    app_world_load_seq(app, spot->seq);
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
 /* Free-standing spotanim (reference MapSpotAnim / MAP_ANIM). SYNCHRONOUS — the
  * spotanimtype, its model and its seq must already be resident (Task_AppSpawn
  * awaits them). Builds the transformed model, spawns the world entity with a
@@ -1596,6 +1782,38 @@ Task_AppSpawn_Run(
                     self->proj_target,
                     self->proj_source,
                     app_spawn_effect_late(self, world));
+        }
+    }
+    else if( self->kind == APP_SPAWN_SCRIPTED_PROJ )
+    {
+        PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        app_spawn_fan_spotanim_assets(self);
+        PT_TASK_JOIN(pending);
+        /* The curve scripts and, as each lands, the scripts it calls. */
+        for( ; self->curve_script_cursor < self->curve_script_count; self->curve_script_cursor++ )
+        {
+            if( !CacheProvider_ClientScriptHas(
+                    app->provider, self->curve_scripts[self->curve_script_cursor]) )
+                PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(
+                    app->provider, self->curve_scripts[self->curve_script_cursor]));
+            {
+                struct CS2VM2_Script* script = CacheProvider_ClientScriptGet(
+                    app->provider, self->curve_scripts[self->curve_script_cursor]);
+                /* A cache without the script cannot fly the shot at all. */
+                if( !script )
+                {
+                    TORIRS_ERR("spawn_scripted_proj: curve script %d not in the cache\n",
+                        self->curve_scripts[self->curve_script_cursor]);
+                    PT_EXIT(&self->pt);
+                }
+                app_spawn_curve_callees(self, script);
+            }
+        }
+        {
+            struct World* world = app_spawn_effect_world(self);
+            if( world )
+                app_world_spawn_scripted_proj_now(
+                    app, world, &self->scripted, app_spawn_effect_late(self, world));
         }
     }
     else if( self->kind == APP_SPAWN_PLUGIN_OBJECT )

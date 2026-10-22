@@ -251,7 +251,7 @@ hall, Talk-to; `::tfaboss` to 66%, a quarter, 0). Inventory:
 | cracks | every piece name and turn, delays 60.. / 0.. | same names, our lines random per the rules | matched |
 | middle | out, +4 in + `center01_blockwalk`, four beats 8 apart, the strike (+2 line + `center01`, +3 heal, +4 expend + shots, +5 hits) | same | matched |
 | meter | +2 a missed line with heal 2 and 12512/12513 r20 s5; chip 3..5 to a blocker | same | matched |
-| strike | `scriptedproj_add` (curve scripts) | a plain projectile of `ocellus_proj_test` | **open (engine: no scripted projectiles)** |
+| strike | `scriptedproj_add` (curve scripts) | `npc_scriptedproj_pl`: SCRIPTEDPROJ_ADD, his centre + index at raw 500, the raider at 124, 2 / 39 (+15 a repeat), curves 10024 / 10018 / 10017; the client flies it per deob class56.method1439 (a straight line weaving three times, half a tile either side) | fixed 2026-10-21 (bytes match RSProx's 241 decoder field for field) |
 | strike size | one shot a raider at meters 0..6 | 1 + meter / 8 | unverified past 6 |
 | head icon | `headicon_customisation` 440 on the start | not sent | **open (engine)** |
 | music | `midi_song_v2` with fades | plain `midi_song` | **open (engine)** |

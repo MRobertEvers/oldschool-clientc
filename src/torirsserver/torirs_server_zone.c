@@ -937,6 +937,63 @@ ToriRSServer_ZoneProjanim(
 }
 
 void
+ToriRSServer_ZoneScriptedProj(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int source,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int curve_h,
+    int curve_a,
+    int curve_t)
+{
+    struct ToriRSServerZone* zone;
+    struct ToriRSServerZoneEvent event;
+    int dst_level;
+
+    assert(srv);
+    /* The ends project to the root frame as ToriRSServer_ZoneProjanim's do. */
+    zone_root_point(srv, &x, &z, &level);
+    dst_level = level;
+    zone_root_point(srv, &dst_x, &dst_z, &dst_level);
+    zone = zone_at(srv, x, z, level);
+    if( !zone )
+        return;
+
+    memset(&event, 0, sizeof(event));
+    event.kind = TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ;
+    event.receiver_pid = -1;
+    event.pos = zone_pos(x, z);
+    event.id = spotanim;
+    event.dst_x = dst_x;
+    event.dst_z = dst_z;
+    event.dst_level = dst_level;
+    event.target = target;
+    event.source = source;
+    event.src_height = src_height;
+    event.dst_height = dst_height;
+    event.start_delay = start_delay;
+    event.end_delay = end_delay;
+    event.curve_h = curve_h;
+    event.curve_a = curve_a;
+    event.curve_t = curve_t;
+    event.slot = srv->scriptedproj_slot;
+    srv->scriptedproj_slot = (srv->scriptedproj_slot + 1) & 0xffff;
+    queue_event(srv, zone, &event);
+    ToriRSServer_TicklogProjectile(srv, ToriRSServer_CoordPack(level, x, z),
+                                   ToriRSServer_CoordPack(dst_level, dst_x, dst_z), target,
+                                   spotanim, start_delay, end_delay, source);
+}
+
+void
 ToriRSServer_ZoneSoundArea(
     struct ToriRSServer* srv,
     int x,
@@ -1867,7 +1924,9 @@ write_state(
 static int
 zone_event_names_npc(const struct ToriRSServerZoneEvent* event)
 {
-    return event->kind == TORIRSSERVER_ZONE_EV_PROJANIM && (event->target > 0 || event->source > 0);
+    return (event->kind == TORIRSSERVER_ZONE_EV_PROJANIM ||
+            event->kind == TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ) &&
+           (event->target > 0 || event->source > 0);
 }
 
 /*
@@ -1917,10 +1976,11 @@ build_shared(
         /* Revision 239's MAP_PROJANIM_V2 is 24 payload bytes plus its enclosed
          * ordinal. The classic record fitted in 16, which made a fresh zone's
          * first projectile overflow and disappear; a reused buffer could mask
-         * the defect after some unrelated events had already grown it. */
-        zone->shared = grow(zone->shared, &zone->shared_capacity, zone->shared_len + 32,
+         * the defect after some unrelated events had already grown it. 241's
+         * SCRIPTEDPROJ_ADD is 37 + 1. */
+        zone->shared = grow(zone->shared, &zone->shared_capacity, zone->shared_len + 48,
                             sizeof(*zone->shared));
-        if( zone->shared_len + 32 > zone->shared_capacity )
+        if( zone->shared_len + 48 > zone->shared_capacity )
             return;
         written = ToriRSServer_EncodeZoneSub(srv->wire, zone->shared + zone->shared_len,
                                           zone->shared_capacity - zone->shared_len,
@@ -2104,6 +2164,7 @@ zone_event_kind_name(int kind)
     case TORIRSSERVER_ZONE_EV_LOC_ANIM: return "loc_anim";
     case TORIRSSERVER_ZONE_EV_LOC_MERGE: return "loc_merge";
     case TORIRSSERVER_ZONE_EV_PROJANIM: return "projanim";
+    case TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ: return "scriptedproj";
     case TORIRSSERVER_ZONE_EV_MAPANIM: return "mapanim";
     case TORIRSSERVER_ZONE_EV_SOUNDAREA: return "soundarea";
     default: return "?";
@@ -2214,7 +2275,8 @@ zone_send_transients(
         struct ToriRSServerZoneEvent local;
 
         if( event->kind != TORIRSSERVER_ZONE_EV_PROJANIM && event->kind != TORIRSSERVER_ZONE_EV_MAPANIM &&
-            event->kind != TORIRSSERVER_ZONE_EV_SOUNDAREA )
+            event->kind != TORIRSSERVER_ZONE_EV_SOUNDAREA &&
+            event->kind != TORIRSSERVER_ZONE_EV_SCRIPTEDPROJ )
             continue;
         if( event->receiver_pid >= 0 && event->receiver_pid != player->pid )
             continue;

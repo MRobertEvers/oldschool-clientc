@@ -549,6 +549,18 @@ World_ObjRaiseSetMax(
 }
 
 void
+World_SetCurveFn(
+    struct World* world,
+    World_CurveFn fn,
+    void* userdata)
+{
+    assert(world);
+    assert(fn);
+    world->curve_fn = fn;
+    world->curve_userdata = userdata;
+}
+
+void
 World_SetHeightFn(
     struct World* world,
     World_HeightFn fn,
@@ -1142,6 +1154,34 @@ World_NpcDespawn(
     struct WorldEntity_NPC* npc = World_EntityPoolAt(pool, idx);
     World_EmitNpcRemoved(world, npc);
     World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_ProjectileMakeScripted(
+    struct World* world,
+    int idx,
+    int curve_h,
+    int curve_a,
+    int curve_t,
+    int src_offset_x,
+    int src_offset_z,
+    int dst_offset_x,
+    int dst_offset_z)
+{
+    struct WorldEntity_Projectile* p;
+
+    assert(world);
+    assert(world->curve_fn);
+    p = World_EntityPoolGet(&world->entities.projectile, idx);
+    assert(p);
+    p->scripted = true;
+    p->curve[0] = curve_h;
+    p->curve[1] = curve_a;
+    p->curve[2] = curve_t;
+    p->src_offset_x = src_offset_x;
+    p->src_offset_z = src_offset_z;
+    p->dst_offset_x = dst_offset_x;
+    p->dst_offset_z = dst_offset_z;
 }
 
 int

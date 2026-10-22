@@ -22,6 +22,7 @@
 #include "packets/map_anim.h"
 #include "packets/map_anim_specific.h"
 #include "packets/map_projanim_v2.h"
+#include "packets/scriptedproj_add.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
 #include "packets/loc_add_change_v2.h"
@@ -256,6 +257,7 @@ osrs241_zone_name(int ordinal)
     case OSRS241_ZONE_OBJ_ENABLED_OPS: return PKT_NAME_OBJ_REVEAL;
     case OSRS241_ZONE_MAP_PROJANIM_V2: return PKT_NAME_MAP_PROJANIM;
     case OSRS241_ZONE_SOUND_AREA: return PKT_NAME_SOUND_AREA;
+    case OSRS241_ZONE_SCRIPTEDPROJ_ADD: return PKT_NAME_SCRIPTEDPROJ_ADD;
     default: return PKT_NAME_NONE;
     }
 }
@@ -493,6 +495,35 @@ osrs241_read_zone_sub(
         p->dst_abs_z = m.end_packed & 0x3fff;
         p->dx_offset = 0;
         p->dz_offset = 0;
+        return 1;
+    }
+
+    /* No conversion at all: the deob subtracts these heights from the ground
+     * as they are, and the indices keep MAP_PROJANIM_V2's convention. */
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+    {
+        struct PktScriptedProjAdd* p = &out->_scriptedproj_add;
+
+        ZONE_RUN(rsprot_scriptedproj_add_out, MsgScriptedProjAdd, m);
+        p->pos = m.coord_in_zone_packed;
+        p->source = sign24(m.source_index);
+        p->source_offset_x = (int16_t)m.source_offset_x;
+        p->source_offset_z = (int16_t)m.source_offset_z;
+        p->source_height = (int16_t)m.source_height;
+        p->target = sign24(m.target_index);
+        p->target_level = (m.target_coord_packed >> 28) & 0x3;
+        p->target_x = (m.target_coord_packed >> 14) & 0x3fff;
+        p->target_z = m.target_coord_packed & 0x3fff;
+        p->target_offset_x = (int16_t)m.target_offset_x;
+        p->target_offset_z = (int16_t)m.target_offset_z;
+        p->target_height = (int16_t)m.target_height;
+        p->spotanim = m.id;
+        p->slot = m.slot;
+        p->start_delay = m.start_time;
+        p->end_delay = m.end_time;
+        p->curve_h = m.curve_script_h;
+        p->curve_a = m.curve_script_a;
+        p->curve_t = m.curve_script_t;
         return 1;
     }
 

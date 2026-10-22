@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 402 commands.
+ * 403 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -428,6 +428,7 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11236, "spotanim_npc_slot_loop", "spotanim int int int", "" },
     { 11260, "npc_basready", "seq", "" },
     { 11261, "npc_basreset", "", "" },
+    { 11262, "npc_scriptedproj_pl", "coord player_uid spotanim int int int int int int int", "" },
 };
 
 #endif

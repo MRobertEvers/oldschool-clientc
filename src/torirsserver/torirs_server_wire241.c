@@ -48,6 +48,7 @@
 #include "packets/loc_merge.h"
 #include "packets/map_anim.h"
 #include "packets/map_projanim_v2.h"
+#include "packets/scriptedproj_add.h"
 #include "packets/message_game.h"
 #include "packets/midi_jingle.h"
 #include "packets/midi_song_stop.h"
@@ -177,6 +178,7 @@ osrs241_zone_sub(int pkt_name)
     case PKT_NAME_OBJ_DEL: return OSRS241_ZONE_OBJ_DEL;
     case PKT_NAME_OBJ_REVEAL: return OSRS241_ZONE_OBJ_ENABLED_OPS;
     case PKT_NAME_MAP_PROJANIM: return OSRS241_ZONE_MAP_PROJANIM_V2;
+    case PKT_NAME_SCRIPTEDPROJ_ADD: return OSRS241_ZONE_SCRIPTEDPROJ_ADD;
     default: return -1;
     }
 }
@@ -980,6 +982,34 @@ w241_zone_payload(
         W241(rsprot_map_projanim_v2_out, m);
         return 1;
     }
+    /*
+     * ScriptedProjAddDecoder (RSProx osrs-241). The source is the shot's own
+     * tile (`pos`) and the target an absolute CoordGrid, each with an actor
+     * index the client prefers when it can find it (deob class56.method1476);
+     * the index convention is MAP_PROJANIM_V2's. Heights are raw -- the deob
+     * subtracts them from the ground as they are -- and the four sub-tile
+     * offsets are 0 in every recorded shot.
+     */
+    case PKT_NAME_SCRIPTEDPROJ_ADD:
+    {
+        MsgScriptedProjAdd m = { 0 };
+        m.curve_script_a = event->curve_a;
+        m.source_index = event->source < 0 ? event->source - 1 : event->source;
+        m.source_height = event->src_height;
+        m.target_height = event->dst_height;
+        m.id = event->id;
+        m.target_index = event->target < 0 ? event->target - 1 : event->target;
+        m.end_time = event->end_delay;
+        m.slot = event->slot;
+        m.start_time = event->start_delay;
+        m.curve_script_t = event->curve_t;
+        m.target_coord_packed = ((event->dst_level & 3) << 28) |
+                                ((event->dst_x & 0x3fff) << 14) | (event->dst_z & 0x3fff);
+        m.curve_script_h = event->curve_h;
+        m.coord_in_zone_packed = pos;
+        W241(rsprot_scriptedproj_add_out, m);
+        return 1;
+    }
     case PKT_NAME_OBJ_REVEAL:
     {
         MsgObjEnabledOps m = { 0 };
@@ -1116,6 +1146,7 @@ static const int k_transcribed_osrs241[] = {
     PKT_NAME_MAP_ANIM,         PKT_NAME_OBJ_ADD,         PKT_NAME_OBJ_DEL,
     PKT_NAME_OBJ_COUNT,        PKT_NAME_LOC_MERGE,       PKT_NAME_MAP_PROJANIM,
     PKT_NAME_SOUND_AREA,
+    PKT_NAME_SCRIPTEDPROJ_ADD,
     PKT_NAME_MAP_ANIM_SPECIFIC,
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,

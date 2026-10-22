@@ -1371,6 +1371,9 @@ App_Shutdown(struct App* app)
     ToriRS_IOBatch_Free(app->exec_runner.io);
     ToriRS_TaskQueue_Free(app->runner.queue);
     ToriRS_IOBatch_Free(app->runner.io);
+    /* The scripted-projectile curve VM, before the pool is drained. */
+    if( app->curve_vm )
+        CS2VM2_Release(app->curve_vm);
     /* After the queues: freeing a task releases its VM back into the pool. */
     CS2VM2_PoolDrain();
     /* Also after the queues. A parked entity-info task borrows the scratch and

@@ -461,6 +461,36 @@ struct PktMapProjAnim
     int source;
 };
 
+/*
+ * SCRIPTEDPROJ_ADD (rev 241 zone sub-ordinal 13): a projectile whose path is
+ * three curve clientscripts run on its progress (deob class56). The source is
+ * the zone tile `pos`; the target an absolute CoordGrid. Either end may name
+ * an actor (MAP_PROJANIM's encoding, 0 = none) the client then prefers. The
+ * heights are RAW (no x4), the four offsets fine units.
+ */
+struct PktScriptedProjAdd
+{
+    int pos;
+    int source;
+    int source_offset_x;
+    int source_offset_z;
+    int source_height;
+    int target;
+    int target_x; /* absolute tile */
+    int target_z;
+    int target_level;
+    int target_offset_x;
+    int target_offset_z;
+    int target_height;
+    int spotanim;
+    int slot;
+    int start_delay;
+    int end_delay;
+    int curve_h;
+    int curve_a;
+    int curve_t;
+};
+
 struct PktMapAnim
 {
     int pos;    /* g1 */
@@ -523,6 +553,7 @@ struct PktZoneSubPacket
         struct PktMapProjAnim _map_projanim;
         struct PktMapAnim _map_anim;
         struct PktSoundArea _sound_area;
+        struct PktScriptedProjAdd _scriptedproj_add;
     };
 };
 
@@ -1158,6 +1189,7 @@ struct RevPacket
         struct PktObjCount _obj_count;
         struct PktLocMerge _loc_merge;
         struct PktMapProjAnim _map_projanim;
+        struct PktScriptedProjAdd _scriptedproj_add;
         struct PktMapAnim _map_anim;
         struct PktMapAnimSpecific _map_anim_specific;
         struct PktSoundArea _sound_area;

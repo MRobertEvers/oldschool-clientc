@@ -1296,6 +1296,9 @@ struct App
     int player_info_ops_scratch_busy;
 
     /* Phase 3: scene + bridge. */
+    /** Runs scripted projectiles' curve clientscripts (app_world_curve);
+     *  acquired on the first one, NULL until then. */
+    struct CS2VM2* curve_vm;
     struct ToriDraw_Scene* scene;
     struct UITreeSceneBridge bridge;
 
@@ -4325,6 +4328,40 @@ App_WorldProjectileSpawn(
     int arc,
     int target,
     int source);
+
+/* A rev-241 SCRIPTEDPROJ_ADD, in scene tiles. Heights are raw (no x4); the
+ * offsets fine units; `source`/`target` MAP_PROJANIM's actor encoding (0 =
+ * none); `curve` the H, A and T clientscripts. */
+struct AppScriptedProj
+{
+    int src_x;
+    int src_z;
+    int src_level;
+    int src_offset_x;
+    int src_offset_z;
+    int src_height;
+    int source;
+    int dst_x;
+    int dst_z;
+    int dst_level;
+    int dst_offset_x;
+    int dst_offset_z;
+    int dst_height;
+    int target;
+    int spotanim_id;
+    int start_delay;
+    int end_delay;
+    int curve[3];
+};
+
+/* Spawn a scripted projectile (deob class56). Like App_WorldProjectileSpawn it
+ * loads the spotanim first; it also loads the three curve clientscripts and
+ * every script they call, because the world runs them synchronously each
+ * cycle. */
+void
+App_WorldScriptedProjSpawn(
+    struct App* app,
+    struct AppScriptedProj const* sp);
 
 /* Apply a zone LOC_ADD_CHANGE / LOC_DEL (reference locChangeCreate +
  * locChangeDoQueue): enqueues an async task on the serial exec FIFO that awaits

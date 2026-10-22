@@ -71,6 +71,17 @@ typedef int (*World_HeightFn)(
     int level);
 
 /**
+ * One curve clientscript's answer for a scripted projectile: the script
+ * `script_id` run with `progress` (0..65536) as its one int argument, its int
+ * result returned as is (65536 = 1.0). The deob runs it synchronously every
+ * cycle (class56.method1470); the app supplies the VM.
+ */
+typedef int (*World_CurveFn)(
+    void* userdata,
+    int script_id,
+    int progress);
+
+/**
  * Per-frame world-entity (boat) pseudo-loc registration, SAILING_PLAN C3.
  *
  * Called from the dynamic-registration pass with the painter already reset to
@@ -441,6 +452,9 @@ struct World
 
     World_HeightFn height_fn;
     void* height_userdata;
+    /** Required by a scripted projectile; set by its spawner. */
+    World_CurveFn curve_fn;
+    void* curve_userdata;
 
     /** Optional; NULL when nothing sails here. @see World_WorldEntityRegisterFn. */
     World_WorldEntityRegisterFn world_entity_register_fn;
@@ -863,6 +877,26 @@ World_SetHeightFn(
     struct World* world,
     World_HeightFn fn,
     void* userdata);
+
+void
+World_SetCurveFn(
+    struct World* world,
+    World_CurveFn fn,
+    void* userdata);
+
+/** Turn the projectile just spawned at `idx` into a rev-241 scripted one
+ *  (WorldEntity_Projectile.scripted). Needs World_SetCurveFn. */
+void
+World_ProjectileMakeScripted(
+    struct World* world,
+    int idx,
+    int curve_h,
+    int curve_a,
+    int curve_t,
+    int src_offset_x,
+    int src_offset_z,
+    int dst_offset_x,
+    int dst_offset_z);
 
 /** @see World_WorldEntityRegisterFn. Pass NULL to detach. */
 void

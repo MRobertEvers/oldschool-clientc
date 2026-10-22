@@ -439,6 +439,7 @@ enum AppSpawnKind
     APP_SPAWN_NPC,
     APP_SPAWN_PROJECTILE,
     APP_SPAWN_PROJECTILE_SPOT,
+    APP_SPAWN_SCRIPTED_PROJ,
     APP_SPAWN_OBJ,
     APP_SPAWN_SPOTANIM,
     APP_SPAWN_ENTITY_SPOTANIM,
@@ -518,6 +519,13 @@ struct Task_AppSpawn
     int proj_target;
     /* rev-239 MapProjAnimV2 source actor (wire encoding, 0 = none). */
     int proj_source;
+    /* APP_SPAWN_SCRIPTED_PROJ: the packet, and the clientscripts it needs
+     * resident -- the three curves, then whatever they GOSUB -- with the
+     * cursor of the one being loaded (both survive the awaits). */
+    struct AppScriptedProj scripted;
+    int curve_scripts[8];
+    int curve_script_count;
+    int curve_script_cursor;
     /* APP_SPAWN_LOC_CHANGE (zone LOC_ADD_CHANGE / LOC_DEL): the replacement loc
      * (-1 = pure delete), its map shape/angle, and the nested model-list cursor
      * (loc models are [shape_entry][model]; both indices must survive awaits). */

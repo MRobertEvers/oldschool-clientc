@@ -1650,6 +1650,152 @@ World_ProjectileTrackSource(
                    proj->start_height;
 }
 
+/* One curve clientscript's answer as a fraction (class56.method1470). */
+static float
+World_ProjectileCurve(
+    struct World* world,
+    int script_id,
+    int progress)
+{
+    return (float)world->curve_fn(world->curve_userdata, script_id, progress) / 65536.0f;
+}
+
+static void
+World_Vec3Normalize(float v[3])
+{
+    float inv = 1.0f / sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    v[0] *= inv;
+    v[1] *= inv;
+    v[2] *= inv;
+}
+
+static void
+World_Vec3Cross(
+    float const a[3],
+    float const b[3],
+    float out[3])
+{
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+/*
+ * A rev-241 scripted projectile's cycle: deob class56.method1439, in its own
+ * float arithmetic.
+ *
+ * The start is fixed (read off the source actor on the first launched cycle,
+ * where the deob reads it in the constructor -- the shooter is standing still
+ * in both); the target is looked up live every cycle, falling back to the
+ * packet's coord. Then, with p the flight's fraction:
+ *
+ *   dir  = target - start,  L = |dir|, dir normalised
+ *   side = normalise(UP x dir)          (X x dir when dir is vertical)
+ *   arc  = normalise(dir x side)
+ *   pos  = start + side * H(p) * 128 + arc * A(p) * 128 + dir * T(p) * L
+ *
+ * H/A/T are the curve scripts' answers on round(p * 65536), as fractions. UP
+ * is (0, 1, 0) in this negative-up frame, exactly the deob's class555.field6391,
+ * so a sideways curve swings the same way it does there. Yaw and pitch follow
+ * the step just taken, and only when it moved horizontally.
+ */
+#define WORLD_SCRIPTEDPROJ_ANGLE_TO_RPI2048 325.9493f
+
+static void
+World_ProjectileScriptedStep(
+    struct World* world,
+    struct WorldEntity_Projectile* proj)
+{
+    static float const up[3] = { 0.0f, 1.0f, 0.0f };
+    static float const x_axis[3] = { 1.0f, 0.0f, 0.0f };
+    float dir[3];
+    float side[3];
+    float arc[3];
+    float len;
+    float frac;
+    float h;
+    float a;
+    float t;
+    int progress;
+    int target_y;
+    float prev[3];
+
+    assert(world);
+    assert(proj);
+    assert(proj->scripted);
+    assert(world->curve_fn);
+
+    if( !proj->launched )
+    {
+        if( proj->source != WORLD_PROJECTILE_TARGET_NONE )
+            World_ProjectileTrackSource(world, proj);
+        proj->origin_x = (float)(proj->src_x + proj->src_offset_x);
+        proj->origin_y = (float)proj->h1;
+        proj->origin_z = (float)(proj->src_z + proj->src_offset_z);
+        proj->x = proj->origin_x;
+        proj->y = proj->origin_y;
+        proj->z = proj->origin_z;
+        proj->launched = true;
+    }
+
+    World_ProjectileTrackTarget(world, proj);
+    target_y = world->height_fn
+                   ? world->height_fn(
+                         world->height_userdata, proj->dst_x, proj->dst_z, proj->dst_level) -
+                         proj->end_height
+                   : proj->h1 - proj->end_height;
+    dir[0] = (float)(proj->dst_x + proj->dst_offset_x) - proj->origin_x;
+    dir[1] = (float)target_y - proj->origin_y;
+    dir[2] = (float)(proj->dst_z + proj->dst_offset_z) - proj->origin_z;
+
+    frac = proj->t2 > proj->t1
+               ? (float)(proj->cycle - proj->t1) / (float)(proj->t2 - proj->t1)
+               : 1.0f;
+    progress = (int)floorf(frac * 65536.0f + 0.5f);
+    h = World_ProjectileCurve(world, proj->curve[0], progress);
+    a = World_ProjectileCurve(world, proj->curve[1], progress);
+    t = World_ProjectileCurve(world, proj->curve[2], progress);
+
+    len = sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+    prev[0] = (float)proj->x;
+    prev[1] = (float)proj->y;
+    prev[2] = (float)proj->z;
+    if( len < 1.0e-6f )
+    {
+        /* Start and target coincide: nothing to orient the curves by. */
+        proj->x = proj->origin_x;
+        proj->y = proj->origin_y;
+        proj->z = proj->origin_z;
+        return;
+    }
+    World_Vec3Normalize(dir);
+    World_Vec3Cross(up, dir, side);
+    if( sqrtf(side[0] * side[0] + side[1] * side[1] + side[2] * side[2]) < 1.0e-6f )
+        World_Vec3Cross(x_axis, dir, side);
+    World_Vec3Normalize(side);
+    World_Vec3Cross(dir, side, arc);
+    World_Vec3Normalize(arc);
+
+    proj->x = proj->origin_x + side[0] * (h * 128.0f) + arc[0] * (a * 128.0f) + dir[0] * (t * len);
+    proj->y = proj->origin_y + side[1] * (h * 128.0f) + arc[1] * (a * 128.0f) + dir[1] * (t * len);
+    proj->z = proj->origin_z + side[2] * (h * 128.0f) + arc[2] * (a * 128.0f) + dir[2] * (t * len);
+
+    {
+        float dx = (float)proj->x - prev[0];
+        float dy = (float)proj->y - prev[1];
+        float dz = (float)proj->z - prev[2];
+        float horiz = sqrtf(dx * dx + dz * dz);
+
+        if( horiz > 0.0f )
+        {
+            proj->orientation.yaw =
+                ((int)(atan2f(dx, dz) * WORLD_SCRIPTEDPROJ_ANGLE_TO_RPI2048) + 1024) & 0x7ff;
+            proj->orientation.pitch =
+                ((int)(atan2f(dy, horiz) * WORLD_SCRIPTEDPROJ_ANGLE_TO_RPI2048)) & 0x7ff;
+        }
+    }
+}
+
 static void
 World_CycleUpdateProjectiles(
     struct World* world,
@@ -1677,7 +1823,9 @@ World_CycleUpdateProjectiles(
             continue;
         }
 
-        if( cycles_elapsed > 0 )
+        if( cycles_elapsed > 0 && p->scripted )
+            World_ProjectileScriptedStep(world, p);
+        else if( cycles_elapsed > 0 )
         {
             if( !p->launched && p->source != WORLD_PROJECTILE_TARGET_NONE )
                 World_ProjectileTrackSource(world, p);
