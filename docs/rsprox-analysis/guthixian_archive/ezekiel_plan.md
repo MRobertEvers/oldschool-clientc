@@ -90,6 +90,11 @@ attacks only from a tile next to his 3x3.
   (0,-1) -> (1,3),(2,3),(3,3)).
 - `map_anim tfa_wave_dust` (delay 5, 6 or 7 per tile, at random) on each of the
   13 hit tiles (39/39).
+- A raider under his 3x3 at the end of the tick before is hit too, with no
+  dust there (7/8: 0..12, 4300 [1019], 4304 [1460], 4315 [1000], 4320
+  [2999], [5673], [8505], [10360]; the miss 4301 [71], Fatalsystem two ticks
+  off the transporter on the fight's first melee). Found 2026-10-22 by the
+  residual-hit audit below; ours hit only the ring until then.
 - Damage: 0..23 recorded (63 hits); the raiders' prayers are not in the
   transcript. Ours: crush, max 28 (unverified), protect from melee halves it
   (unverified).
@@ -387,6 +392,25 @@ hits: 6, 19); ours 15..30 (unverified).
 | K+12 | the fence deleted | 4301 [274] |
 | K+14 | the Alliance Navigator at (4067,5535) facing west (`nexus_plan.md` §5) | 4301 [276] |
 | K+19 | the boss bar cleared (`hpbar_hud_npc` -1) | 4301 [281] |
+
+## 9b. Residual-hit audit: every splat on a raider has a cause
+
+`tools/ez_residual_hits.py` (2026-10-22, 4300, 4301, 4304, 4314, 4315, 4319,
+4320, `--all-players`): every damage or block splat on a raider in his room
+while he lives, each matched to a rule above on the raider's tile at the end
+of the tick before. 514 splats: melee 369, star S+3 54, volley 29, sword 24,
+magic 13 (+1 magic and sword), star S+5 12; 12 left, all now named:
+
+| left | n | cause | verdict |
+|---|---|---|---|
+| a melee tick, the raider under his 3x3 | 6 (+1 also shocked) | his melee hits under him (§4) | fixed in ours |
+| 10 with `skeleton_killerwatt_electricshock` on the raider | 4 | a raider-side effect: 109/109 shocks in these sessions are a 10, in other rooms too | not Ezekiel |
+| the tick after their zaryte crossbow's `xbows_blood_sacrifice_spot_anim` on him | 2 (4301 [240], 4320 [5811]) | ruby bolts (e): the shooter pays | the raider's kit |
+
+Sword burn splats (hitsplat 67, 61) are counted apart. Test:
+`test/guthixian_archive/tfa_ezekiel_under.lua` (--bots 2): seat 2 stands
+under him; melee 18/18, S+5 6/6..8/8, S+3 0 over four seeds (HEAD before:
+0/18 and 0/8).
 
 ## 10. Npc config (server half)
 
