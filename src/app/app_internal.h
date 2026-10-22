@@ -2449,6 +2449,11 @@ app_model_apply_import_render_flags(
     struct ToriDraw_Model* model,
     bool imported);
 
+void
+app_model_apply_rszbuf_two_pass(
+    struct ToriDraw_Model* model,
+    bool two_pass);
+
 struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,

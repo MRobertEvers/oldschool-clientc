@@ -61,6 +61,14 @@ and draws it through one frame-wide z-buffer per 3D pass
 (`ToriDraw_SceneZBufferBeginPass`). Either software flag clears every GPU flag
 an earlier argv layer set.
 
+`--soft3d-rszbuffer` ("Software (OSRS z-buffer)",
+`TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF`, value 15, `RS_CS2_RENDERER_MAX` 15) is
+the rev-241 client's own `::zbuf 1` renderer
+([toridraw_rszbuffer.md](toridraw_rszbuffer.md)). It keeps the painter's world
+(`TORIRS_WORLD_PAINTER`) and is offered only where the pixel format is
+XRGB8888 (`renderer_built`): the client's colour-key and blend masks assume
+that layout. A lane on another format refuses the flag at parse time.
+
 ### GPU-FAMILY-001 - Two shared ES cores, four named lane renderers
 
 - **Status:** Contract

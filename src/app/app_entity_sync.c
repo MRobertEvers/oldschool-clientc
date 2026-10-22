@@ -898,6 +898,7 @@ app_world_sync_npc_bodies(struct App* app)
         if( !model )
             continue;
         app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc->npc_id, npctype));
+        app_model_apply_rszbuf_two_pass(model, npctype->zbuf_off);
         memset(&hnd, 0, sizeof(hnd));
         hnd.kind = TORIDRAWMK_MODEL;
         hnd.u.model.model = model;

@@ -110,6 +110,7 @@ struct ToriPlatformAndroid_Renderer_GLES3;
 #include "render/torirs_frame.h"
 #include "render/torirs_renderer_kind.h"
 #include "toridraw_eip_sample.h"
+#include "graphics/pixel_format.h"
 #include "toridraw_frame_ab.h"
 #include "toridraw_math.h"
 #include "toridraw_model.h"
@@ -1439,7 +1440,8 @@ renderer_active_is_depth(void)
 static bool
 renderer_is_software(enum ToriRS_RendererKind kind)
 {
-    return kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH;
+    return kind == TORIRS_RENDERER_KIND_SOFTWARE || kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH ||
+           kind == TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF;
 }
 /* What the launch's flags chose -- the meaning of RS_CS2_RENDERER_LAUNCH_DEFAULT.
  * Moved to the renderer actually running if the launch's could not start. */
@@ -1457,6 +1459,7 @@ renderer_present(enum ToriRS_RendererKind kind)
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
     case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
+    case TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF:
         return PLATFORM_PRESENT_SOFTWARE;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
@@ -1488,6 +1491,9 @@ renderer_built(enum ToriRS_RendererKind kind)
     case TORIRS_RENDERER_KIND_SOFTWARE:
     case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
         return true;
+    case TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF:
+        /* The client's colour key and blend masks are XRGB8888's. */
+        return TORIPIXEL_IS_XRGB8888 != 0;
     case TORIRS_RENDERER_KIND_OPENGL3:
     case TORIRS_RENDERER_KIND_OPENGL3_DEPTH:
 #if defined(TORIRS_HAVE_GL3)
@@ -1594,13 +1600,18 @@ renderer_start_kind(enum ToriRS_RendererKind kind)
 #if defined(TORIRS_HAVE_GLES3)
     assert(!gles3);
 #endif
+    /* Every start says it, so leaving the OSRS z-buffer for any other kind
+     * turns it off. */
+    App_SetSoftwareRsZBuffer(&app, kind == TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF);
     switch( kind )
     {
     case TORIRS_RENDERER_KIND_SOFTWARE:
     case TORIRS_RENDERER_KIND_SOFTWARE_DEPTH:
+    case TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF:
         /* Nothing to start. The depth kind is the world mode alone: App_Render
          * reads it and puts Soft3D on its frame-wide z-buffer -- the same
-         * contract as every GPU depth renderer. */
+         * contract as every GPU depth renderer. The OSRS z-buffer keeps the
+         * painter's world and is Soft3D's own two-pass mode. */
         App_SetWorldRenderMode(
             &app,
             kind == TORIRS_RENDERER_KIND_SOFTWARE_DEPTH ? TORIRS_WORLD_DEPTH : TORIRS_WORLD_PAINTER);
@@ -6358,6 +6369,9 @@ struct MainArgState
     /* Soft3D on a frame-wide z-buffer (--soft3d-zbuffer) rather than the
      * painter (--soft3d). Every lane has it: it needs no GPU. */
     int soft3d_zbuffer;
+    /* Soft3D through the rev-241 client's own depth buffer (--soft3d-rszbuffer).
+     * XRGB8888 lanes only. */
+    int soft3d_rszbuffer;
     /* A renderer flag was given, by the command line or the manifest. The
      * launch then starts with that renderer whatever Client Settings saved. */
     int renderer_flag;
@@ -6378,7 +6392,7 @@ main_print_usage(char const* program)
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
         "--webgl2|--webgl2-zbuffer|--gles2|--gles2-zbuffer|--gles3|--gles3-zbuffer|"
         "--gles2-dualcore|--gles2-dualcore-zbuffer|"
-        "--d3d9|--d3d9-zbuffer|--soft3d|--soft3d-zbuffer]\n",
+        "--d3d9|--d3d9-zbuffer|--soft3d|--soft3d-zbuffer|--soft3d-rszbuffer]\n",
         program);
 }
 
@@ -6811,13 +6825,22 @@ main_parse_argument_layer(
             return 0;
 #endif
         }
-        if( strcmp(argv[argi], "--soft3d") == 0 || strcmp(argv[argi], "--soft3d-zbuffer") == 0 )
+        if( strcmp(argv[argi], "--soft3d-rszbuffer") == 0 && !TORIPIXEL_IS_XRGB8888 )
+        {
+            TORIRS_LOG("torirs: --soft3d-rszbuffer is not available in this build "
+                       "(pixel format %s, needs xrgb8888)\n",
+                       TORIPIXEL_FORMAT_NAME);
+            return 0;
+        }
+        if( strcmp(argv[argi], "--soft3d") == 0 || strcmp(argv[argi], "--soft3d-zbuffer") == 0 ||
+            strcmp(argv[argi], "--soft3d-rszbuffer") == 0 )
         {
             /* Built on every lane, so never refused. Clears every GPU flag an
              * earlier layer set: the launch selection tries those first, and a
              * manifest's --webgl2 must not outrank the command line's --soft3d. */
             state->renderer_flag = 1;
             state->soft3d_zbuffer = strcmp(argv[argi], "--soft3d-zbuffer") == 0;
+            state->soft3d_rszbuffer = strcmp(argv[argi], "--soft3d-rszbuffer") == 0;
             state->use_opengl3 = 0;
             state->gl3_zbuffer = 0;
             state->use_d3d9 = 0;
@@ -6919,6 +6942,7 @@ main(
         .use_gles3 = 0,
         .gles3_zbuffer = 0,
         .soft3d_zbuffer = 0,
+        .soft3d_rszbuffer = 0,
         .renderer_flag = 0,
     };
     int argi;
@@ -7032,6 +7056,7 @@ main(
     int const use_gles3 = arg_state.use_gles3;
     int const gles3_zbuffer = arg_state.gles3_zbuffer;
     int const soft3d_zbuffer = arg_state.soft3d_zbuffer;
+    int const soft3d_rszbuffer = arg_state.soft3d_rszbuffer;
     int const renderer_flag = arg_state.renderer_flag;
 
     /* Cache identity is required. Prefer the manifest; otherwise resolve --rev
@@ -8304,8 +8329,9 @@ main(
          */
         renderer_gles2_dualcore = gles2_dualcore != 0;
         renderer_launch_flagged = renderer_flag != 0;
-        renderer_launch =
-            soft3d_zbuffer ? TORIRS_RENDERER_KIND_SOFTWARE_DEPTH : TORIRS_RENDERER_KIND_SOFTWARE;
+        renderer_launch = soft3d_rszbuffer ? TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF
+                          : soft3d_zbuffer ? TORIRS_RENDERER_KIND_SOFTWARE_DEPTH
+                                           : TORIRS_RENDERER_KIND_SOFTWARE;
         if( use_webgl2 )
             renderer_launch =
                 webgl2_zbuffer ? TORIRS_RENDERER_KIND_WEBGL2_DEPTH : TORIRS_RENDERER_KIND_WEBGL2;

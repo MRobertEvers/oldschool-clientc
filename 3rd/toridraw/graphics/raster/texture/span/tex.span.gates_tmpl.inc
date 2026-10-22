@@ -33,9 +33,8 @@
  * untouched — in particular the eight-pixel linear fit STAYS, because the fit
  * decides which texel a pixel samples and depth decides whether that pixel is
  * written. Those are independent, so a face draws the same texels through both
- * variants and only loses the ones something nearer already covered. (The SD
- * `zbuf.screen` walker drops to a per-pixel divide instead; it is one walker for
- * three shading modes and had no fitted block to keep.)
+ * variants and only loses the ones something nearer already covered. The SD
+ * depth path draws textured faces through these spans for the same reason.
  *
  * Whether a variant WRITES depth is decided here, at compile time, by which
  * point of the matrix it is: a face that can let the destination show through

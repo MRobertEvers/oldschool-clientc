@@ -294,7 +294,7 @@ TMAP_FN(
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * ry0;
         /* Only pre-step A->B if that edge is walked; a near-horizontal AB times
          * a distant y overflows the 16.16 product for a discarded result. Full
-         * argument in graphics/raster/zbuffer/zbuf.screen.u.c. */
+         * argument in graphics/raster/flat/flat_screen_edges.h. */
         if( ry1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * ry0;
         shade8bit_edge_ish8 = toridraw_wrap_sub(

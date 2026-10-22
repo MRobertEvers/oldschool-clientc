@@ -99,6 +99,12 @@ struct ToriPlatform_Renderer_Soft3D_Scratch
     int segment_index;
     struct Soft3DOutlineCacheEntry outline_cache[SOFT3D_OUTLINE_CACHE_SLOTS];
     uint64_t outline_clock;
+    /* The rszbuffer world's models of the open 3D pass, in the order they
+     * drew, for the translucent pass END_3D runs over them. Kept across
+     * frames so a pass does not allocate. */
+    struct ToriRS_RenderCommand_Model* rszbuffer_models;
+    int rszbuffer_model_count;
+    int rszbuffer_model_cap;
 };
 
 /* floor(v * num / den) for a positive den, negative v included. */
@@ -1281,8 +1287,12 @@ soft3d_draw_model(
     assert(cmd);
     if( !soft->has_3d )
         return;
-    kernel = !soft->depth && ToriDraw_FrameAbEnabled() ? &soft->kernel_ab[ToriDraw_FrameAbArm()]
-                                                       : soft->kernel;
+    if( soft->translucent_pass )
+        kernel = soft->kernel_translucent;
+    else if( !soft->depth && !soft->rszbuffer && ToriDraw_FrameAbEnabled() )
+        kernel = &soft->kernel_ab[ToriDraw_FrameAbArm()];
+    else
+        kernel = soft->kernel;
     if( cmd->model.kind == TORIDRAWMK_NONE )
         return;
 
@@ -1310,7 +1320,7 @@ soft3d_draw_model(
     /* Hittest before the face sort: the scene scratch holds this model's
      * projection only until the next model projects, and a model whose faces
      * all sort away must still pick. */
-    if( soft->pick_enabled && cmd->pickable && cmd->element_id >= 0 )
+    if( soft->pick_enabled && !soft->translucent_pass && cmd->pickable && cmd->element_id >= 0 )
     {
         bool hit;
         if( cmd->pick_aabb )
@@ -1471,6 +1481,7 @@ ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
         ToriMem_Free(ToriMem_Render(), soft->scratch->taps_x);
         ToriMem_Free(ToriMem_Render(), soft->scratch->taps_y);
         ToriMem_Free(ToriMem_Render(), soft->scratch->column_sums);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->rszbuffer_models);
         for( int i = 0; i < SOFT3D_SEGMENT_CACHES; i++ )
         {
             ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].encoded);
@@ -1570,6 +1581,56 @@ ToriPlatform_Renderer_Soft3D_SetPick(
     ToriRS_PickHitsReset(&soft->pick_hits);
 }
 
+/*
+ * Keep a model the rszbuffer world drew, for the translucent pass.
+ *
+ * Only one the translucent pass could draw anything of: the client neither
+ * projects nor draws a model with no face alpha in that pass, nor any tile
+ * [class174.method5690, class137.method5019] -- the raster would decide the
+ * same, after paying a second projection. Tested after the opaque draw, whose
+ * pose may have given the model its alphas.
+ */
+static void
+soft3d_rszbuffer_record(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    struct ToriRS_RenderCommand_Model const* cmd)
+{
+    struct ToriPlatform_Renderer_Soft3D_Scratch* const scratch = soft->scratch;
+    const struct ToriDraw_Model* model;
+
+    if( !soft->has_3d || cmd->pick_only || !ToriDraw_ModelKindIsFull(cmd->model.kind) )
+        return;
+    model = ToriDraw_ModelRead(cmd->model);
+    if( !model->face_alphas || (model->flags & TORIDRAW_MODEL_FLAG_TERRAIN) )
+        return;
+
+    if( scratch->rszbuffer_model_count == scratch->rszbuffer_model_cap )
+    {
+        int const cap = scratch->rszbuffer_model_cap ? scratch->rszbuffer_model_cap * 2 : 256;
+        struct ToriRS_RenderCommand_Model* grown = ToriMem_Realloc(
+            ToriMem_Render(), scratch->rszbuffer_models, (size_t)cap * sizeof(*grown));
+
+        assert(grown);
+        scratch->rszbuffer_models = grown;
+        scratch->rszbuffer_model_cap = cap;
+    }
+    scratch->rszbuffer_models[scratch->rszbuffer_model_count++] = *cmd;
+}
+
+/* The client's second scene pass: the recorded models again, in the order they
+ * drew, through the translucent table. */
+static void
+soft3d_rszbuffer_translucent_pass(struct ToriPlatform_Renderer_Soft3D* soft)
+{
+    struct ToriPlatform_Renderer_Soft3D_Scratch* const scratch = soft->scratch;
+
+    soft->translucent_pass = true;
+    for( int i = 0; i < scratch->rszbuffer_model_count; i++ )
+        soft3d_draw_model(soft, &scratch->rszbuffer_models[i]);
+    soft->translucent_pass = false;
+    scratch->rszbuffer_model_count = 0;
+}
+
 void
 ToriPlatform_Renderer_Soft3D_Execute(
     struct ToriPlatform_Renderer_Soft3D* soft,
@@ -1592,13 +1653,16 @@ ToriPlatform_Renderer_Soft3D_Execute(
         /* One buffer for the whole pass, cleared here and nowhere else: the
          * models of a depth world are unordered, so each must see the depths
          * every earlier one wrote. */
-        if( soft->depth )
+        if( soft->depth || soft->rszbuffer )
             ToriDraw_SceneZBufferBeginPass(
                 soft->scene, &soft->camera_3d, soft->view_port_3d.stride, soft->height);
+        soft->scratch->rszbuffer_model_count = 0;
         break;
 
     case TORIRSRC_END_3D:
-        if( soft->depth )
+        if( soft->rszbuffer )
+            soft3d_rszbuffer_translucent_pass(soft);
+        if( soft->depth || soft->rszbuffer )
             ToriDraw_SceneZBufferEndPass(soft->scene);
         ToriDraw_SceneClearProjectionCamera(soft->scene);
         soft->has_3d = false;
@@ -1624,6 +1688,8 @@ ToriPlatform_Renderer_Soft3D_Execute(
 
     case TORIRSRC_DRAW_MODEL:
         soft3d_draw_model(soft, &cmd->u.model);
+        if( soft->rszbuffer )
+            soft3d_rszbuffer_record(soft, &cmd->u.model);
         break;
 
     case TORIRSRC_DRAW_MODEL_WIDGET:
@@ -2319,6 +2385,23 @@ ToriPlatform_Renderer_Soft3D_SetDepth(
     /* Init already took the painter's table; only the depth world swaps it. */
     if( depth )
         soft->kernel = ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareZBuffered());
+}
+
+void
+ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    bool rszbuffer)
+{
+    assert(soft);
+    assert(soft->scene);
+    soft->rszbuffer = rszbuffer;
+    if( !rszbuffer )
+        return;
+    /* The two tables share the projection and the scratch; taking both is
+     * what provisions it. */
+    soft->kernel = ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareRsZBufferedOpaque());
+    soft->kernel_translucent =
+        ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareRsZBufferedTranslucent());
 }
 
 static void

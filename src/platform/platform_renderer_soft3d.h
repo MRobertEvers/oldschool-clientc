@@ -51,6 +51,15 @@ struct ToriPlatform_Renderer_Soft3D
      * 3D pass is one frame-wide z-buffer and models draw unsorted through the
      * software-zbuffered table. The frame A/B does not apply to it. */
     bool depth;
+    /* The rev-241 client's own depth buffer (ToriPlatform_Renderer_Soft3D_
+     * SetRsZBuffer): one frame-wide z-buffer per 3D pass, every model drawn
+     * through the opaque table as it arrives and again, in the same order,
+     * through the translucent one at END_3D. The frame A/B does not apply. */
+    bool rszbuffer;
+    const struct ToriDraw_Kernel* kernel_translucent;
+    /* Set while END_3D replays the pass's models through kernel_translucent:
+     * they draw again, but do not pick again. */
+    bool translucent_pass;
     int* pixels;
     /* The buffer: what `pixels` holds and the world is drawn at. */
     int width;
@@ -152,6 +161,23 @@ void
 ToriPlatform_Renderer_Soft3D_SetDepth(
     struct ToriPlatform_Renderer_Soft3D* soft,
     bool depth);
+
+/**
+ * Draw the world the way the rev-241 client draws it under `::zbuf 1` (the
+ * "Software (OSRS z-buffer)" renderer). Call after Init, which resets it.
+ *
+ * Each BEGIN_3D .. END_3D pass opens one frame-wide z-buffer. Every model of
+ * the pass draws its opaque faces through ToriDraw_KernelGetSoftwareRsZBuffered
+ * Opaque as it arrives, and is recorded; END_3D draws the recorded models
+ * again, in the same order, through the translucent table, which draws only
+ * their faces with alpha. The world is collected in the painter's order
+ * (TORIRS_WORLD_PAINTER): the client's translucent pass follows it, and its
+ * opaque pass does not care.
+ */
+void
+ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    bool rszbuffer);
 
 /**
  * Draw layout-space pixels into a scaled buffer from outside the command

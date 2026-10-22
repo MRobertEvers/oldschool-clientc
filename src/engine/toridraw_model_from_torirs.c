@@ -164,6 +164,7 @@ ToriDraw_ModelFromToriRS(const struct ToriRS_Model* src)
     TORIDRAW_MODEL_COPY(dst, face_colors_c, src->face_colors_c, src->face_count);
     TORIDRAW_MODEL_COPY(dst, face_colors, src->face_colors, src->face_count);
     TORIDRAW_MODEL_COPY(dst, face_alphas, src->face_alphas, src->face_count);
+    TORIDRAW_MODEL_COPY(dst, face_z_offsets, src->face_z_offsets, src->face_count);
     TORIDRAW_MODEL_COPY(dst, face_infos, src->face_infos, src->face_count);
     TORIDRAW_MODEL_COPY(dst, face_textures, src->face_textures, src->face_count);
     TORIDRAW_MODEL_COPY(

@@ -143,6 +143,10 @@ enum ToriDraw_SceneScratch
     TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS = 1u << 4,
     /** sm_face_x4 / y4: the y-ordered stash the batched raster walk reads. */
     TORIDRAW_SCENE_SCRATCH_PRESORT_XY = 1u << 5,
+    /** The rev-241 projection's float vertices and its face walk's ordering
+     *  arrays (graphics/raster/rszbuf/rszbuf_model.h). Only the rszbuffered
+     *  tables touch it. */
+    TORIDRAW_SCENE_SCRATCH_RSZBUF = 1u << 6,
 };
 
 /**

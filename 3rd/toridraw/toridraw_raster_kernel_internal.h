@@ -8,7 +8,8 @@
 
 #define TORIDRAW_RASTER_KERNEL_FLAG_MASK                                            \
     (TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |                              \
-     TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER)
+     TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER |                                   \
+     TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_RSZBUF_SCRATCH)
 
 #ifndef NDEBUG
 static inline void

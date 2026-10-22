@@ -7,23 +7,59 @@
 /*
  * Face-level entry to the depth-tested kernels.
  *
- * The stock families each carry a pair of these — one for the common case and
- * one that rebuilds a face crossing the near plane. Here there is a single pair
- * for all three shading modes, because everything the modes disagree about
- * (colour, uv, texel rules) is already described by struct ToriDraw_ZbufTriangle
- * and everything they agree about (which corners survive the near plane, and
- * where the new ones land) is the same code three times over in the stock files.
+ * A depth-tested face is its SD painter twin plus a z-buffer and nothing else:
+ * the same family, the same walk, the same blocking -- flat in four-pixel
+ * stores, gouraud in four-pixel colour blocks, textures in the eight-pixel
+ * perspective fit (or the affine one) -- with a compare in front of each pixel
+ * and, for an opaque face, a depth store behind it. Each family's twin is
+ * named `zbuf` where the painter is named `painter`:
+ *
+ *   flat      raster.flat.{opaque,alpha}...zbuf.branching.s4
+ *   gouraud   raster.gouraudhsllightness.{opaque,alpha}...zbuf.branching.s4
+ *   texture   raster.texplane.perspective.{texopaque,textrans}...zbuf...lerp8_v3
+ *             (texshadeblend.perspective verbatim at the SD sampler defaults)
+ *   affine    raster.texshadeblend.affine.{texopaque,textrans}...zbuf...lerp8_v3
+ *
+ * What the modes agree about -- which corners survive the near plane, where the
+ * new ones land, and the depth key of every corner -- is done once here.
  */
 
 #include "toridraw_types.h"
 #include "graphics/dash_restrict.h"
 #include "graphics/winding.h"
-#include "impl/raster/zbuf/raster.zbuf.screen.walker.u.c"
 #include "graphics/zdepth.h"
+#include "graphics/raster/texture/tex_sampler.h"
+
+// clang-format off
+#include "impl/projection/projection.scalar_reference.u.c"
+#include "impl/raster/flat/raster.flat.opaque.nofacealpha.nomodulate.zbuf.branching.s4.scalar.u.c"
+#include "impl/raster/flat/raster.flat.alpha.nofacealpha.nomodulate.zbuf.branching.s4.scalar.u.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.opaque.nofacealpha.nomodulate.zbuf.branching.s4.scalar.u.c"
+#include "impl/raster/gouraudhsllightness/raster.gouraudhsllightness.alpha.nofacealpha.nomodulate.zbuf.branching.s4.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.texopaque.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texplane.perspective.textrans.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.texopaque.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c"
+#include "impl/raster/tex/raster.texshadeblend.affine.textrans.nofacealpha.nomodulate.zbuf.branching.lerp8_v3.scalar.u.c"
+// clang-format on
 
 #include <assert.h>
 #include <stdbool.h>
 #include <string.h>
+
+enum ToriDraw_ZbufMode
+{
+    TORIDRAW_ZBUF_MODE_FLAT,
+    TORIDRAW_ZBUF_MODE_GOURAUD,
+    TORIDRAW_ZBUF_MODE_TEXTURE,
+};
+
+enum ToriDraw_ZbufTexKind
+{
+    /** Every texel is drawn. */
+    TORIDRAW_ZBUF_TEX_OPAQUE,
+    /** Pure black is the colour key and is skipped. */
+    TORIDRAW_ZBUF_TEX_TRANSPARENT,
+};
 
 /** Destination and camera state shared by every face of one model. */
 struct ToriDraw_ZbufTarget
@@ -193,16 +229,113 @@ toridraw_zbuf_build_near_clipped(
     return count;
 }
 
+/** The texture a TEXTURE-mode face draws, resolved by the caller. */
+struct ToriDraw_ZbufTexture
+{
+    /** TORIDRAW_ZBUF_TEX_*. */
+    int kind;
+    /** The painter's affine family (a non-plane mapping, or affine forced on). */
+    bool affine;
+    /** The face's p/m/n texture-frame vertices. */
+    int p;
+    int m;
+    int n;
+    int* texels;
+    int width;
+};
+
+/**
+ * One screen triangle through its family's depth twin. Corners are already
+ * offset into the viewport; `shade` is the hsl16 colour (flat: [0] only) or
+ * the 0..127 lightness (texture); `alpha` is the untextured face's coverage,
+ * which the textured kernels ignore exactly as their painter twins do.
+ */
+static void
+toridraw_zbuf_triangle(
+    const struct ToriDraw_ZbufTarget* target,
+    const struct ToriDraw_ZbufFaceSource* src,
+    int mode,
+    const int x[3],
+    const int y[3],
+    const int shade[3],
+    const float key[3],
+    int alpha,
+    const struct ToriDraw_ZbufTexture* tex)
+{
+    toripixel_t* const pixels = target->pixel_buffer;
+    torizdepth_t* const zbuffer = target->zbuffer;
+    int const stride = target->stride;
+    int const width = target->screen_width;
+    int const height = target->screen_height;
+
+    if( mode == TORIDRAW_ZBUF_MODE_FLAT )
+    {
+        if( alpha == 0xFF )
+            raster_flat_screen_opaque_zbuf_branching_s4(
+                pixels, zbuffer, stride, width, height, x[0], x[1], x[2], y[0], y[1], y[2],
+                shade[0], key[0], key[1], key[2]);
+        else
+            raster_flat_screen_alpha_zbuf_branching_s4(
+                pixels, zbuffer, stride, width, height, x[0], x[1], x[2], y[0], y[1], y[2],
+                shade[0], alpha, key[0], key[1], key[2]);
+        return;
+    }
+
+    if( mode == TORIDRAW_ZBUF_MODE_GOURAUD )
+    {
+        if( alpha == 0xFF )
+            raster_gouraudhsllightness_screen_opaque_zbuf_branching_s4(
+                pixels, zbuffer, stride, width, height, x[0], x[1], x[2], y[0], y[1], y[2],
+                shade[0], shade[1], shade[2], key[0], key[1], key[2]);
+        else
+            raster_gouraudhsllightness_screen_alpha_zbuf_branching_s4(
+                pixels, zbuffer, stride, width, height, x[0], x[1], x[2], y[0], y[1], y[2],
+                shade[0], shade[1], shade[2], alpha, key[0], key[1], key[2]);
+        return;
+    }
+
+    assert(mode == TORIDRAW_ZBUF_MODE_TEXTURE);
+    assert(tex);
+    {
+        struct ToriDraw_TexSampler sampler;
+        int const* const ox = src->orthographic_vertices_x;
+        int const* const oy = src->orthographic_vertices_y;
+        int const* const oz = src->orthographic_vertices_z;
+        int const cot16 = target->camera_cot16;
+
+        ToriDraw_TexSamplerInit(&sampler, tex->texels, tex->width);
+
+#define TORIDRAW_ZBUF_TEXTURE_CALL(fn)                                                             \
+    fn(pixels, stride, width, height, cot16, x[0], x[1], x[2], y[0], y[1], y[2], ox[tex->p],       \
+       ox[tex->m], ox[tex->n], oy[tex->p], oy[tex->m], oy[tex->n], oz[tex->p], oz[tex->m],         \
+       oz[tex->n], shade[0], shade[1], shade[2], &sampler, key[0], key[1], key[2], zbuffer)
+
+        if( tex->affine )
+        {
+            if( tex->kind == TORIDRAW_ZBUF_TEX_OPAQUE )
+                TORIDRAW_ZBUF_TEXTURE_CALL(raster_texshadeblend_affine_texopaque_zbuf_branching_lerp8_v3);
+            else
+                TORIDRAW_ZBUF_TEXTURE_CALL(raster_texshadeblend_affine_textrans_zbuf_branching_lerp8_v3);
+        }
+        else if( tex->kind == TORIDRAW_ZBUF_TEX_OPAQUE )
+            TORIDRAW_ZBUF_TEXTURE_CALL(raster_texplane_persp_texopaque_zbuf_branching_lerp8_v3);
+        else
+            TORIDRAW_ZBUF_TEXTURE_CALL(raster_texplane_persp_textrans_zbuf_branching_lerp8_v3);
+
+#undef TORIDRAW_ZBUF_TEXTURE_CALL
+    }
+}
+
 /**
  * Draw one face through the depth-tested kernels.
  *
- * `mode`, `tex_kind`, `texels` and `texture_width` describe the shading; the
- * caller has already resolved them, because it is the caller that owns the
- * texture cache. So are the three corner shades — flat and flat-shaded-textured
- * faces pass one value three times, and only the caller knows which of
- * colors_a/b/c is a colour rather than a selector. `alpha` is the face's
- * coverage in the untextured modes and is ignored in the textured one, which is
- * what the stock dispatcher does too.
+ * `mode` and `tex` describe the shading; the caller has already resolved them,
+ * because it is the caller that owns the texture cache. So are the three corner
+ * shades -- flat and flat-shaded-textured faces pass one value three times, and
+ * only the caller knows which of colors_a/b/c is a colour rather than a
+ * selector. `alpha` is the face's coverage in the untextured modes and is
+ * ignored in the textured one, which is what the painter does too. `tex` is
+ * NULL for the untextured modes.
  */
 static void
 ToriDraw_TriangleFaceZBuffered(
@@ -214,38 +347,13 @@ ToriDraw_TriangleFaceZBuffered(
     int shade_b,
     int shade_c,
     int alpha,
-    int tex_kind,
-    int tp_vertex,
-    int tm_vertex,
-    int tn_vertex,
-    int* texels,
-    int texture_width,
+    const struct ToriDraw_ZbufTexture* tex,
     bool allow_near_clip,
     bool near_clipped)
 {
-    struct ToriDraw_ZbufTriangle tri;
     int const a = src->face_indices_a[face];
     int const b = src->face_indices_b[face];
     int const c = src->face_indices_c[face];
-
-    memset(&tri, 0, sizeof(tri));
-    tri.mode = mode;
-    tri.alpha = alpha;
-    tri.tex_kind = tex_kind;
-    tri.texels = texels;
-    tri.texture_width = texture_width;
-
-    if( mode == TORIDRAW_ZBUF_MODE_TEXTURE )
-    {
-        int const uv[3] = { tp_vertex, tm_vertex, tn_vertex };
-
-        for( int i = 0; i < 3; i++ )
-        {
-            tri.uv_x[i] = src->orthographic_vertices_x[uv[i]];
-            tri.uv_y[i] = src->orthographic_vertices_y[uv[i]];
-            tri.uv_z[i] = src->orthographic_vertices_z[uv[i]];
-        }
-    }
 
     if( near_clipped &&
         (src->screen_vertices_x[a] == TORIDRAW_SCREEN_X_NEAR_CLIPPED ||
@@ -279,22 +387,19 @@ ToriDraw_TriangleFaceZBuffered(
         for( int t = 0; t + 2 < count; t++ )
         {
             int const corner[3] = { 0, t + 1, t + 2 };
+            int x[3];
+            int y[3];
+            int shade[3];
+            float key[3];
 
             for( int i = 0; i < 3; i++ )
             {
-                tri.x[i] = clip_x[corner[i]];
-                tri.y[i] = clip_y[corner[i]];
-                tri.shade[i] = clip_shade[corner[i]];
-                tri.key[i] = clip_key[corner[i]];
+                x[i] = clip_x[corner[i]];
+                y[i] = clip_y[corner[i]];
+                shade[i] = clip_shade[corner[i]];
+                key[i] = clip_key[corner[i]];
             }
-            raster_zbuf_screen(
-                target->pixel_buffer,
-                target->zbuffer,
-                target->stride,
-                target->screen_width,
-                target->screen_height,
-                target->camera_cot16,
-                &tri);
+            toridraw_zbuf_triangle(target, src, mode, x, y, shade, key, alpha, tex);
         }
         return;
     }
@@ -302,24 +407,18 @@ ToriDraw_TriangleFaceZBuffered(
     {
         int const corner[3] = { a, b, c };
         int const shade[3] = { shade_a, shade_b, shade_c };
+        int x[3];
+        int y[3];
+        float key[3];
 
         for( int i = 0; i < 3; i++ )
         {
-            tri.x[i] = src->screen_vertices_x[corner[i]] + target->offset_x;
-            tri.y[i] = src->screen_vertices_y[corner[i]] + target->offset_y;
-            tri.shade[i] = shade[i];
-            tri.key[i] = toridraw_zbuf_vertex_key(target, src, corner[i]);
+            x[i] = src->screen_vertices_x[corner[i]] + target->offset_x;
+            y[i] = src->screen_vertices_y[corner[i]] + target->offset_y;
+            key[i] = toridraw_zbuf_vertex_key(target, src, corner[i]);
         }
+        toridraw_zbuf_triangle(target, src, mode, x, y, shade, key, alpha, tex);
     }
-
-    raster_zbuf_screen(
-        target->pixel_buffer,
-        target->zbuffer,
-        target->stride,
-        target->screen_width,
-        target->screen_height,
-        target->camera_cot16,
-        &tri);
 }
 
 /**

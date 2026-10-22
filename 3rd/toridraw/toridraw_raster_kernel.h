@@ -68,6 +68,8 @@ enum ToriDraw_RasterKernelFlags
     TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING = 1u << 0,
     /* Provision, rebase, and reset a model-local depth buffer. */
     TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER = 1u << 1,
+    /* Read the rev-241 projection's output: TORIDRAW_SCENE_SCRATCH_RSZBUF. */
+    TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_RSZBUF_SCRATCH = 1u << 2,
 };
 
 /* The four terminal algorithms in the stock/SD face rasterizer. */
@@ -585,6 +587,12 @@ ToriDraw_ProjectionKernelGetPrepared(void);
 const struct ToriDraw_ProjectionKernel*
 ToriDraw_ProjectionKernelGetPortable(void);
 
+/** The rev-241 float projection the rszbuffered tables raster from. It fills
+ *  the scene's TORIDRAW_SCENE_SCRATCH_RSZBUF group, so only a table whose
+ *  raster asks for that group may name it. */
+const struct ToriDraw_ProjectionKernel*
+ToriDraw_ProjectionKernelGetRsZbuf(void);
+
 /*
  * The stock software kernel a renderer holds: branching or scanline as
  * TORIDRAW_RASTER_SCANLINE / ToriDraw_RasterSetScanline decided, smooth or
@@ -830,6 +838,19 @@ ToriDraw_KernelGetSoftwareScanline(void);
  *  order and the buffer decides. */
 const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareZBuffered(void);
+
+/**
+ * The rev-241 client's own depth-buffered renderer (`::zbuf 1`), mirrored: its
+ * float projection, its face orders and write masks, its rasterizer. Two
+ * tables, because the client draws the scene twice -- every model through the
+ * OPAQUE table, then every model again, in the same order, through the
+ * TRANSLUCENT one -- inside one ToriDraw_SceneZBufferBeginPass. XRGB8888 only.
+ * See docs/toridraw_rszbuffer.md.
+ */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareRsZBufferedOpaque(void);
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareRsZBufferedTranslucent(void);
 
 /** D3D9 / GL / WebGL: stages 1 and 2 only, the order goes to a vertex upload.
  *  Never wants the stash -- nothing downstream walks a software span. */

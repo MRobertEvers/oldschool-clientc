@@ -3,6 +3,7 @@
 
 #include "toridraw_shared_model.h"
 #include "toridraw_types.h"
+#include "graphics/raster/rszbuf/rszbuf_model.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -380,6 +381,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     TORIDRAW_FREE(scene->sm_flex_prio11_face_to_depth);
     TORIDRAW_FREE(scene->sm_flex_prio12_face_to_depth);
     TORIDRAW_FREE(scene->tmp_face_order);
+    TORIDRAW_FREE(scene->rszbuf);
     TORIDRAW_FREE(scene->tex_state);
     TORIDRAW_FREE(scene->anim_list);
     TORIDRAW_FREE(scene->zbuffer);
@@ -422,6 +424,25 @@ scene_alloc_vertices(
     assert(scene->orthographic_vertices_x);
     assert(scene->orthographic_vertices_y);
     assert(scene->orthographic_vertices_z);
+    return true;
+}
+
+/* The rev-241 group: the struct and its arrays in one block. */
+static bool
+scene_alloc_rszbuf(
+    struct ToriDraw_Scene* scene,
+    const struct ToriDraw_SceneCaps* caps)
+{
+    if( scene->rszbuf )
+        return true;
+
+    scene->rszbuf = TORIDRAW_MALLOC(toridraw_rszbuf_model_bytes(caps->max_vertices, caps->max_faces));
+    assert(scene->rszbuf);
+    memset(scene->rszbuf, 0, sizeof(*scene->rszbuf));
+    toridraw_rszbuf_model_carve(scene->rszbuf, caps->max_vertices, caps->max_faces);
+    /* class175's constructor. */
+    scene->rszbuf->color_write_mask = -1;
+    scene->rszbuf->depth_write_mask = -1;
     return true;
 }
 
@@ -914,7 +935,8 @@ scene_caps_from_scene(
     X(sm_prio_faces) \
     X(sm_flex_prio11_face_to_depth) \
     X(sm_flex_prio12_face_to_depth) \
-    X(tmp_face_order)
+    X(tmp_face_order) \
+    X(rszbuf)
 
 enum
 {
@@ -978,6 +1000,8 @@ td_scene_view_alloc_scratch(
         scene_alloc_bitonic_radix_keys(view, &caps);
     if( resident & TORIDRAW_SCENE_SCRATCH_PRESORT_XY )
         scene_alloc_presort_xy(view, &caps);
+    if( resident & TORIDRAW_SCENE_SCRATCH_RSZBUF )
+        scene_alloc_rszbuf(view, &caps);
     assert(ToriDraw_SceneScratchResident(view) == resident);
 }
 
@@ -1340,6 +1364,7 @@ sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
 // clang-format off
 #include "kernels/projection.prepared.u.c"
 #include "kernels/projection.portable.u.c"
+#include "kernels/projection.rszbuf.u.c"
 #include "kernels/facesort.bucket.u.c"
 #include "kernels/facesort.bitonic_radix.u.c"
 #include "kernels/sd.gpu.u.c"
@@ -1350,6 +1375,7 @@ sd_kernel_zbuffered_variant(const struct ToriDraw_RasterKernelSD* kernel)
 #include "kernels/table.software_painter.u.c"
 #include "kernels/table.software_scanline.u.c"
 #include "kernels/table.software_zbuffered.u.c"
+#include "kernels/table.software_rszbuffered.u.c"
 #include "kernels/table.gpu.u.c"
 #include "kernels/table.sprite_baker.u.c"
 #include "kernels/table.hd_painter.u.c"
@@ -1410,6 +1436,8 @@ ToriDraw_SceneScratchResident(const struct ToriDraw_Scene* scene)
         resident |= TORIDRAW_SCENE_SCRATCH_BITONIC_RADIX_KEYS;
     if( scene->sm_face_x4 )
         resident |= TORIDRAW_SCENE_SCRATCH_PRESORT_XY;
+    if( scene->rszbuf )
+        resident |= TORIDRAW_SCENE_SCRATCH_RSZBUF;
     return resident;
 }
 
@@ -1493,6 +1521,9 @@ ToriDraw_SceneKernelScratchNeeds(
 
     assert(scene);
 
+    if( kernel && (kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_RSZBUF_SCRATCH) )
+        needs |= TORIDRAW_SCENE_SCRATCH_RSZBUF;
+
     /* A NULL kernel is the stock painter: it sorts. */
     if( kernel && !(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING) )
         return needs;
@@ -1556,6 +1587,8 @@ ToriDraw_SceneEnsureScratch(
         scene_alloc_bitonic_radix_keys(scene, &caps);
     if( needs & TORIDRAW_SCENE_SCRATCH_PRESORT_XY )
         scene_alloc_presort_xy(scene, &caps);
+    if( needs & TORIDRAW_SCENE_SCRATCH_RSZBUF )
+        scene_alloc_rszbuf(scene, &caps);
 
     return ToriDraw_SceneHasScratch(scene, needs);
 }
@@ -1619,6 +1652,10 @@ ToriDraw_KernelScratchNeeds(
 
     kernel_table_resolve(kernel, &projection, &sort);
     (void)projection; /* Projection reads and writes the vertex arrays only. */
+
+    /* The rev-241 raster reads the rev-241 projection's own group. */
+    if( kernel->raster && (kernel->raster->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_RSZBUF_SCRATCH) )
+        needs |= TORIDRAW_SCENE_SCRATCH_RSZBUF;
 
     /* A raster that resolves depth per pixel takes no face order, so stage 2
      * does not run and none of its scratch is touched. Which raster answers

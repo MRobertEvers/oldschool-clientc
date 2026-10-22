@@ -739,7 +739,12 @@ decode_tile(
         td->flags |= TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES;
     }
 
-    /* Otherwise td->flags stays 0. This builds a ToriDraw_Model directly, so
+    /* Every tile is terrain, which only the rev-241 rasterizer reads: it
+     * draws tiles down the client's tile path (no near clip, linear texture
+     * spans, opaque pass only). See TORIDRAW_MODEL_FLAG_TERRAIN. */
+    td->flags |= TORIDRAW_MODEL_FLAG_TERRAIN;
+
+    /* Nothing else is set. This builds a ToriDraw_Model directly, so
      * `flags` is the RENDERER's word (TORIDRAW_MODEL_FLAG_*), not the ToriRS
      * decode bookkeeping this used to mirror: bit 0 there is
      * TORIDRAW_MODEL_FLAG_ZBUFFER, which routes the tile through the

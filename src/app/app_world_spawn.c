@@ -225,6 +225,28 @@ app_model_apply_import_render_flags(
         model->flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
 }
 
+/**
+ * Stamp whether the rev-241 depth buffer draws this model in two passes,
+ * colour then depth (TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS): every player's
+ * body, a transmogged one included, and an npc's whose type carries opcode 147
+ * (ToriRS_Npctype::zbuf_off) [class52 / class77.method1206]. Only the
+ * rszbuffered tables read it.
+ *
+ * Written both ways, for the reason app_model_apply_import_render_flags is:
+ * the model may be a cache copy of one stamped for another npc id.
+ */
+void
+app_model_apply_rszbuf_two_pass(
+    struct ToriDraw_Model* model,
+    bool two_pass)
+{
+    assert(model);
+    if( two_pass )
+        model->flags |= TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS;
+    else
+        model->flags &= (uint8_t)~TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS;
+}
+
 struct ToriDraw_Model*
 app_world_build_model(
     struct App* app,
@@ -708,6 +730,7 @@ app_world_spawn_npc_now(
      * still written out because this model may be a cache copy of one that was
      * opted in earlier under a different npc id. */
     app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc_id, npctype));
+    app_model_apply_rszbuf_two_pass(model, npctype->zbuf_off);
 
     app_npc_entity_facts(app, base_npc_id, npctype, &facts);
     size = facts.size;

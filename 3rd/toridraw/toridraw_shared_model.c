@@ -167,6 +167,7 @@ struct ToriDraw_SharedFaces
     faceint_t* face_textures;
     alphaint_t* face_alphas;
     uint8_t* face_priorities;
+    int8_t* face_z_offsets;
     faceint_t* textured_p_coordinate;
     faceint_t* textured_m_coordinate;
     faceint_t* textured_n_coordinate;
@@ -184,7 +185,7 @@ struct ToriDraw_SharedFaces
      *
      * The loan above saves memory and nothing else: every placement still ran
      * the whole build -- convert each source model, merge, recolour, retexture,
-     * mirror, resize -- and then freed the twelve arrays it had just produced
+     * mirror, resize -- and then freed the thirteen arrays it had just produced
      * in favour of these. The build was redundant by construction, because the
      * key IS the config and the rotation, so everything the build decides is
      * the same at every placement of it.
@@ -234,7 +235,7 @@ enum
 #undef TORIDRAW_SHARED_FACES_COUNT_ONE
 };
 typedef char toridraw_shared_faces_has_a_member_per_field
-    [TORIDRAW_SHARED_FACE_FIELD_COUNT == 12 ? 1 : -1];
+    [TORIDRAW_SHARED_FACE_FIELD_COUNT == 13 ? 1 : -1];
 
 struct ToriDraw_SharedFacesStore
 {
@@ -472,7 +473,7 @@ ToriDraw_ModelLentFacesFree(struct ToriDraw_ModelLentFaces* lent)
     if( !lent )
         return;
 
-    /* The twelve lent arrays are the set's; drop the alias without freeing. */
+    /* The thirteen lent arrays are the set's; drop the alias without freeing. */
 #define TORIDRAW_SHARED_FACES_DISOWN(field) lent->base.field = NULL;
     TORIDRAW_SHARED_FACE_FIELDS(TORIDRAW_SHARED_FACES_DISOWN)
 #undef TORIDRAW_SHARED_FACES_DISOWN

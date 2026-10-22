@@ -302,7 +302,7 @@ GRGB_ORDERED(
          * AB has a slope of hundreds of px per row, and times a distant y0 that
          * overflows the 16.16 product for a result that is then discarded. A
          * live edge cannot overflow (dy >= |y0| bounds it by dx << 16). Full
-         * argument in graphics/raster/zbuffer/zbuf.screen.u.c. */
+         * argument in graphics/raster/flat/flat_screen_edges.h. */
         if( y1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
 

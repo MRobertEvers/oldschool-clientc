@@ -130,7 +130,7 @@ ToriDraw_SharedFacesStoreCount(const struct ToriDraw_SharedFacesStore* store);
  * Takes a handle that OWNS and spends it: what comes back is a
  * TORIDRAWMK_MODEL_LENT_FACES addressing the same vertices, which is the
  * half-shared permission -- write the vertices, the per-corner colours and
- * face_infos, not the twelve arrays now on loan.
+ * face_infos, not the thirteen arrays now on loan.
  */
 struct ToriDraw_ModelHandle
 ToriDraw_SharedFacesStoreBorrow(

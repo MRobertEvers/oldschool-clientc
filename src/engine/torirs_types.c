@@ -460,6 +460,8 @@ ToriRS_ModelSizeOf(const struct ToriRS_Model* model)
         bytes += (size_t)model->face_count * sizeof(*model->face_textures);
     if( model->face_alphas )
         bytes += (size_t)model->face_count * sizeof(*model->face_alphas);
+    if( model->face_z_offsets )
+        bytes += (size_t)model->face_count * sizeof(*model->face_z_offsets);
     if( model->face_infos )
         bytes += (size_t)model->face_count * sizeof(*model->face_infos);
     if( model->face_priorities )
@@ -512,6 +514,8 @@ ToriRS_ModelReleaseArrays(struct ToriRS_Model* model)
     model->face_textures = NULL;
     ToriMem_Free(ToriMem_Assets(), model->face_alphas);
     model->face_alphas = NULL;
+    ToriMem_Free(ToriMem_Assets(), model->face_z_offsets);
+    model->face_z_offsets = NULL;
     ToriMem_Free(ToriMem_Assets(), model->face_infos);
     model->face_infos = NULL;
     ToriMem_Free(ToriMem_Assets(), model->face_priorities);

@@ -7034,6 +7034,15 @@ test-zbuffer: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
 		$(OBJ_DIR)/bmp.o
 	./$(OBJ_DIR)/zbuffer_test
 
+# The rev-241 depth-buffered renderer (the rszbuffered tables): its
+# rasterizer against hashes the client's own class162 produced
+# (tools/rszbuf_oracle), and its face walk through the real tables.
+test-rszbuf: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/bmp.o
+	$(CC) $(CFLAGS) -lm $(PLATFORM_STRIP_LDFLAGS) -o $(OBJ_DIR)/rszbuf_test \
+		$(TORIDRAW_DIR)/toridraw_rszbuf_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/bmp.o
+	./$(OBJ_DIR)/rszbuf_test
+
 # The ToriRS -> ToriDraw adaptor must not forward decode flags into the render
 # flag word: the two `flags` bytes are different namespaces, and bit 0 on the
 # ToriDraw side is TORIDRAW_MODEL_FLAG_ZBUFFER, which drops face priorities.
@@ -7198,6 +7207,7 @@ TORIDRAW_KERNEL_TESTS = \
 	test-near-clip \
 	test-face-sort-bitonic-radix \
 	test-zbuffer \
+	test-rszbuf \
 	test-scene-profiles \
 	test-render-hd \
 	test-raster-overshoot \

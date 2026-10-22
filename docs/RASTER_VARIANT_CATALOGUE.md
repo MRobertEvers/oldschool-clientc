@@ -87,12 +87,16 @@ When one catalogue row maps to **multiple** canonical IDs (e.g. opaque vs transp
 | TS17 | `texture_uv` | UV generation | — | per-vertex uv for render types 0-3, from the decoded mapping parameters | `ToriDraw_ComputeTextureUv`, `ToriDraw_ComputeTextureUvBases` | [`toridraw_texture_uv.c`](../3rd/toridraw/toridraw_texture_uv.c) |
 | TS15 | `tex_sampler` | Texture (sampler) | — | per-triangle sampler state: texels, width/shift/masks, per-axis clamp, face alpha, per-channel tint | `ToriDraw_TexSampler`, `tex_sampler_index`, `tex_sampler_mul255`, `tex_sampler_tint` | [`tex_sampler.h`](../3rd/toridraw/graphics/raster/texture/tex_sampler.h) |
 | TS11 | `texshadeblend.persp.texopaque.sort.lerp8` / `texshadeblend.persp.textrans.sort.lerp8` | Texture Gouraud | perspective | SWAP-sorted triangle lerp8 | `raster_texshadeblend_persp_texopaque_sort_lerp8`, `raster_texshadeblend_persp_textrans_sort_lerp8` | [`texture.u.c`](../src/graphics/old/texture.u.c) + [`raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.u.c), [`texshadeblend.persp.textrans.sort.lerp8.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.u.c) + scanlines [`texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.texopaque.sort.lerp8.scanline.u.c), [`texshadeblend.persp.textrans.sort.lerp8.scanline.u.c`](../src/graphics/raster/texture/texshadeblend.persp.textrans.sort.lerp8.scanline.u.c) (`raster_texshadeblend_persp_*_sort_lerp8_scanline`; legacy path; TS8 span) |
-| Z1 | `zbuf.screen` | Depth | screen | one walker, three shading modes (flat / gouraud / perspective texture), depth-tested per pixel | `raster_zbuf_screen`, `raster_zbuf_screen_ordered`, `zbuf_span` | [`raster/zbuffer/zbuf.screen.u.c`](../3rd/toridraw/graphics/raster/zbuffer/zbuf.screen.u.c) |
-| Z2 | `zbuf.screen.face` | Depth | screen | face entry + near-clip rebuild + the per-model buffer reset | `ToriDraw_TriangleFaceZBuffered`, `toridraw_zbuf_reset` | [`triangles/toridraw_triangle_zbuf.u.c`](../3rd/toridraw/triangles/toridraw_triangle_zbuf.u.c) |
+| Z1 | `flat.{opaque,alpha}.zbuf.branching.s4`, `gouraudhsllightness.{opaque,alpha}.zbuf.branching.s4`, `texshadeblend.affine.{texopaque,textrans}.zbuf.branching.lerp8_v3` | Depth | screen | the depth twins of the SD painter families: the painter walk and blocking verbatim (four-pixel flat stores and gouraud colour blocks, the eight-pixel affine fit), a depth compare per pixel, a depth store for opaque faces | `raster_flat_screen_*_zbuf_branching_s4`, `raster_gouraudhsllightness_screen_*_zbuf_branching_s4`, `raster_texshadeblend_affine_*_zbuf_branching_lerp8_v3` | [`flat.zbuf.branching.s4_tmpl.inc`](../3rd/toridraw/graphics/raster/flat/flat.zbuf.branching.s4_tmpl.inc), [`gouraudhsllightness.zbuf.branching.s4_tmpl.inc`](../3rd/toridraw/graphics/raster/gouraudhsllightness/gouraudhsllightness.zbuf.branching.s4_tmpl.inc), the affine ones over the TS12 template with [`tex.span.affine_zbuf_tmpl.inc`](../3rd/toridraw/graphics/raster/texture/span/tex.span.affine_zbuf_tmpl.inc) |
+| Z2 | `zbuf.screen.face` | Depth | screen | face entry: picks the family twin, near-clip rebuild, per-model buffer reset | `ToriDraw_TriangleFaceZBuffered`, `toridraw_zbuf_reset` | [`impl/raster/dispatch/tri.zbuf.u.c`](../3rd/toridraw/impl/raster/dispatch/tri.zbuf.u.c) |
 | Z3 | `zbuf.plane` | Depth (setup) | — | the depth-key plane every textured depth twin interpolates | `ToriDraw_ZbufPlane`, `toridraw_zbuf_plane_solve`, `toridraw_zbuf_plane_row` | [`raster/zbuffer/zbuf_plane.h`](../3rd/toridraw/graphics/raster/zbuffer/zbuf_plane.h) |
 | Z4 | `texplane.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3` (12 IDs) | Depth (texture) | perspective | the depth-tested twin of every TS12 point | `raster_texplane_persp_*_zbuf_branching_lerp8_v3` | one file per variant, `texplane.persp.*.zbuf.branching.lerp8_v3.u.c`, over the TS12 template with `TSFA_ZBUF` |
 | Z5 | `tex{cylinder,cube,sphere}.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3` (36 IDs) | Depth (texture) | perspective | the depth-tested twin of every TS13 point | `raster_tex{cylinder,cube,sphere}_persp_*_zbuf_branching_lerp8_v3` | one file per variant, over the TS13 template with `TMAP_ZBUF` |
 | Z6 | `tex.span.gates.zbuf` (12 IDs) | Depth (span) | perspective | the depth-tested spans Z4/Z5 walk | `draw_texture_scanline_<gate>[_facealpha][_modulate]_zbuf_branching_lerp8_v3_ordered` | [`span/tex.span.gates.u.c`](../3rd/toridraw/graphics/raster/texture/span/tex.span.gates.u.c) + `tex.span.gates_tmpl.inc` with `TS2_ZBUF`. Scalar only, like TS14 |
+| RZ1 | `rszbuf.{flat,gouraud}.zbuf` | Depth (rev-241) | screen | the client's flat and gouraud triangle setups and spans, float corners, 4-pixel gouraud blocks, write masks | `rszbuf_triangle_flat`, `rszbuf_triangle_gouraud` | [`impl/raster/rszbuf/`](../3rd/toridraw/impl/raster/rszbuf/) over [`rszbuf.triangle_tmpl.inc`](../3rd/toridraw/graphics/raster/rszbuf/rszbuf.triangle_tmpl.inc) |
+| RZ2 | `rszbuf.texture.{perspective.lerp8,linear}.zbuf` | Depth (rev-241, texture) | perspective / linear | the client's model (8-pixel fit) and tile (linear) texture setups and spans | `rszbuf_triangle_texture`, `rszbuf_triangle_texture_linear` | [`impl/raster/rszbuf/`](../3rd/toridraw/impl/raster/rszbuf/) over [`rszbuf.texture_triangle_tmpl.inc`](../3rd/toridraw/graphics/raster/rszbuf/rszbuf.texture_triangle_tmpl.inc) |
+| RZ3 | `rszbuf.face` | Depth (rev-241) | screen | per-kind face entry, keys with the face's depth bias, near clip | `ToriDraw_RsZbufTriangleFace{Flat,Gouraud,Texture}`, `ToriDraw_RsZbufTriangleClip` | [`tri.rszbuf.u.c`](../3rd/toridraw/impl/raster/dispatch/tri.rszbuf.u.c), [`tri.rszbuf.clip.u.c`](../3rd/toridraw/impl/raster/dispatch/tri.rszbuf.clip.u.c) |
+| RZ4 | `rszbuf.walk` | Depth (rev-241) | — | the client's face flags, modes, bucket and priority orders, two scene passes | `toridraw_rszbuf_walk` | [`walk.rszbuf.u.c`](../3rd/toridraw/impl/raster/walk/walk.rszbuf.u.c); see [toridraw_rszbuffer.md](toridraw_rszbuffer.md) |
 
 ---
 
@@ -327,11 +331,13 @@ parts have to be resolved.
 
 Two shapes, for two reasons:
 
-- **Z1 is ONE walker with three shading modes**, not depth-tested copies of the
-  eight untextured kernels. The mode is constant for every pixel of a model, so
-  the branch predicts perfectly, and the alternative was eight files that could
-  drift in their *coverage* rules — which is exactly what must not drift. Its
-  texture mode takes the reference's per-pixel divide rather than an 8-pixel fit.
+- **Z1 are the SD painter families with a z-buffer added**, one twin per family,
+  each a template the painter walk is copied into verbatim. A lone face drawn
+  into a cleared buffer is bit-identical to its painter twin, which
+  `toridraw_zbuffer_test` holds every family to. (Z1 used to be one per-pixel
+  walker for all three modes, with an exact divide on every textured pixel; it
+  was replaced because it was several times slower than the painter it stood in
+  for.) Perspective textured faces take Z4 at the SD sampler defaults.
 - **Z4/Z5 are 48 twins, one per point of the matrix**, generated from the TS12 /
   TS13 templates under `TSFA_ZBUF` / `TMAP_ZBUF`. Here twinning is the cheaper
   answer: the compositing point already decides the file, and the depth test
@@ -379,6 +385,13 @@ and an exact-depth-tie fixture that makes draw order observable — without one,
 geometry the same way whatever order it arrives in) and `make -C src
 test-render-hd` (the 48 twins: identical pixels to their siblings where nothing
 overlaps, and correct resolution where the sort demonstrably fails).
+
+### The rev-241 client's own (RZ1–RZ4)
+
+Not a twin of anything above: the client's `::zbuf 1` renderer, ported
+method for method, with its own float projection and face walk, and graded
+against the client's code itself rather than against a sibling kernel. See
+[toridraw_rszbuffer.md](toridraw_rszbuffer.md).
 
 ---
 
@@ -479,9 +492,9 @@ spans about seven orders of magnitude and the small end is not representable in
 - **Perspective shaded path today:** `raster_texture_blend` uses the **v3 branching.lerp8** symbols (**TS1**: `raster_texshadeblend_persp_texopaque_branching_lerp8_v3`, etc.), not the older `texture.u.c` triangle rasterizers (**TS11**). **Perspective flat** (`raster_texture_flat`) uses **TF1/TF2** (`raster_texshadeflat_persp_texopaque_branching_lerp8`, etc.); sort variants remain in the same TU for parity / benches.
 - **SIMD:** **G9** and **TS8–TS10** — see the plan’s **SIMD Integration** section. Perspective **texshadeflat** scanlines use **`raster_linear_*_texshadeflat_lerp8`** (same ISA files as **TS8**; thin forwarders to `raster_linear_*_blend_lerp8`).
 - **Scalar TS9:** `draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered` is implemented in [`tex.span.scalar.u.c`](../src/graphics/raster/texture/span/tex.span.scalar.u.c) (parity with other ISAs).
-- **Depth-tested (Z1–Z6):** a fifth axis, not a fifth walk — Z1 is one walker for
-  flat/gouraud/texture, Z4–Z6 are the depth twins of the 48 textured kernels and
-  their spans. Reached by `TORIDRAW_MODEL_FLAG_ZBUFFER` (keeps the sort) or by
+- **Depth-tested (Z1–Z6):** a fifth axis, not a fifth walk — Z1 are the depth
+  twins of the SD flat/gouraud/affine families, Z4–Z6 are the depth twins of the
+  48 textured kernels and their spans. Reached by `TORIDRAW_MODEL_FLAG_ZBUFFER` (keeps the sort) or by
   `ToriDraw_Render{,HD}ZBuffered` (drops it).
 - **Repo-only / not in `dash.c`:** F4, G8, G10–G13, standalone [`texture_opaque_blend_affine.c`](../src/graphics/archive/texture_opaque_blend_affine.c) / [`texture_transparent_blend_affine.c`](../src/graphics/archive/texture_transparent_blend_affine.c), and [`gouraud_raster.c`](gouraud_raster.c) (standalone demo in this folder).
 
@@ -532,12 +545,16 @@ TS8  texshadeblend.persp.texopaque.lerp8[_v3].span.vec (4)  SIMD 8-pixel kernels
 TS9  texshadeblend.persp.texopaque.branching.lerp8_v3.scanline / ...  SIMD persp scanlines (scalar has both)
 TS10 texshadeblend.affine.texopaque.branching.lerp8.scanline / ...branching.lerp8_v3.scanline / ... SIMD affine scanlines
 TS11 texshadeblend.persp.texopaque.sort.lerp8 / ...trans...    Legacy shadeblend (SWAP sort)
-Z1   zbuf.screen                                          Depth-tested walker: flat / gouraud / persp texture
+Z1   {flat,gouraudhsllightness,texshadeblend.affine}.zbuf   Depth twins of the SD painter families
 Z2   zbuf.screen.face                                     Depth face entry, near-clip rebuild, per-model reset
 Z3   zbuf.plane                                           Depth-key plane solve (Z4/Z5 setup)
 Z4   texplane.persp.<gate>[.facealpha][.modulate].zbuf.branching.lerp8_v3   Depth twins of TS12 (12 IDs)
 Z5   tex{cylinder,cube,sphere}.persp.<gate>[...].zbuf.branching.lerp8_v3    Depth twins of TS13 (36 IDs)
 Z6   tex.span.gates.zbuf                                  Depth-tested spans for Z4/Z5 (12 IDs, scalar)
+RZ1  rszbuf.{flat,gouraud}.zbuf                          The rev-241 client's flat/gouraud setups + spans
+RZ2  rszbuf.texture.{perspective.lerp8,linear}.zbuf      The rev-241 client's model/tile texture setups
+RZ3  rszbuf.face                                         Per-kind face entry, depth bias, near clip
+RZ4  rszbuf.walk                                         The client's face orders and two scene passes
 ```
 
 ---

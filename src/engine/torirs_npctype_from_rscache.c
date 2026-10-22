@@ -370,6 +370,7 @@ ToriRS_NpctypeFromRSCacheDat2(
     /* Opcode 124, already -1 from the decoder when the record does not state
      * it. Note 123 is a boolean here and only carries a height on RS2 caches. */
     npctype->height = src->height;
+    npctype->zbuf_off = !src->zbuf;
     /* -1 from the decoder before rev 231, where the deob's predecessors have no
      * footprint and project from the centre. */
     npctype->footprint_size = src->footprint_size > 0 ? src->footprint_size : 0;

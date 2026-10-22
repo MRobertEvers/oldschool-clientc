@@ -215,7 +215,7 @@ static char const* const CS_HIGH_DPI_NAME[CS_HIGH_DPI_ROWS] = {
 /* kind + 1, one per kind: a short table left the WebGL and GLES3 kinds' values
  * NULL, so the browser's and the phone's renderer rows had nothing to pick. */
 static char const* const CS_RENDERER_VALUE[] = {
-    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14",
+    "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
 };
 _Static_assert(
     sizeof(CS_RENDERER_VALUE) / sizeof(CS_RENDERER_VALUE[0]) == TORIRS_RENDERER_COUNT,

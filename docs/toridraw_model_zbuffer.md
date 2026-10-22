@@ -162,14 +162,11 @@ depth world composite in the order the collector emits them, not back to front.
 - 32-bit pixel targets only. Under `TORIDRAW_PIXEL16` the family is not compiled
   and the model flag is inert; `ToriDraw_RenderZBuffered` asserts there rather
   than quietly drawing by face order under a name that promises otherwise.
-- The affine texture kernels (`RASTER_FLAG_TEXTURE_AFFINE`, not currently
-  enabled) have no depth-tested twin; a z-buffered model takes the perspective
-  path.
-- The SD depth-tested texture span divides per pixel rather than fitting a line
-  through eight. Not because the depth test forbids the fit — the HD twins keep
-  it — but because this is one walker serving three shading modes and there was
-  no per-variant fitted span to copy. The path is opt-in and rare; it is not the
-  one to reach for on scenery.
+- Every SD painter family has a depth twin that is the painter kernel plus a
+  z-buffer: the same walk, four-pixel gouraud colour blocks, the eight-pixel
+  texture fit, and the affine kernels for non-plane mappings. Only the depth
+  compare runs per pixel. `test-zbuffer` holds each twin bit-identical to its
+  painter on a lone face.
 
 ## Iterating
 

@@ -265,6 +265,13 @@ torirs_model_move_from_rscache(
         src->face_alphas = NULL;
     }
 
+    if( src->face_z_offsets && fc > 0 )
+    {
+        dst->face_z_offsets = ToriMem_TakeFromRSCache(
+            ToriMem_Assets(), src->face_z_offsets, (size_t)fc * sizeof(*src->face_z_offsets));
+        src->face_z_offsets = NULL;
+    }
+
     if( src->face_infos && fc > 0 )
     {
         dst->face_infos = ToriMem_Alloc(ToriMem_Assets(), (size_t)fc * sizeof(int));

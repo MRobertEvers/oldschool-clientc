@@ -89,6 +89,7 @@ ToriDraw_BufCopy(
     X(face_textures)                                                                               \
     X(face_alphas)                                                                                 \
     X(face_priorities)                                                                             \
+    X(face_z_offsets)                                                                              \
     X(textured_p_coordinate)                                                                       \
     X(textured_m_coordinate)                                                                       \
     X(textured_n_coordinate)                                                                       \
@@ -301,7 +302,7 @@ ToriDraw_ModelWrite(struct ToriDraw_ModelHandle hnd)
  * The private half of a lent-faces placement: its vertices, its per-corner
  * colours, its face_infos.
  *
- * Returns the whole base because C cannot hand back "every member but twelve",
+ * Returns the whole base because C cannot hand back "every member but thirteen",
  * so this is a promise the caller keeps rather than one the compiler enforces:
  * do not touch TORIDRAW_SHARED_FACE_FIELDS through it. What it does enforce is
  * the kind -- a whole-shared model has no private half and does not come back

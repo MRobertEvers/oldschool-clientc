@@ -6,9 +6,10 @@
  * so it is where TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES is set -- and the raster
  * reads the flag per model (toridraw_affine_flag_test.c proves that half).
  * This pins the other half: the tile decoder sets exactly that bit, on exactly
- * the tiles that carry a texture, and touches no other render flag. An
- * untextured tile keeping flags == 0 is the negative control; it is also the
- * z-buffer regression guard's concern (bit 0 must never leak onto terrain).
+ * the tiles that carry a texture, and no other render flag but
+ * TORIDRAW_MODEL_FLAG_TERRAIN, which every tile carries. An untextured tile
+ * carrying TERRAIN alone is the negative control; it is also the z-buffer
+ * regression guard's concern (bit 0 must never leak onto terrain).
  *
  * Build and run:
  *   make -C src test-terrain-affine-flag
@@ -63,13 +64,14 @@ main(void)
                     shape,
                     rotation);
                 CHECK(
-                    textured->flags == TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES,
+                    textured->flags ==
+                        (TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES | TORIDRAW_MODEL_FLAG_TERRAIN),
                     "shape %d rot %d: textured tile flags are 0x%02x, expected only "
-                    "TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES (0x%02x)",
+                    "TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES | TORIDRAW_MODEL_FLAG_TERRAIN (0x%02x)",
                     shape,
                     rotation,
                     textured->flags,
-                    TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES);
+                    TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES | TORIDRAW_MODEL_FLAG_TERRAIN);
                 ToriDraw_ModelFree(textured);
             }
             if( plain )
@@ -80,8 +82,9 @@ main(void)
                     shape,
                     rotation);
                 CHECK(
-                    plain->flags == 0,
-                    "shape %d rot %d: untextured tile flags are 0x%02x, expected 0",
+                    plain->flags == TORIDRAW_MODEL_FLAG_TERRAIN,
+                    "shape %d rot %d: untextured tile flags are 0x%02x, expected only "
+                    "TORIDRAW_MODEL_FLAG_TERRAIN",
                     shape,
                     rotation,
                     plain->flags);

@@ -427,12 +427,7 @@ hd_draw_gouraud_z(
         face->shade[1],
         face->shade[2],
         face->opacity,
-        TORIDRAW_ZBUF_TEX_OPAQUE,
-        0,
-        0,
-        0,
         NULL,
-        0,
         false,
         ctx->scene->near_clipped);
 }
@@ -456,12 +451,7 @@ hd_draw_flat_z(
         face->shade[1],
         face->shade[2],
         face->opacity,
-        TORIDRAW_ZBUF_TEX_OPAQUE,
-        0,
-        0,
-        0,
         NULL,
-        0,
         false,
         ctx->scene->near_clipped);
 }

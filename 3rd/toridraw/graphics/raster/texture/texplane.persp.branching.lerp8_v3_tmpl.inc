@@ -173,7 +173,7 @@ TSFA_ORDERED(
     {
         edge_x_AC_ish16 -= step_edge_x_AC_ish16 * y0;
         /* Only pre-step A->B if that edge is walked - see the identical note in
-         * the plain v3 kernel and the full argument in zbuf.screen.u.c. */
+         * the plain v3 kernel and the full argument in graphics/raster/flat/flat_screen_edges.h. */
         if( y1 > 0 )
             edge_x_AB_ish16 -= step_edge_x_AB_ish16 * y0;
         shade8bit_edge_ish8 = toridraw_wrap_sub(

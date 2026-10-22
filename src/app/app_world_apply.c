@@ -285,7 +285,10 @@ app_world_npc_mount_body(
     /* The depth-test opt-in is a property of the npc TYPE, so a retype has to
      * re-decide it against the new type -- exactly as the spawn path does. */
     if( model )
+    {
         app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(npc_type, npctype));
+        app_model_apply_rszbuf_two_pass(model, npctype->zbuf_off);
+    }
 
     if( model && element_id >= 0 && ToriDraw_SceneElementIsLive(app->scene, element_id) )
     {
@@ -697,6 +700,9 @@ app_world_reconcile_player_transmog(
             }
             app_model_apply_import_render_flags(model, app_npc_wants_zbuffer(drawn, npctype));
         }
+        /* Still a player to the client [class52.method1206], whatever it is
+         * drawn as. */
+        app_model_apply_rszbuf_two_pass(model, true);
     }
     if( !ToriDraw_SceneElementIsLive(app->scene, player->element_id) )
     {
@@ -771,6 +777,7 @@ app_world_reconcile_player_body(
         app->provider, slots, player->appearance.colors, player->gender);
     if( !model )
         return;
+    app_model_apply_rszbuf_two_pass(model, true);
     if( !ToriDraw_SceneElementIsLive(app->scene, player->element_id) )
     {
         ToriDraw_ModelFree(model);

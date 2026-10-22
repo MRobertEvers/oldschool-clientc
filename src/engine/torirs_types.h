@@ -89,6 +89,9 @@ struct ToriRS_Model
     gc_faceint_t* face_indices_c;
     gc_faceint_t* face_textures;
     gc_alphaint_t* face_alphas;
+    /* Per-face depth bias for the rev-241 depth buffer, or NULL
+     * [class131.field1755]. RSCache_Model.face_z_offsets. */
+    int8_t* face_z_offsets;
     int* face_infos;
     uint8_t* face_priorities;
     /* Uniform priority for models that carry no per-face array (header priority != 255). Only
@@ -527,6 +530,12 @@ struct ToriRS_Npctype
      *  `zbuffer_model` (TORIRS_PARAM_ZBUFFER_MODEL); 0 for every npc that does
      *  not name it, which is the shipping behaviour. */
     int zbuffer_model;
+    /** Dat2 opcode 147 (rev 236+) cleared the type's zbuf flag
+     *  [class431.field5435]. The rev-241 depth buffer then draws the npc in
+     *  two passes, colour then depth, as it draws every player (class77.
+     *  method1206; TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS). False for dat1 and
+     *  for every record without the opcode. */
+    bool zbuf_off;
     /** NpcType.multiNpc (dat2 opcode 106) -- same shape as a loc's transform
      *  table (ToriRS_Location.transform_*), resolved the same way, through
      *  VarPManager_ResolveTransform. A shell record with transform_count > 0

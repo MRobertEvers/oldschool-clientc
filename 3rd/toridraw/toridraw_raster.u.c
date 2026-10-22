@@ -162,12 +162,7 @@ toridraw_stock_draw_zbuffered_solid(
         face->shade[1],
         face->shade[2],
         face->opacity,
-        TORIDRAW_ZBUF_TEX_OPAQUE,
-        0,
-        0,
-        0,
         NULL,
-        0,
         ctx->allow_near_clip,
         ctx->near_clipped);
 }
@@ -203,9 +198,19 @@ toridraw_stock_zbuffered_textured(
     const struct ToriDraw_RasterFaceSD* face)
 {
     struct ToriDrawModelRasterContext* ctx = target->internal;
-    int const gate = face->texture.gate == TORIDRAW_RASTER_TEXTURE_OPAQUE
-                         ? TORIDRAW_ZBUF_TEX_OPAQUE
-                         : TORIDRAW_ZBUF_TEX_TRANSPARENT;
+    /* The painter's own family choice (TORIDRAW_DEFINE_STOCK_TEXTURED_*): a
+     * non-plane mapping, or affine forced on, draws through the affine kernels. */
+    struct ToriDraw_ZbufTexture const tex = {
+        .kind = face->texture.gate == TORIDRAW_RASTER_TEXTURE_OPAQUE
+                    ? TORIDRAW_ZBUF_TEX_OPAQUE
+                    : TORIDRAW_ZBUF_TEX_TRANSPARENT,
+        .affine = ctx->target.affine_textures || face->texture.render_type != 0,
+        .p = face->texture.frame.p,
+        .m = face->texture.frame.m,
+        .n = face->texture.frame.n,
+        .texels = (int*)face->texture.texels,
+        .width = face->texture.width,
+    };
 
     (void)user_data;
     ToriDraw_TriangleFaceZBuffered(
@@ -217,12 +222,7 @@ toridraw_stock_zbuffered_textured(
         face->shade[1],
         face->shade[2],
         face->opacity,
-        gate,
-        face->texture.frame.p,
-        face->texture.frame.m,
-        face->texture.frame.n,
-        (int*)face->texture.texels,
-        face->texture.width,
+        &tex,
         ctx->allow_near_clip,
         ctx->near_clipped);
 }
@@ -418,6 +418,7 @@ ToriDraw_RasterWalkPerFace(
  */
 // clang-format off
 #include "kernels/sd.zbuffered.u.c"
+#include "kernels/sd.rszbuffered.u.c"
 #include "kernels/sd.branching.u.c"
 #include "kernels/sd.branching_perface.u.c"
 #include "kernels/sd.scanline.u.c"

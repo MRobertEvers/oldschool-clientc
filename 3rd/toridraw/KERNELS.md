@@ -66,7 +66,11 @@ perspective and parallel. A family owns its own near-clip rule and the two
 vertex kernels that rule selects between, because "can a vertex reach the near
 plane, and which plane is that" has a different answer under a projection that
 divides by z than under one that does not. Kernels: `prepared` (the default) and
-`portable`, which differ in exactly the two perspective slots.
+`portable`, which differ in exactly the two perspective slots. `rszbuf` is not a
+third of those: it is the rev-241 client's float projection, with no family
+vtable, and only the rszbuffered tables name it because their raster reads what
+it leaves in `TORIDRAW_SCENE_SCRATCH_RSZBUF`
+([docs/toridraw_rszbuffer.md](../../docs/toridraw_rszbuffer.md)).
 
 **Cull + sort** (`ToriDraw_FaceCullSortKernel`) produces the back-to-front order
 in `scene->tmp_face_order`. Kernels: `bucket` and `bitonic+radix`, which emit
@@ -81,6 +85,8 @@ kernel that only wants to supply leaf callbacks names `ToriDraw_RasterWalkPerFac
 as its `draw_model` and inherits the normalising walk; naming it is also a
 declaration that the kernel has no traversal of its own, which is how the
 library knows not to ask the sort for a stash nothing would read.
+`rszbuffered_opaque` / `rszbuffered_translucent` own their walk (the client's
+face orders) and share one vtable; the pass is the kernel's `user_data`.
 
 ## The pixel format
 

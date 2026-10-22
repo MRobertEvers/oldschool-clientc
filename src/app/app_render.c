@@ -50,6 +50,15 @@ App_SetRendererAnimatesTextures(
 }
 
 void
+App_SetSoftwareRsZBuffer(
+    struct App* app,
+    bool rszbuffer)
+{
+    assert(app);
+    app->software_rszbuffer = rszbuffer;
+}
+
+void
 App_RefreshAfterTreeMutation(struct App* app)
 {
     assert(app);
@@ -656,6 +665,10 @@ App_Render(
      * right through a depth buffer -- whether Soft3D is the renderer the
      * player picked or the offscreen frame under a GPU depth renderer. */
     ToriPlatform_Renderer_Soft3D_SetDepth(app->soft, app->world_render_mode == TORIRS_WORLD_DEPTH);
+    /* Only the software renderer's own frame: a GPU renderer's offscreen frame
+     * keeps its own world mode. */
+    ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
+        app->soft, app->software_rszbuffer && app->world_render_mode == TORIRS_WORLD_PAINTER);
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {

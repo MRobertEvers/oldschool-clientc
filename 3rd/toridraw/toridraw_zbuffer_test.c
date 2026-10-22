@@ -4,8 +4,9 @@
  * The painter's sort orders whole faces, so it cannot express "these two
  * triangles each occlude the other" — the case a model whose parts
  * interpenetrate is made of. TORIDRAW_MODEL_FLAG_ZBUFFER routes such a model
- * through graphics/raster/zbuffer/zbuf.screen.u.c instead, which resolves it per
- * pixel against the scene's z-buffer after resetting it.
+ * through the depth twins of the painter kernels (impl/raster/dispatch/
+ * tri.zbuf.u.c) instead, which resolve it per pixel against the scene's
+ * z-buffer after resetting it.
  *
  * Everything here drives the real pipeline — ToriDraw_RenderModel1Project /
  * 2SortFaces / 3Raster on a hand-built model — rather than calling the kernels
@@ -26,6 +27,12 @@
  *   - coverage is unchanged. A depth-tested face must touch exactly the pixels
  *     its stock twin touched, or the flag alters silhouettes and seams it was
  *     only meant to reorder.
+ *   - more than coverage: a lone face drawn into a cleared buffer, where depth
+ *     can reject nothing, is BIT-IDENTICAL to its painter twin, for every
+ *     family the painter has -- flat and gouraud, opaque and translucent, and
+ *     the perspective, flat-shaded, colour-keyed and affine texture kernels.
+ *     That is what says each depth twin kept its family's blocking (four-pixel
+ *     gouraud colour, eight-pixel texture fit) instead of going per pixel.
  *   - depth is perspective-correct. A long quad receding from the eye crosses
  *     another at a place that linear-in-screen-space depth gets wrong, and the
  *     crossing has to land where the geometry says.
@@ -825,6 +832,175 @@ test_coverage_parity(struct ToriDraw_Scene* scene)
         frame_coverage_differences(&painter, &depth));
 }
 
+/* --- painter / depth parity ---------------------------------------------- */
+
+#define TEX_ID_PATTERN 5
+#define TEX_ID_KEYED 6
+
+/**
+ * A texture that shows where it is sampled: two-colour 4x4 checks with a ramp
+ * across them, so a texel off by one in u or v is a different colour. The keyed
+ * variant punches RGB-0 holes in it, which the colour-key gate must skip.
+ */
+static struct ToriDraw_Texture*
+make_pattern_texture(bool keyed)
+{
+    struct ToriDraw_Texture* tex = (struct ToriDraw_Texture*)calloc(1, sizeof(*tex));
+
+    assert(tex);
+    tex->texels = (int*)malloc((size_t)TEX_WIDTH * TEX_WIDTH * sizeof(int));
+    assert(tex->texels);
+    for( int v = 0; v < TEX_WIDTH; v++ )
+        for( int u = 0; u < TEX_WIDTH; u++ )
+        {
+            int rgb = ((u >> 2) ^ (v >> 2)) & 1 ? 0x00E0A040 : 0x003060C0;
+
+            rgb += (u << 1) | (v << 9);
+            if( keyed && ((u + v) % 7) == 0 )
+                rgb = 0;
+            tex->texels[v * TEX_WIDTH + u] = rgb;
+        }
+    tex->width = TEX_WIDTH;
+    tex->height = TEX_WIDTH;
+    tex->opaque = !keyed;
+    return tex;
+}
+
+enum ParityKind
+{
+    PARITY_FLAT,
+    PARITY_GOURAUD,
+    PARITY_TEXTURE,
+    PARITY_TEXTURE_FLAT_SHADED,
+    PARITY_TEXTURE_KEYED,
+    PARITY_TEXTURE_AFFINE,
+};
+
+static uint8_t g_parity_render_types[2];
+
+/**
+ * One triangle, tilted in depth so its keys differ at every corner, in both
+ * windings -- the camera culls one, so exactly one face draws and nothing can
+ * occlude anything.
+ */
+static void
+build_parity_triangle(struct Mesh* m, enum ParityKind kind, int face_alpha)
+{
+    mesh_init(m);
+    {
+        int const v0 = mesh_add_vertex(m, -EXTENT, -EXTENT / 2, 60);
+        int const v1 = mesh_add_vertex(m, EXTENT, -EXTENT, -90);
+        int const v2 = mesh_add_vertex(m, -EXTENT / 3, EXTENT, 20);
+
+        mesh_add_face(m, v0, v1, v2, 0, face_alpha);
+        mesh_add_face(m, v0, v2, v1, 0, face_alpha);
+    }
+    if( face_alpha != 0 )
+        mesh_enable_alpha(m);
+
+    for( int f = 0; f < m->model.face_count; f++ )
+    {
+        switch( kind )
+        {
+        case PARITY_FLAT:
+            m->ca[f] = 21000;
+            m->cb[f] = 21000;
+            m->cc[f] = TORIDRAWHSL16_FLAT;
+            break;
+        case PARITY_GOURAUD:
+            m->ca[f] = 5000;
+            m->cb[f] = 9030;
+            m->cc[f] = 13070;
+            break;
+        default:
+            break;
+        }
+    }
+
+    if( kind >= PARITY_TEXTURE )
+    {
+        mesh_make_textured(
+            m, kind == PARITY_TEXTURE_KEYED ? TEX_ID_KEYED : TEX_ID_PATTERN,
+            kind == PARITY_TEXTURE_FLAT_SHADED);
+        for( int f = 0; f < m->model.face_count; f++ )
+        {
+            m->ca[f] = 30;
+            m->cb[f] = kind == PARITY_TEXTURE_FLAT_SHADED ? 30 : 95;
+            if( kind != PARITY_TEXTURE_FLAT_SHADED )
+                m->cc[f] = 127;
+        }
+        if( kind == PARITY_TEXTURE_AFFINE )
+        {
+            /* A non-plane mapping type routes the painter to its affine family. */
+            g_parity_render_types[0] = 1;
+            g_parity_render_types[1] = 1;
+            m->model.texture_render_types = g_parity_render_types;
+            m->model.textured_face_count = 2;
+        }
+    }
+}
+
+static void
+test_painter_parity(struct ToriDraw_Scene* scene)
+{
+    static const struct
+    {
+        enum ParityKind kind;
+        int face_alpha;
+        const char* name;
+    } cases[] = {
+        { PARITY_FLAT, 0, "flat opaque" },
+        { PARITY_FLAT, 110, "flat translucent" },
+        { PARITY_GOURAUD, 0, "gouraud opaque" },
+        { PARITY_GOURAUD, 110, "gouraud translucent" },
+        { PARITY_TEXTURE, 0, "textured perspective" },
+        { PARITY_TEXTURE_FLAT_SHADED, 0, "textured flat-shaded" },
+        { PARITY_TEXTURE_KEYED, 0, "textured colour-keyed" },
+        { PARITY_TEXTURE_AFFINE, 0, "textured affine" },
+    };
+
+    {
+        struct ToriDraw_Texture* pattern = make_pattern_texture(false);
+        struct ToriDraw_Texture* keyed = make_pattern_texture(true);
+
+        ToriDraw_SceneSetTexture(scene, TEX_ID_PATTERN, pattern);
+        ToriDraw_SceneSetTexture(scene, TEX_ID_KEYED, keyed);
+    }
+
+    for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
+    {
+        struct Mesh mesh;
+        struct Frame painter;
+        struct Frame depth;
+        long covered = 0;
+
+        build_parity_triangle(&mesh, cases[i].kind, cases[i].face_alpha);
+
+        frame_clear(&painter);
+        frame_clear(&depth);
+        CHECK(
+            render_model(scene, &mesh, &painter, false, ORDER_SORTED),
+            "%s: painter render culled",
+            cases[i].name);
+        CHECK(
+            render_model(scene, &mesh, &depth, true, ORDER_SORTED),
+            "%s: depth render culled",
+            cases[i].name);
+
+        for( int p = 0; p < VIEW_W * VIEW_H; p++ )
+            if( painter.pixels[p] != BACKGROUND )
+                covered++;
+
+        CHECK(covered > 1000, "%s: the triangle covered only %ld pixels", cases[i].name, covered);
+        CHECK(
+            frame_differences(&painter, &depth) == 0,
+            "%s: the depth twin drew %ld pixels differently from its painter twin on a "
+            "lone face -- it is not the same kernel plus a z-buffer",
+            cases[i].name,
+            frame_differences(&painter, &depth));
+    }
+}
+
 /**
  * A crossing placed where interpolating depth linearly in screen space gets the
  * answer wrong.
@@ -1325,6 +1501,7 @@ main(void)
     test_unsorted_ignores_priorities(scene);
     test_order_independence(scene);
     test_coverage_parity(scene);
+    test_painter_parity(scene);
     test_perspective_correct_depth(scene);
     test_translucent_does_not_write_depth(scene);
     register_test_textures(scene);

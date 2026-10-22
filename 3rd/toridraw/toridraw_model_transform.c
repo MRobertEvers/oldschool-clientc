@@ -160,6 +160,7 @@ ToriDraw_ModelMoveArrays(
     MODEL_MOVE(face_alphas);
     MODEL_MOVE(face_infos);
     MODEL_MOVE(face_priorities);
+    MODEL_MOVE(face_z_offsets);
     MODEL_MOVE(face_texture_coords);
     MODEL_MOVE(textured_p_coordinate);
     MODEL_MOVE(textured_m_coordinate);
@@ -261,6 +262,7 @@ ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model)
     BYTES_IF(face_colors, model->face_count, hsl16_t)
     BYTES_IF(face_textures, model->face_count, faceint_t)
     BYTES_IF(face_alphas, model->face_count, alphaint_t)
+    BYTES_IF(face_z_offsets, model->face_count, int8_t)
     BYTES_IF(original_face_alphas, model->face_count, alphaint_t)
     BYTES_IF(face_infos, model->face_count, int)
     BYTES_IF(face_texture_coords, model->face_count, faceint_t)
@@ -379,6 +381,7 @@ ToriDraw_ModelCopy(const struct ToriDraw_Model* src)
     COPY_ARRAY(dst->face_colors, src->face_colors, src->face_count, hsl16_t);
     COPY_ARRAY(dst->face_textures, src->face_textures, src->face_count, faceint_t);
     COPY_ARRAY(dst->face_alphas, src->face_alphas, src->face_count, alphaint_t);
+    COPY_ARRAY(dst->face_z_offsets, src->face_z_offsets, src->face_count, int8_t);
     /* The alpha half of the bind pose, for the same reason as the vertices:
      * AnimateReset restores it alongside them, and an animation that fades a
      * model would otherwise keep fading from wherever it left off. */
@@ -492,6 +495,7 @@ ToriDraw_ModelNewMerge(
     bool has_face_colors = false;
     bool has_face_textures = false;
     bool has_face_alphas = false;
+    bool has_face_z_offsets = false;
     bool has_face_infos = false;
     bool has_face_priorities = false;
     bool has_tex_coords = false;
@@ -513,6 +517,8 @@ ToriDraw_ModelNewMerge(
             has_face_textures = true;
         if( m->face_alphas )
             has_face_alphas = true;
+        if( m->face_z_offsets )
+            has_face_z_offsets = true;
         if( m->face_infos )
             has_face_infos = true;
         /* A source with a uniform model_priority needs the merged array too: without it its faces
@@ -585,6 +591,12 @@ ToriDraw_ModelNewMerge(
             /* Zeroed: faces from alpha-less inputs must stay opaque (raster
              * inverts stored alpha, 0 -> 0xFF). */
             out->face_alphas = (alphaint_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(alphaint_t));
+        if( has_face_z_offsets )
+        {
+            /* Zeroed: faces from unbiased inputs keep their depth. */
+            out->face_z_offsets = (int8_t*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(int8_t));
+            assert(out->face_z_offsets);
+        }
         if( has_face_infos )
             out->face_infos = (int*)TORIDRAW_CALLOC((size_t)total_faces, sizeof(int));
         if( has_face_priorities )
@@ -681,6 +693,8 @@ ToriDraw_ModelNewMerge(
                 out->face_textures[dst] = m->face_textures[f];
             if( out->face_alphas && m->face_alphas )
                 out->face_alphas[dst] = m->face_alphas[f];
+            if( out->face_z_offsets && m->face_z_offsets )
+                out->face_z_offsets[dst] = m->face_z_offsets[f];
             if( out->face_infos && m->face_infos )
                 out->face_infos[dst] = m->face_infos[f];
             if( out->face_priorities )

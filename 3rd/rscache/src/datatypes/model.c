@@ -3272,6 +3272,7 @@ RSCache_ModelNewMerge(
     bool has_face_render_infos = false;
     bool has_face_render_colors = false;
     bool has_face_render_alphas = false;
+    bool has_face_z_offsets = false;
     bool has_face_render_textures = false;
     bool has_vertex_bones = false;
     bool has_face_bones = false;
@@ -3294,6 +3295,9 @@ RSCache_ModelNewMerge(
 
         if( models[i]->face_alphas )
             has_face_render_alphas = true;
+
+        if( models[i]->face_z_offsets )
+            has_face_z_offsets = true;
 
         if( models[i]->face_textures )
             has_face_render_textures = true;
@@ -3328,6 +3332,16 @@ RSCache_ModelNewMerge(
     {
         face_alphas = (uint8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(uint8_t));
         memset(face_alphas, 0, (size_t)face_count * sizeof(uint8_t));
+    }
+
+    /* A part without depth biases contributes zeros [class131's merge:
+     * field1755 is allocated when any part has one, left 0 elsewhere]. */
+    int8_t* face_z_offsets = NULL;
+    if( has_face_z_offsets )
+    {
+        face_z_offsets = (int8_t*)RSCACHE_MALLOC((size_t)face_count * sizeof(int8_t));
+        assert(face_z_offsets);
+        memset(face_z_offsets, 0, (size_t)face_count * sizeof(int8_t));
     }
 
     uint8_t* face_infos = NULL;
@@ -3429,6 +3443,7 @@ RSCache_ModelNewMerge(
     model->face_indices_c = face_indices_c;
 
     model->face_alphas = face_alphas;
+    model->face_z_offsets = face_z_offsets;
     model->face_infos = face_infos;
     model->face_priorities = face_priorities;
 
@@ -3459,6 +3474,9 @@ RSCache_ModelNewMerge(
         {
             if( face_alphas && models[i]->face_alphas )
                 model->face_alphas[model->face_count] = models[i]->face_alphas[j];
+
+            if( face_z_offsets && models[i]->face_z_offsets )
+                model->face_z_offsets[model->face_count] = models[i]->face_z_offsets[j];
 
             if( face_infos && models[i]->face_infos )
                 model->face_infos[model->face_count] = models[i]->face_infos[j];

@@ -2847,6 +2847,8 @@ _Static_assert(
     (int)TORIRS_RENDERER_GLES3_DEPTH == (int)TORIRS_RENDERER_KIND_GLES3_DEPTH, "renderer ids");
 _Static_assert(
     (int)TORIRS_RENDERER_SOFTWARE_DEPTH == (int)TORIRS_RENDERER_KIND_SOFTWARE_DEPTH, "renderer ids");
+_Static_assert(
+    (int)TORIRS_RENDERER_SOFTWARE_RSZBUF == (int)TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF, "renderer ids");
 _Static_assert((int)TORIRS_RENDERER_COUNT == (int)TORIRS_RENDERER_KIND_COUNT, "renderer ids");
 _Static_assert((int)RS_CS2_RENDERER_MAX == (int)TORIRS_RENDERER_KIND_COUNT, "option 36 stores kind + 1");
 

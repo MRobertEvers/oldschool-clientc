@@ -48,6 +48,12 @@ enum ToriRS_RendererKind
      *  TORIRS_WORLD_DEPTH like the GPU depth kinds, drawn by the CPU. Every
      *  lane has it, as every lane has SOFTWARE. Appended, hence not beside it. */
     TORIRS_RENDERER_KIND_SOFTWARE_DEPTH,
+    /** Soft3D drawing the world the rev-241 client's way under `::zbuf 1`:
+     *  its float projection, its depth buffer, its two scene passes
+     *  (ToriPlatform_Renderer_Soft3D_SetRsZBuffer). The world is collected in
+     *  the painter's order. XRGB8888 lanes only: the client's colour-key and
+     *  blend masks assume that layout. */
+    TORIRS_RENDERER_KIND_SOFTWARE_RSZBUF,
 
     TORIRS_RENDERER_KIND_COUNT
 };

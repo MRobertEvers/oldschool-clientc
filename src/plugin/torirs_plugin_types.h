@@ -1049,6 +1049,8 @@ enum ToriRS_Renderer
     TORIRS_RENDERER_GLES3_DEPTH,
     /** Software, through a frame-wide depth buffer. */
     TORIRS_RENDERER_SOFTWARE_DEPTH,
+    /** Software, through the OSRS client's own depth buffer. */
+    TORIRS_RENDERER_SOFTWARE_RSZBUF,
     TORIRS_RENDERER_COUNT
 };
 
@@ -1077,7 +1079,8 @@ enum ToriRS_Renderer
         "WebGL 2", "WebGL 2 (depth buffer)",                                   \
         "WebGL 1", "WebGL 1 (depth buffer)",                                   \
         "OpenGL ES 3", "OpenGL ES 3 (depth buffer)",                           \
-        "Software (depth buffer)"                                              \
+        "Software (depth buffer)",                                             \
+        "Software (OSRS z-buffer)"                                             \
     }
 
 /** TORIRS_DISPLAY_SCALE_ADJUSTED bits. */

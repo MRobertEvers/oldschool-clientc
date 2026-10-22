@@ -1393,6 +1393,9 @@ struct App
     /** The active renderer scrolls animated textures itself (GPU lanes), so the
      *  per-cycle CPU texel rotate is skipped. @see App_SetRendererAnimatesTextures */
     bool renderer_animates_textures;
+    /** Soft3D draws the world the rev-241 client's way, through its own depth
+     *  buffer in two scene passes. @see App_SetSoftwareRsZBuffer */
+    bool software_rszbuffer;
     /** Viewport size remembered for TORIRS_PAINTER_CULL=baked debounce (0 = none). */
     int painter_cullmap_bake_w;
     int painter_cullmap_bake_h;
@@ -3641,6 +3644,17 @@ void
 App_SetRendererAnimatesTextures(
     struct App* app,
     bool animates);
+
+/**
+ * The "Software (OSRS z-buffer)" renderer: Soft3D draws the world through the
+ * rev-241 client's own depth buffer (ToriPlatform_Renderer_Soft3D_SetRsZBuffer).
+ * The world stays TORIRS_WORLD_PAINTER. Default false; every renderer start
+ * sets it.
+ */
+void
+App_SetSoftwareRsZBuffer(
+    struct App* app,
+    bool rszbuffer);
 
 /** Resolved interface-logic VM (enum AppUiLogic, never DEFAULT): the manifest's
  * explicit choice, or derived from cache_kind (dat1 -> CS1, dat2 -> CS2). The

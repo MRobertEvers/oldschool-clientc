@@ -203,6 +203,28 @@ struct ToriDraw_Bones
 #define TORIDRAW_MODEL_FLAG_AFFINE_TEXTURES ((uint8_t)(1u << 2))
 
 /**
+ * This model is a terrain tile.
+ *
+ * Set by world_decode_tile, the one place that knows. Only the rev-241
+ * rasterizer (the rszbuffered tables) reads it, because the client draws tiles
+ * down a different path from models (class137.method5020 / method5026): a tile
+ * with a corner behind the near plane is skipped whole rather than clipped,
+ * its textures take the linear span (class162.method5171), and it is not drawn
+ * in the translucent pass. Every other raster ignores it.
+ */
+#define TORIDRAW_MODEL_FLAG_TERRAIN ((uint8_t)(1u << 3))
+
+/**
+ * Draw this model in two passes under the rev-241 depth buffer: colour with
+ * the depth test but no depth write, faces in render-priority order, then
+ * depth alone [class167.field2293, which the client gives every player and any
+ * npc whose config sets opcode 147]. The painter's ordering then decides how
+ * the model's own faces layer, and the depth buffer decides how it layers
+ * against everything else. Only the rszbuffered tables read it.
+ */
+#define TORIDRAW_MODEL_FLAG_RSZBUF_TWO_PASS ((uint8_t)(1u << 4))
+
+/**
  * A model that owns every array reachable from it.
  *
  * That is not a description, it is the invariant. Geometry a placement does NOT
@@ -311,6 +333,10 @@ struct ToriDraw_Model
     int* face_infos;
     /** Two 4-bit priorities per byte (low nibble = even face index). Values 0–12. */
     uint8_t* face_priorities;
+    /** Per-face depth bias, or NULL: the rev-241 depth buffer takes twice it
+     *  off each corner's camera depth before the key [class174.field2408].
+     *  Only the rszbuffered tables read it. */
+    int8_t* face_z_offsets;
     /* Uniform priority for models with no per-face array; consumed by ToriDraw_ModelNewMerge so
      * merged parts keep their layering. See ToriRS_Model.model_priority. */
     uint8_t model_priority;
@@ -392,7 +418,7 @@ struct ToriDraw_ModelGround
  *   MODEL_SHARED      struct ToriDraw_SharedModel. Owned by a store, N holders,
  *                     no private half. Read only.
  *   MODEL_LENT_FACES  struct ToriDraw_ModelLentFaces. Vertices, per-corner
- *                     colours and face_infos are the placement's; the twelve
+ *                     colours and face_infos are the placement's; the thirteen
  *                     face arrays are on loan.
  *
  * All four embed or ARE a ToriDraw_Model at offset zero, so reading is uniform
@@ -474,10 +500,10 @@ struct ToriDraw_SharedModel
  * and face_infos, but the faces indexing those vertices are identical at every
  * placement of it and are most of the bytes.
  *
- * `base`'s twelve TORIDRAW_SHARED_FACE_FIELDS pointers alias `faces`; every
+ * `base`'s thirteen TORIDRAW_SHARED_FACE_FIELDS pointers alias `faces`; every
  * other array in it is this placement's own. That is why the read view is const
  * here too even though half of it really is writable -- C has no way to say
- * "these twelve members are not yours", so the write goes through
+ * "these thirteen members are not yours", so the write goes through
  * ToriDraw_ModelLentFacesPrivate, which names what it is handing over.
  */
 struct ToriDraw_ModelLentFaces
@@ -1172,6 +1198,11 @@ struct ToriDraw_Scene
     int anim_list_cap;
     bool anim_list_dirty;
 
+    /* TORIDRAW_SCENE_SCRATCH_RSZBUF: one allocation, the rev-241 projection's
+     * output and the rev-241 face walk's ordering scratch. NULL until an
+     * rszbuffered table is taken. Last, clear of the projection block whose
+     * layout toridraw.c pins. */
+    struct ToriDraw_RsZbufModel* rszbuf;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0
