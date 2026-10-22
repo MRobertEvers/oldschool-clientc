@@ -393,21 +393,24 @@ half a special attack; the next melee or ranged hit a max hit.
 
 | E+ | recorded |
 |---|---|
-| 0 | he is at the last quadrant's corner, his 9 tiles blocked; its barriers (`_spawn`, +1 standing); +2 the stones of the arm clockwise of it blocked |
-| 3, then every 60 | `npc_ocellus_phase3_deflect_in`; +2 `_deflect_loop`; +3 `_soul_fragment_start`; +4 `vfx_ocellus_soul_fragment_ocellus_levitating_idle` slot 2 (looping) and the wind: every raider hit for half their health (4301 41/40/49, 4308 39/49/46/55) |
-| +21 | `_deflect_out`; slot 2 let go |
-| +24, +52 | `npc_ocellus_phase3_melee_hybrid` with `vfx_ocellus_phase3_melee_hybrid_magic`, `_ranged` or the plain `vfx_ocellus_phase3_melee_hybrid` (melee) slot 2 (16, 13, 4 of 33; the melee only from 4312's second fight on); +5 everyone hit, 5..10 under the matching prayer |
-| +34 | `_soul_fragment_ocellus_idle` slot 2, `_soul_fragment_start`; +1 the wind again; +16 `_soul_fragment_end` |
-| +59 | void rifts: two, three, four (4301 [1769], [1829], [1889]; 4308 [2322] two at four raiders: not the party's) |
+| 0 | he is at the last quadrant's corner, his 9 tiles blocked; its barriers (`_spawn`, +1 standing); the three stones of the arm clockwise of it play `dungeonkit_guthixian03_steppingstone_despawn_01..03` (7/7), +2 blocked |
+| 3, then every 60 (D) | `npc_ocellus_phase3_deflect_in` with `[bas] ready, walk = _deflect_loop` and his target faced (11/11); +2 `_deflect_loop`; +3 `_soul_fragment_start`, every raider `_player_idle` slot 2 and their defend seq `delay=30`; +4 `vfx_ocellus_soul_fragment_ocellus_levitating_idle` slot 2 `loop=true` and the wind: every raider hit for half their health (4301 41/40/49, 4308 39/49/46/55) |
+| D+21 | `_deflect_out`; slot 2 let go (`loop=true`), `[bas]` reset, his face reset |
+| D+24, D+52 | `npc_ocellus_phase3_melee_hybrid` with `vfx_ocellus_phase3_melee_hybrid_magic`, `_ranged` or the plain `vfx_ocellus_phase3_melee_hybrid` (melee) slot 2 (16, 13, 4 of 33; the melee only from 4312's second fight on); +5 everyone hit the same value, 5..8 (one 10) under the matching prayer |
+| D+34 | `_soul_fragment_ocellus_idle` slot 2 `loop=true`, `_soul_fragment_start`; +1 the wind again; +16 `_soul_fragment_end`, slot 2 let go (`loop=true`) |
+| D+59 | void rifts: two, three, four (11/11 cycles, any party: 4301 [1769], [1829], [1889]; 4308 [2322] two at four raiders), each on a floor tile 2..5 from his 3x3 (27/27) |
 
 His overheads, the void floor, the explosions, the orbs and the 2-tick
-window are in "Phase 4's private mechanics and the wiki check" below.
+window are in "Phase 4's private mechanics and the wiki check" below, and
+every hidden rule as measured over all seven fights in "Audit: phase 4's
+hidden rules" (2026-10-22), which supersedes it where they differ.
 
 ## 6. Death (K)
 
 | K+ | recorded |
 |---|---|
-| 0 | "Challenge complete: Ocellus. Duration: ... Total: ..." and "The Fractured Archive: Total completion time: <col=ef1020>m:ss</col>"; his song stopped; `npc_ocellus_phase3_death`, `vfx_ocellus_death_skirt_spotanim01` d1, `vfx_ocellus_death` slot 5 d1, `vfx_ocellus_death_crack_spotanim01` slot 3 d1; ops cleared |
+| 0 | "Challenge complete: Ocellus. Duration: ... Total: ..." and "The Fractured Archive: Total completion time: <col=ef1020>m:ss</col>"; his song stopped; `npc_ocellus_phase3_death`, `vfx_ocellus_death_skirt_spotanim01` d1, `vfx_ocellus_death` slot 5 d1, `vfx_ocellus_death_crack_spotanim01` slot 3 d1, slot 2 let go (`loop=true`); ops cleared; `angle=` the 8-way from his middle to the tile his last face on his target named (7/7) |
+| 0 (or -1) | every phase-3 void patch left on the quadrant replaced by `invisible_type0_nonblocking`, turned as the patch was (42/42, 6 a fight), on the tick his health reaches 0: K in 4 fights, K-1 in 3 (the death seq a tick after the killing hit: 4309, 4312's first, 4316) |
 | 7 | seq -1, his body hidden |
 | 14 | `tfa_blade_npc_vault_entry` ("The Blade": Commune, Travel) on his tile |
 | 16 | he is deleted |
@@ -696,9 +699,10 @@ spots on the `tfa_invisible_npc` draw it. The raiders' distance from his 3x3:
 
 The 2s and 3s at D+31..50 are raiders still walking in at D+31..33, who took
 nothing (4301 [1742..1744], 3/3). One raider stood on it: 4309 [2209] Woox, 1
-from him, hit 10 at [2210]; another 10 at [2143]. Ours: 10 every tick on a void
-tile, D+1..21 (his ring) and D+35..50 (the rest). How often it really hits is
-unverified (one tick on it recorded).
+from him, hit 10 at [2210] (the other 10, [2143], is his ruby bolts' own
+cost). Ours: 10 every tick on a void tile, D+4..21 (his ring; D+1..21 before
+2026-10-22) and D+35..50 (the rest). How often it really hits is unverified
+(one tick on it recorded).
 
 ### The explosions, the orbs, the 2-tick window
 
@@ -721,7 +725,7 @@ not what the recordings show (the bonus is for the FIRST tick).
 (4312 [4418], 4315 [6733], 4316 [2725], [2757]), the plain one only from
 4312's second fight on (0 of 15 before, 4 of 18 after). It hits everyone at
 +5 for 6..7 (13), as the others do under the matching prayer. Ours: one of the
-three at random.
+three at random; one roll for the whole party (2026-10-22, below).
 
 ### Phase 3's rifts: three kinds, one a segment
 
@@ -768,3 +772,81 @@ unkilled rift's "charge" is unrecorded (every basic and buff rift was killed).
 - A killed rift's empowerment and an unkilled one's charge (nothing on the wire).
 - The heal rift's projectile on a raider: no splat or heal recorded on them.
 
+
+## Audit: phase 4's hidden rules, all seven fights (2026-10-22)
+
+Every phase-4 fight recorded: index 4301, 4308, 4309, 4312 (two fights),
+4315, 4316, 18 full cycles. All are spectated (the recorder's local index is
+none of the raiders'), so nothing private reaches the wire: no explosion or orb
+spotanim, and no raider's own hits as seen by them. Each hidden rule below is
+rebuilt from what a spectator does see. That is every raider's tile per tick
+(before and after its move), seqs, spotanims and splats; their overhead prayer
+and weapon from the `--bas` transcripts (`home-all-bas`: `[status]
+overheadicon=`, `wearpos=righthand`); and his own npc info. Tools:
+`tools/oc_p4.py` parses the seven fights tick by tick (D = each `deflect_in`),
+and `tools/oc_p4_<rule>.py` prints each count below. `oc_p4_ours.py
+<ticklog.tsv>` prints ours the same way. Ours:
+`test/guthixian_archive/tfa_ocellus_p4.lua` (three raiders, `--bots 3`, three
+cycles and the death) and `tfa_ocellus.lua` (solo, the whole fight).
+
+### The hidden rules
+
+| rule | recorded | ours before | ours now |
+|---|---|---|---|
+| explosion: the tile judged | starts on the tile the raider's tick began on (D+9, 11, .., 19; D+40, 42, .., 50) and lands the next tick on whoever still began it there: 38/38 live stayers hit, 0/659 who moved off (the 3 other stayers were Fatalsystem dead, 4301 [1935]) | the same | the same |
+| explosion: damage, reaction | 14..16, the raider's defend seq on the tick (35/38; the rest an attack) | no defend seq | the defend seq |
+| wind | half the health; at W-1 every raider's defend seq with `delay=30` (94/118; the 24 others an attack of theirs that tick) | no defend seq | the seq at W-1, `delay=30` |
+| orb: when taken | the tick after the raider steps on it, or the ready tick (D+16, D+41) if already there: 87/87 on the tile the tick began on (moved-onto model: 36/87) | the same | the same |
+| orb: heal | the wind's hit back, +8 on the ready tick only, never above the maximum | the same | the same |
+| orb: tile | first wind: any floor tile 2..5 from his 3x3; second: his ring (1). The quadrant's floor is 2..12 out from the arena's middle each way (3203 of 3204 raider-ticks; he stands 5..7) | 2..5 within 5 of his corner, in the quadrant by the middle (offset 1 allowed) | floor 2..12, as recorded |
+| orb unclaimed | at W+25 / W+19 he is healed each one's wind hit, splats in party order (2/2), `nex2021_nex_heal` at his middle, range 9: 13/13 heal ticks; the rest fall after his death | the same | the same (our D+54 heal and sound checked) |
+| void ring (D+0..21) | hurts from the wind (D+4): 14 raider-ticks in it at D+0..2 not hit, D+8 hit 10 (4309 [2210]) | from D+1 | from D+4 |
+| void quadrant (D+31..50) | not before D+35 (41 raider-ticks at D+31..34, none hit; 4 at D+34), none hurt after D+50 (1) | D+35..50 | the same |
+| 2-tick attacks | from the first explosion's start to the last landing, D+9..20 and D+40..51: a shot 2 after the last at D+10 (4301 [1720]); 161/221 2-gaps at D+12..20, 167/246 at D+41..52; 0 of the 40 at D+20 again at D+22, 0 of the 21 at D+51 again at D+53, 14 from D+50 at D+52 | clamped from D+11 and D+41 to D+20 and D+52 (the timer's first fire a tick late) | from D+9 and D+40, clamped on that tick |
+| hybrid: damage | ONE value a cast, every raider the same (28/28 casts); every raider prayed the matching style by the land tick (the overhead switches register on it): 5:2, 6:9, 7:12, 8:4, 10:1 | a roll per raider, 5..10 | one roll: 5 + three coin flips (5..8, 1:3:3:1); the 10 unmodelled |
+| hybrid: reaction | the defend seq (84/97) | none | the defend seq |
+| his target | a new one each deflect (9 changes in 11; never the nearest by rule) | kept from phase 3 | drawn each cycle |
+| his death angle | the 8-way from his middle to the tile in his last `[facing] player=` (7/7: north, north-west x2, north, west, south-east, north-east) | toward his target's tile at death (2/7) | the tile his last face named |
+| rifts | 2, 3, 4 at D+59 (11/11 cycles), on a floor tile 2..5 from his 3x3 (27/27), every one killed (1..2 hits) | 2, 3, 4 on 2..9 out from the middle, beside him or not | floor tile 2..5 from him |
+| phase-3 patches in phase 4 | the last quadrant's `tfa_ocellus_void_degen_bomb`s stay and hurt: the 12 unexplained 6s and 7s on melee raiders (4301 [1757], [1821], [1878], 4312 [2156], ..) were all raiders standing on one | inert from the end of phase 3 | hurt through phase 4 |
+| patch cadence (phases 3 and 4) | per raider: never the tick after a void hit (0/19), always 2 after (7/7), first contact 46/50 (two misses on a wind's tick, one the tick they were cleared, one unexplained: 4312 [4428]); not the tick after a bomb lands on them (0/7) | every even map clock, anyone on one | per raider, a bomb's landing counted |
+| patches at his death | every one left becomes `invisible_type0_nonblocking`, turned as the patch was (42/42), on the tick his health reaches 0 | left | replaced (ours: 4 at K, rotations 4/4) |
+
+### His npc info, every block kind, per cycle tick (11 full cycles)
+
+| D | recorded (11/11 each) | ours (party run, 3 cycles + death) |
+|---|---|---|
+| 0 | `deflect_in`, `[headicon]` 15, `[bas] ready, walk = _deflect_loop`, `[facing] player=` | the same (the face set at D+59, out a tick on) |
+| 2, 3 | `_deflect_loop`; `_soul_fragment_start` | the same |
+| 4 | slot 2 `_levitating_idle loop=true` | the same (`spotanim_npc_slot_loop`; was without the loop flag) |
+| 21 | `_deflect_out`, slot 2 `-1 loop=true`, `[bas]` (reset), `[facing] type=reset` | the same (no `[bas]` before) |
+| 24, 52 | `melee_hybrid` + its kind's spot slot 2 | the same (the kind random) |
+| 25, 30, 31, 53, 59 | `[headicon]` 11, none, 16, 11, none | the same |
+| 34 | slot 2 `_ocellus_idle loop=true`, `_soul_fragment_start` | the same |
+| 50 | `_soul_fragment_end`, slot 2 `-1 loop=true` | the same |
+| E-1, E | the jump with the middle faced `instant` and an empty headicon; at E `[headicon_customisation]` empty, `enabled_ops 0b00010`, "End...", and no face until D+0 (7/7) | the jump and headicon at E-1, "End..." at E (the whole fight, `tfa_ocellus.lua`); his target was faced at E by phase 3's jump rule, now dropped on the last jump. The empty headicon and ops are not re-sent at E (unchanged values, nothing shown) |
+| K | death seq, three spots, slot 2 `-1 loop=true`, headicon none, ops none, `angle=` | the same |
+
+`oc_stream.py --phase 4` (4301 against ours): every seq, spot and say matched
+but the hybrid's random kind; faces 8 of ours on the recorded ticks.
+
+### The arena and the stones
+
+| | recorded | ours |
+|---|---|---|
+| arena npc spots | range dome D+0, loop D+1 and every 3 to D+19, end D+21; melee D+31, D+32..47, D+50 (11/11); south-west unsuffixed (4309, the first SW recording), SE `_270`, NE `_180` | the same; north-west `_90` still unrecorded |
+| the arm's stones at E | `steppingstone_despawn_01..03`: south and west arms 7, 4, 10 out as 01, 02, 03 (4301, 4312 x2, 4316; 4309), the east arm 10, 7, 4 (4308, 4315) | none before; now as recorded, the north arm (unrecorded) as the east |
+
+### Still open
+
+- His face is re-sent on most ticks of a deflect (72 in 4301's phase 4), never
+  the tick after his target attacks (1 of 82); ours sends it once. Wire only,
+  the same target. Rule not found.
+- What a deflect does to the prayed style: no recorded attack of it (the 3
+  candidates were at a rift). Ours: nothing lands.
+- The hybrid unprayed, and the one 10 (4301 [1919]).
+- The death a tick after the killing hit (3 of 7 fights; the patches go on the
+  hit's tick either way): ours always dies on the hit's tick.
+- One unexplained patch miss (4312 [4428], D+34).
+- The void floor's hit rate (one hit recorded).
+- The north-west quadrant's arena suffix and the north arm's stone order.

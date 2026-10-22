@@ -220,7 +220,9 @@ return {
         t.ticklog.mark("phase4")
         fight4(t, 125)
         t.ticklog.mark("kill")
-        t.cheat("::tfaboss 1", false)
+        -- His last point: the next shot ends him, a miss too (the bow lands
+        -- 1 in 10 here, so a point to take could outlast the 40 ticks).
+        t.cheat("::tfaboss 0", false)
         -- Long enough to outlast his deflect against missiles (D+31..52):
         -- the bow does nothing under it.
         fight3(t, 40)
