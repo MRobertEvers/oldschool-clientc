@@ -1308,6 +1308,20 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # has rather than placing it. Ezekiel's sword flights (RSProx 4301 [95]).
     "NPC_TELESLIDE": (11265, 1, 0, 0, 0),
 
+    # npc_baswalk(seq $seq)
+    #
+    # The walk anim of the BAS_CHANGE block, beside `npc_basready` and held
+    # with it until `npc_basreset` (`[bas] walk=.., ready=..`): the finale's
+    # side swords, which never walk (RSProx 4301 [212], 4300 [1076]).
+    "NPC_BASWALK": (11266, 1, 0, 0, 0),
+
+    # npc_bodyhide
+    #
+    # The body customisation with one model, -1: the npc drawn as nothing
+    # until `npc_bodymodel(-1)` resets it (`[body_customisation] [model]
+    # id=-1`): Ezekiel's death sword, hidden as he dies (RSProx 4301 [263]).
+    "NPC_BODYHIDE": (11267, 0, 0, 0, 0),
+
     # npc_setlevel(int $level)
     #
     # The active npc's drawn combat level, NPC_INFO's LEVEL_CHANGE now and on
@@ -1914,6 +1928,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_TELEJUMP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_BASTURN": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_TELESLIDE": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BASWALK": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_BODYHIDE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETLEVEL": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACEWALKTYPE": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACESQUAREINSTANT": (1 << POINTER_BITS["active_npc"], 0),

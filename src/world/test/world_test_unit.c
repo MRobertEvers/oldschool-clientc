@@ -3424,6 +3424,47 @@ test_rev239_exact_move_with_teleport(void)
     World_Free(world);
 }
 
+/* Ezekiel's finale (RSProx 4301 [204] -> [206]): a two-tile telejump with an
+ * exact move over 60 cycles at angle 0, then a rev-241 coord face at the cage
+ * two ticks on, which first aims on the move's last cycle -- and the move
+ * writes its own yaw after the facing pass. Held (rev-239 method6710 keeps the
+ * coord, class105.method3531 clears only the instant flag) it aims again the
+ * next cycle and he turns to the cage; consumed, it is lost and he stands on
+ * the jump's angle for the rest of the fight. */
+void
+test_rev241_held_face_coord_outlives_exact_move(void)
+{
+    printf("TEST: rev-241 coord face held past an exact move's last cycle\n");
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+
+    for( int held = 1; held >= 0; held-- )
+    {
+        struct World* world = World_TestMakeReady(104);
+        int ni = World_NpcSpawn(world, 2, 1, 0, 60, 52, 1, idle);
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, ni);
+        int square_x = ((world->_base_tile_x + 60) << 1) + 1;
+        int square_z = ((world->_base_tile_z + 55) << 1) + 1;
+
+        npc->facing.turn_speed = 32;
+        World_TestCycle(world, 4);
+        World_NpcPathJump(world, ni, true, 60, 50);
+        World_NpcSetExactMoveDetailed(world, ni, 60, 52, 60, 50, 60, 0, 0, true);
+        World_NpcBeginModernFacing(world, ni, 0);
+        World_NpcFaceAngle(world, ni, 0, false);
+        World_TestCycle(world, 60);
+        World_NpcBeginModernFacing(world, ni, 0);
+        World_NpcFaceCoord(world, ni, square_x, square_z);
+        npc->facing.hold_square = held;
+        for( int t = 0; t < 64; t++ )
+            World_TestCycle(world, 1);
+        if( held )
+            TEST_ASSERT(npc->orientation.yaw == 1024, "held: he turns north to the cage after the move");
+        else
+            TEST_ASSERT(npc->orientation.yaw == 0, "consumed on the move's last cycle: the face is lost");
+        World_Free(world);
+    }
+}
+
 /* class50.method940 / Statics.method8271: the source actor is read on the first
  * live cycle, a vanished target sends the arc back to the packet destination,
  * and the yaw truncates before the quarter turn. */

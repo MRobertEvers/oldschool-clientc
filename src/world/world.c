@@ -2378,6 +2378,7 @@ World_NpcBeginModernFacing(
     assert(World_EntityPoolIsActive(&world->entities.npc, idx));
     struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
     World_BeginModernFacing(&npc->facing, movement_mode);
+    npc->facing.hold_square = true;
 }
 
 void

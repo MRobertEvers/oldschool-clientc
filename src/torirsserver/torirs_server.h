@@ -2941,6 +2941,13 @@ struct ToriRSServerNpc
     int bas_turn_set;
     int bas_turnleft;
     int bas_turnright;
+    /**
+     * `npc_baswalk` -- the walk anim of the same block (`[bas] walk=..`),
+     * held with it and cleared by `npc_basreset`: the finale's side swords
+     * stand on their idle for both (RSProx 4301 [212], 4300 [1076]).
+     */
+    int bas_walk_set;
+    int bas_walk;
     /** `npc_faceplayerinstant` -- this tick's entity FACING block snaps
      *  instead of turning (`instant=true`); cleared with the masks. */
     int face_entity_instant;

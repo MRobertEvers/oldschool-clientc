@@ -74,6 +74,8 @@ EXTRA_DECLARATIONS = [
     "[command,npc_telejump](coord $coord)",
     "[command,npc_basturn](seq $left, seq $right)",
     "[command,npc_teleslide](coord $coord)",
+    "[command,npc_baswalk](seq $seq)",
+    "[command,npc_bodyhide]",
     "[command,npc_setlevel](int $level)",
     "[command,npc_facewalktype](int $type)",
     "[command,npc_facesquareinstant](coord $coord)",

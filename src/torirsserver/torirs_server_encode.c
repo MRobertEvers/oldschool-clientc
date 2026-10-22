@@ -6019,7 +6019,7 @@ static int
 npc_v241_sends_bas(const struct ToriRSServerNpc* npc, int added)
 {
     return (npc->masks & TORIRSSERVER_NMASK_BAS) != 0 ||
-           (added && (npc->bas_ready_set || npc->bas_turn_set));
+           (added && (npc->bas_ready_set || npc->bas_turn_set || npc->bas_walk_set));
 }
 
 static int
@@ -6687,19 +6687,22 @@ put_npc_extended_v241(
         }
     }
     /* decodeBaseAnimationSet: g4Alt1 mask, then one id per set bit in bit
-     * order; ready (0x4000) is a plain g2. Only the ready anim is ever
-     * overridden here, and an empty mask is the reset (the client takes every
-     * unset stance from the npc's type). */
+     * order. The turn, walk and ready anims are the ones ever overridden
+     * here, and an empty mask is the reset (the client takes every unset
+     * stance from the npc's type). */
     if( flag & V241_NPC_BAS_CHANGE )
     {
-        rsab_p4_alt1(buf, (npc->bas_turn_set ? 0x3 : 0) | (npc->bas_ready_set ? 0x4000 : 0));
+        rsab_p4_alt1(buf, (npc->bas_turn_set ? 0x3 : 0) | (npc->bas_walk_set ? 0x4 : 0) |
+                              (npc->bas_ready_set ? 0x4000 : 0));
         /* decodeBaseAnimationSet: turn left g2Alt1 (0x1), turn right g2
-         * (0x2), ..., ready g2 (0x4000), in bit order. */
+         * (0x2), walk g2Alt2 (0x4), ..., ready g2 (0x4000), in bit order. */
         if( npc->bas_turn_set )
         {
             rsab_p2_alt1(buf, npc->bas_turnleft);
             rsab_p2(buf, npc->bas_turnright);
         }
+        if( npc->bas_walk_set )
+            rsab_p2_alt2(buf, npc->bas_walk);
         if( npc->bas_ready_set )
             rsab_p2(buf, npc->bas_ready);
     }

@@ -168,52 +168,65 @@ return {
             local _, _, rows = t.npc.tiles(sym, 0)
             return rows or {}
         end
-        fight(t, "tfa_ezekiel", 120, function() return #rows_of("tfa_ezekiel_sword") > 0 end)
-        local seen = now(t)
-        local swords, boss = rows_of("tfa_ezekiel_sword"), rows_of("tfa_ezekiel")[1]
-        -- The arena's border lines are the instance square's local 24 and 36
-        -- (4056/4068, 5528/5540 in the template). A sword on the west/east
-        -- border flies a row (its lane z), on the south/north a column (x); a
-        -- band is the lane and two more. The floor is the 9x9 inside them.
-        local ax = (boss and boss.x or swords[1].x) // 64 * 64 + 24
-        local az = (boss and boss.z or swords[1].z) // 64 * 64 + 24
-        local lanes = { x = {}, z = {} }
-        for _, s in ipairs(swords) do
-            if s.x == ax or s.x == ax + 12 then lanes.z[#lanes.z + 1] = s.z else lanes.x[#lanes.x + 1] = s.x end
-        end
-        local function in_band(axis, v)
-            for _, l in ipairs(lanes[axis]) do if v >= l and v <= l + 2 then return true end end
-            return false
-        end
-        local function free(x, z)
-            if x < ax + 3 or x > ax + 11 or z < az + 3 or z > az + 11 then return false end
-            return not (boss and x >= boss.x and x <= boss.x + 2 and z >= boss.z and z <= boss.z + 2)
-        end
-        -- A tile in the middle of a band, out of every other band, whose roll
-        -- three tiles across the lane ends out of every band.
-        local stand, roll
-        for _, l in ipairs(lanes.z) do
-            for x = ax + 3, ax + 11 do
-                for _, sgn in ipairs({ 1, -1 }) do
-                    local ez = l + 1 + 3 * sgn
-                    if not stand and free(x, l + 1) and free(x, ez) and not in_band("x", x) and not in_band("z", ez) then
-                        stand, roll = { x = x, z = l + 1 }, { x = x, z = ez }
+        -- One special's swords: the tile to stand on and the roll's, or nil
+        -- when the layout leaves none (three columns or rows cover the floor).
+        local function plan(swords, boss)
+            -- The arena's border lines are the instance square's local 24 and 36
+            -- (4056/4068, 5528/5540 in the template). A sword on the west/east
+            -- border flies a row (its lane z), on the south/north a column (x); a
+            -- band is the lane and two more. The floor is the 9x9 inside them.
+            local ax = (boss and boss.x or swords[1].x) // 64 * 64 + 24
+            local az = (boss and boss.z or swords[1].z) // 64 * 64 + 24
+            local lanes = { x = {}, z = {} }
+            for _, s in ipairs(swords) do
+                if s.x == ax or s.x == ax + 12 then lanes.z[#lanes.z + 1] = s.z else lanes.x[#lanes.x + 1] = s.x end
+            end
+            local function in_band(axis, v)
+                for _, l in ipairs(lanes[axis]) do if v >= l and v <= l + 2 then return true end end
+                return false
+            end
+            local function free(x, z)
+                if x < ax + 3 or x > ax + 11 or z < az + 3 or z > az + 11 then return false end
+                return not (boss and x >= boss.x and x <= boss.x + 2 and z >= boss.z and z <= boss.z + 2)
+            end
+            -- A tile in the middle of a band, out of every other band, whose roll
+            -- three tiles across the lane ends out of every band.
+            local stand, roll
+            for _, l in ipairs(lanes.z) do
+                for x = ax + 3, ax + 11 do
+                    for _, sgn in ipairs({ 1, -1 }) do
+                        local ez = l + 1 + 3 * sgn
+                        if not stand and free(x, l + 1) and free(x, ez) and not in_band("x", x) and not in_band("z", ez) then
+                            stand, roll = { x = x, z = l + 1 }, { x = x, z = ez }
+                        end
                     end
                 end
             end
-        end
-        for _, l in ipairs(lanes.x) do
-            for z = az + 3, az + 11 do
-                for _, sgn in ipairs({ 1, -1 }) do
-                    local ex = l + 1 + 3 * sgn
-                    if not stand and free(l + 1, z) and free(ex, z) and not in_band("z", z) and not in_band("x", ex) then
-                        stand, roll = { x = l + 1, z = z }, { x = ex, z = z }
+            for _, l in ipairs(lanes.x) do
+                for z = az + 3, az + 11 do
+                    for _, sgn in ipairs({ 1, -1 }) do
+                        local ex = l + 1 + 3 * sgn
+                        if not stand and free(l + 1, z) and free(ex, z) and not in_band("z", z) and not in_band("x", ex) then
+                            stand, roll = { x = l + 1, z = z }, { x = ex, z = z }
+                        end
                     end
                 end
             end
+            return stand, roll
+        end
+        -- Up to four specials, until one leaves a band to roll out of.
+        local seen, swords, boss, stand, roll
+        for _ = 1, 4 do
+            fight(t, "tfa_ezekiel", 120, function() return #rows_of("tfa_ezekiel_sword") > 0 end)
+            seen = now(t)
+            swords, boss = rows_of("tfa_ezekiel_sword"), rows_of("tfa_ezekiel")[1]
+            if #swords == 0 then break end
+            stand, roll = plan(swords, boss)
+            if stand then break end
+            fight(t, "tfa_ezekiel", 30, function() return #rows_of("tfa_ezekiel_sword") == 0 end)
         end
         local where = {}
-        for _, sw in ipairs(swords) do where[#where + 1] = sw.x .. "," .. sw.z end
+        for _, sw in ipairs(swords or {}) do where[#where + 1] = sw.x .. "," .. sw.z end
         t.note(string.format("sworddodge: seen %d, swords %s, him %s, stand %s, roll %s", seen,
             table.concat(where, " "), boss and (boss.x .. "," .. boss.z) or "-", stand and (stand.x .. "," .. stand.z) or "-", roll and (roll.x .. "," .. roll.z) or "-"))
         t.check("ezekiel.sworddodge.tile", stand ~= nil, "no tile in a band to roll out of")
@@ -269,6 +282,45 @@ return {
         ok = t.await({ level = function() return present(t, "tfa_room_navigator") end, note = "navigator" }, 30)
         t.check("ezekiel.navigator", ok == "ok", "no navigator")
         t.check("ezekiel.line", t.msg.expect("Challenge complete: Ezekiel."))
+        -- The finale's swords as RSProx 4300/4301 send them (ezekiel_plan.md
+        -- §8, the P2 audit): each fence cell its own drop (its idle rides
+        -- the same number), the V its three models, the death sword added
+        -- hidden and shown seven ticks on. The stances (`[bas]`) are file-only
+        -- npc_info rows: tools/ez_p2_ours_check.py.
+        do
+            local function rows(kind)
+                local _, got = t.ticklog.rows({ kind = kind })
+                return got or {}
+            end
+            local FENCE, VEE, DEATH = 16654, 16655, 16656
+            local want = { ["0,2"] = 1, ["1,2"] = 2, ["2,2"] = 3, ["2,1"] = 4, ["0,1"] = 5, ["0,0"] = 6, ["1,0"] = 7, ["2,0"] = 1 }
+            local at = {}
+            for _, sp in ipairs(rows("npc_spawn")) do
+                if sp.type == FENCE then at[sp.slot] = sp end
+            end
+            local fence, wrong = 0, {}
+            for _, a in ipairs(rows("npc_anim")) do
+                local s = at[a.slot]
+                if s and a.type == FENCE and a.tick == s.tick and a.seq >= 14731 and a.seq <= 14743 then
+                    fence = fence + 1
+                    local cell = ((s.x % 64) - 27) // 3 .. "," .. ((s.z % 64) - 27) // 3
+                    if (a.seq - 14731) // 2 + 1 ~= want[cell] then wrong[#wrong + 1] = cell end
+                end
+            end
+            t.check("ezekiel.fence", fence == 7 and #wrong == 0,
+                string.format("%d fence drops, wrong cells %s", fence, table.concat(wrong, " ")))
+            local bodies, hidden, shown = {}, nil, nil
+            for _, b in ipairs(rows("npc_body")) do
+                if b.type == VEE then bodies[#bodies + 1] = b.model end
+                if b.type == DEATH and b.model == -2 then hidden = b.tick end
+                if b.type == DEATH and b.model == -1 then shown = b.tick end
+            end
+            table.sort(bodies)
+            t.check("ezekiel.vee.models", table.concat(bodies, " ") == "62639 62641 62642",
+                "V models " .. table.concat(bodies, " "))
+            t.check("ezekiel.deathsword", hidden ~= nil and shown == hidden + 7,
+                string.format("hidden %s, shown %s", tostring(hidden), tostring(shown)))
+        end
         t.prayer.set("protectfrommelee", false)
         -- Follow the navigator: the atrium.
         t.ticklog.mark("navigator")

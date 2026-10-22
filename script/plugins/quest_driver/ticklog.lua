@@ -74,6 +74,8 @@ QD.ticklog.FIELDS = {
     hit_player = { "pid", "npc_slot", "damage", "hitsplat", "dealer_pid", "npc_type", "raw" },
     hit_npc = { "slot", "type", "damage", "hitsplat", "raw" },
     npc_spawn = { "slot", "type", "coord" },
+    -- `npc_bodymodel` / `npc_bodyhide`: the model, -1 the reset, -2 hidden.
+    npc_body = { "slot", "type", "model" },
     npc_death = { "slot", "type", "coord" },
     npc_free = { "slot", "type", "coord" },
     npc_retype = { "slot", "from_type", "to_type", "duration" },

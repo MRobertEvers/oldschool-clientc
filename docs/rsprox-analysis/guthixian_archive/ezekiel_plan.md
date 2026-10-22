@@ -17,7 +17,7 @@ finale's three patterns. Tools: `tools/boss_view.py`, `tools/ez_swords.py`,
 
 | fact | evidence |
 |---|---|
-| Template square (63,86); the raiders arrive at (4076..4081, 5534..5536) facing west (`angle=512`) | 4301 [52..54], 4300 [867] |
+| Template square (63,86); the raiders arrive on any tile of (4080..4082, 5534..5536) facing west (`angle=512`; `nexus_plan.md` §6: 15/15) | 4301 [52..54], 4300 [867] |
 | The arena is walled; the only way in is the "Archive transporter" (`tfa_boss_teleporter`, Use / Quick-use) at (4073,5535) rot 3 in the map: a raider beside it is put 7 tiles across to (4066,5535) two ticks after the op, with spotanim `abyssal_demon_teleport` (409) and `[facing] type=reset` | 4301 [63..65] Visqo, [68] Vampyire, [69] Fatalsystem; 4300 [878] Will |
 | `tfa_ezekiel` added with the room at (4064,5536), spawnangle east, `[facing] coord=(4081,5535)` (the arrivals) | 2/2 |
 | The arena is the 9x9 at (4059..4067, 5531..5539): his 3x3 stays in it (59 walks), the star is clipped to it (§5), the finale's cage is its middle 3x3 cell (§8) | 2/2 |
@@ -497,4 +497,63 @@ lives of 4300, 4301, 4304, 4314, 4315.
 
 Not compared: the raiders' own kit (wind surge's 227 and 4027 on the swords,
 a bloom's 2892).
+
+## P2 (the finale) by every npc-info line: fifth pass (2026-10-22)
+
+The owner's report: the V swords' lightning never showed, the swords in the
+room animated over and over, and Ezekiel faced the wrong way. The earlier
+audits compared seqs, spotanims and faces, but `npc_timeline.py` drops the
+`[bas]` and `[body_customisation]` lines, and nobody had looked at the
+client. `tools/ez_p2_stream.py` prints every npc-info line of the finale's
+npcs (4301 [203..286], 4300 [1061..1188]); `tools/ez_p2_ours_check.py` checks
+our tick log against them.
+
+| npc | recorded (4301, 4300) | ours before | ours now |
+|---|---|---|---|
+| Ezekiel, F-1 | an empty `[bas]` with the tile face (2/2) | none | `npc_basreset` |
+| Ezekiel, F+3 | `[bas] ready=npc_ezekiel_finale_loop01` with the cast (2/2) | none: he stood on his idle | `npc_basready(npc_ezekiel_finale_loop01)` |
+| the fence (7) | each `[bas] ready=vfx_ezekiel_sword_fence_idle0N` with `drop0N`, N fixed by the cell: (0,2) 1, (1,2) 2, (2,2) 3, (2,1) 4, (0,1) 5, (0,0) 6, (1,0) 7, (2,0) 1 (both sessions agree on every cell both fenced) | drops 1..7 in loop order, no bas: the type's ready anim is `vfx_ezekiel_fence_template`, 13 frames, so every fence sword animated over and over | the cell's drop and idle |
+| the V, front | `[body_customisation]` 62639 (twice: V3 and a second block), `drop01`, an empty `[bas]` (6/6) | `drop01` only | `npc_bodymodel(62639)`, `npc_basreset` |
+| the V, left / right | 62641 / 62642, `drop03` / `drop04`, `[bas] walk=, ready=` `idle03` / `idle04` | the type's model and idle for all three | `npc_bodymodel`, `npc_baswalk` + `npc_basready` (new engine command `npc_baswalk`, opcode 11266: BAS_CHANGE bit 2, g2Alt2) |
+| the death sword | added with `[model] id=-1` (hidden, 2/2); 4301 [270] (K+8) a customisation reset shows it (4300's recording ends first) | shown at once, over him as he dies | `npc_bodyhide` (new, opcode 11267: a one-model list, -1) on add, `npc_bodymodel(-1)` at K+8 |
+| telegraphs, volleys, sounds, death | as §8, §9 | matched | matched (unchanged) |
+
+Why the lightning "never showed": on our client the V swords drew nothing
+from their type alone, so each volley's telegraph lightning struck bare
+floor; with the recorded body models all three swords stand and the
+lightning strikes them (live shots, 2026-10-22). Which of the two (the body
+models or the stances) our client needs to draw them is not isolated, nor why
+the type alone draws nothing (the type has nothing unusual); Jagex always
+sends both, so the finale is unaffected. **Open (client):** an npc of
+`tfa_ezekiel_finale_vfx` with neither draws nothing.
+
+**Ezekiel's facing was a client bug.** The client's own yaw, read through the
+drive's npc rows each tick (`yaw`, `dst_yaw`): with the cage north of him he
+stood at yaw 0 (south) for the whole finale, before and after the content
+fix. The jump's `exact_move` (60 cycles, angle 0) writes its yaw after the
+facing pass on its last cycle, which is the cycle the F+2 coord face first
+aims, and our client then cleared the coord as consumed. Rev-239
+`Statics.method6710` keeps it: `class105.method3531(false)` clears only the
+face's instant flag, the coord (`class44.field293`) stays until the next
+facing block (`class44.method875`) or a world reset (`class105.method3668`),
+so it aims again the next cycle. Fixed for an npc's rev-241 facing blocks
+(`WorldEntityFacet_Facing.hold_square`, set by `World_NpcBeginModernFacing`):
+the coord is held. Ezekiel now turns to yaw 1024 on the south side and 0 on
+the north (live, both sides). `test_rev241_held_face_coord_outlives_exact_move`
+replays the jump and fails with the hold cleared.
+
+Players keep the one-shot turn: the deob holds theirs too, but Jagex's server
+resets a player's facing as they start to walk (RSProx 4286: 14 walks and 3
+runs carry `[facing] type=reset`, and 21 teleports), and ours sends no such
+reset, so holding it would turn a player back to an old tile after a walk.
+**Open (engine):** the player facing reset at walk start, then the hold for
+players.
+
+Also open: the second `[body_customisation]` block (V2 or V4: the transcript
+prints both blocks alike; ours sends the V3 block only).
+
+`tfa_ezekiel.lua` checks the fence's drops, the V's models and the death
+sword's hide and show (`ezekiel.fence`, `ezekiel.vee.models`,
+`ezekiel.deathsword`; all three fail on the content before this pass);
+`tools/ez_p2_ours_check.py` checks the stances too (13/13 now, 0/13 before).
 

@@ -620,8 +620,11 @@ World_EntityFaceTarget(struct World_MoverInfo* info)
                             frame_yaw) &
                            0x7ff);
         }
-        facing->square_x = 0;
-        facing->square_z = 0;
+        if( !facing->hold_square )
+        {
+            facing->square_x = 0;
+            facing->square_z = 0;
+        }
         applied = true;
         if( rev239 )
         {

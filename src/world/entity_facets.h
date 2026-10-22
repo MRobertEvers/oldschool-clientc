@@ -248,9 +248,21 @@ struct WorldEntityFacet_Facing
     /** Pending face-coord, as the wire sends it: absolute half-tiles
      *  ((tile << 1) + 1). 0,0 = none — the reference's sentinel, and the
      *  reason this is stored raw rather than converted to a scene tile
-     *  (scene tile 0 is a legitimate target). Cleared once consumed. */
+     *  (scene tile 0 is a legitimate target). Cleared once consumed, unless
+     *  `hold_square`. */
     int square_x;
     int square_z;
+    /** The face-coord is a held target, aimed at every eligible cycle until
+     *  the next facing block replaces it, not a one-shot turn: rev-239
+     *  method6710 only clears the face's instant flag after aiming
+     *  (class105.method3531(false)), and the coord (class44.field293) stays
+     *  until a new block (class44.method875) or a world reset
+     *  (class105.method3668). Set for an npc's rev-241 facing block; an
+     *  exact move that wrote its own yaw over the turn on its last cycle no
+     *  longer loses it (Ezekiel's finale, RSProx 4301 [204] -> [206]).
+     *  Players keep the one-shot turn until the server sends the reset
+     *  Jagex sends as a walk starts (RSProx 4286: 17 of them). */
+    bool hold_square;
     /** Angle used while an entity target is temporarily absent, or the direct
      * Face.Angle target. -1 means no fallback/direct angle is pending. */
     int fallback_angle;

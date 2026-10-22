@@ -10313,6 +10313,36 @@ script_command(
         }
         npc->bas_ready_set = 0;
         npc->bas_turn_set = 0;
+        npc->bas_walk_set = 0;
+        npc->masks |= TORIRSSERVER_NMASK_BAS;
+        return 1;
+    }
+
+    /*
+     * `npc_baswalk(seq $seq)` -- the walk anim of the same BAS_CHANGE block,
+     * beside `npc_basready` and held with it until `npc_basreset`
+     * (`[bas] walk=.., ready=..`): Ezekiel's finale side swords (RSProx 4301
+     * [212], 4300 [1076]).
+     */
+    case SS_OP_NPC_BASWALK:
+    {
+        int32_t seq;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &seq) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_baswalk with no active npc");
+            return 1;
+        }
+        if( seq < 0 || seq > 65534 )
+        {
+            SSVM_Abort(state, "npc_baswalk %d: must be a seq", (int)seq);
+            return 1;
+        }
+        npc->bas_walk = (int)seq;
+        npc->bas_walk_set = 1;
         npc->masks |= TORIRSSERVER_NMASK_BAS;
         return 1;
     }
@@ -10747,6 +10777,28 @@ script_command(
         npc->body_model = model >= 0 ? (int)model : -1;
         npc->masks |= TORIRSSERVER_NMASK_BODY;
         ToriRSServer_TicklogNpcBody(npc, npc->body_model);
+        return 1;
+    }
+
+    /*
+     * npc_bodyhide: the body customisation with one model, -1 -- the npc
+     * drawn as nothing until `npc_bodymodel(-1)` resets it. Ezekiel's death
+     * sword is added hidden and shown seven ticks on (RSProx 4301 [263],
+     * [270]). Logged as body -2, -1 being the reset.
+     */
+    case SS_OP_NPC_BODYHIDE:
+    {
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_bodyhide with no active npc");
+            return 1;
+        }
+        npc->body_model_set = 1;
+        npc->body_model = -1;
+        npc->masks |= TORIRSSERVER_NMASK_BODY;
+        ToriRSServer_TicklogNpcBody(npc, -2);
         return 1;
     }
 

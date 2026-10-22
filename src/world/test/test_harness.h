@@ -157,6 +157,7 @@ void test_rev239_step_arrival_rules(void);
 void test_rev239_frame_mover_drops_the_z_carry(void);
 void test_rev239_exact_move_order(void);
 void test_rev239_exact_move_with_teleport(void);
+void test_rev241_held_face_coord_outlives_exact_move(void);
 void test_rev239_projectile_ends(void);
 void test_stop_settles_promptly(void);
 void test_entity_face(void);
