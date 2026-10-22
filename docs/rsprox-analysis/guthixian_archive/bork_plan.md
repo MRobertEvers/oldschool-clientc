@@ -12,9 +12,9 @@ tile), `tools/room_inv.py`. Bork is 4x4, the Smorks' cart 3x3 (cache).
 | fact | evidence |
 |---|---|
 | Template square (65,87); raiders arrive west of the arena at (4174,5600) | 4303 [331] |
-| Added with the room: `tfa_bork` (4192,5601) spawnangle south-west; `tfa_smork` ("The Smorks", the cart) (4190,5598) west; `tfa_bork_smork_hp_ui_handler` (4161,5569) south (the bar's npc, no ops) | 2/2 |
+| Added with the room: `tfa_bork` (4194,5603) spawnangle west (9 of 13 adds; the other four, 4303's (4192,5601) south-west among them, were re-adds after a wander); `tfa_smork` ("The Smorks", the cart) (4190,5598) west; `tfa_bork_smork_hp_ui_handler` (4161,5569) south (the bar's npc, no ops) | 2/2 |
 | The Archive transporter (4180,5599) rot 1: over the wall to (4187,5599), sprite 409 | 4303 [345], [347] |
-| Bork wanders the arena until the fight starts | 4303 [332..345] |
+| Bork wanders the arena until the fight starts, the whole of it: 10 tiles west and 11 south of his spawn recorded (a 12-tile walk at 4316 [555..566]) | 4294, 4303, 4316 |
 | Start: the first raider over the wall: sound 12769 r30 size 30 at the arena's middle (4189,5594); +1 the bar: `hpbar_hud_npc` = the handler, `hpbar_hud_hp`/`basehp` 1500 (Bork), `hpbar_hud_extra_current`/`base` 600 (the Smorks), `hpbar_hud_show_extra_bar` 1, `hpbar_hud_boss` 1, the main bar's health colours, the extra bar's 9312/22784/31104, script 10152 (false); music 888 | 4303 [345..346], [1887] |
 
 ## 2. Bork's drum (the gong)
@@ -58,14 +58,14 @@ R starts at 7 (Bork's drum and the Smorks alike). At 75%, 50% and 25% of the Smo
 
 | tick | recorded | evidence |
 |---|---|---|
-| L (the bomb lands) | `npc_bork_14_cycle_stun01` (+ `vfx_bork_14_cycle_stun_spotanim01` from the second), "Oof."; the Smorks one of "That you fault!", "Bork! We sorry! No go!", "No! Fearless leader!"; sounds 12249 r20, 3201 (`myarm_flyback`) r20 size 20, 12273 r15, 12758 r15 size 15 at him | 10/10 |
+| L (the bomb lands) | `npc_bork_14_cycle_stun01` + `vfx_bork_14_cycle_stun_spotanim01` (every stun: shown 31/39, and on the other 8 a raider's thrall impact or Sanguinesti heal took slot 0 that tick), his target's tile faced (31/31, theirs before their step), "Oof."; the Smorks one of "That you fault!", "Bork! We sorry! No go!", "No! Fearless leader!"; sounds 12249 r20, 3201 (`myarm_flyback`) r20 size 20, 12273 r15, 12758 r15 size 15 at him | 10/10 |
 | L..L+13 | no beats; every raider's hit on him lands (4303 [400..414]: 1426 -> 1182) | |
 | L+14 | `npc_bork_enraged_stomp_attack_in01`, "Bork very angry!!" | 10/10 |
 | L+16 | `npc_bork_enraged_stomp_attack01` (+ `vfx_bork_enraged_stomp_spotanim01`) | |
 | L+17, L+20, L+23, L+26 | the slams: `tfa_wave_dust_short` over the whole arena, delay the Manhattan distance (up to 20) from the middle of the edge he faces his target across, alternating its two middle tiles, but the tiles the cart shadows from him | 4303 [417..426] |
 | L+22 | `npc_bork_enraged_stomp_attack_cycle_and_out01` (+ the spotanim) | |
 | L+29 | a raider at random; "Bork smash <name> now." only when it is another (31/31 changes said, 6/6 keeps silent) | |
-| L+33 | the drum again | |
+| L+33 / L+31 | the drum again: 4 ticks after a new target (29/29), 2 after keeping the old one (3/3; the one kept at +33 was a change whose line the speed-up took, 4304 [446]) | 34/34 |
 
 ## 6. Deaths
 
@@ -276,3 +276,43 @@ face, no other swing at him that tick, no thrall within a tick:
 55 splats of 3..11 stay unattributed: raiders' ruby-bolt specs (zcb at 4312
 [523], 4310 [454]), a thrall's shock (4308 [746]), runs across a beat tile
 between the two tiles a tick shows.
+
+## 11. Every block again (2026-10-21, third pass)
+
+Asked for "no mechanic, timing, damage, animation, or anything that is not
+accounted for in the recordings": the thirteen fights against
+`tfa_bork.lua` and `tfa_bork_smorks_first.lua` on a private server and pack.
+
+- `tools/rsprox/npc_stream.py --summary` for every npc of the room.
+- `tools/bk_sigs.py`: every map anim (id, delays, heights), projectile (id,
+  times, angle, progress, heights, source) and loc (id, shape) of the arena,
+  recordings against ours.
+- `tools/bk_sounds.py`: every area sound's id, delay, range, size, loops.
+- `tools/bk_engage.py`: the engage's first ticks per fight.
+- `tools/bk_beatcheck.py`: each beat's tiles and delays against the rule
+  (720 recorded gongs: 0 delay misses; the only misses single corner tiles
+  of the box this tool uses for the walls).
+- `tools/bk_miss.py`, `tools/bk_stunspot.py`, `tools/bk_stunface.py`,
+  `tools/bk_smface*.py` for the rows below.
+
+| row | recording | ours before | ours now | verdict |
+|---|---|---|---|---|
+| spawn | (4194,5603) west (9/13) | (4192,5601), 4303's wandered re-add | (4194,5603) | fixed |
+| wander | the whole arena, 11 from his spawn | `wanderrange=4` | 11 | fixed |
+| engage faces | the Smorks reset at A (13/13); Bork faces the raider at A+1 (7/13; A 6) and is never reset; the Smorks face him at A+2 (7/12; A+1 5) | Bork reset at A, both faced at A+5 | as recorded | fixed |
+| chase | one tile a tick from A+1 (5/13; A 8) | 2 tiles a tick (`npc_approach` from the room tick steps and queues), from A+2 | one tile from A+1 | fixed |
+| fight song | 888 with zeros on its first send (13/13) | no zero send (the room fights from A+1) | zero send at A+1 | fixed |
+| beat centre | his tile before the tick's step (every tile of 720 gongs) | after his step | before | fixed |
+| miss window | the gong due at L or L+1 sounds, its second beat never (0/5); no gong until the resume | the second beat went out on the first slam | dropped | fixed |
+| resume | the retarget + 4 (changed) or + 2 (kept), 34/34 stuns, 5/5 misses | stun L+34, miss L+21 (fixed counts, a tick late) | the rule, the gong on its tick | fixed |
+| stun spot | every stun (8 hidden by a raider's slot-0 graphic) | skipped on the second stun | every stun | fixed |
+| stun face | his target's tile (31/31) | a random raider's | his target's | fixed |
+| the Smorks' death | D reset (4/4), D+7 fade 0..30 (4/4), D+9 the cart and the bar's npc deleted (4/4) | no reset, no fade, the bar's npc at teardown | as recorded | fixed |
+| dying on a shot tick | no shot (4308 [771..772]) | shot | none | fixed |
+| sounds, songs, locs, projectiles, map anims | | | every signature recorded matches | matched |
+| projectile start height | 270 (v2, raw) | 268 (our v1 byte x 4) | same | **open (engine)**: our server sends the old projectile packet |
+| the Smorks' aim faces | after the first entity face, a tile every 2 ticks near the raiders: 109 of 419 on one, most within 1..3, 238 on no raider's tile in the 11 ticks before; no rule fits (not lagged, not leading, not Bork) | their target's tile every 2 ticks from A+10 | same | **open**: rule not identified |
+| Smorks first, past death + 8 | 4310 [622..630]: Bork drums on, D+7 the cart fades, D+9 it goes; Bork killed at D+8 | as recorded to D+9 | then "Bork kill you for that!" and the gong rage | **not in the recordings**: the owner's description and the wiki; rate, reach and damage ours |
+| defend sounds | no synth in any of the nine transcripts (all spectated) | null | null | **open**: no data |
+| damage | §10 | | | as §10 (prayers not on the wire) |
+

@@ -114,7 +114,9 @@ return {
         fight(t, "tfa_smork", 40)
         t.ticklog.mark("bork_dead")
         t.cheat("::tfaboss 3", false)
-        fight(t, "tfa_bork", 20)
+        -- Up to 60: his flat armour (10) and defence turn most of the bot's
+        -- shots to nothing; fight() returns once he is gone.
+        fight(t, "tfa_bork", 60)
         t.ticklog.mark("smork_dead")
         t.cheat("::tfasmork 2", false)
         fight(t, "tfa_smork", 30)
