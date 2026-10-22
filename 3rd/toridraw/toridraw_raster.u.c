@@ -227,6 +227,90 @@ toridraw_stock_zbuffered_textured(
         ctx->near_clipped);
 }
 
+/*
+ * The two halves of a depth world that defers its translucency
+ * (ToriDraw_KernelGetSoftwareZBufferedOpaque / ...Translucent).
+ *
+ * A translucent face tests depth and writes none, so a depth buffer only
+ * resolves it if everything behind it is already drawn, and it blends right
+ * over another translucent face only if it is drawn after it. The opaque half
+ * draws every face that writes depth, in model order; the translucent half
+ * draws the rest, after every model's opaque half, in the painter's order.
+ *
+ * The split is decided on the PREPARED opacity, not on the authored alpha: the
+ * walk drops a textured face's alpha (it draws opaque), and only the walk
+ * knows that. So each half drops the other's faces here and every face is
+ * drawn by exactly one of them.
+ */
+static void
+toridraw_stock_zbuffered_opaque_gouraud(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    struct ToriDrawModelRasterContext* ctx = target->internal;
+
+    (void)user_data;
+    if( face->opacity != 0xFF )
+        return;
+    toridraw_stock_draw_zbuffered_solid(ctx, face, TORIDRAW_ZBUF_MODE_GOURAUD);
+}
+
+static void
+toridraw_stock_zbuffered_opaque_flat(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    struct ToriDrawModelRasterContext* ctx = target->internal;
+
+    (void)user_data;
+    if( face->opacity != 0xFF )
+        return;
+    toridraw_stock_draw_zbuffered_solid(ctx, face, TORIDRAW_ZBUF_MODE_FLAT);
+}
+
+static void
+toridraw_stock_zbuffered_translucent_gouraud(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    struct ToriDrawModelRasterContext* ctx = target->internal;
+
+    (void)user_data;
+    if( face->opacity == 0xFF )
+        return;
+    toridraw_stock_draw_zbuffered_solid(ctx, face, TORIDRAW_ZBUF_MODE_GOURAUD);
+}
+
+static void
+toridraw_stock_zbuffered_translucent_flat(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    struct ToriDrawModelRasterContext* ctx = target->internal;
+
+    (void)user_data;
+    if( face->opacity == 0xFF )
+        return;
+    toridraw_stock_draw_zbuffered_solid(ctx, face, TORIDRAW_ZBUF_MODE_FLAT);
+}
+
+/* A textured face always reaches a kernel opaque, so it belongs to the opaque
+ * half, which drew it already. */
+static void
+toridraw_stock_zbuffered_translucent_textured(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceSD* face)
+{
+    (void)user_data;
+    (void)target;
+    assert(face->opacity == 0xFF);
+}
+
 #define TORIDRAW_STOCK_FLAT_ARGS(ctx, face)                                                        \
     (ctx)->pixel_buffer, (face)->face_index, (ctx)->face_indices_a, (ctx)->face_indices_b,         \
         (ctx)->face_indices_c, (ctx)->vertex_x, (ctx)->vertex_y, (ctx)->vertex_z,                  \

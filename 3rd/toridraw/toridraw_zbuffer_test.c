@@ -1381,6 +1381,172 @@ test_frame_pass_spans_models(struct ToriDraw_Scene* scene)
         frame_count_rgb(&no_pass, rgb_far));
 }
 
+/* Pixels that are neither the clear colour nor either quad's own colour: the
+ * near quad blended over the far one. */
+static long
+frame_count_blended(const struct Frame* f, int rgb_near, int rgb_far)
+{
+    long n = 0;
+
+    for( int i = 0; i < VIEW_W * VIEW_H; i++ )
+    {
+        int const p = (int)f->pixels[i];
+
+        if( p != 0 && p != rgb_near && p != rgb_far )
+            n++;
+    }
+    return n;
+}
+
+/*
+ * The deferred translucency of the depth world: a translucent near model that
+ * ARRIVES first, an opaque far one after it. Through the one software-zbuffered
+ * table the far model passes the depth test the translucent one never wrote
+ * and paints over it -- the control, and the bug. Through the opaque table and
+ * then the translucent one, the far model is drawn first and the near one
+ * blends over it.
+ */
+static void
+test_deferred_translucency_spans_models(struct ToriDraw_Scene* scene)
+{
+    const struct ToriDraw_Kernel* single =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBuffered());
+    const struct ToriDraw_Kernel* opaque =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBufferedOpaque());
+    const struct ToriDraw_Kernel* translucent =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBufferedTranslucent());
+    struct Mesh near_mesh;
+    struct Mesh far_mesh;
+    struct Frame one_table;
+    struct Frame opaque_only;
+    struct Frame deferred;
+    struct ToriDraw_ViewPort vp = viewport();
+    struct ToriDraw_Camera cam = camera();
+    struct ToriDraw_Position pos = position();
+    int const rgb_near = rgb_of(HSL_NEAR_LEFT);
+    int const rgb_far = rgb_of(HSL_NEAR_RIGHT);
+
+    build_stacked_models(&near_mesh, &far_mesh);
+    for( int i = 0; i < near_mesh.model.face_count; i++ )
+        near_mesh.alpha[i] = 0x80;
+    mesh_enable_alpha(&near_mesh);
+
+    frame_clear(&one_table);
+    ToriDraw_SceneZBufferBeginPass(scene, &cam, VIEW_W, VIEW_H);
+    ToriDraw_RenderModelWithTable(near_mesh.hnd, scene, &pos, &vp, &cam, one_table.pixels, single);
+    ToriDraw_RenderModelWithTable(far_mesh.hnd, scene, &pos, &vp, &cam, one_table.pixels, single);
+    ToriDraw_SceneZBufferEndPass(scene);
+
+    frame_clear(&deferred);
+    ToriDraw_SceneZBufferBeginPass(scene, &cam, VIEW_W, VIEW_H);
+    ToriDraw_RenderModelWithTable(near_mesh.hnd, scene, &pos, &vp, &cam, deferred.pixels, opaque);
+    ToriDraw_RenderModelWithTable(far_mesh.hnd, scene, &pos, &vp, &cam, deferred.pixels, opaque);
+    memcpy(opaque_only.pixels, deferred.pixels, sizeof(opaque_only.pixels));
+    ToriDraw_RenderModelWithTable(
+        near_mesh.hnd, scene, &pos, &vp, &cam, deferred.pixels, translucent);
+    ToriDraw_SceneZBufferEndPass(scene);
+
+    CHECK(
+        frame_count_rgb(&one_table, rgb_far) > 1000,
+        "control: through the one table the far model showed only %ld pixels over the "
+        "translucent near one drawn before it -- the fixture does not reproduce the bug",
+        frame_count_rgb(&one_table, rgb_far));
+    CHECK(
+        frame_count_blended(&opaque_only, rgb_near, rgb_far) == 0,
+        "the opaque table drew %ld blended pixels -- it must leave translucent faces "
+        "to the translucent table",
+        frame_count_blended(&opaque_only, rgb_near, rgb_far));
+    CHECK(
+        frame_count_rgb(&deferred, rgb_far) == 0,
+        "%ld pixels of the far model showed unblended through the translucent near one "
+        "with the translucency deferred",
+        frame_count_rgb(&deferred, rgb_far));
+    CHECK(
+        frame_count_blended(&deferred, rgb_near, rgb_far) > 1000,
+        "the translucent near model blended over only %ld pixels of the far one",
+        frame_count_blended(&deferred, rgb_near, rgb_far));
+}
+
+/*
+ * The translucent table orders a model's translucent faces itself: two
+ * translucent quads, near and far, stored in either order, draw the same
+ * pixels. The one table draws them in model order, and the two orders differ
+ * there -- the control.
+ */
+static void
+build_two_translucent_quads(struct Mesh* m, bool near_first)
+{
+    mesh_init(m);
+    for( int k = 0; k < 2; k++ )
+    {
+        bool const near = (k == 0) == near_first;
+        int const z = near ? -EXTENT : EXTENT;
+        int const v0 = mesh_add_vertex(m, -EXTENT / 2, -EXTENT / 2, z);
+        int const v1 = mesh_add_vertex(m, EXTENT / 2, -EXTENT / 2, z);
+        int const v2 = mesh_add_vertex(m, EXTENT / 2, EXTENT / 2, z);
+        int const v3 = mesh_add_vertex(m, -EXTENT / 2, EXTENT / 2, z);
+
+        mesh_add_quad(m, v0, v1, v2, v3, near ? HSL_NEAR_LEFT : HSL_NEAR_RIGHT, 0x80);
+    }
+    mesh_enable_alpha(m);
+}
+
+static void
+test_translucent_faces_sorted_in_model(struct ToriDraw_Scene* scene)
+{
+    const struct ToriDraw_Kernel* single =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBuffered());
+    const struct ToriDraw_Kernel* translucent =
+        ToriDraw_KernelTake(scene, ToriDraw_KernelGetSoftwareZBufferedTranslucent());
+    struct Mesh meshes[2];
+    struct Frame unsorted[2];
+    struct Frame sorted[2];
+    struct ToriDraw_ViewPort vp = viewport();
+    struct ToriDraw_Camera cam = camera();
+    struct ToriDraw_Position pos = position();
+
+    for( int k = 0; k < 2; k++ )
+    {
+        build_two_translucent_quads(&meshes[k], k == 0);
+
+        frame_clear(&unsorted[k]);
+        ToriDraw_SceneZBufferBeginPass(scene, &cam, VIEW_W, VIEW_H);
+        ToriDraw_RenderModelWithTable(
+            meshes[k].hnd, scene, &pos, &vp, &cam, unsorted[k].pixels, single);
+        ToriDraw_SceneZBufferEndPass(scene);
+
+        frame_clear(&sorted[k]);
+        ToriDraw_SceneZBufferBeginPass(scene, &cam, VIEW_W, VIEW_H);
+        ToriDraw_RenderModelWithTable(
+            meshes[k].hnd, scene, &pos, &vp, &cam, sorted[k].pixels, translucent);
+        ToriDraw_SceneZBufferEndPass(scene);
+    }
+
+    {
+        long unsorted_differ = 0;
+        long sorted_differ = 0;
+        long drawn = 0;
+
+        for( int i = 0; i < VIEW_W * VIEW_H; i++ )
+        {
+            unsorted_differ += unsorted[0].pixels[i] != unsorted[1].pixels[i];
+            sorted_differ += sorted[0].pixels[i] != sorted[1].pixels[i];
+            drawn += sorted[0].pixels[i] != 0;
+        }
+        CHECK(
+            unsorted_differ > 1000,
+            "control: the one table drew the two face orders alike (%ld pixels apart) -- "
+            "the fixture cannot see the order",
+            unsorted_differ);
+        CHECK(drawn > 1000, "the translucent table drew only %ld pixels", drawn);
+        CHECK(
+            sorted_differ == 0,
+            "the translucent table drew %ld pixels differently for the two face orders -- "
+            "its translucent faces are not sorted",
+            sorted_differ);
+    }
+}
+
 static void
 test_flag_is_opt_in(struct ToriDraw_Scene* scene)
 {
@@ -1509,6 +1675,8 @@ main(void)
     test_textured_faces(scene, true);
     test_buffer_is_reset_per_model(scene);
     test_frame_pass_spans_models(scene);
+    test_deferred_translucency_spans_models(scene);
+    test_translucent_faces_sorted_in_model(scene);
     test_flag_is_opt_in(scene);
     test_inert_without_a_buffer();
     test_explicit_sizing();

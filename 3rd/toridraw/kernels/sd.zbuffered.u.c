@@ -98,4 +98,48 @@ ToriDraw_RasterKernelSDGetSmoothZBuffered(void)
     return toridraw_stock_zbuffered_kernel(true, false);
 }
 
+/*
+ * The depth world with its translucency deferred: the same callbacks, each
+ * half dropping the other's faces (toridraw_stock_zbuffered_opaque_*).
+ *
+ *   zbuffered_opaque       no face sort, as `zbuffered`: model order, and the
+ *                          buffer decides. Every face that writes depth.
+ *   zbuffered_translucent  the painter's face sort -- run only for a model
+ *                          that has face alpha, which is the only kind its
+ *                          caller hands it -- and only the faces that blend,
+ *                          in that order, tested and never written.
+ */
+static const struct ToriDraw_RasterKernelSDVTable g_stock_zbuffered_opaque_vtable = {
+    .draw = {
+        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_opaque_gouraud,
+        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_opaque_flat,
+        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_textured,
+        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_textured,
+    },
+};
+
+static const struct ToriDraw_RasterKernelSDVTable g_stock_zbuffered_translucent_vtable = {
+    .draw = {
+        [TORIDRAW_RASTER_FACE_SD_GOURAUD] = toridraw_stock_zbuffered_translucent_gouraud,
+        [TORIDRAW_RASTER_FACE_SD_FLAT] = toridraw_stock_zbuffered_translucent_flat,
+        [TORIDRAW_RASTER_FACE_SD_TEXTURED] = toridraw_stock_zbuffered_translucent_textured,
+        [TORIDRAW_RASTER_FACE_SD_TEXTURED_FLAT] = toridraw_stock_zbuffered_translucent_textured,
+    },
+};
+
+static struct ToriDraw_RasterKernelSD g_stock_zbuffered_opaque_kernel = {
+    .name = "zbuffered_opaque",
+    .draw_model = ToriDraw_RasterWalkPerFace,
+    .vtable = &g_stock_zbuffered_opaque_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
+};
+
+static struct ToriDraw_RasterKernelSD g_stock_zbuffered_translucent_kernel = {
+    .name = "zbuffered_translucent",
+    .draw_model = ToriDraw_RasterWalkPerFace,
+    .vtable = &g_stock_zbuffered_translucent_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING |
+             TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
+};
+
 #endif /* TORIDRAW_KERNELS_SD_ZBUFFERED_U_C */

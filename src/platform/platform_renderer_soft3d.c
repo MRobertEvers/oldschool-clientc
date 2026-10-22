@@ -62,6 +62,15 @@ struct Soft3DOutlineCacheEntry
  * pre-baked bordered icon; this cache covers the remaining draw-time
  * outline/shadow chrome.
  */
+/* A depth-world model held for the translucent pass. `order` is its place in
+ * the pass, so models at one depth keep the order they arrived in. */
+struct Soft3DDepthTranslucent
+{
+    struct ToriRS_RenderCommand_Model cmd;
+    int depth;
+    int order;
+};
+
 struct ToriPlatform_Renderer_Soft3D_Scratch
 {
     uint32_t* blit;
@@ -105,6 +114,12 @@ struct ToriPlatform_Renderer_Soft3D_Scratch
     struct ToriRS_RenderCommand_Model* rszbuffer_models;
     int rszbuffer_model_count;
     int rszbuffer_model_cap;
+    /* The depth world's models with face alpha, of the open 3D pass, each with
+     * its camera-space depth, for the back-to-front translucent pass END_3D
+     * runs over them. Kept across frames so a pass does not allocate. */
+    struct Soft3DDepthTranslucent* depth_translucent;
+    int depth_translucent_count;
+    int depth_translucent_cap;
 };
 
 /* floor(v * num / den) for a positive den, negative v included. */
@@ -1274,6 +1289,86 @@ soft3d_draw_model_widget(
         soft3d_layer_end(soft);
 }
 
+/*
+ * Keep a depth-world model for the translucent pass, with the camera-space
+ * depth of its origin, if it has face alpha.
+ *
+ * Called once the model is projected and visible: the depth is the one the
+ * projection just left on the scene, and the pose -- which may be what gave
+ * the model its alphas -- is already applied. Tiles too: a tile's translucent
+ * faces are dropped by the opaque table like any other model's, so they have
+ * to come back here.
+ */
+static void
+soft3d_depth_record_translucent(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    struct ToriRS_RenderCommand_Model const* cmd)
+{
+    struct ToriPlatform_Renderer_Soft3D_Scratch* const scratch = soft->scratch;
+    struct Soft3DDepthTranslucent* held;
+
+    assert(ToriDraw_ModelKindIsFull(cmd->model.kind));
+    if( !ToriDraw_ModelRead(cmd->model)->face_alphas )
+        return;
+
+    if( scratch->depth_translucent_count == scratch->depth_translucent_cap )
+    {
+        int const cap = scratch->depth_translucent_cap ? scratch->depth_translucent_cap * 2 : 256;
+        struct Soft3DDepthTranslucent* grown = ToriMem_Realloc(
+            ToriMem_Render(), scratch->depth_translucent, (size_t)cap * sizeof(*grown));
+
+        assert(grown);
+        scratch->depth_translucent = grown;
+        scratch->depth_translucent_cap = cap;
+    }
+    held = &scratch->depth_translucent[scratch->depth_translucent_count];
+    held->cmd = *cmd;
+    held->depth = soft->scene->projected_vertex.z;
+    held->order = scratch->depth_translucent_count;
+    scratch->depth_translucent_count++;
+}
+
+/* Back to front: the larger depth first, and arrival order at one depth. */
+static int
+soft3d_depth_translucent_cmp(
+    const void* a,
+    const void* b)
+{
+    const struct Soft3DDepthTranslucent* const x = a;
+    const struct Soft3DDepthTranslucent* const y = b;
+
+    if( x->depth != y->depth )
+        return x->depth > y->depth ? -1 : 1;
+    return x->order < y->order ? -1 : (x->order > y->order ? 1 : 0);
+}
+
+static void
+soft3d_draw_model(
+    struct ToriPlatform_Renderer_Soft3D* soft,
+    struct ToriRS_RenderCommand_Model const* cmd);
+
+/*
+ * The depth world's translucent pass: the models the pass held, back to front,
+ * through the translucent table -- the painter's order over just the faces
+ * that blend, against the depths every opaque face of the pass wrote.
+ */
+static void
+soft3d_depth_translucent_pass(struct ToriPlatform_Renderer_Soft3D* soft)
+{
+    struct ToriPlatform_Renderer_Soft3D_Scratch* const scratch = soft->scratch;
+
+    qsort(
+        scratch->depth_translucent,
+        (size_t)scratch->depth_translucent_count,
+        sizeof(*scratch->depth_translucent),
+        soft3d_depth_translucent_cmp);
+    soft->translucent_pass = true;
+    for( int i = 0; i < scratch->depth_translucent_count; i++ )
+        soft3d_draw_model(soft, &scratch->depth_translucent[i].cmd);
+    soft->translucent_pass = false;
+    scratch->depth_translucent_count = 0;
+}
+
 static void
 soft3d_draw_model(
     struct ToriPlatform_Renderer_Soft3D* soft,
@@ -1354,6 +1449,9 @@ soft3d_draw_model(
 
     if( cmd->pick_only )
         return;
+
+    if( soft->depth && !soft->translucent_pass )
+        soft3d_depth_record_translucent(soft, cmd);
 
     /* The depth table resolves faces per pixel and culls its own back faces,
      * so stage 2 does not run for it -- ToriDraw_RenderModelWithTable's rule. */
@@ -1482,6 +1580,7 @@ ToriPlatform_Renderer_Soft3D_Free(struct ToriPlatform_Renderer_Soft3D* soft)
         ToriMem_Free(ToriMem_Render(), soft->scratch->taps_y);
         ToriMem_Free(ToriMem_Render(), soft->scratch->column_sums);
         ToriMem_Free(ToriMem_Render(), soft->scratch->rszbuffer_models);
+        ToriMem_Free(ToriMem_Render(), soft->scratch->depth_translucent);
         for( int i = 0; i < SOFT3D_SEGMENT_CACHES; i++ )
         {
             ToriMem_Free(ToriMem_Render(), soft->scratch->segment_caches[i].encoded);
@@ -1657,11 +1756,14 @@ ToriPlatform_Renderer_Soft3D_Execute(
             ToriDraw_SceneZBufferBeginPass(
                 soft->scene, &soft->camera_3d, soft->view_port_3d.stride, soft->height);
         soft->scratch->rszbuffer_model_count = 0;
+        soft->scratch->depth_translucent_count = 0;
         break;
 
     case TORIRSRC_END_3D:
         if( soft->rszbuffer )
             soft3d_rszbuffer_translucent_pass(soft);
+        if( soft->depth )
+            soft3d_depth_translucent_pass(soft);
         if( soft->depth || soft->rszbuffer )
             ToriDraw_SceneZBufferEndPass(soft->scene);
         ToriDraw_SceneClearProjectionCamera(soft->scene);
@@ -2382,9 +2484,14 @@ ToriPlatform_Renderer_Soft3D_SetDepth(
     assert(soft);
     assert(soft->scene);
     soft->depth = depth;
-    /* Init already took the painter's table; only the depth world swaps it. */
-    if( depth )
-        soft->kernel = ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareZBuffered());
+    /* Init already took the painter's table; only the depth world swaps it,
+     * for two: the opaque faces as each model arrives, the translucent ones
+     * back to front at END_3D. */
+    if( !depth )
+        return;
+    soft->kernel = ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareZBufferedOpaque());
+    soft->kernel_translucent =
+        ToriDraw_KernelTake(soft->scene, ToriDraw_KernelGetSoftwareZBufferedTranslucent());
 }
 
 void

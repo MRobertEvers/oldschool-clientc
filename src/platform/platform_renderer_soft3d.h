@@ -48,8 +48,10 @@ struct ToriPlatform_Renderer_Soft3D
     struct ToriDraw_Kernel kernel_ab[2];
     int batch_ab[2];
     /* The depth-buffered world (ToriPlatform_Renderer_Soft3D_SetDepth): every
-     * 3D pass is one frame-wide z-buffer and models draw unsorted through the
-     * software-zbuffered table. The frame A/B does not apply to it. */
+     * 3D pass is one frame-wide z-buffer; models draw their opaque faces
+     * unsorted as they arrive, and the ones with face alpha draw their
+     * translucent faces back to front at END_3D, through kernel_translucent.
+     * The frame A/B does not apply to it. */
     bool depth;
     /* The rev-241 client's own depth buffer (ToriPlatform_Renderer_Soft3D_
      * SetRsZBuffer): one frame-wide z-buffer per 3D pass, every model drawn
@@ -57,7 +59,8 @@ struct ToriPlatform_Renderer_Soft3D
      * through the translucent one at END_3D. The frame A/B does not apply. */
     bool rszbuffer;
     const struct ToriDraw_Kernel* kernel_translucent;
-    /* Set while END_3D replays the pass's models through kernel_translucent:
+    /* Set while END_3D replays the pass's models through kernel_translucent
+     * (either world):
      * they draw again, but do not pick again. */
     bool translucent_pass;
     int* pixels;
@@ -152,10 +155,14 @@ ToriPlatform_Renderer_Soft3D_SetInterfaceScaleMode(
  * to the painter.
  *
  * Each BEGIN_3D .. END_3D pass then opens one frame-wide z-buffer
- * (ToriDraw_SceneZBufferBeginPass) and every model of the pass draws through
- * ToriDraw_KernelGetSoftwareZBuffered with no face sort, so models occlude
- * each other per pixel. That is only correct when the app collects the world
- * as TORIRS_WORLD_DEPTH -- the same contract as the GPU depth renderers.
+ * (ToriDraw_SceneZBufferBeginPass) and every model of the pass draws its
+ * opaque faces through ToriDraw_KernelGetSoftwareZBufferedOpaque with no face
+ * sort, so models occlude each other per pixel. A model with face alpha is
+ * also held, with its depth; END_3D draws the held models back to front
+ * through the translucent table, which sorts their faces the painter's way
+ * and draws only the ones that blend. That is only correct when the app
+ * collects the world as TORIRS_WORLD_DEPTH -- the same contract as the GPU
+ * depth renderers.
  */
 void
 ToriPlatform_Renderer_Soft3D_SetDepth(

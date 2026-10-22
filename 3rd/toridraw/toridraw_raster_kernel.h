@@ -840,6 +840,18 @@ const struct ToriDraw_Kernel*
 ToriDraw_KernelGetSoftwareZBuffered(void);
 
 /**
+ * Depth-resolved models with the translucency deferred. Two tables, drawn
+ * inside one ToriDraw_SceneZBufferBeginPass: every model through the OPAQUE
+ * table (model order, no sort, only faces that write depth), then the models
+ * with face alpha, back to front, through the TRANSLUCENT one (the painter's
+ * face sort, only the faces that blend, depth tested and never written).
+ */
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareZBufferedOpaque(void);
+const struct ToriDraw_Kernel*
+ToriDraw_KernelGetSoftwareZBufferedTranslucent(void);
+
+/**
  * The rev-241 client's own depth-buffered renderer (`::zbuf 1`), mirrored: its
  * float projection, its face orders and write masks, its rasterizer. Two
  * tables, because the client draws the scene twice -- every model through the
