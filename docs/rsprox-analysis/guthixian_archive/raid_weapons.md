@@ -58,7 +58,7 @@ R = recorded (counts are actions with that look / actions of that seq).
 | zaryte crossbow special | swing `zcb_attack_pvn`, the normal attack's (42 Evokes from a zaryte holder, none with another seq); shot `zcb_specialattack` from 41, angle 5, progress 72, heights 177/146, in place of the bolt (e.g. index 4303 [650]) | `xbows_human_fire_and_reload`, the bolt's own travel at angle 15, progress 11, 40/36 | as recorded (44/36 here) |
 | bows (twisted, bofa, scorching) | 163/146 | 160/144 | 164/144 (content heights are x4) |
 | chinchompas | from 21 | from 32 | from 21 |
-| zombie axe | smash `battleaxe_crush` 27/27 | axe hack | smash stance only |
+| zombie axe | smash `battleaxe_crush` 27/27; the recorder's own (index 3210 [3688..3850]): chop/hack/block `godwars_godsword_zamorak_player` 11/11 + synth 2498 `baxe_slash` 11/11, smash + 2497 `baxe_crush` 1/1, block `human_axe_block` 4/4 | unarmed punch/kick, unarmed block, no sound | as recorded (the leaf-bladed battleaxe's set) |
 | kodai wand, ancient sceptres | block `human_staff_block` 114/115/5 (no off-hand) | unarmed block | staff block |
 | off-hands | shields `human_shield_defence` (twisted buckler 262, elysian 52, crystal shield 37, odium 36, elidinis wards 104); defenders and the dragon parrying dagger `warguild_parry_defend` (663) | unarmed block, so the weapon's block won | as recorded |
 | scythes, bludgeon, tentacle, inquisitor's mace, macuahuitl, noxious halberd, blowpipes, faerdhinen bows, twisted bow, chinchompa seqs | matched | matched | unchanged |
