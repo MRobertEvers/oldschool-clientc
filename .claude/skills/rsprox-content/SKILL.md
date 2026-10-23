@@ -14,7 +14,9 @@ the script command that emits it. Keep it open.
 
 ## The loop
 
-1. **Find the interaction.** Search by the loc/npc/obj/interface id, then
+1. **Find the interaction.** Transcribe with `--bas` too (`rsprox_index.py get <id> --bas`)
+   whenever the content hands the player anything wieldable or changes their look: the
+   default transcript has no player `[bas]` or `[equipment]` (§1b, §11). Search by the loc/npc/obj/interface id, then
    `python3 tools/rsprox/rsprox_interact.py <txt> --list` to count every click in the session.
    Prefer a normal-world session (activity `-` or a place name). Use rev 238+ when facing matters.
 2. **Trace it.** `rsprox_interact.py <txt> --op '<regex on the click line>' --max 5`. It prints
@@ -100,6 +102,11 @@ fight, cutscene, interaction), before reporting it finished:
    - **Projectiles:** every field -- source tile, target, id, `starttime`, `endtime`, `angle`,
      `progress`, start and end height -- against a fit across many shots (section 4).
    - **Locs, music, jingles, varbits, npc spawns (tile, angle), npc deaths and despawn delay.**
+   - **The PLAYER's appearance, from a `--bas` transcript:** every `[bas]` and `[equipment]`
+     the recorder's appearance block carries across the section (an equip of an item the
+     content gave, a transform, a stance), against the obj's `*_baseanim` params. The
+     default transcript and `ticklog_tells` show neither. Misthalin Mystery passed its audit
+     with the killer's knife on the plain `human_*` stance (index 4336 [1924]).
    - **Damage, every attack** (§13): the splats on the player per cause, prayed and not --
      zero rate, max, the prayed distribution -- against ours, and the npc's levels against
      the cache.
@@ -196,6 +203,18 @@ index 4336, cites in `docs/rsprox-analysis/quests/misthalin_mystery.md`):
   private item (`ownership=self, neverturnpublic=true`) is `obj_add` in a copy, `obj_add_private` in
   the world. A permanent prop that every zone re-send repeats (`obj_add_specific` with no
   `despawn`) is a spawn: an `==== OBJ ====` row in the content's `.spawn`.
+- **Every item the content hands out that can be wielded: read its equip in a `--bas`
+  transcript.** The default transcript drops the `[appearance]` block, so a quest item's own
+  stance is invisible there. Misthalin Mystery shipped with the killer's knife walking like
+  bare hands: wielding it (index 4336 [1924]) sends `[bas] ready=elid_choc_ice_seller_ready
+  (2911), walk=walkback=hween16_knife_walk (7327), run=human_toadcannon_running (2322)`.
+  `grep -n "wearpos=\|\[bas\]" idx<N>.txt` in the `--bas` transcript lists every equip and
+  stance. Ours: the obj's `ready_baseanim`, `turnonspot_baseanim`, `walk_{f,b,l,r}_baseanim`
+  and `running_baseanim` params. `_explicit/configs/server_fields.generated.obj` states
+  `human_*` for every obj, so put the recorded ones in the content's own `.obj`
+  (`quest_misthalinmystery/configs/misthalinmystery.obj`) and delete those lines from the
+  generated block. Check the same equip's `combat_weapon_category` (357) and the combat
+  tab's `title`/`category` text too.
 - **Inventory ops:** `if_buttonx com=inventory:items op=N` is the obj's iop N-1 (`op=2` = Read /
   Drink = `[opheld1,..]`; `op=3` Wield; `op=7` Drop).
 - **Notes and letters** are not mesboxes: `letterscroll` (interface 70) is filled line by line
@@ -404,6 +423,9 @@ if_setevents continue -1..-1 [PAUSEBUTTON], if_settext continue "Click here to c
 - **Graphics** (`[spotanim]`): note the `slot=`.
 - **Other player-info lines:** `tinting` is `p_tint`; `say` is `say`.
 - **BAS and worn equipment** are filtered out of default transcripts. Use `rsprox_index.py get <id> --bas` for stances.
+  Any content that changes the player's stance needs one: a wielded quest item
+  (the killer's knife, §1b), a transform, a carried object, a greegree. A default
+  transcript that shows no `[bas]` has not been checked.
 - **Other players** are filtered out too. Use `--all-players`, and never conclude a graphic is private from a default transcript.
 
 ## 12. Player movement, teleports, forced walks

@@ -629,6 +629,7 @@ App_Init(
     app->host.npc_by_uid = app_cs2_npc_by_uid;
     app->host.widget_model_lazy = app_cs2_widget_model_lazy;
     app->host.widget_npc_head_lazy = app_cs2_widget_npc_head_lazy;
+    app->host.widget_model_direct = app_cs2_widget_model_direct;
     app->host.widget_obj_icon_lazy = app_cs2_widget_obj_icon_lazy;
     app->host.player_slot_by_name = app_cs2_player_slot_by_name;
     app->host.worldentity_config_name = app_cs2_worldentity_config_name;

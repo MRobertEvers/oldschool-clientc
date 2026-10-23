@@ -857,6 +857,11 @@ app_cs2_widget_npc_head_lazy(
     int component_id,
     int npc_id);
 
+void
+app_cs2_widget_model_direct(
+    void* user,
+    int component_id);
+
 
 /* ---- app_cs2_scene.c ---- */
 int

@@ -633,6 +633,38 @@ app_cs2_widget_npc_head_lazy(
     App_SetInterfaceNpcHead((struct App*)user, component_id, npc_id);
 }
 
+/* RS_CS2Host.widget_model_direct: the script bound a resident model itself, so
+ * whatever this layer still holds for the widget is an older set (reference
+ * IfType keeps one model1Type/model1Id; the latest write wins). Forget it, or
+ * the next tree generation re-binds it over the newer one. */
+void
+app_cs2_widget_model_direct(
+    void* user,
+    int component_id)
+{
+    struct App* app = (struct App*)user;
+    int i;
+
+    assert(app);
+    for( i = 0; i < app->if_head_count; i++ )
+    {
+        if( app->if_heads[i].com_id != component_id )
+            continue;
+        app->if_heads[i] = app->if_heads[app->if_head_count - 1];
+        app->if_head_count--;
+        break; /* app_if_head_store keeps one entry per component */
+    }
+    for( i = 0; i < app->if_player_model_count; i++ )
+    {
+        struct AppIfPlayerModel* model = &app->if_player_models[i];
+        if( model->com_id != component_id )
+            continue;
+        /* Freed as a close frees it: the slot keeps its scene id. */
+        model->com_id = -1;
+        model->built = 0;
+    }
+}
+
 void
 App_SetInterfaceNpcHead(
     struct App* app,

@@ -98,6 +98,19 @@ rs_cs2_tree(struct RS_CS2Host* host)
     return host->tree;
 }
 
+/* Bind a resident model onto a widget, superseding any lazy request the app
+ * still holds for it (RS_CS2Host.widget_model_direct): the latest set wins. */
+static bool
+rs_cs2_apply_model(
+    struct RS_CS2Host* host,
+    int component_id,
+    int scene_model)
+{
+    if( host->widget_model_direct )
+        host->widget_model_direct(host->world_user, component_id);
+    return UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
+}
+
 static struct CacheProvider*
 rs_cs2_provider(struct RS_CS2Host* host)
 {
@@ -5197,7 +5210,7 @@ exec_set_object(
                 /* Both: the obj is what the minimenu and the tooltip read, the
                  * model is what the emit walk draws. */
                 (void)UITree_ApplyObject(tree, component_id, obj_id, count, -1, 0, num_mode);
-                (void)UITree_ApplyModel(tree, component_id, obj_model);
+                (void)rs_cs2_apply_model(host, component_id, obj_model);
                 /*
                  * ...and the objtype's own 2D presentation on top, or the cell
                  * shows a close-up of one face rather than an item.
@@ -6143,7 +6156,7 @@ exec_widget_set_model(
         int scene_model = model_id;
         if( host->bridge && scene_model >= 0 )
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
-        (void)UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
+        (void)rs_cs2_apply_model(host, component_id, scene_model);
     }
     return CS2VM_EXECNO_OK;
 }
@@ -6183,7 +6196,7 @@ exec_widget_set_model_kind(
         int scene_model = model_id;
         if( host->bridge && scene_model >= 0 )
             scene_model = UITreeSceneBridge_EnsureModel(host->bridge, scene_model);
-        (void)UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
+        (void)rs_cs2_apply_model(host, component_id, scene_model);
     }
     else if( model_kind == CS2VM_MODEL_KIND_LOC && host->bridge && rs_cs2_tree(host) )
     {
@@ -6193,8 +6206,8 @@ exec_widget_set_model_kind(
                 return rs_cs2_yield_load(host, vm, exact_request, model_id, -1);
             return CS2VM_EXECNO_OK;
         }
-        (void)UITree_ApplyModel(
-            rs_cs2_tree(host), component_id,
+        (void)rs_cs2_apply_model(
+            host, component_id,
             UITreeSceneBridge_EnsureLocModel(host->bridge, model_id));
     }
     /* NPC head (kind 2): model_id is the npc id. Composite the chathead
@@ -6229,8 +6242,8 @@ exec_widget_set_model_kind(
                               : UITreeSceneBridge_EnsureNpcHead(
                                     host->bridge, resolved_npc_id);
             if( scene_model >= 0 )
-                applied = UITree_ApplyModel(
-                    rs_cs2_tree(host), component_id, scene_model);
+                applied = rs_cs2_apply_model(
+                    host, component_id, scene_model);
             if( getenv("TORIRS_NPC_HEAD_DEBUG") )
                 TORIRS_LOG("npc_head: npc=%d resolved=%d component=0x%08x scene=%d applied=%d\n",
                     model_id,
@@ -6253,7 +6266,7 @@ exec_widget_set_model_kind(
          * (App-driven) is what composites it from the real appearance. */
         int scene_model = UITreeSceneBridge_EnsurePlayerHead(host->bridge, NULL, NULL, 0);
         if( scene_model >= 0 )
-            (void)UITree_ApplyModel(rs_cs2_tree(host), component_id, scene_model);
+            (void)rs_cs2_apply_model(host, component_id, scene_model);
     }
     return CS2VM_EXECNO_OK;
 }

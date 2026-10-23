@@ -844,6 +844,17 @@ struct RS_CS2Host
     void (*widget_model_lazy)(void* user, int component_id, int model_id);
     void (*widget_npc_head_lazy)(void* user, int component_id, int npc_id);
     /*
+     * A model the host bound itself, because it was resident: the app drops
+     * any request it still holds for that component. The stored request is
+     * re-bound on every tree generation, so without this a resident set loses
+     * to the older lazy one it replaced. Misthalin Mystery's piano: each key's
+     * onmouseover sets the lit model (not resident: stored), its onmouseleave
+     * the key's own (resident: bound here), and the stored lit model came back
+     * on the next UI change, every key stuck yellow (2026-10-23).
+     * Optional, like the two above.
+     */
+    void (*widget_model_direct)(void* user, int component_id);
+    /*
      * The same bargain for an obj ICON a script set on a GRAPHIC cell.
      *
      * An icon is a 2D bake of the obj's inventory model, so a cell whose obj

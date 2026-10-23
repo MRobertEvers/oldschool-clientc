@@ -127,6 +127,7 @@ at [543] still fires (its face is on the wire) and is swallowed: ours returns at
 | note | take: objbox, no anim; read: stage, then `letterscroll` (interface 70) filled line by line with `pagepos` counting to 100, opened by `toplevel_mainmodal_open` | [796], [811], [1121], [1369] |
 | boat | face L+1, fade L+2, `mes_spam` + teleport to 1637,4802 L+4, fade in L+5, overlay closed L+7 | [469..475] |
 | finale | the knife leaves with "You decide it's wise to leave the murder weapon behind." (carried [1908], worn [1998]) | |
+| wield the knife | `combat_weapon_category` 17 + `[bas] ready=elid_choc_ice_seller_ready (2911), walk=walkback=hween16_knife_walk (7327), run=human_toadcannon_running (2322)` (turn, walkleft/right `human_*`) + synth 2238; only in the `--bas` transcript. Ours: `quest_misthalinmystery/configs/misthalinmystery.obj` (`test/quests/_mm_knife_stance.lua`) | [1924] |
 | crate / crates (Search) | arrival tick: "You search the crate but find nothing.", no anim (`general_use/scripts/crates.rs2`) | [898], [900], [902] |
 | wardrobe (Open / Search) | arrive A, A+1 face, A+2 `human_openbigcupboard` + `wardrobe_open` (96), A+3 `draynor_wardrobe_open`; Search: "The wardrobe is empty." on the op tick; the leaf reverts 499 ticks on (`general_use/scripts/wardrobes.rs2`; Close not recorded) | [1502..1508], [1511..1516], [2006], [2014] |
 
@@ -198,6 +199,18 @@ The audit found one client bug: an exact move left the player's grid tile on the
 (`World_PlayerPathSetHead` set `route[0]` but not the tile readers fall back to when the route
 is empty), so after the wall climb the client still said 1647,4829 and routed the next click
 from there. Fixed in `src/world/world.c`, test `test_rev239_exact_move_moves_the_tile`.
+
+Found after (2026-10-23, the owner's run): the piano's keys stayed lit. Each label's
+onmouseover sets its key's lit model through clientscript 67 (`if_setmodel`), the onmouseleave
+the key's own. The lit model was not resident, so the host handed it to the app's lazy store;
+the key's own model was resident and bound directly, and the store re-bound the lit one on the
+next tree generation. The server sends nothing here (no packet between key clicks but the
+`mes` and the synth). Fixed in the client: a direct bind drops the stored request
+(`RS_CS2Host.widget_model_direct`); `test/quests/_mm_piano_hover.lua` sweeps all fourteen keys
+(14 stuck before, 0 after).
+
+The first audit also missed the killer's knife's stance (above, "wield the knife"): the
+default transcript carries no player `[bas]`.
 
 ## Open
 
