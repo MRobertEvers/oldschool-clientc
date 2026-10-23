@@ -492,7 +492,7 @@ def _start_services(plan):
             % (service.name,
                " on port %s" % service.port if service.port else ""))
         pid, reason = supervisor.start_service(
-            REPO_ROOT, plan.profile.name, service, env=plan.env)
+            REPO_ROOT, plan.profile.name, service, env=plan.env, say=say)
         if pid is None:
             say("%s did not come up: %s" % (service.name, reason))
             tail = supervisor.log_tail(

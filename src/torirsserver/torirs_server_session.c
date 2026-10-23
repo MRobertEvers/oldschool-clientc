@@ -308,19 +308,25 @@ ToriRSServer_SessionJs5Release(void)
 /**
  * The JS5 handshake: p1 15, p4 revision, p4 seed x4 -> p1 status.
  *
- * `TORIRSSERVER_JS5_REV` is the revision to accept, because the revision a client
+ * The revision to accept is the world's own (`--rev`): both clients announce
+ * their cache's revision, so a fixed 239 here refused every osrs241 client.
+ * `TORIRSSERVER_JS5_REV` overrides it, because the revision a client
  * announces and the revision whose content a cache holds are two different
  * facts that drift apart between the day a cache is archived and the day the
  * game updates. Answering 6 (out of date) is what a client reports as
  * `error_game_js5connect_outofdate`.
  */
 static int
-step_js5_init(struct ToriRSServerSession* session)
+step_js5_init(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv)
 {
     uint8_t status;
     int client_rev;
     char const* want = getenv("TORIRSSERVER_JS5_REV");
-    int accept_rev = want ? atoi(want) : 239;
+    const struct ToriRSServerWire* wire =
+        (srv && srv->wire) ? srv->wire : ToriRSServer_WireDefault();
+    int accept_rev = want ? atoi(want) : wire->revision;
 
     if( session->in_len < 1 + 20 )
         return 0; /* the whole handshake has not arrived */
@@ -458,7 +464,9 @@ step_js5_serve(struct ToriRSServerSession* session)
  * Returns 1 when it advanced, 0 when it needs more bytes.
  */
 static int
-step_init(struct ToriRSServerSession* session)
+step_init(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv)
 {
     uint8_t out[16];
     struct RSAreaBuf buf;
@@ -473,7 +481,7 @@ step_init(struct ToriRSServerSession* session)
      * screen -- which is not a symptom that points anywhere near here.
      */
     if( session->in[0] == 15 )
-        return step_js5_init(session);
+        return step_js5_init(session, srv);
 
     if( session->in[0] != 14 )
     {
@@ -1126,7 +1134,7 @@ ToriRSServer_SessionPump(
         switch( session->state )
         {
         case TORIRSSERVER_SESSION_INIT:
-            advanced = step_init(session);
+            advanced = step_init(session, srv);
             break;
         case TORIRSSERVER_SESSION_LOGIN:
             advanced = step_login(session, srv);

@@ -267,10 +267,68 @@ app_if_head_enqueue(
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 }
 
+static uint32_t
+app_if_close_serial_now(struct App const* app)
+{
+    return app->tree ? app->tree->group_close_serial : 0;
+}
+
+/* Was this entry set before its group was last closed? */
+static int
+app_if_entry_closed(
+    struct App const* app,
+    int com_id,
+    uint32_t close_serial)
+{
+    if( !app->tree || com_id < 0 )
+        return 0;
+    return UITree_GroupCloseSerial(app->tree, (com_id >> 16) & 0xffff) > close_serial;
+}
+
+/*
+ * Forget what a close unloaded.
+ *
+ * The reference's IF_CLOSESUB is closeInterface(.., true): the group's IfType
+ * list is dropped, and with it every model1Id an IF_SETMODEL / IF_SETNPCHEAD /
+ * IF_SETOBJECT / IF_SETPLAYERMODEL_* wrote, so the next open draws the cache's
+ * components again. These stores outlived the close and rebound everything on
+ * the remount: the Varrock Museum plaque (interface 533) puts all 21 creature
+ * viewports on one spot and Jagex sets only the shown one, so every creature
+ * an earlier plaque had shown came back on top of it (2026-10-23). A request
+ * made after the close -- the plaque's own IF_SETMODEL, sent before its
+ * IF_OPENSUB -- stays.
+ */
+static void
+app_if_forget_closed(struct App* app)
+{
+    int i = 0;
+    while( i < app->if_head_count )
+    {
+        if( !app_if_entry_closed(app, app->if_heads[i].com_id, app->if_heads[i].close_serial) )
+        {
+            i++;
+            continue;
+        }
+        app->if_heads[i] = app->if_heads[app->if_head_count - 1];
+        app->if_head_count--;
+    }
+    /* Player compositions own their scene slot by index: free the slot, keep it. */
+    for( i = 0; i < app->if_player_model_count; i++ )
+    {
+        struct AppIfPlayerModel* model = &app->if_player_models[i];
+        if( app_if_entry_closed(app, model->com_id, model->close_serial) )
+        {
+            model->com_id = -1;
+            model->built = 0;
+        }
+    }
+}
+
 /* Persist the head request keyed by component id (reference IfType.list keeps
  * model1Type/model1Id): re-applied by app_if_head_poll whenever the interface
  * (re)mounts, so it survives a head packet that lands before its chat interface
- * exists. Resets applied_gen so the next poll rebinds. */
+ * exists -- until the interface is closed (app_if_forget_closed). Resets
+ * applied_gen so the next poll rebinds. */
 static void
 app_if_head_store(
     struct App* app,
@@ -279,6 +337,7 @@ app_if_head_store(
     int npc_id)
 {
     int i;
+    app_if_forget_closed(app);
     for( i = 0; i < app->if_head_count; i++ )
         if( app->if_heads[i].com_id == com_id )
             break;
@@ -299,6 +358,7 @@ app_if_head_store(
     app->if_heads[i].npc_id = npc_id;
     app->if_heads[i].zoom = 0;
     app->if_heads[i].applied_gen = 0;
+    app->if_heads[i].close_serial = app_if_close_serial_now(app);
     app->need_redraw = 1;
 }
 
@@ -321,35 +381,50 @@ app_if_player_model_get(
     struct App* app,
     int com_id)
 {
-    struct AppIfPlayerModel* model = app_if_player_model_find(app, com_id);
+    struct AppIfPlayerModel* model;
     struct WorldEntity_Player* lp;
     int i;
+    int scene_id;
 
+    app_if_forget_closed(app);
+    model = app_if_player_model_find(app, com_id);
     if( model )
         return model;
     lp = app_local_player(app);
     if( !lp )
         return NULL;
 
-    i = app->if_player_model_count;
-    if( i == app->if_player_model_cap )
+    /* A slot a close freed keeps its scene id; otherwise a new one. */
+    for( i = 0; i < app->if_player_model_count; i++ )
+        if( app->if_player_models[i].com_id < 0 )
+            break;
+    if( i < app->if_player_model_count )
     {
-        int cap = app->if_player_model_cap ? app->if_player_model_cap * 2 : 8;
-        app->if_player_models =
-            ToriMem_Realloc(ToriMem_Process(), app->if_player_models, (size_t)cap * sizeof(*app->if_player_models));
-        assert(app->if_player_models);
-        app->if_player_model_cap = cap;
+        scene_id = app->if_player_models[i].scene_id;
+    }
+    else
+    {
+        if( i == app->if_player_model_cap )
+        {
+            int cap = app->if_player_model_cap ? app->if_player_model_cap * 2 : 8;
+            app->if_player_models = ToriMem_Realloc(
+                ToriMem_Process(), app->if_player_models, (size_t)cap * sizeof(*app->if_player_models));
+            assert(app->if_player_models);
+            app->if_player_model_cap = cap;
+        }
+        scene_id = UITREE_SCENE_IF_PLAYER_MODEL_BASE + i;
+        app->if_player_model_count++;
     }
     model = &app->if_player_models[i];
     memset(model, 0, sizeof(*model));
     model->com_id = com_id;
-    model->scene_id = UITREE_SCENE_IF_PLAYER_MODEL_BASE + i;
+    model->scene_id = scene_id;
     model->anim_id = -1;
+    model->close_serial = app_if_close_serial_now(app);
     memcpy(model->slots, lp->appearance.slots, sizeof(model->slots));
     memcpy(model->identkit, lp->appearance.identkit, sizeof(model->identkit));
     memcpy(model->colors, lp->appearance.colors, sizeof(model->colors));
     model->gender = lp->gender;
-    app->if_player_model_count++;
     return model;
 }
 
@@ -481,9 +556,12 @@ Task_AppIfPlayerModel_Run(
 
     {
         struct AppIfPlayerModel* model = app_if_player_model_find(app, self->component_id);
+        /* Its interface was closed while the parts loaded: the close unloaded
+         * the widget, so there is nothing to commit to. */
+        if( !model )
+            PT_EXIT(&self->pt);
         /* A composition whose parts did not all load does not build, and is
          * not committed: the widget keeps its last whole one. */
-        assert(model);
         if( UITreeSceneBridge_BuildInterfacePlayerModel(
                 &app->bridge, model->scene_id, self->slots, self->colors, self->gender) >= 0 )
         {
@@ -771,6 +849,7 @@ app_if_head_poll(struct App* app)
     if( app->if_head_count == 0 || !app->tree )
         return;
 
+    app_if_forget_closed(app);
     for( int i = 0; i < app->if_head_count; i++ )
     {
         struct AppIfHead* head = &app->if_heads[i];
@@ -860,10 +939,11 @@ app_if_player_model_poll(struct App* app)
 {
     if( !app->tree )
         return;
+    app_if_forget_closed(app);
     for( int i = 0; i < app->if_player_model_count; i++ )
     {
         struct AppIfPlayerModel* model = &app->if_player_models[i];
-        if( !model->built || model->applied_gen == app->tree->generation )
+        if( model->com_id < 0 || !model->built || model->applied_gen == app->tree->generation )
             continue;
         if( UITree_ApplyModel(app->tree, model->com_id, model->scene_id) )
         {
@@ -1022,6 +1102,7 @@ App_SetInterfaceModelAnim(
     /* Persist onto a matching head entry so it re-applies with the head after a
      * (re)mount (reference modelAnim lives on the same IfType as the head), and
      * apply immediately for the already-mounted / plain-model-widget case. */
+    app_if_forget_closed(app);
     for( int i = 0; i < app->if_head_count; i++ )
     {
         if( app->if_heads[i].com_id == component_id )

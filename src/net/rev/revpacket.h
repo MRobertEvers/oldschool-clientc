@@ -1055,30 +1055,36 @@ struct PktSetPlayerOp
     char* text;  /* gjstr, heap */
 };
 
-/** RUNCLIENTSCRIPT: a clientscript id plus its arguments. Strings are heap and
- *  owned by the packet; `str_mask` bit i marks argument i as the string in
- *  `strv[i]` rather than the int in `intv[i]`, the same convention the CS2
- *  hook-argument plumbing already uses.
+/** RUNCLIENTSCRIPT: a clientscript id plus its arguments. `str_mask` bit i
+ *  marks argument i as a string rather than the int in `intv[i]`, the same
+ *  convention the CS2 hook-argument plumbing already uses; the string itself
+ *  is in the packet's own arena (`pkt_runclientscript_str`).
  *
  *  28 matches `ge_pricechecker_prices` (script 785) and the compiler / mock
  *  host caps. `str_mask` is uint32_t so the hard ceiling is 32. */
 #define PKT_RUNCLIENTSCRIPT_ARG_MAX 28
 /*
- * 128 was not enough, and the way it was not enough is worth recording: a
- * RUNCLIENTSCRIPT string argument is not a label, it is a *payload*.
+ * A RUNCLIENTSCRIPT string argument is not a label, it is a *payload*, and the
+ * caps on it have been wrong twice in the same way: the truncated payload
+ * still parses, so the clientscript lays out what survived and nothing errors.
  *
  * rev 230's multi-choice dialogue takes its whole option list as one string
- * with the rows joined by `|` (`chatbox_multi_init`, which splits them itself).
- * Hans's three-way choice is 132 characters, so at 128 the client silently kept
- * 127 of them — which cut the third option off entirely and left the second one
- * mid-word. The dialogue then rendered *correctly* with two options, because
- * the clientscript sizes and positions its rows by how many it was given.
+ * (`chatbox_multi_init` splits it on `|`). At 128 bytes Hans's 132-character
+ * three-way choice rendered as a tidy two-option one. At 512 bytes per
+ * argument, Sins of the Father's Arboretum note (`longscroll_setup`, script
+ * 418: 839 characters, index 1621 [5780]) lost the sentence that names the
+ * gallons the valves must make. Jagex sends single arguments up to ~2,900
+ * characters (the longest in the RSProx archive's transcripts).
  *
- * A five-option list is comfortably past 300. 512 is sized for that with room,
- * and the parser still truncates rather than overruns if something longer
- * arrives.
+ * So the strings share one arena per payload rather than a fixed slot each:
+ * any one argument may use all of it, the payload stays a plain value (the
+ * clientscript queue copies it by assignment), and it is smaller than the
+ * 28 x 512 matrix it replaces. A payload whose strings outgrow the arena is
+ * truncated, never overrun.
  */
-#define PKT_RUNCLIENTSCRIPT_STR_LEN 512
+#define PKT_RUNCLIENTSCRIPT_STRBUF 8192
+/* The longest one string argument can be. */
+#define PKT_RUNCLIENTSCRIPT_STR_LEN PKT_RUNCLIENTSCRIPT_STRBUF
 
 struct PktRunClientScript
 {
@@ -1090,24 +1096,101 @@ struct PktRunClientScript
     uint32_t long_mask;
     int intv[PKT_RUNCLIENTSCRIPT_ARG_MAX];
     int64_t longv[PKT_RUNCLIENTSCRIPT_ARG_MAX];
-    char strv[PKT_RUNCLIENTSCRIPT_ARG_MAX][PKT_RUNCLIENTSCRIPT_STR_LEN];
+    /* Argument i's string starts at `strbuf[stroff[i]]` (NUL-terminated);
+     * `strbuf_used` is the arena's fill. */
+    uint16_t stroff[PKT_RUNCLIENTSCRIPT_ARG_MAX];
+    uint16_t strbuf_used;
+    char strbuf[PKT_RUNCLIENTSCRIPT_STRBUF];
 };
 
+_Static_assert(PKT_RUNCLIENTSCRIPT_STRBUF <= 65535, "stroff is 16 bits");
+
+/** Argument `i`'s string. `i` must be a string argument. */
+static inline char const*
+pkt_runclientscript_str(
+    struct PktRunClientScript const* pkt,
+    int i)
+{
+    assert(pkt);
+    assert(i >= 0);
+    assert(i < PKT_RUNCLIENTSCRIPT_ARG_MAX);
+    assert(pkt->str_mask & (1u << i));
+    return pkt->strbuf + pkt->stroff[i];
+}
+
 /**
- * Rewrite the sparse `strv` into the COMPACTED list the CS2 dispatch wants,
- * and return how many entries it wrote.
+ * Begin argument `i`'s string in the arena and return where to write it; up
+ * to `*room` bytes (the NUL not counted) fit. Finish with
+ * `pkt_runclientscript_str_end`.
+ */
+static inline char*
+pkt_runclientscript_str_begin(
+    struct PktRunClientScript* pkt,
+    int i,
+    int* room)
+{
+    assert(pkt);
+    assert(room);
+    assert(i >= 0);
+    assert(i < PKT_RUNCLIENTSCRIPT_ARG_MAX);
+    assert(pkt->strbuf_used < PKT_RUNCLIENTSCRIPT_STRBUF);
+    pkt->stroff[i] = pkt->strbuf_used;
+    pkt->str_mask |= 1u << i;
+    *room = PKT_RUNCLIENTSCRIPT_STRBUF - 1 - pkt->strbuf_used;
+    return pkt->strbuf + pkt->strbuf_used;
+}
+
+/** Terminate argument `i`'s string at `n` bytes and claim them. */
+static inline void
+pkt_runclientscript_str_end(
+    struct PktRunClientScript* pkt,
+    int i,
+    int n)
+{
+    assert(pkt);
+    assert(n >= 0);
+    assert(pkt->stroff[i] + n < PKT_RUNCLIENTSCRIPT_STRBUF);
+    pkt->strbuf[pkt->stroff[i] + n] = '\0';
+    /* The last argument's NUL may sit on the arena's final byte; later
+     * strings (truncated to nothing) then share it. */
+    pkt->strbuf_used = (uint16_t)(pkt->stroff[i] + n + 1 < PKT_RUNCLIENTSCRIPT_STRBUF
+                                      ? pkt->stroff[i] + n + 1
+                                      : PKT_RUNCLIENTSCRIPT_STRBUF - 1);
+}
+
+/** Argument `i`'s string, copied from `s` (`n` bytes, truncated to fit). */
+static inline void
+pkt_runclientscript_set_str(
+    struct PktRunClientScript* pkt,
+    int i,
+    char const* s,
+    size_t n)
+{
+    int room;
+    char* dst = pkt_runclientscript_str_begin(pkt, i, &room);
+
+    assert(s);
+    if( n > (size_t)room )
+        n = (size_t)room;
+    memcpy(dst, s, n);
+    pkt_runclientscript_str_end(pkt, i, (int)n);
+}
+
+/**
+ * The packet's strings as the COMPACTED list the CS2 dispatch wants, and how
+ * many entries it wrote.
  *
  * Two conventions meet at this call and they are not the same one. Here, an
- * argument's string is at `strv[i]` for the argument's own index `i` — the
- * index `str_mask` bit `i` names. `RS_CS2_RunScript` takes the CS2 hook path's
+ * argument's string belongs to the argument's own index `i` -- the index
+ * `str_mask` bit `i` names. `RS_CS2_RunScript` takes the CS2 hook path's
  * convention instead: string 0 first, because `task_cs2_run.c` walks the
  * arguments with a separate running string counter and reads `str_args[str_i]`.
  *
- * Passing the sparse array bound string N of the *packet* to string local N of
- * the *clientscript*, so a payload whose only string is the last argument bound
- * string local 0 to `strv[0]`, which is "". It could not have shown up earlier:
- * an all-int payload has nothing to place and an all-string one is already
- * compact, and those were the only two shapes content sent.
+ * Passing argument-indexed strings bound string N of the *packet* to string
+ * local N of the *clientscript*, so a payload whose only string is the last
+ * argument bound string local 0 to an empty slot. It could not have shown up
+ * earlier: an all-int payload has nothing to place and an all-string one is
+ * already compact, and those were the only two shapes content sent.
  *
  * Inline and here, beside the struct, so the conversion is testable without
  * the app: `src/net/test/runclientscript_test.c` asserts it against the same
@@ -1127,7 +1210,7 @@ pkt_runclientscript_compact_strings(
             continue;
         if( count >= out_max )
             break;
-        out[count++] = pkt->strv[i];
+        out[count++] = pkt_runclientscript_str(pkt, i);
     }
     return count;
 }

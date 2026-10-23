@@ -4712,6 +4712,11 @@ gl3_ev_model_widget(
     gl3_bind_world_draw_state(renderer);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
+    /* The z-buffer lane's world state turns culling ON, and nothing in the 2D
+     * pass turns it off again before the next BEGIN_2D: every UI quad after a
+     * chathead (the dialogue text, the whole side panel) was culled. The
+     * widget sort already drops back faces, as the painter lane relies on. */
+    glDisable(GL_CULL_FACE);
     gl3_bind_group_attribs(renderer, g, 0u);
     glDrawArrays(GL_TRIANGLES, (GLint)vertex_base, (GLsizei)(tri_count * 3u));
     gl3_unbind_attribs(renderer);

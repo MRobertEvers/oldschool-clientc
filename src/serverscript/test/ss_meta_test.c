@@ -371,7 +371,8 @@ test_triggers(void)
     CHECK_EQ(SS_TRIGGER_FRIENDLOGOUT, 180, "friendlogout");
     CHECK_EQ(SS_TRIGGER_PLAYERDEATH, 181, "playerdeath when HP hits 0");
     CHECK_EQ(SS_TRIGGER_LOCSTEP, 182, "locstep when movement finishes on a loc");
-    CHECK_EQ(SS_TRIGGER_MAX, 183, "trigger table size");
+    CHECK_EQ(SS_TRIGGER_AI_HUNT, 183, "ai_hunt when an aggressive npc is about to take a player");
+    CHECK_EQ(SS_TRIGGER_MAX, 184, "trigger table size");
 
     /* The numbered form is a *different* trigger from the op-less click, not a
      * relabelling of it: `[if_button,x]` still answers a plain click and
@@ -383,6 +384,7 @@ test_triggers(void)
     CHECK_EQ(SSVM_TriggerFromName("if_button2"), SS_TRIGGER_IF_BUTTON2, "if_button2 by name");
     CHECK_EQ(SSVM_TriggerFromName("if_button10"), SS_TRIGGER_IF_BUTTON10, "if_button10 by name");
     CHECK_EQ(SSVM_TriggerFromName("locstep"), SS_TRIGGER_LOCSTEP, "locstep by name");
+    CHECK_EQ(SSVM_TriggerFromName("ai_hunt"), SS_TRIGGER_AI_HUNT, "ai_hunt by name");
 
     CHECK_EQ(strcmp(SSVM_TriggerName(SS_TRIGGER_OPNPC1), "opnpc1"), 0, "name of opnpc1");
     CHECK_EQ(SSVM_TriggerFromName("opnpc1"), SS_TRIGGER_OPNPC1, "opnpc1 by name");

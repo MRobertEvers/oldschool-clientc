@@ -786,10 +786,19 @@ test_reclaim_drops_nested_mount_records(void)
         UITree_InterfaceParentIsMountedGroup(tree, summary_group),
         "summary panel is mounted before the close");
 
+    TEST_ASSERT(UITree_GroupCloseSerial(tree, journal_group) == 0, "journal never closed yet");
+
     /* IF_CLOSESUB on the tab slot: reclaim the group, then drop the slot's own
      * record — the order app_boot's close path uses. */
     UITree_ReclaimInterfaceGroup(tree, journal_group);
     UITree_InterfaceParentClear(tree, tab_slot_uid);
+
+    /* Both groups are unloaded by the one close, and nothing else is: a model
+     * set on either before the close must not come back (app_if_forget_closed). */
+    TEST_ASSERT(tree->group_close_serial == 1, "one close counted");
+    TEST_ASSERT(UITree_GroupCloseSerial(tree, journal_group) == 1, "journal stamped closed");
+    TEST_ASSERT(UITree_GroupCloseSerial(tree, summary_group) == 1, "nested summary stamped closed");
+    TEST_ASSERT(UITree_GroupCloseSerial(tree, gameframe_group) == 0, "the gameframe stays loaded");
 
     TEST_ASSERT(!UITree_GroupPresent(tree, journal_group), "journal gone");
     TEST_ASSERT(!UITree_GroupPresent(tree, summary_group), "summary nodes gone");

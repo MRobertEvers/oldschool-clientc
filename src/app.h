@@ -1816,6 +1816,8 @@ struct App
         int zoom;             /* IF_SETOBJECT third field: IF1 zoom, IF3 quantity */
         int anim_id;          /* IF_SETANIM seq for this head, or -1 (reference modelAnim) */
         uint32_t applied_gen; /* tree generation this was last applied at; 0 = pending */
+        uint32_t close_serial; /* tree->group_close_serial when set: a later close of
+                                * the group unloads it (UITree_GroupCloseSerial) */
     }* if_heads;
     int if_head_count;
     int if_head_cap;
@@ -1845,6 +1847,7 @@ struct App
         int anim_id;          /* IF_SETANIM modelAnim, or -1 */
         int built;            /* scene_id holds this composition, built whole */
         uint32_t applied_gen; /* tree generation scene_id was bound into */
+        uint32_t close_serial; /* as AppIfHead's; com_id -1 = a free slot */
     }* if_player_models;
     int if_player_model_count;
     int if_player_model_cap;

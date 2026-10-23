@@ -1367,6 +1367,9 @@ struct UITreeGroupBucket
 {
     int group_id; /* -1 = empty */
     struct UITreeNodeSet nodes;
+    /** tree->group_close_serial when this group was last closed (reclaimed,
+     *  itself or with the group it was mounted in); 0 = never. */
+    uint32_t close_serial;
 };
 
 /** Internal retained identity. Native component IDs remain script-visible queries. */
@@ -1743,6 +1746,8 @@ struct UITree
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
+    /** Bumped once per interface close; see UITree_GroupCloseSerial. */
+    uint32_t group_close_serial;
     /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
      *  which it is on every lane until a layout plugin claims one. */
     struct UITreeFrameLayout* frame_layout;
@@ -3279,6 +3284,20 @@ UITree_FreeHooksAt(
 /** Live nodes whose component_id high half equals group_id, or NULL if none. */
 struct UITreeNodeSet const*
 UITree_GroupNodes(
+    struct UITree const* tree,
+    int group_id);
+
+/**
+ * The tree's close counter when group_id was last closed, 0 if never.
+ *
+ * A close unloads the group (the reference's closeInterface(.., true) drops
+ * its IfType list), so per-component state a packet set before it -- an
+ * IF_SETMODEL's model, a chathead -- must not come back when the group is
+ * opened again. A store that keeps such state records tree->group_close_serial
+ * when it is set and forgets the entry once this is larger.
+ */
+uint32_t
+UITree_GroupCloseSerial(
     struct UITree const* tree,
     int group_id);
 

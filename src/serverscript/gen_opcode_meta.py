@@ -1784,6 +1784,13 @@ EXTRA_TRIGGERS: dict[str, int] = {
     # This is deliberately a final-tile event, rather than another walktrigger:
     # running across a one-tile hazard without finishing on it must not fire it.
     "LOCSTEP": 182,
+    # An aggressive npc about to take a player: `[ai_hunt,<npc>]` runs with
+    # that npc and the player both active, and declines by clearing the target
+    # (`npc_setmode(wander)`). LostCity's hunt configs decide this with
+    # check_inv/check_obj/check_var rows; content states it here instead.
+    # Darkmeyer's guards leave a player in the vyre noble disguise alone
+    # (RSProx 1621 [5297]..[5850]) and take one without it [wiki].
+    "AI_HUNT": 183,
 }
 
 # Opcodes whose operand is the script id / an index rather than the dot flag.

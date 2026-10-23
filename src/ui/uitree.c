@@ -519,6 +519,7 @@ uitree_group_bucket(
             if( !create )
                 return NULL;
             b->group_id = group_id;
+            b->close_serial = 0;
             UITreeNodeSet_Init(&b->nodes);
             if( tree->component_capacity > 0 )
                 UITreeNodeSet_EnsurePosCap(&b->nodes, tree->component_capacity);
@@ -692,6 +693,19 @@ UITree_GroupNodes(
     if( !b || b->nodes.count <= 0 )
         return NULL;
     return &b->nodes;
+}
+
+uint32_t
+UITree_GroupCloseSerial(
+    struct UITree const* tree,
+    int group_id)
+{
+    struct UITreeGroupBucket* b;
+    assert(tree);
+    if( group_id < 0 || !tree->group_map )
+        return 0;
+    b = uitree_group_bucket((struct UITree*)tree, group_id, 0);
+    return b ? b->close_serial : 0;
 }
 
 int
@@ -7128,6 +7142,15 @@ uitree_drop_mounts_inside_group(
             changed = 1;
         }
     } while( changed );
+
+    /* Every group this close took down is unloaded with it. */
+    tree->group_close_serial++;
+    for( int i = 0; i < closed_count; i++ )
+    {
+        struct UITreeGroupBucket* b = uitree_group_bucket(tree, closed[i], 1);
+        assert(b);
+        b->close_serial = tree->group_close_serial;
+    }
 }
 
 void

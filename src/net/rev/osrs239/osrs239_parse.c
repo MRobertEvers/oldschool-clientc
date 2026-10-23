@@ -1478,19 +1478,16 @@ osrs239_parse(
             if( types[i] == 's' )
             {
                 char* s = gjstr_nul(&c);
-                int n = 0;
 
                 if( s )
                 {
-                    while( s[n] && n < PKT_RUNCLIENTSCRIPT_STR_LEN - 1 )
-                    {
-                        p->strv[i][n] = s[n];
-                        n++;
-                    }
+                    pkt_runclientscript_set_str(p, i, s, strlen(s));
                     ToriMem_Free(ToriMem_Net(), s);
                 }
-                p->strv[i][n] = '\0';
-                p->str_mask |= 1u << i;
+                else
+                {
+                    pkt_runclientscript_set_str(p, i, "", 0);
+                }
             }
             else
             {

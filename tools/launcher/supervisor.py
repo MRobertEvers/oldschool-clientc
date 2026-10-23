@@ -8,7 +8,10 @@ answered by pattern-matching the process table, and stopping a run means
 server binaries are deliberately named dev_torirsserver / alt_torirsserver so
 that a `pkill -f torirsserver` aimed at one of them does not take the others
 with it. A launcher that kills by pattern would reintroduce exactly that bug,
-so this one only ever signals pids it started.
+so this one only ever signals pids it started — with one exception, by port
+rather than by name: a process listening on a port the run is about to bind
+(free_port). That port belongs to the profile, and whatever holds it is a
+leftover that would otherwise fail the start as "port already in use".
 """
 
 import contextlib
@@ -177,6 +180,81 @@ def port_listening(port, host="127.0.0.1", timeout=0.4):
         return False
 
 
+def port_holders(port):
+    """Pids listening on this TCP port, as far as the OS will say."""
+    if IS_WINDOWS:
+        argv = ["netstat", "-ano", "-p", "TCP"]
+    else:
+        argv = ["lsof", "-nP", "-t", "-iTCP:%d" % int(port), "-sTCP:LISTEN"]
+    try:
+        out = subprocess.run(argv, stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, check=False).stdout
+    except OSError:
+        return []
+    pids = set()
+    for line in out.decode("utf-8", errors="replace").splitlines():
+        fields = line.split()
+        if IS_WINDOWS:
+            # Proto  Local Address  Foreign Address  State  PID
+            if (len(fields) == 5 and fields[3] == "LISTENING"
+                    and fields[1].rsplit(":", 1)[-1] == str(port)):
+                pids.add(int(fields[4]))
+        elif fields and fields[0].isdigit():
+            pids.add(int(fields[0]))
+    pids.discard(os.getpid())
+    return sorted(pids)
+
+
+def process_command(pid):
+    """The command line of a pid, for naming what is about to be killed."""
+    if IS_WINDOWS:
+        return ""
+    try:
+        out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)],
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             check=False).stdout
+    except OSError:
+        return ""
+    return out.decode("utf-8", errors="replace").strip()
+
+
+def free_port(port, say=None, grace=4.0):
+    """Kill whatever is listening on this port. Returns True once it is free.
+
+    The pid, not its group: a leftover from another shell or session shares a
+    group with whatever that shell started, and none of that is ours to stop.
+    """
+    for pid in port_holders(port):
+        if say:
+            say("port %s held by pid %d (%s); killing it"
+                % (port, pid, process_command(pid) or "?"))
+        if IS_WINDOWS:
+            _win_stop_tree(pid, force=False)
+        else:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                pass
+        deadline = time.time() + grace
+        while time.time() < deadline and pid_alive(pid):
+            time.sleep(0.1)
+        if pid_alive(pid):
+            if IS_WINDOWS:
+                _win_stop_tree(pid, force=True)
+            else:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except OSError:
+                    pass
+    # The listen socket can outlive the pid by a moment.
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if not port_listening(port):
+            return True
+        time.sleep(0.1)
+    return False
+
+
 def http_ok(url, timeout=1.0):
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response:
@@ -238,7 +316,8 @@ def wait_ready(service, timeout=90.0, interval=0.25, proc=None, log_path=None):
         service.ready[0], service.ready[1], timeout)
 
 
-def start_service(repo_root, profile_name, service, env=None, settle=1.5):
+def start_service(repo_root, profile_name, service, env=None, settle=1.5,
+                  say=None):
     """Spawn one service detached, record its pid, and wait for it to answer.
 
     Detached (its own session) for two reasons: a Ctrl-C aimed at the launcher
@@ -249,7 +328,8 @@ def start_service(repo_root, profile_name, service, env=None, settle=1.5):
     directory = run_dir(repo_root, profile_name)
     os.makedirs(directory, exist_ok=True)
 
-    if service.port and port_listening(service.port):
+    if (service.port and port_listening(service.port)
+            and not free_port(service.port, say=say)):
         return None, "port %s already in use" % service.port
 
     log_path = logfile_path(repo_root, profile_name, service.name)

@@ -935,16 +935,11 @@ bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPac
     {
         if( msg.types[i] == 's' )
         {
-            /* The canonical struct owns fixed-size string storage; the codec
-             * hands back a borrow into the payload, so this copies. */
+            /* The canonical struct owns its string arena; the codec hands
+             * back a borrow into the payload, so this copies. */
             char const* s = args[i].sval ? args[i].sval : "";
-            size_t n = strlen(s);
 
-            if( n >= PKT_RUNCLIENTSCRIPT_STR_LEN )
-                n = PKT_RUNCLIENTSCRIPT_STR_LEN - 1;
-            memcpy(p->strv[i], s, n);
-            p->strv[i][n] = '\0';
-            p->str_mask |= 1u << i;
+            pkt_runclientscript_set_str(p, i, s, strlen(s));
         }
         else if( msg.types[i] == (char)MSG_RUNCLIENTSCRIPT_TYPE_LONG )
         {

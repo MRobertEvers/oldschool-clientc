@@ -2379,6 +2379,7 @@ trigger_subject_kind(
     if( (trigger >= SS_TRIGGER_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
         trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
         trigger == SS_TRIGGER_AI_DESPAWN || trigger == SS_TRIGGER_AI_WALKTRIGGER ||
+        trigger == SS_TRIGGER_AI_HUNT ||
         (trigger >= SS_TRIGGER_AI_QUEUE1 && trigger <= SS_TRIGGER_AI_QUEUE20) ||
         (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5) )
     {
@@ -2453,6 +2454,7 @@ trigger_requires_active_npc(int trigger)
            (trigger >= SS_TRIGGER_AI_APNPC1 && trigger <= SS_TRIGGER_AI_OPNPC5) ||
            trigger == SS_TRIGGER_AI_TIMER || trigger == SS_TRIGGER_AI_SPAWN ||
            trigger == SS_TRIGGER_AI_DESPAWN || trigger == SS_TRIGGER_AI_WALKTRIGGER ||
+           trigger == SS_TRIGGER_AI_HUNT ||
            (trigger >= SS_TRIGGER_AI_QUEUE1 && trigger <= SS_TRIGGER_AI_QUEUE20) ||
            (trigger >= SS_TRIGGER_AI_APPLAYER1 && trigger <= SS_TRIGGER_AI_OPPLAYER5);
 }

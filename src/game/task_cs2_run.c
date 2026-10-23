@@ -60,7 +60,7 @@ _Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == UITREE_HOOK_STR_ARG_MAX,
  * (`PKT_RUNCLIENTSCRIPT_STR_LEN`, the encoder's packet size) each hide the next
  * one until they are raised in step.
  */
-#define TASK_CS2_RUN_STR_ARG_LEN 512
+#define TASK_CS2_RUN_STR_ARG_LEN PKT_RUNCLIENTSCRIPT_STR_LEN
 
 /*
  * The two caps a server-driven clientscript string passes through, tied

@@ -125,18 +125,18 @@ osrs230_parse(
         {
             if( types[i] == 's' )
             {
-                char* dst = p->strv[i];
+                int room;
+                char* dst = pkt_runclientscript_str_begin(p, i, &room);
                 int n = 0;
                 for( ;; )
                 {
                     int ch = RSProt_BufferG1(&cur);
                     if( cur.err || ch == '\n' || ch == 0 )
                         break;
-                    if( n < PKT_RUNCLIENTSCRIPT_STR_LEN - 1 )
+                    if( n < room )
                         dst[n++] = (char)ch;
                 }
-                dst[n] = '\0';
-                p->str_mask |= 1u << i;
+                pkt_runclientscript_str_end(p, i, n);
             }
             else
             {

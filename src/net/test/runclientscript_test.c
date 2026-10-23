@@ -147,8 +147,8 @@ test_mixed_roundtrip(void)
     CHECK_EQ(pkt._runclientscript->intv[0], 11, "int 0");
     CHECK_EQ(pkt._runclientscript->intv[1], 22, "int 1");
     CHECK_EQ(pkt._runclientscript->intv[3], 44, "int 3");
-    CHECK(strcmp(pkt._runclientscript->strv[2], "herb patch") == 0, "string 2");
-    CHECK(strcmp(pkt._runclientscript->strv[4], "second") == 0, "string 4");
+    CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 2), "herb patch") == 0, "string 2");
+    CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 4), "second") == 0, "string 4");
     /* `str_mask` is what `App_RunClientScript` hands to the CS2 VM to decide
      * which stack each argument goes on. A bit in the wrong place puts a heap
      * pointer where an int belongs. */
@@ -235,8 +235,8 @@ test_homogeneous_roundtrip(void)
 
         len = write_runclientscript(bytes, sizeof(bytes), 58, "ss", NULL, strv, 2);
         CHECK_EQ(parse(bytes, len, &pkt), 1, "the chatmenu's two strings parse");
-        CHECK(strcmp(pkt._runclientscript->strv[0], "Choose an option") == 0, "header first");
-        CHECK(strcmp(pkt._runclientscript->strv[1], "Yes|No") == 0, "options second");
+        CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 0), "Choose an option") == 0, "header first");
+        CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 1), "Yes|No") == 0, "options second");
     }
     {
         len = write_runclientscript(bytes, sizeof(bytes), 1749, "", NULL, NULL, 0);
@@ -300,11 +300,46 @@ test_argument_overflow(void)
     CHECK_EQ(parse(bytes, 8, &pkt), 0, "an unterminated type string is rejected");
 }
 
+/*
+ * The payload-sized string: Jagex sends single arguments of ~2,900
+ * characters, and Sins of the Father's Arboretum note (839) lost the sentence
+ * naming the gallons when each argument had 512 bytes. A long title-less
+ * scroll body and a string after it must both come through whole.
+ */
+static void
+test_long_string(void)
+{
+    static uint8_t bytes[8192];
+    static char body[2901];
+    struct RevPacket pkt = { 0 };
+    const int intv[3] = { 0, 0, 0 };
+    const char* strv[3] = { "", body, "after" };
+    int len;
+
+    printf("a 2,900-character argument\n");
+    for( int i = 0; i < 2900; i++ )
+        body[i] = (char)('a' + i % 26);
+    body[2900] = '\0';
+    len = write_runclientscript(bytes, sizeof(bytes), 418, "sss", intv, strv, 3);
+    CHECK(len > 0, "the payload encodes");
+    if( len <= 0 )
+        return;
+    CHECK_EQ(parse(bytes, len, &pkt), 1, "and parses");
+    CHECK_EQ((int)strlen(pkt_runclientscript_str(pkt._runclientscript, 1)), 2900,
+             "every character of the long argument survives");
+    CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 1), body) == 0, "unchanged");
+    CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 2), "after") == 0,
+          "and the string after it is its own");
+    CHECK(strcmp(pkt_runclientscript_str(pkt._runclientscript, 0), "") == 0, "an empty one stays empty");
+    ToriMem_Free(ToriMem_Net(), pkt._runclientscript);
+}
+
 int
 main(void)
 {
     test_mixed_roundtrip();
     test_trailing_string_compaction();
+    test_long_string();
     test_homogeneous_roundtrip();
     test_argument_overflow();
 

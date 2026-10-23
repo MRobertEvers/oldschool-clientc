@@ -3386,6 +3386,24 @@ maybe_aggress(
 
     npc->combat_target = player->pid;
     npc->attack_clock = 0;
+    /*
+     * Content's say in it: `[ai_hunt,<npc>]` runs with the npc and the player
+     * it is about to take both active, and declines by clearing the target
+     * (`npc_setmode(wander)`). LostCity's hunt configs answer this with
+     * check_inv/check_obj/check_var rows the engine evaluates; here content
+     * states it. Darkmeyer's guards leave a player in the vyre noble disguise
+     * alone (RSProx 1621 [5297]..[5850], 25 guards passed, none turned) and
+     * take one without it [wiki]. An npc with no such trigger engages as
+     * before.
+     */
+    {
+        struct ToriRSServerPlayer* saved = srv->active_player;
+
+        ToriRSServer_WorldSetActive(srv, player);
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_AI_HUNT, npc->type,
+                                       ToriRSServer_NpcCategory(npc->type), slot);
+        ToriRSServer_WorldSetActive(srv, saved);
+    }
 }
 
 /*
