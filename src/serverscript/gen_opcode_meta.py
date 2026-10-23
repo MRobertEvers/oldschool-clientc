@@ -1249,6 +1249,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "CAM_MOVETO_CYCLES": (11220, 5, 0, 0, 0),
     "CAM_ROTATETO_COORDINATE": (11221, 4, 0, 0, 0),
 
+    # cam_unlock(boolean $unlock)
+    #
+    # CAM_UNLOCK: the client's camera pitch limits widened (true) or put back
+    # (false) -- deob client.java `field758 = g1 == 1`, read by
+    # class112.method3876/3877. Every recorded cutscene sends `false` on its
+    # unlock tick, before the first cam_reset (RSProx 4286, the canoes; 4336,
+    # all seven of Misthalin Mystery's scenes).
+    "CAM_UNLOCK": (11285, 1, 0, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the

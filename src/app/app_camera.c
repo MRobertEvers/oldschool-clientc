@@ -48,6 +48,13 @@ app_world_cam_dist_zoom(struct App* app);
 static struct WorldCameraLimits
 app_world_camera_limits(struct App const* app);
 
+/* The pitch range while the server has the camera unlocked (CAM_UNLOCK). */
+enum
+{
+    APP_CAM_UNLOCK_PITCH_FLATTEST = 0,
+    APP_CAM_UNLOCK_PITCH_STEEPEST = 520,
+};
+
 int
 app_world_clamp_pitch(
     struct App const* app,
@@ -941,6 +948,13 @@ app_world_camera_limits(struct App const* app)
     memset(&limits, 0, sizeof(limits));
     limits.pitch_flattest = app->revconfig_profile.camera.pitch_flattest;
     limits.pitch_steepest = app->revconfig_profile.camera.pitch_steepest;
+    /* CAM_UNLOCK: the deob's limits go from 1024..3064 to 1..4160 in eighths
+     * of a pitch unit (class112.method3876/3877), i.e. 0..520 here. */
+    if( app->cam_unlock )
+    {
+        limits.pitch_flattest = APP_CAM_UNLOCK_PITCH_FLATTEST;
+        limits.pitch_steepest = APP_CAM_UNLOCK_PITCH_STEEPEST;
+    }
     limits.pitch_distance = app->revconfig_profile.camera.pitch_distance;
     limits.rest_zoom = app->frame_view->world_cam_zoom;
     limits.viewport_zoom_256 =

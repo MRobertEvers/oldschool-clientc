@@ -2810,6 +2810,9 @@ struct App
     int multiway; /* SET_MULTIWAY: 1 = in a multi-combat zone */
     /** MINIMAP_TOGGLE state; see enum AppMinimapState. */
     int minimap_state;
+    /** CAM_UNLOCK: nonzero widens the orbit camera's pitch limits to the
+     *  deob's unlocked range (client.java field758; app_world_camera_limits). */
+    int cam_unlock;
     /** LAST_LOGIN_INFO for the welcome screen clientcode rows. */
     struct
     {

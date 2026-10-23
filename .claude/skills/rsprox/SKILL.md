@@ -71,6 +71,7 @@ Generic tools (all take transcript paths):
 | `tools/rsprox/ticklog_tells.py <ticklog.tsv>` | our tick log as the same named timeline |
 | `tools/rsprox/rsprox_attack_tells.py` | what each npc type's attack sends (tick-attributed) |
 | `tools/cox/rsprox_sound_pairs.py <txt>` | which event each area sound belongs to |
+| `tools/rsprox/rsprox_cutscene.py <txt> <from> <to> --origin X,Z --name P` | a cutscene window as draft RuneScript: cast, walks, seqs, camera, fades, sounds, locs, pages with moods (rsprox-content §12b) |
 | `tools/rsprox/rsprox_timeline.py <txt> <t0> <t1>`, `rsprox_pages.py`, `rsprox_annotate.py` | quest/dialogue: ops, pages, choices, varbits; names rev-227 ids |
 | `tools/rsprox_frame_check.py <translated> <raw>` | which room cells a translated transcript measures right |
 | `tools/cox/rsprox_room.py` | one CoX room in template tiles (fixes quarter-turn mirroring) |

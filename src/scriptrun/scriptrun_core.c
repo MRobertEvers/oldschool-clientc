@@ -1863,6 +1863,9 @@ core_wirelog(
     case PKT_NAME_MINIMAP_TOGGLE:
         fprintf(f, "%d\tminimap_toggle\t%d\n", t, p->_minimap_toggle.state);
         break;
+    case PKT_NAME_CAM_UNLOCK:
+        fprintf(f, "%d\tcam_unlock\t%d\n", t, p->_cam_unlock.unlock);
+        break;
     case PKT_NAME_HIDENPCOPS:
     case PKT_NAME_HIDELOCOPS:
     case PKT_NAME_HIDEOBJOPS:

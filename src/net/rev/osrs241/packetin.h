@@ -136,7 +136,7 @@ static const struct Osrs241PacketInDef g_packet_in_definitions_osrs241[] = {
     {    6, 5,                     PKT_NAME_NONE,                       "CAM_TARGET_V3" },
     {  122, 5,                     PKT_NAME_NONE,                       "CAM_TARGET_V4" },
     {    4, 4,                     PKT_NAME_NONE,                       "OCULUS_SYNC" },
-    {  148, 1,                     PKT_NAME_NONE,                       "CAM_UNLOCK" },
+    {  148, 1,                     PKT_NAME_CAM_UNLOCK,                 "CAM_UNLOCK" },
     {  134, 4,                     PKT_NAME_NONE,                       "CAM_SKYBOX" },
     {  138, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "GROUP_FULL" },
     {  128, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "GROUP_VAR" },

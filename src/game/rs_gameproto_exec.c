@@ -2352,6 +2352,15 @@ RS_GameProto_Exec(
             ctx->app->need_redraw = 1;
         }
         break;
+    /* deob client.java (class243.field3065): `field758 = g1 == 1`, the flag
+     * class112.method3876/3877 read for the camera's pitch limits. */
+    case PKT_NAME_CAM_UNLOCK:
+        if( ctx->app && ctx->app->cam_unlock != packet->_cam_unlock.unlock )
+        {
+            ctx->app->cam_unlock = packet->_cam_unlock.unlock;
+            ctx->app->need_redraw = 1;
+        }
+        break;
     case PKT_NAME_MINIMAP_TOGGLE:
         if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
             TORIRS_REPORT("frame_native: MINIMAP_TOGGLE state=%d\n", packet->_minimap_toggle.state);

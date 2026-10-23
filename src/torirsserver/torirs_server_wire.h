@@ -162,6 +162,10 @@ struct ToriRSServerWirePayload
         int random,
         int amplitude,
         int rate);
+    /** CAM_UNLOCK's one byte (0 or 1), in the revision's byte transform. */
+    void (*cam_unlock)(
+        struct RSAreaBuf* buf,
+        int unlock);
     /**
      * One zone sub-packet's payload, by canonical name.
      *

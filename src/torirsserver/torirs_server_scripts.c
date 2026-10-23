@@ -12535,6 +12535,19 @@ script_command(
         return 1;
     }
 
+    /* `cam_unlock(boolean $unlock)` -- the CAM_UNLOCK packet: the client's
+     * camera pitch limits widened (true) or put back (false). Every recorded
+     * cutscene sends it false on its unlock tick (RSProx 4336 [613]). */
+    case SS_OP_CAM_UNLOCK:
+    {
+        int32_t unlock;
+
+        if( !SSVM_PopInt(state, &unlock) )
+            return 1;
+        ToriRSServer_SendCamUnlock(player, (int)unlock);
+        return 1;
+    }
+
     case SS_OP_CAM_SHAKE:
     {
         int32_t values[4];

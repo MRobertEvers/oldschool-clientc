@@ -95,6 +95,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_setblockwalk](int $blockwalk)",
     "[command,cam_moveto_cycles](coord $coord, int $height, int $cycles, int $ignore_terrain, int $easing)",
     "[command,cam_rotateto_coordinate](coord $coord, int $height, int $cycles, int $easing)",
+    "[command,cam_unlock](boolean $unlock)",
     "[command,npc_setbasestat](npc_stat $stat, int $level)",
 ]
 

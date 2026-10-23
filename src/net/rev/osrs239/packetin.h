@@ -139,7 +139,7 @@ static const struct Osrs239PacketInDef g_packet_in_definitions_osrs239[] = {
     {    1, 5,                     PKT_NAME_NONE,                       "CAM_TARGET_V3" },
     {   87, 5,                     PKT_NAME_NONE,                       "CAM_TARGET_V4" },
     {   65, 4,                     PKT_NAME_NONE,                       "OCULUS_SYNC" },
-    {  131, 1,                     PKT_NAME_NONE,                       "CAM_UNLOCK" },
+    {  131, 1,                     PKT_NAME_CAM_UNLOCK,                 "CAM_UNLOCK" },
     {  135, 4,                     PKT_NAME_NONE,                       "CAM_SKYBOX" },
     {  132, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "GROUP_FULL" },
     {  136, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "GROUP_VAR" },

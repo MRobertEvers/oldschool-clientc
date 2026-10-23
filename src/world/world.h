@@ -1232,8 +1232,9 @@ World_PlayerPathJump(
     int x,
     int z);
 
-/* rev-239 Statics.method1301: route[0] = (x, z), route length 0. The draw
- * position is left where it is -- an exact move owns it. */
+/* rev-239 Statics.method1301: route[0] = (x, z), route length 0, and the
+ * grid tile with it. The draw position is left where it is -- an exact move
+ * owns it. */
 void
 World_PlayerPathSetHead(
     struct World* world,

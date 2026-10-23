@@ -285,6 +285,10 @@ enum GameProtoPktName
      * SCRIPTEDPROJ_ADD, struct PktScriptedProjAdd). Appended likewise. */
     PKT_NAME_SCRIPTEDPROJ_ADD,
 
+    /* The camera's pitch limits widened or put back (CAM_UNLOCK; struct
+     * PktCamUnlock). Appended likewise. */
+    PKT_NAME_CAM_UNLOCK,
+
     PKT_NAME_COUNT
 };
 

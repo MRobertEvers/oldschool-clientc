@@ -151,6 +151,7 @@ enum
     OP_CAM_MOVETO_CYCLES = PKT_NAME_CAM_MOVETO_CYCLES,
     OP_CAM_ROTATETO_COORDINATE = PKT_NAME_CAM_ROTATETO_COORDINATE,
     OP_CAM_SHAKE = PKT_NAME_CAM_SHAKE,
+    OP_CAM_UNLOCK = PKT_NAME_CAM_UNLOCK,
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
     OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
@@ -2916,6 +2917,30 @@ ToriRSServer_SendCamShake(
         }
     }
     flush(player, &buf, OP_CAM_SHAKE, 0);
+}
+
+/*
+ * CAM_UNLOCK -- the client's camera pitch limits widened (true) or put back
+ * (false); deob client.java `field758 = g1 == 1`. One byte, scrambled by
+ * revision (rsprot cam_unlock: 239 a plain boolean, 241 U1 alt3), so the wire's
+ * payload hook writes it. Every recorded cutscene unlock sends it false
+ * (RSProx 4336 [613], 4286).
+ */
+void
+ToriRSServer_SendCamUnlock(
+    struct ToriRSServerPlayer* player,
+    int unlock)
+{
+    struct RSAreaBuf buf;
+    open_packet(&buf, 1);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->cam_unlock )
+            pl->cam_unlock(&buf, unlock ? 1 : 0);
+        else
+            rsab_p1(&buf, unlock ? 1 : 0);
+    }
+    flush(player, &buf, OP_CAM_UNLOCK, 0);
 }
 
 /*

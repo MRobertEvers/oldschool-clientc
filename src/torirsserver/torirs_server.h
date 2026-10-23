@@ -9103,6 +9103,11 @@ ToriRSServer_SendIfSetplayermodelSelf(
     int copy_objs);
 void
 ToriRSServer_SendCamReset(struct ToriRSServerPlayer* player);
+/** CAM_UNLOCK: widen (1) or restore (0) the client's camera pitch limits. */
+void
+ToriRSServer_SendCamUnlock(
+    struct ToriRSServerPlayer* player,
+    int unlock);
 /** Restore the client's varps to the values the server last sent (VARP_SYNC). */
 void
 ToriRSServer_SendVarpSync(struct ToriRSServerPlayer* player);

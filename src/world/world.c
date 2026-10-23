@@ -2210,6 +2210,13 @@ World_PlayerPathSetHead(
     player->pathing.route_x[0] = (uint8_t)x;
     player->pathing.route_z[0] = (uint8_t)z;
     player->pathing.route_length = 0;
+    /* With the route empty there is no step left to retire into the grid
+     * tile, and rev-239's tile IS pathX[0]: left alone, a player climbed over
+     * a wall by teleport + exact move read as still standing on the near side
+     * for good (App_LocalPlayerTiles, the plugin bridge), and the next click
+     * routed from there (Misthalin Mystery's broken wall, 2026-10-23). */
+    player->grid_position.x = x;
+    player->grid_position.z = z;
 }
 
 /*

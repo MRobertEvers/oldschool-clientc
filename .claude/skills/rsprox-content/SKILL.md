@@ -1,6 +1,6 @@
 ---
 name: rsprox-content
-description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, player facing/movement/teleports/exactmove, damage (splats on the player, accuracy, max hits, prayer). Trigger on "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
+description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, cutscenes and cameras (instance copies, the lock/unlock frame, cam_moveto/cam_lookat/cam_shake/cam_reset, fades, the cast's walks and seqs; tools/rsprox/rsprox_cutscene.py drafts them), loc/obj/inventory interaction shapes (pickups, searches, use-on, locked and walk-through doors, ground items, notes), area-triggered scenes, player facing/movement/teleports/exactmove, damage (splats on the player, accuracy, max hits, prayer). Trigger on "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
 ---
 
 # Implementing content from RSProx recordings
@@ -169,6 +169,47 @@ fight, cutscene, interaction), before reporting it finished:
 - **Unreachable locs need ap.** A loc ringed by blocking scenery (the Wintertodt braziers' `wint_inviswall`) can never be "reached": plain oploc never fires. Use `[aploc1,..]` + `p_aprange(1)`.
 - An op on a moving npc (Lara walking) re-paths. The recording shows the `opnpc` line repeated each time the client re-sent it.
 - Check `enabled_ops` / `hidelocops` / `opflags` (rev 241) when an op should be unclickable for a while.
+
+## 1b. Loc, obj and inventory interactions: the recorded shapes
+
+Every interaction is a few packets on fixed ticks from the op tick O (the face). Read each one's
+O-relative shape with `rsprox_interact.py --op` and copy it; these recur (Misthalin Mystery,
+index 4336, cites in `docs/rsprox-analysis/quests/misthalin_mystery.md`):
+
+| interaction | O | O+1 | O+2.. |
+|---|---|---|---|
+| take an item off a loc ("You take the knife from the table.") | `human_pickuptable`/`_pickupfloor` + synth `pick` (2581) | the line + `inv_add` | |
+| search that finds an item | anim + `pick` + `inv_add` + objbox, all on O | | (some sit O+2: `p_delay(1)` first; the painting [836]) |
+| use an item on a loc that works | the stage + anim + mesbox/objbox | after the click: **"Nothing interesting happens."** (the script falls through to the default) | |
+| locked door | synth `locked` (2402) + mesbox "The door is securely locked." | | |
+| wrong key | `locked` + mesbox "The key doesn't fit." | | |
+| key in a door | (O+1 after `p_arrivedelay` when walked) the line, `inv_del`, the stage, synth `unlock`/`ds_big_door_unlock`, a step onto the door's tile | the door: `inviswall` in its slot + its `*_inactive` leaf on the far tile for 2 ticks, synth `creakydoor_open` (56), the step across | the door back (temp `loc_add(.., 2)`) |
+| a light/fuse attempt | the line + `human_createfire` | | O+3: `[sequence] id=-1` + the page |
+
+- **Walk-through doors** are not swings: nothing stays open. The closed door becomes an
+  invisible wall and the leaf a non-interactive loc on the far tile for two ticks while the
+  player is stepped across (`p_teleport` of one tile goes out as a walk step). Both leaves of a
+  double door change together. Copy each leaf's tile and rotation from the `loc_add_change` lines.
+- **Ground items:** a take is `opobj3` -> `obj_del_specific` + synth `pick2` (2582) + `[sequence] id=-1`
+  (engine); a drop is `obj_add_specific ... despawn=300, ownership=self` + synth `put_down` (2739);
+  an equip is the appearance block + the weapon category varbit + synth `equip_*`. A quest's
+  private item (`ownership=self, neverturnpublic=true`) is `obj_add` in a copy, `obj_add_private` in
+  the world. A permanent prop that every zone re-send repeats (`obj_add_specific` with no
+  `despawn`) is a spawn: an `==== OBJ ====` row in the content's `.spawn`.
+- **Inventory ops:** `if_buttonx com=inventory:items op=N` is the obj's iop N-1 (`op=2` = Read /
+  Drink = `[opheld1,..]`; `op=3` Wield; `op=7` Drop).
+- **Notes and letters** are not mesboxes: `letterscroll` (interface 70) is filled line by line
+  (`lj1..lj100`, `%varp334_pagepos` counting each one, every count sent), then
+  `toplevel_mainmodal_open` (2524) and `if_opensub mainmodal`. Write the stage before the scroll.
+- **A scene with no op line in front of it is an area trigger.** Find the first answer (the fade,
+  the varbit) and the player's tiles before it: it fires on the first tick the player's tile *read
+  before that tick's movement* is inside the area (one tick after the step that entered it).
+  Check every recorded tile in and out, and the tiles the player stood on earlier at the same
+  stage (a zone-sized area that would have fired earlier is wrong). Ours: a `[timer]` armed by
+  `[mapzone,..]` that tests rectangles (timers run before movement); `[zone,..]` fires the tick
+  after a crossing but is 8x8. Label the fitted area with the tiles it is fitted to.
+- **The op swallowed by a scene:** the op that walked the player there still fires (its face is
+  on the wire); make it do nothing at that stage.
 
 ## 2. Maplinks: stairs, ladders, trapdoors, cave mouths
 
@@ -378,6 +419,84 @@ if_setevents continue -1..-1 [PAUSEBUTTON], if_settext continue "Click here to c
 
 - Line up **every step tick** with ours: a teleport one tick late is the common bug. Canoes found client input handled a tick late engine-wide (fixed 2026-10-19).
 - A teleport usually comes with `if_opensub fade_overlay` and fade clientscripts, `minimap_toggle`, `cam_*`, and music. Those are part of the same content.
+
+## 12b. Cutscenes and cameras
+
+Recorded twice end to end: the canoe ride (index 4286, `canoes/scripts/canoe_cutscene.rs2`) and
+the seven scenes of Misthalin Mystery (index 4336, `quest_misthalinmystery/scripts/
+mist_cutscenes.rs2`); A Night at the Theatre's memories (`natt_memory.rs2`) are the same frame.
+
+**Find them.** `varbit cutscene_status (542)` 0->1 and back, `minimap_toggle 2/0`,
+`hide{npc,loc,obj}ops`, `cam_*` lines and the fade clientscript `fade_overlay (948)`:
+`grep -n "cam_\|cutscene_status\|minimap_toggle\|fade_overlay (948" <txt>`.
+
+**Is it a copy?** Read the lock tick in the `--raw` transcript: a player `teleport` to a tile far
+outside the map (x/z > 6400, e.g. 1615,4828 -> 11855,8155), the static npcs `[del]`eted, the cast
+`[add]`ed with high indices. The default transcript translates that back to the template, so it
+looks like a one-tile move. Jagex makes a NEW copy for every scene (and for every re-entry of a
+room); ours: `~map_instance_from_square` into `%varp6600_map_instance_handle`, tiles as offsets
+from the square's SW tile (`~mist_at(dx, dz)`), the old copy freed after the move.
+
+**The frame** (identical in all 7 + 1 recorded; copy it whole, per scene only the tiles change):
+
+| tick | packets | ours |
+|---|---|---|
+| T | fade out: `if_settext fade_overlay:message ""`, `if_opensub overlay_atmosphere fade_overlay`, `948(0,255,0,0,50)`, hp bar hidden + `cc_deleteall` | `~mist_fade_out` / `~canoe_fade(255,0)` |
+| T+2 | the lock: `fov_clamp` 1, `cutscene_status` 1, ops hidden, `minimap_state` 2, `gravestone_tli_hide` 1, `option_areasounds_override` (25 here, 100 canoes), `areasounds_override` 1, `draw_distance_max_override` 1; the teleport; the cast; `cam_shake` x5 zeros; xp drops and sides 0-6, 11, 12 closed; `settings_set_draw_distance` (6021); `highlighting_off` (5485); `minimap_toggle 2` | `~mist_cutscene_lock` + copy + cast + `~mist_cutscene_hud_lock` |
+| T+3 | `cam_moveto`/`cam_lookat` at rate 232/232 (a jump), fade in `948(0,0,0,255,50)` | |
+| ... | the scene; the fade overlay stays mounted throughout | |
+| E | fade out; the last page's chat closed | `~mist_fade_out_close` |
+| E+2 | the unlock (ops, varbits back), the teleport out, cast gone, xp drops, draw distance, `cam_unlock false`, `cam_reset`, sides re-opened, `highlighting_on`, `cam_reset` again, fade in, `minimap_toggle 0` | `~mist_cutscene_end` |
+| E+4 | `if_closesub overlay_atmosphere` | |
+
+How the scene starts varies and must be read per scene: an op (fade at O or O+1), an area
+trigger (fade on the trigger tick, the lock two ticks on: `queue(scene, 1, 0)`), or the last
+tick of a fight (the lock without a move, a new copy two ticks later).
+
+**Draft the body with the tool, then read it against the transcript:**
+`python3 tools/rsprox/rsprox_cutscene.py <txt> <from> <to> --origin <template SW x,z> --name <prefix>`
+prints the scene as RuneScript in recorded order: the cast's adds (base type, spawn angle), every
+walk run (one `npc_walk` per straight run, on its first step tick), faces, seqs (with delay),
+spotanims (slot), transforms, says, telejumps, exactmoves, `loc_add`/`loc_del`/`loc_anim`, map
+anims, projectiles (with source/target), sounds, ground items, varbits, camera lines with every
+number, fades, and every page as the chat proc with its speaker, chathead and mood, then the
+click tick it waited for. It reads both transcript formats (`id=NAME (N)` with `multinpc=` and
+the older `NAME (id=N)`).
+- A page blocks until its click and the script resumes ON the click tick: everything the draft
+  lists after a page with no `p_delay` happens on that click. `p_delay(n)` resumes at now+1+n.
+- Moods come from the page's `if_setanim` (`chatsad3` = `^chat_sad`; the proc picks the rows).
+- Copy the camera exactly: eye and look tiles (copy offsets), heights, `rate`/`rate2` (232/232
+  jumps, 5..20 pans; see PACKETS.md). Re-aims mid-scene are separate `cam_moveto`/`cam_lookat`
+  lines on their own ticks: keep each on its tick.
+- The cast never wanders: `npc_add(.., duration)` + `npc_setmode(none)`; act through the uid
+  (`npc_finduid`). A cast member that must stay after the scene (the fight's mirror) is added the
+  same way with a long duration.
+- Copy-only props the scene needs (a wardrobe opening, a door the cast walks through, an item on
+  the floor) are temp `loc_add`/`obj_add` in the copy; the island's own state comes with the copy.
+- A scene that writes the quest stage writes it on the recorded tick, inside the scene.
+- No line, mesbox or message the recording lacks: a wiki transcript's "The killer stabs Mandy."
+  boxes were not sent; the scene showed it.
+
+**Test it** with `t.cutscene.mark()` / `t.cutscene.await(name, {since=, expect={{op="moveto",
+height=..}, {op="lookat", height=..}, {op="reset"}}})`. In a copy the camera tiles are the
+copy's, so match op and height, not a template `coord`. An area-triggered scene is reached by
+walking, and the walk is cut short by the teleport: call `t.player.walk_to` without `t.exec`,
+then await the first page.
+
+**Audit it** with the tick log against `rsprox_tells.py --from T --to E+4 --timeline` like any
+section, plus the camera lines (the tick log has no camera rows: diff
+`TORIRSSERVER_TRACE_OUT=1` output for `CAM_*`) and the lock/unlock varbits. The unlock's
+`cam_unlock false` is `cam_unlock(false)` (in `~mist_cutscene_hud_unlock` and
+`~canoe_cutscene_hud_unlock`).
+
+**A dialogue scene is paced by its reader.** The recorder and the driver click "continue" at
+different times, so absolute ticks drift by 2-6 and every event reads as a SHIFT. Place each
+event by (continue clicks since the cast spawned, ticks since the last click) instead: the
+transcript's `[resume_pausebutton]` lines, the tick log's `input` rows for RESUME_PAUSEBUTTON
+(packet 81 at rev 241). Misthalin Mystery's six scenes went from 3 of 13 "matched" to 103 of
+104 that way (docs/rsprox-analysis/quests/misthalin_mystery.md, "Wire audit"). A recorded
+event with no answer may be the recorder's own (a stamina running out, a drink, a drop):
+read its tick in the transcript before building it.
 
 ## 13. Damage: splats on the player, and the damage pattern behind them
 

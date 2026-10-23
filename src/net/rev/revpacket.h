@@ -745,6 +745,15 @@ struct PktMinimapToggle
     int state;
 };
 
+/* CAM_UNLOCK: deob client.java, the class243.field3065 handler -- `field758 =
+ * g1 == 1`. While set, the orbit camera's pitch clamp is 1..4160 instead of
+ * 1024..3064 (class112.method3876/3877, in eighths of our 0..2047 pitch).
+ * Every cutscene's unlock sends it false (RSProx 4336 [613]). */
+struct PktCamUnlock
+{
+    int unlock;
+};
+
 /* HIDENPCOPS / HIDELOCOPS / HIDEOBJOPS: the kind is the packet type. */
 struct PktHideOps
 {
@@ -1213,6 +1222,7 @@ struct RevPacket
         struct PktUpdateInvPartial _update_inv_partial;
         struct PktSetMultiway _set_multiway;
         struct PktMinimapToggle _minimap_toggle;
+        struct PktCamUnlock _cam_unlock;
         struct PktHideOps _hide_ops;
         struct PktUpdateIgnoreList _update_ignorelist;
         struct PktUpdateFriendList _update_friendlist;

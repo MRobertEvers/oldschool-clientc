@@ -19,6 +19,7 @@
 #include "packets/cam_moveto_cycles_v3.h"
 #include "packets/cam_rotateto_coordinate_v3.h"
 #include "packets/cam_shake.h"
+#include "packets/cam_unlock.h"
 #include "packets/chat_filter_settings.h"
 #include "packets/if_closesub.h"
 #include "packets/if_movesub.h"
@@ -744,6 +745,15 @@ w241_cam_shake(struct RSAreaBuf* buf, int axis, int random, int amplitude, int r
     W241(rsprot_cam_shake_out, m);
 }
 
+/* CamUnlockEncoder at 241: U1 alt3 (rsprot cam_unlock v100, from RSProx). */
+static void
+w241_cam_unlock(struct RSAreaBuf* buf, int unlock)
+{
+    MsgCamUnlock m = { 0 };
+    m.unlock = unlock;
+    W241(rsprot_cam_unlock_out, m);
+}
+
 /* ------------------------------------------------------------------ */
 /* Map                                                                 */
 /* ------------------------------------------------------------------ */
@@ -1103,6 +1113,7 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
     .cam_moveto_cycles = w241_cam_moveto_cycles,
     .cam_rotateto_coordinate = w241_cam_rotateto_coordinate,
     .cam_shake = w241_cam_shake,
+    .cam_unlock = w241_cam_unlock,
     .rebuild_region = w241_rebuild_region,
     .rebuild_worldentity = w241_rebuild_worldentity,
     .wev_spawn_scalars = w241_wev_spawn_scalars,
@@ -1152,6 +1163,7 @@ static const int k_transcribed_osrs241[] = {
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
     PKT_NAME_MINIMAP_TOGGLE,
+    PKT_NAME_CAM_UNLOCK,
     PKT_NAME_HIDENPCOPS,       PKT_NAME_HIDELOCOPS,      PKT_NAME_HIDEOBJOPS,
     PKT_NAME_HINT_ARROW,
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,

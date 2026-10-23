@@ -26,6 +26,7 @@
 #include "packets/friendlist_loaded.h"
 #include "packets/if_sethide.h"
 #include "packets/minimap_toggle.h"
+#include "packets/cam_unlock.h"
 #include "packets/hidenpcops.h"
 #include "packets/hidelocops.h"
 #include "packets/hideobjops.h"
@@ -589,6 +590,14 @@ bridge_minimap_toggle(int revision, uint8_t const* data, int len, struct RevPack
 {
     BRIDGE_RUN(rsprot_minimap_toggle_out, MsgMinimapToggle)
     out->_minimap_toggle.state = msg.minimap_state;
+    return 1;
+}
+
+static int
+bridge_cam_unlock(int revision, uint8_t const* data, int len, struct RevPacket* out)
+{
+    BRIDGE_RUN(rsprot_cam_unlock_out, MsgCamUnlock)
+    out->_cam_unlock.unlock = msg.unlock == 1;
     return 1;
 }
 
@@ -1216,6 +1225,7 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
     { PKT_NAME_IF_SETHIDE, bridge_if_sethide },
     { PKT_NAME_MINIMAP_TOGGLE, bridge_minimap_toggle },
+    { PKT_NAME_CAM_UNLOCK, bridge_cam_unlock },
     { PKT_NAME_HIDENPCOPS, bridge_hidenpcops },
     { PKT_NAME_HIDELOCOPS, bridge_hidelocops },
     { PKT_NAME_HIDEOBJOPS, bridge_hideobjops },

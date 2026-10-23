@@ -814,6 +814,13 @@ w239_cam_shake(struct RSAreaBuf* buf, int axis, int random, int amplitude, int r
     rsab_p1(buf, rate);
 }
 
+/* CamUnlockEncoder at 239: one boolean byte (rsprot cam_unlock v2). */
+static void
+w239_cam_unlock(struct RSAreaBuf* buf, int unlock)
+{
+    rsab_p1(buf, unlock);
+}
+
 /*
  * RebuildRegionV2Encoder: p2 zoneZ, p2 zoneX, p1Alt1 reload.
  *
@@ -1599,6 +1606,7 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
     .cam_moveto = w239_cam_moveto,
     .cam_lookat = w239_cam_lookat,
     .cam_shake = w239_cam_shake,
+    .cam_unlock = w239_cam_unlock,
     .rebuild_region = w239_rebuild_region,
     .rebuild_worldentity = w239_rebuild_worldentity,
     .wev_spawn_scalars = w239_wev_spawn_scalars,
@@ -1661,6 +1669,7 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
     PKT_NAME_MINIMAP_TOGGLE, /* MinimapToggleEncoder: U1, verified for rev239. */
+    PKT_NAME_CAM_UNLOCK, /* CamUnlockEncoder: one boolean, the payload hook. */
     /* HideNpcOps/HideLocOps/HideObjOpsEncoder: one boolean byte each, 223-239
      * (3rd/rsprot/packets/hidenpcops.c); opcodes 75 / 21 / 73 at 239. */
     PKT_NAME_HIDENPCOPS,       PKT_NAME_HIDELOCOPS,      PKT_NAME_HIDEOBJOPS,
@@ -1839,6 +1848,7 @@ ToriRSServer_WirePktName(int pkt_name)
     case PKT_NAME_UPDATE_FRIENDLIST: return "UPDATE_FRIENDLIST";
     case PKT_NAME_UPDATE_IGNORELIST: return "UPDATE_IGNORELIST";
     case PKT_NAME_CAM_RESET: return "CAM_RESET";
+    case PKT_NAME_CAM_UNLOCK: return "CAM_UNLOCK";
     case PKT_NAME_CAM_MOVETO: return "CAM_MOVETO";
     case PKT_NAME_CAM_MOVETO_CYCLES: return "CAM_MOVETO_CYCLES";
     case PKT_NAME_CAM_ROTATETO_COORDINATE: return "CAM_ROTATETO_COORDINATE";

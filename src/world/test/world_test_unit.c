@@ -3487,6 +3487,31 @@ test_rev239_exact_move_order(void)
     }
 }
 
+/* Misthalin Mystery's broken wall: the player stands on 40,40 and is moved
+ * over the wall to 41,40 by an exact move alone (no step to retire). The
+ * player's tile is the end tile from the update on, as rev-239's pathX[0] is,
+ * and stays there once the glide is done; it used to stay on 40,40 for good. */
+void
+test_rev239_exact_move_moves_the_tile(void)
+{
+    printf("TEST: rev-239 exact move puts the player's tile on the end tile\n");
+    struct World* world = World_TestMakeReady(104);
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    int pi = World_PlayerSpawn(world, 1, 0, 40, 40, idle);
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, pi);
+
+    World_PlayerSetExactMoveDetailed(world, pi, 40, 40, 41, 40, 100, 30, 1536, true);
+    TEST_ASSERT(player->grid_position.x == 41 && player->grid_position.z == 40,
+        "the tile is the end tile from the update");
+    /* One cycle per call: a 120-cycle call would jump past the window. */
+    for( int c = 0; c < 120; c++ )
+        World_Cycle(world, 1);
+    TEST_ASSERT(player->draw_position.x == (uint32_t)(41 * 128 + 64), "the glide ended on the end tile");
+    TEST_ASSERT(player->grid_position.x == 41 && player->pathing.route_x[0] == 41,
+        "the tile is still the end tile after the glide");
+    World_Free(world);
+}
+
 /* Ba-Ba's boulders: each tick a teleport one tile west and an exact move from
  * the tile behind (delay1 0, delay2 30). Rev-239 reads the packet after the
  * cycle bump, so the first update after it is phase 1 and puts the boulder back

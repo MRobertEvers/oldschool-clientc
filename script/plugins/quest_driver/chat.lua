@@ -398,6 +398,17 @@ function QD.chat.drain(opts)
                 return "timeout", "chat.drain: a page with no continue stayed up "
                     .. tostring(opts.wait_ticks or 120) .. " tick(s)"
             end
+        -- The page already clicked, its resume still unanswered: the script
+        -- behind it is acting before its next page (a cutscene's cast walking
+        -- between pages, Misthalin Mystery's Sid scene: click [550], next page
+        -- [557], RSProx 4336). Waited out, not clicked again and not counted.
+        elseif QD.chat._resume_outstanding() then
+            pages = pages - 1
+            QD.chat._settle_change(settled_kind, identity, opts.wait_ticks or 120)
+            if QD.chat._resume_outstanding() and QD.chat._page_identity(QD.chat.kind()) == identity then
+                return "timeout", "chat.drain: a clicked page stayed unanswered "
+                    .. tostring(opts.wait_ticks or 120) .. " tick(s)"
+            end
         else
         local r, d = QD.chat.continue_()
         if r == "closed" then

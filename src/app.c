@@ -594,6 +594,7 @@ App_Init(
     app->reboot_timer = 0;
     app->multiway = 0;
     app->minimap_state = 0;
+    app->cam_unlock = 0;
     memset(&app->welcome, 0, sizeof(app->welcome));
     RS_Social_Init(&app->social);
     /* Reference reset path: idkDesignGender = male, then validateIdkDesign().

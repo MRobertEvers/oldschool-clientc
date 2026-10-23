@@ -579,6 +579,12 @@ gameproto_parse(
     case PKT_NAME_CAM_RESET:
         /* no payload */
         return 1;
+    case PKT_NAME_CAM_UNLOCK:
+        /* A plain byte here; the revisions that scramble it (238 alt1, 241
+         * alt3) are decoded by the rsprot bridge. */
+        packet->_cam_unlock.unlock = g1(&buffer) == 1;
+        assert(buffer.position == data_size);
+        return 1;
     case PKT_NAME_IF_OPENMAIN:
     {
         packet->_if_openmain.component_id = g2(&buffer);

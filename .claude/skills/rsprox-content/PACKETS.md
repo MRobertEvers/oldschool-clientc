@@ -171,11 +171,13 @@ events. `rsprox_interact.py` collapses it.
 | `hidelocops` / `hidenpcops` / `hideobjops` | `hide` | hide every op of that kind (cutscenes) | `hidelocops(bool)`, `hidenpcops`, `hideobjops` |
 | `set_player_op` | `id, op="Follow"/null` | the right-click ops on other players | `set_player_op(string, int, int)` |
 | `set_interaction_mode` / `reset_interaction_mode` | | tile/entity click modes (sailing) | |
-| `cam_moveto(_v1.._v3)` / `cam_lookat(_v1.._v3)` | `coord, height, rate, rate2[, heightrelative]` | camera position / look target. rate = constant speed, rate2 = % accel (0/100) | `cam_moveto(coord, height, rate, rate2)`, `cam_lookat(...)` |
-| `cam_moveto_cycles(_v3)`, `cam_lookat_cycles`, `cam_lookat_eased_coord`, `cam_moveto_arc(_v3)`, `cam_rotateby`, `cam_rotateto`, `cam_rotateto_coordinate_v3` | coords, `cycles`, `easing=linear/ease_out_sine`, `ignoreterrain` | timed/eased camera moves (cutscenes) | (no command yet; add an opcode) |
-| `cam_shake` | `axis, random, amplitude, rate` | sent once per axis (0..4) | `cam_shake(axis, random, amplitude, rate)` |
-| `cam_reset` | | camera back to the player | `cam_reset` |
-| `cam_unlock` / `cam_skybox model=` / `zbuf` | | rare | |
+| `cam_moveto(_v1.._v3)` / `cam_lookat(_v1.._v3)` | `coord, height, rate, rate2[, heightrelative]` | camera eye / look target. Per client cycle the camera moves a flat `rate` plus `rate2`/1000 of what is left; **`rate2` >= 100 places it at once** (every cutscene's first placement is 232/232), small values (5..20) are a slow pan (src/app/app_camera.c `app_cinema_ease`, reference cinemaCamera). `coord` is world-absolute: in an instance it is the copy's tile, and the transcript prints it translated to the template | `cam_moveto(coord, height, rate, rate2)`, `cam_lookat(...)` (heights as printed) |
+| `cam_moveto_cycles(_v3)`, `cam_rotateto_coordinate_v3` | coords, `cycles`, `easing=linear/ease_out_sine`, `ignoreterrain` | timed/eased camera moves | `cam_moveto_cycles(coord, height, cycles, ignore_terrain, easing)`, `cam_rotateto_coordinate(coord, height, cycles, easing)` |
+| `cam_lookat_cycles`, `cam_lookat_eased_coord`, `cam_moveto_arc(_v3)`, `cam_rotateby`, `cam_rotateto` | as above | timed/eased moves | (no command yet; add an opcode) |
+| `cam_shake` | `axis, random, amplitude, rate` | sent once per axis (0..4); a cutscene lock clears all five with zeros | `cam_shake(axis, random, amplitude, rate)` |
+| `cam_reset` | | camera back to the player. A cutscene's unlock sends it TWICE (before and after the side panels) | `cam_reset` |
+| `cam_unlock` | `unlock=true/false` | the client's camera pitch limits widened (true: 0..520) or put back (false: the profile's 128..383); deob `field758`. Sent `false` once at every cutscene's unlock, before the first `cam_reset` (4286 10/10, 4336 7/7) | `cam_unlock(boolean)` (script opcode 11285) |
+| `cam_skybox model=` / `zbuf` | | rare | |
 | `message_game` | `type=, message="..."` | chat-box line. Types: `gamemessage`, `dialogue` (the `Name|text` echo of a dialogue page), `mesbox` (echo of a mesbox), `spam` (filterable), `engine`, `friendschatnotification`, `clanmessage`; numbers for the unnamed ones (108 welcome, 117 "Did you know") | `mes(text)`, `mes_spam(text)`; dialogue echoes come from the chat procs |
 | `message_public` | `type, message` | a player's public chat | |
 | `logout_withreason`, `logout_transfer`, `reconnect`, `update_reboot_timer gamecycles=`, `clear_entities` | | session | |
@@ -196,3 +198,26 @@ Clock varps to ignore: `map_clock` (3079, +1 every tick, rev 241) and the `date_
 (12391/12392). `busy` (varbit 12393) is 1 while a dialogue or a delayed action holds the player.
 `chatmodal_unclamp` (10670) is set on the first dialogue page. `current_hint_arrow` (14192) and
 `flashside` (3756, the flashing side tab) are tutorial state.
+
+## A packet with no command: adding one
+
+`cam_unlock` (2026-10-23) is the worked example; follow its trail (`grep -rn "CAM_UNLOCK\|cam_unlock" src`).
+1. **What the client does with it**: the deob's handler (`grep -n "(<opcode>, <size>)" deob/class243.java`
+   for the packet object, then its `== var3.field1550` branch in client.java) and every read of the
+   field it sets. Copy that behaviour into the client, not a guess.
+2. **Client**: append `PKT_NAME_*` to `src/net/rev/pktnames.h` (never insert); map the opcode in
+   each revision's `packetin.h` row (they are listed with `PKT_NAME_NONE` already); a `struct Pkt*` in
+   `revpacket.h`; the plain parser in `gameproto_parse.c`; a `bridge_*` in `rsprot_bridge.c` when
+   `3rd/rsprot/packets/<name>.c` scrambles bytes per revision (241 often does: `U1_ALT3`); the exec in
+   `rs_gameproto_exec.c`; a line in `scriptrun_core.c`'s packet log.
+3. **Server**: an encoder `ToriRSServer_Send*` in `torirs_server_encode.c` (`OP_* = PKT_NAME_*`),
+   writing through a `ToriRSServerWirePayload` hook when the layout differs by revision (`wire.c`
+   for 239, `wire241.c` with the rsprot codec); the name in both revisions' transcribed lists and in
+   `wire.c`'s name switch; the declaration in `torirs_server.h`.
+4. **Script command**: an `EXTRA_OPCODES` row in `src/serverscript/gen_opcode_meta.py` (next free id
+   above every other row, uncommitted ones included) and its typed signature in
+   `gen_command_kinds.py`; regenerate (`python3 src/serverscript/gen_opcode_meta.py`,
+   `python3 src/serverscript/gen_command_kinds.py`); the `case SS_OP_*` in
+   `torirs_server_scripts.c`; `cd src && python3 torirsserver/gen_opcode_coverage.py`.
+5. Build privately (`make -C src OPT=1 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_<x>
+   PLATFORM_TARGET=torirs_<x> torirs_<x> sscompile`), then use it in content and check the wire.
