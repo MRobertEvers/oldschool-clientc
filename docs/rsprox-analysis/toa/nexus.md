@@ -43,8 +43,9 @@ He stands on his tile facing south until removed (4292, both visits).
 ### What he offers (2026-10-21)
 
 99 rolls in the 20 sessions with a Nexus, each raid's invocations read from its
-6729 masks (bit = `toa_invocation` index; Leagues invocations are absent from
-that table, which is why a Leagues raid's level is above the sum). Five tiers:
+6729 masks (`tools/rsprox/toa_raid_invocations.py`: the first mask holds
+`toa_invocation` indices 0-30, the second 31 onward; Leagues' Blazing Tombs are
+45 and 46, +200 each). Five tiers:
 
 | tier | rolls | restore (nectar+tears pair, then ambrosia/silk/scarab) | balance | boost (salts, adrenaline) |
 |---|---|---|---|---|

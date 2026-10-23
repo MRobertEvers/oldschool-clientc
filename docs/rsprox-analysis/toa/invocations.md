@@ -5,7 +5,8 @@ nothing in the raid read them until 2026-10-20. Each is now built from RSProx
 where a recording shows it, and from the wiki where none does.
 
 Which raids ran which invocations comes from the party panel's 6729 masks at
-each "You enter the Tombs" (`toa_invocation.dbrow` indices).
+each "You enter the Tombs" (`toa_invocation.dbrow` indices; the first mask
+holds 0-30, the second 31 onward: `tools/rsprox/toa_raid_invocations.py`).
 
 **Ours:** `toa_raid.rs2` (time limit), `toa_nexus.rs2` (the first path's
 line), `toa_rewards.rs2` (the verdict), `toa_hud.rs2` (Deadly Prayers),
@@ -214,10 +215,10 @@ All 20 sessions with Akkha (`search npc 11790`, 44 fights):
 
 | Invocation | Recorded | Ours |
 |---|---|---|
-| (cadence) | seven swings then the special in rev 234-241 (4292 6 of 6, 3263); six in rev 223-227; Stay Vigilant five (3411, 843, 3413) | `^toa_akkha_special_every` 8 (was 7) |
+| (cadence) | seven swings then the special in rev 234-241 (4292 6 of 6, 3263); six in rev 223-227; Stay Vigilant five (3411, 843, 3413, 4323) | `^toa_akkha_special_every` 8 (was 7) |
 | Double Trouble | both specials at once; the cast animation is Memory Blast's (14 of 14 solo casts), the orbs coming with it | Memory Blast now cast last, so its animation is the one sent |
 | Keep Back | a hit on the tick after a ranged or magic swing, on a raider beside him (30 of 82 swings with it, 1 of 653 without) | was queued with the shot (swing + 3) on every raider; now the melee's own timing, raiders on his edge |
-| Stay Vigilant | the style changes between specials | as recorded |
+| Stay Vigilant | the style changes **only** on a special, as without it (the 25 June 2025 rule): 4323 9 of 9, none in 45 basics; 3411, 3413, 843 the same | was the March 2025 rolls (1 in 4 after a basic, 1 in 5 after a special); now every special ([raid_4323.md](raid_4323.md)) |
 | Feeling Special? | Memory Blast's waves every 2 (75 of 85; 4 without, 252); **two trailing orbs a step**: the tile left and one a step on the way they went (105 of 107; one without, 33 of 33). Detonate's "more directions": the one party cast with it is the plain plus (unrecorded otherwise) | the second orb added; the waves already 2 |
 
 **Path level** (Het): Memory Blast's glows 4 at levels 0-1, 5 at 2-3, 6 at

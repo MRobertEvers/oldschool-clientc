@@ -10,6 +10,7 @@ full inventory the tool prints.
 |---|---|---|---|---|
 | 14 | 223 | normal world | 1, Entry Mode | solo |
 | 1852 | 227 | Leagues V | 7, Expert Mode | 2, 2, 2, 3, 6, 6, 6 |
+| index 4323 | 241 | normal world | 1, raid level 310 (24 invocations, every room) | solo: the hitpoints, damage and invocation audit in [raid_4323.md](raid_4323.md) |
 | index 4292 | 241 | normal world | 1, raid level 160 (Aerial Assault) | solo: Tumeken's Warden survives phase one, so Elidinis' fights phases three and four ([wardens_p3.md](wardens_p3.md)); a push off a flying floor tile, a banana slip, rubble on the raider, Zebak's second wave set from the north |
 
 Party size is read off the Crondis palm's base hitpoints (`varb6100_hpbar_hud_basehp`),

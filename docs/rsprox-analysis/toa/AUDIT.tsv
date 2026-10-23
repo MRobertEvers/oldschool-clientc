@@ -109,3 +109,14 @@ A107	all	3,710 non-ToA npcs: cache levels overridden by the explicit-defaults la
 A108	baba	Ba-Ba's baboons' max 8 unverified; Akkha prayed melee fitted on 4 hits	wiki 1?; recordings do not separate them	open
 A109	baba	Mind the Gap pit fall was NR's model: fall in place of human_death, hit on the glide's end, no line, out 3 ticks after the fall	RSProx 4322 [1282..1292]: fall S+2 (glide end), "You're pushed straight into a deep pit! Ouch!" + full hit S+4, human_death S+5, out S+10; test toa_baba_gap_fall 8/8 on the recorded tile	fixed
 A110	baba	boulder knockback into the pit unrecorded	same fall/hit/death timing as the scream assumed	open
+A111	all	damage scaled by raid + path, capped at 250%; the path factor multiplies (as hitpoints)	RSProx 4323 (raid 310, path 3): Zebak magic 42 unprayed (additive max 38), Crondis trap 13 (additive 9/12/14/16); 3411 trap 17, 4292 trap 8 fit; ~toa_damage_factor = min(raid, 250) x path	fixed
+A112	het	Het's seal 130 solo	RSProx rev 241 4292 + 4323: boss bar base 119 and hits sum 119 (rev 234-235: 122; rev 227: 130)	fixed
+A113	crondis	palm 200 water solo	boss bar base 175 in 5 of 5 rev 234-241 sessions (4292, 4323, 843, 3263, 3411); party +200 a raider kept (rev 227)	fixed
+A114	apmeken	thrall 2 hitpoints at every raid level	kills summed: 2/3/4/6/8 at raid 0/160/310/500/750 (3263, 4292, 4323, 3411, 843) = 2 x raid factor; other baboons flat; scratch scriptrun at 305: 4,4,4	fixed
+A115	akkha	9% of a prayed ranged/magic basic gets through (Leagues V fit)	25 June 2025 prayer change; 4292 1x15 2x5, 4323 1x6 2x7: floor(roll x 6/100) best (ll -21.9 vs 9% -36.8)	fixed
+A116	akkha	Stay Vigilant switched styles by 1/4 and 1/5 rolls (March 2025 rule)	4323 9 of 9 changes on specials, 0 in 45 basics; 3411, 3413, 843 the same; wiki 25 June 2025	fixed
+A117	baba	Jungle Japes' second peel always north	rev 241 6 of 6 deaths: west 3, north 3 (4292, 4322, 4323)	fixed
+A118	wardens	obelisk sweep with Penetration 29-31 at 310	4323: 22 and 24 (two hits)	open
+A119	baba	rubble takes 20 for a shielded throw	12 every time (13 of 13, 4292 + 4323), bar unchanged unless it dies	open
+A120	akkha	enrage orb a fixed 21 at 310	4323: 20, 23, 20 through Protect from Magic	open
+A121	nexus	nexus.md decoded 6729 masks as one 64-bit word (bit = index)	the masks split at 31; 32 shifts Keep Back up by one and the sum misses the panel (4323: 355 vs 310); 50 of 50 raids sum to the panel with 31; tools/rsprox/toa_raid_invocations.py	fixed

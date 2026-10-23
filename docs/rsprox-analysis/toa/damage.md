@@ -13,7 +13,8 @@ ratios inside one session.
 | Npc combat levels | 74 ToA npcs at the engine seed (attack/defence/strength 1, ranged/magic 0) from `_explicit/configs/server_fields.generated.npc`; Zebak defended at Defence 1 (stab roll 2240) | the cache's `stat1..6` (Zebak 250/70/140/580/120/100) | the cache's levels (stab roll 17696) |
 | Accuracy | none: every styled attack landed 0..max | unprayed zeros far above 1 / (max + 1): Zebak magic 16% (116), ranged 24-36% (58, 77), the scarabs' shots 81% (442), Akkha 32-47% | `~toa_roll_vs` / `~toa_roll_carried`: the attacker's roll x raid accuracy scaling vs the raider's defence roll |
 | Akkha's basic max | 40 | no unprayed hit above 44 at the cap (66 hits; 40 puts ~20 past 55); prayed maxima 1 / 2 / 4 at raid 0 / 160 / cap | 22 (his melee formula: Strength 140, +30) |
-| Akkha through prayer | 15% ranged/magic, 25% melee (NR) | at the cap 1/2/3/4 at 34/37/33/33 of 242 magic, no 5 but 3: floor(roll x 9 / 100) | 9%, melee 15% (4 hits only) |
+| Akkha through prayer | 15% ranged/magic, 25% melee (NR) | Leagues V at the cap 1/2/3/4 at 34/37/33/33 of 242 magic: 9%; since the 25 June 2025 change, 4292 and 4323 fit 6% ([raid_4323.md](raid_4323.md)) | 6%, melee 15% |
+| Path scaling | raid + path, capped at 250% | 4323: Zebak's 16 hit 42 at raid 310, path 3; a 4-7 trap 13 | min(raid, 250%) x path ([raid_4323.md](raid_4323.md)) |
 | Quiet Prayers | half the reduction (Zebak prayed: 50% through) | "10% less effective" (wiki); Zebak prayed at the cap 1-4 (79 hits), Akkha 0-9 | +10 points |
 | Spitting scarab max | 15 | wiki 10; unprayed up to 13 at raid 150+ | 10 |
 | Agile scarab max | 10 | wiki 5; up to 5 at raid 0 (index 45) | 5 |
