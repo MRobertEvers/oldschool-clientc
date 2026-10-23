@@ -107,3 +107,5 @@ A105	kephri/apmeken	spitting 15, agile 10, baboons 8/12/4/10/16	wiki 10, 5, 5/7/
 A106	crondis/kephri	crocodiles and agile scarabs scaled by raid level	wiki: do not scale with raid level; exempt from defence and accuracy scaling	fixed
 A107	all	3,710 non-ToA npcs: cache levels overridden by the explicit-defaults layer	tools/check_npc_cache_levels.py (14,438 levels) now 0; defend_timing, ancient_tells, tormented_demon pass	fixed
 A108	baba	Ba-Ba's baboons' max 8 unverified; Akkha prayed melee fitted on 4 hits	wiki 1?; recordings do not separate them	open
+A109	baba	Mind the Gap pit fall was NR's model: fall in place of human_death, hit on the glide's end, no line, out 3 ticks after the fall	RSProx 4322 [1282..1292]: fall S+2 (glide end), "You're pushed straight into a deep pit! Ouch!" + full hit S+4, human_death S+5, out S+10; test toa_baba_gap_fall 8/8 on the recorded tile	fixed
+A110	baba	boulder knockback into the pit unrecorded	same fall/hit/death timing as the scream assumed	open
