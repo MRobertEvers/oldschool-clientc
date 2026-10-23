@@ -40,7 +40,7 @@ return {
         end
 
         t.exec("goto-talkToVeos", t.player.goto_tile, 1824, 3689, 0)
-        t.exec("talkToVeos", t.player.talk_to, "veos_vis_amulet", 1)
+        t.exec("talkToVeos", t.player.talk_to, "veos_vis", 1)
         t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
         t.exec("talkToVeos-quests", t.chat.choose, "Have you got any quests for me?")
         t.exec("talkToVeos-offer", t.chat.drain, { stop_at = "options" })
@@ -140,7 +140,7 @@ return {
             at = { 1770, 3590, 0 }, near = { 1770, 3589 }, far = { 1770, 3590 } })
 
         t.exec("goto-returnToVeos", t.player.goto_tile, 1824, 3689, 0)
-        t.exec("returnToVeos", t.player.talk_to, "veos_vis_amulet", 1)
+        t.exec("returnToVeos", t.player.talk_to, "veos_vis", 1)
         t.exec("returnToVeos-menu", t.chat.drain, { stop_at = "options" })
         t.exec("returnToVeos-client", t.chat.choose, "Let's talk about your client...")
         t.exec("returnToVeos-orb", t.chat.drain, {})
@@ -158,7 +158,7 @@ return {
         t.exec("goto-finishQuest", t.player.goto_tile, 1824, 3689, 0)
         local lamp_before_ok, lamp_before = t.inv.count("veos_lamp")
         local memoirs_before_ok, memoirs_before = t.inv.count("veos_kharedsts_memoirs")
-        t.exec("finishQuest", t.player.talk_to, "veos_vis_amulet", 1)
+        t.exec("finishQuest", t.player.talk_to, "veos_vis", 1)
         t.exec("finishQuest-menu", t.chat.drain, { stop_at = "options" })
         t.exec("finishQuest-client", t.chat.choose, "Let's talk about your client...")
         t.exec("finishQuest-possession", t.chat.drain, {})

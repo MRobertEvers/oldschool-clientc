@@ -10,6 +10,8 @@ return {
             points = 1,
         })
         t.ticks(3)
+        -- the wire audit (docs/rsprox-analysis/quests/x_marks_the_spot.md) reads this
+        t.ticklog.start()
         -- Door rule (b71): every walled space is entered and left through its door.
         --   The Sheared Ram (29 tiles, x3226-3233 z3236-3242): poordoor_m 3230,3235 (north edge of
         --     that tile; outside 3230,3235, inside 3230,3236) and poordoor 3225,3240 (comp.py).
@@ -34,14 +36,10 @@ return {
             "player:Great Kourend",
             "npc:Across the sea",
             "player:Interesting",
-            "npc:I'm here on a bit",
-            "npc:Alas",
+            "npc:I am here on a bit",
+            "npc:Maybe you could help with this",
             "options",
-            "choose:/Can I help/",
-            "player:Can I help",
-            "npc:Maybe you can",
-            "options",
-            "choose:/Sounds good/",
+            "choose:/Yes/",
             "player:Sounds good",
             "npc:Take this scroll",
             "*",
@@ -67,9 +65,13 @@ return {
             "npc:Hello there", "player:Hello Veos", "player:Let's talk about my quest", "npc:How's the treasure hunt",
             "options", "choose:/extra help/", "player:extra help", "*", "npc:Maybe look for someone named Bob", "end",
         })
-        -- lose the scroll: drop it (op 5 on a held item, drop.rs2:72) -- Veos only checks the
-        -- backpack (xmarksthespot.rs2:137 inv_total(inv, $clue) < 1)
-        t.exec("lost.drop", t.player.drop, "cluequest_clue1")
+        -- lose the scroll: Destroy (iop 5, the cache's confirmdestroy; RSProx index 4353
+        -- [264..270] destroyed the orb this way) -- Veos only checks the backpack
+        -- the prompt mounts in the chatbox, which the click's settle does not count
+        -- as an answer: the press below is what proves it opened
+        t.player.inv_op("cluequest_clue1", 5)
+        t.ticks(2)
+        t.exec("lost.destroy.yes", t.ui.press_pause, "confirmdestroy:universe", 1, "confirmdestroy:universe")
         t.ticks(2)
         local gone_r, gone_n = t.inv.count("cluequest_clue1")
         t.check("lost.gone", gone_r == "ok" and gone_n == 0, "treasure scroll count after the drop " .. tostring(gone_n) .. " (want 0)")
@@ -79,7 +81,7 @@ return {
         })
         t.expect("lost.clue1", t.inv.expect_has("cluequest_clue1", 1))
         -- dig 1
-        t.exec("goto-digOutsideBob", t.player.goto_tile, 3230, 3209, 0)
+        t.exec("goto-digOutsideBob", t.player.goto_tile, 3229, 3209, 0)
         t.exec("digOutsideBob", t.player.inv_op, "spade", 1)
         t.expect("dig.bob.stage", t.var.await("varb8063_cluequest", 3, 8))
         t.expect("dig.bob.item", t.inv.expect_has("cluequest_clue2", 1))
@@ -92,13 +94,15 @@ return {
         t.expect("dig.castle.stage", t.var.await("varb8063_cluequest", 4, 8))
         t.expect("dig.castle.item", t.inv.expect_has("cluequest_clue3", 1))
         t.exec("feel.far", t.player.inv_op, "cluequest_clue3", 1)
-        t.expect("feel.far.msg", t.msg.expect("freezing"))
+        -- index 4353 [202]: the first feel has no comparison; ~95 tiles out is "cold"
+        t.expect("feel.far.msg", t.msg.expect("The orb is cold."))
         t.exec("goto-drayoff", t.player.goto_tile, 3106, 3273, 0)
         door("drayoff.fieldIn", "fencegate_l", "openfencegate_l", { 3107, 3273, 0 }, { 3106, 3273 }, { 3108, 3273 })
         t.exec("walk-drayoff", t.player.walk_to, 3109, 3270, 20)
         t.exec("feel.near", t.player.inv_op, "cluequest_clue3", 1)
-        t.expect("feel.near.msg", t.msg.expect("hot"))
-        t.exec("walk-digDraynor", t.player.walk_to, 3109, 3264, 20)
+        t.expect("feel.near.msg", t.msg.expect("incredibly hot, and warmer than last time"))
+        -- the dig is the orb's zero, 3108,3262 (index 4353 [332..334])
+        t.exec("walk-digDraynor", t.player.walk_to, 3108, 3262, 20)
         t.exec("digDraynor", t.player.inv_op, "spade", 1)
         t.expect("dig.dray.stage", t.var.await("varb8063_cluequest", 5, 8))
         t.exec("read.clue4", t.player.inv_op, "cluequest_clue4", 1)
@@ -109,7 +113,7 @@ return {
         door("digMartin.fieldOut", "fencegate_l", "openfencegate_l", { 3107, 3273, 0 }, { 3107, 3273 }, { 3105, 3273 })
         t.exec("goto-digMartin", t.player.goto_tile, 3077, 3257, 0)
         door("digMartin.penIn", "farming_fencegate_l", "farming_openfencegate_l", { 3077, 3258, 0 }, { 3077, 3258 }, { 3077, 3260 })
-        t.exec("walk-digMartin", t.player.walk_to, 3078, 3259, 20)
+        t.exec("walk-digMartin", t.player.walk_to, 3077, 3260, 20)
         t.exec("digMartin", t.player.inv_op, "spade", 1)
         t.exec("dig.pen.chat", t.chat.play, {"*", "player:Must have been the wind", "player:Anyway, this must be the treasure", "end"})
         t.expect("dig.pen.stage", t.var.await("varb8063_cluequest", 6, 8))
@@ -122,18 +126,32 @@ return {
         t.exec("hand.chat", t.chat.play, {
             "npc:Hello there", "player:Hello Veos", "npc:How's the treasure hunt", "player:I found the treasure",
             "npc:Excellent", "*", "npc:Brilliant", "player:what is this treasure", "npc:nothing important",
-            "player:If you say so", "npc:as promised", "*", "npc:If you ever fancy", "player:Sounds great", "end",
+            "player:If you say so", "npc:as promised", "npc:I'd best be getting back", "end",
         })
         t.quest.expect_complete()
         local _, coins_after = t.inv.count("coins")
         t.check("reward.coins", (coins_after or 0) - (coins_before or 0) == 200, "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. " (documented 200)")
         local lamp_r, lamp_n = t.inv.count("cluequest_lamp")
         t.check("reward.lamp", lamp_r == "ok" and lamp_n == 1, "antique lamp count " .. tostring(lamp_n))
-        local scroll_r, scroll_n = t.inv.count("trail_clue_beginner")
-        t.check("reward.scrollbox", scroll_r == "ok" and scroll_n == 1, "beginner clue scroll count " .. tostring(scroll_n))
+        -- index 4353 [431]: the beginner scroll box (24361), not a clue scroll
+        local scroll_r, scroll_n = t.inv.count("league_clue_box_beginner")
+        t.check("reward.scrollbox", scroll_r == "ok" and scroll_n == 1, "beginner scroll box count " .. tostring(scroll_n))
         t.exec("lamp.rub", t.player.inv_op, "cluequest_lamp", 1)
         t.ticks(3)
         t.shot("lamp.picker")
+        -- [451] the picker's confirm resumes on child 7 = Agility (enum_681)
+        t.exec("lamp.agility", t.ui.press_pause, "xpreward:universe", 7, "xpreward:confirm")
+        t.ticks(2)
+        t.expect("lamp.granted", t.msg.expect("300 Agility experience"))
+        local lamp2_r, lamp2_n = t.inv.count("cluequest_lamp")
+        t.check("lamp.used", lamp2_r == "ok" and lamp2_n == 0, "antique lamp count after the rub " .. tostring(lamp2_n))
+        -- after the quest, Client of Kourend not started (index 4353 [455..461])
+        t.exec("after.talk", t.player.talk_to, "veos_visible", 1)
+        t.exec("after.chat", t.chat.play, {
+            "player:Hello Veos", "npc:Hello there. What can I do for you?", "options",
+            "choose:/Tell me more/", "player:Tell me more about Great Kourend",
+            "npc:Great Kourend is a magnificent kingdom", "end",
+        })
         t.finish(0)
     end,
 }
