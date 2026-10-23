@@ -781,6 +781,76 @@ d_player_tile(lua_State* L)
     return 2;
 }
 
+static void
+los_push_bool(
+    lua_State* L,
+    char const* name,
+    int value)
+{
+    lua_pushboolean(L, value ? 1 : 0);
+    lua_setfield(L, -2, name);
+}
+
+static void
+los_push_int(
+    lua_State* L,
+    char const* name,
+    int value)
+{
+    lua_pushinteger(L, (lua_Integer)value);
+    lua_setfield(L, -2, name);
+}
+
+/* api_drive.server_los(level, sx, sz, sw, sh, dx, dz, dw, dh) -> "ok", reading:
+ * the client's verb (plugin/torirs_plugin_drive_los.c) with the same fields,
+ * read from this process's server. Lets a scriptrun ask the server's own line
+ * routines (ToriRSServer_LosQuery) instead of answering "unsupported". */
+static int
+d_server_los(lua_State* L)
+{
+    struct ToriRSServerLosReading reading;
+    int level = (int)luaL_checkinteger(L, 1);
+    int sx = (int)luaL_checkinteger(L, 2);
+    int sz = (int)luaL_checkinteger(L, 3);
+    int sw = (int)luaL_checkinteger(L, 4);
+    int sh = (int)luaL_checkinteger(L, 5);
+    int dx = (int)luaL_checkinteger(L, 6);
+    int dz = (int)luaL_checkinteger(L, 7);
+    int dw = (int)luaL_checkinteger(L, 8);
+    int dh = (int)luaL_checkinteger(L, 9);
+
+    if( sw < 1 || sh < 1 || dw < 1 || dh < 1 )
+        return luaL_error(L, "drive.server_los: footprint %dx%d -> %dx%d has a side below 1", sw,
+                          sh, dw, dh);
+    if( level < 0 || level > 3 )
+        return luaL_error(L, "drive.server_los: level %d is out of range", level);
+    ToriRSServer_LosQuery(level, sx, sz, sw, sh, dx, dz, dw, dh, &reading);
+
+    lua_pushstring(L, "ok");
+    lua_createtable(L, 0, 12);
+    los_push_bool(L, "line_of_sight", reading.line_of_sight);
+    los_push_bool(L, "approached", reading.approached);
+    los_push_bool(L, "line_of_walk", reading.line_of_walk);
+    los_push_bool(L, "intersect", reading.intersect);
+    los_push_bool(L, "in_scene", reading.in_scene);
+    los_push_int(L, "gap", reading.gap);
+    los_push_int(L, "src_flags", reading.src_flags);
+    los_push_int(L, "dst_flags", reading.dst_flags);
+    los_push_bool(L, "blockers_truncated", reading.blockers_truncated);
+    los_push_int(L, "tick", bot_of(L)->core->tick);
+    lua_createtable(L, reading.blocker_count, 0);
+    for( int i = 0; i < reading.blocker_count; i++ )
+    {
+        lua_createtable(L, 0, 3);
+        los_push_int(L, "x", reading.blockers[i].x);
+        los_push_int(L, "z", reading.blockers[i].z);
+        los_push_int(L, "flags", reading.blockers[i].flags);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_setfield(L, -2, "blockers");
+    return 2;
+}
+
 /* api_drive.instance_zone(x, z, level) -> result, { template_x, template_z,
  * template_level, rotation }: the instance template zone the client was sent
  * for that tile (REBUILD_REGION; ScriptrunCore_InstanceZone). The live
@@ -4218,6 +4288,7 @@ push_drive_table(
     bind(L, bot, "if_drag", d_if_drag);
     bind(L, bot, "resume_script", d_resume_script);
     bind(L, bot, "player_tile", d_player_tile);
+    bind(L, bot, "server_los", d_server_los);
     bind(L, bot, "instance_zone", d_instance_zone);
     bind(L, bot, "player_idle", d_player_idle);
     bind(L, bot, "vessel", d_vessel);

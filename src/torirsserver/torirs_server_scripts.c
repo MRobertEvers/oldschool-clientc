@@ -10986,6 +10986,33 @@ script_command(
         return 1;
     }
 
+    /*
+     * npc_approached(coord)(boolean) -- the active npc's ranged reach to
+     * `coord` as the engine's ranged combat asks it: cast backwards from the
+     * tile to the npc's footprint (ToriRSServer_NpcRangedApproached). The
+     * Colosseum's monsters fire on it (RSProx, 2026-10-23).
+     */
+    case SS_OP_NPC_APPROACHED:
+    {
+        int32_t coord;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &coord) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_approached with no active npc");
+            return 1;
+        }
+        if( coord_level(coord) != npc->level )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_NpcRangedApproached(npc, coord_x(coord), coord_z(coord)) ? 1 : 0);
+        return 1;
+    }
+
     case SS_OP_NPC_FACESQUARE:
     {
         int32_t coord;

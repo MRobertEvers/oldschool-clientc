@@ -622,10 +622,11 @@
 #define SS_OP_P_DODGETICK 11283
 #define SS_OP_SOUND_AREA_LOOPS 11284
 #define SS_OP_CAM_UNLOCK 11285
+#define SS_OP_NPC_APPROACHED 11286
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11286
+#define SS_OPCODE_MAX 11287
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 600
+#define SS_OPCODE_COUNT 601
 
 #endif

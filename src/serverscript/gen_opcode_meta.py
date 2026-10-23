@@ -1258,6 +1258,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # all seven of Misthalin Mystery's scenes).
     "CAM_UNLOCK": (11285, 1, 0, 0, 0),
 
+    # npc_approached(coord $coord)(boolean)
+    #
+    # The active npc's ranged reach to `$coord`, cast BACKWARDS from that tile
+    # to the npc's footprint (ToriRSServer_NpcRangedApproached: LostCity's
+    # PathingEntity.inApproachDistance, the engine's own ranged-npc check).
+    # `lineofsight` is a 1x1 ray the other way. Recorded (RSProx, the Colosseum,
+    # 2026-10-23): where the two disagree the backward cast decides whether a
+    # due ranged monster fires -- 52 attacks against 4 holds (javelin, shaman).
+    "NPC_APPROACHED": (11286, 1, 0, 1, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -1900,6 +1910,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETBASESTAT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_APPROACHED": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_NPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_PROJANIM_MAP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_HUDBAR_CHECK": (1 << POINTER_BITS["active_npc"], 0),

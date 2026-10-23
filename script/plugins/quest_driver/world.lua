@@ -2247,9 +2247,20 @@ function QD.world.los(from, to, opts)
         return "refused", "world.los: routine must be approached, line_of_sight or line_of_walk, got "
             .. tostring(routine)
     end
-    local pack_result, pack = api_drive.server_npc_pack(0)
-    if pack_result ~= "ok" then
-        return pack_result, "world.los: no driven player on the server (" .. pack_result .. ")"
+    -- The pack is read only for an end that needs it ("player", an npc row, a
+    -- tile with no level): two tiles with levels need no driven player, so a
+    -- scriptrun (no server_npc_pack) can ask too.
+    local function tile_only(spec)
+        return type(spec) == "table" and spec.client_slot == nil and spec.npc_id == nil
+            and (spec.level ~= nil or spec[3] ~= nil)
+    end
+    local pack = {}
+    if not (tile_only(from) and tile_only(to)) then
+        local pack_result
+        pack_result, pack = api_drive.server_npc_pack(0)
+        if pack_result ~= "ok" then
+            return pack_result, "world.los: no driven player on the server (" .. pack_result .. ")"
+        end
     end
     local a, why_a = QD.world._los_footprint(from, pack)
     if a == nil then

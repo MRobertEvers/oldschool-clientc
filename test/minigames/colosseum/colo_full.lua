@@ -87,6 +87,13 @@ return {
         ok = t.await({ level = function() return t.world.loc_near("colosseum_reward", 15) == "ok" end, note = "chest" }, 30)
         t.check("chest", ok == "ok", "no chest")
         t.ticks(4)
+        -- Out by Minimus's Leave (op3) and "Yes.", as 78 of the 95 recorded exits.
+        t.ticklog.mark("leave")
+        t.player.talk_to("colosseum_master", 3)
+        t.chat.choose("Yes.")
+        ok = t.await({ level = function() local _, tile = t.world.tile() return tile and tile.z > 9000 end, note = "lobby" }, 20)
+        t.check("leave.lobby", ok == "ok", "never reached the lobby")
+        t.ticks(6)
         t.expect("colo_full.run", "ok", string.format("ended on tick %d", now(t)))
     end,
 }

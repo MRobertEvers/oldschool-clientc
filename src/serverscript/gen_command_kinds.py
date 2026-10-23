@@ -92,6 +92,7 @@ EXTRA_DECLARATIONS = [
     "[command,npc_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,hitmark_bar](int $uid, int $self, int $other, int $amount, int $healthbar, int $fill)",
     "[command,npc_facedir](coord $coord)",
+    "[command,npc_approached](coord $coord)(boolean)",
     "[command,npc_setblockwalk](int $blockwalk)",
     "[command,cam_moveto_cycles](coord $coord, int $height, int $cycles, int $ignore_terrain, int $easing)",
     "[command,cam_rotateto_coordinate](coord $coord, int $height, int $cycles, int $easing)",

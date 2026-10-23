@@ -6510,6 +6510,9 @@ void ToriRSServer_TicklogHitPlayer(const struct ToriRSServer* srv,
                                    int hitsplat, int dealer_pid, int raw);
 void ToriRSServer_TicklogHitNpc(const struct ToriRSServer* srv, int slot, int damage, int hitsplat,
                                int raw, int dealer_pid);
+/* The ranged npc's line to (px, pz) the engine's own combat asks: the
+ * backward ray from that tile to the npc's footprint (npc_approached). */
+int ToriRSServer_NpcRangedApproached(const struct ToriRSServerNpc* npc, int px, int pz);
 void ToriRSServer_TicklogNpcSpawn(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcDeath(const struct ToriRSServer* srv, int slot);
 void ToriRSServer_TicklogNpcFree(const struct ToriRSServer* srv, int slot);

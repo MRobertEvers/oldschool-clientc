@@ -13,6 +13,10 @@ import os
 LAND = (1824, 3094)
 
 
+ANGLES = {0: "south", 256: "south-west", 512: "west", 768: "north-west", 1024: "north",
+          1280: "north-east", 1536: "east", 1792: "south-east"}
+
+
 def unpack(c):
     c = int(c)
     return ((c >> 14) & 0x3fff, c & 0x3fff, (c >> 28) & 3)
@@ -107,8 +111,13 @@ def convert(path):
             e = npc_ev(t, slot, "add")
             e["mv"] = "add"
             e["c"] = [tile[slot][0], tile[slot][1], lv]
-            e["angle"] = {0: "south", 256: "south-west", 512: "west", 768: "north-west", 1024: "north",
-                          1280: "north-east", 1536: "east", 1792: "south-east"}.get(int(a[3]), a[3])
+            e["angle"] = ANGLES.get(int(a[3]), a[3])
+        elif kind == "npc_info" and a[2] == "1":
+            # The add's angle as NPC_INFO sent it (end of tick, after the script's
+            # npc_facedir); the spawn row's is from the moment of npc_add.
+            e = cur.get((t, int(a[0])))
+            if e and e["mv"] == "add":
+                e["angle"] = ANGLES.get(int(a[3]), a[3])
         elif kind == "npc_tile":
             slot = int(a[0])
             new = tr(int(a[1]), int(a[2]))
@@ -172,7 +181,10 @@ def convert(path):
             last_pl = c
         elif kind == "hit_player":
             e = pl_ev(t)
-            e["b"].append(["hit", {"id": 16 if int(a[3]) == 28 else (12 if int(a[3]) == 26 else int(a[3])), "value": int(a[2])}])
+            # `raw`: the damage the content dealt, before ::god zeroed the splat.
+            raw = int(a[-1]) if a[-1].lstrip("-").isdigit() else int(a[2])
+            e["b"].append(["hit", {"id": 16 if int(a[3]) == 28 else (12 if int(a[3]) == 26 else int(a[3])), "value": int(a[2]),
+                                   "raw": raw}])
         elif kind == "raider":
             ev.append({"t": t, "k": "var", "id": 4101, "name": "prayer_allactive", "old": None, "new": int(a[3]), "vk": "varbit"})
         elif kind == "varp":

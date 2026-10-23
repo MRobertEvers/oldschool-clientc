@@ -74,6 +74,24 @@ in at the centre 1824,3104 instead.
 **Solarflare** adds four `colosseum_solar_flare` at the pillar corners 1819,3101 1819,3112
 1830,3101 1830,3112 (103 each).
 
+### 1.3 Every other spawn, and the spawn angles (`q_spawn2.py`, `q_angles.py`, `q_minimus*.py`, `q_totem_ang*.py`, `q_bee_step.py`)
+
+- **Spawn angle per type**: every monster, Sol, the crystals, solar flares and swarms are
+  added facing south (all of them, both sides). Gibs face the way the npc died, all eight
+  directions (ours too since `npc_facedir` is aimed one tile from the gib's SW tile).
+- **Minimus at D+3**: one tile north of the player, facing south (424/424 with that tile
+  walkable); a blocked north puts him east facing west (13/13), north, east and south blocked
+  west facing east (1/1; south before west unverified). The cash-out Minimus at 1830,3103
+  faces west (67/67).
+- **Bee jar**: thrown from the tile 5 north of its landing (62/62); its three sounds play at
+  the arena centre 1824,3104, not the jar (30/30, 30/30, 25/25). The swarm steps on add+1,
+  then every 2 (54/58), none on its add tick, so it is added facing south (62/62).
+- **Totem**: the tile SW of its monster's SW tile, facing NE (100/107); a blocked diagonal
+  puts it NE of the monster's NE tile facing SW (index 1229 [1487] [2313] [3550]). Four (two
+  east, two south, on the normal tile) are unexplained.
+- **Crystals** land on the 12 recorded tiles (both sides); the Dynamic Duo partner is on
+  ring 2 around its post (26 recorded, all ring 2).
+
 ## 2. The Fremennik trio (archer 12814, seer 12815, berserker 12816)
 
 `colo_attacks.py`, 2,768 attacks:
@@ -193,6 +211,21 @@ in at the centre 1824,3104 instead.
   (Sol's HUD 1112 -> 1113 at 1348, 1448, 1548: why a Sol kill totals 1501). The
   levels are the cache's.
 
+## 5f. Line of sight (`q_los_states2.py`, `colo_los_probe*.lua`, `q_los.py`, `q_los_step.py`)
+
+The server's own routines (`t.world.los`, now answered in scriptrun too: `server_los`)
+asked for every recorded (npc, player) pair, 16,427 of them. The arena's sight blockers are
+four 3x3 pillars (1816..1818 / 1831..1833 x 3098..3100 / 3113..3115).
+- **Attacks need the backward cast** (player tile -> the npc's footprint, the engine's
+  ranged reach): where it and a forward ray disagree the monsters follow it (javelin 24
+  attacks / 0 holds, shaman 28 / 4; forward-only: 1 / 17). Ours fires on `npc_approached`.
+- **Within reach a monster stands, seeing the player or not** (the safespot): no-sight
+  ticks within reach held 96-97 % (javelin 17,099 / 667 moved, manticore 11,753 / 441,
+  shockwave 2,807 / 150, shaman 10,847 / 310); they move from distance reach + 1 (shaman 11,
+  colossi 16). The step rule then matches javelin 96.0 %, manticore 95.6 %, shockwave
+  94.1 %, shaman 95.9 % of recorded ticks (was 72-95 % with "walk until in sight").
+  Ours holds 100 % (`colo_safe.lua` and the full runs).
+
 ## 6. Damage (all monsters)
 
 `colo_damage.py` (splats only one attack can explain):
@@ -203,6 +236,20 @@ in at the centre 1824,3104 instead.
 - Unprayed values against the wiki max hits: archer 0..14 flat (302; five above 14 under
   Relentless), seer max 12, berserker 29, shaman 28 (29 once, Relentless), javelin 48, jaguar
   48 per hit, minotaur 51 (n=12). The wiki's max hits stand.
+
+- **Ours** (`q_dmg.py`, the tick log's raw column, 30 runs): the same max hits, plus
+  Relentless's +1/+3/+6; non-zero hits uniform (archer 7.8 for 1..15 under Relentless I).
+  The recorded shaman and jaguar hits sit high (2 of 26 shaman hits in 1..9, 1 of 17 jaguar
+  in 1..14; p 0.01, 0.04) with no mechanism on the wiki ("each hit having its own
+  independent accuracy and strength roll"): left as uniform, an open observation.
+- **Landing ticks** (`q_hitxc.py`, `q_hitxc_d.py`: splats per offset from each attack):
+  the shockwave's splat is on T + endtime / 30 rounded down (endtime 92..116 +3, 124..148 +4,
+  156..172 +5, 180..204 +6; ours was a tick late from 108); the rest match (projectiles
+  T + (et + 15) / 30, the trio and minotaur +1, the jaguar T, manticore orbs +1 each).
+- **Projectiles** (`q_proj.py`, the wirelog): start, end against distance, angle and
+  progress match for every Colosseum id (1459, 2673, 2520, 2681/2683/2685, 2687, 2708,
+  2709). The manticore orders: mage first 58 % outside Mantimayhem III (558 / 964; z 4.3
+  against even), any of six under III.
 
 ## 7. The intermission and the modifier offer
 
@@ -224,6 +271,10 @@ next "Wave: N" and its adds **5 ticks** after the confirm (index 1223 [106]->[11
   modifier weight **6**, any other 1 (log-likelihood -2139.7; weights 5/7/8: -2146.6/
   -2140.5/-2145.8; uniform -2546.7; "up to two upgrade slots" models at best -2166.4).
   The cards are shown in draw order: card 1 is held 386/486, card 3 unheld 457/486.
+
+**Timings across every session** (`q_flow.py`, 471 confirms, 438 intermissions): Minimus
+and the modal at D+3 (D+8 after wave 11); the confirm's synth 8010 and Minimus's `[del]`
+on one tick, the wave's adds 5 after (451; 18 at 11). Ours: the same.
 
 ## 8. Entry, lobby, cash-out, chest
 
@@ -252,6 +303,20 @@ next "Wave: N" and its adds **5 ticks** after the confirm (index 1223 [106]->[11
 - **The chest** (oploc1, L+1): varbit 9802 1, modal 864, clientscripts 4923 `(wave, heldmask)`
   and 4929 `(value)`, `if_setevents` 864:11 0..26 OP1 and 864:17 0..30 OP1-5, the value text,
   `interface_inv_init` over inv 843; the "Valuable drop" and collection-log lines at L+2.
+
+- **Entry, every session** (104 entries, `q_flow.py`): L+1 the op, L+2 the fade, L+3 the
+  minimap, L+5 the copy (E), the seated Sol E+1, Minimus 3 after it, "Let me know..." and
+  busy 0 3 after him (104/104); the walk in is WALKED with the run orb on (104/105, the orb
+  on in 110/110): seven single steps to 1824,3101. Ours: the same (`p_runblock(8, "")`).
+- **Leave** (Minimus op3, "Yes."; 80 exits, `q_exit.py`): the choice X-2 with the fade, the
+  minimap X-1, the lobby X on a tile within 1 of 1802,9506 (all nine), X+2 the fade in,
+  the minimap, busy 0, multiway 0 and the lobby's track three times (787 or 811 at random,
+  25/20: no ramp, then 0,60,60,0 twice).
+- **Death** (12): `human_death` K+3, the lobby 4 ticks later on a tile within 2 of
+  1802,9506 (12 tiles), "Oh dear, you are dead!", the minimap, song 147 and `you_are_dead`
+  (jingle 90, length 4,718 ms) on X; X+1 busy 0, multiway 0 and the lobby's track. Ours
+  sent a Colosseum death to the Ancient Prison (2900,5203: God Wars' Nex rectangle read in
+  the copy) until `death.rs2` skipped that check for it.
 
 ## 9. Glory (varp4132, on the completion tick)
 
@@ -487,9 +552,19 @@ recorders' projectiles under Myopia, 7 Frailty waves, 6 Doom waves).
 | Volatility gib on the `[del]` tick, sound by level, centre tile | yes | 126/126 |
 | Reentry T+3 anim, T+6 pool + sound, T+7 thrown pools | yes | yes |
 | Reentry I pools cleared on completion, II/III kept | yes | yes |
+| spawn angles per type, Minimus fallback, jar source and sounds, swarm's first step | yes | yes |
+| ranged attack on the backward cast; stand within reach out of sight | 96-97 % | 100 % |
+| shockwave splat T + et / 30; manticore mage first 58 % | yes | yes |
+| entry L+1..L+9, walked walk-in, confirm +5, D+3 | yes | yes (30/30) |
+| leave and death exits: ticks, tiles, music, jingle length | yes | yes (30 + 6) |
 
 ## 13. Open gaps
 
+- **Shaman and jaguar damage** sits high in the recordings (see §6); ours is uniform.
+- **Four totems** face east or south on the normal tile (§1.3), unexplained.
+- **A monster that moves and fires on one tick** is judged by the forward ray from its
+  predicted tile (`npc_approached` reads the footprint it stands on).
+- The **outside entrance** to the lobby (50749) is implemented but no test drives it.
 - **Projectile heights** are sent as the script's value x 4, so raw heights that are not
   multiples of 4 come out 1-2 raw units off (146 -> 148, 163 -> 164, 138 -> 140, 50 -> 48).
   The engine's convention for every projectile; not changed for this content.

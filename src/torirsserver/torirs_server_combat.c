@@ -4072,6 +4072,16 @@ npc_ranged_approached(
     return ToriRSServer_SceneApproached(npc->level, npc->x, npc->z, px, pz, npc_size, npc_size, 1, 1);
 }
 
+int
+ToriRSServer_NpcRangedApproached(
+    const struct ToriRSServerNpc* npc,
+    int px,
+    int pz)
+{
+    assert(npc);
+    return npc_ranged_approached(npc, px, pz, npc->size > 0 ? npc->size : 1);
+}
+
 void
 ToriRSServer_CombatNpcTick(
     struct ToriRSServer* srv,

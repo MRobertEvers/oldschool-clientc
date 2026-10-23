@@ -3395,10 +3395,13 @@ advance_player(struct ToriRSServer* srv)
     if( player->running && srv->tick < player->run_block_until )
     {
         player->running = 0;
+        /* An empty text blocks the run silently: a forced walk (the
+         * Colosseum's walk-in, run orb on, 104/105 walked) says nothing. */
         if( !player->run_block_told && player_has_waypoints(player) )
         {
             player->run_block_told = 1;
-            ToriRSServer_SendMessage(player, player->run_block_text);
+            if( player->run_block_text[0] != '\0' )
+                ToriRSServer_SendMessage(player, player->run_block_text);
         }
     }
     max_tiles = player->running ? 2 : 1;
