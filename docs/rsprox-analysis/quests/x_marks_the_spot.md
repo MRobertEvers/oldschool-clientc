@@ -194,8 +194,13 @@ built by a clientscript scriptrun does not run). Tick log rows and
   (confirmdestroy).
 - Clientscript coord arguments are typed `i` on our wire.
 - The orb's band edges are ours (no feel between 12 and 61, nor beyond 95).
-- The beginner scroll box has no Open op in our tree yet: the reward is the
-  recorded item, but it cannot be opened until scroll boxes are built.
+- Scroll boxes (2026-10-23, `trail/scripts/trail_scrollbox.rs2`, test
+  `test/quests/_scrollbox.lua`): Open, the cap, and box drops after this quest,
+  from eleven recorded opens (indexes 1025, 3907, 3909) and the refusal and
+  cap lines (indexes 231, 3910, 938). Not built: picking up boxes past the cap
+  ("Some of your Scroll Boxes were destroyed..."), scrolls held in the bank
+  counting against the cap, and the wiki's "only if you don't already have
+  one" on this quest's box.
 - Unrecorded and kept from the wiki: "Who are you?", the spade advice pages,
   "No." at the start menu, the mid-quest hint menu, the casket's Open, options
   1 and 3 of the post-quest menu, and the full-backpack lines.
