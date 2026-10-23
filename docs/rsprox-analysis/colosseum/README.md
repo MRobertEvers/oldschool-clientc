@@ -176,6 +176,23 @@ in at the centre 1824,3104 instead.
 - Kinds only the recorder causes: `face_pathingentity` (their click), sanguinesti heals,
   ice barrage / splash spotanims, Leagues relics; `face_angle` is rev <= 237's facing.
 
+## 5e. Pathing and stats (`q_paths.py`)
+
+- **First step**: the trio at add+2 (1,494/1,498), every other monster at add+1.
+- **Steps**: the trio run (2 a tick, 80 %), the rest walk. A step is diagonal while both
+  offsets to the target are 2+ (jaguar 100/123, shaman 191/219 with the player standing);
+  a straight step there is another monster on the diagonal (55 of 75 straight steps with
+  it occupied, 58 of 649 with it free: the pillars).
+- **Who blocks**: the trio run THROUGH the other monsters (8 % of their steps end in one,
+  700/9,340: `moverestrict=passthru`); everything else is blocked by them (under 2 %).
+- **Stops**: melee types in reach (distance 1: 85-96 %); the ranged ones where the player
+  is in reach and in sight, so wherever the player moved.
+- **Hitpoints** (the damage that kills, every recorded life): archer 50, seer 50,
+  berserker 48, shaman 125, jaguar 125, javelin 220, shockwave 125, minotaur 225,
+  manticore 250, Sol 1500 (`hpbar_hud_basehp` 1500). All regenerate 1 every 100 ticks
+  (Sol's HUD 1112 -> 1113 at 1348, 1448, 1548: why a Sol kill totals 1501). The
+  levels are the cache's.
+
 ## 6. Damage (all monsters)
 
 `colo_damage.py` (splats only one attack can explain):
@@ -307,7 +324,8 @@ his 5x5, 347/347 spears):
   47/45/8 %; ours with a kiting player (`colo_sol_kite.lua`, 12 fights) 67/33 and
   43/40/14.
 
-**Phases** at 90/75/50/25/10% (the says, on the first tick below): "Let's start by testing
+**Phases** at 90/75/50/25/10%: the line takes the place of the next attack due after the
+crossing (0..8 ticks after it; his last attack exactly its own gap before, 76/76), the says: "Let's start by testing
 your footwork." (at the start), "Not bad. Let's try something else...", "Impressive. Let's
 see how you handle this...", "You can't win!", "Ralos guides my hand!", "LET'S END THIS!".
 Each line P: P+1 six lightning strikes `vfx_colosseum_sunfire_lightning_01_beam_01` 2698
@@ -452,6 +470,9 @@ recorders' projectiles under Myopia, 7 Frailty waves, 6 Doom waves).
 | Sol gaps standing: spear 6/7, shield 5/6 | 73/27, 73/27 | 69/29, 72/27 (20 fights) |
 | Sol specials gate 38 after a short triple, 29 otherwise | yes | yes |
 | Sol short triple to next 11 / 12 | 6 / 23 | 21 / 59 |
+| Sol phase line in place of the due attack | 76/76 | 100/100 |
+| trio first step add+2; trio pass through monsters | 99 %, 8 % | 100 %, 2-7 % |
+| hitpoints per type | as above | the same |
 | Sol chase gaps (spear 7/8, shield 5/6/7) | 79/17, 47/45/8 | 67/33, 43/40/14 (kite) |
 | laser W: P(attack is W) at 29..35 ticks | 14..94 % | 13..99 % |
 | crystal hold gaps 9/10/11/12 | 13/13/47/27 % | 13/15/36/37 % |
