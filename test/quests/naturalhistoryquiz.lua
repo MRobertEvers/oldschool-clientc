@@ -4,13 +4,17 @@
 -- The answer key below is NOT read from the content. It is the OSRS wiki's
 -- "Natural history quiz" page (oldschool.runescape.wiki, ?action=raw, read
 -- 2026-10-15): all 84 questions, keyed by question text, valued by the
--- answer the wiki marks correct. The run clicks whichever row reads that
--- text, so a question the content shows that the wiki does not have, or a
--- right answer the content put on the wrong row, fails here.
--- Orlando Smith's lines are Transcript:Orlando_Smith from the same wiki.
+-- answer the wiki marks correct, with the wording RSProx 4340/1707 showed
+-- where the two differ. The run clicks whichever row reads that text
+-- (full stops ignored), so a question the content shows that the key does
+-- not have, or a right answer on the wrong row, fails here.
+-- Orlando Smith's lines are RSProx index 4340's pages (the recorded branches)
+-- and Transcript:Orlando_Smith (the rest).
 --
 -- Route: Lumbridge -> the museum's basement stairs (3255,3451, Walk-down),
--- then Orlando (1759,4955) and the 14 plaques room by room.
+-- then Orlando (1759,4955), each display's Button and plaque room by room,
+-- the reward, and both basement stair pairs (docs/rsprox-analysis/quests/
+-- natural_history_quiz.md).
 return {
     id = "naturalhistoryquiz",
     fixture = "fresh_lumbridge.ini",
@@ -34,7 +38,7 @@ return {
         ['If a tortoise had twenty rings on its shell, how old would it be?'] = "Twenty years",
         ['Which race breeds tortoises for battle?'] = "Gnomes",
         ['What is considered a delicacy by dragons?'] = "Runite",
-        ["What is the best defence against a dragon's attack?"] = "Anti-dragon-breath shield",
+        ["What is the best defence against a dragon's attack?"] = "Anti dragon-breath shield",
         ['How long do dragons live?'] = "Unknown",
         ['Which of these is not a type of dragon?'] = "Elemental",
         ['What is the favoured territory of a dragon?'] = "Old battle sites",
@@ -72,7 +76,7 @@ return {
         ['Kalphites are ruled by a...?'] = "Pasha",
         ['What is the lowest caste in kalphite society?'] = "Worker",
         ['What are the armoured plates on a kalphite called?'] = "Lamellae",
-        ['Are kalphites carnivores, herbivores, or omnivores?'] = "Carnivores",
+        ['Are kalphites carnivores, herbivores or omnivores?'] = "Carnivores",
         ['What are kalphites assumed to have evolved from?'] = "Scarab beetles",
         ['Name the prominent figure in kalphite mythology?'] = "Scabaras",
         ["What is a terrorbird's preferred food?"] = "Anything",
@@ -103,42 +107,34 @@ return {
         ["What shape is the inside of a leech's mouth?"] = "'Y'-shaped",
         ['Which of these is not eaten by leeches?'] = "Apples",
         ['What contributed to the giant growth of Morytanian leeches?'] = "Environment",
-        ['What is special about the Morytanian leeches?'] = "They attack by jumping",
+        ['What is special about Morytanian leeches?'] = "They attack by jumping",
         ['How does a leech change when it feeds?'] = "It doubles in size",
         }
         local function norm(s)
-            return string.lower((string.gsub(s or "", "%s", "")))
+            return string.lower((string.gsub(s or "", "[%s%.]", "")))
         end
         local ANSWER = {}
         for q, a in pairs(KEY) do
             ANSWER[norm(q)] = a
         end
 
-        -- Display number, plaque, plaque tile, progress varbit, the model the
-        -- interface must show, and the wiki's scientific name.
+        -- Display number, plaque and tile, Button and tile, progress varbit,
+        -- and the panel title every open sends (RSProx 4340).
         local DISPLAYS = {
-            { key = "lizard", n = 4, plaque = "vm_plaque_lizard", at = { 1743, 4978 }, var = "varb3675_vm_nathis_lizard_display", model = "vm_nathis_lizard", sci = "Lacertilia Giganteus" },
-            { key = "tortoise", n = 3, plaque = "vm_plaque_battle_tortoise", at = { 1753, 4978 }, var = "varb3680_vm_nathis_tortoise_display", model = "vm_nathis_battle_tortoise", sci = "Testudines Giganteus" },
-            { key = "dragon", n = 1, plaque = "vm_plaque_dragon", at = { 1768, 4978 }, var = "varb3672_vm_nathis_dragon_display", model = "vm_nathis_dragon_01", sci = "Draconis Rex" },
-            { key = "wyvern", n = 2, plaque = "vm_plaque_wyvern", at = { 1778, 4978 }, var = "varb3681_vm_nathis_wyvern_display", model = "vm_nathis_wyvern", sci = "Draconis Ossis" },
-            { key = "snail", n = 14, plaque = "vm_plaque_snail", at = { 1776, 4963 }, var = "varb3674_vm_nathis_snail_display", model = "vm_nathis_snail", sci = "Achatina Acidia Giganteus" },
-            { key = "snake", n = 13, plaque = "vm_plaque_snake", at = { 1783, 4963 }, var = "varb3677_vm_nathis_snake_display", model = "vm_nathis_snake", sci = "Serpentes Fellis" },
-            { key = "monkey", n = 11, plaque = "vm_plaque_monkey", at = { 1774, 4957 }, var = "varb3676_vm_nathis_monkey_display", model = "vm_nathis_monkey", sci = "Simiiformes Karamjan" },
-            { key = "seaslug", n = 12, plaque = "vm_plaque_seaslug", at = { 1781, 4957 }, var = "varb3682_vm_nathis_seaslug_display", model = "vm_nathis_seaslugs_1", sci = "Opisthobranchia Alucinor" },
-            { key = "terrorbird", n = 9, plaque = "vm_plaque_terrorbird", at = { 1755, 4940 }, var = "varb3683_vm_nathis_terrorbird_display", model = "vm_nathis_terrorbird", sci = "Aves Terror" },
-            { key = "kalphite", n = 10, plaque = "vm_plaque_kalphite_queen", at = { 1762, 4938 }, var = "varb3684_vm_nathis_kalphite_display", model = "vm_nathis_kalphite_queen", sci = "Kalphiscarabeinae Pasha" },
-            { key = "camel", n = 6, plaque = "vm_plaque_camel", at = { 1737, 4963 }, var = "varb3679_vm_nathis_camel_display", model = "vm_nathis_camel", sci = "Camelus Bactrian" },
-            { key = "leech", n = 5, plaque = "vm_plaque_leech", at = { 1744, 4963 }, var = "varb3685_vm_nathis_leech_display", model = "vm_nathis_leech", sci = "Hirudinea Acidia" },
-            { key = "mole", n = 7, plaque = "vm_plaque_mole", at = { 1735, 4957 }, var = "varb3678_vm_nathis_mole_display", model = "vm_nathis_mole", sci = "Talpidae Wysonian" },
-            { key = "penguin", n = 8, plaque = "vm_plaque_penguine", at = { 1742, 4957 }, var = "varb3673_vm_nathis_penguin_display", model = "vm_nathis_penguine", sci = "Spheniscidae Callidus" },
-        }
-        local MODELS = {
-            "vm_nathis_dragon_01", "vm_nathis_dragon_02", "vm_nathis_dragon_03", "vm_nathis_wyvern",
-            "vm_nathis_battle_tortoise", "vm_nathis_lizard", "vm_nathis_leech", "vm_nathis_camel",
-            "vm_nathis_mole", "vm_nathis_penguine", "vm_nathis_terrorbird", "vm_nathis_kalphite_queen",
-            "vm_nathis_monkey", "vm_nathis_seaslugs_1", "vm_nathis_seaslugs_2", "vm_nathis_seaslugs_3",
-            "vm_nathis_seaslugs_4", "vm_nathis_snail", "vm_nathis_snake", "vm_nathis_wrong_01",
-            "vm_nathis_wrong_02", "vm_nathis_wrong_03",
+            { key = "lizard", n = 4, plaque = "vm_plaque_lizard", at = { 1743, 4978 }, button = "vm_button_lizard", bat = { 1741, 4978 }, var = "varb3675_vm_nathis_lizard_display", model = "vm_nathis_lizard", mid = 25557, spin = 5, title = "The Giant Lizard (Lacertilia Giganteus)" },
+            { key = "tortoise", n = 3, plaque = "vm_plaque_battle_tortoise", at = { 1753, 4978 }, button = "vm_button_battle_tortoise", bat = { 1751, 4978 }, var = "varb3680_vm_nathis_tortoise_display", model = "vm_nathis_battle_tortoise", mid = 25547, spin = 5, title = "The Giant Tortoise (Testudines Giganteus)" },
+            { key = "dragon", n = 1, plaque = "vm_plaque_dragon", at = { 1768, 4978 }, button = "vm_button_dragon", bat = { 1766, 4978 }, var = "varb3672_vm_nathis_dragon_display", model = "vm_nathis_dragon_01", mid = 25551, spin = 0, title = "The Dragon (Draconis Rex)" },
+            { key = "wyvern", n = 2, plaque = "vm_plaque_wyvern", at = { 1778, 4978 }, button = "vm_button_wyvern", bat = { 1776, 4978 }, var = "varb3681_vm_nathis_wyvern_display", model = "vm_nathis_wyvern", mid = 25565, spin = 5, title = "The Wyvern (Draconis Ossis)" },
+            { key = "snail", n = 14, plaque = "vm_plaque_snail", at = { 1776, 4963 }, button = "vm_button_snail", bat = { 1775, 4963 }, var = "varb3674_vm_nathis_snail_display", model = "vm_nathis_snail", mid = 25562, spin = 5, title = "The Giant Snail (Achatina Acidia Giganteus)" },
+            { key = "snake", n = 13, plaque = "vm_plaque_snake", at = { 1783, 4963 }, button = "vm_button_snake", bat = { 1782, 4963 }, var = "varb3677_vm_nathis_snake_display", model = "vm_nathis_snake", mid = 25563, spin = 5, title = "The Snake (Serpentes Fellis)" },
+            { key = "monkey", n = 11, plaque = "vm_plaque_monkey", at = { 1774, 4957 }, button = "vm_button_monkey", bat = { 1775, 4957 }, var = "varb3676_vm_nathis_monkey_display", model = "vm_nathis_monkey", mid = 25559, spin = 5, title = "The Monkey (Simiiformes Karamjan)" },
+            { key = "seaslug", n = 12, plaque = "vm_plaque_seaslug", at = { 1781, 4957 }, button = "vm_button_seaslug", bat = { 1782, 4957 }, var = "varb3682_vm_nathis_seaslug_display", model = "vm_nathis_seaslugs_1", mid = 25561, spin = 0, title = "The Sea Slug (Opisthobranchia Alucinor)" },
+            { key = "terrorbird", n = 9, plaque = "vm_plaque_terrorbird", at = { 1755, 4940 }, button = "vm_button_terrorbird", bat = { 1755, 4939 }, var = "varb3683_vm_nathis_terrorbird_display", model = "vm_nathis_terrorbird", mid = 25564, spin = 5, title = "The Terrorbird (Aves Terror)" },
+            { key = "kalphite", n = 10, plaque = "vm_plaque_kalphite_queen", at = { 1762, 4938 }, button = "vm_button_kalphite_queen", bat = { 1762, 4939 }, var = "varb3684_vm_nathis_kalphite_display", model = "vm_nathis_kalphite_queen", mid = 25554, spin = 5, title = "The Kalphite Queen (Kalphiscarabeinae Pasha)" },
+            { key = "camel", n = 6, plaque = "vm_plaque_camel", at = { 1737, 4963 }, button = "vm_button_camel", bat = { 1736, 4963 }, var = "varb3679_vm_nathis_camel_display", model = "vm_nathis_camel", mid = 25548, spin = 5, title = "The Camel (Camelus Bactrian)" },
+            { key = "leech", n = 5, plaque = "vm_plaque_leech", at = { 1744, 4963 }, button = "vm_button_leech", bat = { 1743, 4963 }, var = "varb3685_vm_nathis_leech_display", model = "vm_nathis_leech", mid = 25555, spin = 5, title = "The Giant Leech (Hirudinea Acidia)" },
+            { key = "mole", n = 7, plaque = "vm_plaque_mole", at = { 1735, 4957 }, button = "vm_button_mole", bat = { 1736, 4957 }, var = "varb3678_vm_nathis_mole_display", model = "vm_nathis_mole", mid = 25558, spin = 5, title = "The Giant Mole (Talpidae Wysonian)" },
+            { key = "penguin", n = 8, plaque = "vm_plaque_penguine", at = { 1742, 4957 }, button = "vm_button_penguine", bat = { 1743, 4957 }, var = "varb3673_vm_nathis_penguin_display", model = "vm_nathis_penguine", mid = 25560, spin = 5, title = "The Penguin (Spheniscidae Callidus)" },
         }
         local function c(name)
             return IFACE .. ":" .. name
@@ -153,27 +149,14 @@ return {
 
         -- Orlando, by the progress state his transcript branches on.
         local function talk_orlando(step, lines)
+            t.ticklog.mark("leg." .. step)
             t.exec("goto-" .. step, t.player.goto_tile, 1759, 4957, 0)
             t.exec(step, t.player.talk_to, "vm_nathis_apprentice", 1)
             t.exec(step .. "-dialog", t.chat.play, lines)
             t.ticks(2)
         end
 
-        -- Only the display's own model may be shown (the 22 viewports are
-        -- ungrouped and default visible: interface comment in the .rs2).
-        local function check_models(step, want)
-            local shown = {}
-            for i = 1, #MODELS do
-                local r, s = t.ui.shown(c(MODELS[i]))
-                if r == "ok" and s then
-                    shown[#shown + 1] = MODELS[i]
-                end
-            end
-            t.check(step .. ".model", #shown == 1 and shown[1] == want,
-                "shown models: " .. (#shown > 0 and table.concat(shown, ",") or "none") .. " (want only " .. want .. ")")
-        end
-
-        -- The question on screen and the row the wiki's answer sits on.
+        -- The question on screen and the row the key's answer sits on.
         local function read_question(step)
             local qr, q = t.ui.text(c("vm_nathis_question"))
             local rows = {}
@@ -190,8 +173,8 @@ return {
             end
             t.check(step .. ".question", slot ~= nil,
                 "'" .. tostring(q) .. "' rows [" .. tostring(rows[1]) .. " | " .. tostring(rows[2]) .. " | "
-                    .. tostring(rows[3]) .. "]; wiki answer " .. tostring(want)
-                    .. (slot and (" on row " .. slot) or (want and " on NO row" or " (question not on the wiki)")))
+                    .. tostring(rows[3]) .. "]; key answer " .. tostring(want)
+                    .. (slot and (" on row " .. slot) or (want and " on NO row" or " (question not in the key)")))
             return slot, q
         end
 
@@ -215,25 +198,51 @@ return {
             }, 5))
         end
 
+        -- The plaque as every open sends it: the number, the title, the quiz
+        -- group shown (or the creature group, once the display is done).
+        local function check_panel(step, d)
+            t.expect(step .. ".open", t.ui.await_open(IFACE, 20))
+            t.expect(step .. ".number", t.ui.expect_text(c("vm_nathis_display_num"), "/^" .. d.n .. "$/"))
+            t.expect(step .. ".title", t.ui.expect_text(c("vm_nathis_text"), d.title))
+            -- creature_text ships hidden=yes and the quiz never touches it;
+            -- scriptrun does not model the cache's flag, so it is not graded.
+            local qs, ql = t.ui.shown(c("vm_nathis_quiz_text"))
+            t.check(step .. ".layer", qs == "ok" and ql == true, "quiz_text shown=" .. tostring(ql))
+            -- Live client only: scriptrun answers `unsupported`, and the
+            -- wire audit checks IF_SETMODEL/IF_SETROTATESPEED there instead.
+            local mr, mdetail, pose = t.ui.model_pose(c(d.model))
+            t.check(step .. ".model", mr == "unsupported" or (mr == "ok" and pose and pose.model == d.mid and pose.y_speed == d.spin),
+                tostring(mdetail) .. " model=" .. tostring(pose and pose.model) .. " (want " .. d.mid .. ", spin 0," .. d.spin .. ")")
+        end
+
         local done = 0
         local function play_display(d, opts)
             local step = d.key
+            t.ticklog.mark("leg.button." .. step)
+            t.exec("button." .. step, t.player.click_loc, d.button, 1, { at = { d.bat[1], d.bat[2], 0 } })
+            -- The longest hold is the sea slug's: release at push + 17.
+            t.ticks(22)
+            t.ticklog.mark("leg.study." .. step)
             t.exec("study." .. step, t.player.click_loc, d.plaque, 1, { at = { d.at[1], d.at[2], 0 } })
-            t.expect("study." .. step .. ".open", t.ui.await_open(IFACE, 20))
-            t.expect("study." .. step .. ".number", t.ui.expect_text(c("vm_nathis_display_num"), "/^" .. d.n .. "$/"))
-            check_models("study." .. step, d.model)
-            local qs, ql = t.ui.shown(c("vm_nathis_quiz_text"))
-            local cs, cl = t.ui.shown(c("vm_nathis_creature_text"))
-            t.check("study." .. step .. ".quiz_layer", qs == "ok" and ql == true and cs == "ok" and cl == false,
-                "quiz_text shown=" .. tostring(ql) .. " creature_text shown=" .. tostring(cl))
+            check_panel("study." .. step, d)
+
+            local asked = {}
+            local function ask(s)
+                local slot, q = read_question(s)
+                if q then
+                    t.check(s .. ".fresh", not asked[norm(q)], "'" .. tostring(q) .. "' asked twice in one sitting")
+                    asked[norm(q)] = true
+                end
+                return slot
+            end
 
             if opts and opts.wrong_first then
-                local slot = read_question(step .. ".wrong")
+                local slot = ask(step .. ".wrong")
                 if slot then
                     press(step .. ".wrong.press", "vm_nathis_answer_0" .. ((slot % 3) + 1))
                     await_page(step .. ".wrong")
                     t.exec(step .. ".wrong.verdict", t.chat.play, { "npc:Hmm, I don't think that's right, mate. Try again." })
-                    t.ticks(1)
+                    check_panel(step .. ".wrong.reopen", d)
                     t.check(step .. ".wrong.no_progress", server(d.var) == 0,
                         d.var .. " = " .. tostring(server(d.var)) .. " after a wrong answer (want 0)")
                 end
@@ -241,7 +250,7 @@ return {
 
             for k = 1, 3 do
                 local s = step .. ".q" .. k
-                local slot = read_question(s)
+                local slot = ask(s)
                 if not slot then
                     return
                 end
@@ -250,38 +259,33 @@ return {
                 local lines = { "npc:Nice job, mate. That looks about right." }
                 if k == 3 then
                     lines[#lines + 1] = "npc:Bonza, mate! I think that's all of them."
-                    if done == #DISPLAYS - 1 then
-                        lines[#lines + 1] = "npc:Well done, mate. You finished all of the displays."
-                        lines[#lines + 1] = "npc:Come over and have a chat with me. I might have something for you."
-                    end
                 end
                 t.exec(s .. ".verdict", t.chat.play, lines)
                 t.expect(s .. ".progress", t.var.await_server(d.var, k, 5))
+                if k < 3 then
+                    check_panel(s .. ".reopen", d)
+                end
             end
             done = done + 1
             t.expect(step .. ".kudos", t.var.await_server("varb3637_vm_kudos", 2 * done, 5))
-            local q2, l2 = t.ui.shown(c("vm_nathis_quiz_text"))
-            local c2, k2 = t.ui.shown(c("vm_nathis_creature_text"))
-            t.check(step .. ".reveal_layer", q2 == "ok" and l2 == false and c2 == "ok" and k2 == true,
-                "after 3 right: quiz_text shown=" .. tostring(l2) .. " creature_text shown=" .. tostring(k2))
-            t.expect(step .. ".reveal_name", t.ui.expect_text(c("vm_nathis_text"), d.sci))
-            -- Escape: com_32's Close runs clientscript 29 (onop), which only
-            -- the live client executes; Escape's CLOSE_MODAL is the same on both.
-            t.key("escape")
-            t.check(step .. ".closed", t.ui.await_close(IFACE, 10) == "ok", "escape -> " .. IFACE .. " closed")
+            t.expect(step .. ".kudos_message", t.msg.expect("You have earned Kudos with the Museum!"))
+            -- The last page closes on "Bonza": no reveal panel (4340 [479]).
+            t.ticks(2)
+            local pr, present = t.ui.shown(c("vm_nathis_question"))
+            t.check(step .. ".closed", pr ~= "ok" or present == false, "quiz interface after Bonza: " .. tostring(pr) .. " " .. tostring(present))
         end
 
+        t.ticklog.start()
         -- Into the basement.
+        t.ticklog.mark("leg.stairs-down")
         t.exec("goto-museum", t.player.goto_tile, 3256, 3449, 0)
         t.exec("stairs-down", t.player.click_loc, "vm_basement_wall_stairs_down", 1, { at = { 3255, 3451, 0 } })
         t.ticks(4)
         local _, here = t.world.tile()
-        t.check("stairs-down.landed", here ~= nil and here.level == 0 and here.x >= 1730 and here.x <= 1790
-            and here.z >= 4930 and here.z <= 4985, "after Walk-down at " .. tile_str(here) .. " (want the basement, x 1730-1790 z 4930-4985)")
+        t.check("stairs-down.landed", here ~= nil and here.x == 1759 and here.z == 4958 and here.level == 0,
+            "after Walk-down at " .. tile_str(here) .. " (want 1759,4958,0: 4340 [410])")
 
         -- A plaque before Orlando's favour: the wiki's message, no interface.
-        -- Graded on the message below: a press whose only answer is a game
-        -- message is not a world change click_loc's settle can see.
         t.player.click_loc("vm_plaque_lizard", 1, { at = { 1743, 4978, 0 } })
         t.ticks(3)
         t.expect("study-before.message", t.msg.expect("This looks like some sort of quiz. I wonder if I can take part..."))
@@ -290,7 +294,7 @@ return {
 
         local intro = {
             "npc:G'day there, mate.",
-            "player:Good day. Are you alright? You look a little lost.",
+            "player:Good day.",
             "npc:Well, mate, to tell you the truth, I think I've come a gutser with these displays.",
             "player:Come a what?",
             "npc:Gutser and no mistake. Me boss asked me to put together a quiz for the visitors.",
@@ -345,15 +349,15 @@ return {
             "reward_given = " .. tostring(server("varb3688_vm_nathis_reward_given"))
                 .. " after the last display (want 0: Orlando pays it in conversation)")
 
-        -- A finished plaque opens straight on the creature's names.
+        -- A finished plaque opens nothing: its title as a game message
+        -- (RSProx 4347, all fourteen).
         local d = DISPLAYS[3]
-        t.exec("restudy." .. d.key, t.player.click_loc, d.plaque, 1, { at = { d.at[1], d.at[2], 0 } })
-        t.expect("restudy.open", t.ui.await_open(IFACE, 20))
-        local rq, rl = t.ui.shown(c("vm_nathis_quiz_text"))
-        t.check("restudy.no_quiz", rq == "ok" and rl == false, "quiz_text shown=" .. tostring(rl))
-        t.expect("restudy.name", t.ui.expect_text(c("vm_nathis_text"), d.sci))
-        t.key("escape")
-        t.check("restudy.closed", t.ui.await_close(IFACE, 10) == "ok", "escape -> " .. IFACE .. " closed")
+        t.ticklog.mark("leg.restudy")
+        t.player.click_loc(d.plaque, 1, { at = { d.at[1], d.at[2], 0 } })
+        t.ticks(3)
+        t.expect("restudy.message", t.msg.expect(d.title))
+        local rr, rshown = t.ui.shown(c("vm_nathis_question"))
+        t.check("restudy.no_interface", rr ~= "ok" or rshown == false, "quiz interface " .. tostring(rr) .. " " .. tostring(rshown))
 
         local _, snap = t.skill.snapshot()
         talk_orlando("orlando-reward", {
@@ -368,6 +372,7 @@ return {
             "player:Goodbye.",
         })
         t.expect("orlando-reward.flag", t.var.await_server("varb3688_vm_nathis_reward_given", 1, 5))
+        t.expect("orlando-reward.message", t.msg.expect("You have gained 1000xp in Slayer and Hunter."))
         t.expect("orlando-reward.hunter", t.skill.expect_gain("hunter", 1000, snap))
         t.expect("orlando-reward.slayer", t.skill.expect_gain("slayer", 1000, snap))
         t.expect("orlando-reward.kudos", t.var.await_server("varb3637_vm_kudos", 28, 5))
@@ -376,6 +381,78 @@ return {
         talk_orlando("orlando-after", { "npc:Thanks for all your help, mate. Hope you enjoy the museum!" })
         t.expect("orlando-after.hunter_paid_once", t.skill.expect_gain("hunter", 0, snap2))
         t.expect("orlando-after.slayer_paid_once", t.skill.expect_gain("slayer", 0, snap2))
+
+        -- A natural historian: the introduction once, then his menu
+        -- (wiki Transcript:Natural_historian; no recording talks to one).
+        t.ticklog.mark("leg.historian")
+        t.exec("goto-historian", t.player.goto_tile, 1757, 4946, 0)
+        t.exec("historian", t.player.talk_to, "vm_natural_historian_south", 1)
+        t.exec("historian-dialog", t.chat.play, {
+            "npc:Hello there and welcome to the Natural History exhibit",
+            "player:Hello. So what is it you do here?",
+            "npc:Well, we look after all of the research in this section.",
+            "npc:When I'm not doing that",
+            "player:Nice. So then, I've got a few questions for you.",
+            "npc:Well, fire away",
+            "choose:Tell me about natural history.",
+            "player:Tell me about natural history.",
+            "npc:Well, the field of natural history covers a wide range of sciences.",
+            "npc:So we use biology",
+            "npc:Though the field is growing all the time",
+            "npc:A person interested in natural history is known as a naturalist.",
+        })
+        t.expect("historian.spiel", t.var.await_server("varb3687_vm_nathis_got_spiel", 1, 5))
+        t.ticks(2)
+        t.exec("historian-again", t.player.talk_to, "vm_natural_historian_south", 1)
+        t.exec("historian-again-dialog", t.chat.play, {
+            "npc:Hello again",
+            "player:I was hoping you could tell me about something.",
+            "choose:Tell me about terrorbirds.",
+            "player:Tell me about the terrorbirds.",
+            "npc:Ahh terrorbirds, the fastest bird on two legs.",
+            "npc:If you just follow me to the display case",
+            "npc:Terrorbirds live in nomadic groups",
+            "npc:They mainly feed on seeds and other plants.",
+            "npc:They have no teeth to chew with",
+            "npc:They can go without water for a long time",
+            "npc:Terrorbirds are known to eat almost anything",
+            "npc:Terrorbirds usually weigh a little less than a small unicorn.",
+            "npc:There are claws on two of the wings' fingers",
+            "npc:This is an adaptation unique to terrorbirds",
+            "npc:The gnomes in particular",
+            "npc:There are a number of recorded incidents",
+            "npc:A terrorbird is so fast",
+            "npc:And this concludes my short lecture on terrorbirds.",
+        })
+
+        -- The female teacher and pupil in the west wing (4340 [795..796]).
+        t.ticklog.mark("leg.teacher")
+        t.exec("goto-teacher", t.player.goto_tile, 1735, 4960, 0)
+        t.exec("teacher", t.player.talk_to, "vm_teacher_girl_multi", 1)
+        t.exec("teacher-dialog", t.chat.play, {
+            "npc:What do you want to see now, dear?",
+            "npc:The penguins, the penguins!",
+        })
+
+        -- The other basement flight and back, then up (4340 [1060..1093]).
+        t.ticklog.mark("leg.stairs-lower")
+        t.exec("goto-lower-stairs", t.player.goto_tile, 1761, 4962, 0)
+        t.exec("stairs-lower-down", t.player.click_loc, "vm_basement_wall_stairs_down", 1, { at = { 1758, 4963, 1 } })
+        t.ticks(4)
+        _, here = t.world.tile()
+        t.check("stairs-lower-down.landed", here ~= nil and here.x == 1631 and here.z == 4957 and here.level == 0,
+            "after the hall's Walk-down at " .. tile_str(here) .. " (want 1631,4957,0: 4340 [1063])")
+        t.exec("stairs-lower-up", t.player.click_loc, "vm_basement_wall_stairs_up", 1, { at = { 1630, 4958, 1 } })
+        t.ticks(4)
+        _, here = t.world.tile()
+        t.check("stairs-lower-up.landed", here ~= nil and here.x == 1761 and here.z == 4964 and here.level == 0,
+            "after Walk-up at " .. tile_str(here) .. " (want 1761,4964,0: 4340 [1084])")
+        t.ticklog.mark("leg.stairs-up")
+        t.exec("stairs-up", t.player.click_loc, "vm_basement_wall_stairs_up", 1, { at = { 1758, 4959, 1 } })
+        t.ticks(5)
+        _, here = t.world.tile()
+        t.check("stairs-up.landed", here ~= nil and here.x == 3258 and here.z == 3452 and here.level == 0,
+            "after the hall's Walk-up at " .. tile_str(here) .. " (want 3258,3452,0: 4340 [1093])")
         t.finish(0)
     end,
 }

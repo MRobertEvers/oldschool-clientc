@@ -20079,13 +20079,28 @@ ToriRSServer_WorldSoundArea(
     int range,
     int drop_off)
 {
+    ToriRSServer_WorldSoundAreaLoops(srv, sound, 1, delay, x, z, level, range, drop_off);
+}
+
+void
+ToriRSServer_WorldSoundAreaLoops(
+    struct ToriRSServer* srv,
+    int sound,
+    int loops,
+    int delay,
+    int x,
+    int z,
+    int level,
+    int range,
+    int drop_off)
+{
     int const zone_packet =
         ToriRSServer_ZoneSubSupported(srv->wire, TORIRSSERVER_ZONE_EV_SOUNDAREA);
     int const coord = ToriRSServer_CoordPack(level, x, z);
 
     assert(srv);
     if( zone_packet )
-        ToriRSServer_ZoneSoundArea(srv, x, z, level, sound, 1, delay, range, drop_off);
+        ToriRSServer_ZoneSoundArea(srv, x, z, level, sound, loops, delay, range, drop_off);
     for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* p = &srv->players[i];
@@ -20104,7 +20119,7 @@ ToriRSServer_WorldSoundArea(
             continue;
         /* The stand-in is a real synth; -1 has nothing to play. */
         if( !zone_packet && sound >= 0 )
-            ToriRSServer_SendSynthSound(p, sound, 1, delay);
-        ToriRSServer_TicklogSoundArea(srv, p, sound, 1, delay, coord, range, drop_off);
+            ToriRSServer_SendSynthSound(p, sound, loops, delay);
+        ToriRSServer_TicklogSoundArea(srv, p, sound, loops, delay, coord, range, drop_off);
     }
 }

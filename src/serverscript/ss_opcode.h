@@ -620,10 +620,11 @@
 #define SS_OP_P_TRANSPARENCY 11281
 #define SS_OP_P_DODGEZONE 11282
 #define SS_OP_P_DODGETICK 11283
+#define SS_OP_SOUND_AREA_LOOPS 11284
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11284
+#define SS_OPCODE_MAX 11285
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 598
+#define SS_OPCODE_COUNT 599
 
 #endif

@@ -52,6 +52,7 @@ EXTRA_DECLARATIONS = [
     # impact went out as sound 381, `creeper_attack`.
     "[command,sound_area](synth $sound, int $delay, coord $coord, int $range)",
     "[command,sound_area_size](synth $sound, int $delay, coord $coord, int $range, int $size)",
+    "[command,sound_area_loops](synth $sound, int $loops, int $delay, coord $coord, int $range)",
     "[command,npc_projanim_pl](coord $from, player_uid $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",
     "[command,npc_projanim_npc](coord $from, npc_uid $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",
     "[command,npc_projanim_map](coord $from, coord $to, spotanim $spotanim, int $fromHeight, int $toHeight, int $delay, int $duration, int $peak, int $arc)",

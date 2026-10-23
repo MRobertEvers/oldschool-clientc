@@ -9684,6 +9684,20 @@ ToriRSServer_WorldSoundArea(
     int range,
     int drop_off);
 
+/** ToriRSServer_WorldSoundArea with the packet's loop count (`sound_area_loops`:
+ *  the Varrock Museum's animatronics loop theirs 2-4 times, RSProx 4340). */
+void
+ToriRSServer_WorldSoundAreaLoops(
+    struct ToriRSServer* srv,
+    int sound,
+    int loops,
+    int delay,
+    int x,
+    int z,
+    int level,
+    int range,
+    int drop_off);
+
 /** Schedule a revert `duration` ticks out. `duration <= 0` means never, and
  *  `loc_id < 0` means "remove it again", which is how a `loc_add` expires. */
 int

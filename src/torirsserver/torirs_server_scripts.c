@@ -10768,6 +10768,27 @@ script_command(
         return 1;
     }
 
+    /*
+     * sound_area_loops(synth $sound, int $loops, int $delay, coord $coord, int $range):
+     * sound_area with the packet's loop count. The Varrock Museum's display
+     * cases play theirs 3, 3, 4 and 2 times (snail, snake, sea slug, monkey:
+     * RSProx 4340).
+     */
+    case SS_OP_SOUND_AREA_LOOPS:
+    {
+        int32_t values[5];
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_WorldSoundAreaLoops(srv, (int)values[0], (int)values[1], (int)values[2],
+                                         ToriRSServer_CoordX(values[3]), ToriRSServer_CoordZ(values[3]),
+                                         ToriRSServer_CoordLevel(values[3]), (int)values[4], 0);
+        return 1;
+    }
+
     case SS_OP_SPOTANIM_NPC:
     {
         int32_t values[3];

@@ -1126,6 +1126,12 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # docs/rsprox-analysis/tormented_demons).
     "SOUND_AREA_SIZE": (11154, 5, 0, 0, 0),
 
+    # sound_area_loops(synth $sound, int $loops, int $delay, coord $coord, int $range)
+    #
+    # sound_area with the packet's loop count: the Varrock Museum's display
+    # cases loop their area sounds 2-4 times (RSProx 4340).
+    "SOUND_AREA_LOOPS": (11284, 5, 0, 0, 0),
+
     # npc_projanim_pl / npc_projanim_npc / npc_projanim_map: projanim_pl /
     # projanim_npc / projanim_map with the ACTIVE NPC named as the projectile's
     # source (MAP_PROJANIM `sourceIndex`), same arguments. The client then
