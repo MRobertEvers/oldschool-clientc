@@ -177,9 +177,20 @@ def check_gate_script(errors: list[str]) -> None:
         )
         return
 
+    # RSProx 4346 (48 of 48 passes) and 3258 (45 of 45): the drag seq and
+    # sos_through_door, then a one-tile teleport, then the appear seq. No
+    # exactmove is ever sent.
     force_code = strip_line_comments(force_bodies[0])
-    if re.search(r"~\s*agility_exactmove\s*\(", force_code) is None:
-        errors.append("[proc,sos_force_pass] must use ~agility_exactmove(...)")
+    for description, pattern in {
+        "the drag seq": r"\banim\s*\(\s*sos_security_door_drag\b",
+        "the through-door synth": r"\bsound_synth\s*\(\s*sos_through_door\b",
+        "the one-tile teleport": r"\bp_telejump\s*\(",
+        "the appear seq": r"\banim\s*\(\s*sos_security_door_appear\b",
+    }.items():
+        if re.search(pattern, force_code) is None:
+            errors.append(f"[proc,sos_force_pass] must send {description} (RSProx 4346)")
+    if re.search(r"exactmove", force_code):
+        errors.append("[proc,sos_force_pass] must not exactmove: no recorded pass sends one")
 
     forbidden = {
         "double-door proc": r"\b(?:open|close)_double_door_(?:left|right)\b",
@@ -191,7 +202,7 @@ def check_gate_script(errors: list[str]) -> None:
         if re.search(pattern, force_code, flags=re.IGNORECASE):
             errors.append(
                 f"[proc,sos_force_pass] must not use {description}; Stronghold "
-                "gates stay closed and use forced exact movement"
+                "gates stay closed and the player is moved through them"
             )
 
     second_bodies = [body for header, body in blocks if header.startswith("proc,sos_second_gate")]

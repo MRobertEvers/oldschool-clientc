@@ -1,29 +1,33 @@
--- The Stronghold of Security, all four floors, by one account.
--- Content: areas/area_stronghold/scripts/stronghold.rs2 (gates, rewards,
--- portals), stronghold_questions.rs2 + .generated.rs2 (the gate questions),
--- ladders_stairs maplinks and stronghold_maplinks.dbrow (ladders and ropes).
+-- The Stronghold of Security, all four floors, by one account, as RSProx
+-- index 4346 recorded it (docs/rsprox-analysis/stronghold_of_security.md).
+-- Content: areas/area_stronghold/scripts/stronghold.rs2 (the hole, gates,
+-- rewards, portals, ladders, ropes, the plaque), stronghold_npcs.rs2 (Count
+-- Check, Solztun), stronghold_questions.rs2 + .generated.rs2 (the questions).
 --
--- Start: the Barbarian Village entrance (3081,3420) with an account of combat
--- level 50 -- 99 Defence and Hitpoints, everything else 1 -- and ten sharks:
--- above the Vault of War's portal level (26), below the Catacomb of Famine's
--- (51). So the Vault portal admits it before that floor's claim, and the
--- Famine and Sepulchre portals refuse it until theirs.
+-- Start: Lumbridge, an account of combat level 50 -- 99 Defence and
+-- Hitpoints, everything else 1 -- and ten sharks: above the Vault of War's
+-- portal level (26), below the Catacomb of Famine's (51). Count Check fails
+-- its PIN check and sends it to the Stronghold once; the Vault portal admits
+-- it before that floor's claim, and the Famine and Sepulchre portals refuse it.
 --
 -- The run: Vault portal by level -> its treasure room -> up the ladder to the
--- surface and back in; then every floor's maze on foot, gate by gate, to its
--- reward (2,000 / 3,000 / 5,000 coins and the Flap, Slap Head, Idea emotes;
--- the Cradle of Life's boots and Stamp, twice), down each ladder, and up the
+-- surface and back in; then every floor's maze on foot, gate by gate (the
+-- first gate's greeting and the player's "sucked through" page), to its
+-- reward (2,000 / 3,000 / 5,000 coins and the Flap, Slap Head, Idea emotes,
+-- the Box of Health's restore; the Cradle's boots and Stamp, twice), down
+-- each ladder through its warning, the plaque, Solztun, and up the
 -- Sepulchre's rope to the surface. Finally back in: with every floor claimed
 -- no gate asks a question and the Vault chest pays nothing twice.
 --
 -- The routes are reach.py's door-paths over the cache maps
 -- (test/quests/orchestrator/.../sample_tools/reach.py, start tile -> the tile
 -- beside the floor's way down), each leaf's near/far tile from its wall edge
--- in maps/*.jl2. The answer key is the OSRS wiki's (Stronghold_of_Security,
--- "Doors", pinned at docs/areas/stronghold/sources/), keyed by question text,
--- with the door's whole response to the right answer and to one wrong one:
--- the run answers its first question wrong on purpose and checks the gate
--- stays shut.
+-- in maps/*.jl2. The answer key is the wiki's table (Stronghold_of_Security,
+-- "Doors") with RSProx 4346's text over it
+-- (docs/areas/stronghold/sources/rsprox_4346_overrides.tsv), keyed by question
+-- text, with the door's whole response to the right answer and to one wrong
+-- one: the run answers its first question wrong on purpose, and the door
+-- either lets it through or asks again (both recorded).
 return {
     id = "strongholdofsecurity",
     fixture = "fresh_lumbridge.ini",
@@ -35,6 +39,7 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start()
         local PREFIX = "To pass you must answer me this:"
         local KEY = {
             ["What do you do if someone asks you for your password or bank PIN to make you a member for free?"] = {
@@ -43,7 +48,7 @@ return {
                 wrong = "Give them the information they asked for.",
                 said_wrong = "Wrong! Membership requires a subscription paid or a bond to be redeemed - they are trying to trick you. Never give your account details to anyone. Press the 'Report Abuse' button and fill in the offending player's name and the correct category.",
             },
-            ["You have been offered a free giveaway or double XP invitation via in-game chat or email. What should you do?"] = {
+            ["You have been offered a free giveaway or double XP invitation via in- game chat or email. What should you do?"] = {
                 right = "Report the incident and do not click any links.",
                 said_right = "Correct! This is an attempt to obtain your account details. If it happened in the game, report it via the Report Abuse option.",
                 wrong = "Respond quickly so as not to miss the offer.",
@@ -51,7 +56,7 @@ return {
             },
             ["You have been offered a free giveaway or double XP invitation via social media or a livestream. What should you do?"] = {
                 right = "Report the incident and do not click any links.",
-                said_right = "Correct! This is an attempt to obtain your account details and should be reported to the relevant organisations via their own reporting systems.",
+                said_right = "Correct! This is an attempt to obtain your account details and should be reported to the relevant organisation via their own reporting systems.",
                 wrong = "Respond quickly so as not to miss the offer.",
                 said_wrong = "Wrong! Jagex will NEVER make offers like this - it is an attempt to obtain your account details. Please report the incident using whatever reporting methods offered by the site you are on.",
             },
@@ -82,12 +87,12 @@ return {
             ["How do I set a bank PIN?"] = {
                 right = "Talk to any banker.",
                 said_right = "Correct! Simply talking to a banker will give you the option to set a bank PIN. Never use personal details for passwords or bank PINs!",
-                wrong = "Use the account managment section on the website.",
+                wrong = "Use the account management section on the website.",
                 said_wrong = "Wrong! Your password can be changed from the account management section, but you must talk to a banker to set a bank PIN. Never use personal details for passwords or bank PINs!",
             },
-            ["What should I do if I receive an email asking me to verify my identity or account details due to suspicious activity?"] = {
-                right = "Delete it - it is fake!",
-                said_right = "Correct! Jagex will NEVER email you unless you've used the website to change your account. Account details can only be verified through using account recovery systems on the Old School RuneScape website, NOT through responding  to emails.",
+            ["What should I do if I receive an email asking me to verify my identity or Account details due to suspicious activity?"] = {
+                right = "Delete it - it's a fake!",
+                said_right = "Correct! Jagex will NEVER email you unless you've used the website to change your account. Account details can only be verified through using account recovery systems on the Old School RuneScape website, NOT through responding to emails.",
                 wrong = "Email them back with the information it asks for.",
                 said_wrong = "Wrong! Jagex will NEVER email to ask for account details, so don't send any info back.",
             },
@@ -109,7 +114,7 @@ return {
                 wrong = "Tell them whatever they want to know.",
                 said_wrong = "Wrong! Never give your account details to anyone! This includes things like account creation details, contact details and passwords. Never use personal details for passwords or bank PINs!",
             },
-            ["A player trades you some valuable items, provides you with a bond, then asks if you want to share your account so he can help you make progress. How do you respond?"] = {
+            ["A player trades you some valuable items, provides you a bond, then asks if you want to share your account so he can help you make progress. How do you respond?"] = {
                 right = "Decline the offer and report that player.",
                 said_right = "Correct! Never share your login details with another player.",
                 wrong = "Give the player access since they are a higher level.",
@@ -139,10 +144,10 @@ return {
                 wrong = "Yes if it is from someone you know.",
                 said_wrong = "Wrong! If you buy an account, the person who originally made it may take it back, and you will lose anything you paid for it.",
             },
-            ["My friend asks me to for my password so that he can do a difficult quest for me. Do I give it to him?"] = {
+            ["My friend asks me for my password so that he can do a difficult quest for me. Do I give it to him?"] = {
                 right = "Don't give them my password.",
                 said_right = "Correct! You can make it alone and the success will taste even better. Don't forget you can ask people for advice too!",
-                wrong = "Yes. He is my best friends and I've already spent ages trying this quest.",
+                wrong = "Yes. He is my best friend and I already spent ages trying this quest.",
                 said_wrong = "Wrong! Don't give your password to anyone otherwise you can lose everything you have worked so hard for.",
             },
             ["A player tells you to search for a video online, click the link in the description and comment on the forum post to win a cash prize. What do you do?"] = {
@@ -158,13 +163,13 @@ return {
                 said_wrong = "Incorrect! Do not trust players trying to rush you into going somewhere unfamiliar. It's often an attempt to lure you into taking items somewhere dangerous, where you'll lose them.",
             },
             ["Which of these is an important characteristic of a secure password?"] = {
-                right = "It's never used on other websites or accounts.",
+                right = "It's never reused on other websites or accounts.",
                 said_right = "Correct! Make sure to use a unique password to keep your account secure.",
                 wrong = "It incorporates your real name or birthday.",
                 said_wrong = "Incorrect! Using personal details as your password makes it easier to guess!",
             },
             ["You're watching a stream by someone claiming to be Jagex offering double XP. What do you do?"] = {
-                right = "Report the stream. Real Jagex streams have a 'varified' mark.",
+                right = "Report the stream as a scam. Real Jagex streams have a 'verified' mark.",
                 said_right = "Correct! This is a common phishing method and puts your account at risk!",
                 wrong = "Click the link! I love double XP!",
                 said_wrong = "Incorrect! This is a common phishing method and puts your account at risk!",
@@ -190,7 +195,7 @@ return {
             ["What should you do if another player messages you recommending a website to purchase items and/or gold?"] = {
                 right = "Do not visit the website and report the player who messaged you.",
                 said_right = "Correct! Buying and selling items and gold is against the rules and results in a permanent ban!",
-                wrong = "Check out the website, it never huts to look around!",
+                wrong = "Check out the website, it never hurts to look around!",
                 said_wrong = "Incorrect! Websites offering these services should not be trusted!",
             },
             ["Can I leave my account logged in while I'm out of the room?"] = {
@@ -220,12 +225,12 @@ return {
             ["A player starts asking you about very specific details linked to your account, such as when you created your account, your birthday date, internet provider etc. How should you react?"] = {
                 right = "Don't share your information and report the player.",
                 said_right = "Correct! These details could've been used within the account recovery system and possibly compromise your account.",
-                wrong = "Be friendly and asnwer the questions.",
+                wrong = "Be friendly and answer the questions.",
                 said_wrong = "Incorrect! These details can be used within the account recovery system and possibly compromise your account.",
             },
             ["How do I remove a hijacker from my account?"] = {
                 right = "Use the Account Recovery system.",
-                said_right = "Correct! Visiting oldschool.runescape.com and using the account recovery system will allow you to kick hijackers off your account by locking it as stolen.",
+                said_right = "Correct! Visiting oldschool.runescape.com and using the account recovery system will allow you to kick hijackers off of your account by locking it as stolen.",
                 wrong = "Ask on social media.",
                 said_wrong = "Wrong! Visiting oldschool.runescape.com and using the account recovery system will allow you to kick hijackers off your account by locking it as stolen.",
             },
@@ -326,9 +331,35 @@ return {
 
         local asked = 0
         local wrong_done = false
+        local greeted = false
+        local greeting_text = ""
+        local function is_question(text)
+            return norm(text):sub(1, #norm(PREFIX)) == norm(PREFIX)
+        end
+        -- Every npc page up now, continued, joined; stops in front of a page
+        -- that opens a NEW question when `stop_at_question` (a door re-asking
+        -- after a wrong answer puts it on the click of its response's last page).
+        local function read_pages(stop_at_question)
+            local pages = {}
+            while t.chat.kind() == "npc" do
+                local tr, text = t.chat.text()
+                if tr ~= "ok" then
+                    break
+                end
+                if stop_at_question and #pages > 0 and is_question(text) then
+                    break
+                end
+                pages[#pages + 1] = tostring(text)
+                t.chat.continue_()
+                t.ticks(1)
+            end
+            return table.concat(pages, " ")
+        end
         -- The door's page(s) after a press: nothing (a first gate, a skip roll,
-        -- a completed Stronghold), or a question, the player's pick and the
-        -- door's answer to it. Returns "none", "right" or "wrong".
+        -- a claimed floor), the first gate's greeting, or questions: the
+        -- player's pick and the door's answer to it, and after a wrong pick
+        -- either the way through or another question (RSProx 4346 [499..501],
+        -- [614..626]). Returns "none", "greeting", "right" or "wrong".
         local function answer_door(name)
             t.await({
                 level = function()
@@ -339,53 +370,46 @@ return {
             if t.chat.kind() == "none" then
                 return "none"
             end
-            local said = {}
-            while t.chat.kind() == "npc" do
-                local tr, text = t.chat.text()
-                if tr ~= "ok" then
-                    break
+            local verdict = "none"
+            local question = read_pages(false)
+            if norm(question):find("^greetings adventurer") then
+                greeted = true
+                greeting_text = norm(question)
+                t.check(name .. ".greeting", norm(question):find("please pass through and begin your adventure", 1, true) ~= nil,
+                    "the first gate's two pages: '" .. question .. "'")
+                return "greeting"
+            end
+            while true do
+                local stem = norm(question):gsub("^" .. norm(PREFIX):gsub("%p", "%%%0") .. " ?", "")
+                local key = ANSWER[stem]
+                asked = asked + 1
+                t.check(name .. ".question" .. asked, key ~= nil and t.chat.kind() == "options",
+                    "'" .. question .. "' -- " .. (key and "in the key" or "NOT in the key")
+                    .. ", page " .. t.chat.kind())
+                if key == nil then
+                    return "wrong"
                 end
-                said[#said + 1] = tostring(text)
-                t.chat.continue_()
-                t.ticks(1)
-            end
-            local question = table.concat(said, " ")
-            local stem = norm(question):gsub("^" .. norm(PREFIX):gsub("%p", "%%%0") .. " ?", "")
-            local key = ANSWER[stem]
-            asked = asked + 1
-            t.check(name .. ".question", key ~= nil and t.chat.kind() == "options",
-                "'" .. question .. "' -- " .. (key and "on the wiki" or "NOT on the wiki")
-                .. ", page " .. t.chat.kind())
-            if key == nil then
-                return "wrong"
-            end
-            local pick, want = key.right, key.said_right
-            local verdict = "right"
-            if not wrong_done then
-                wrong_done = true
-                pick, want, verdict = key.wrong, key.said_wrong, "wrong"
-            end
-            t.exec(name .. ".answer", t.chat.choose, pick)
-            t.ticks(1)
-            -- The door's answer to THAT pick, every page of it, against the
-            -- wiki's whole response.
-            local pages = {}
-            while t.chat.kind() == "npc" do
-                -- A page still closing after the last continue reads
-                -- `timeout`; only a page that is up is part of the answer.
-                local pr, page = t.chat.text()
-                if pr ~= "ok" then
-                    break
+                local pick, want = key.right, key.said_right
+                verdict = "right"
+                if not wrong_done then
+                    wrong_done = true
+                    pick, want, verdict = key.wrong, key.said_wrong, "wrong"
                 end
-                pages[#pages + 1] = tostring(page)
-                t.chat.continue_()
+                t.exec(name .. ".answer" .. asked, t.chat.choose, pick)
                 t.ticks(1)
+                local reply = read_pages(true)
+                t.check(name .. ".response" .. asked, norm(reply) == norm(want),
+                    "'" .. reply .. "'" .. (norm(reply) == norm(want) and "" or (" -- key: '" .. want .. "'")))
+                if verdict == "right" then
+                    return verdict
+                end
+                -- Wrong: another question now, or through.
+                local _, next_text = t.chat.text()
+                if t.chat.kind() ~= "npc" or not is_question(next_text) then
+                    return verdict
+                end
+                question = read_pages(false)
             end
-            local reply = table.concat(pages, " ")
-            t.check(name .. ".response", norm(reply) == norm(want),
-                #pages .. " page(s): '" .. reply .. "'" .. (norm(reply) == norm(want) and ""
-                    or (" -- wiki: '" .. want .. "'")))
-            return verdict
         end
 
         -- One gate leaf crossed: from its near tile, pressed, questioned or
@@ -396,25 +420,23 @@ return {
             if not at(nx, nz) then
                 t.exec("walk-" .. name, t.player.walk_to, nx, nz, 80)
             end
-            for attempt = 1, 3 do
-                local pr, pd = t.player.click_loc(sym, 1, { at = { lx, lz } })
-                t.note("press " .. sym .. "@" .. lx .. "," .. lz .. ": " .. tostring(pr) .. " " .. tostring(pd))
-                local verdict = answer_door(name .. (attempt > 1 and attempt or ""))
-                if verdict == "wrong" then
-                    t.ticks(2)
-                    local tl = here()
-                    t.check(name .. ".shut", tl ~= nil and not (tl.x == fx and tl.z == fz),
-                        "after a wrong answer the player is at " .. tile_str(tl) .. ", not past the gate")
-                    if not at(nx, nz) then
-                        t.player.walk_to(nx, nz, 20)
-                    end
+            local pr, pd = t.player.click_loc(sym, 1, { at = { lx, lz } })
+            t.note("press " .. sym .. "@" .. lx .. "," .. lz .. ": " .. tostring(pr) .. " " .. tostring(pd))
+            local verdict = answer_door(name)
+            t.await({ level = function() return at(fx, fz) end, note = "past " .. sym }, 12)
+            t.check(name, at(fx, fz), sym .. " at " .. lx .. "," .. lz .. " (" .. verdict .. "): player at "
+                .. tile_str(here()) .. ", want " .. fx .. "," .. fz)
+            if verdict == "greeting" then
+                -- 4346 [238]: on the far side, a tick after the move. The page
+                -- reader above may already have continued it with the door's.
+                if t.chat.kind() ~= "none" then
+                    t.exec(name .. ".suckedThrough", t.chat.play, {
+                        "player:Oh my! I just got sucked through that door", "end" })
                 else
-                    break
+                    t.check(name .. ".suckedThrough", greeting_text:find("oh my! i just got sucked through that door", 1, true) ~= nil,
+                        "the player's page followed the greeting")
                 end
             end
-            t.await({ level = function() return at(fx, fz) end, note = "past " .. sym }, 12)
-            t.check(name, at(fx, fz), sym .. " at " .. lx .. "," .. lz .. ": player at "
-                .. tile_str(here()) .. ", want " .. fx .. "," .. fz)
         end
         -- A pair's FIRST leaf never asks (sos_should_ask); the second may.
         local function maze(floor)
@@ -427,40 +449,63 @@ return {
                 end
             end
         end
-        -- Every Stronghold ladder, rope and the entrance is a maplink between
-        -- two places on level 0 (the dungeon is at z ~5200, not z + 6400), so
-        -- the climb names its row.
+        -- Ladders up, ropes and the hole: one op, one move (the dungeon is at
+        -- z ~5200 on level 0, so every one of them is a same-level maplink).
         local function climb(name, loc, lx, lz, dest)
             t.player.climb({ loc = loc, at = { lx, lz, 0 }, dest = dest, slack = 2,
                 same_level = "maplink " .. loc })
             t.check(name, true, "climbed " .. loc .. " to " .. tile_str(here()))
         end
+        -- A way down: the "Are you sure you want to climb down?" modal, its
+        -- count one higher, "Yes", then the move (4346 [418..427]).
+        local downs = 0
+        local function climb_down(name, loc, lx, lz, dest)
+            t.exec(name, t.player.click_loc, loc, 1, { at = { lx, lz } })
+            t.check(name .. ".warning", t.ui.await_open("cws_warning_4", 10) == "ok", "cws_warning_4 open")
+            downs = downs + 1
+            t.exec(name .. ".count", t.var.await, "varb3854_cws_warning_4", downs, 5)
+            local wr, yes = t.ui.widget("cws_warning_4:warn1")
+            t.check(name .. ".yesWidget", wr == "ok", "cws_warning_4:warn1 -> " .. tostring(wr))
+            t.exec(name .. ".yes", t.ui.invoke, yes, 1)
+            t.await({ level = function() return at(dest[1], dest[2]) end, note = "the floor below" }, 10)
+            t.check(name .. ".landed", at(dest[1], dest[2]), "at " .. tile_str(here()))
+        end
         local function coins()
             local _, n = t.inv.count("coins")
             return n or 0
         end
-        local function restored(name, all)
-            local stats = all and { "hitpoints", "prayer", "attack", "defence", "strength" } or { "hitpoints", "prayer" }
-            local bad = {}
-            for _, s in ipairs(stats) do
-                local _, r = t.skill.read(s)
-                if not r or r.level < r.base_level then
-                    bad[#bad + 1] = s .. " " .. tostring(r and r.level) .. "/" .. tostring(r and r.base_level)
-                end
-            end
-            t.check(name, #bad == 0, #bad == 0 and (table.concat(stats, ", ") .. " at base or above")
-                or table.concat(bad, "; "))
-        end
-        local function claim(name, loc, lx, lz, gain, emote)
+        local function claim(name, loc, lx, lz, gain, emote, voice, emote_name)
             local before = coins()
             t.exec(name, t.player.click_loc, loc, 1, { at = { lx, lz } })
+            t.exec(name .. ".boxes", t.chat.play, {
+                "mesbox:" .. voice,
+                "mesbox:You have also unlocked the " .. emote_name .. " emote!",
+                "end",
+            })
             t.exec(name .. ".coins", t.inv.await, "coins", before + gain, 10)
-            t.exec(name .. ".box", t.chat.play, { "*" })
             t.exec(name .. ".emote", t.var.await, emote, 1, 5)
+        end
+        local function cradle(name, cell, boots, first)
+            t.exec(name, t.player.click_loc, "sos_death_pram", 1, { at = { 2344, 5214 } })
+            t.exec(name .. ".boxes", t.chat.play, {
+                "mesbox:As your hand touches the cradle, you hear a voice in your head",
+                "mesbox:... welcome adventurer... you have learnt the value of securing your",
+                "objbox:You may claim these boots. They protect your feet",
+                "objbox:You can return here for more boots at any time",
+            })
+            t.check(name .. ".menu", t.ui.await_open("skillmulti", 10) == "ok", "skillmulti open")
+            local mr, pick = t.ui.widget("skillmulti:" .. cell)
+            t.check(name .. ".cell", mr == "ok", "skillmulti:" .. cell .. " -> " .. tostring(mr))
+            t.exec(name .. ".pick", t.ui.invoke, pick, 1)
+            t.ticks(1)
+            t.exec(name .. ".prize", t.chat.play, {
+                "objbox:You claim your prize: " .. boots .. (first and " You have unlocked the 'Stamp Foot' emote." or ""),
+                "end",
+            })
         end
 
         ---------------------------------------------------------------
-        -- The way in, and the Vault portal by combat level
+        -- Count Check: the PIN check, then the one teleport
         ---------------------------------------------------------------
         -- Auto Retaliate off, by the combat tab's own button: the floors are
         -- aggressive and a monster that followed the player onto a gate's
@@ -471,69 +516,143 @@ return {
         local rr, retaliate = t.ui.widget("combat_interface:retaliate")
         t.check("autoRetaliateOff", t.ui.invoke(retaliate, 1), "combat_interface:retaliate " .. tostring(rr))
         t.exec("autoRetaliateOff.var", t.var.await, "varp172_option_nodef", 1, 5)
-        t.exec("goto-entrance", t.player.goto_tile, 3081, 3422, 0)
+        t.exec("goto-count", t.player.goto_tile, 3238, 3201, 0)
+        t.exec("count.talk", t.player.talk_to, "count_check", 1)
+        t.exec("count.check", t.chat.play, {
+            "npc:Ahahahaha! I am Count Check, the renowned security",
+            "choose:Check my account, Count Check!",
+            "player:Check my account, Count Check!",
+            "npc:You do not have a Bank PIN, so you fail my checks!",
+            "end",
+        })
+        t.exec("count.pinLine", t.msg.expect, "ask to check your PIN settings")
+        t.exec("count.talk2", t.player.talk_to, "count_check", 1)
+        t.exec("count.offer", t.chat.play, {
+            "npc:Ahahahaha! I am Count Check",
+            "choose:Where can I learn more about security?",
+            "player:Where can I learn more about security?",
+            "npc:I see you have not visited it. Would you like to? I can send you straight there - but only once.",
+            "choose:Yes",
+        })
+        t.await({ level = function() return at(3081, 3421) end, note = "Barbarian Village" }, 10)
+        t.check("count.teleported", at(3081, 3421), "at " .. tile_str(here()))
+        t.exec("count.varbit", t.var.await, "varb5371_sos_teleported_by_count", 1, 5)
+
+        ---------------------------------------------------------------
+        -- The way in, and the Vault portal by combat level
+        ---------------------------------------------------------------
         climb("enter", "sos_dung_ent_open", 3081, 3420, { 1859, 5243, 0 })
+        t.exec("enter.mesbox", t.chat.play, { "mesbox:You squeeze through the hole and find a ladder", "end" })
         t.exec("warPortal.byLevel", t.player.click_loc, "sos_war_portal", 1, { at = { 1863, 5238 } })
         t.await({ level = function() local tl = here(); return tl and tl.x >= 1905 end, note = "the treasure room" }, 15)
         t.check("warPortal.landed", at(1914, 5222), "combat 50 >= 26 before the claim: at " .. tile_str(here()))
+        t.exec("warPortal.msg", t.msg.expect, "whisked through to the treasure room")
         climb("warTreasure.up", "sos_war_ladd_up", 1913, 5226, { 3081, 3421, 0 })
+        t.exec("warTreasure.up.msg", t.msg.expect, "twist and wind in all directions")
         climb("enter2", "sos_dung_ent_open", 3081, 3420, { 1859, 5243, 0 })
+        t.exec("enter2.mesbox", t.chat.play, { "mesbox:You squeeze through the hole", "end" })
 
         ---------------------------------------------------------------
         -- Vault of War
         ---------------------------------------------------------------
         maze("war")
-        claim("giftOfPeace", "sos_war_chest", 1907, 5222, 2000, "varb2309_sos_emote_flap")
-        restored("giftOfPeace.restore", false)
+        t.check("war.greeted", greeted, "the first gate greeted the first visit")
+        claim("giftOfPeace", "sos_war_chest", 1907, 5222, 2000, "varb2309_sos_emote_flap",
+            "The box hinges creak and appear to be forming audible words....", "Flap")
         local again = coins()
         t.exec("giftOfPeace.again", t.player.click_loc, "sos_war_chest", 1, { at = { 1907, 5222 } })
         t.exec("giftOfPeace.again.msg", t.msg.expect, "already claimed")
         t.check("giftOfPeace.again.coins", coins() == again, "coins " .. again .. " -> " .. coins())
-        climb("warDown", "sos_war_ladd_down", 1902, 5222, { 2042, 5245, 0 })
+        climb_down("warDown", "sos_war_ladd_down", 1902, 5222, { 2042, 5245 })
 
         ---------------------------------------------------------------
         -- Catacomb of Famine
         ---------------------------------------------------------------
         t.exec("famPortal.refused", t.player.click_loc, "sos_fam_portal", 1, { at = { 2039, 5240 } })
-        t.exec("famPortal.refused.msg", t.msg.expect, "combat level 51")
+        t.ticks(3) -- the line comes at L+2, after the walk the press returns on
+        t.exec("famPortal.refused.msg", t.msg.expect, "not of sufficient experience to take the shortcut")
         t.check("famPortal.stayed", here() ~= nil and here().x > 2030, "still at the start: " .. tile_str(here()))
         maze("fam")
-        claim("grainOfPlenty", "sos_fam_sack", 2021, 5215, 3000, "varb2310_sos_emote_doh")
-        restored("grainOfPlenty.restore", false)
-        climb("famDown", "sos_fam_ladd_down", 2026, 5218, { 2123, 5252, 0 })
+        claim("grainOfPlenty", "sos_fam_sack", 2021, 5215, 3000, "varb2310_sos_emote_doh",
+            "The grain shifts in the sack, sighing audible words....", "Slap Head")
+        climb_down("famDown", "sos_fam_ladd_down", 2026, 5218, { 2123, 5252 })
 
         ---------------------------------------------------------------
         -- Pit of Pestilence
         ---------------------------------------------------------------
         maze("pest")
-        claim("boxOfHealth", "sos_pest_chest", 2144, 5280, 5000, "varb2311_sos_emote_idea")
-        restored("boxOfHealth.restore", true)
-        climb("pestDown", "sos_pest_ladd_down", 2148, 5284, { 2358, 5215, 0 })
+        claim("boxOfHealth", "sos_pest_chest", 2144, 5280, 5000, "varb2311_sos_emote_idea",
+            "The box hinges creak and appear to be forming audible words....", "Idea")
+        t.exec("boxOfHealth.msg", t.msg.expect, "You feel refreshed and renewed.")
+        local low = {}
+        for _, stat in ipairs({ "hitpoints", "prayer", "attack", "defence", "strength" }) do
+            local _, r = t.skill.read(stat)
+            if not r or r.level < r.base_level then
+                low[#low + 1] = stat .. " " .. tostring(r and r.level) .. "/" .. tostring(r and r.base_level)
+            end
+        end
+        t.check("boxOfHealth.restore", #low == 0, #low == 0 and "every stat at base or above" or table.concat(low, "; "))
+        climb_down("pestDown", "sos_pest_ladd_down", 2148, 5284, { 2358, 5215 })
 
         ---------------------------------------------------------------
         -- Sepulchre of Death
         ---------------------------------------------------------------
         t.exec("deathPortal.refused", t.player.click_loc, "sos_death_portal", 1, { at = { 2365, 5212 } })
-        t.exec("deathPortal.refused.msg", t.msg.expect, "claimed this floor's reward")
+        t.ticks(3) -- the line comes at L+2, after the walk the press returns on
+        t.exec("deathPortal.refused.msg", t.msg.expect, "not of sufficient experience to take the shortcut")
         maze("death")
-        t.exec("cradleOfLife", t.player.click_loc, "sos_death_pram", 1, { at = { 2344, 5214 } })
-        t.exec("cradleOfLife.choose", t.chat.play, { "choose:Fancy boots", "*" })
-        t.exec("cradleOfLife.boots", t.inv.await, "sos_boots", 1, 5)
+        cradle("cradleOfLife", "b", "Fighting boots", true)
+        t.exec("cradleOfLife.boots", t.inv.await, "sos_boots2", 1, 5)
         t.exec("cradleOfLife.emote", t.var.await, "varb2312_sos_emote_stamp", 1, 5)
-        restored("cradleOfLife.restore", false)
-        t.exec("cradleOfLife.again", t.player.click_loc, "sos_death_pram", 1, { at = { 2344, 5214 } })
-        t.exec("cradleOfLife.again.choose", t.chat.play, { "choose:Fighting boots", "*" })
-        t.exec("cradleOfLife.again.boots", t.inv.await, "sos_boots2", 1, 5)
+        cradle("cradleOfLife.again", "c", "Fancier boots", false)
+        t.exec("cradleOfLife.again.boots", t.inv.await, "sos_boots3", 1, 5)
         t.check("questions.asked", asked > 0, asked .. " question(s) asked on the way down")
+
+        -- The plaque, and Solztun (4346 [1166..1216]).
+        t.exec("thanks", t.player.click_loc, "sos_thankplayers", 1, { at = { 2349, 5211 } })
+        t.check("thanks.open", t.ui.await_open("messagescroll2", 10) == "ok", "messagescroll2 open")
+        local cr, close = t.ui.widget("messagescroll2:messagescroll2_close")
+        t.check("thanks.closeWidget", cr == "ok", "messagescroll2_close -> " .. tostring(cr))
+        t.exec("thanks.close", t.ui.invoke, close, 1)
+        t.exec("solztun.talk", t.player.talk_to, "sos_barb_spirit", 1)
+        t.exec("solztun.chat", t.chat.play, {
+            "npc:Can you hear me?",
+            "player:*",
+            "npc:I'm no ghost! I'm a spirit",
+            "player:Oh, that's... interesting. Also rather disturbing...",
+            "npc:Try not to think about it.",
+            "choose:Who are you?",
+            "player:Who are you?",
+            "npc:I am Solztun, the greatest barbarian explorer!",
+            "player:It's very nice to meet you, Solztun!",
+            "npc:I know.",
+            "player:... so, you were exploring this place?",
+            "npc:Yes, my sister told me not to go",
+            "player:Oh! Your sister is Litara",
+            "npc:I died... Of course, I tried escaping",
+            "player:Nobody came to help?!",
+            "npc:Oh no, they had no idea I was hurt",
+            "player:Were you not a fan of the barbarian life style?",
+            "npc:It was all death and pillaging",
+            "player:Ah, I too enjoy those.",
+            "choose:Bye!",
+            "player:Bye!",
+            "npc:Stay safe, adventurer.",
+            "end",
+        })
+        t.exec("solztun.brother", t.var.await, "varb5639_sos_brother_found", 1, 5)
+
         climb("deathUp", "sos_death_rope_up", 2350, 5215, { 3081, 3421, 0 })
+        t.exec("deathUp.msg", t.msg.expect, "You shin up the rope, squeeze through a passage then climb a ladder.")
 
         ---------------------------------------------------------------
         -- Completed: no gate asks, nothing pays twice
         ---------------------------------------------------------------
         climb("enter3", "sos_dung_ent_open", 3081, 3420, { 1859, 5243, 0 })
+        t.exec("enter3.mesbox", t.chat.play, { "mesbox:You squeeze through the hole", "end" })
         local asked_before = asked
-        -- Three pairs: an unclaimed Stronghold would ask on each second leaf
-        -- three times in four, so three silent pairs are not a lucky roll.
+        -- Three pairs: an unclaimed Stronghold asks on each second leaf four
+        -- times in five, so three silent pairs are not a lucky roll.
         for i = 1, 6 do
             gate("complete.gate" .. i, ROUTE.war[i])
         end

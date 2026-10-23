@@ -1,0 +1,29 @@
+# Stronghold of Security gate text as Jagex sent it, where the wiki's differs.
+#
+# Source: RSProx index 4346 (rev 241, 2026-10-23), every door page the recorder
+# was shown (tick in the last column). tools/gen_stronghold_questions.py replaces
+# each wiki string in column 1 with column 2 wherever it appears as a question,
+# an option or a response, and refuses a row whose wiki string is not on the page.
+# The recording wins: the wiki copies the game by hand ("huts", "varified").
+#
+# "in- game" is the source string the echo shows: Jagex wraps "via in-<br>game",
+# and the chat echo is the wrapped body with each <br> turned into a space.
+#
+# wiki	recorded	tick
+To pass you must answer me this: My friend asks me to for my password so that he can do a difficult quest for me. Do I give it to him?	To pass you must answer me this: My friend asks me for my password so that he can do a difficult quest for me. Do I give it to him?	364
+Yes. He is my best friends and I've already spent ages trying this quest.	Yes. He is my best friend and I already spent ages trying this quest.	365
+Check out the website, it never huts to look around!	Check out the website, it never hurts to look around!	326
+Correct! Visiting oldschool.runescape.com and using the account recovery system will allow you to kick hijackers off your account by locking it as stolen.	Correct! Visiting oldschool.runescape.com and using the account recovery system will allow you to kick hijackers off of your account by locking it as stolen.	455
+Use the account managment section on the website.	Use the account management section on the website.	493
+To pass you must answer me this: You have been offered a free giveaway or double XP invitation via in-game chat or email. What should you do?	To pass you must answer me this: You have been offered a free giveaway or double XP invitation via in- game chat or email. What should you do?	521
+To pass you must answer me this: A player trades you some valuable items, provides you with a bond, then asks if you want to share your account so he can help you make progress. How do you respond?	To pass you must answer me this: A player trades you some valuable items, provides you a bond, then asks if you want to share your account so he can help you make progress. How do you respond?	544
+Correct! This is an attempt to obtain your account details and should be reported to the relevant organisations via their own reporting systems.	Correct! This is an attempt to obtain your account details and should be reported to the relevant organisation via their own reporting systems.	624
+WoW! You're so generous, thank you! Here's all my gold.	Wow! You're so generous, thank you! Here's all my gold.	642
+To pass you must answer me this:  You're watching a stream by someone claiming to be Jagex offering double XP. What do you do?	To pass you must answer me this: You're watching a stream by someone claiming to be Jagex offering double XP. What do you do?	940
+Report the stream. Real Jagex streams have a 'varified' mark.	Report the stream as a scam. Real Jagex streams have a 'verified' mark.	942
+To pass you must answer me this: What should I do if I receive an email asking me to verify my identity or account details due to suspicious activity?	To pass you must answer me this: What should I do if I receive an email asking me to verify my identity or Account details due to suspicious activity?	971
+Delete it - it is fake!	Delete it - it's a fake!	972
+Correct! Jagex will NEVER email you unless you've used the website to change your account. Account details can only be verified through using account recovery systems on the Old School RuneScape website, NOT through responding  to emails.	Correct! Jagex will NEVER email you unless you've used the website to change your account. Account details can only be verified through using account recovery systems on the Old School RuneScape website, NOT through responding to emails.	976
+It's never used on other websites or accounts.	It's never reused on other websites or accounts.	1065
+Be friendly and asnwer the questions.	Be friendly and answer the questions.	1093
+Answer questions and ask the player back for their details.	Answer the questions and ask the player back for their details.	1093

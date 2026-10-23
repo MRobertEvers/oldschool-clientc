@@ -1,5 +1,10 @@
 # Stronghold of Security implementation plan
 
+> Superseded where RSProx disagrees: docs/rsprox-analysis/stronghold_of_security.md
+> (index 4346, 2026-10-23). Gates move the player with a drag seq and a one-tile
+> teleport, not an exactmove; only the Box of Health restores stats; a wrong
+> answer re-rolls rather than leaving the gate shut.
+
 ## Goal
 
 Finish the existing Stronghold of Security content slice without replacing the
