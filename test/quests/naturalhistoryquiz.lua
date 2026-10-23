@@ -382,8 +382,8 @@ return {
         t.expect("orlando-after.hunter_paid_once", t.skill.expect_gain("hunter", 0, snap2))
         t.expect("orlando-after.slayer_paid_once", t.skill.expect_gain("slayer", 0, snap2))
 
-        -- A natural historian: the introduction once, then his menu
-        -- (wiki Transcript:Natural_historian; no recording talks to one).
+        -- A natural historian (RSProx 4348): the introduction once, then
+        -- straight to his menu; natural history ends the chat.
         t.ticklog.mark("leg.historian")
         t.exec("goto-historian", t.player.goto_tile, 1757, 4946, 0)
         t.exec("historian", t.player.talk_to, "vm_natural_historian_south", 1)
@@ -403,14 +403,29 @@ return {
         })
         t.expect("historian.spiel", t.var.await_server("varb3687_vm_nathis_got_spiel", 1, 5))
         t.ticks(2)
+
+        -- The terrorbird lecture: the cutscene in a copy of the basement,
+        -- then back beside the terrorbird case (4348 [489..523]).
+        t.ticklog.mark("leg.lecture")
         t.exec("historian-again", t.player.talk_to, "vm_natural_historian_south", 1)
-        t.exec("historian-again-dialog", t.chat.play, {
+        t.exec("lecture-dialog", t.chat.play, {
             "npc:Hello again",
             "player:I was hoping you could tell me about something.",
             "choose:Tell me about terrorbirds.",
             "player:Tell me about the terrorbirds.",
             "npc:Ahh terrorbirds, the fastest bird on two legs.",
             "npc:If you just follow me to the display case",
+        })
+        -- The first lecture page comes six ticks after the click (T+6).
+        t.expect("lecture.first-page", t.await({
+            level = function()
+                return t.chat.kind() == "npc"
+            end,
+            note = "lecture: the first page in the copy",
+        }, 12))
+        local _, inside = t.world.tile()
+        t.check("lecture.in-copy", inside ~= nil and inside.x > 6400, "during the lecture at " .. tile_str(inside) .. " (want a copy, x > 6400)")
+        t.exec("lecture-pages", t.chat.play, {
             "npc:Terrorbirds live in nomadic groups",
             "npc:They mainly feed on seeds and other plants.",
             "npc:They have no teeth to chew with",
@@ -423,6 +438,22 @@ return {
             "npc:There are a number of recorded incidents",
             "npc:A terrorbird is so fast",
             "npc:And this concludes my short lecture on terrorbirds.",
+        })
+        t.ticks(6)
+        local _, back = t.world.tile()
+        t.check("lecture.back", back ~= nil and back.x == 1757 and back.z == 4939 and back.level == 0,
+            "after the lecture at " .. tile_str(back) .. " (want 1757,4939,0: 4348 [520])")
+        t.expect("lecture.unlocked", t.var.await_server("varb542_cutscene_status", 0, 5))
+
+        -- The male teacher and his pupil (4348 [37..46]).
+        t.ticklog.mark("leg.male-teacher")
+        t.exec("goto-male-teacher", t.player.goto_tile, 1759, 4946, 0)
+        t.exec("male-teacher", t.player.talk_to, "vm_school_teacher_male_and_boy", 1)
+        t.exec("male-teacher-dialog", t.chat.play, {
+            "npc:Teacher! Sir! I need the toilet!",
+            "npc:I told you to go before we got here.",
+            "npc:But sir, I didn't need to go then!",
+            "npc:Alright, come on then.",
         })
 
         -- The female teacher and pupil in the west wing (4340 [795..796]).
