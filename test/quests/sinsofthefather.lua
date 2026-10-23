@@ -82,7 +82,18 @@ local function carl_tile(t, ox, oz)
     return row.x - ox, row.z - oz
 end
 
+-- The run orb to `on` (varp173_option_run).
+local function set_run(t, on)
+    local _, run = t.var.server("varp173_option_run")
+    if (run == 1) ~= on then
+        local _, orb = t.ui.widget("orbs:runbutton")
+        t.exec("run." .. (on and "on" or "off"), t.ui.invoke, orb, 1)
+        t.ticks(1)
+    end
+end
+
 local function follow_carl(t)
+    set_run(t, false)
     local start = tile(t)
     if start == nil then
         t.check("followCarl.start", false, "no tile at the chase's start")
@@ -101,11 +112,38 @@ local function follow_carl(t)
         else
             t.ticks(3)
         end
-        local route = {}
-        for _, p in ipairs(stop.path) do
-            route[#route + 1] = { ox + p[1], oz + p[2] }
+        -- Carl notices a player within 2 tiles (sf_slepe.rs2). The recorder
+        -- walked behind him and never came nearer than 3: the way is taken in
+        -- hops of up to two tiles, each only once he is 4 or more from where
+        -- it lands (3 for the hiding tile itself, which the recorder held 3
+        -- from his stop).
+        for i, p in ipairs(stop.path) do
+            local wx, wz = ox + p[1], oz + p[2]
+            for _ = 1, 40 do
+                local here = tile(t)
+                -- The chase won ([1498]): the cutscene takes the player the
+                -- rest of the way, and a click now would close its page.
+                if here == nil or (here.x == wx and here.z == wz) or t.chat.kind() ~= "none"
+                    or carl_tile(t, 0, 0) == nil then
+                    break
+                end
+                local hx = here.x + math.max(-2, math.min(2, wx - here.x))
+                local hz = here.z + math.max(-2, math.min(2, wz - here.z))
+                local need = (i == #stop.path and hx == wx and hz == wz) and 3 or 4
+                t.await({ level = function()
+                    local cx, cz = carl_tile(t, 0, 0)
+                    return cx == nil or t.chat.kind() ~= "none" or math.max(math.abs(cx - hx), math.abs(cz - hz)) >= need
+                end, note = "Carl clear of the next hop" }, 40)
+                if t.chat.kind() ~= "none" or carl_tile(t, 0, 0) == nil then
+                    break
+                end
+                t.player.walk_route({ { hx, hz } }, { max_hop = 4, ticks = 6 })
+            end
+            local here = tile(t)
+            local won = t.chat.kind() ~= "none" or carl_tile(t, 0, 0) == nil
+            t.check("followCarl.leg" .. k .. "." .. i, won or (here ~= nil and here.x == wx and here.z == wz),
+                "at " .. (here and (here.x .. "," .. here.z) or "?") .. ", wanted " .. wx .. "," .. wz)
         end
-        t.exec("followCarl.leg" .. k, t.player.walk_route, route, { max_hop = 12, ticks = 40 })
         if k < #CHASE_STOPS then
             t.expect("followCarl.stop" .. k, t.await({ level = function()
                 local cx, cz = carl_tile(t, ox, oz)
@@ -480,6 +518,7 @@ return {
                 t.expect("followCarl.cutscene-end", rc, dc)
                 t.expect("followCarl.carl", t.npc.await_present("myq5_carl_follow", 20, 30))
                 follow_carl(t)
+                set_run(t, true)
                 play_until(t, "goDownToKroy.cutscene", 16, 600)
                 t.expect("quest.stage.kroy_fight", t.quest.expect_stage("kroy_fight"))
                 t.exec("killKroy", t.player.attack, "myq5_kroy_combat")
@@ -869,6 +908,19 @@ return {
                 t.exec("guards.goto", t.player.goto_tile, 3599, 3333, 0)
                 t.ticks(10)
                 t.check("guards.disguised", guard_on_player() == nil, "no guard targets the disguised player")
+                -- The top comes off into the backpack, and eight logs and the
+                -- restock can fill it: eat a shark to make the room.
+                local free = 0
+                for slot = 0, 27 do
+                    local r, cell = t.inv.slot(slot)
+                    if r == "ok" and (cell.name == "" or cell.count == 0) then
+                        free = free + 1
+                    end
+                end
+                if free == 0 then
+                    t.exec("guards.room", t.player.eat, "shark")
+                    t.ticks(2)
+                end
                 t.exec("guards.undisguise", t.player.unequip, "vyrelord_torso")
                 local taken = nil
                 t.expect("guards.undisguised", t.await({ level = function()

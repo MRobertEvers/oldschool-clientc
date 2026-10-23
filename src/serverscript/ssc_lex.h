@@ -33,11 +33,21 @@ enum SSC_TokenKind
     SSC_TOK_PUNCT,    /**< one of ( ) { } [ ] , ; : . and the operators */
 };
 
+/**
+ * The longest token, a string literal above all. Jagex sends single strings of
+ * ~2,900 characters (a clientscript's text), and the Arboretum note in Sins of
+ * the Father is 839 before its interpolation: 512 cut it mid-sentence without a
+ * word. A literal past this is a compile error (`truncated`), never a cut.
+ */
+#define SSC_TOKEN_TEXT_MAX 8192
+
 struct SSC_Token
 {
     enum SSC_TokenKind kind;
     /** Identifier / string text, or the punctuation itself. */
-    char text[512];
+    char text[SSC_TOKEN_TEXT_MAX];
+    /** The source token did not fit in `text`; the compiler refuses it. */
+    int truncated;
     int32_t value; /**< SSC_TOK_INT only */
     int line;
 };

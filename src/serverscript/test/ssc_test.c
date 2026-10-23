@@ -16,6 +16,7 @@
 #include "ssc_lex.h"
 #include "ssvm.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,6 +77,9 @@ struct HostRecord
 {
     int mes_count;
     char last_message[256];
+    /** strlen of the last mes, whole: `last_message` keeps only its head. */
+    size_t last_message_length;
+    char last_message_tail[64];
     int last_int_arg;
 
     /* RUNCLIENTSCRIPTVARARG, recorded exactly as the mock server's host case
@@ -110,6 +114,11 @@ record_command(struct SSVM_State* state, int opcode, int dot)
             return 1;
         record->mes_count++;
         snprintf(record->last_message, sizeof(record->last_message), "%s", text);
+        record->last_message_length = strlen(text);
+        snprintf(record->last_message_tail, sizeof(record->last_message_tail), "%s",
+                 record->last_message_length >= sizeof(record->last_message_tail)
+                     ? text + record->last_message_length - (sizeof(record->last_message_tail) - 1)
+                     : text);
         return 1;
     }
 
@@ -624,6 +633,85 @@ test_strings(void)
     }
 
     fixture_close(&fixture);
+}
+
+/*
+ * A string literal is compiled whole, however long. The lexer's token held 511
+ * characters and cut the rest without a word: Sins of the Father's Arboretum
+ * note (839 before its `<tostring(..)>`) reached the client ending mid-sentence,
+ * with the gallons it exists to give lost. Past the cap, the compile fails.
+ */
+static void
+test_long_string_literal(void)
+{
+    struct Fixture fixture;
+    int32_t args[1] = { 17 };
+    char* source;
+    size_t n = 2900;
+    size_t i;
+
+    printf("long string literals\n");
+
+    source = malloc(n + 128);
+    assert(source);
+    strcpy(source, "[proc,long_note](int $count)\nmes(\"");
+    {
+        size_t head = strlen(source);
+
+        for( i = 0; i < n; i++ )
+            source[head + i] = (char)('a' + (int)(i % 26));
+        source[head + n] = '\0';
+    }
+    strcat(source, " <$count> gallons.\");\n");
+
+    if( fixture_compile(&fixture, source, "long_string") )
+    {
+        if( run_script(&fixture, "[proc,long_note]", args, 1, NULL, "long_string") )
+        {
+            CHECK_EQ((int)fixture.record.last_message_length, (int)(n + strlen(" 17 gallons.")),
+                     "a 2,900-character literal reaches mes whole");
+            CHECK(strstr(fixture.record.last_message_tail, " 17 gallons.") != NULL,
+                  "with its interpolation and the text after it");
+        }
+        fixture_close(&fixture);
+    }
+    free(source);
+
+    {
+        struct SSC_Symbols symbols;
+        struct SSC_Compiler* compiler;
+        struct SSC_Diag diag;
+        char dir[256];
+        char path[400];
+        char command[900];
+        FILE* file;
+
+        snprintf(dir, sizeof(dir), "/tmp/ssc_longstr_%d", (int)getpid());
+        snprintf(command, sizeof(command), "rm -rf %s && mkdir -p %s", dir, dir);
+        if( system(command) != 0 )
+            return;
+        snprintf(path, sizeof(path), "%s/a.rs2", dir);
+        file = fopen(path, "wb");
+        assert(file);
+        fputs("[proc,too_long]\nmes(\"", file);
+        for( i = 0; i < (size_t)SSC_TOKEN_TEXT_MAX + 10; i++ )
+            fputc('x', file);
+        fputs("\");\n", file);
+        fclose(file);
+
+        SSC_SymbolsInit(&symbols);
+        compiler = SSC_New(&symbols);
+        memset(&diag, 0, sizeof(diag));
+        CHECK(!SSC_CompileDir(compiler, dir, &diag),
+              "a literal past SSC_TOKEN_TEXT_MAX fails the compile");
+        CHECK(strstr(diag.message, "string literal longer than") != NULL,
+              "and says why");
+        SSC_Free(compiler);
+        SSC_SymbolsFree(&symbols);
+        snprintf(command, sizeof(command), "rm -rf %s", dir);
+        if( system(command) != 0 )
+            printf("  note: could not clean up %s\n", dir);
+    }
 }
 
 static void
@@ -2337,6 +2425,7 @@ main(void)
     test_switch();
     test_proc_call();
     test_strings();
+    test_long_string_literal();
     test_symbols_and_constants();
     test_varp();
     test_npc_anim_literal_null_is_a_stop();

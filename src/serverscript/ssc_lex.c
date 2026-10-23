@@ -333,6 +333,8 @@ read_string(struct SSC_Lexer* lexer, struct SSC_Token* token)
 
         if( out + 1 < sizeof(token->text) )
             token->text[out++] = c;
+        else
+            token->truncated = 1;
         lexer->pos++;
     }
     if( lexer->pos < lexer->length )
@@ -347,7 +349,12 @@ scan(struct SSC_Lexer* lexer, struct SSC_Token* token)
 {
     char c;
 
-    memset(token, 0, sizeof(*token));
+    /* Field by field, not a memset: `text` is SSC_TOKEN_TEXT_MAX bytes and
+     * every branch below terminates what it writes. */
+    token->kind = SSC_TOK_EOF;
+    token->text[0] = '\0';
+    token->value = 0;
+    token->truncated = 0;
     skip_trivia(lexer);
     token->line = lexer->line;
 

@@ -15,7 +15,9 @@ The cutscenes were drafted with `tools/rsprox/rsprox_cutscene.py` and read
 against the transcript.
 
 The test is `test/quests/sinsofthefather.lua`, 10 legs. A full fresh run
-passed 368/368 rows (scroll, 2 quest points, journal) on 2026-10-23.
+passed 395/395 rows (scroll, 2 quest points, journal) on 2026-10-23, after
+the client, compiler and `[ai_hunt]` fixes below. The run includes the
+gallons read off the drawn scroll and the Darkmeyer guard probe.
 
 ## The stage ladder
 
@@ -104,7 +106,7 @@ Per section, what remains after those, with the verdicts:
 | disguise [4414..4769] | match | - | - |
 | Damien's cutscene [4885..4942] | 23 matched | the player's walk in [4893..4898] was missing (it left them behind the doorway fire); two `invisible_type8_nonblocking` at (7,29) (6,30) L1 [4892] | FIXED |
 | Damien [4942..5064] | 203 matched | dart / smoke / fire mix matches (12/9/3 of 24 vs 41/32/10 of 83). Veliaf's blows never happened: his timer read a player varp with no player bound | FIXED (Veliaf). Also fixed: Damien faces the fire's tile on the cast and lights it 2 ticks later; 1 attack in 7 at Veliaf, dart or smoke (3/21); faces back 3 ticks later |
-| Darkmeyer [5182..5850] | match | a disguised player is never attacked (15 sentinels, 10 vyrewatch passed) | FIXED by override (see Open) |
+| Darkmeyer [5182..5850] | match | a disguised player is never attacked (15 sentinels, 10 vyrewatch passed) | FIXED: `[ai_hunt]` (below) |
 | Maria [5570..5572] | - | talked to through the cell's bars after opening the prison door; an ap op within 5 | FIXED |
 | Arboretum doors [5768..5772] | - | one forced step from the doors' tile at L+1 | FIXED |
 | note, valves, tree [5778..5849] | match | the tree's swing loop (`p_oploc(3)`) had no op3 binding | FIXED |
@@ -142,21 +144,62 @@ The default (0,60,60,0) matches everywhere else.
 - An npc's `[ai_timer]` has no player. A `%varp` read there aborts the script.
   Veliaf's and Ivan's timers did, every time.
 
+## Fixed in the engine and client (2026-10-23)
+
+- **Clientscript strings.** The client kept 511 bytes of each RUNCLIENTSCRIPT
+  string argument; the Arboretum note (839, [5780]) lost the sentence naming
+  the gallons, and Jagex sends up to ~2,900. `PktRunClientScript` now holds
+  its strings in one 8 KB arena per payload (`pkt_runclientscript_str` /
+  `_set_str`), so any one argument may use all of it. The struct is smaller
+  than the 28 x 512 matrix it replaced, and the cs2 task's cap rises with it.
+  `test-runclientscript` asserts a 2,900-character argument whole. The quest
+  test reads the gallons off the scroll.
+- **ServerScript string literals.** The compiler had the same cut one step
+  earlier. The lexer's token held 511 characters and dropped the rest without
+  a diagnostic, so the note reached the wire at 511 even after the client fix.
+  `SSC_TOKEN_TEXT_MAX` is now 8192, and a literal past it fails the compile
+  ("string literal longer than ..."). The whole content tree compiles under it.
+  `test-ssc` (`long string literals`) runs a 2,900-character literal with an
+  interpolation through `mes` whole, and checks that a longer one is refused.
+- **`[ai_hunt,<npc>]`** (trigger 183). It runs when an aggressive npc is about
+  to take a player, with both active; content declines by clearing the
+  target. Darkmeyer's sentinels, vyrewatch and juvinates hunt again as their
+  stats say and decline a player in the full noble disguise
+  (`sf_darkmeyer.rs2`). Leg 8 checks both: no guard takes the disguised
+  player, and one takes them with the top off.
+
+## Fight and chase checks (2026-10-23)
+
+- **Carl** notices a player 2 tiles away or nearer, walking or stopped
+  [inferred: across both recorded chases the recorder was never nearer than
+  3, on 26 ticks]. The recorder walked 3..6 behind him.
+- **Damien's fires** need a straight walkable line from him, so they land in
+  his room, never behind a wall.
+- **Vanstrom.**
+  - He casts from 1..3 tiles (65 barrages: 54 at 1, 4 at 2, 7 at 3) and walks
+    in from further ([6879], [6973]..[6975]). `attackrange` 3, was 10.
+  - The orb is 5 tiles from him on the player's far side (one recorded,
+    [6968]), and goes off on a player within 1 ([6973], 34).
+  - Prayed, about 1 blood spell in 5 still lands for 1..8 (9 of ~50).
+  - The form change follows [7141] / [7144] / [7149] / [7152] / [7154]
+    to the tick.
+  - The acidic bloodveld walks through npcs (`moverestrict=passthru`). It sets
+    off 4 ticks after it appears ([7073] -> [7077]), faces into the arena, and
+    is gone the tick after its burst ([7083]). Its acid pool goes at +30 with
+    `mory_vanstrom_acid_remove` ([6914]).
+  - Matching already:
+    - specials every 9..11 attacks, never the same twice (6 recorded);
+    - the pets' posts, (52,37) and (52,23), on the player's far side;
+    - darkness 48..49 and stepped off at T+2;
+    - the enraged blow every 4 ticks;
+    - lightning: 19 tiles every 4 ticks over dx 45..54, dz 22..38, struck 3
+      ticks on.
+
 ## Open
 
-1. **Client, 511-byte clientscript strings.**
-   `revpacket.h PKT_RUNCLIENTSCRIPT_STR_LEN` = 512 and
-   `TASK_CS2_RUN_STR_ARG_LEN` = 512. Jagex sends up to ~2,900 characters, and
-   the Arboretum note's 839 never shows its gallons. Raising it touches the
-   packet parsers, the compact accessor and the 64-deep clientscript queue.
-   The test reads the server's total meanwhile.
-2. **Disguise aggression.** The engine's aggression has no content test for
-   what a player wears. Darkmeyer's sentinels, vyrewatch and juvinates are
-   set `huntmode=none` for everyone, so an undisguised player is not attacked
-   [wiki: they should be].
-3. **Jingle end.** Jagex re-sends the current song when a jingle ends ([3602]
+1. **Jingle end.** Jagex re-sends the current song when a jingle ends ([3602]
    = 3577 + 15.4 s; [2516] = 2507 + 5.67 s). Our engine does not. Engine-wide.
-4. **Chathead seq 8542** (above).
-5. **`rsprox_npcinfo.py` and `rsprox_hit_causes.py`** match nothing on these
+2. **Chathead seq 8542** (above).
+3. **`rsprox_npcinfo.py` and `rsprox_hit_causes.py`** match nothing on these
    transcripts (they expect `id=<symbol> (<n>)`). The per-npc tallies here were
    made with `audit/npcblocks.py`.

@@ -1728,7 +1728,7 @@ compile_interpolation(
 static int
 parse_string_literal(struct SSC_Compiler* compiler, const char* text)
 {
-    char chunk[1024];
+    char chunk[SSC_TOKEN_TEXT_MAX];
     size_t chunk_length = 0;
     int parts = 0;
     const char* cursor = text;
@@ -1784,6 +1784,23 @@ parse_string_literal(struct SSC_Compiler* compiler, const char* text)
     if( parts > 1 )
         emit(compiler, SS_OP_JOIN_STRING, parts);
     return 1;
+}
+
+/**
+ * The current token is a string literal: compile it. Its own frame holds the
+ * copy (SSC_TOKEN_TEXT_MAX bytes), so parse_primary's recursion does not carry
+ * one per level. A literal the lexer could not hold is refused, never cut.
+ */
+static int
+parse_string_token(struct SSC_Compiler* compiler)
+{
+    char literal[SSC_TOKEN_TEXT_MAX];
+
+    if( compiler->lexer.current.truncated )
+        return fail(compiler, "string literal longer than %d characters", SSC_TOKEN_TEXT_MAX - 1);
+    memcpy(literal, compiler->lexer.current.text, sizeof(literal));
+    SSC_LexNext(&compiler->lexer);
+    return parse_string_literal(compiler, literal);
 }
 
 /** Arithmetic inside calc(): + - * / % with the usual precedence. */
@@ -2003,8 +2020,7 @@ parse_expression(struct SSC_Compiler* compiler, int* is_string)
 
     case SSC_TOK_STRING:
         *is_string = 1;
-        SSC_LexNext(lexer);
-        return parse_string_literal(compiler, text);
+        return parse_string_token(compiler);
 
     case SSC_TOK_LOCAL:
     {
