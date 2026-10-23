@@ -22903,8 +22903,16 @@ ToriRSServer_WorldSelftest(void)
              * that lands after the derivation instead (a one-blow melee kill,
              * dispatched from the packet phase) is a separate stanza: "a
              * one-blow kill still ships the turn". */
-            SELFTEST_CHECK(player->face_entity == -1 && npc->face_entity == -1,
-                           "both sides should release their face latch on npc death");
+            /* The player lets go on the killing tick; the npc on the next, with
+             * its death sequence (the death stage's QUEUED step, D+1: RSProx
+             * `[facing] type=reset` on the tick after the zero-health splat in
+             * ~90 of ~113 deaths across 4315/4292/4312, and 272/276 Colosseum
+             * shamans on their death seq's tick). */
+            SELFTEST_CHECK(player->face_entity == -1,
+                           "the player should release its face latch on npc death");
+            selftest_tick(srv);
+            SELFTEST_CHECK(npc->face_entity == -1,
+                           "the npc should release its face latch the tick after its death blow");
 
             /* Damage reached the client: NPC_INFO carries the hitsplat and the
              * health bar in one mask. */

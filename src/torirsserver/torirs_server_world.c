@@ -7692,6 +7692,13 @@ handle_opnpc(
     npc = &srv->npcs[slot];
     if( !npc->active )
         return;
+    /* An op the npc is not showing cannot be clicked: the client builds its
+     * menu from the enabled ops (`npc_setops`, the `[enabled_ops]` block), so a
+     * packet naming a hidden one is a client the game would not have produced.
+     * The Colosseum's killed bee swarm lies hidden for 50 ticks with no ops
+     * (RSProx `enabled_ops opflags=0b00000`) and must not be killed again. */
+    if( op_num >= 1 && op_num <= 5 && (npc->ops_hidden & (1 << (op_num - 1))) )
+        return;
 
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- OPNPC%d slot=%d type=%d\n", op_num, slot, npc->type);
@@ -17704,6 +17711,12 @@ phase_npcs(struct ToriRSServer* srv)
         struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
         if( !npc->active )
+            continue;
+        /* A dying npc's face belongs to its death stages: the blow leaves the
+         * latch and DEATH_QUEUED (D+1) clears it with the death sequence, so a
+         * clear here would send the reset on the blow's own tick (RSProx: the
+         * Colosseum's shamans 272/276 on the death seq's tick). */
+        if( npc->death_tick >= 0 )
             continue;
         /*
          * A familiar is never "idle facing nobody" — it attends its owner.

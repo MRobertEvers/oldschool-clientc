@@ -1662,7 +1662,22 @@ npc_death_begin(
         srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
         npc->death_credit_players[srv->active_player->pid] =
             TORIRSSERVER_DEATH_CREDIT_HITTER;
-    ToriRSServer_CombatStopNpc(srv, slot);
+    {
+        /*
+         * The target goes now; the FACE goes on D+1 with the death sequence
+         * (the ledger below: "QUEUED — stop, face nothing"). Clearing it here
+         * sent the reset on the blow's own tick, a tick before the reference's
+         * `[proc,npc_death]` does it: RSProx, the Colosseum's shamans 272/276
+         * `[facing] type=reset` on the death seq's tick, none on the splat's
+         * (docs/rsprox-analysis/colosseum/README.md §5c).
+         */
+        int const face = npc->face_entity;
+        int const face_masked = npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY;
+
+        ToriRSServer_CombatStopNpc(srv, slot);
+        npc->face_entity = face;
+        npc->masks = (npc->masks & ~TORIRSSERVER_NMASK_FACE_ENTITY) | face_masked;
+    }
     /*
      * And the *other* half of a target: the mode.
      *
@@ -3625,6 +3640,12 @@ npc_death_step(
     switch( npc->death_stage )
     {
     case TORIRSSERVER_DEATH_QUEUED:
+        /* Face nothing: the latch the blow left standing (npc_death_begin). */
+        if( npc->face_entity != -1 )
+        {
+            npc->face_entity = -1;
+            npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        }
         /*
          * `npc_walk(npc_coord)` and `npc_setmode(none)`. The mode was put back
          * at the blow; the route was not, and a half-walked route is what the

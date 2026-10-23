@@ -1519,6 +1519,10 @@ core_zone_sub(
         p->launch_cycle = (int)core->world->cycle;
         p->start_delay = pkt->start_delay;
         p->end_delay = pkt->end_delay;
+        if( core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tprojectile\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n",
+                    core->tick, pkt->spotanim, x, z, p->dst_x, p->dst_z, pkt->target, pkt->src_height,
+                    pkt->dst_height, pkt->start_delay, pkt->end_delay, pkt->peak, pkt->arc);
         break;
     }
     case PKT_NAME_SCRIPTEDPROJ_ADD:
@@ -1839,7 +1843,7 @@ core_wirelog(
             for( int a = 0; a < rcs->argc && a < PKT_RUNCLIENTSCRIPT_ARG_MAX; a++ )
             {
                 if( (rcs->str_mask >> a) & 1u )
-                    fprintf(f, "%s\"%s\"", a ? "," : "", rcs->strv[a]);
+                    fprintf(f, "%s\"%s\"", a ? "," : "", pkt_runclientscript_str(rcs, a));
                 else
                     fprintf(f, "%s%d", a ? "," : "", rcs->intv[a]);
             }
@@ -2306,7 +2310,7 @@ core_packet(
                 {
                     if( strs < 4 )
                         snprintf(core->last_script.str_args[strs++], SCRIPTRUN_TEXT, "%s",
-                                 rcs->strv[a]);
+                                 pkt_runclientscript_str(rcs, a));
                 }
             }
             core->last_script.serial = ++core->script_serial;
