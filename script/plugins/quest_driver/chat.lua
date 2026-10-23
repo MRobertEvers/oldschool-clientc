@@ -393,7 +393,19 @@ function QD.chat.drain(opts)
         -- resume outstanding that nothing answers. Not counted as a page.
         if QD.chat._continue_unarmed() then
             pages = pages - 1
-            QD.chat._settle_change(settled_kind, identity, opts.wait_ticks or 120)
+            -- Also done when the same box gains its continue: Daddy's Home's
+            -- lecture shows each box first with none, then the same text with
+            -- one (RSProx 4350 [284] -> [289]).
+            await({
+                level = function()
+                    local kind = QD.chat.kind()
+                    if kind ~= settled_kind or QD.chat._page_identity(kind) ~= identity then
+                        return true
+                    end
+                    return not QD.chat._continue_unarmed()
+                end,
+                note = "chat.drain: unarmed box",
+            }, opts.wait_ticks or 120)
             if QD.chat._continue_unarmed() and QD.chat._page_identity(QD.chat.kind()) == identity then
                 return "timeout", "chat.drain: a page with no continue stayed up "
                     .. tostring(opts.wait_ticks or 120) .. " tick(s)"

@@ -118,9 +118,21 @@ app_update_painter_cull(
         return;
     painter = world->painter;
     {
+        /* The draw distance is device option 14, as the reference client's
+         * settings slider and the cache's scripts set it: clientscript 5193
+         * (torirs_deviceopt_set14) writes 90 while the server holds
+         * draw_distance_max_override (varbit 18141) through a cutscene
+         * (Daddy's Home's lecture, RSProx 4350 [282..449]), and the
+         * player's choice again after it. Seeded from the boot feature
+         * until a script or the slider writes one. */
         char const* dd = torirs_env_draw_distance();
-        int v = ToriRS_Features_PainterDrawDistance(app->features);
+        int v = RS_CS2Host_GetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_DRAW_DISTANCE);
         int from_env;
+        if( v < TORIRS_PAINTER_DRAW_DISTANCE_MIN || v > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+        {
+            v = ToriRS_Features_PainterDrawDistance(app->features);
+            RS_CS2Host_SetOption(&app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_DRAW_DISTANCE, v);
+        }
         if( dd && dd[0] != '\0' && sscanf(dd, "%d", &from_env) == 1 )
             v = from_env;
         painter_set_draw_distance(painter, v);

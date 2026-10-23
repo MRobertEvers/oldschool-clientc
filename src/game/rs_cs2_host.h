@@ -212,6 +212,8 @@ struct RS_CS2TradingPost
  * scripts read back what they wrote.
  */
 #define RS_CS2_DEVICEOPTION_FPS_CAP 5
+/** The scene's draw distance in tiles, 25..90 (DEVICEOPTION_GETRANGE). */
+#define RS_CS2_DEVICEOPTION_DRAW_DISTANCE 14
 #define RS_CS2_DEVICEOPTION_FPS_CAP_BACKGROUND 26
 
 /**

@@ -7,7 +7,10 @@
 --
 -- The recorder owned a house in Taverley ("Is this necessary? I've got a house
 -- of my own, in Taverley"), so this player does too: `varb2187_poh_house_location`
--- = 2 (^poh_loc_taverley) is the only thing Daddy's Home reads about it.
+-- = 2 (^poh_loc_taverley), at the recorder's Construction 75: Yarlo asks a
+-- player with a house and some Construction whether to lecture (index 4350,
+-- house-less at level 1, and 1707, a house at level 1, are not asked; they
+-- get the cutscene: test/quests/daddyshome_nohouse.lua).
 -- Daddy's Home ends with no quest scroll (4291 [742..745]: the reward box,
 -- then miniquests_completed_count), so the end is graded on the status, the
 -- rewards and the xp rather than quest.expect_complete's scroll rows.
@@ -18,6 +21,7 @@ return {
     setup = {
         "::clearinv",
         "::setvar varb2187_poh_house_location 2",
+        "::setlevel construction 75",
         -- Exactly what the builds take: ten planks, five bolts of cloth, fourteen
         -- steel nails (2 + 2 + 4 + 4 + 2; nails never bend here).
         "::give woodplank 10",
