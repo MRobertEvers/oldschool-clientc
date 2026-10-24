@@ -2930,6 +2930,209 @@ selftest_useon_both(
 }
 
 /*
+ * Decanting, every ladder, through the packet handler.
+ *
+ * `[proc,selftest_herblore_decant_*]` check the tables; this checks the CLICK,
+ * which is where decanting has failed before: a type-bound `[opheldu]` on a
+ * dose obj (brew_potion.rs2's recipes keyed on a potion) answers before the
+ * potion category's rung, and a selftest binding on `vial_empty` answered every
+ * split. Both looked fine from the procs.
+ *
+ * The ladders are not listed here. Every obj carrying `decant_potion_enum` is
+ * found, so a ladder the generator adds is covered without touching this, and a
+ * ladder whose objs disagree with their enum fails on the spot.
+ *
+ * Per ladder, every (target, used) dose pair and every split, against the rule
+ * decant_potion.rs2 states: the target fills as far as its ladder goes, the
+ * used potion keeps the rest or becomes the ladder's container (dose 0); a
+ * potion and its container split smaller half to the potion. Guthix rest's
+ * container is a cup, and `[opheldu,cup_empty]` is One Small Favour's, so it is
+ * combine-only and its splits are not asserted.
+ */
+static void
+selftest_decant_sweep(struct ToriRSServer* srv)
+{
+    /* selftest_useon's slots: A is dragged, B is the target. */
+    enum
+    {
+        SLOT_A = 24,
+        SLOT_B = 25
+    };
+    struct ToriRSServerPlayer* player = srv->active_player;
+    int enum_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "decant_potion_enum");
+    int dose_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "dose_count");
+    int cup = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cup_empty");
+    int obj_count = ToriRSServer_ObjInfoCount();
+    int ladders[256];
+    int ladder_count = 0;
+    int dose_objs = 0;
+    int pairs = 0;
+    int splits = 0;
+    int prev_one = -1;
+    struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
+
+    SELFTEST_CHECK(enum_param >= 0 && dose_param >= 0,
+                   "decanting: decant_potion_enum and dose_count should resolve, got %d/%d",
+                   enum_param, dose_param);
+    if( enum_param < 0 || dose_param < 0 )
+        return;
+
+    for( int obj = 0; obj < obj_count; obj++ )
+    {
+        const struct ToriRSServerObjParam* p = ToriRSServer_ObjParam(obj, enum_param);
+        int seen = 0;
+
+        if( !p )
+            continue;
+        dose_objs++;
+        for( int i = 0; i < ladder_count; i++ )
+            seen |= ladders[i] == p->ival;
+        if( !seen && ladder_count < (int)(sizeof(ladders) / sizeof(ladders[0])) )
+            ladders[ladder_count++] = p->ival;
+    }
+    SELFTEST_CHECK(ladder_count >= 140,
+                   "decanting: every OldSchool dose ladder should carry decant_potion_enum, "
+                   "found %d ladders over %d objs",
+                   ladder_count, dose_objs);
+
+    memcpy(saved_inv, player->inv, sizeof(saved_inv));
+    for( int l = 0; l < ladder_count; l++ )
+    {
+        const struct ToriRSServerEnumDef* def = ToriRSServer_ContentEnumById(ladders[l]);
+        int dose[5] = { -1, -1, -1, -1, -1 };
+        int max = 0;
+
+        SELFTEST_CHECK(def != NULL, "decanting: ladder enum %d should load", ladders[l]);
+        if( !def )
+            continue;
+        for( int v = 0; v < def->count; v++ )
+            if( def->values[v].key >= 0 && def->values[v].key <= 4 )
+                dose[def->values[v].key] = def->values[v].value;
+        for( int d = 1; d <= 4 && dose[d] > 0; d++ )
+            max = d;
+        SELFTEST_CHECK(dose[0] > 0 && max >= 2, "decanting: %s needs a container and two doses",
+                       def->symbol ? def->symbol : "?");
+        if( dose[0] <= 0 || max < 2 )
+            continue;
+        for( int d = 1; d <= max; d++ )
+        {
+            const struct ToriRSServerObjParam* e = ToriRSServer_ObjParam(dose[d], enum_param);
+            const struct ToriRSServerObjParam* n = ToriRSServer_ObjParam(dose[d], dose_param);
+
+            SELFTEST_CHECK(e && e->ival == ladders[l] && n && n->ival == d,
+                           "decanting: %s dose %d (obj %d) should name its own ladder and dose",
+                           def->symbol ? def->symbol : "?", d, dose[d]);
+        }
+
+        for( int target = 1; target <= max; target++ )
+            for( int used = 1; used <= max; used++ )
+            {
+                int moved = used < max - target ? used : max - target;
+                int want_b = dose[target + moved];
+                int want_a = dose[used - moved];
+
+                selftest_useon(srv, dose[used], 1, dose[target], 1, NULL, 0);
+                pairs++;
+                SELFTEST_CHECK(player->inv[SLOT_B].obj_id == want_b &&
+                                   player->inv[SLOT_A].obj_id == want_a,
+                               "decanting %s: %d-dose used on %d-dose should leave %d and %d, "
+                               "got target obj %d (want %d) and used obj %d (want %d)",
+                               def->symbol ? def->symbol : "?", used, target, target + moved,
+                               used - moved, player->inv[SLOT_B].obj_id, want_b,
+                               player->inv[SLOT_A].obj_id, want_a);
+            }
+
+        if( dose[0] != cup )
+            for( int d = 1; d <= max; d++ )
+            {
+                int kept = d >= 2 ? d / 2 : d;
+                int poured = d >= 2 ? d - d / 2 : 0;
+
+                /* Both orders: the vial carries no category, so one is rung 3
+                 * and the other rung 4. */
+                selftest_useon(srv, dose[d], 1, dose[0], 1, NULL, 0);
+                splits++;
+                SELFTEST_CHECK(player->inv[SLOT_A].obj_id == dose[kept] &&
+                                   player->inv[SLOT_B].obj_id == dose[poured],
+                               "decanting %s: a %d-dose used on its container should split "
+                               "%d/%d, got potion obj %d and container obj %d",
+                               def->symbol ? def->symbol : "?", d, kept, poured,
+                               player->inv[SLOT_A].obj_id, player->inv[SLOT_B].obj_id);
+                selftest_useon(srv, dose[0], 1, dose[d], 1, NULL, 0);
+                splits++;
+                SELFTEST_CHECK(player->inv[SLOT_B].obj_id == dose[kept] &&
+                                   player->inv[SLOT_A].obj_id == dose[poured],
+                               "decanting %s: a container used on a %d-dose should split "
+                               "%d/%d, got potion obj %d and container obj %d",
+                               def->symbol ? def->symbol : "?", d, kept, poured,
+                               player->inv[SLOT_B].obj_id, player->inv[SLOT_A].obj_id);
+            }
+
+        /* Two ladders never mix: this ladder's 1-dose on the previous one's. */
+        if( prev_one > 0 )
+        {
+            selftest_useon(srv, dose[1], 1, prev_one, 1, NULL, 0);
+            SELFTEST_CHECK(player->inv[SLOT_A].obj_id == dose[1] &&
+                               player->inv[SLOT_B].obj_id == prev_one,
+                           "decanting %s: a different potion's dose must not combine, got "
+                           "%d and %d",
+                           def->symbol ? def->symbol : "?", player->inv[SLOT_A].obj_id,
+                           player->inv[SLOT_B].obj_id);
+        }
+        prev_one = dose[1];
+    }
+
+    /*
+     * What the player is told, as RSProx recorded it: the dose in words, and the
+     * `liquid` synth (2401). The split's line is Kronos'; no recording has one.
+     */
+    {
+        static struct ToriRSServerCapture cap;
+        static const struct
+        {
+            const char* used;
+            const char* target;
+            const char* text;
+            int synth;
+        } said[] = {
+            { "2dose1attack", "2dose1attack", "You have combined the liquid into four doses.", 1 },
+            { "1dose1attack", "1dose1attack", "You have combined the liquid into two doses.", 1 },
+            { "4dose1attack", "vial_empty", "You divide the liquid between the vessels.", 0 },
+        };
+        int liquid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_SYNTH, "liquid");
+
+        for( size_t i = 0; i < sizeof(said) / sizeof(said[0]); i++ )
+        {
+            int heard = 0;
+            int found = 0;
+
+            ToriRSServer_CaptureBegin(srv, &cap);
+            selftest_useon(srv, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, said[i].used), 1,
+                           ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, said[i].target), 1,
+                           NULL, 0);
+            ToriRSServer_CaptureEnd(srv);
+            for( int k = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, 0); k >= 0;
+                 k = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, k + 1) )
+            {
+                const char* text = selftest_message_text(srv, &cap.packets[k]);
+
+                found |= text && strcmp(text, said[i].text) == 0;
+            }
+            heard = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_SYNTH_SOUND, 0) >= 0;
+            SELFTEST_CHECK(found, "decanting %s on %s should say \"%s\"", said[i].used,
+                           said[i].target, said[i].text);
+            SELFTEST_CHECK(heard == said[i].synth, "decanting %s on %s should %splay synth %d",
+                           said[i].used, said[i].target, said[i].synth ? "" : "not ", liquid);
+        }
+    }
+
+    player->active_script = NULL;
+    memcpy(player->inv, saved_inv, sizeof(saved_inv));
+    fprintf(stderr, "ToriRSServer selftest: decanting swept %d ladders, %d pairs, %d splits\n",
+            ladder_count, pairs, splits);
+}
+
+/*
  * Prayer, as the selftest can reach it now that the engine has no prayer module.
  *
  * One name does both jobs, which is not a coincidence and is worth stating: a
@@ -5602,6 +5805,28 @@ ToriRSServer_WorldSelftest(void)
             selftest_evidence_end("godwars-restart");
             return g_selftest_failures;
         }
+    }
+
+    /*
+     * Decanting, on its own: every dose ladder through the packet handler
+     * (selftest_decant_sweep). Same reason as the gates below -- answering "does
+     * a potion still decant" should not wait on the rest of the tree.
+     *
+     *   TORIRSSERVER_SELFTEST_DECANT_ONLY=1 ./src/build_opt/torirsserver --selftest
+     */
+    if( getenv("TORIRSSERVER_SELFTEST_DECANT_ONLY") )
+    {
+        int decant_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir());
+
+        if( !decant_loaded )
+            decant_loaded = ToriRSServer_ScriptsLoad(srv, selftest_scripts_dir_from_src());
+        SELFTEST_CHECK(decant_loaded, "the decanting lane loads a compiled script pack");
+        if( decant_loaded )
+            selftest_decant_sweep(srv);
+        fprintf(stderr, "ToriRSServer decanting focused selftest: %d failure(s)\n",
+                g_selftest_failures);
+        selftest_evidence_end("decant");
+        return g_selftest_failures;
     }
 
     /*
@@ -46287,22 +46512,25 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
 
+            selftest_decant_sweep(srv);
+
             /*
              * ---- opheldu: trigger_decline and the fall-through -------------
              *
-             * `[opheldu,bucket_empty]` declines; `[opheldu,vial_empty]` handles
-             * it. Neither obj carries a category, so the only rungs that can fire
-             * are the two type rungs and this file's own scripts own both. The
-             * varp is a running total, because "both ran, in this order" is the
-             * claim and a plain assignment could not tell it from "only the second
-             * ran".
+             * `[opheldu,bucket_empty]` declines; `[opheldu,cert_vial_empty]`
+             * handles it -- a noted vial, because the real one is decanting's
+             * (selftest_useon.rs2 says why). Neither obj carries a category, so
+             * the only rungs that can fire are the two type rungs and this file's
+             * own scripts own both. The varp is a running total, because "both
+             * ran, in this order" is the claim and a plain assignment could not
+             * tell it from "only the second ran".
              */
             {
-                int vial = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "vial_empty");
+                int vial = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "cert_vial_empty");
                 int empty_bucket = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "bucket_empty");
 
                 SELFTEST_CHECK(vial > 0 && empty_bucket > 0,
-                               "vial_empty and bucket_empty should resolve, got %d/%d", vial,
+                               "cert_vial_empty and bucket_empty should resolve, got %d/%d", vial,
                                empty_bucket);
                 if( vial > 0 && empty_bucket > 0 )
                 {
