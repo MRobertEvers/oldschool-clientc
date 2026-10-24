@@ -558,6 +558,32 @@ recorders' projectiles under Myopia, 7 Frailty waves, 6 Doom waves).
 | entry L+1..L+9, walked walk-in, confirm +5, D+3 | yes | yes (30/30) |
 | leave and death exits: ticks, tiles, music, jingle length | yes | yes (30 + 6) |
 
+## 12b. Second pass (2026-10-23): what changed
+
+Every row below was a difference between the recordings and our wire; each is fixed, and the
+regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `colo_choice`,
+4 lobby runs) passed after the last change.
+
+| what | recorded | was | now |
+|---|---|---|---|
+| projectile heights | raw (fireblast 172/124, iron arrow 163/146, watersurge 172/146, javelin 200/138, shockwave 158/100, manticore h/50, totem 220/138, jar 400/0) | script value x 4 (148, 164, 140, 48 ...) | the raw value: `projanim_pl_raw` / `projanim_npc_raw` / `projanim_map_raw` (engine opcodes 11287..11289) |
+| magic impact spotanim (seer, shaman, shockwave) | on an accurate hit only, slot 2 | on every cast | on `~colo_accurate` = true |
+| manticore orb impact + synth 8370 | on an unprayed accurate orb, the tick it lands | none | `colo_manticore_orb_land` queue |
+| headbar per splat | one `[headbar]` per hitsplat, filled to the hp that splat left | one bar per tick | engine: `hp_after`/`bar_fill` per hitmark, 241 + 239 encoders, player and npc |
+| HP HUD | never closed between waves; mounted with the gameframe | closed with no target | kept mounted, `%hpbar_hud_npc` = -1 |
+| Doom | splat 73 with its stack bar, `vfx_doom_scorpion_attack_impact_01`, `doom_player_impact03`, the "N/cap points of doom!" line; at the cap "You have been doomed!", death spotanim + seq, death 7 ticks on | struct text only | `colo_doom_stack` / `colo_doomed`; `player/death.rs2` skips `human_death` for a doomed death |
+| Frailty | 99 held at 90 (a cap of base - base x pct) | percentage of current | `sub(stat_base, ...)` |
+| "Oh dear, you are dead!" | once | twice (`combat_death_message` + `respawn_message`) | once |
+| venom line | "You have been poisoned by venom!" | other wording | the recorded line (`venom.rs2`) |
+| Sol's eager-prayer line | `mes_spam` | `mes` | `mes_spam` |
+| leaving the cards unchosen | "You must make a choice before continuing!", once per tick | nothing | `colo_choice_pending` (if_close, opnpc1/3) |
+| confirm | state `starting` before the close | after | before (the close no longer reads as a dismiss) |
+| intermission music | no 147 at D+3 | 147 + a cards-music queue | removed |
+| lobby music on settle | 4 x `midi_song_envelope(787/811, 0, 60, 60, 0)` | 1 | 4 |
+| lobby npcs | 15 (Minimus outside, Glory, 3 gladiators, 7 sparrers, 4 push-ups) | none | `colosseum_lobby.spawn`; sparrers swing every 4-5 ticks (1 in 5 defend) on the dummy beside them with `varrock_heavybag_defend_delayed` |
+| npc wander offset (engine-wide) | uniform over -range..range (Glory chi-squared 5.9) | skewed (142.9) | `((v * (2r+1)) >> 24) - r` |
+| manticore death sound | `magmaquiris_death` | null | set |
+
 ## 13. Open gaps
 
 - **Shaman and jaguar damage** sits high in the recordings (see §6); ours is uniform.
@@ -565,9 +591,6 @@ recorders' projectiles under Myopia, 7 Frailty waves, 6 Doom waves).
 - **A monster that moves and fires on one tick** is judged by the forward ray from its
   predicted tile (`npc_approached` reads the footprint it stands on).
 - The **outside entrance** to the lobby (50749) is implemented but no test drives it.
-- **Projectile heights** are sent as the script's value x 4, so raw heights that are not
-  multiples of 4 come out 1-2 raw units off (146 -> 148, 163 -> 164, 138 -> 140, 50 -> 48).
-  The engine's convention for every projectile; not changed for this content.
 - **Step-tick share**: recorded players move and the monsters attack on a step tick 9% of
   the time; our bot stands still (2%). The mechanic matches (the launch tile); the share
   is the player's.
@@ -588,6 +611,11 @@ recorders' projectiles under Myopia, 7 Frailty waves, 6 Doom waves).
 - Player queues: an entry queued from inside another queue lands a tick early or late by
   which slot it takes (the drain walks slots, not insertion order). The Colosseum avoids
   it (the bees ride Sol's npc queue); engine-wide, not changed.
-- Myopia, Frailty and Doom rest on their struct text.
+- **Myopia** rests on its struct text (no recorded ranged wave under it). **Doom II and III**
+  are unrecorded: the cap comes from the struct text, the bar's denominator is that cap.
+- **Clientscript 5224** (`pvp_icons_comlevelrange`) is sent through the run; 98 % of them sit
+  on a prayer toggle but the rest are unexplained, so ours sends none.
+- **Gladiators 1 and 3** still show a wander chi-squared residual after the uniform offset.
+- The HP HUD is mounted twice at login (the gameframe carry re-mounts it); invisible.
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording
   shows either way.

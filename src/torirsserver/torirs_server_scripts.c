@@ -11916,11 +11916,17 @@ script_command(
     case SS_OP_NPC_PROJANIM_MAP:
     case SS_OP_NPC_PROJANIM_PL:
     case SS_OP_NPC_PROJANIM_NPC:
+    case SS_OP_PROJANIM_MAP_RAW:
+    case SS_OP_PROJANIM_PL_RAW:
+    case SS_OP_PROJANIM_NPC_RAW:
     {
         int32_t values[9];
         int dst_x;
         int dst_z;
         int target;
+        /* projanim_*_raw: the two heights are raw (see `heights_raw`). */
+        int heights_raw = opcode == SS_OP_PROJANIM_MAP_RAW || opcode == SS_OP_PROJANIM_PL_RAW ||
+                          opcode == SS_OP_PROJANIM_NPC_RAW;
         /* The source actor, in the same encoding as `target`: 0 for a shot
          * from a tile, `slot + 1` for the active npc of an npc_projanim_*. */
         int source = 0;
@@ -11945,6 +11951,10 @@ script_command(
                          ? SS_OP_PROJANIM_MAP
                          : (opcode == SS_OP_NPC_PROJANIM_PL ? SS_OP_PROJANIM_PL : SS_OP_PROJANIM_NPC);
         }
+        if( heights_raw )
+            opcode = opcode == SS_OP_PROJANIM_MAP_RAW
+                         ? SS_OP_PROJANIM_MAP
+                         : (opcode == SS_OP_PROJANIM_PL_RAW ? SS_OP_PROJANIM_PL : SS_OP_PROJANIM_NPC);
 
         if( opcode == SS_OP_PROJANIM_MAP )
         {
@@ -12002,10 +12012,11 @@ script_command(
                     srv->tick, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
                     dst_x, dst_z, target, (int)values[2], (int)values[5], (int)values[6],
                     (int)values[3], (int)values[4], (int)values[7], (int)values[8]);
-        ToriRSServer_ZoneProjanim(srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
-                              ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target, source,
-                              (int)values[2], (int)values[3], (int)values[4], (int)values[5],
-                              (int)values[6], (int)values[7], (int)values[8]);
+        (heights_raw ? ToriRSServer_ZoneProjanimRaw : ToriRSServer_ZoneProjanim)(
+            srv, ToriRSServer_CoordX(values[0]), ToriRSServer_CoordZ(values[0]),
+            ToriRSServer_CoordLevel(values[0]), dst_x, dst_z, target, source, (int)values[2],
+            (int)values[3], (int)values[4], (int)values[5], (int)values[6], (int)values[7],
+            (int)values[8]);
         /* For the queue this attack arms next: its splat waits for this shot
          * to land (see `projectile_land_cycle`). A shot at the ground homes
          * on nobody, so it times no one's splat. */

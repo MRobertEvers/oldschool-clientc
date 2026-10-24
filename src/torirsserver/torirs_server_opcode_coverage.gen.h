@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    411  host commands
+ *    414  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    552  total, of 601 declared opcodes
+ *    555  total, of 604 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 552
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 601
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 555
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 604
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11287
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11290
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -593,6 +593,9 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11284, /* SS_OP_SOUND_AREA_LOOPS (host commands) */
     11285, /* SS_OP_CAM_UNLOCK (host commands) */
     11286, /* SS_OP_NPC_APPROACHED (host commands) */
+    11287, /* SS_OP_PROJANIM_MAP_RAW (host commands) */
+    11288, /* SS_OP_PROJANIM_PL_RAW (host commands) */
+    11289, /* SS_OP_PROJANIM_NPC_RAW (host commands) */
 };
 
 #endif

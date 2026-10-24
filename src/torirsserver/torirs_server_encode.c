@@ -1939,6 +1939,26 @@ ToriRSServer_GameframeOpentop(
                 1);
     /* The frame is back; now put back what the frame does not know about. */
     ToriRSServer_GameframeCarryMounts(player, carried, carried_count);
+    /* The enemy health overlay, mounted with the frame and never closed (RSProx:
+     * IF_OPENSUB hpbar_hud and %hpbar_hud_npc -1 in the login burst, no
+     * IF_CLOSESUB in 300 sessions; torirs_server_hpbar.c). A switch of layout
+     * carries the mount above. */
+    {
+        const struct ToriRSServerIds* hp_ids = ToriRSServer_Ids();
+
+        if( hp_ids && hp_ids->iface_hpbar_hud > 0 && hp_ids->com_gameframe_hpbar_hud > 0 &&
+            !player->hpbar_open )
+        {
+            ToriRSServer_SendIfOpensub(player, TORIRSSERVER_COM_GROUP(hp_ids->com_gameframe_hpbar_hud),
+                                       TORIRSSERVER_COM_CHILD(hp_ids->com_gameframe_hpbar_hud),
+                                       hp_ids->iface_hpbar_hud, 1);
+            player->hpbar_open = TORIRSSERVER_HPBAR_OPENING;
+            if( hp_ids->varp_hpbar_hud_npc >= 0 )
+                player->varps[hp_ids->varp_hpbar_hud_npc] = -1;
+            if( hp_ids->varp_hpbar_hud_npc >= 0 )
+                ToriRSServer_WorldMarkVarp(player, hp_ids->varp_hpbar_hud_npc);
+        }
+    }
     /* The V2 snapshot is the authoritative commit for this root. It also
      * removes stale client-side mounts/event ranges left by an interrupted
      * layout switch. Revision 230's sender is deliberately a no-op. */
@@ -4592,8 +4612,9 @@ zone_sub_payload(
         rsab_p1(buf, event->dz_offset & 0xff);
         rsab_p2(buf, event->target & 0xffff);
         rsab_p2(buf, event->id);
-        rsab_p1(buf, event->src_height);
-        rsab_p1(buf, event->dst_height);
+        /* The one-byte layout states script units: raw heights are quartered. */
+        rsab_p1(buf, event->heights_raw ? event->src_height / 4 : event->src_height);
+        rsab_p1(buf, event->heights_raw ? event->dst_height / 4 : event->dst_height);
         rsab_p2(buf, event->start_delay);
         rsab_p2(buf, event->end_delay);
         rsab_p1(buf, event->peak);
@@ -5004,6 +5025,38 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     ext.headbar_start_fill =
                         ToriRSServer_HealthbarFill(subject->hitpoints, subject->max_hitpoints, width);
                     ext.headbar_end_fill = ext.headbar_start_fill;
+                }
+                /* A bar per splat, each at the hitpoints after it and on its
+                 * splat's delay (`struct ToriRSServerHitmark` hp_after). */
+                if( ext.has_headbar && subject->hitmark_count > 0 &&
+                    ToriRSServer_Ids()->healthbar_standard >= 0 && subject->max_hitpoints > 0 )
+                {
+                    for( int i = 0; i < subject->hitmark_count && i < 4; i++ )
+                    {
+                        struct ToriRSServerHitmark const* hm = &subject->hitmarks[i];
+                        int const type =
+                            hm->bar_type >= 0 ? hm->bar_type : ToriRSServer_Ids()->healthbar_standard;
+                        int const fill =
+                            hm->bar_fill >= 0
+                                ? hm->bar_fill
+                                : ToriRSServer_HealthbarFill(hm->hp_after < 0 ? 0 : hm->hp_after,
+                                                             subject->max_hitpoints,
+                                                             ToriRSServer_HealthbarWidth(type));
+
+                        if( i == 0 )
+                        {
+                            ext.headbar_type = type;
+                            ext.headbar_duration = 0;
+                            ext.headbar_start_delay = hm->delay;
+                            ext.headbar_start_fill = fill;
+                            ext.headbar_end_fill = fill;
+                            continue;
+                        }
+                        ext.headbar_extra[ext.headbar_extra_count].type = type;
+                        ext.headbar_extra[ext.headbar_extra_count].start_delay = hm->delay;
+                        ext.headbar_extra[ext.headbar_extra_count].start_fill = fill;
+                        ext.headbar_extra_count++;
+                    }
                 }
             }
             if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
@@ -5985,8 +6038,20 @@ ToriRSServer_HealthbarFill(int left, int span, int width)
     return 1 + (left * (width - 1)) / span;
 }
 
+static int npc_headbar_fill_at(const struct ToriRSServerNpc* npc, int hitpoints, int* width_out);
+
 int
 ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
+{
+    return npc_headbar_fill_at(npc, npc->hitpoints, width_out);
+}
+
+/* ToriRSServer_NpcHeadbarFill at a stated `hitpoints` (a splat's hp_after). */
+static int
+npc_headbar_fill_at(
+    const struct ToriRSServerNpc* npc,
+    int hitpoints,
+    int* width_out)
 {
     int headbar;
     int width;
@@ -6005,10 +6070,10 @@ ToriRSServer_NpcHeadbarFill(const struct ToriRSServerNpc* npc, int* width_out)
     span = npc->max_hitpoints - npc->headbar_reserve;
     if( span <= 0 )
         span = 1;
-    left = npc->hitpoints - npc->headbar_reserve;
+    left = hitpoints - npc->headbar_reserve;
     /* `headbar_inverted`: the bar is what has been taken, not what is left. */
     if( npc->def && npc->def->headbar_inverted )
-        left = npc->max_hitpoints - npc->hitpoints;
+        left = npc->max_hitpoints - hitpoints;
     if( left < 0 )
         left = 0;
     if( left > span )
@@ -6363,17 +6428,33 @@ put_npc_extended_v5(
          * arrow carrying the damage is still in the air shows the hit before
          * it lands. The client keeps the old fill up until then.
          */
-        int bar_delay = 0;
-        for( int i = 0; i < npc->hitmark_count; i++ )
+        /* One bar per splat, each at the hitpoints after it and on its own
+         * splat's delay (RSProx: 4,621 npc ticks with 2 splats carry 2 bars);
+         * a bar with no splat is the one current bar. */
+        if( npc->hitmark_count > 0 )
         {
-            if( npc->hitmarks[i].delay > bar_delay )
-                bar_delay = npc->hitmarks[i].delay;
+            int const bars = npc->hitmark_count < TORIRSSERVER_HITMARK_MAX ? npc->hitmark_count
+                                                                          : TORIRSSERVER_HITMARK_MAX;
+
+            rsab_p1_alt2(buf, bars);
+            for( int i = 0; i < bars; i++ )
+            {
+                int w = 0;
+
+                v5_psmart1or2(buf, headbar);
+                v5_psmart1or2(buf, 0);
+                v5_psmart1or2(buf, npc->hitmarks[i].delay);
+                rsab_p1_alt1(buf, npc_headbar_fill_at(npc, npc->hitmarks[i].hp_after, &w));
+            }
         }
-        rsab_p1_alt2(buf, 1);
-        v5_psmart1or2(buf, headbar);
-        v5_psmart1or2(buf, 0);
-        v5_psmart1or2(buf, bar_delay);
-        rsab_p1_alt1(buf, fill);
+        else
+        {
+            rsab_p1_alt2(buf, 1);
+            v5_psmart1or2(buf, headbar);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 0);
+            rsab_p1_alt1(buf, fill);
+        }
     }
     if( classic & TORIRSSERVER_NMASK_ANIM )
     {
@@ -6596,23 +6677,42 @@ put_npc_extended_v241(
      * (`npc_headbar_timed`: Ezekiel's swords, 60 -> 0 over 390). */
     if( flag & V241_NPC_HEADBARS )
     {
-        rsab_p1(buf, own_bar + timed_bar);
+        /* One own bar per splat, each at the hitpoints after it and on its
+         * splat's delay (Jagex: 4,621 npc ticks with 2 splats carry 2 bars,
+         * RSProx); a bar with no splat this tick is the one current bar. */
+        int const own_bars =
+            own_bar ? (npc->hitmark_count > 0
+                           ? (npc->hitmark_count < TORIRSSERVER_HITMARK_MAX ? npc->hitmark_count
+                                                                           : TORIRSSERVER_HITMARK_MAX)
+                           : 1)
+                    : 0;
+
+        rsab_p1(buf, own_bars + timed_bar);
         if( own_bar )
         {
             int width = 0;
             int fill = ToriRSServer_NpcHeadbarFill(npc, &width);
-            int bar_delay = 0;
 
             ToriRSServer_TicklogNpcHeadbar(npc, headbar, fill, width);
-            for( int i = 0; i < npc->hitmark_count; i++ )
+            if( npc->hitmark_count > 0 )
             {
-                if( npc->hitmarks[i].delay > bar_delay )
-                    bar_delay = npc->hitmarks[i].delay;
+                for( int i = 0; i < own_bars; i++ )
+                {
+                    int w = 0;
+
+                    v5_psmart1or2(buf, headbar);
+                    v5_psmart1or2(buf, 0);
+                    v5_psmart1or2(buf, npc->hitmarks[i].delay);
+                    rsab_p1_alt3(buf, npc_headbar_fill_at(npc, npc->hitmarks[i].hp_after, &w));
+                }
             }
-            v5_psmart1or2(buf, headbar);
-            v5_psmart1or2(buf, 0);
-            v5_psmart1or2(buf, bar_delay);
-            rsab_p1_alt3(buf, fill);
+            else
+            {
+                v5_psmart1or2(buf, headbar);
+                v5_psmart1or2(buf, 0);
+                v5_psmart1or2(buf, 0);
+                rsab_p1_alt3(buf, fill);
+            }
         }
         if( timed_bar )
         {

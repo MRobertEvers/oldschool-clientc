@@ -1474,6 +1474,18 @@ core_zone_sub(
         a->tick = core->tick;
         break;
     }
+    case PKT_NAME_SOUND_AREA:
+    {
+        /* Logged only: a scriptrun plays no sound, but the wire audit needs every
+         * area sound the zone sent, out of range or not (RSProx hears sparring
+         * gladiators 20 tiles off). */
+        struct PktSoundArea const* pkt = payload;
+        core_zone_tile(core, pkt->pos, &x, &z, &level);
+        if( core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tsound_area\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", core->tick, pkt->id,
+                    pkt->loops, pkt->delay, pkt->radius, pkt->inner, x, z);
+        break;
+    }
     case PKT_NAME_MAP_ANIM:
     {
         struct PktMapAnim const* pkt = payload;

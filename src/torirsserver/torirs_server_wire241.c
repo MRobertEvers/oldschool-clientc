@@ -984,10 +984,10 @@ w241_zone_payload(
         m.end_time = event->end_delay;
         m.end_packed = ((event->dst_level & 3) << 28) | ((event->dst_x & 0x3fff) << 14) |
                        (event->dst_z & 0x3fff);
-        m.end_height = event->dst_height * 4;
+        m.end_height = event->heights_raw ? event->dst_height : event->dst_height * 4;
         m.source_index = event->source < 0 ? event->source - 1 : event->source;
         m.angle = event->peak;
-        m.start_height = event->src_height * 4;
+        m.start_height = event->heights_raw ? event->src_height : event->src_height * 4;
         m.target_index = event->target < 0 ? event->target - 1 : event->target;
         W241(rsprot_map_projanim_v2_out, m);
         return 1;

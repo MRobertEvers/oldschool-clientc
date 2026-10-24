@@ -128,13 +128,21 @@ mock241_write_player_extended(
      * g1Alt3 start fill, and g1Alt1 end fill when the bar has a duration. */
     if( has_headbar )
     {
-        rsab_p1(buf, 1);
+        rsab_p1(buf, 1 + ext->headbar_extra_count);
         rsab_psmart(buf, ext->headbar_type);
         rsab_psmart(buf, ext->headbar_duration);
         rsab_psmart(buf, ext->headbar_start_delay);
         rsab_p1_alt3(buf, ext->headbar_start_fill);
         if( ext->headbar_duration > 0 )
             rsab_p1_alt1(buf, ext->headbar_end_fill);
+        /* A bar per further splat (rev 241 only; the 239 writer sends one). */
+        for( int i = 0; i < ext->headbar_extra_count; i++ )
+        {
+            rsab_psmart(buf, ext->headbar_extra[i].type);
+            rsab_psmart(buf, 0);
+            rsab_psmart(buf, ext->headbar_extra[i].start_delay);
+            rsab_p1_alt3(buf, ext->headbar_extra[i].start_fill);
+        }
     }
     /* APPEARANCE: g1Alt2 length (`-n`), then the bytes REVERSED (gdataAlt1). */
     if( has_appearance )

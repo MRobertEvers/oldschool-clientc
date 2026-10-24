@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 415 commands.
+ * 418 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -441,6 +441,9 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11284, "sound_area_loops", "synth int int coord int", "" },
     { 11285, "cam_unlock", "boolean", "" },
     { 11286, "npc_approached", "coord", "boolean" },
+    { 11287, "projanim_map_raw", "coord coord spotanim int int int int int int", "" },
+    { 11288, "projanim_pl_raw", "coord player_uid spotanim int int int int int int", "" },
+    { 11289, "projanim_npc_raw", "coord npc_uid spotanim int int int int int int", "" },
 };
 
 #endif

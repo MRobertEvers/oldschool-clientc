@@ -107,9 +107,6 @@ hpbar_send_open_event(
  *  clears it. */
 #define TORIRSSERVER_HPBAR_LINGER_TICKS 6
 
-/** `hpbar_open`: the panel exists but has not been fed yet / is live. */
-#define TORIRSSERVER_HPBAR_OPENING 1
-#define TORIRSSERVER_HPBAR_LIVE 2
 
 static int
 hpbar_target_slot(struct ToriRSServerPlayer* player)
@@ -393,20 +390,23 @@ ToriRSServer_HpBarTick(
         ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_boss, 0);
     }
 
+    /*
+     * No npc to show: the panel stays MOUNTED and is told "nobody"
+     * (%hpbar_hud_npc = -1). Jagex mounts 303 in the login burst and never
+     * closes it: across 300 RSProx sessions not one IF_CLOSESUB of hpbar_hud,
+     * 206 hpbar_hud_npc writes from -1 (the Colosseum's Sol: -1 when he is
+     * gone, idx1223 [901]). Closing it here sent an IF_CLOSESUB at every
+     * target's end and an IF_OPENSUB at the next.
+     */
     if( want_type < 0 )
     {
         if( !player->hpbar_open )
             return;
-        player->hpbar_open = 0;
         player->hpbar_linger = 0;
         player->hpbar_shown_uid = 0;
-        player->hpbar_body_hidden = 0;
         if( getenv("TORIRS_HPBAR_DEBUG") )
-            fprintf(stderr, "hpbar: close\n");
+            fprintf(stderr, "hpbar: nobody\n");
         ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, -1);
-        /* Its own slot, not floater: see ToriRSServerIds.com_gameframe_hpbar_hud.
-         * The send remaps the stretch spelling onto the live gameframe. */
-        ToriRSServer_SendIfClosesub(player, ids->com_gameframe_hpbar_hud);
         return;
     }
 

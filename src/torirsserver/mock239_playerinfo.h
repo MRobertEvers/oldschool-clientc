@@ -155,6 +155,15 @@ struct Mock239PlayerExt
     int headbar_start_delay;
     int headbar_start_fill;
     int headbar_end_fill;
+    /** One more HEADBARS entry per further splat (rev 241: one bar per splat,
+     *  filled to the hitpoints after it); duration 0, so no end fill. */
+    struct
+    {
+        int type;
+        int start_delay;
+        int start_fill;
+    } headbar_extra[3];
+    int headbar_extra_count;
     /** Public-chat bytes are already wordpacked; the v5 wire reverses them. */
     int has_chat;
     int chat_colour_effect;

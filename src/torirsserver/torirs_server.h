@@ -1,6 +1,12 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_H
 
+/** Player `hpbar_open`: the panel exists but has not been fed yet / is live
+ *  (torirs_server_hpbar.c; mounted with the gameframe, torirs_server_encode.c). */
+#define TORIRSSERVER_HPBAR_OPENING 1
+#define TORIRSSERVER_HPBAR_LIVE 2
+
+
 struct RSCache_ServerPack;
 
 /*
@@ -1007,6 +1013,19 @@ struct ToriRSServerHitmark
      * update added "to more easily identify when you have been hit".
      */
     int other_type;
+    /**
+     * Hitpoints left once this splat is applied, and the bar it rides with.
+     *
+     * Jagex sends one HEADBARS entry per splat, each filled to the hitpoints
+     * after it: two hits of 1 and 11 on a player bar 29 then 25 of 30, not one
+     * bar at 25 (RSProx, every Colosseum session, Leagues and Grid Master
+     * alike: 1,621 player ticks with 2 splats carry 2 bars). `bar_type` /
+     * `bar_fill` are `hitmark_bar`'s own bar for its splat, -1 for the
+     * entity's standard bar at `hp_after`.
+     */
+    int hp_after;
+    int bar_type;
+    int bar_fill;
 };
 
 /*

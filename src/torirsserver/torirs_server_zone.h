@@ -219,6 +219,11 @@ struct ToriRSServerZoneEvent
      *  the start off this actor on the cycle the shot launches. */
     int source;
     int src_height, dst_height;
+    /** Projectiles: 1 when `src_height`/`dst_height` are the raw heights a rev
+     * 234+ MAP_PROJANIM_V2 carries (`projanim_*_raw`), 0 for script units
+     * (raw / 4, what every other projanim states). Jagex's raw heights are not
+     * all multiples of 4 (RSProx, the Colosseum: 163, 146, 138, 50). */
+    int heights_raw;
     int start_delay, end_delay;
     /** Client-TS `angle` and `startpos` — how high the arc goes and how far
      *  along it the projectile is drawn at spawn. */
@@ -505,6 +510,25 @@ ToriRSServer_ZoneLocMerge(
  */
 void
 ToriRSServer_ZoneProjanim(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int source,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc);
+
+/* ToriRSServer_ZoneProjanim with heights in raw units (see `heights_raw`). */
+void
+ToriRSServer_ZoneProjanimRaw(
     struct ToriRSServer* srv,
     int x,
     int z,

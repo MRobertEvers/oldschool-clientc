@@ -1268,6 +1268,14 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # due ranged monster fires -- 52 attacks against 4 holds (javelin, shaman).
     "NPC_APPROACHED": (11286, 1, 0, 1, 0),
 
+    # projanim_map_raw / projanim_pl_raw / projanim_npc_raw: projanim_* with the
+    # start and end heights in the raw units a rev 234+ MAP_PROJANIM_V2 carries
+    # (the plain commands take raw / 4). Jagex's are not all multiples of 4:
+    # RSProx, the Colosseum's shots 163 > 146, 172 > 146, 200 > 138, 300 > 50.
+    "PROJANIM_MAP_RAW": (11287, 9, 0, 0, 0),
+    "PROJANIM_PL_RAW": (11288, 9, 0, 0, 0),
+    "PROJANIM_NPC_RAW": (11289, 9, 0, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the

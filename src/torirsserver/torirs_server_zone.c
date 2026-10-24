@@ -848,8 +848,8 @@ zone_root_point(
     ToriRSServer_RootTile(srv, x, z, level);
 }
 
-void
-ToriRSServer_ZoneProjanim(
+static void
+zone_projanim(
     struct ToriRSServer* srv,
     int x,
     int z,
@@ -864,7 +864,8 @@ ToriRSServer_ZoneProjanim(
     int start_delay,
     int end_delay,
     int peak,
-    int arc)
+    int arc,
+    int heights_raw)
 {
     struct ToriRSServerZone* zone;
     struct ToriRSServerZoneEvent event;
@@ -926,6 +927,7 @@ ToriRSServer_ZoneProjanim(
     event.source = source;
     event.src_height = src_height;
     event.dst_height = dst_height;
+    event.heights_raw = heights_raw;
     event.start_delay = start_delay;
     event.end_delay = end_delay;
     event.peak = peak;
@@ -934,6 +936,50 @@ ToriRSServer_ZoneProjanim(
     ToriRSServer_TicklogProjectile(srv, ToriRSServer_CoordPack(level, x, z),
                                    ToriRSServer_CoordPack(dst_level, dst_x, dst_z), target,
                                    spotanim, start_delay, end_delay, source);
+}
+
+void
+ToriRSServer_ZoneProjanim(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int source,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc)
+{
+    zone_projanim(srv, x, z, level, dst_x, dst_z, target, source, spotanim, src_height, dst_height,
+                  start_delay, end_delay, peak, arc, 0);
+}
+
+void
+ToriRSServer_ZoneProjanimRaw(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int dst_x,
+    int dst_z,
+    int target,
+    int source,
+    int spotanim,
+    int src_height,
+    int dst_height,
+    int start_delay,
+    int end_delay,
+    int peak,
+    int arc)
+{
+    zone_projanim(srv, x, z, level, dst_x, dst_z, target, source, spotanim, src_height, dst_height,
+                  start_delay, end_delay, peak, arc, 1);
 }
 
 void

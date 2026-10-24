@@ -623,10 +623,13 @@
 #define SS_OP_SOUND_AREA_LOOPS 11284
 #define SS_OP_CAM_UNLOCK 11285
 #define SS_OP_NPC_APPROACHED 11286
+#define SS_OP_PROJANIM_MAP_RAW 11287
+#define SS_OP_PROJANIM_PL_RAW 11288
+#define SS_OP_PROJANIM_NPC_RAW 11289
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11287
+#define SS_OPCODE_MAX 11290
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 601
+#define SS_OPCODE_COUNT 604
 
 #endif

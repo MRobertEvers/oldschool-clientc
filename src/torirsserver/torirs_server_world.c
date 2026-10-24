@@ -345,15 +345,16 @@ ToriRSServer_RandomFrom(
 }
 
 /*
- * One axis of `Npc.wander`'s offset (LostCity engine/src/engine/entity/Npc.ts:
- * 700-701): `Math.round(Math.random() * (range * 2) - range)`.
+ * One axis of a wanderer's offset: uniform over -range..range.
  *
- * This is not `random_range(-range, range)`. Math.round rounds half up, so the
- * two end values each get half the weight of an interior one. At range 3 the
- * odds are 1/12 for -3 and +3 and 1/6 for each of -2..2, where a uniform draw
- * gives 1/7 each. The draw is 24 bits of the xorshift stream, u = v / 2^24 in
- * [0, 1) like Math.random. round(u*2r - r) = floor(u*2r + 1/2) - r, and that
- * floor is exact in integers: (v*2r + 2^23) >> 24.
+ * LostCity (engine/src/engine/entity/Npc.ts:700-701) rounds
+ * `Math.random() * (range * 2) - range`, which gives the two end values half
+ * the weight of an interior one. Jagex does not: the Colosseum lobby's Glory
+ * (wanderrange 2, alone in a walled box) visits its tiles as a uniform draw
+ * predicts (chi-square 5.9 over 16 tiles, 17,683 recorded steps; the rounded
+ * draw 142.9) and so does the gladiator wandering alone at 1811,9519 (49 against
+ * 79): docs/rsprox-analysis/colosseum, q_wander_sim2.py. The draw is 24 bits of
+ * the xorshift stream: floor(u * (2r + 1)) - r with u = v / 2^24.
  */
 static int
 npc_wander_offset(
@@ -363,7 +364,7 @@ npc_wander_offset(
     uint64_t v = (uint64_t)(next_random(&npc->random) >> 8);
 
     assert(range >= 0);
-    return (int)((v * (uint64_t)(range * 2) + (1u << 23)) >> 24) - range;
+    return (int)((v * (uint64_t)(range * 2 + 1)) >> 24) - range;
 }
 
 int

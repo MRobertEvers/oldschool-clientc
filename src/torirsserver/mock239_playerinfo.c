@@ -306,13 +306,21 @@ write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
              * put_npc_extended_v5). The player half is the same defect one
              * packet over -- a count of 1 written alt2 reads back as 127.
              */
-            rsab_p1_alt1(buf, 1);
+            rsab_p1_alt1(buf, 1 + ext->headbar_extra_count);
             ext_psmart1or2(buf, ext->headbar_type);
             ext_psmart1or2(buf, ext->headbar_duration);
             ext_psmart1or2(buf, ext->headbar_start_delay);
             rsab_p1_alt1(buf, ext->headbar_start_fill);
             if( ext->headbar_duration > 0 )
                 rsab_p1_alt2(buf, ext->headbar_end_fill);
+            /* A bar per further splat, at the hitpoints after it (RSProx). */
+            for( int i = 0; i < ext->headbar_extra_count; i++ )
+            {
+                ext_psmart1or2(buf, ext->headbar_extra[i].type);
+                ext_psmart1or2(buf, 0);
+                ext_psmart1or2(buf, ext->headbar_extra[i].start_delay);
+                rsab_p1_alt1(buf, ext->headbar_extra[i].start_fill);
+            }
         }
         if( has_seq )
         {

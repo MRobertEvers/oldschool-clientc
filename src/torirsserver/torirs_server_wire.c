@@ -1483,13 +1483,13 @@ w239_zone_payload(
          * quarter of its intended height, which for a typical arc means along
          * the ground: it renders, it just does not look like a projectile.
          */
-        rsab_p2_alt3(buf, event->dst_height * 4);
+        rsab_p2_alt3(buf, event->heights_raw ? event->dst_height : event->dst_height * 4);
         /* sourceIndex: 0 = not locked to a source entity (`projanim_*`, a shot
          * from a tile); an npc_projanim_* names the npc, in the same client
          * numbering and player form as the target below. */
         w239_p3_alt2(buf, event->source < 0 ? event->source - 1 : event->source);
         rsab_p1_alt2(buf, event->peak);
-        rsab_p2(buf, event->src_height * 4);
+        rsab_p2(buf, event->heights_raw ? event->src_height : event->src_height * 4);
         /*
          * The target index, in the CLIENT's numbering.
          *

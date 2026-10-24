@@ -13,6 +13,10 @@ import os
 LAND = (1824, 3094)
 
 
+# Player impact spotanims by id (the names RSProx prints).
+SPOT = {1460: "watersurge_impact", 131: "fireblast_impact", 2254: "akkha_magic_impact",
+        2682: "vfx_manticore_01_projectile_impact_magic_01", 2684: "vfx_manticore_01_projectile_impact_ranged_01",
+        2686: "vfx_manticore_01_projectile_impact_melee_01"}
 ANGLES = {0: "south", 256: "south-west", 512: "west", 768: "north-west", 1024: "north",
           1280: "north-east", 1536: "east", 1792: "south-east"}
 
@@ -179,6 +183,10 @@ def convert(path):
                 e["c"] = [prev[0], prev[1], 0]
                 e["nc"] = [c[0], c[1], 0]
             last_pl = c
+        elif kind == "player_spotanim":
+            e = pl_ev(t)
+            e["b"].append(["spotanim", {"id": {"id": int(a[1]), "name": SPOT.get(int(a[1]), str(a[1]))},
+                                        "height": int(a[2]), "delay": int(a[3]) or None, "slot": int(a[4])}])
         elif kind == "hit_player":
             e = pl_ev(t)
             # `raw`: the damage the content dealt, before ::god zeroed the splat.

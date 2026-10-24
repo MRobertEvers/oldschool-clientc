@@ -554,8 +554,15 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
             eta_release_park(srv, player);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cosmic, -1, loc_slot);
             eta_drain_scroll_queue(srv, player);
-            SELFTEST_CHECK(player->x == before_x && player->z == before_z,
-                           "Cosmic rift without Lost City must not teleport");
+            /* Not "stayed on its tile": the trigger runs from wherever the
+             * outer-ring landing put the player, and a rift out of reach is
+             * walked to first (two tiles when the wanderers' draws moved the
+             * landing, 2026-10-23). A teleport leaves the Abyss square. */
+            SELFTEST_CHECK(player->x >= 3008 && player->x <= 3071 && player->z >= 4800 &&
+                               player->z <= 4863 &&
+                               abs(player->x - before_x) <= 2 && abs(player->z - before_z) <= 2,
+                           "Cosmic rift without Lost City must not teleport (%d,%d -> %d,%d)",
+                           before_x, before_z, player->x, player->z);
             eta_pass("rift_cosmic_gate", "OPLOC1", "blocked");
         }
     }

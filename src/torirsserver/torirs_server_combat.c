@@ -1418,10 +1418,14 @@ ToriRSServer_HitmarkAdd(
     int type,
     int dealer_slot,
     int delay,
-    int max_hit)
+    int max_hit,
+    int hp_after)
 {
     if( *count >= TORIRSSERVER_HITMARK_MAX )
         return;
+    hitmarks[*count].hp_after = hp_after;
+    hitmarks[*count].bar_type = -1;
+    hitmarks[*count].bar_fill = -1;
     hitmarks[*count].damage = damage;
     hitmarks[*count].type = type;
     hitmarks[*count].dealer_slot = dealer_slot;
@@ -1874,7 +1878,7 @@ ToriRSServer_CombatHitNpc(
 
         ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                                 amount > 0 ? type : hitsplat_block(), dealer,
-                                ToriRSServer_HitClientDelay(srv), max_hit);
+                                ToriRSServer_HitClientDelay(srv), max_hit, npc->hitpoints);
     }
     ToriRSServer_TicklogHitNpc(srv, slot, amount, amount > 0 ? type : hitsplat_block(), requested,
                                ToriRSServer_HitmarkDealerFromAttackerScript(srv));
@@ -2304,7 +2308,8 @@ ToriRSServer_CombatHitmarkPlayer(
      * no player dealt. Player-versus-player would need the attacker threaded
      * through from the script that called this. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block(), -1, ToriRSServer_HitClientDelay(srv), 0);
+                        amount > 0 ? type : hitsplat_block(), -1, ToriRSServer_HitClientDelay(srv), 0,
+                        player->hitpoints);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->masks |= TORIRSSERVER_PMASK_DAMAGE;
@@ -2335,7 +2340,11 @@ ToriRSServer_CombatHitmarkPlayerBar(
     /* Full list: the splat was dropped, and so is its other-viewer type. The
      * bar still changes, since the resource it shows did. */
     if( player->hitmark_count > before )
+    {
         player->hitmarks[player->hitmark_count - 1].other_type = other_type;
+        player->hitmarks[player->hitmark_count - 1].bar_type = healthbar;
+        player->hitmarks[player->hitmark_count - 1].bar_fill = fill < 0 ? 0 : fill;
+    }
     player->bar_override_type = healthbar;
     player->bar_override_fill = fill < 0 ? 0 : fill;
     player->bar_override_tick_plus1 = srv->tick + 1;
@@ -2371,7 +2380,7 @@ ToriRSServer_CombatHitmarkNpc(
      */
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type,
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv),
-                        ToriRSServer_HitClientDelay(srv), 0);
+                        ToriRSServer_HitClientDelay(srv), 0, npc->hitpoints);
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
@@ -2438,7 +2447,7 @@ ToriRSServer_CombatHitPlayerFrom(
 
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
-                        dealer_slot, ToriRSServer_HitClientDelay(srv), 0);
+                        dealer_slot, ToriRSServer_HitClientDelay(srv), 0, player->hitpoints);
     /* The splat as shown: after `::god`, absorption and the clamp to the
      * hitpoints left, which is the number a recorder reads off the client. */
     ToriRSServer_TicklogHitPlayer(
