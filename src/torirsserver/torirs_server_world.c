@@ -6238,12 +6238,20 @@ advance_npcs(struct ToriRSServer* srv)
              * TzKal-Zuk never became ready, because "ready" is the glyph
              * reaching the end of its row.
              */
-            if( npc->waypoint_index >= 0 && npc->move_speed == TORIRSSERVER_NPC_SPEED_CRAWL )
+            if( npc->move_speed == TORIRSSERVER_NPC_SPEED_CRAWL && npc->crawl_wait > 0 )
+            {
+                /* The rest is a tick of time, not a tick of walking: spent with
+                 * or without a waypoint. Counted only under a waypoint, an npc
+                 * whose script asks for each tile on the tick it is due (the
+                 * Colosseum's solar flares, a tile every 2 ticks from add+1)
+                 * spent its rest on the asking tick and stepped a tick late:
+                 * +1 +4 +6 where RSProx crawls +1 +3 +5 (460 lives). */
+                npc->crawl_wait--;
+            }
+            else if( npc->waypoint_index >= 0 && npc->move_speed == TORIRSSERVER_NPC_SPEED_CRAWL )
             {
                 /* A tile every second tick, the rest tick first spent. */
-                if( npc->crawl_wait > 0 )
-                    npc->crawl_wait--;
-                else if( npc_take_step(npc) )
+                if( npc_take_step(npc) )
                 {
                     npc->stuck_counter = 0;
                     npc->step_crawl = 1;
@@ -17679,6 +17687,57 @@ phase_npc_events(struct ToriRSServer* srv)
 }
 
 /** 4. Every npc's turn: delays, timers, queues, then its mode. */
+/*
+ * A face on a player is sent again whenever the angle to him turns.
+ *
+ * Jagex re-sends an npc's FACE_ENTITY block (`[facing] player=`) on every tick
+ * the direction from the npc's centre to the faced player's tile changes, the
+ * player's tile as it stood when npcs moved (last tick's: npcs before players)
+ * and the npc's own after its step; never otherwise. RSProx: the Colosseum's
+ * shooters, 9,673 re-sends on a turned angle and 6 on an unchanged one over 59
+ * sessions (q_faceang2.py; the misses are their dying ticks), and Stronghold
+ * of Security's monsters, 148 and 6 (index 4346). Sent once and latched, our
+ * javelin colossus faced the player once a life where Jagex's does 9 times.
+ * Npc faces (npc versus npc) are latched as before: nothing recorded says.
+ */
+static void
+npc_face_follow(struct ToriRSServer* srv)
+{
+    for( int slot = 0; slot < srv->npc_slot_max; slot++ )
+    {
+        struct ToriRSServerNpc* npc = &srv->npcs[slot];
+        const struct ToriRSServerPlayer* target;
+        int pid;
+        int size;
+        double dx;
+        double dz;
+        int angle;
+
+        if( !npc->active || npc->death_tick >= 0 )
+            continue;
+        pid = npc->face_entity - TORIRSSERVER_FACE_PLAYER_BASE;
+        if( npc->face_entity < TORIRSSERVER_FACE_PLAYER_BASE || pid >= srv->player_count )
+            continue;
+        target = &srv->players[pid];
+        if( !target->active || target->level != npc->level )
+            continue;
+        size = npc->size > 0 ? npc->size : 1;
+        dx = (double)(target->x * 128 + 64) - (double)(npc->x * 128 + size * 64);
+        dz = (double)(target->z * 128 + 64) - (double)(npc->z * 128 + size * 64);
+        angle = (int)(atan2(dx, dz) * 1024.0 / 3.14159265358979323846) & 2047;
+        if( npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY )
+        {
+            npc->face_sent_angle = angle;
+            continue;
+        }
+        if( angle != npc->face_sent_angle )
+        {
+            npc->face_sent_angle = angle;
+            npc->masks |= TORIRSSERVER_NMASK_FACE_ENTITY;
+        }
+    }
+}
+
 static void
 phase_npcs(struct ToriRSServer* srv)
 {
@@ -17765,6 +17824,7 @@ phase_npcs(struct ToriRSServer* srv)
         }
         ToriRSServer_NpcFaceClearIfIdle(npc);
     }
+    npc_face_follow(srv);
 }
 
 /*

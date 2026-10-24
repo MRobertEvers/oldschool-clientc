@@ -7714,6 +7714,7 @@ script_command(
             return 1;
         }
         npc->ops_hidden = 0x1f & ~shown;
+        npc->ops_set_tick_plus1 = srv->tick + 1;
         npc->masks |= TORIRSSERVER_NMASK_OPS;
         return 1;
     }

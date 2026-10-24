@@ -2868,6 +2868,9 @@ struct ToriRSServerNpc
      * every transformation. Content sets it with `npc_setops`.
      */
     int ops_hidden;
+    /** The server tick + 1 of the last `npc_setops`: a revive on that tick keeps
+     *  the menu the script stated instead of reopening all five (0: never). */
+    int ops_set_tick_plus1;
     /**
      * The combat level this npc is drawn with, as sent, when
      * `level_override_set`. Jagex sends the new type's own level with every
@@ -2997,6 +3000,9 @@ struct ToriRSServerNpc
     int face_hold_npc_plus1;
     uint16_t face_hold_npc_gen;
     int face_entity;
+    /** The angle (0..2047) to the faced player when FACE_ENTITY last went out:
+     *  the block is re-sent whenever it turns (`npc_face_follow`). */
+    int face_sent_angle;
     char say[80];
     int anim_id;
     int anim_delay;

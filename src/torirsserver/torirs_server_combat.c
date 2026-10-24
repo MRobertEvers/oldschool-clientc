@@ -3842,8 +3842,12 @@ npc_death_step(
             memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
             npc->died_as = 0;
             /* And its menu, which the death hid (`npc_death_begin`). A revive
-             * through `npc_changetype` has already restored it. */
-            if( npc->ops_hidden != 0 )
+             * through `npc_changetype` has already restored it, and a menu the
+             * script stated on this tick (`npc_setops`) is
+             * the one the revive keeps: the Colosseum's bees are revived hidden,
+             * `enabled_ops 0b00000` on the hide tick (RSProx, 46/46), and this
+             * reopened every op over the script's npc_setops(0). */
+            if( npc->ops_hidden != 0 && npc->ops_set_tick_plus1 != srv->tick + 1 )
             {
                 npc->ops_hidden = 0;
                 npc->masks |= TORIRSSERVER_NMASK_OPS;

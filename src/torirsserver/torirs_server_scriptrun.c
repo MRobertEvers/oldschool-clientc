@@ -2057,6 +2057,53 @@ spell_target_mask(
 }
 
 
+/* The client's draw distance: TORIRS_DRAW_DISTANCE as the client reads it
+ * (app_world_paint.c), else the boot default. */
+static int
+scriptrun_draw_distance(void)
+{
+    char const* dd = getenv("TORIRS_DRAW_DISTANCE");
+    int v;
+    if( dd && dd[0] != '\0' && sscanf(dd, "%d", &v) == 1 && v > 0 )
+        return v;
+    return DRIVE_PICK_DRAW_DISTANCE_DEFAULT;
+}
+
+/* A loc's reach is measured from the origin its pick used (loc_pick_origin:
+ * a deck loc's own view), so a ship's deck rows at their staging tiles stay
+ * pressable from the deck. */
+static int
+push_loc_beyond_draw(
+    lua_State* L,
+    struct ScriptrunCore* c,
+    struct ScriptrunLoc const* l,
+    int px,
+    int pz,
+    int plevel);
+
+/* A press on a copy the client would not draw (torirs_drive_pick.h
+ * DrivePick_Pressable): pushes `not_visible` and answers 1, as the live client
+ * refuses it; 0 when the copy is within reach. */
+static int
+push_beyond_draw(
+    lua_State* L,
+    int x,
+    int z,
+    int px,
+    int pz)
+{
+    char text[160];
+    int reach = scriptrun_draw_distance();
+    if( DrivePick_Pressable(x, z, px, pz, reach) )
+        return 0;
+    snprintf(text, sizeof(text),
+             "the copy at %d,%d is beyond the draw distance (%d tiles from %d,%d): the client does "
+             "not draw it, so nothing can press it",
+             x, z, reach, px, pz);
+    push_result(L, "not_visible", text);
+    return 1;
+}
+
 /* The nearest perceived npc of a content type (base or live rung), or the
  * pinned element: the copy a player would click. NULL: none in view. */
 static struct WorldEntity_NPC const*
@@ -2122,6 +2169,20 @@ loc_pick_origin(
         *oz = c->views[c->local_view].fine_z >> 7;
         *olevel = l->level;
     }
+}
+
+static int
+push_loc_beyond_draw(
+    lua_State* L,
+    struct ScriptrunCore* c,
+    struct ScriptrunLoc const* l,
+    int px,
+    int pz,
+    int plevel)
+{
+    int ox, oz, olevel;
+    loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+    return push_beyond_draw(L, l->x, l->z, ox, oz);
 }
 
 /* The nearest perceived loc of a type, or the pinned copy (d_locs'
@@ -2220,6 +2281,8 @@ d_cast_npc(lua_State* L)
     if( !best )
         return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
                                                               : "no such npc in view");
+    if( push_beyond_draw(L, best_tx, best_tz, px, pz) )
+        return 2;
     put2(payload, best->server_slot);
     put4(payload + 2, component);
     handle(bot, PKTOUT_NAME_OPNPCT, payload, 6);
@@ -2253,6 +2316,9 @@ d_world_op(lua_State* L)
         if( !best )
             return push_result(L, "not_found", want_element >= 0 ? "that npc copy is not in view"
                                                                   : "no such npc in view");
+        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
+                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
+            return 2;
         /* The rows are the LIVE record's (the rung the core spawned and
          * re-resolves on every varp change). */
         info = ToriRSServer_NpcInfoRecord(best->npc_id);
@@ -2270,6 +2336,8 @@ d_world_op(lua_State* L)
         disarm(bot);
         if( !best )
             return push_result(L, "not_found", "no such loc in view");
+        if( push_loc_beyond_draw(L, c, best, px, pz, plevel) )
+            return 2;
         row = ScriptrunCore_LocRowOpName(c, best, op);
         if( !row )
             return push_result(L, "no_row", "the loc offers no such op");
@@ -2301,6 +2369,8 @@ d_world_op(lua_State* L)
         }
         if( !best )
             return push_result(L, "not_found", "no such object on the ground in view");
+        if( push_beyond_draw(L, best->x, best->z, px, pz) )
+            return 2;
         put2(payload, best->x);
         put2(payload + 2, best->z);
         put2(payload + 4, best->obj_id);
@@ -2410,6 +2480,8 @@ d_loc_row(lua_State* L)
                  radius, px, pz, plevel, c->local_view, deck_rows);
         return push_result(L, "not_found", row);
     }
+    if( push_loc_beyond_draw(L, c, best, px, pz, plevel) )
+        return 2;
     disarm(bot);
     {
         char const* best_name = ScriptrunCore_LocName(c, best->loc_id);
@@ -2461,6 +2533,9 @@ d_world_use(lua_State* L)
         best = pick_npc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such npc in view");
+        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
+                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
+            return 2;
         put2(payload, best->server_slot);
         put4(payload + 2, spell);
         disarm(bot);
@@ -2475,6 +2550,8 @@ d_world_use(lua_State* L)
         struct ScriptrunLoc const* best = pick_loc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such loc in view");
+        if( push_loc_beyond_draw(L, c, best, px, pz, plevel) )
+            return 2;
         put2(payload, best->x);
         put2(payload + 2, best->z);
         put2(payload + 4, best->loc_id);
@@ -2489,6 +2566,9 @@ d_world_use(lua_State* L)
         struct WorldEntity_NPC const* best = pick_npc(c, type_id, want_element, px, pz, plevel);
         if( !best )
             return push_result(L, "not_found", "no such npc in view");
+        if( push_beyond_draw(L, c->world->_base_tile_x + best->grid_position.x,
+                             c->world->_base_tile_z + best->grid_position.z, px, pz) )
+            return 2;
         put2(payload, best->server_slot);
         put2(payload + 2, bot->armed_obj);
         put2(payload + 4, bot->armed_slot);

@@ -60,4 +60,29 @@ DrivePick_Better(
     return slot < best_slot;
 }
 
+/*
+ * THE FARTHEST A PRESS REACHES. The painter draws the scene in a square of
+ * `draw distance` tiles round the eye (app_world_paint.c; the official 25..90,
+ * device option 14, 25 by default), and a copy it does not draw has no pixel
+ * a player can press, whatever the camera does. A world verb's copy farther
+ * than that from the player is refused on both lanes, as the player would be:
+ * scriptrun sent the op on an npc 40 tiles off that the live client could not
+ * have pressed (2026-10-24). Chebyshev on the tile, floors ignored (a bridge
+ * loc's cache level is not the player's; the floor rule is the pick's).
+ */
+#define DRIVE_PICK_DRAW_DISTANCE_DEFAULT 25
+
+static inline int
+DrivePick_Pressable(
+    int x,
+    int z,
+    int player_x,
+    int player_z,
+    int draw_distance)
+{
+    int dx = x > player_x ? x - player_x : player_x - x;
+    int dz = z > player_z ? z - player_z : player_z - z;
+    return (dx > dz ? dx : dz) <= draw_distance;
+}
+
 #endif

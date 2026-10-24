@@ -584,6 +584,21 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
 | npc wander offset (engine-wide) | uniform over -range..range (Glory chi-squared 5.9) | skewed (142.9) | `((v * (2r+1)) >> 24) - r` |
 | manticore death sound | `magmaquiris_death` | null | set |
 
+## 12c. Third pass (2026-10-24): what changed
+
+| what | recorded | was | now |
+|---|---|---|---|
+| guaranteed max hits | the trio's weakness always lands its max (archer melee, seer ranged, berserker magic; the wiki's pages); every landed weak hit is splat 43 (8/8 barrages on the berserker); a freezing spell still rolls on the berserker (index 1211 barrage splashes, Ice Burst 5/5, Entangle 4/4) | ordinary rolls | `~colo_trio_weak_to` in `~player_npc_always_max`; `~player_npc_spell_hit_roll` (freeze_time > 0) rolls on the berserker. Probe: whip 2 x150, bow 24 x12, Fire Blast 16 x18, barrage 44/87 hits at 50 % and every hit max |
+| manticore orb order | one order for the whole life (299/299) | redrawn each charge | `^colo_var_manti_order`, drawn at the first charge |
+| two manticores | the second copies the first's order (61/62); both charge at add+7 (57/57), then the one due second on a tick waits 5 and keeps its 10: 7/17/27 against 7/22/32; a charge 1 tick after the other's goes (3) | independent | `~colo_manticore_pick_order`, `~colo_manticore_other_charged_now`; ours 66/66 one order, 18/18 shared, the recorded schedule |
+| npc movement defaults | only Glory and the lobby gladiators wander; flares crawl their square, gibs never move | the generated `defaultmode=wander, wanderrange=5` on the flare, the gibs and 11 more | `defaultmode=none` blocks; `tools/rsprox/npc_movement_audit.py defaults` lists every type |
+| solar flare steps | 2 along a side, 7 at a level-1 corner, 1/2 at level 3 (460 lives); never held up | a parity from the add tick (8 at corners); +1 +4 +6 (engine crawl rest) | timed from the last step; `moverestrict=passthru`; engine: the crawl rest is a tick of time |
+| bees on a kill | ops 0b00000 at K and on the hide (K+3..5, `teleport` to the add tile, 52/52), 0b00010 back at K+55 | the revive reopened every op on the hide; `npc_tele` jumps | engine: a revive keeps the ops a script set that tick; `npc_teleslide` |
+| a face on the player | `[facing] player=` re-sent on every tick the angle from the npc's centre to the player's tile (last tick's) turns: 9,673 on a turn, 6 without (59 sessions); Stronghold 148/6 | latched, sent once | engine `npc_face_follow` (every npc facing a player): ours 139 on a turn, 7 without |
+| Sol's melee dust | delay = 2 x ring from his centre on all 54,139 tiles, rings 0..10 | the same rule | unchanged: ring 10 needs Sol near a wall, which a standing bot never brings about |
+| per-player invs | -- | 16, full on a played account (the entry aborted) | 128 |
+| scriptrun press reach | the client draws 25 tiles | any loc in the scene | both lanes refuse a copy beyond the draw distance (`DrivePick_Pressable`) |
+
 ## 13. Open gaps
 
 - **Shaman and jaguar damage** sits high in the recordings (see §6); ours is uniform.
@@ -616,6 +631,12 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
 - **Clientscript 5224** (`pvp_icons_comlevelrange`) is sent through the run; 98 % of them sit
   on a prayer toggle but the rest are unexplained, so ours sends none.
 - **Gladiators 1 and 3** still show a wander chi-squared residual after the uniform offset.
+- A size-2 jaguar on top of a standing player steps out in a random cardinal (the
+  reference's naive path); boxed in east and west it flips north/south and stays on him.
+  One recorded case (it stepped west and cleared): the rule is not refuted, the state is
+  our bot's.
+- The face re-send misses 9 of 148 turns (a shaman stepping in); the recordings' misses are
+  their dying and out-of-view ticks.
 - The HP HUD is mounted twice at login (the gameframe carry re-mounts it); invisible.
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording
   shows either way.

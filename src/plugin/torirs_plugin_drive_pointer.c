@@ -1572,6 +1572,53 @@ drive_pointer_pending_loc_op(struct App* app, int id, int option)
     return DRIVE_OK;
 }
 
+/*
+ * Is the resolved copy inside the painter's draw box (torirs_drive_pick.h
+ * DrivePick_Pressable)? A copy the painter does not draw has no pixel a
+ * player can press; scriptrun's d_world_op refuses the same copies.
+ */
+static int
+drive_pointer_element_pressable(struct App* app, enum DrivePickKind kind, int element_id)
+{
+    int px = 0;
+    int pz = 0;
+    int tx;
+    int tz;
+    int reach = DRIVE_PICK_DRAW_DISTANCE_DEFAULT;
+
+    assert(app);
+    assert(app->world);
+    if( !drive_pointer_player_tile(app, &px, &pz) )
+        return 1;
+    if( kind == DRIVE_PICK_NPC )
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, element_id, NULL);
+        if( !npc )
+            return 1;
+        tx = npc->grid_position.x;
+        tz = npc->grid_position.z;
+    }
+    else if( kind == DRIVE_PICK_LOC )
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, element_id);
+        if( !loc )
+            return 1;
+        tx = loc->grid_position.x;
+        tz = loc->grid_position.z;
+    }
+    else
+    {
+        struct WorldEntity_ObjStack* stack = World_ObjStackGetByElementId(app->world, element_id);
+        if( !stack )
+            return 1;
+        tx = stack->grid_position.x;
+        tz = stack->grid_position.z;
+    }
+    if( app->world->painter )
+        reach = painter_get_draw_distance(app->world->painter);
+    return DrivePick_Pressable(tx, tz, px, pz, reach);
+}
+
 enum DriveResult
 DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int option, int want_element)
 {
@@ -1602,6 +1649,8 @@ DrivePointer_WorldOp(struct App* app, enum DrivePickKind kind, int id, int optio
         return drive_pointer_pending_loc_op(app, id, option);
     if( resolved != DRIVE_OK )
         return resolved;
+    if( !drive_pointer_element_pressable(app, kind, element_id) )
+        return DRIVE_NOT_VISIBLE;
     resolved = DrivePointer_OpAvailable(app, kind, id, option, &available);
     if( resolved != DRIVE_OK )
         return resolved;
@@ -2143,6 +2192,11 @@ drive_pointer_world_use(
     {
         *out_reason = want_element >= 0 ? "that copy is not in view" : "no such copy in view";
         return result;
+    }
+    if( !drive_pointer_element_pressable(app, kind, element_id) )
+    {
+        *out_reason = "the copy is beyond the draw distance: the client does not draw it";
+        return DRIVE_NOT_VISIBLE;
     }
     memset(&pick, 0, sizeof(pick));
     pick.id = element_id;

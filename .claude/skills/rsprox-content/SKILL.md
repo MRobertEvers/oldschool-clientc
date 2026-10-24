@@ -50,6 +50,28 @@ the script command that emits it. Keep it open.
    floor, the death sword showed over him as he died (2026-10-22). Every MISSING row and
    every value only one side has is a defect or a named reason (the raiders' kit: a
    `windsurge_impact` on a sword is a raider's spell).
+
+   **Then the movement of EVERY npc type the content spawns -- not only the monsters.** The
+   generated blocks give every npc `defaultmode=wander, wanderrange=5`, so a type the content
+   never overrides wanders on top of whatever its script does with it. Hazards, modifier
+   objects, gibs, decoration and lobby extras are npcs too, and they are the ones nobody
+   thinks to path-check:
+   - `python3 tools/rsprox/npc_movement_audit.py defaults <content dir>` lists every type the
+     content spawns or names, with its EFFECTIVE `defaultmode`/`wanderrange`/`moverestrict`
+     after the generated defaults, and flags each `WANDERS`. Every flagged type needs a
+     recording that shows it wandering; otherwise give it `defaultmode=none, wanderrange=0`
+     in the content's `.npc`.
+   - `python3 tools/rsprox/npc_movement_audit.py paths --rec <txt|@list>... --ours
+     <ticklog.tsv>...` prints per type: lives, steps per life, the gap between steps (1 =
+     a tile a tick, 2 = a crawl or a two-tick script), the recorded move kinds (walk / run /
+     crawl / teleport), and for ours the diagonal and undo shares (a wanderer's signature).
+     Every type is a row; a type with steps on one side only, or a different gap histogram,
+     is a defect.
+   The Colosseum (2026-10-24) passed a pathing audit of all eleven monster types and Sol
+   while its solar flares -- scripted to crawl a 5x5 square round a pillar, a tile every 2
+   ticks -- ran on the generated `wander` default and came out as one-tick diagonal steps
+   off the square; the five gib types had the same default. The audit had looked at the
+   npcs that attack.
 4. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
 5. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
@@ -125,7 +147,9 @@ fight, cutscene, interaction), before reporting it finished:
      per-tick npc-info stream against ours: `[sequence]` (id AND delay, on the same tick),
      `[spotanim]` (slot, id, height, delay), **`[facing]`** (`coord=`, `player=`/entity,
      `type=reset`, `angle=`), `[say]`, `[transformation]`, `level_change`, `enabled_ops`,
-     `[headbar]`, `[transparency]`, `exact_move`, and the movement kind and steps. Align on the
+     `[headbar]`, `[transparency]`, `exact_move`, and the movement kind and steps -- of
+     EVERY type the content spawns, hazards and gibs included (`npc_movement_audit.py`,
+     step 3). Align on the
      section's own anchor (the form change, the spawn), not on the fight's start, and count
      matched / recording-only / ours-only per block kind. Ocellus (2026-10-21) passed a tells
      inventory with his facing never sent (0 of 28 faces in phase 1, 0 of 72 in phase 4) and
@@ -701,6 +725,16 @@ Do not close a visual complaint on a wire diff alone (Ezekiel's facing: wire mat
 - **A tool's silence is not the wire's.** Before trusting "matched" from any timeline tool, check
   it prints the block kind at all (`npc_block_inventory.py`); `[bas]` and `[body_customisation]`
   were invisible to every audit of Ezekiel.
+- **An npc the content spawns and never overrides WANDERS** (the generated block's
+  `defaultmode=wander, wanderrange=5`). "Check all npc pathing" means every spawned type --
+  hazards, modifier objects, gibs, lobby extras -- not the monsters:
+  `npc_movement_audit.py defaults` then `paths` (step 3). The Colosseum's solar flares.
+- **A test lane's account is never the owner's.** Every automated lane starts from a fresh
+  fixture; the Scripts tab's Play with "Reset character" runs on the owner's long-lived
+  account. When a watched run fails and the lanes pass, rerun on a copy of
+  `build/quest_gate/watch_saves/<name>.ini` (`run.py --script <test> --fixture
+  $PWD/<copy>`) and grep its `client.log` for `abort` (the Colosseum's entry aborted on a
+  full per-player inv table, 2026-10-24).
 - **"Matched" on counts per window is not matched per life:** a value the recording varies per
   copy (models, stances, drop variants) needs the per-life table.
 - **Never mutate shared source to test** (CLAUDE.md). Build private (`PLATFORM_OBJ_BASE=build_<x>`). If another session broke the shared pack, use the private packs recipe from memory.
