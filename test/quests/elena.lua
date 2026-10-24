@@ -25,6 +25,9 @@ return {
     },
 
     run = function(t)
+        -- the wire audit against RSProx index 4360 reads this (build/quest_gate/<run>/ticklog.tsv;
+        -- docs/rsprox-analysis/quests/plague_city.md)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp165_elenaquest",
             constants = {
@@ -69,11 +72,13 @@ return {
         t.exec("goto-talkToEdmond", t.player.goto_tile, 2568, 3332, 0)
         t.exec("talkToEdmond", t.player.talk_to, "edmond", 1)
         t.exec("talkToEdmond-dialog", t.chat.play, {
-            "player:Hello old man", "*", "player:What's wrong?", "npc:I've got to find my daughter", "options",
-            "choose:What's happened to her?", "player:What's happened to her?",
-            "npc:Elena's a missionary", "npc:No one's allowed", "npc:She said she'd be gone", "options",
-            "choose:Can I help find her?", "player:Can I help find her?", "npc:Really, would you?", "npc:If you're going over",
-            "npc:Dwellberries help repel", "player:Where can I find", "npc:The only place I know", "player:Okay, I'll go get some.",
+            "player:Hello old man", "npc:Sorry, I can't stop to talk", "player:Why, what's wrong?",
+            "npc:I've got to find my daughter", "options", "choose:What's happened to her?", "player:What's happened to her?",
+            "npc:Elena's a healer", "player:Plague?", "npc:Not that long ago", "npc:They say the plague",
+            "player:Maybe I could help find her?", "npc:Really, would you?", "options", "choose:Yes.",
+            "player:Where should I start?", "npc:If you're going into West Ardougne", "npc:They help to repel",
+            "player:Where can I find", "npc:The only place I know", "player:Okay, I'll go and get some.",
+            "npc:The foresters keep a close eye",
         })
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
@@ -96,10 +101,9 @@ return {
         kitchen_in("talkToAlrena.kitchenDoorIn")
         t.exec("talkToAlrena", t.player.talk_to, "alrena", 1)
         t.exec("talkToAlrena-dialog", t.chat.play, {
-            "player:Hello, Edmond has asked me", "npc:Yes he told me", "player:Yes I've got some here", "*",
+            "player:Hello, Edmond has asked me", "npc:Yes he told me", "player:Yes I've got some here",
+            "*", "mesbox:Alrena crushes the berries", "npc:There we go", "*", "npc:I'll make a spare mask",
         })
-        t.ticks(8)
-        t.exec("talkToAlrena-dialog2", t.chat.play, { "npc:There we go", "*", "npc:While you two are digging" })
         t.ticks(2)
         t.expect("quest.stage.gasmask", t.quest.expect_stage("gasmask"))
         t.exec("gasmask.in-pack", t.inv.await, "gasmask", 1, 10)
@@ -117,7 +121,7 @@ return {
         kitchen_out("talkToEdmondAgain.kitchenDoorOut")
         t.exec("talkToEdmondAgain", t.player.talk_to, "edmond", 1)
         t.exec("talkToEdmondAgain-dialog", t.chat.play, {
-            "player:Hi Edmond, I've got the gas mask now", "npc:Good stuff, now for the digging", "npc:The problem is the soil",
+            "player:Hi Edmond, I've got the gas mask now", "npc:Good stuff, now for the digging", "npc:I've already tried digging",
         })
         t.ticks(2)
         t.expect("quest.stage.started_mud_patch", t.quest.expect_stage("started_mud_patch"))
@@ -148,8 +152,11 @@ return {
         -- digHole
         local patch = t.player.by_symbol("loc", "plaguemudpatch1")
         t.exec("digHole", t.player.use_on, "spade", patch)
-        t.exec("digHole-dialog", t.chat.play, { "*", "*" })
-        t.ticks(3)
+        -- RSProx index 4360 [690..694]: the box with nothing to click under the black, the fall three
+        -- ticks on, then the same box to click
+        t.ticks(5)
+        t.exec("digHole-dialog", t.chat.play, { "mesbox:You dig deep into the soft soil" })
+        t.ticks(1)
         local _, dig_tile = t.world.tile()
         t.check("digHole.landing", dig_tile ~= nil and dig_tile.z > 9000, "landed in the sewer at " .. tostring(dig_tile and dig_tile.x) .. "," .. tostring(dig_tile and dig_tile.z))
         t.expect("quest.stage.opened_tunnel", t.quest.expect_stage("opened_tunnel"))
@@ -159,26 +166,25 @@ return {
         t.ticks(4)
         local _, up_garden = t.world.tile()
         t.check("climbMudPile.landing", up_garden ~= nil and up_garden.z < 4000, "back in Edmond's garden at " .. tostring(up_garden and up_garden.x) .. "," .. tostring(up_garden and up_garden.z))
-        -- the patch has no op1 (LostCity neither: mud_patch.rs2 binds [oplocu] only); the way down is the spade again
-        local hole = t.player.by_symbol("loc", "plaguemudpatch1")
-        t.exec("goDownHole", t.player.use_on, "spade", hole)
-        t.exec("goDownHole-dialog", t.chat.play, { "*", "*" })
+        -- the dug patch is the "Dug hole" now (plaguemudpatch2 is a multiloc on varbit 1785, which the dig
+        -- wrote): its Climb-down is the way back (RSProx index 4360 [752..753])
+        t.exec("goDownHole", t.player.click_loc, "plaguemudpatch2", 1)
         t.ticks(3)
         local _, down_again = t.world.tile()
         t.check("goDownHole.landing", down_again ~= nil and down_again.z > 9000, "down the hole at " .. tostring(down_again and down_again.x) .. "," .. tostring(down_again and down_again.z))
 
-        -- attemptToPullGrill (the grill is the plaguesewerpipe_open loc in this cache)
-        t.exec("attemptToPullGrill", t.player.click_loc, "plaguesewerpipe_open", 1)
-        t.exec("attemptToPullGrill-dialog", t.chat.play, { "*" })
+        -- attemptToPullGrill: the grill is its own loc, plague_grill (11422, wall decor over the pipe)
+        t.exec("attemptToPullGrill", t.player.click_loc, "plague_grill", 1)
+        t.exec("attemptToPullGrill-dialog", t.chat.play, { "mesbox:The grill is too secure." })
 
         -- Edmond followed you down; he says to fetch rope
         t.exec("walk-edmondSewer", t.player.walk_route, { { 2517, 9753 } }, { max_hop = 20 })
         t.exec("talkToEdmondSewer", t.player.talk_to, "edmond_bottom", 1)
-        t.exec("talkToEdmondSewer-dialog", t.chat.play, { "player:", "npc:If you get some rope" })
+        t.exec("talkToEdmondSewer-dialog", t.chat.play, { "player:Edmond, I can't get through", "npc:If you get some rope" })
 
         -- useRopeOnGrill
-        local pipe = t.player.by_symbol("loc", "plaguesewerpipe_open")
-        t.exec("useRopeOnGrill", t.player.use_on, "rope", pipe)
+        local grill = t.player.by_symbol("loc", "plague_grill")
+        t.exec("useRopeOnGrill", t.player.use_on, "rope", grill)
         t.exec("useRopeOnGrill-dialog", t.chat.play, { "*" })
         t.ticks(1)
         t.expect("quest.stage.tied_rope", t.quest.expect_stage("tied_rope"))
@@ -187,10 +193,21 @@ return {
         -- talkToEdmondUnderground
         t.exec("walk-talkToEdmondUnderground", t.player.walk_route, { { 2517, 9753 } }, { max_hop = 20 })
         t.exec("talkToEdmondUnderground", t.player.talk_to, "edmond_bottom", 1)
+        -- the pull is a scene in a copy of the sewer (RSProx index 4360 [760..796]): timed pages, nothing
+        -- to click, the camera on the grill
+        local grill_mark = t.cutscene.mark()
         t.exec("talkToEdmondUnderground-dialog", t.chat.play, {
-            "player:I've tied", "*", "npc:That's done the job", "npc:Remember to always wear",
+            "player:I've tied a rope to the grill", "npc:Alright, let's get to it",
         })
-        t.ticks(2)
+        t.ticks(40)
+        -- (scriptrun keeps no camera state, so mark() is nil there; the trace shows the packets)
+        if grill_mark ~= nil then
+            t.exec("pullGrill.cutscene", t.cutscene.await, "pullGrill", { since = grill_mark, quiet = 60, expect = {
+                { op = "moveto", height = 375 },
+                { op = "lookat", height = 125 },
+                { op = "reset" },
+            } })
+        end
         t.expect("quest.stage.opened_pipe", t.quest.expect_stage("opened_pipe"))
 
         -- climbThroughPipe: first bare-headed (Edmond refuses), then with the mask on
@@ -200,6 +217,7 @@ return {
         t.ticks(2)
         t.exec("climbThroughPipe", t.player.click_loc, "plaguesewerpipe_open", 1)
         t.ticks(8)
+        t.exec("climbThroughPipe-text", t.chat.play, { "mesbox:You climb up through the sewer pipe." })
         local _, west_tile = t.world.tile()
         t.check("climbThroughPipe.landing", west_tile ~= nil and west_tile.z < 4000, "emerged in West Ardougne at " .. tostring(west_tile and west_tile.x) .. "," .. tostring(west_tile and west_tile.z))
 
@@ -207,10 +225,12 @@ return {
         t.exec("walk-talkToJethick", t.player.walk_route, { { 2540, 3303 } }, { max_hop = 20 })
         t.exec("talkToJethick", t.player.talk_to, "jethick", 1)
         t.exec("talkToJethick-dialog", t.chat.play, {
-            "npc:Hello, I don't recognise you", "options", "choose:I'm looking for a woman from East Ardougne.",
-            "player:I'm looking for a woman", "npc:East Ardougnian women", "player:Yes, a lady called Elena", "npc:What does she look like",
-            "*", "npc:Ah yes, I recognise her", "npc:I think she is staying", "npc:I've not seen her around",
-            "npc:I don't suppose you could run me", "*",
+            "npc:Hello, I don't recognise you", "player:How come?", "npc:The plague of course", "npc:All you'll find here",
+            "player:Your king?", "npc:Yes, King Tyras", "player:So where is the king?", "npc:Well he's always been",
+            "npc:The plague first started", "npc:The king didn't care", "npc:Anyway, you clearly",
+            "player:I'm looking for a woman", "npc:East Ardougnian women", "*", "npc:Ah yes. She came over here",
+            "npc:They live in the small timbered", "npc:I don't suppose you could run me", "options",
+            "choose:Yes, I'll return it for you.", "player:Yes, I'll return it", "*",
         })
         t.ticks(2)
         t.expect("quest.stage.shown_picture", t.quest.expect_stage("shown_picture"))
@@ -237,7 +257,7 @@ return {
         -- talkToMartha
         t.exec("talkToMartha", t.player.talk_to, "martha_rehnison", 1)
         t.exec("talkToMartha-dialog", t.chat.play, {
-            "player:Hi, I hear a woman called Elena", "npc:Yes she was staying here", "npc:However she never managed",
+            "player:Hi, I hear a woman called Elena", "npc:Yes she was staying here", "npc:My daughter Milli",
         })
         t.ticks(2)
         t.expect("quest.stage.spoken_martha_ted", t.quest.expect_stage("spoken_martha_ted"))
@@ -247,7 +267,7 @@ return {
             at = { 2527, 3332, 0 }, dest = { 2527, 3331, 1 } })
         t.exec("talkToMilli", t.player.talk_to, "milli", 1)
         t.exec("talkToMilli-dialog", t.chat.play, {
-            "player:Hello", "npc:*sniff*", "npc:I was about to run", "player:Which building?", "npc:It was the mossy windowless",
+            "player:Hello. Your parents say", "npc:*sniff*", "player:Which building?", "npc:It was the boarded up building",
         })
         t.ticks(2)
         t.expect("quest.stage.spoke_to_milli", t.quest.expect_stage("spoke_to_milli"))
@@ -281,11 +301,16 @@ return {
         t.exec("goto-talkToClerk", t.player.goto_tile, 2526, 3309, 0)
         t.exec("talkToClerk.civicDoorIn", t.player.pass_door, { closed = "w_ardougnedoubledoorr",
             open = "w_ardougnedoubledoorropen", at = { 2526, 3311, 0 }, near = { 2526, 3311 }, far = { 2526, 3313 } })
+        -- scriptrun's options reader (d_options) keeps only the LAST clientscript, and the stat-boost
+        -- timer scripts (4517/4518) that go out every 100 ticks replaced this talk's second menu when it
+        -- opened on tick 549; one tick later it does not share their tick
+        t.ticks(1)
         t.exec("talkToClerk", t.player.talk_to, "clerk", 1)
         t.exec("talkToClerk-dialog", t.chat.play, {
-            "npc:Hello, welcome to the Civic Office", "options", "choose:I need permission to enter a plague house.",
-            "player:I need permission", "npc:Rather you than me", "options", "choose:This is urgent though!",
-            "player:This is urgent though!", "npc:I'll see what I can do", "npc:there's a", "npc:I suppose they can come in",
+            "npc:Hello, welcome to the Civic Office", "options", "choose:Who is through that door?",
+            "player:Who is through that door?", "npc:The city warder Bravek", "player:Can I go in?",
+            "npc:He has asked not to be disturbed.", "options", "choose:This is urgent though! Someone's been kidnapped!",
+            "player:This is urgent though!", "npc:I'll see what I can do", "npc:Mr Bravek, there's", "npc:I suppose they can come in",
         })
         t.ticks(2)
         t.expect("quest.stage.spoke_to_clerk", t.quest.expect_stage("spoke_to_clerk"))
@@ -298,8 +323,8 @@ return {
         t.exec("talkToBravek", t.player.talk_to, "bravek", 1)
         t.exec("talkToBravek-dialog", t.chat.play, {
             "npc:My head hurts", "options", "choose:This is really important though!", "player:This is really important",
-            "npc:I can't possibly speak", "options", "choose:Do you know what is in the cure?",
-            "player:Do you know what is in the cure?", "npc:Hmmm let me think", "*",
+            "npc:I can't possibly speak", "options", "choose:Do you know what's in the cure?",
+            "player:Do you know what's in the cure?", "npc:Hmmm let me think", "*",
         })
         t.ticks(2)
         t.expect("quest.stage.spoke_to_bravek", t.quest.expect_stage("spoke_to_bravek"))
@@ -319,7 +344,7 @@ return {
         local bravek = t.player.by_symbol("npc", "bravek")
         t.exec("giveHangoverCureToBravek", t.player.use_on, "hangover_cure", bravek)
         t.exec("giveHangoverCureToBravek-dialog", t.chat.play, {
-            "npc:*uurgh*", "player:Try this", "*", "npc:Ooh that's much better",
+            "npc:Uurgh! My head still hurts", "player:Try this", "*", "npc:Ooh that's much better",
             "player:I need to rescue", "npc:Well the mourners deal", "options", "choose:They won't listen to me!",
             "player:They won't listen to me!", "player:They say I'm not properly", "npc:Hmmm, well", "npc:I've heard of", "*",
         })
@@ -336,11 +361,17 @@ return {
             open = "w_ardougnedoubledoorropen", at = { 2526, 3311, 0 }, near = { 2526, 3312 }, far = { 2526, 3310 } })
         t.exec("goto-tryToEnterPlagueHouseAgain", t.player.goto_tile, 2540, 3275, 0)
         t.ticks(2)
-        -- the mourner reads the warrant, then ~west_ardy_walk_door carries you in (quest_elena doors.rs2)
-        t.exec("tryToEnterPlagueHouseAgain", t.player.cross_gate, { loc = "plagueelenadoorshut",
-            at = { 2540, 3273, 0 }, near = { 2540, 3274 }, far_ok = function(tile) return tile.z <= 3272 end,
-            far_desc = "inside the plague house, z <= 3272",
-            chat = { "npc:I'd stand away", "player:I have a warrant", "npc:This is highly irregular", "*" } })
+        -- the mourner reads the warrant; the chat closes, the two mourners talk ([1078], [1080]) and the
+        -- player is through the door with the box on the second line (RSProx index 4360 [1071..1080])
+        t.exec("tryToEnterPlagueHouseAgain", t.player.click_loc, "plagueelenadoorshut", 1, { at = { 2540, 3273, 0 } })
+        t.exec("tryToEnterPlagueHouseAgain-dialog", t.chat.play, {
+            "npc:I'd stand away", "player:I have a warrant", "npc:This is highly irregular",
+        })
+        t.ticks(4)
+        t.exec("tryToEnterPlagueHouseAgain-sneak", t.chat.play, { "mesbox:You wait until the mourner's back is turned" })
+        local _, inside_tile = t.world.tile()
+        t.check("tryToEnterPlagueHouseAgain.inside", inside_tile ~= nil and inside_tile.z <= 3272 and inside_tile.z < 4000,
+            "inside the plague house at " .. tostring(inside_tile and inside_tile.x) .. "," .. tostring(inside_tile and inside_tile.z))
         t.ticks(2)
 
         -- The plague house's spooky stairs telejump on level 0 between the house and its basement frame
@@ -390,7 +421,8 @@ return {
         t.exec("talkToElena-dialog", t.chat.play, {
             "player:Hi, you're free to go", "npc:Thank you", "player:Well you can leave", "npc:Go and see my father",
         })
-        t.ticks(2)
+        -- she leaves under a fade: the stage three ticks after the last page (RSProx index 4360 [1123..1126])
+        t.ticks(5)
         t.expect("quest.stage.freed_elena", t.quest.expect_stage("freed_elena"))
 
         -- goUpstairsInPlagueHouseToFinish: out of the cell, up the stairs, out of the front door
@@ -406,7 +438,8 @@ return {
         t.exec("goDownManhole2", t.player.click_loc, "plaguemanholeclosed", 1)
         t.ticks(3)
         t.exec("goDownManhole", t.player.click_loc, "plaguemanholeopen", 1)
-        t.ticks(4)
+        t.ticks(5)
+        t.exec("goDownManhole-text", t.chat.play, { "mesbox:You climb down through the manhole." })
         local _, sewer_tile = t.world.tile()
         t.check("goDownManhole.landing", sewer_tile ~= nil and sewer_tile.z > 9000, "back in the sewer at " .. tostring(sewer_tile and sewer_tile.x) .. "," .. tostring(sewer_tile and sewer_tile.z))
 
@@ -420,11 +453,16 @@ return {
         local reward_snapshot_result, reward_before = t.skill.snapshot()
         t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
         t.exec("talkToEdmondToFinish", t.player.talk_to, "edmond", 1)
-        t.exec("talkToEdmondToFinish-dialog", t.chat.play, { "npc:Thank you, thank you", "npc:Now I'd recommend" })
-        t.ticks(4)
+        -- the scroll on the click of the first page, the second page on the scroll's close (RSProx index
+        -- 4360 [1175..1180])
+        t.exec("talkToEdmondToFinish-dialog", t.chat.play, { "npc:Thank you, thank you" })
+        t.ticks(2)
         t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
-
+        -- reads the scroll's title and closes it
         t.quest.expect_complete()
+        t.ticks(1)
+        t.exec("talkToEdmondToFinish-dialog2", t.chat.play, { "npc:Now I'd recommend" })
+        t.ticks(2)
 
         local mining_result, mining_detail = t.skill.expect_gain("mining", 2425, reward_before)
         t.check("reward.mining", mining_result == "ok", "mining xp gain 2425 -> " .. tostring(mining_result) .. " " .. tostring(mining_detail))
@@ -436,7 +474,7 @@ return {
         t.check("castBeforeScroll", unlearned_result == "refused" and string.find(tostring(unlearned_detail), "learnt", 1, true) ~= nil,
             "cast ardougne_teleport before reading the scroll -> " .. tostring(unlearned_result) .. " " .. tostring(unlearned_detail))
         t.exec("readArdougneScroll", t.player.inv_op, "ardougnescroll", 1)
-        t.exec("readArdougneScroll-dialog", t.chat.play, { "*", "*" })
+        t.exec("readArdougneScroll-dialog", t.chat.play, { "objbox:You memorise what is written on the scroll" })
         t.ticks(2)
         t.expect("quest.stage.complete_read_scroll", t.quest.expect_stage("complete_read_scroll"))
         -- magic_spells.dbrow [magic_spell_teleport_ardougne]: waterrune 2, lawrune 2; tele_coord 0_41_51_37_37
