@@ -598,6 +598,11 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
 | Sol's melee dust | delay = 2 x ring from his centre on all 54,139 tiles, rings 0..10 | the same rule | unchanged: ring 10 needs Sol near a wall, which a standing bot never brings about |
 | per-player invs | -- | 16, full on a played account (the entry aborted) | 128 |
 | scriptrun press reach | the client draws 25 tiles | any loc in the scene | both lanes refuse a copy beyond the draw distance (`DrivePick_Pressable`) |
+| Solarflare III | "The Solar Flare disables your protection prayer!" and only the protection bit off, when one is up (4/4); nothing without one (8/8) | every prayer off, no line | `~prayer_deactivate_specific` x3 + the line |
+| a bee sting poisons | "You have been poisoned!" on 13 of 37 stings on an unpoisoned player; then 2 every 30 ticks five times, 1s | no poison | 1 in 3, severity 10 (`poison_player`) |
+| reward invs | every obj stacks (`gold_ore (444) x150` in one slot of the four) | unstackables spread, overflowed, "Your inventory is full." | `colosseum.inv` `stackall=yes` |
+| crop circles | no "A crop circle has appeared / is active near" in 4,347 sessions | broadcast to every player at login and on each move | removed (`puropuro.rs2`) |
+| a new best | "Colosseum duration: T (new personal best)" [unverified: no recording; every other activity's form] | "... Personal best: B (new personal best)" | the activities' form |
 
 ## 13. Open gaps
 
@@ -637,6 +642,17 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
   our bot's.
 - The face re-send misses 9 of 148 turns (a shaman stepping in); the recordings' misses are
   their dying and out-of-view ticks.
+- **The HP HUD, engine-wide.** Jagex's server writes `hpbar_hud_npc` only for bosses: with the
+  normal overlay ON (index 1211, 4262) no ordinary npc is ever written, so the normal overlay is
+  the client's own. Ours feeds every combat target from the server. And a boss HUD re-sends
+  `if_setcolour` x3 + clientscript 2376 up to 7 times a tick and `hp_hud_fade_in` (2887) on
+  ticks with no hp change, by a rule neither the hp writes nor the hits explain (12 Sol
+  sessions, 4,928 triples). Not changed: cutting the server's feed needs the client to draw
+  the normal overlay first.
+- **Player-wide clientscripts we never send:** 4517/4518 stat-boost timers, 4716 health regen,
+  2498 account info, 3932 music now-playing, and 5224 `pvp_icons_comlevelrange` (98 % of
+  prayer toggles and 78 % of equipment changes send it, but those explain under half of
+  them, and a stat change alone sends it 1 time in 10).
 - The HP HUD is mounted twice at login (the gameframe carry re-mounts it); invisible.
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording
   shows either way.
