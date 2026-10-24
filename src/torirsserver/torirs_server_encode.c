@@ -1896,6 +1896,7 @@ ToriRSServer_GameframeOpentop(
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     struct ToriRSServerIfMount carried[TORIRSSERVER_IF_MOUNT_MAX];
     int carried_count;
+    int hud_in_frame = 0;
 
     assert(player);
     top_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, group);
@@ -1931,12 +1932,16 @@ ToriRSServer_GameframeOpentop(
                 top_name);
     else
         for( int i = 0; i < frame->count; i++ )
+        {
             ToriRSServer_SendIfOpensub(
                 player,
                 group,
                 frame->values[i].key & 0xffff,
                 frame->values[i].value,
                 1);
+            if( ids && frame->values[i].value == ids->iface_hpbar_hud )
+                hud_in_frame = 1;
+        }
     /* The frame is back; now put back what the frame does not know about. */
     ToriRSServer_GameframeCarryMounts(player, carried, carried_count);
     /* The enemy health overlay, mounted with the frame and never closed (RSProx:
@@ -1949,14 +1954,18 @@ ToriRSServer_GameframeOpentop(
         if( hp_ids && hp_ids->iface_hpbar_hud > 0 && hp_ids->com_gameframe_hpbar_hud > 0 &&
             !player->hpbar_open )
         {
-            ToriRSServer_SendIfOpensub(player, TORIRSSERVER_COM_GROUP(hp_ids->com_gameframe_hpbar_hud),
-                                       TORIRSSERVER_COM_CHILD(hp_ids->com_gameframe_hpbar_hud),
-                                       hp_ids->iface_hpbar_hud, 1);
+            /* The frame's own enum mounts it on the stretch tops (161:2): a
+             * second IF_OPENSUB here was the login burst's double mount
+             * (RSProx: one). */
+            if( !hud_in_frame )
+                ToriRSServer_SendIfOpensub(player, TORIRSSERVER_COM_GROUP(hp_ids->com_gameframe_hpbar_hud),
+                                           TORIRSSERVER_COM_CHILD(hp_ids->com_gameframe_hpbar_hud),
+                                           hp_ids->iface_hpbar_hud, 1);
             player->hpbar_open = TORIRSSERVER_HPBAR_OPENING;
+            /* Not marked: the login burst's varp sync sends it, once (RSProx:
+             * one `hpbar_hud_npc -1`; a mark here made it two). */
             if( hp_ids->varp_hpbar_hud_npc >= 0 )
                 player->varps[hp_ids->varp_hpbar_hud_npc] = -1;
-            if( hp_ids->varp_hpbar_hud_npc >= 0 )
-                ToriRSServer_WorldMarkVarp(player, hp_ids->varp_hpbar_hud_npc);
         }
     }
     /* The V2 snapshot is the authoritative commit for this root. It also

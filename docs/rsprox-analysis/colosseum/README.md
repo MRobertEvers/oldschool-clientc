@@ -602,6 +602,9 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
 | a bee sting poisons | "You have been poisoned!" on 13 of 37 stings on an unpoisoned player; then 2 every 30 ticks five times, 1s | no poison | 1 in 3, severity 10 (`poison_player`) |
 | reward invs | every obj stacks (`gold_ore (444) x150` in one slot of the four) | unstackables spread, overflowed, "Your inventory is full." | `colosseum.inv` `stackall=yes` |
 | crop circles | no "A crop circle has appeared / is active near" in 4,347 sessions | broadcast to every player at login and on each move | removed (`puropuro.rs2`) |
+| boss HUD | the panel for bosses only; every tick + per hit | every combat target, open/change only | `param_509` boss mark, `hpbar_boss_event` |
+| player timers | 4517/4518 every 25 ticks, 4716 every 100, 2498 per tab press | none | `stat_restore.rs2`, `health_regen.rs2`, `side_tab_press_answer` |
+| login HUD | one IF_OPENSUB of 303, one `hpbar_hud_npc -1` | two of each | the frame's enum mount is the one |
 | a new best | "Colosseum duration: T (new personal best)" [unverified: no recording; every other activity's form] | "... Personal best: B (new personal best)" | the activities' form |
 
 ## 13. Open gaps
@@ -642,17 +645,16 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
   our bot's.
 - The face re-send misses 9 of 148 turns (a shaman stepping in); the recordings' misses are
   their dying and out-of-view ticks.
-- **The HP HUD, engine-wide.** Jagex's server writes `hpbar_hud_npc` only for bosses: with the
-  normal overlay ON (index 1211, 4262) no ordinary npc is ever written, so the normal overlay is
-  the client's own. Ours feeds every combat target from the server. And a boss HUD re-sends
-  `if_setcolour` x3 + clientscript 2376 up to 7 times a tick and `hp_hud_fade_in` (2887) on
-  ticks with no hp change, by a rule neither the hp writes nor the hits explain (12 Sol
-  sessions, 4,928 triples). Not changed: cutting the server's feed needs the client to draw
-  the normal overlay first.
-- **Player-wide clientscripts we never send:** 4517/4518 stat-boost timers, 4716 health regen,
-  2498 account info, 3932 music now-playing, and 5224 `pvp_icons_comlevelrange` (98 % of
-  prayer toggles and 78 % of equipment changes send it, but those explain under half of
-  them, and a stat change alone sends it 1 time in 10).
-- The HP HUD is mounted twice at login (the gameframe carry re-mounts it); invisible.
+- **The boss HUD's remaining resends.** Fixed: the server writes the panel for bosses only
+  (cache `param_509 = 2`, or `hpbar_hud_boss`), never for an ordinary target (index 1211,
+  4262, 4346, 4352); a boss panel goes out every tick and once more per hit landing (4,610 of
+  5,400 recorded ticks). Open: a multi-hit swing adds one per hit on its own tick, and some
+  ticks send `hp_hud_fade_in` (255) instead -- 4-tick runs after Sol's phase lines and his
+  removal -- by a rule neither the player's target nor his last attack separates.
+- **Player-wide clientscripts.** Fixed: 4517/4518 every 25 ticks (the stat-restore
+  countdown) and 4716 every 100 (the regen timer), 2498 on every side-tab press. Open: 3932
+  (music now-playing: 56 % of song changes, not decided by a new song or the track varp) and
+  5224 (`pvp_icons_comlevelrange`); the regen and restore timers' relative phase differs per
+  session (ours: together, as 20 of 62 sessions).
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording
   shows either way.

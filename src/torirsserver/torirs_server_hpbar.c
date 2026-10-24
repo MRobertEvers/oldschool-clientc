@@ -98,6 +98,28 @@ hpbar_send_open_event(
     ToriRSServer_SendRunClientscript(player, 2376, args, 19);
 }
 
+/*
+ * A boss panel's event: the bar's three colours, then 2376.
+ *
+ * Jagex sends this every tick a boss's panel is up and once more per hit that
+ * lands on it (RSProx, Sol Heredit in 12 sessions: one a tick through the
+ * fight, three on a tick two hits land, 4,610 of 5,400 ticks so; a two-hit
+ * swing adds two more on its own tick, and Sol's phase lines a four-tick
+ * `hp_hud_fade_in` run in place of it -- neither modelled yet). The colours are
+ * Sol's, 15-bit: red under, dark green sliding, green left (14,610 of 15,061
+ * across the recorded bosses).
+ */
+static void
+hpbar_boss_event(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerIds const* ids)
+{
+    ToriRSServer_SendIfSetcolour(player, ids->com_hpbar_hud_event[7], 25600);
+    ToriRSServer_SendIfSetcolour(player, ids->com_hpbar_hud_event[8], 576);
+    ToriRSServer_SendIfSetcolour(player, ids->com_hpbar_hud_event[9], 800);
+    hpbar_send_open_event(player, ids);
+}
+
 /** How long the overlay lingers after the last exchange, in ticks.
  *
  *  Not zero: combat drops the target for a moment between an npc dying and the
@@ -108,22 +130,6 @@ hpbar_send_open_event(
 #define TORIRSSERVER_HPBAR_LINGER_TICKS 6
 
 
-static int
-hpbar_target_slot(struct ToriRSServerPlayer* player)
-{
-    struct ToriRSServer* srv;
-    struct ToriRSServerNpc* npc;
-
-    assert(player);
-
-    srv = player->world;
-    if( !srv || player->combat_target < 0 || player->combat_target >= TORIRSSERVER_NPC_MAX )
-        return -1;
-    npc = &srv->npcs[player->combat_target];
-    if( !npc->active || npc->death_tick >= 0 )
-        return -1;
-    return player->combat_target;
-}
 
 /*
  * The npc content pinned to the overlay with `hpbar_hud_npc`, or -1.
@@ -166,16 +172,26 @@ hpbar_is_boss(struct ToriRSServerNpc const* npc)
     assert(npc);
     if( s_param == -2 )
         s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "hpbar_hud_boss");
-    if( s_param < 0 )
-        return 0;
     /* An authored band field first, then the record's own param table (a
      * `param=hpbar_hud_boss,1` line in a .npc file lands in the latter). */
     def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
-    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+    if( s_param >= 0 && def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
         return value != 0;
+    if( s_param >= 0 )
     {
         const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
-        return row && !row->sval && row->ival != 0;
+        if( row && !row->sval )
+            return row->ival != 0;
+    }
+    /* Then the cache's own mark: param 509 is 2 on the 232 npcs whose record
+     * draws the boss panel (Sol Heredit, the Dagannoth Kings, the wilderness
+     * bosses, the raids' bosses; RSProx writes the panel for them) and 0 on
+     * the Theatre's, which have their own. Before the combat-target fallback
+     * went, every boss reached the panel through it; only the Gauntlet's and
+     * the Chambers' carried `hpbar_hud_boss`. */
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, 509);
+        return row && !row->sval && row->ival == 2;
     }
 }
 
@@ -294,8 +310,13 @@ ToriRSServer_HpBarTick(
         boss = player->hpbar_last_boss;
         player->hpbar_linger = 0;
     }
-    else if( slot < 0 )
-        slot = hpbar_target_slot(player);
+    /* Nothing else: an ordinary combat target gets no overlay from the server.
+     * Jagex writes `hpbar_hud_npc` for a boss or what content pins, never for
+     * the npc a player merely fights, the normal overlay on or off: index 1211
+     * (the Colosseum's waves 1..6, overlay on: one write, -1), Stronghold of
+     * Security 4346 and Corsair Cove 4352 (every fight: -1 only), and 4262
+     * (overlay on: only its quest bosses). Fed every target, ours wrote the
+     * panel's vars through every wave. */
     if( slot >= 0 )
         boss = hpbar_is_boss(&srv->npcs[slot]);
     if( slot >= 0 )
@@ -474,9 +495,23 @@ ToriRSServer_HpBarTick(
             if( base >= 0 )
                 ToriRSServer_WorldMarkVarp(player, base);
         }
-        if( first || shown_type != want_type ||
-            (player->hpbar_body_hidden && shown_uid != 0 &&
-             shown_uid != player->hpbar_shown_uid) )
+        if( boss && !pinned && slot >= 0 )
+        {
+            /* A boss's panel is re-sent every tick it is up, and once more for
+             * each hit that lands on the boss this tick (`hpbar_boss_event`). */
+            int sends = 1;
+            struct ToriRSServerNpc const* npc = &srv->npcs[slot];
+
+            for( int i = 0; i < npc->hitmark_count; i++ )
+                if( npc->hitmarks[i].damage > 0 )
+                    sends++;
+            for( int i = 0; i < sends; i++ )
+                hpbar_boss_event(player, ids);
+            player->hpbar_body_hidden = 0;
+        }
+        else if( first || shown_type != want_type ||
+                 (player->hpbar_body_hidden && shown_uid != 0 &&
+                  shown_uid != player->hpbar_shown_uid) )
         {
             hpbar_send_open_event(player, ids);
             player->hpbar_body_hidden = 0;

@@ -13331,6 +13331,27 @@ handle_resume_pausebutton(
     (void)ToriRSServer_WorldMapHandleButton(srv, uid, 1);
 }
 
+/*
+ * A side-tab stone press is answered with `account_info_update` (2498),
+ * (1, true, false), whatever the tab and whether it was already open: RSProx,
+ * the Colosseum's 60 sessions, a 2498 on the press's tick or the next on all
+ * but a handful of 1,047 presses on another tab and 70 on the same one
+ * (the press's own tick jitters by one). The tabs switch on the client; this
+ * is the server's only answer.
+ */
+static void
+side_tab_press_answer(
+    struct ToriRSServer* srv,
+    int component)
+{
+    const char* com = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, component);
+    static const int argv[3] = { 1, 1, 0 };
+
+    if( !com || strncmp(com, "toplevel", 8) != 0 || !strstr(com, ":stone") )
+        return;
+    ToriRSServer_SendRunClientscriptMixed(srv->active_player, 2498, "i11", argv, NULL, 3);
+}
+
 static void
 handle_if_button(
     struct ToriRSServer* srv,
@@ -13348,6 +13369,7 @@ handle_if_button(
         return;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- IF_BUTTON %d:%d\n", uid >> 16, uid & 0xffff);
+    side_tab_press_answer(srv, uid);
 
     /* rev 230 has no separate resume opcode in practice — a component the
      * server enabled with IF_SETEVENTS answers a click with IF_BUTTON, and
@@ -13407,6 +13429,7 @@ handle_if_button_op(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- IF_BUTTON%d %d:%d sub=%d\n", op_num, uid >> 16,
                 uid & 0xffff, sub);
+    side_tab_press_answer(srv, uid);
     if( ToriRSServer_WorldMapHandleButton(srv, uid, op_num) )
         return;
     srv->active_player->last_com = uid;
