@@ -19,7 +19,8 @@ end
 local function pick_card(t, n)
     -- t.ui.is_modal returns (status, open): the cards must really be on screen (D+3) before
     -- a card or the confirm is pressed.
-    if not t.ui.await_open("colosseum_intermission_2", 40) then return false end
+    -- await_open answers a status word, never false: "ok" is the only open.
+    if t.ui.await_open("colosseum_intermission_2", 40) ~= "ok" then return false end
     t.ticks(1)
     -- Never Doom (index 8): its stacks kill even under ::god.
     for k = 0, 2 do
@@ -38,7 +39,7 @@ end
 return {
     id = "colo_mods",
     fixture = "fresh_lumbridge.ini",
-    max_frames = 3000000,
+    max_frames = 2400000,
     setup = {
         "::clearinv",
         "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",

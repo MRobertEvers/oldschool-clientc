@@ -304,8 +304,15 @@ enum
      * (or the world) can hold *at once*. The reference has no equivalent because
      * `Player.invs` is a Map; a fixed table is what a fixed player struct can
      * carry, and overflowing it is reported rather than absorbed.
+     *
+     * Rows are never released and a save brings every non-empty one back, so an
+     * account's count only grows. 16 was reached by a played account (14 saved
+     * invs plus inv and worn, 2026-10-24): the Colosseum's
+     * `inv_clear(colosseum_rewards_future)` found no free row and aborted
+     * `colo_enter` after its state varps, leaving the player at the gate. A row
+     * is metadata only (its items are allocated apart), and players are few.
      */
-    TORIRSSERVER_CONTAINER_MAX = 16,
+    TORIRSSERVER_CONTAINER_MAX = 128,
     /** Shared (world-scoped) rows are created on first use and never evicted
      *  (torirs_server_container.h's header comment), so this has to cover every
      *  distinct shop any player visits over one server lifetime, not just

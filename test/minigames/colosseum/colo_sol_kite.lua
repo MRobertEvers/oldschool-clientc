@@ -27,7 +27,9 @@ return {
         t.check("arena.minimus", ok == "ok", "no Minimus")
         t.ticks(4)
         t.player.talk_to("colosseum_master", 1)
-        t.check("cards.open", t.ui.await_open("colosseum_intermission_2", 10))
+        local open, why = t.ui.await_open("colosseum_intermission_2", 10)
+        t.check("cards.open", open, why)
+        if open ~= "ok" then return end
         local _, card = t.ui.widget("colosseum_intermission_2:mod_button_1")
         t.ui.invoke(card, 1)
         t.ticks(1)

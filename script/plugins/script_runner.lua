@@ -86,9 +86,10 @@ local SUITES = {
     { value = "quest", label = "Quests" },
     { value = "raid", label = "Raids" },
     { value = "boss", label = "Bosses" },
+    { value = "minigame", label = "Minigames" },
 }
-local SUITE_ORDER = { quest = 1, raid = 2, boss = 3 }
-local SUITE_WORDS = { all = "scripts", quest = "quests", raid = "raids", boss = "bosses" }
+local SUITE_ORDER = { quest = 1, raid = 2, boss = 3, minigame = 4 }
+local SUITE_WORDS = { all = "scripts", quest = "quests", raid = "raids", boss = "bosses", minigame = "minigames" }
 
 -- Raid seam25: where a Play starts from (the owner, 2026-10-05: "The script
 -- runner should also specify a starting character state, such as 'reset
@@ -225,7 +226,7 @@ local function manifest_counts()
         end
     end
     local parts = {}
-    for _, suite in ipairs({ "quest", "raid", "boss" }) do
+    for _, suite in ipairs({ "quest", "raid", "boss", "minigame" }) do
         local entry = by_suite[suite]
         if entry then
             parts[#parts + 1] = string.format("%s %d (%d playable)", suite, entry.listed, entry.available)

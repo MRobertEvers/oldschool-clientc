@@ -21,7 +21,7 @@ file you created after the client started.
 THE MANIFEST, one section per test, in TEST_SUITES order then by id:
 
     [test:<id>]
-    suite=quest|raid|boss
+    suite=quest|raid|boss|minigame
     title=<a human title>
     source=tests/quests/<id>.lua        ; resolved under the script directory
     fixture=tests/quests/fixtures/<fixture>.ini
@@ -37,7 +37,9 @@ containing `..` (src/ioserver/io_server_main.c), so `../test/quests/x.lua` would
 work natively and fail when the script directory is served. The tests
 directories are therefore reached through committed directory links,
 script/tests/quests -> ../../test/quests, script/tests/raids ->
-../../test/raids and script/tests/bosses -> ../../test/bosses: a read through the link IS a read of the file in the tree
+../../test/raids, script/tests/bosses -> ../../test/bosses and
+script/tests/minigames -> ../../test/minigames: a read through the link IS a
+read of the file in the tree
 (no copy, nothing to go stale), and io_server's fopen follows it the same way.
 A suite given with --suite and a directory outside script/ (a scratch tests
 root for a proof) is named by its path relative to the script directory, which
@@ -84,6 +86,7 @@ TEST_SUITES = [
     ("quest", "test/quests", "tests/quests"),
     ("raid", "test/raids", "tests/raids"),
     ("boss", "test/bosses", "tests/bosses"),
+    ("minigame", "test/minigames", "tests/minigames"),
 ]
 
 RAID_NAMES = {
@@ -186,7 +189,7 @@ def describe(suite, directory, directory_script_path):
         legs = len(layout["legs"]) if layout else 0
         if suite == "raid":
             title = raid_title(test_id, source, party)
-        elif suite == "boss":
+        elif suite in ("boss", "minigame"):
             title = words(test_id)
         else:
             title = quest_title(test_id, source)
