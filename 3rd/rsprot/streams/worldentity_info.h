@@ -12,6 +12,8 @@
 
 #include "rsprot_info.h"
 
+int worldentity_info_v3_osrs226(
+    const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v3_osrs227(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v4_osrs227(

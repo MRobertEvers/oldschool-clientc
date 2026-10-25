@@ -1,6 +1,6 @@
 /*
  * PLAYER_INFO / NPC_INFO at revision 241: 3rd/rsprot/streams' readers
- * (player_info_osrs241 -> player_info_v5, npc_info_small_v6_osrs241 ->
+ * (player_info_osrs241 -> player_info_v6, npc_info_small_v6_osrs241 ->
  * npc_info_small_v6) over the session's table (net/rev/rsprot_entity_state.c).
  *
  * The names stay because the login, the REBUILD and the hosts that decode

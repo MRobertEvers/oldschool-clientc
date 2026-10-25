@@ -252,6 +252,17 @@ static const RsprotProtDef rsprot_osrs225_client[] = {
 };
 
 static const char *const rsprot_osrs225_zone_order[] = {
+    "LOC_ADD_CHANGE",
+    "OBJ_ADD",
+    "LOC_DEL",
+    "SOUND_AREA",
+    "OBJ_ENABLED_OPS",
+    "MAP_ANIM",
+    "LOC_MERGE",
+    "MAP_PROJANIM",
+    "OBJ_COUNT",
+    "OBJ_DEL",
+    "LOC_ANIM",
 };
 /* clang-format on */
 

@@ -2,7 +2,7 @@
 #define RSPROT_STREAM_WORLDENTITY_INFO_V3_H
 
 /*
- * WORLDENTITY_INFO_V3 -- revs 227-228: the version, its constants' shape, and
+ * WORLDENTITY_INFO_V3 -- revs 226-228: the version, its constants' shape, and
  * the reader each revision's entry point calls. It reads bare update entries,
  * then spawns while 10 bytes remain (rsprot_info_worldentity.c); a revision's
  * constants are its spawn record, in that revision's field order and byte

@@ -125,6 +125,13 @@ typedef struct RsprotInfoSpotanimEnc
     RsprotRead height_delay;
 } RsprotInfoSpotanimEnc;
 
+/** 223-224's npc spot anim: one, with no count or slot (slot 0). */
+typedef struct RsprotInfoSpotanimSingleEnc
+{
+    RsprotRead id;
+    RsprotRead height_delay;
+} RsprotInfoSpotanimSingleEnc;
+
 /** 240+: each spot anim says whether it loops. */
 typedef struct RsprotInfoSpotanimLoopEnc
 {
@@ -280,6 +287,9 @@ int rsprot_info_face_angle_instant(
 int rsprot_info_face_coord(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFaceCoordEnc *e);
 int rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc *e);
 int rsprot_info_chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e);
+int rsprot_info_chat_old(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e);
+int rsprot_info_spotanim_single(RsprotInfoBlocks *t, uint32_t bit,
+                                const RsprotInfoSpotanimSingleEnc *e);
 int rsprot_info_exact_move(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoExactMoveEnc *e);
 /** The player's: the move this slot made this cycle is not applied
  *  (class109.method3804 clears field1582 after method3132). */

@@ -644,10 +644,10 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
 }
 
 /* decodeChat: packed colour/effects, mod icon, autotyper, huffman length, the
- * huffman bytes, then one pattern colour per step when the colour is a pattern
- * (13..20). */
-int
-rsprot_info_chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e)
+ * huffman bytes, then -- `patterned` -- one pattern colour per step when the
+ * colour is a pattern (13..20). decodeChatOld (223-224) has no pattern. */
+static int
+chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e, int patterned, int kind)
 {
     int before = t->out->count;
     int32_t colour_effects = e->colour_effects(t->b);
@@ -662,17 +662,29 @@ rsprot_info_chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e)
     len = e->data_len(t->b);
     data = borrow_blob(t->b, len);
     colour = (int32_t)((uint32_t)colour_effects >> 8);
-    patterns = colour >= 13 && colour <= 20 ? colour - 12 : 0;
+    patterns = patterned && colour >= 13 && colour <= 20 ? colour - 12 : 0;
     for (int i = 0; i < patterns; i++)
         (void)e->pattern(t->b);
     if (t->b->err)
-        return block_end(t, before, RSPROT_IK_CHAT, bit);
+        return block_end(t, before, (RsprotInfoKind)kind, bit);
     op = rsprot_info_emit(t->out, RSPROT_OP_CHAT);
     op->chat.colour_effect = (uint16_t)colour_effects;
     op->chat.type = (uint8_t)mod_icon;
     op->chat.length = (uint8_t)len;
     op->chat.data = len > 0 ? rsprot_info_blob(t->out, data, len, e->data_order) : NULL;
     return 1;
+}
+
+int
+rsprot_info_chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e)
+{
+    return chat(t, bit, e, 1, RSPROT_IK_CHAT);
+}
+
+int
+rsprot_info_chat_old(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e)
+{
+    return chat(t, bit, e, 0, RSPROT_IK_CHAT_OLD);
 }
 
 static void
@@ -699,6 +711,18 @@ rsprot_info_spotanim(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanim
 
         spot(t->out, slot, id, height_delay, 0);
     }
+    return block_end(t, before, RSPROT_IK_SPOTANIM, bit);
+}
+
+/* decodeOldSpotanim (223-224 npcs): one spot anim, in slot 0. */
+int
+rsprot_info_spotanim_single(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanimSingleEnc *e)
+{
+    int before = t->out->count;
+    int32_t id = e->id(t->b);
+    int32_t height_delay = e->height_delay(t->b);
+
+    spot(t->out, 0, id, height_delay, 0);
     return block_end(t, before, RSPROT_IK_SPOTANIM, bit);
 }
 

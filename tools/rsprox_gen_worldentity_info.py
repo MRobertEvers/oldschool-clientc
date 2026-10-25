@@ -51,7 +51,7 @@ import rsprox_info_extract as ex  # noqa: E402
 import rsprox_prot  # noqa: E402
 
 OUT_DIR = os.path.join(REPO_ROOT, "3rd", "rsprot", "streams")
-REVS = range(227, 242)
+REVS = range(223, 242)
 VERSIONS = (3, 4, 5, 6, 7)
 PROTOCOL = os.path.join(ex.RSPROX, "protocol")
 GENERIC = os.path.join(PROTOCOL, "src", "main", "kotlin", "net", "rsprox", "protocol", "game",

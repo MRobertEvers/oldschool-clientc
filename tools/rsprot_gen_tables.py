@@ -87,7 +87,9 @@ def read_zone_order(rev):
         return []
     body = src[src.index(marker):]
     body = body[: body.index("\n            ;")]
-    return re.findall(r"^\s{12}(\w+)\(OldSchoolZoneProt\.", body, re.M)
+    # One line (`LOC_ADD_CHANGE(OldSchoolZoneProt.LOC_ADD_CHANGE, ...)`) or, at
+    # 225, the arguments on lines of their own.
+    return re.findall(r"^\s{12}(\w+)\(\s*OldSchoolZoneProt\.", body, re.M)
 
 
 def rsprot_spelling(name):
@@ -203,9 +205,9 @@ def gen_tables_dispatch(revisions, src_hash):
     lines.append("static const RsprotRevTable rsprot_all_revisions[] = {")
     for r in revisions:
         lines.append(
-            "    { %d, rsprot_rev%d_server, RSPROT_REV%d_SERVER_COUNT, "
-            "rsprot_rev%d_client, RSPROT_REV%d_CLIENT_COUNT, "
-            "rsprot_rev%d_zone_order, RSPROT_REV%d_ZONE_COUNT },"
+            "    { %d, rsprot_osrs%d_server, RSPROT_OSRS%d_SERVER_COUNT, "
+            "rsprot_osrs%d_client, RSPROT_OSRS%d_CLIENT_COUNT, "
+            "rsprot_osrs%d_zone_order, RSPROT_OSRS%d_ZONE_COUNT },"
             % (r, r, r, r, r, r, r)
         )
     lines += ["};", "/* clang-format on */", ""]

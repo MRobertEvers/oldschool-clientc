@@ -273,7 +273,7 @@ revisions 221-239; 282 packets emitted, 3 refused
   OK   UPDATE_STAT_V1                   update_stat_v1.c out   1 layout(s)  1 rev(s)
   OK   UPDATE_STAT_V2                   update_stat_v2.c out  16 layout(s) 16 rev(s)
   OK   UPDATE_ZONE_FULL_FOLLOWS         update_zone_full_follows.c out  21 layout(s) 21 rev(s)
-  OK   UPDATE_ZONE_PARTIAL_ENCLOSED     update_zone_partial_enclosed.c out  15 layout(s) 17 rev(s)
+  OK   UPDATE_ZONE_PARTIAL_ENCLOSED     update_zone_partial_enclosed.c out  19 layout(s) 21 rev(s)
   OK   UPDATE_ZONE_PARTIAL_FOLLOWS      update_zone_partial_follows.c out  21 layout(s) 21 rev(s)
   OK   URL_OPEN                         url_open.c out   1 layout(s) 15 rev(s)
   OK   VARCLAN_DISABLE                  varclan_disable.c out   1 layout(s) 21 rev(s)
@@ -975,9 +975,6 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev221 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev221 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev221 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
-            message.payload,
-     
   rev222 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev222 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
@@ -1027,9 +1024,6 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev222 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev222 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev222 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev222 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
-            message.payload,
-     
   rev223 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev223 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
@@ -1077,9 +1071,6 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev223 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev223 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev223 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
-            message.payload,
-     
   rev224 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev224 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
@@ -1127,9 +1118,6 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev224 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev224 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev224 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
-            message.payload,
-     
   rev225 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev225 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.

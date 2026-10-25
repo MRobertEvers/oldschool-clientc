@@ -684,6 +684,12 @@ def parse_one(s, is_decoder):
     s = s.strip()
     if s.startswith("val ") or s.startswith("var "):
         return parse_val(s, is_decoder)
+    # 221-224's UPDATE_ZONE_PARTIAL_ENCLOSED still copies its pre-encoded
+    # sub-packets in the Kotlin (later revisions leave the copy commented out
+    # for the Netty layer). Either way the bytes are the ENCLOSED tail's REST
+    # payload (TAILS), so the copy itself is not a field.
+    if re.match(r"^buffer\.buffer\.writeBytes\(\s*message\.payload\b", s):
+        return {"op": "ignore", "text": s}
     if s.startswith("buffer."):
         m = WRITE_FN_RE.match(s)
         if not m:

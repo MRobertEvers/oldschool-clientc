@@ -3,14 +3,14 @@
 
 /*
  * rsprot info streams -- PLAYER_INFO, NPC_INFO and WORLDENTITY_INFO, every
- * revision 227-241: the vocabulary every stream shares.
+ * revision 223-241: the vocabulary every stream shares.
  *
  * ## The structure, as the hand-written readers have it
  *
  * Each revision has an entry point named for the prot and the revision, and it
  * calls the prot's VERSION:
  *
- *   player_info_osrs227(...)            -> player_info_v1(&k_osrs227, ...)
+ *   player_info_osrs227(...)            -> player_info_v2(&k_osrs227, ...)
  *   npc_info_small_v5_osrs239(...)      -> npc_info_small_v5(&k_osrs239, ...)
  *   worldentity_info_v7_osrs241(...)    -> worldentity_info_v7(&k_osrs241, ...)
  *
@@ -144,6 +144,8 @@ typedef enum RsprotInfoKind
     RSPROT_IK_CUSTOM_V3, /* counted arrays, player composition */
     RSPROT_IK_CUSTOM_V4, /* V3 plus a recolour-all form */
     RSPROT_IK_HEADICON_CUSTOM,
+    /** 223-224's second chat block: CHAT without the colour pattern. */
+    RSPROT_IK_CHAT_OLD,
     RSPROT_IK_COUNT
 } RsprotInfoKind;
 
@@ -684,5 +686,6 @@ typedef int (*RsprotWorldEntityInfoReadFn)(
 #include "npc_info.h"
 #include "player_info.h"
 #include "worldentity_info.h"
+#include "worldentity_info_v1.h"
 
 #endif

@@ -11,8 +11,8 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : DesktopUpdateZonePartialEnclosedEncoder
- * Layouts      : 15 distinct, over 17 contiguous revision run(s)
- * Version nos. : v1..v15, this packet's layouts in ledger order; each names
+ * Layouts      : 19 distinct, over 21 contiguous revision run(s)
+ * Version nos. : v1..v19, this packet's layouts in ledger order; each names
  *                its row in gen/packet_versions.txt (append-only; never
  *                allocated here). Cross-check with:
  *                    grep '^DesktopUpdateZonePartialEnclosedEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
@@ -32,8 +32,8 @@
  * codec.
  */
 typedef struct MsgDesktopUpdateZonePartialEnclosed {
-	int32_t zone_z;
 	int32_t zone_x;
+	int32_t zone_z;
 	int32_t level;
 	/** The zone sub-packets, each an ordinal byte and its prot's payload
 	 *  (rsprot_zone_prot_name). */
@@ -41,56 +41,68 @@ typedef struct MsgDesktopUpdateZonePartialEnclosed {
 	int32_t payload_length;
 } MsgDesktopUpdateZonePartialEnclosed;
 
-/* v1 -- revs 225 (packet_versions.txt 5). */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v2 -- revs 226 (packet_versions.txt 6). */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v3 -- revs 227 (packet_versions.txt 7). */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_update_zone_partial_enclosed_v3_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v4 -- revs 228 (packet_versions.txt 8). */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void packet_update_zone_partial_enclosed_v4_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v5 -- revs 229 (packet_versions.txt 9). */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v6 -- revs 230, 234 (packet_versions.txt 10). */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v7 -- revs 231 (packet_versions.txt 11). */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v8 -- revs 232 (packet_versions.txt 12). */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v9 -- revs 233 (packet_versions.txt 13). */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v10 -- revs 235 (packet_versions.txt 14). */
+/* v10 -- revs 230, 234 (packet_versions.txt 10). */
 void packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v11 -- revs 236 (packet_versions.txt 15). */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void packet_update_zone_partial_enclosed_v11_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v12 -- revs 237, 240 (packet_versions.txt 16). */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v13 -- revs 238 (packet_versions.txt 17). */
+/* v13 -- revs 233 (packet_versions.txt 13). */
 void packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v14 -- revs 239 (packet_versions.txt 18). */
+/* v14 -- revs 235 (packet_versions.txt 14). */
 void packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v15 -- revs 241 (rsprox_versions.txt 100). */
+/* v15 -- revs 236 (packet_versions.txt 15). */
 void packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v16 -- revs 237, 240 (packet_versions.txt 16). */
+void packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v17 -- revs 238 (packet_versions.txt 17). */
+void packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v18 -- revs 239 (packet_versions.txt 18). */
+void packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
+/* v19 -- revs 241 (rsprox_versions.txt 100). */
+void packet_update_zone_partial_enclosed_v19_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 
 /* Per-revision entry points: `packet_update_zone_partial_enclosed_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for UPDATE_ZONE_PARTIAL_ENCLOSED" without reading a table. */
-#define packet_update_zone_partial_enclosed_osrs225_out packet_update_zone_partial_enclosed_v1_out
-#define packet_update_zone_partial_enclosed_osrs226_out packet_update_zone_partial_enclosed_v2_out
-#define packet_update_zone_partial_enclosed_osrs227_out packet_update_zone_partial_enclosed_v3_out
-#define packet_update_zone_partial_enclosed_osrs228_out packet_update_zone_partial_enclosed_v4_out
-#define packet_update_zone_partial_enclosed_osrs229_out packet_update_zone_partial_enclosed_v5_out
-#define packet_update_zone_partial_enclosed_osrs230_out packet_update_zone_partial_enclosed_v6_out
-#define packet_update_zone_partial_enclosed_osrs231_out packet_update_zone_partial_enclosed_v7_out
-#define packet_update_zone_partial_enclosed_osrs232_out packet_update_zone_partial_enclosed_v8_out
-#define packet_update_zone_partial_enclosed_osrs233_out packet_update_zone_partial_enclosed_v9_out
-#define packet_update_zone_partial_enclosed_osrs234_out packet_update_zone_partial_enclosed_v6_out
-#define packet_update_zone_partial_enclosed_osrs235_out packet_update_zone_partial_enclosed_v10_out
-#define packet_update_zone_partial_enclosed_osrs236_out packet_update_zone_partial_enclosed_v11_out
-#define packet_update_zone_partial_enclosed_osrs237_out packet_update_zone_partial_enclosed_v12_out
-#define packet_update_zone_partial_enclosed_osrs238_out packet_update_zone_partial_enclosed_v13_out
-#define packet_update_zone_partial_enclosed_osrs239_out packet_update_zone_partial_enclosed_v14_out
-#define packet_update_zone_partial_enclosed_osrs240_out packet_update_zone_partial_enclosed_v12_out
-#define packet_update_zone_partial_enclosed_osrs241_out packet_update_zone_partial_enclosed_v15_out
+#define packet_update_zone_partial_enclosed_osrs221_out packet_update_zone_partial_enclosed_v1_out
+#define packet_update_zone_partial_enclosed_osrs222_out packet_update_zone_partial_enclosed_v2_out
+#define packet_update_zone_partial_enclosed_osrs223_out packet_update_zone_partial_enclosed_v3_out
+#define packet_update_zone_partial_enclosed_osrs224_out packet_update_zone_partial_enclosed_v4_out
+#define packet_update_zone_partial_enclosed_osrs225_out packet_update_zone_partial_enclosed_v5_out
+#define packet_update_zone_partial_enclosed_osrs226_out packet_update_zone_partial_enclosed_v6_out
+#define packet_update_zone_partial_enclosed_osrs227_out packet_update_zone_partial_enclosed_v7_out
+#define packet_update_zone_partial_enclosed_osrs228_out packet_update_zone_partial_enclosed_v8_out
+#define packet_update_zone_partial_enclosed_osrs229_out packet_update_zone_partial_enclosed_v9_out
+#define packet_update_zone_partial_enclosed_osrs230_out packet_update_zone_partial_enclosed_v10_out
+#define packet_update_zone_partial_enclosed_osrs231_out packet_update_zone_partial_enclosed_v11_out
+#define packet_update_zone_partial_enclosed_osrs232_out packet_update_zone_partial_enclosed_v12_out
+#define packet_update_zone_partial_enclosed_osrs233_out packet_update_zone_partial_enclosed_v13_out
+#define packet_update_zone_partial_enclosed_osrs234_out packet_update_zone_partial_enclosed_v10_out
+#define packet_update_zone_partial_enclosed_osrs235_out packet_update_zone_partial_enclosed_v14_out
+#define packet_update_zone_partial_enclosed_osrs236_out packet_update_zone_partial_enclosed_v15_out
+#define packet_update_zone_partial_enclosed_osrs237_out packet_update_zone_partial_enclosed_v16_out
+#define packet_update_zone_partial_enclosed_osrs238_out packet_update_zone_partial_enclosed_v17_out
+#define packet_update_zone_partial_enclosed_osrs239_out packet_update_zone_partial_enclosed_v18_out
+#define packet_update_zone_partial_enclosed_osrs240_out packet_update_zone_partial_enclosed_v16_out
+#define packet_update_zone_partial_enclosed_osrs241_out packet_update_zone_partial_enclosed_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[];

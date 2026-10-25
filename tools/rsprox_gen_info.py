@@ -39,7 +39,7 @@ import rsprox_info_extract as ex  # noqa: E402
 import rsprox_prot  # noqa: E402
 
 OUT_DIR = os.path.join(REPO_ROOT, "3rd", "rsprot", "streams")
-REVS = range(227, 242)
+REVS = range(223, 242)
 
 PRIM = {
     "g1": "G1", "g1Alt1": "G1_ALT1", "g1Alt2": "G1_ALT2", "g1Alt3": "G1_ALT3",
@@ -63,11 +63,13 @@ FUNC_KIND = {
     "decodeFacing": "FACING",
     "decodeNameExtras": "NAME_EXTRAS",
     "decodeChat": "CHAT",
+    "decodeChatOld": "CHAT_OLD",  # 223-224: a second chat block, with no colour pattern
     "decodeExactMove": "EXACT_MOVE",
     "decodeSpotanims": "SPOTANIM",
     "decodeSpotanimsOld": "SPOTANIM",
     "decodeSpotanim": "SPOTANIM",
     "decodeSpotanimOld": "SPOTANIM",
+    "decodeOldSpotanim": "SPOTANIM_SINGLE",  # 223-224 npcs: one, with no count or slot
     "decodeHit": "HITS",
     "decodeHits": "HITS",
     "decodeHitsV1": "HITS",
@@ -123,9 +125,13 @@ TEMPLATES = {
                       ("autotyper", "AUTOTYPER"), ("huffmanLength", "DATA_LEN"), ("data", "DATA"),
                       ("array[]", "PATTERN")]],
              ["colour in 13..20", "colour - 12", "colourAndEffectsPacked ushr 8"]),
+    "CHAT_OLD": (False, [[("colourAndEffectsPacked", "COLOUR_EFFECTS"), ("modIcon", "MOD_ICON"),
+                          ("autotyper", "AUTOTYPER"), ("huffmanLength", "DATA_LEN"), ("data", "DATA")]],
+                 ["colourAndEffectsPacked ushr 8"]),
     "EXACT_MOVE": (True, [[("deltaX1", "DX1"), ("deltaZ1", "DZ1"), ("deltaX2", "DX2"),
                            ("deltaZ2", "DZ2"), ("delay1", "DELAY1"), ("delay2", "DELAY2"),
                            ("direction", "DIRECTION")]], []),
+    "SPOTANIM_SINGLE": (False, [[("id", "ID"), ("heightAndDelay", "HEIGHT_DELAY")]], []),
     "SPOTANIM": (False, [[("count", "COUNT"), ("slot", "SLOT"), ("id", "ID"),
                           ("heightAndDelay", "HEIGHT_DELAY")],
                          [("count", "COUNT"), ("slot", "SLOT"), ("id", "ID"),
@@ -345,6 +351,9 @@ def lowres(rev):
     else:
         v5 = fields(rec)
     names = {r["name"] for r in rsprox_prot.load_prots(rev)["server"]}
+    # V4 (223-226) is another name for the V5 wire: RSProx's NpcInfoClient
+    # ignores the version it is handed, and 226 carries both.
+    v4 = v5 if "NPC_INFO_SMALL_V4" in names else []
     if "NPC_INFO_SMALL_V5" not in names:
         v5 = []
     if "NPC_INFO_SMALL_V6" not in names:
@@ -358,7 +367,7 @@ def lowres(rev):
     spawn, types = arr("spawnClockBitcodes"), arr("typeBitcodes")
     if v6 and (not spawn or not types or len(spawn) != 4 or len(types) != 4):
         raise Refused(f"npc {rev}: V6 width selectors not found")
-    return v5, v6, spawn or [0, 0, 0, 0], types or [0, 0, 0, 0]
+    return v4, v5, v6, spawn or [0, 0, 0, 0], types or [0, 0, 0, 0]
 
 
 def record_reader(name, fields, spawn, types):
@@ -418,9 +427,11 @@ READERS = {
     "FACE_COORD": ("rsprot_info_face_coord", "RsprotInfoFaceCoordEnc"),
     "FACING": ("rsprot_info_facing", "RsprotInfoFacingEnc"),
     "CHAT": ("rsprot_info_chat", "RsprotInfoChatEnc"),
+    "CHAT_OLD": ("rsprot_info_chat_old", "RsprotInfoChatEnc"),
     "EXACT_MOVE": ("rsprot_info_exact_move", "RsprotInfoExactMoveEnc"),
     "SPOTANIM": ("rsprot_info_spotanim", "RsprotInfoSpotanimEnc"),
     "SPOTANIM_LOOP": ("rsprot_info_spotanim_loop", "RsprotInfoSpotanimLoopEnc"),
+    "SPOTANIM_SINGLE": ("rsprot_info_spotanim_single", "RsprotInfoSpotanimSingleEnc"),
     "HITS": ("rsprot_info_hits", "RsprotInfoHitsEnc"),
     "HITMARKS": ("rsprot_info_hitmarks", "RsprotInfoHitmarksEnc"),
     "HEADBARS": ("rsprot_info_headbars", "RsprotInfoHeadbarsEnc"),
@@ -731,7 +742,8 @@ def emit_npc(revs):
     lookups = {}
     per_rev = {}
     for ver, VER in NPC_VERSIONS:
-        rows = [(r, d) for r, d in revs if d[ver]]
+        # The V5 reader also reads V4, its older name.
+        rows = [(r, d) for r, d in revs if d[ver] or (ver == "v5" and d["v4"])]
         vrevs = [r for r, _d in rows]
         kinds = version_kinds(rows, "npc")
         type_name = f"NpcInfo{VER}"
@@ -788,21 +800,23 @@ def emit_npc(revs):
         for ver, VER, type_name, stem, d in per_rev[rev]:
             vstem = f"{rstem}_{ver}"
             rc += ["/* clang-format off */"]
-            rc += record_reader(f"{vstem}_record", d[ver], d["spawn"], d["types"])
+            rc += record_reader(f"{vstem}_record", d[ver] or d["v4"], d["spawn"], d["types"])
             rc += ["/* clang-format on */"]
             rc += dispatch_lines(f"{vstem}_blocks", type_name, d["npc"]["blocks"]) + [""]
             rc += ["/* clang-format off */"]
             rc += const_lines(f"k_{vstem}", type_name, d["npc"],
                               [f"    .record = {vstem}_record,", f"    .blocks = {vstem}_blocks,"])
             rc += ["/* clang-format on */"]
-            for size in ("small", "large"):
-                entry = f"npc_info_{size}_{ver}_osrs{rev}"
-                rc += ["", "int", f"{entry}(", "    " + wrap_params(sig) + ")", "{",
-                       f"    return npc_info_{size}_{ver}(",
-                       f"        &k_{vstem}, data, len, lengths, ctx, out);",
-                       "}"]
-                public_h += [f"int {entry}(", "    " + wrap_params(sig) + ");"]
-                lookups.setdefault(f"npc_info_{size}_{ver}", []).append((rev, entry))
+            prots = [p for p, present in ((ver, d[ver]), ("v4", ver == "v5" and d["v4"])) if present]
+            for pver in prots:
+                for size in ("small", "large"):
+                    entry = f"npc_info_{size}_{pver}_osrs{rev}"
+                    rc += ["", "int", f"{entry}(", "    " + wrap_params(sig) + ")", "{",
+                           f"    return npc_info_{size}_{ver}(",
+                           f"        &k_{vstem}, data, len, lengths, ctx, out);",
+                           "}"]
+                    public_h += [f"int {entry}(", "    " + wrap_params(sig) + ");"]
+                    lookups.setdefault(f"npc_info_{size}_{pver}", []).append((rev, entry))
             rc.append("")
         rc += flag_undefs(d["npc"])
         files[os.path.join(OUT_DIR, rstem + ".c")] = "\n".join(rc).rstrip() + "\n"
@@ -854,7 +868,7 @@ def main():
                                 "decodeExtendedInfo"),
                  "npc": side("NpcInfoClient", rev, "processExtendedInfo", "flag",
                              "processExtendedInfo")}
-            d["v5"], d["v6"], d["spawn"], d["types"] = lowres(rev)
+            d["v4"], d["v5"], d["v6"], d["spawn"], d["types"] = lowres(rev)
             revs.append((rev, d))
             print(f"rev {rev}: player {len(d['player']['blocks'])} blocks, "
                   f"npc {len(d['npc']['blocks'])} blocks, lowres v5={len(d['v5'])} v6={len(d['v6'])}",

@@ -11,6 +11,10 @@ RsprotPlayerInfoReadFn
 player_info_osrs(int revision)
 {
     switch (revision) {
+    case 223: return player_info_osrs223;
+    case 224: return player_info_osrs224;
+    case 225: return player_info_osrs225;
+    case 226: return player_info_osrs226;
     case 227: return player_info_osrs227;
     case 228: return player_info_osrs228;
     case 229: return player_info_osrs229;

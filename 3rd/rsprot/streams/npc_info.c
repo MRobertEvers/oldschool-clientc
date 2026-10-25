@@ -8,9 +8,22 @@
 #include <stddef.h>
 
 RsprotNpcInfoReadFn
+npc_info_large_v4_osrs(int revision)
+{
+    switch (revision) {
+    case 223: return npc_info_large_v4_osrs223;
+    case 224: return npc_info_large_v4_osrs224;
+    case 225: return npc_info_large_v4_osrs225;
+    case 226: return npc_info_large_v4_osrs226;
+    default: return NULL;
+    }
+}
+
+RsprotNpcInfoReadFn
 npc_info_large_v5_osrs(int revision)
 {
     switch (revision) {
+    case 226: return npc_info_large_v5_osrs226;
     case 227: return npc_info_large_v5_osrs227;
     case 228: return npc_info_large_v5_osrs228;
     case 229: return npc_info_large_v5_osrs229;
@@ -40,9 +53,22 @@ npc_info_large_v6_osrs(int revision)
 }
 
 RsprotNpcInfoReadFn
+npc_info_small_v4_osrs(int revision)
+{
+    switch (revision) {
+    case 223: return npc_info_small_v4_osrs223;
+    case 224: return npc_info_small_v4_osrs224;
+    case 225: return npc_info_small_v4_osrs225;
+    case 226: return npc_info_small_v4_osrs226;
+    default: return NULL;
+    }
+}
+
+RsprotNpcInfoReadFn
 npc_info_small_v5_osrs(int revision)
 {
     switch (revision) {
+    case 226: return npc_info_small_v5_osrs226;
     case 227: return npc_info_small_v5_osrs227;
     case 228: return npc_info_small_v5_osrs228;
     case 229: return npc_info_small_v5_osrs229;

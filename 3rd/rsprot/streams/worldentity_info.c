@@ -11,6 +11,7 @@ RsprotWorldEntityInfoReadFn
 worldentity_info_v3_osrs(int revision)
 {
     switch (revision) {
+    case 226: return worldentity_info_v3_osrs226;
     case 227: return worldentity_info_v3_osrs227;
     case 228: return worldentity_info_v3_osrs228;
     default: return NULL;
