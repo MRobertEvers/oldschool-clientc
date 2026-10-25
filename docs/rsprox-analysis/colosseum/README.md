@@ -627,6 +627,11 @@ names every packet, `pkt`).
 | Leave between waves | index 4102 [4625..4630]: O the page, O+1 busy, Yes: the line, the stop, Minimus beside the chest (ops 0b00100, an instant coord face), the valiant page; its click the chest; +1 the page off, busy 0 | the chest with the page, an IF_CLOSESUB of nothing, no busy | `colo_leave_early.lua` (Yes and No) matches tick for tick |
 | an npc in a dialogue | `[facing] player=` one tick after the first page (19/22: Tutorial Island 4289, Minimus) and never a coord face on the page's tick | `npc_facesquare(coord)` on the page's tick (chat.rs2's own "phase-ordering patch") | removed: the `playerfaceclose` mode turns it a tick later |
 | the player lets go of a face | rev 241: `[facing] coord=` of the npc's tile the tick after (28/35); reset only for a target that is gone | a reset | engine `player_face_release` (rev 237/238 sent `angle=`; ours is a rev 241 server) |
+| the clock vars | `map_clock` (varp 3079) every tick (13,604/13,604 ticks of index 1223), the milliseconds and seconds past the minute (varp 3077 bits 0..15, beside `busy`) whenever they move, `date_minutes` on the minute | none per tick | engine `player_clock_vars`, first in a player's turn (the seeded clock in a seeded run) |
+| the death tick | 13/13 recorded deaths (index 4096 [690], 4117 [484]): `gravestone_creation_death_coord` (the template tile), the duration and the grave's id (`gravestone_visible`), disease -1, `set_player_op` 5 and 2 null, 4721, the pvp icons (385, 390, 5224, 828), every side panel opened again with its stone's events, 3932, `cam_reset`, the HUD cleared, the minimap back; D+1 "Some of your dropped items are being held in a gravestone, near where you died." and the Attack op / pvp icons again | an abstract gravestone, none of the rest | `~death_client_reset`, `[softtimer,death_settle]`, `[softtimer,gravestone_held_mes]` (player/death.rs2) |
+| the grave | from D+3 the owner's shell `gravestone_default_NNN` (only the player whose `gravestone_visible` is NNN sees it) by the lobby door (1802,9507, 12/12), a random one of 8 facings; every 3 ticks the same type again (`[transformation]`, ops, level) and the hint arrow re-pointed (`current_hint_arrow` 0 then 9, `[hint_arrow] type="reset"` then the npc); Check: the inv, the floater, its events, 3478 (fee, 0); Loot: "Death charges you N x Coins." (per item 0 / 1k / 10k / 100k, capped 500k), "You successfully retrieved everything from your gravestone.", the inv's stop; the next step takes it away (duration and id 0, the npc gone) | no npc, no arrow, a main modal with invented text | player/scripts/gravestone.rs2 (`[opnpc1,_gravestone]`, `[opnpc3,_gravestone]`, category 1458); engine: a script's `hint_stop` sends its clear even when the arrow comes straight back |
+| a death's rewards | the rewards and the next wave's emptied on the death tick, all three reward invs stopped the tick after (4096 [690..691]); Leave stops all three | one stop, on the death tick | `~colo_end_run_dead`, `~colo_rewards_stop` |
+| a jingle's comeback | another track over a jingle owns the music (the death's `you_are_dead`, then the lobby's song, never the arena's again, 12/12) | the arena's song came back when the death jingle ended | `ToriRSServer_MusicPlay` drops the comeback for a different track |
 
 ## 13. Open gaps
 
@@ -676,18 +681,14 @@ names every packet, `pkt`).
   countdown), 4716 every 100 (the regen timer), 2498 on every side-tab press, 3932 with every
   track (§12d). Open: 5224 (`pvp_icons_comlevelrange`); the regen and restore timers'
   relative phase differs per session (ours: together, as 20 of 62 sessions).
-- **The death is the game's, not the Colosseum's, and ours is short of it** (12/12 recorded
-  deaths, index 4117 [484..491]): the death tick also sends `gravestone_creation_death_coord`
-  (varp 3916, `transmit=no` here), `gravestone_visible` 157, `com_stance` 2, the weapon
-  category and divine-potion bases cleared, `set_player_op` 5 and 2 null, 4721, the pvp-icon
-  clientscripts (385, 390, 5224 x4, 828), every side panel re-opened, and the HUD's
-  `cc_deleteall`; +1 "Some of your dropped items are being held in a gravestone, near where
-  you died."; +3 a `gravestone_default` npc in the lobby (multinpc by `gravestone_visible`)
-  with a hint arrow, re-pointed (`current_hint_arrow` 9 -> 0 -> 9, `[transformation]`) every
-  3 ticks as the duration drops by 3. Ours keeps an abstract gravestone (no npc, no arrow).
-- **Engine-wide per-tick varps**: `map_clock` (varp 3079) every tick (13,604/13,604 in index
-  1223) and the date varbits in varp 3077 (milliseconds and seconds past the minute) every
-  tick; ours sends neither per tick. The `tracking_*` counters (4510..4528: damage dealt and
+- **The death and the grave, what is left** (§12d): the `gravestone_feethreshold_*` varbits
+  (10472..10474) change on a Check or Loot by a rule the recordings do not decide (they are
+  not item counts); the grave's 120-slot inv goes out whole where Jagex sends a partial (the
+  engine's partial mask is 32 slots); the fee is high-alch based, Jagex's is the item's
+  value. An equip sends `set_player_op 5 null` and the combat tab's `Category:` text in every
+  recording; ours sends neither (the death's pair of them too).
+- **Engine-wide varps.** Fixed: `map_clock` and the date fields of varp 3077 every tick
+  (§12d). Open: the `tracking_*` counters (4510..4528: damage dealt and
   taken, food, potions, kills) and the xp tracker's multipliers (3181..3183) change on every
   hit in the recordings and never in ours.
 - **The face release's tick after a walk.** Standing, the release (angle, or the dialogue's

@@ -41,7 +41,22 @@ return {
         t.player.attack("colosseum_sol_p1", 2, 2, nil)
         ok = t.await({ level = function() return t.npc.nearest("colosseum_sol_p1", 30) ~= "ok" end, note = "gone from the arena" }, 200)
         t.check("player.died", ok == "ok", "still beside Sol")
-        t.ticks(10)
+        -- The grave by the lobby door from D+3 (13/13 recorded): this account's first,
+        -- so id 1 (gravestone_default_001, the shell only its owner sees). Check (op1)
+        -- opens it in the floater, Loot (op3) takes everything back, and the grave
+        -- goes at its timer's next step (index 4103 [714..720], 1180 [2440..2443]).
+        local grave = "gravestone_default_001"
+        ok = t.await({ level = function() return t.npc.nearest(grave, 15) == "ok" end, note = "grave" }, 12)
+        t.check("grave.add", ok == "ok", "no grave in the lobby")
+        t.ticklog.mark("grave")
+        t.player.talk_to(grave, 1)
+        local up, upwhy = t.ui.await_open("gravestone_generic", 10)
+        t.check("grave.check", up, upwhy)
+        t.ticks(2)
+        t.player.talk_to(grave, 3)
+        ok = t.await({ level = function() return t.npc.nearest(grave, 15) ~= "ok" end, note = "grave gone" }, 15)
+        t.check("grave.looted", ok == "ok", "the grave is still there")
+        t.ticks(4)
         t.expect("colo_sol_die.run", "ok", string.format("ended on tick %d", now(t)))
     end,
 }

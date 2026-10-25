@@ -12196,7 +12196,7 @@ script_command(
         /* 255 is the wire's clear, which `rs_gameproto_exec.c` normalises to
          * type 0 on the way in. */
         if( srv->active_player )
-            ToriRSServer_SetHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+            ToriRSServer_HintArrowStop(srv->active_player);
         return 1;
     }
 

@@ -3484,6 +3484,14 @@ ToriRSServer_HintArrowReset(struct ToriRSServerPlayer* player)
     memset(&player->hint_arrow, 0, sizeof(player->hint_arrow));
 }
 
+void
+ToriRSServer_HintArrowStop(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    player->hint_arrow.type = 0;
+    player->hint_arrow.stop_pending = 1;
+}
+
 /*
  * Re-state the arrow for whatever this client now calls its subject.
  *
@@ -3556,6 +3564,17 @@ hint_arrow_flush(struct ToriRSServerPlayer* player)
         break;
     }
 
+    /* A script asked for the clear: it goes out, and the arrow after it is a
+     * fresh one even when it names the same subject. */
+    if( hint->stop_pending )
+    {
+        hint->stop_pending = 0;
+        ToriRSServer_SendHintArrow(player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+        hint->sent_type = TORIRSSERVER_HINT_ARROW_CLEAR;
+        hint->sent_id = 0;
+        hint->sent_z = 0;
+        hint->sent_height = 0;
+    }
     /* A client that has never been sent an arrow has nothing to clear, and
      * saying so on every login would be the one HINT_ARROW in most captures. */
     if( type == TORIRSSERVER_HINT_ARROW_CLEAR && hint->sent_type == 0 )

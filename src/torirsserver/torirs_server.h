@@ -531,8 +531,11 @@ enum
      * Raised 2048 -> 3072 with rev 241: the tree's block moved to 6400..8235
      * and ported lanes' own varps that 241 reached were re-minted from 9000
      * (tools/alloc_rebase.py --lane-floor), clear of the main block's growth.
+     *
+     * Raised 3072 -> 3200 when the world grave (player/configs/gravestone.varp,
+     * 9472..9474) followed the Colosseum's 9454..9471 to the old ceiling.
      */
-    TORIRSSERVER_VARP_SERVER_HEADROOM = 3072,
+    TORIRSSERVER_VARP_SERVER_HEADROOM = 3200,
     TORIRSSERVER_VARP_COUNT = TORIRSSERVER_VARP_CACHE_MAX + TORIRSSERVER_VARP_SERVER_HEADROOM,
     /*
      * World-shared variables — `%name` resolving to SSC_SYM_VARS, one value per
@@ -3733,6 +3736,11 @@ struct ToriRSServerPlayerHintArrow
     /** The last tuple written to this client's wire. `sent_type` 0 means
      *  nothing has been sent, which is not the same as having sent a clear. */
     int sent_type, sent_id, sent_z, sent_height;
+    /** A script's `hint_stop` this tick: a clear goes out before the tick's
+     *  arrow even when the arrow ends up the same (a gravestone re-points its
+     *  arrow every 3 ticks as `[hint_arrow] type="reset"` then the npc, 13/13
+     *  recorded deaths). */
+    int stop_pending;
 };
 
 struct ToriRSServerPlayerZoneMap
@@ -9515,6 +9523,10 @@ ToriRSServer_SetHintArrow(
  *  just been handed a fresh set of npc names. */
 void
 ToriRSServer_HintArrowReset(struct ToriRSServerPlayer* player);
+
+/* A script's `hint_stop`: the arrow cleared, and the clear sent this tick. */
+void
+ToriRSServer_HintArrowStop(struct ToriRSServerPlayer* player);
 
 void
 ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player);
