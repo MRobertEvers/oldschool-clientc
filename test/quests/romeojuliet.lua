@@ -64,6 +64,8 @@ return {
     },
 
     run = function(t)
+        -- the wire audit against RSProx 4361 reads this (build/quest_gate/<run>/ticklog.tsv)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp144_rjquest",
             constants = {
@@ -180,8 +182,9 @@ return {
 
         -- Click through a scene's pages as they come, including the ones that open by
         -- themselves after a closed chatbox (corsaircurse.lua's play_scene).
-        local function play_scene(name, max_ticks)
+        local function play_scene(name, max_ticks, idle_limit)
             local clicks, idle, waited = 0, 0, 0
+            idle_limit = idle_limit or 8
             while waited < max_ticks do
                 if t.chat.kind() ~= "none" then
                     idle = 0
@@ -191,7 +194,7 @@ return {
                     end
                 else
                     idle = idle + 1
-                    if clicks > 0 and idle >= 8 then
+                    if clicks > 0 and idle >= idle_limit then
                         break
                     end
                 end
@@ -201,11 +204,10 @@ return {
             t.step(name, (clicks > 0 and t.chat.kind() == "none") and "PASS" or "FAIL",
                 clicks .. " page(s) clicked over " .. waited .. " tick(s)")
         end
-        local function page_has(note, want, ticks)
-            t.await({ level = function()
-                local r, text = t.chat.text()
-                return r == "ok" and text ~= nil and string.find(text, want, 1, true) ~= nil
-            end, note = note }, ticks or 15)
+        -- A page up again after a gap with the chatbox shut (an await predicate may not
+        -- wait, so it reads the page kind; the chat.play list after it checks the text).
+        local function page_up(note, ticks)
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = note }, ticks or 15)
         end
 
         -- ---------------------------------------------------- talk to Romeo
@@ -338,7 +340,8 @@ return {
             "player:But Romeo sent me!",
             "npc:But I'm busy delivering a sermon",
         })
-        page_has("talkToLawrence.congregation", "captive audience", 15)
+        -- the congregation's page stands five ticks (4361 [607] -> [612])
+        t.ticks(6)
         t.exec("talkToLawrence-dialog2", t.chat.play, {
             "player:Yes, well, it certainly seems like you have a captive audience!",
             "npc:Ok, okay... what do you want",
@@ -392,7 +395,7 @@ return {
             "player:Conveniently, I have some here.",
             "*",
         })
-        page_has("talkToApothecary.brewed", "Phew!", 10)
+        t.ticks(3) -- the blank chatbox while he brews (4361 [754] -> [757])
         t.exec("talkToApothecary-dialog2", t.chat.play, {
             "npc:Phew! Here is what you need.",
             "*",
@@ -427,7 +430,7 @@ return {
             "npc:Wonderful! I just hope Romeo can remember",
             "npc:Please go to Romeo and make sure he understands.",
         })
-        page_has("givePotionToJuliet.scene", "Oh, here's Phillipa", 15)
+        page_up("givePotionToJuliet.scene", 15)
         play_scene("givePotionToJuliet-scene", 120)
         t.exec("givePotionToJuliet.cutscene", t.cutscene.await, "givePotionToJuliet", { since = potion_mark, quiet = 60, expect = {
             { op = "moveto", height = 375 },
@@ -455,8 +458,9 @@ return {
             "npc:But I'm scared...will you come with me?",
             "player:Oh, ok...come on!",
         })
-        page_has("finishQuest.scene", "This is pretty scary", 15)
-        play_scene("finishQuest-scene", 160)
+        page_up("finishQuest.scene", 15)
+        -- the camera finds the tomb for 16 ticks with no page up (4361 [866] -> [882])
+        play_scene("finishQuest-scene", 160, 24)
         t.exec("finishQuest.cutscene", t.cutscene.await, "finishQuest", { since = crypt_mark, quiet = 60, expect = {
             { op = "moveto", height = 400 },
             { op = "lookat", height = 25 },

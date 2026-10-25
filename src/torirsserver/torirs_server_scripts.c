@@ -6180,6 +6180,8 @@ script_command(
              */
             if( player->level != was_level )
                 ToriRSServer_WorldPlayerLevelChanged(player);
+            if( player == srv->active_player )
+                ToriRSServer_WorldPlayerMoved(srv);
         }
         return 1;
     }
@@ -15352,6 +15354,7 @@ script_command(
         {
             ToriRSServer_SendMidiJingle(player, id, length_ms);
             ToriRSServer_TicklogJingle(srv, player, id, length_ms);
+            ToriRSServer_MusicJingleStarted(player, length_ms);
         }
         return 1;
     }

@@ -661,6 +661,7 @@ static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
     { 11827,  127,  22,  26, "Nightfall" },
     { 11828,   72,  21,  12, "Fanfare" },
     { 11829,   54,  24,  31, "Scape Soft" },
+    { 11830,  313,  21,  23, "Goblin Village" },
     { 11831,   34,  24,  18, "Wonder" },
     { 11832,  435,  24,  14, "Wilderness" },
     { 11833,  183,  24,   3, "Troubled" },

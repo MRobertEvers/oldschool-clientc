@@ -172,9 +172,10 @@ return {
             "npc:So how are you doing finding my beads",
             "player:I've got all four beads",
             "npc:Give them here",
-            "mesbox:You give four coloured beads",
         })
-        t.ticks(4)
+        -- "You give four coloured beads" has no continue: the hand-in scene runs
+        -- from that click to the scroll 19 ticks on (RSProx index 4364 [222..241]).
+        t.ticks(24)
         t.chat.drain({ stop_at = "none", max_pages = 4 })
 
         t.quest.expect_complete()

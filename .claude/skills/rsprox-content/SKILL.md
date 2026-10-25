@@ -75,7 +75,8 @@ the script command that emits it. Keep it open.
 4. **Write the timeline down** in the analysis doc as `L+1 face; L+2 seq 827, busy=1; L+3
    teleport`, citing session and tick (`index 4286 [38]`).
 5. **Find our side.** Grep `OSRS-Content/osrs-content/server/scripts` for the trigger (by name,
-   or by `_category` from the loc's `.loc` config). Check the shared procs first:
+   or by `_category` from the loc's `.loc` config). If its header says it was ported from
+   LostCity, do §16 first: none of it is OSRS until shown. Check the shared procs first:
    - `~climb*` / `~maplink_try` in `ladders_stairs/scripts/`
    - door procs in `doors/scripts/`
    - `~chatnpc` / `~chatplayer` / `~mesbox` / `~objbox` / `~p_choice*` in `interface_chat/scripts/chat.rs2`
@@ -722,6 +723,62 @@ Do not close a visual complaint on a wire diff alone (Ezekiel's facing: wire mat
   `t.drive.camera(yaw, pitch, zoom)` (a SMALLER zoom is closer); crop with PIL. The npc seed is
   the run name: rerun under the same name to compare two packs on one fight.
 
+## 16. Content first ported from LostCity (2004): treat every line as unverified
+
+LostCity is RuneScape 2 as it was in 2004. OSRS is the 2007 game plus everything since, and
+Jagex rewrote a lot of 2004 content in between ("Varrock's New Look", 29 May 2007, rewrote
+Romeo & Juliet completely). A LostCity port compiles, runs and passes its quest gate, because the
+gate checks the stage machine, not the words, the scenes or the sounds. Romeo & Juliet
+(2026-10-24, `docs/rsprox-analysis/quests/romeo_and_juliet.md`) passed for two months like that:
+- every page was the 2004 text, and none of the recording's 189 pages matched it;
+- both cutscenes were "narrated as dialogue";
+- the quest's per-player berry bush was coded "always empty", from the wiki;
+- Juliet never left her balcony, and the Apothecary, who walks his shop in 39 sessions, stood still;
+- Romeo never approached anyone, the congregation never snored, and no page had a heart;
+- the Apothecary's menus had the wrong shape;
+- two npcs were "condensed to one representative line per state".
+
+1. **Recognise it.** The file header says "Ported from LostCity", "Era: `<p,expr>` → chat*_anim",
+   or names a `LostCity_*` path; or the quest's wiki page lists a rewrite after 2004. Then every
+   page, mood, branch, stage write and mechanic in it is UNVERIFIED. "It matches LostCity" says
+   nothing about OSRS.
+2. **Inventory the cache before anything else.**
+   `python3 tools/rsprox/content_asset_inventory.py --names '<quest|npc|place names>'` lists every
+   cache symbol named after the content and whether our files use it. Read each UNUSED row as a
+   missing piece until shown otherwise: a jingle named after the quest, a seq or spotanim
+   carrying an npc's name, quest-named locs, an npc type nothing spawns, a varbit. Read each
+   carrier whose switch is NEVER WRITTEN as a form the player can never see change (the tailored
+   bush, Juliet's balcony). Pass the npcs' names and the area's prefix too (`fai_varrock_*`):
+   Jagex names assets after the npc, the place or the update.
+3. **Find recordings by content, not by completion.**
+   - Search the quest varp, every npc in the cast (`search npc ... --any`), its items and locs.
+   - Look for a queued upload in `latest 30`; the indexer may be down. Index 4361, the only
+     Romeo & Juliet playthrough, sat `queued` and invisible to search, so "no completion recorded"
+     was wrong.
+   - Sessions that only pass by give the post-quest lines and the npcs' movement (Romeo in index
+     1647; Juliet, Phillipa and Draul in 3196; Father Lawrence in 3203).
+4. **Rebuild every talk page by page** (§10) from the recording, and from the OSRS wiki transcript
+   where no recording reaches (label those moods unverified).
+   - Never keep a 2004 line because no recording contradicts it: the OSRS transcript replaces it.
+   - A line in neither source is deleted.
+   - Take the page text, not the echo: the echo stops at 200 characters. The page's `<br>`
+     keeps the space before it, so `<br>` -> " " gives back the source string, double spaces
+     included.
+5. **Close every disclosed shortcut.** `grep -n
+   "approximation\|condensed\|narrates\|representative\|disclosed" <the content's files>`: each hit
+   is a gap someone wrote down, not a decision.
+6. **A wiki mechanics page can be wrong where a recording exists.** The "always empty"
+   south-west bush gave a berry at 4361 [391]. Check the claim against the transcript before
+   coding it.
+7. **Ledger the scenes.** A quest with a scene needs a `docs/quests/CUTSCENES.tsv` row and
+   `cutscene:` rows in its test (`t.cutscene.await`). `cutscene_sweep.py` grades a LostCity quest
+   against LostCity: when neither side scripts a camera it reads NONE, and it only reads
+   WIKI_MISSING if a CUTSCENES.tsv row says the wiki has a scene. Rows were only ever written for
+   quests LostCity lacks, so a scene OSRS added later is invisible. Romeo & Juliet read NONE with
+   two scenes missing, and on 2026-10-24 51 LostCity quests read NONE with no row. For the quest
+   you touch, read its wiki transcript for scenes and write the row
+   (`python3 tools/quest_gate/cutscene_sweep.py | grep " NONE "` lists the rest).
+
 ## Traps that have each cost a wrong fix
 
 - One recording = one roll. Count across sessions and quote counts ("37/37").
@@ -745,6 +802,9 @@ Do not close a visual complaint on a wire diff alone (Ezekiel's facing: wire mat
   `build/quest_gate/watch_saves/<name>.ini` (`run.py --script <test> --fixture
   $PWD/<copy>`) and grep its `client.log` for `abort` (the Colosseum's entry aborted on a
   full per-player inv table, 2026-10-24).
+- **A LostCity port is 2004 content.** It passes its quest gate with every OSRS page, scene
+  and per-player state missing. Run §16 (start with `content_asset_inventory.py`) before
+  auditing any single interaction (Romeo & Juliet, 2026-10-24).
 - **"Matched" on counts per window is not matched per life:** a value the recording varies per
   copy (models, stances, drop variants) needs the per-life table.
 - **Never mutate shared source to test** (CLAUDE.md). Build private (`PLATFORM_OBJ_BASE=build_<x>`). If another session broke the shared pack, use the private packs recipe from memory.

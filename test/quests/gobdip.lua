@@ -42,13 +42,6 @@ return {
         t.exec("goto-village", t.player.goto_tile, 2957, 3507, 0)
         hall_in("g1.hallDoorIn")
         t.ticks(2)
-        -- The hall's north half (z 3512+) is in the Wilderness warning strip
-        -- (area_wilderness/wilderness_warning.rs2, ^wilderness_warning_z): a
-        -- fresh character's first step there shows three warning boxes, which
-        -- would cut a general's argument short. Take them first.
-        t.exec("warn.walk", t.player.walk_to, 2957, 3512)
-        t.ticks(3)
-        t.exec("warn.pages", t.chat.play, { "mesbox:WARNING! Proceed with caution.", "mesbox:The further north", "mesbox:In the wilderness" })
         -- Every talk before the end opens with one of five arguments (RSProx
         -- index 4366 [420], [492]); the first ends in its own "fat" menu.
         local function talk_to_menu(name)

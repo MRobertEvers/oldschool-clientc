@@ -299,7 +299,9 @@ after 1.2 s, and give it full gain immediately.  `script_9628`, used by
 `script_9632` and `script_9633` with duration 30, explicitly requests
 `0/30/0/30`: simultaneous 600 ms fade-out and fade-in.  The live map server is
 outside this reference client, so its chosen packet profile cannot be inferred
-from client code alone.
+from client code alone. The recordings settle it: every region change in RSProx
+index 4368, 4367, 4363, 4336 and 4289 (rev 241) is `0/60/60/0`, and `0/30/0/30`
+appears in none of them (2026-10-24).
 
 Region id is the map square: `regionId = ((x >> 6) << 8) | (z >> 6)`, so region
 12854 = square (50, 54) = the tile block at (3200, 3456) — Varrock.
@@ -418,8 +420,8 @@ every 64 tiles).
 `MIDI_SONG` / `_WITHSECONDARY` / `MIDI_SWAP` / `MIDI_JINGLE` / `MIDI_SONG_STOP`
 were already parsed and played client-side; nothing there needed changing.
 
-For mapped region changes ToriRSServer now emits the reference-proven `0/30/0/30`
-envelope and updates the music-tab label before the packet.  The local backend
+For mapped region changes ToriRSServer now emits the recorded `0/60/60/0`
+envelope (it was `0/30/0/30` until 2026-10-24) and updates the music-tab label before the packet.  The local backend
 has one generator synth/voice, unlike the reference's concurrently active
 players: it fades the outgoing voice, hands the synth to the loaded incoming
 song, then fades that voice in.  This gives an audible 600 ms fade-out and
@@ -769,7 +771,7 @@ Tests that hold this work:
 | `make -C src test-sound` | the effect queue's schedule, including `test_late_load_timing` — the one that sees a clip arriving after its due time |
 | `make -C src test-audio` | the generator-backed music voice receives real outgoing and incoming `VOICE_UPDATE` ramps rather than the retired stream-volume command |
 | `make -C src test-midi-packets` | the V2 MIDI field transforms and the SOUND_AREA layout, including that a SOUND_AREA does not truncate the zone batch after it |
-| `TORIRSSERVER_REV=osrs239 ./src/build/torirsserver --selftest` | among much else, the carrier-varp rule, music-tab label ordering, and the region's `0/30/0/30` V2 envelope |
+| `TORIRSSERVER_REV=osrs239 ./src/build/torirsserver --selftest` | among much else, the carrier-varp rule, music-tab label ordering, and the region's `0/60/60/0` V2 envelope |
 | `3rd/rscache/build/test_soundscape <root>` | the group-15 format, byte-exact over the whole cache |
 
 Two traps worth repeating from [[audio-harness-and-measurement-traps]]:

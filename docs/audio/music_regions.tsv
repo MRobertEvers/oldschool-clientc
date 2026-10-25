@@ -1090,3 +1090,10 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 16199	63	71	4032	4544	The Sound of Guthix	the_sound_of_guthix
 16197	63	69	4032	4416	Temple Desecrated	temple_desecrated
 16470	64	86	4096	5504	Into the Archive	into_the_archive
+# ---------------------------------------------------------------------------
+# From RSProx index 4367 (rev 241, 2026-10-24, Goblin Diplomacy): walking north
+# into square 46,54 from 46,53, [403]: "You have unlocked a new music track:
+# Goblin Village", music_current_track to the track's row, midi_song 313
+# (fades 0/60/60/0); the same track re-sent on every return from the
+# quest's cutscene copies ([481], [539], [622]).
+11830	46	54	2944	3456	Goblin Village	goblin_village

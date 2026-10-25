@@ -187,24 +187,34 @@ return {
         t.exec("talkToSurok.wand", t.inv.await, "surok_metalwand", 1, 6)
 
         -- ------------------------------------------------------------ enterChaosAltar
-        -- Out of the palace door by door, overland to the open ground south of the Wilderness
-        -- strip, then north on foot: wilderness_warning.rs2 zones 0_47_54_*_56 (z 3512-3519)
-        -- stop the walk with three pages while %varp6428_wilderness is unset (fresh session),
-        -- and the Wilderness Ditch (ditch_wilderness_cover 3060,3521 angle 0, 1x2 over z
+        -- Out of the palace door by door, overland to the open ground south of the
+        -- Wilderness, then north on foot to the Wilderness Ditch (ditch_wilderness_cover 3060,3521 angle 0, 1x2 over z
         -- 3521-3522; wilderness_ditch.rs2 ~wilderness_ditch_cross jumps z-1 <-> z+2) is crossed
         -- by its own Cross op. North of it the ruins are open Wilderness ground (reach.py
         -- 3060,3523 -> 3060,3589 REACH closed-doors).
         palace_out("goto-enterChaosAltar")
         t.exec("goto-enterChaosAltar.ditchSouth", t.player.goto_tile, 3060, 3505, 0)
         t.player.walk_to(3060, 3520, 30)
+        walk_check("enterChaosAltar.ditchSide", 3060, 3520, 0, "the ditch's south side", 20)
+        -- The ditch warns an unwarned player before the jump north (wilderness_ditch.rs2: the
+        -- three pages, then the jump); OSRS has no warning strip on foot (RSProx index 344
+        -- [69..77], wilderness_warning.rs2).
+        t.exec("enterChaosAltar.crossDitch", t.player.click_loc, "ditch_wilderness_cover", 1, { at = { 3060, 3521, 0 } })
         t.exec("enterChaosAltar.wildernessWarning", t.chat.play, {
             "mesbox:WARNING! Proceed with caution",
             "mesbox:The further north you go",
             "mesbox:In the wilderness an indicator",
         })
-        walk_check("enterChaosAltar.ditchSide", 3060, 3520, 0, "the ditch's south side", 20)
-        t.exec("enterChaosAltar.crossDitch", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",
-            at = { 3060, 3521, 0 }, src = { 3060, 3520 }, dest = { 3060, 3523 }, attempts = 1 })
+        t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x == 3060 and tt.z == 3523
+            end,
+            note = "enterChaosAltar: the ditch's jump lands 3060,3523",
+        }, 10)
+        local jr, jt = t.world.tile()
+        t.check("enterChaosAltar.crossDitch.landed", jr == "ok" and jt.x == 3060 and jt.z == 3523 and jt.level == 0,
+            "after the Cross -> " .. tile_text(jr, jt) .. " (want 3060,3523,0)")
         t.exec("goto-enterChaosAltar", t.player.goto_tile, 3060, 3589, 0)
         local ruins = t.player.by_symbol("loc", "chaostemple_ruined")
         t.check("enterChaosAltar.ruins", ruins ~= nil, "chaostemple_ruined resolved: " .. tostring(ruins and ruins.id))

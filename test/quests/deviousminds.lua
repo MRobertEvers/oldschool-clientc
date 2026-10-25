@@ -20,7 +20,7 @@
 --     t.player.pass_door on all six crossings;
 --   * Doric's whetstone (2953,3451) stands in the hut room behind poordoor 2949,3450;
 --   * the Mage of Zamorak (3106,3556) is north of the Wilderness Ditch, crossed by its
---     own Cross op (wilderness_ditch.rs2) after the warning strip's pages;
+--     own Cross op (wilderness_ditch.rs2), its warning pages read before the jump;
 --   * Entrana is an island: on by the Port Sarim monk's boat and ship_from_entrana_off,
 --     off by shipmonk2's boat and ship_to_entrana_off, each gangplank by t.player.climb
 --     (deck level 1 -> jetty level 0). The Law Altar's exit portal lands on Entrana too.
@@ -198,23 +198,29 @@ return {
         -- ---- teleToAbyss: the Mage of Zamorak, north of the Wilderness Ditch ----
         gate_west("mageTrip")
         t.exec("goto-mageTrip.ditchSouth", t.player.goto_tile, 3106, 3505, 0)
-        -- wilderness_warning.rs2: walking north into the strip at z 3512-3515 (unwarned this
-        -- session, %varp6428_wilderness = 0) stops the walk with three pages; the ditch then
-        -- warns no more (wilderness_ditch.rs2 reads the same varp).
         t.player.walk_to(3106, 3520, 30)
+        local dr, dt = t.world.tile()
+        t.check("mageTrip.ditchSide", dr == "ok" and dt.x == 3106 and dt.z == 3520 and dt.level == 0,
+            "walked to the ditch's south side -> " .. tile_text(dr, dt) .. " (want 3106,3520,0)")
+        -- The ditch warns an unwarned player before the jump north (wilderness_ditch.rs2: the
+        -- three pages, then the jump); OSRS has no warning strip on foot (RSProx index 344
+        -- [69..77], wilderness_warning.rs2).
+        t.exec("mageTrip.crossDitch", t.player.click_loc, "ditch_wilderness_cover", 1, { at = { 3106, 3521, 0 } })
         t.exec("mageTrip.wildernessWarning", t.chat.play, {
             "mesbox:WARNING! Proceed with caution",
             "mesbox:The further north you go",
             "mesbox:In the wilderness an indicator",
         })
-        t.player.walk_to(3106, 3520, 20)
-        local war, warn = t.var.server("varp6428_wilderness")
-        local dr, dt = t.world.tile()
-        t.check("mageTrip.ditchSide", dr == "ok" and dt.x == 3106 and dt.z == 3520 and dt.level == 0,
-            "walked to the ditch's south side -> " .. tile_text(dr, dt) .. " (want 3106,3520,0); varp6428_wilderness = "
-                .. tostring(warn) .. " (" .. tostring(war) .. ")")
-        t.exec("mageTrip.crossDitch", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",
-            at = { 3106, 3521, 0 }, src = { 3106, 3520 }, dest = { 3106, 3523 } })
+        t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x == 3106 and tt.z == 3523
+            end,
+            note = "mageTrip: the ditch's jump lands 3106,3523",
+        }, 10)
+        local jr, jt = t.world.tile()
+        t.check("mageTrip.crossDitch.landed", jr == "ok" and jt.x == 3106 and jt.z == 3523 and jt.level == 0,
+            "after the Cross -> " .. tile_text(jr, jt) .. " (want 3106,3523,0)")
         t.exec("goto-teleToAbyss", t.player.goto_tile, 3106, 3558, 0)
         t.exec("teleToAbyss", t.player.talk_to, "rcu_zammy_mage1b", 4)
         t.ticks(6)

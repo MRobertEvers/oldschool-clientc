@@ -78,13 +78,12 @@ stage 8 ([750]).
 
 ## Open
 
-- **Copy loc deletes (engine).** On T+3 Jagex deletes the copy's grill (wall decor, 2514,9739)
-  and its three floor-rope locs before adding the animated ropes. Ours sends no LOC_DEL: the
-  server's window over a fresh copy is built after the scripts of the tick after the move, and
-  `loc_find` searches windows (and the zone records of runtime changes), so it cannot see the
-  copy's map locs on the tick the player arrives, or the next. The deletes are written on the
-  recorded tick and will go out once the engine can answer for them. Until then the old grill
-  and floor rope are drawn under the scene's rope.
+- ~~**Copy loc deletes (engine).**~~ Fixed 2026-10-24: `p_telejump`/`p_teleport` build the
+  player's window at once (`ToriRSServer_WorldPlayerMoved`), and an instance rebuild's zones
+  go out on its own tick, so the four deletes on T+3 go out as recorded (scriptrun: the grill
+  and three rope locs deleted before the animated ropes, on the move's tick). The same fix
+  opens the West Ardougne manhole on climbing out of the pipe ([816]), which `loc_find`
+  after the teleport had also missed.
 - **scriptrun only:** `quest.journal` (no clientscripts build the quest list), and the Ardougne
   Teleport casts after the quest scroll has been shown (the spell's node reads display-hidden
   under scriptrun after the scroll closes; a cheat-completed character casts it, and the

@@ -23,6 +23,7 @@ Equipment is filtered out of the shared transcripts. To get it, 199 archive sess
 | Verac's brassard (all charges), black d'hide body, studded body, Lunar torso, eclipse/frost moon chestplate | `leather_hit_1..5` (2811-2815) |
 | Masori body, Bandos chestplate, Armadyl chestplate, Torva platebody (and sanguine) | `blade2_1..5` (2841-2845) |
 | Justiciar chestguard, Torag's platebody | `torag_breastplate_1..5` (2366-2370) |
+| Iron chainbody (RSProx index 4368 [596]: 1 block, `blade3_mail_2`; the five takes assumed like the others) | `blade3_mail_1..5` (2801-2805) |
 | Robes (mystic, ancestral, Virtus, black, wizard), no torso | `human_block_1` (511) |
 
 The five takes are picked evenly at random: 6,238 / 6,395 / 6,334 / 6,308 / 6,430 for `blade2_1..5`. `human_block` has only one take.

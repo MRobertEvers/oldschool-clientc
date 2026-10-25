@@ -1,0 +1,25 @@
+id	area	defect	evidence	fix	status
+rj01	dialogue	every page was LostCity's 2004 text; OSRS plays the 2007 rewrite	index 4361: 189 pages, 0 match the old scripts	romeo/juliet/phillipa/draul_leptoc/father_lawrence/apothecary.rs2 rebuilt from 4361 + the OSRS transcripts	fixed
+rj02	dialogue	moods were guessed bases	4361 if_setanim per page	recorded seq per page; 125/125 on our wire (TRACE_OUT=2)	fixed
+rj03	quest start	no "Romeo approaches you..." (he opens his opener on an idle player)	4361 [152..168]	[ai_timer,romeo] + [queue,romeo_approach]; cadence unverified (1 recording)	fixed
+rj04	quest start	no quest-start message	4361 [315]	mes on the stage write	fixed
+rj05	hearts	no trollromance_heart on Romeo's and Juliet's lines	4361 [308] [324] [490] [510]	spotanim_npc on those pages	fixed
+rj06	message	letter deleted at the hand-over box; stage written there	4361 [509] box, [552] stage + delete, [518]/[524] re-talk replays	stage + inv_del on the "Father Lawrence?" page	fixed
+rj07	sermon	no sermon scene: camera on the pews, the timed Congregation page, the overhead say	4361 [602..639]	father_lawrence.rs2 @father_lawrence_sermon, ~rj_chat_timed, softtimers	fixed
+rj08	congregation	pew sleepers never snored	troll_zeds every 10..19 ticks, 1350 gaps over 71 session-lives	romeo_juliet_pews.rs2	fixed
+rj09	bush	SW bush coded "always empty" (wiki); it is the quest's per-player bush on varb6530	4361 [385..391]: berry, varbit 0->1, pick d10; [751] reset	cadava_bush.rs2	fixed
+rj10	bush	invented "You pick some cadava berries from the bush."; no anim or sound	4361 [390..391]: picking_low, synth 2581 d10, no line	cadava_bush.rs2	fixed
+rj11	apothecary	menu shape (single menu, 2004 rows)	4361 [740..746], 3202 [5060], 1741 [8814]	@apothecary_menu / @apothecary_something_else	fixed
+rj12	apothecary	no brew: blank chatbox, smokepuff_large h64, human_apothecary_create_potion, area sound 1930	4361 [753..758]	@apothecary_brew	fixed
+rj13	apothecary	stationary; he walks his shop	39 sessions, 23 tiles x 3192..3197 z 3402..3406	ledger authored wanders/indoors; server_fields wander/5	fixed
+rj14	potion scene	narrated as dialogue; no copy, cast, drink, fall, Draul, camera, jingle 120	4361 [806..837]	~rj_potion_scene	fixed
+rj15	juliet	still on the balcony after drinking the potion (varb1838 never written; varp673 temp/untransmitted)	4361 [831] 0->1, [918] 1->2	scene writes it; quest_romeojuliet.varp perm+transmit; quest_cheat	fixed
+rj16	juliet	wandered (wander 5 indoors)	0 steps in 2 sessions	server_fields defaultmode=none	fixed
+rj17	crypt scene	narrated; no copy, Romeo's walk, Phillipa, 8 camera aims, jingle 168	4361 [853..920]	~rj_crypt_scene	fixed
+rj18	completion	scroll icon coins	4361 [918] quest_model cadava	~quest_complete_rewards(..., cadava)	fixed
+rj19	post-quest	Phillipa and Draul post-quest lines invented	3196 [1063] [1309]	recorded lines	fixed
+rj20	scene music	region song 175 on entering the house copy over the scene's song 147	our tick log run4 [273]	midi_hold while in the copy; run5 clean	fixed
+rj21	scene music	region song 125 comes back at the crossing (E+3) of the crypt scene, recorded after the completion	4361 [915..920]	-	open
+rj22	potion	Look-at / Drink ops: op numbers from the wiki's order, the "screen sways" effect not built	no recording	romeojuliet_items.rs2	open
+rj23	apothecary	"Can you make potions for me?" opens the Apothecary's Potions interface in OSRS; ours keeps the strength-potion talk	Transcript:Apothecary	-	open
+rj24	ledger	quest had no CUTSCENES.tsv row, so cutscene_sweep read NONE	cutscene_sweep.py	row added (WIKI_PORTED)	fixed

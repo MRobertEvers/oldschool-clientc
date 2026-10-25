@@ -24,16 +24,16 @@
 -- climbed from 3022,3510; ladder 5 from 3025,3514 lands in the corridor that
 -- reaches the grill ladder only through bkfortressdoor3).
 --
--- Two real fights: bkfortressdoor3 crossed westward (quest_blackknight.rs2
--- [oploc1,bkfortressdoor3]; LostCity's copy notes "black knights guarding
--- the ladder down to the grill will aggress the player") and
--- bkfortressdoor2's "I don't care. I'm going in anyway." both call
--- ~black_knights_aggro, which puts every aggressive_black_knight within 5 on
--- the player with npc_setmode(opplayer2). `::passive` does not block that
--- (QUEST_SERVER_CHEATS.md section F: content staging a fight is never
--- gated); it only stops the dozen wandering level-33 knights from STARTING
--- fights elsewhere on the route. So the guide's recommended food is carried
--- and eaten, and each fight leg ends in a margin row.
+-- The fights are the fortress's own: every black knight type hunts (RSProx
+-- index 4368: the recorder was attacked inside the front door, on the
+-- ladders, by the grill ladder and in the meeting room, 13 swings), and
+-- bkfortressdoor2's "I don't care. I'm going in anyway." has one knight call
+-- "Die, intruder!" and turn on the player. No `::passive`: the recording's
+-- knights are not passive. So the guide's recommended food is carried and
+-- eaten, and each fight leg ends in a margin row. The cabbage is a cutscene in
+-- a copy of the fortress (quest_blackknight/scripts/bkf_cutscene.rs2).
+-- The run keeps a tick log (build/quest_gate/<run>/ticklog.tsv) for the wire
+-- audit against index 4368 (docs/rsprox-analysis/quests/black_knights_fortress.md).
 --
 -- %qp must be >= ^blackknight_qp_req (12) before Sir Amik offers the quest
 -- at all (sir_amik_varze.rs2's prequest branch) -- a prerequisite (quest
@@ -60,15 +60,10 @@ return {
         "::setlevel hitpoints 45",
         "::setlevel defence 30",
         "::setvar varp101_qp 12",           -- prerequisite quest points, not blackknight's own reward
-        -- areas/world/configs/m47_54.spawn scatters a dozen
-        -- `aggressive_black_knight`/`kr_aggressive_black_knight` (level 33)
-        -- across every floor the route walks; they stop STARTING fights.
-        -- The two fights content stages itself (door3, door2) still happen.
-        "::passive aggressive_black_knight",
-        "::passive kr_aggressive_black_knight",
     },
 
     run = function(t)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp130_spy",
             constants = {
@@ -317,9 +312,8 @@ return {
         vitals()
         climb("climbUpLadder4", "dk_ladder", 3023, 3513, 3023, 3514, 2)
         climb("climbDownLadder5", "dk_laddertop", 3025, 3513, 3025, 3514, 1)
-        -- bkfortressdoor3 (3025,3511, east edge): from the east side
-        -- (x = 3026) check_axis is false -> ~black_knights_aggro on the
-        -- knights guarding the grill ladder, then the player lands on 3025,3511.
+        -- bkfortressdoor3 (3025,3511, east edge): walked through from the
+        -- east side (x = 3026) to 3025,3511; the knights here hunt on their own.
         t.player.walk_to(3026, 3511, 20)
         cross("bkfortressdoor3.west", "bkfortressdoor3", 3025, 3511,
             function(tt) return tt.level == 1 and tt.x <= 3025 end, "west of the door, x <= 3025, level 1")
@@ -398,7 +392,7 @@ return {
         cross("bkfortressdoor3.east", "bkfortressdoor3", 3025, 3511,
             function(tt) return tt.level == 1 and tt.x >= 3026 end, "east of the door, x >= 3026, level 1")
         climb("climbUpLadder5", "dk_ladder", 3025, 3513, 3025, 3514, 2)
-        margin_row("listenAtGrill.fight.margin", "the grill-ladder knights bkfortressdoor3 set on the player")
+        margin_row("listenAtGrill.fight.margin", "the knights hunting the grill corridor and the ladders")
         climb("climbDownLadder4", "dk_laddertop", 3023, 3513, 3023, 3514, 1)
         pass_door("climbUpLadder3.wildDoorWest", "wild_door", "wild_door_open", 3019, 3515, 3020, 3515, 3018, 3515,
             function(tt) return tt.x <= 3019 and tt.level == 1 end, "west of the door, x <= 3019, level 1")
@@ -448,12 +442,42 @@ return {
                         hole_loc.level, tostring(hole_loc.match))
                     or tostring(hole_loc)))
 
+        -- The scene (RSProx 4368 [716..812]): the throw, the black, the copy,
+        -- the camera at 1500 over the grill room looking down at 300, six
+        -- pages with their beats between, back on the hole's tile, the
+        -- player's last page. The first page is 23 ticks after the use.
         local hole_target = t.player.by_symbol("loc", "blackknighthole")
+        local scene_mark = t.cutscene.mark()
         t.exec("useCabbageOnHole", t.player.use_on, "cabbage", hole_target)
-
-        local d6_result, d6_detail = t.chat.drain({ stop_at = "none" })
-        t.expect("hole.sabotage_drain", d6_result, d6_detail)
+        -- the throw's tile: the player is moved into the copy seven ticks on
+        local throw_r, throw_at = t.world.tile()
+        t.await({ level = function() return t.chat.kind() ~= "none" end, note = "useCabbageOnHole: the witch's first page" }, 40)
+        -- The scene's pages are paced by beats: the next one opens up to
+        -- eight ticks after a click (the last, the player's, [802] -> [810]).
+        local scene_pages = 0
+        for _ = 1, 12 do
+            local dr, dk = t.chat.drain({ max_pages = 20 })
+            scene_pages = scene_pages + 1
+            local more = t.await({ level = function() return t.chat.kind() ~= "none" end,
+                note = "useCabbageOnHole: the scene's next page" }, 12)
+            if more ~= "ok" then
+                break
+            end
+        end
+        t.check("hole.sabotage_drain", scene_pages >= 5,
+            "drained " .. scene_pages .. " page run(s) of the scene (want 5: witch, captain+witch, witch, captain+cat, player)")
+        t.exec("useCabbageOnHole.cutscene", t.cutscene.await, "useCabbageOnHole", { since = scene_mark, quiet = 200, expect = {
+            { op = "moveto", height = 1500 },
+            { op = "lookat", height = 300 },
+            { op = "reset" },
+        } })
+        t.ticks(3)
         t.shot("hole-sabotage-closed")
+        local back_r, back_at = t.world.tile()
+        t.check("useCabbageOnHole.back", back_r == "ok" and throw_r == "ok" and back_at.level == throw_at.level
+                and back_at.x == throw_at.x and back_at.z == throw_at.z,
+            "after the scene -> " .. tile_text(back_r, back_at) .. " (want the tile the cabbage was thrown from, "
+                .. tile_text(throw_r, throw_at) .. ")")
 
         t.expect("quest.stage.sabotaged", t.quest.expect_stage("sabotaged"))
 
@@ -485,7 +509,7 @@ return {
         local out_r, out_at = t.world.tile()
         t.check("leaveFortress.outside", out_r == "ok" and out_at.z <= 3512 and out_at.level == 0,
             "walked to the open path 3016,3512 -> " .. tile_text(out_r, out_at))
-        margin_row("goBackDownFromCabbageZone.fight.margin", "the meeting-room knights bkfortressdoor2 set on the player")
+        margin_row("goBackDownFromCabbageZone.fight.margin", "the meeting-room knights (one called out at bkfortressdoor2)")
 
         -- ------------------------------------------------------- hand in
         t.exec("goto-castle-return", t.player.goto_tile, 2968, 3338, 0)
@@ -497,10 +521,8 @@ return {
 
         t.exec("returnToAmik", t.player.talk_to, "sir_amik_varze")
 
-        -- Stop AT a mesbox rather than draining past it: the hand-in's own
-        -- [queue,black_knights_fortress_quest_complete] can land mid-drain
-        -- or only after the monologue has closed (section 8's
-        -- completion-is-asynchronous gap).
+        -- Stop AT the mesbox (RSProx 4368 [860]: on "Please accept this
+        -- reward."'s click); its own click pays [861].
         local d7_result, d7_kind = t.chat.drain({ stop_at = "mesbox" })
         t.expect("amik.return_drain", d7_result, d7_kind)
         t.shot("amik-return-closed")
@@ -515,6 +537,9 @@ return {
 
         t.exec("handin.mesbox_text", t.chat.expect_text, "Sir Amik hands you 2500 coins.")
         t.exec("handin.dismiss_mesbox", t.chat.continue_, true)
+        -- [861]: the coins, the stage and the scroll come with that click.
+        t.await({ level = function() return t.quest.expect_stage("complete") == "ok" end,
+            note = "handin: the stage on the mesbox's click" }, 5)
 
         t.quest.expect_complete()
 

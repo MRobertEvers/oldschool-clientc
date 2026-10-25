@@ -104,3 +104,9 @@ completions: 1710, 1718, 1768, 1788, 1843, 1846, 2644, 3275 and 3333.
   `NoSuchElementException: Key RevisionKey(revision=239...)`. Build upstream
   master (osrs-236 to osrs-241) instead. Transcribing also needs
   `~/.rsprox/settings/` to exist.
+
+## Romeo & Juliet (index 4361)
+
+The owner's rev-241 playthrough of 2026-10-24 (index 4361, "Romeo and Juliet") completes the quest at
+[918] (10 -> 15 quest points). It was uploaded while the index worker was down, so it is not in the
+tables above, which were built from search. `romeo_and_juliet.md` is the rebuild and its audit.

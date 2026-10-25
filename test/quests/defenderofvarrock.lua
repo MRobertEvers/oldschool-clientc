@@ -214,15 +214,6 @@ return {
 
         -- inspectPlant: the plant north of the pub (3280,3516); its Inspect shows from stage 4.
         t.exec("walk-inspectPlant", t.player.walk_to, 3280, 3514, 20)
-        -- 3280,3514 is inside the Wilderness warning strip (z 3512-3515, wilderness_warning.rs2:13-28,
-        -- [zone,0_51_54_16_56]): the first step into it this session queues three pages and
-        -- p_stopaction, so they are read before the plant is pressed.
-        t.ticks(2)
-        t.exec("wildernessWarning", t.chat.play, {
-            "mesbox:WARNING! Proceed with caution",
-            "mesbox:The further north you go",
-            "mesbox:In the wilderness an indicator",
-        })
         t.exec("inspectPlant", t.player.click_loc, "dov_hunting_plant_initial", 1, { at = { 3280, 3516, 0 } })
         converse("inspectPlant-dialog", {}, { "Look! Footprints." })
         t.exec("inspectPlant.flag", t.var.await_server, "varb9659_dov_hunting_trail_1", 1, 6)

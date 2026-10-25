@@ -229,9 +229,16 @@ ToriRSServer_BusyHold(
 int
 ToriRSServer_BusyVarbit(void);
 
-/* Once a tick per player: a running track's end and its replay. */
+/* Once a tick per player: a running track's end and its replay, and the
+ * area's track back at a jingle's end. */
 void
 ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player);
+
+/* A jingle of `length_ms` has just been sent: schedule the track's return. */
+void
+ToriRSServer_MusicJingleStarted(
+    struct ToriRSServerPlayer* player,
+    int length_ms);
 
 void
 ToriRSServer_AmbientEnterRegion(

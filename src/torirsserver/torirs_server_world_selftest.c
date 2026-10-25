@@ -14766,8 +14766,8 @@ ToriRSServer_WorldSelftest(void)
                            midi_at, label_at);
         if( strcmp(srv->wire->name, "osrs239") == 0 )
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
-                               &capture, srv->wire, track->song, 0, 30, 0, 30),
-                           "the region track should carry the 30-cycle in/out fade profile");
+                               &capture, srv->wire, track->song, 0, 60, 60, 0),
+                           "the region track should carry Jagex's 0/60/60/0 fade profile");
     }
 
     fprintf(stderr, "ToriRSServer selftest: region music unlocks the musicmulti word\n");

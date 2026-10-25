@@ -48,9 +48,9 @@
 -- ::entertheabyss resets the miniquest and drops the player beside the mage,
 -- past the ditch; the setup's ::goto then stands the player on open Edgeville
 -- ground SOUTH of it (3106,3510), so the arrival in the Wilderness is a real
--- walk north through the warning strip (wilderness_warning.rs2, zone
--- 0_48_54_32_56, z 3512-3515: the three warning pages on a fresh account)
--- and a Cross of the ditch by its own op.
+-- walk north and a Cross of the ditch by its own op, which shows the three
+-- warning pages to a fresh account before the jump (wilderness_ditch.rs2;
+-- OSRS has no warning strip on foot, RSProx index 344 [69..77]).
 --   Varrock Zamorak chapel: fai_varrock_poor_door_flipped 3255,3388 (street
 --     x <= 3255, chapel x >= 3256; maps/m50_52.jl2).
 --   Aubury's shop: fai_varrock_poor_door 3253,3398 on its north wall, open in
@@ -185,35 +185,32 @@ return {
         -- ---- 1. Wilderness Mage of Zamorak: accept the errand ----
         -- The setup's ::goto 3106 3510 0 stands the player on open ground south of the ditch (reach.py
         -- 3106,3510 -> 3106,3520: REACH closed-doors len=10; -> 3106,3523: NEEDS-OP via the ditch).
-        -- Into the Wilderness on foot: walk north into the warning strip (wilderness_warning.rs2: a
-        -- step into zone 0_48_54_32_56 with %varp6428_wilderness unset stops the walk on z 3512-3515
-        -- and opens the three warning pages, then sets the varp), read them, walk on to the ditch and
-        -- Cross it north by its own op (wilderness_ditch.rs2 ~wilderness_ditch_cross: from z 3520 the
-        -- jump lands on the loc's z + 2 = 3523; the varp is now set, so the jump opens no page). Then
-        -- the open Wilderness plain to the mage (reach.py 3106,3523 -> 3106,3558: REACH len=37).
-        t.exec("walkIntoWarningStrip", t.player.walk_to, 3106, 3512, 40)
-        -- The zone fires a queued script, so the first page opens a tick or more after the step
-        -- (run r2/1: chat.play read nothing on the arrival tick, and the queue ran later during the
-        -- next walk, past z 3515, setting the varp with no page). Stand still and wait for it.
-        local paged = t.await({
-            level = function() return t.chat.kind() ~= "none" end,
-            note = "the strip's first warning page",
-        }, 10)
-        local sr, st = t.world.tile()
-        t.check("walkIntoWarningStrip.pageOpened", paged == "ok" and t.chat.kind() == "mesbox",
-            "await -> " .. tostring(paged) .. ", chat.kind() -> " .. tostring(t.chat.kind()) .. " at "
-                .. tile_text(sr, st) .. " (want a mesbox: zone 0_48_54_32_56 on z 3512-3515, %varp6428_wilderness unset)")
-        t.exec("walkIntoWarningStrip-warning", t.chat.play, {
+        -- Into the Wilderness on foot: walk north to the ditch (no warning on the way: OSRS has no
+        -- strip, RSProx index 344 [69..75]) and Cross it north by its own op. With
+        -- %varp6428_wilderness unset the Cross shows the three warning pages first, then jumps
+        -- (wilderness_ditch.rs2 ~wilderness_ditch_cross: from z 3520 the jump lands on the loc's
+        -- z + 2 = 3523). Then the open Wilderness plain to the mage (reach.py 3106,3523 ->
+        -- 3106,3558: REACH len=37).
+        t.exec("walkToWildernessDitchSouth", t.player.walk_to, 3106, 3520, 40)
+        local wk = t.chat.kind()
+        t.check("walkToWildernessDitchSouth.noWarning", wk == "none",
+            "chat.kind() at the ditch -> " .. tostring(wk) .. " (want none: no warning on foot)")
+        t.exec("crossWildernessDitchNorth", t.player.click_loc, "ditch_wilderness_cover", 1, { at = { 3106, 3521, 0 } })
+        t.exec("crossWildernessDitchNorth-warning", t.chat.play, {
             "mesbox:WARNING! Proceed with caution",
             "mesbox:The further north you go",
             "mesbox:In the wilderness an indicator",
         })
-        t.exec("walkToWildernessDitchSouth", t.player.walk_to, 3106, 3520, 20)
-        t.exec("crossWildernessDitchNorth", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",
-            at = { 3106, 3521, 0 }, src = { 3106, 3520 }, dest = { 3106, 3523 }, attempts = 1 })
-        local nk = t.chat.kind()
-        t.check("crossWildernessDitchNorth.noWarning", nk == "none",
-            "chat.kind() after the north jump -> " .. tostring(nk) .. " (want none: the strip's pages already set %varp6428_wilderness)")
+        t.await({
+            level = function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x == 3106 and tt.z == 3523
+            end,
+            note = "the ditch's jump lands 3106,3523",
+        }, 10)
+        local jr, jt = t.world.tile()
+        t.check("crossWildernessDitchNorth.landed", jr == "ok" and jt.x == 3106 and jt.z == 3523 and jt.level == 0,
+            "after the Cross -> " .. tile_text(jr, jt) .. " (want 3106,3523,0)")
         t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0) -- from 3106,3523 across the open plain
         t.exec("talkToMageInWildy", t.player.talk_to, "rcu_zammy_mage1", 1)
         t.exec("talkToMageInWildy-dialog", t.chat.play, {
@@ -227,9 +224,8 @@ return {
         -- Out of the Wilderness on foot: walk south to the Wilderness Ditch and Cross it by click
         -- (areas/area_wilderness/scripts/wilderness_ditch.rs2 ~wilderness_ditch_cross: the copies at
         -- z 3521-3522 are angle 0, so from z 3523 the jump lands on z-1 = 3520, three tiles south).
-        -- The warning pages only open on a jump NORTH (deeper into the Wilderness), and the on-foot
-        -- strip warning's zones are z 3512-3519, which the walk never enters, so nothing may be open
-        -- after the jump. The goto then leaves the open ground south of the ditch for the open
+        -- The warning pages only open on a jump NORTH (deeper into the Wilderness), so nothing may
+        -- be open after the jump. The goto then leaves the open ground south of the ditch for the open
         -- street outside the chapel (overland travel between two open tiles).
         t.exec("walkToWildernessDitch", t.player.walk_to, 3106, 3523, 60)
         t.exec("crossWildernessDitch", t.player.cross_trap, { loc = "ditch_wilderness_cover", op_name = "Cross",

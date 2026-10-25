@@ -1634,3 +1634,316 @@ vision and dragonkin casts.
 - Full private run w3 (all edits through Silif radius and stage-13 move): SUMMARY pass=834 fail=0. Ticklog kept at build/wgs_private/wire/w3_ticklog.tsv.
 - NOT validated: wgs_messenger.rs2 and wgs_postquest.rs2 (private pack compile currently fails in quest_blackknight.rs2:161, blackknight_guard_say arg count -- another session's WIP, not in this quest); broav collapse restructure ran in w3 but its timing was not re-diffed.
 - Per-section tables not yet written (tables.py gives counts). Open/engine-generic items: region music envelope 0/30/0/30 vs rec 0/60/60/0; door_open synth 62/71 on shared doors; .spawn has no angle column; shared chat_layout does not repeat <col>; BKF walk-through doors send no loc/sound; druid spirits (rec ~35 wandering, ours 8 stationary); post-780 re-entry route untested; V glides/teleport staging; recruit varbit vs stage 2 ticks apart; varbit 10809 at [998]; varbit 10807 unused; messenger spawn trigger unrecorded; broav pathing 2 ticks late; camp skeleton/mage wander rate; cell-shell Silif facing churn; camera not in tick log.
+
+
+### Closer pass (Opus, 2026-10-24): integration, honesty check, gates, write-up
+
+**State at the start.** The last wire-audit agent stopped at compaction: run w3 834/834 PASS, `wgs_messenger.rs2` and
+`wgs_postquest.rs2` never compiled (the private pack failed in another session's `quest_blackknight.rs2:161`), no
+per-section tables. At 19:17 the owner committed both trees ("quests and wgs", OSRS-Content 34a88f0cfb, 3draster
+1a11f7d50); that commit already holds this pass's journal and dialogue edits. What changed after it is listed under
+"Files" below.
+
+**1. Integration fixes.**
+- **Private pack.** The live content tree compiles whole again (the others' units are committed), so
+  `build/wgs_private/run_private.py` now has `RESTORE = []`. `wgs_messenger.rs2` and `wgs_postquest.rs2` compile.
+- **Post-quest talks verified.** A probe from the final checkpoint (`build/wgs_private/closer/runs/post1.*`, the probe
+  is `build/wgs_private/wire/probe_post.lua`) passed 15/15: Surok 3 pages, Thaerisk 4, Akrisae 7, Idria 10, Silif 4 and
+  the robes menu. These are index 481's page counts ([2896..2899], [2984..2988], [3121..3128], [3320..3329],
+  [3585..3588], [3705]). The messenger's talk and letter compile, but nothing spawns him (no recording shows what
+  calls him), so they never run.
+- **Journal rebuilt from a source.** The old journal was our own paraphrase. The OSRS Wiki has the real text,
+  `Transcript:While Guthix Sleeps/Journal` (fetched 2026-10-24, `build/wgs_private/closer/journal.wt`).
+  `wgs_journal.rs2` is now generated from it by `build/wgs_private/closer/genjournal.py`:
+  - 65 states, each verbatim, with the earlier entries struck out.
+  - Each state is keyed to the stage or sub-state varbit that the recordings write at that point: washerman 10756,
+    seed 10853, farm chat 10847, truth serum 10843, recruits 10785..10791, Silif's cell, food and potion
+    10848/10850/10851, and the player leaving Movario's base squares for "escaping".
+  - One state is not keyed: "After speaking to Idria after recruitment". Nothing changes between [3345] and [3429].
+  - In the full run the journal opens at completion with 105 lines (`quest.journal` PASS).
+  - Unverified against the wire: no recording opens the journal.
+- **Music unlocks.** The recordings unlock 9 tracks in `musicmulti_24` (varp 4066, bits 17..25). Ours set 7 of them.
+  Added: The Evil Within at [6342] (bit 20, `wgs_lucien.rs2`) and The Kin at 1680 [2158] (bit 21, with
+  `midi_song(793)` at that tick, `wgs_ending.rs2`). The final save of run c3 has bits 17..25, all 9.
+  - The colour is still wrong in shared code: Jagex writes the track name `<col=e00a19>`, while the shared
+    `~music_unlock` (`interface_music/scripts/music.rs2`) writes `<col=ff3045>`. Not changed.
+  - The open list's "Black of Knight / The Route of All Evil not built" was stale. Black of Knight is the catacombs'
+    region track and The Route of All Evil is `wgs_surok.rs2:164`.
+
+**2. The honesty check.**
+- **No invented lines.** `build/wgs_private/closer/linesrc.py` looks up every player-visible string in the quest's
+  .rs2 files in two places: the transcripts of indexes 1678, 1680, 1682, 468..481, and the wiki transcript. That left
+  89 strings with no match. Each was then searched on the whole wiki (`wikisearch2.txt`), including the scenery
+  transcripts. For example, the fools' treasure lines are `Transcript:Treasure pile`, word for word.
+  - **35 lines and 1 menu row had no recording, no wiki text and no deob source, and are gone:**
+    - `wgs_warguild.rs2`: 6 replies by Ghommal, Harrallak and Sloane to rows other than the Lucien row, and the
+      Strength door's line.
+    - `wgs_messenger.rs2` and `wgs_postquest.rs2`: the full-pack lines.
+    - `wgs_recruit.rs2`: the sketch's full pack, "still growing" twice, the drawers.
+    - `wgs_spy.rs2`: "You already have the seed", and the full pack.
+    - "The scene slips away" in 4 files.
+    - Betty's doorway line.
+    - The broav expert's "all trained" and the fungus bait line.
+    - The druid skeleton searched again (`wgs_druids.rs2`, `wgs_temple.rs2` x2).
+    - The orb's two refusals and "You can't climb that" (`wgs_lucien.rs2`).
+    - 5 searches in Movario's base with nothing found.
+    - `wgs_movario.rs2`: the statue's "Remove the weights from the statue." row and its handler. Index 1682 [1704]
+      shows only "Add a weight to the statue.|Leave it."
+    - Surok's "no teleorb".
+    - Ivy's post-quest line.
+  - What replaces them:
+    - A refusal now gets the engine default (`~displaymessage(^dm_default)`).
+    - A full pack gets the game's generic "You don't have enough inventory space." (1,990 hits across the recordings).
+    - An unrecorded reply is an `UNBUILT` comment.
+  - **Kept, with the reason marked in the source:**
+    - Generic game lines seen in other recordings: "You search the chest but find nothing." (index 3214), "You need a
+      spade to do that." (index 391/1828), "You shut the drawers." (index 3229), "The door is locked.", and the
+      hammer-and-chisel line (wiki `Transcript:Camphor crate`).
+    - 10 lines templated on a recorded sibling (`// templated on the recorded sibling line`):
+      - the catacombs' "However, you don't have enough room to take ..." for armour, key and runes;
+      - the 2 kg and 5 kg weight take and place lines, from the recorded 1 kg ones;
+      - the notes' and the weight's "You don't have enough room to take ...";
+      - Silif's "still working on" third variant.
+    - The content tree's shared conventions: the 18 requirement mesboxes (as in `quest_ethicallyacquiredantiquities`
+      and `dt2_bmp`), Betty's "nothing to trade" (`betty.rs2`), and the sickle's prayer line (`quest_druidspirit.rs2`).
+    - The pressure gauge's reading text. The wiki says the gauge displays a number; the words are ours (named gap).
+- **The test.**
+  - It clicked the dead bookcases 1, 4, 6 and 7 only to read an invented line, which pinned a silent-path message.
+    Removed. The recorder never pressed a dead bookcase.
+  - `solveElectricityPuzzle` (the guide's parent step) is now a real row: varbit 10797 = 1 after the sixth pull.
+  - Both GUIDE-GAP citations pointed one line off and are corrected: `wgs_betty.rs2:105`, `wgs_vision.rs2:127`.
+- **Cheats.**
+  - The setup gives the prerequisites only. There are 12 mid-run kit-gives, all marked `lint: kit-give`: food,
+    prayer and restore doses, the knights' staff, Surok's and the elemental's kits, the games necklace, the lit
+    lantern.
+  - One aid remains, `::wgs_assassins_pray`, which swaps the prayer for the dagger strike.
+  - The open list's elemental and demon aids are stale. The test no longer calls `::wgs_elemental_pray`,
+    `::wgs_elemental_hurt`, `::wgs_demons_pray` or `::wgs_demons_kill`. Both finale fights are fought from what the
+    client is sent; the debugprocs stay in content, unused.
+  - **I tried to replace the assassins' aid and could not.** The glowing arrow lands on T+4 and must meet Protect
+    from Missiles; the dagger strikes on T+5 and must meet Protect from Melee. That is a one-tick window. A bot loop
+    pressed Melee on the tick it saw as smoke-seq (11278) + 3. Of 5 cries it landed early 2 times (the arrow hit for
+    35 and 36) and late 3 times (the strikes hit for 25+14, 21+1, 5+16), and the character died
+    (`build/wgs_private/closer/runs/asn1.*`). The aid stays; the reason and this evidence are in the test comment.
+- **Audit tables.**
+  - `wgs_combat_AUDIT.tsv` has 247 rows across 7 encounters, and every row has a verdict: 141 fixed, 28 matched, 42
+    open, 9 unverified, 3 kit, the rest qualified.
+  - All seven `Combat: <key>` sections are present (assassins, mcgrubors, catacombs, surok, balance, demons,
+    residual). Each one states 0 unexplained splats, or names the reason a splat is not attributed.
+  - The non-combat table is the one below.
+
+**3. Gates (final run c3, private pack, shared binary `src/torirs_questtest`):**
+- Full run `build/wgs_private/closer/full.sh full_c3`: `SUMMARY 834 PASS 6509 exit=0 pass=834 fail=0`.
+  - The ledger and tick log are `build/wgs_private/closer/runs/full_c3.*`.
+  - The two earlier runs: c1 was 832/834, failing on the two dead-bookcase rows; c2 was 830/830.
+- `python3 tools/quest_gate/gate.py whileguthixsleeps`:
+  ```
+whileguthixsleeps        green
+
+gate: 1 quest(s) green
+  ```
+- `python3 tools/quest_gate/lint_quest.py test/quests/whileguthixsleeps.lua`: `lint_quest: 12 marked mid-run ::give(s) in 1 file(s)` / `lint_quest: clean (1 file(s))`
+- `python3 tools/quest_gate/helper_coverage.py whileguthixsleeps`:
+  `VERDICT CONTENT_GAP  (197 steps: ALTERNATIVE=4 BRING_ALONG=2 CONTENT_GAP=2 DRIVEN=186 EQUIVALENT=2 TRAVEL=1)`.
+  - The two declared gaps: `useLensOnCounter` (GUIDE-GAP, `wgs_betty.rs2:105`) and `talkToMovarioAtStone`
+    (GUIDE-GAP, `wgs_vision.rs2:127`).
+- `make -C src check-pt-switch`: `check-pt-switch: PASS (no switch inside a protothread)`.
+
+#### Wire audit, non-combat sections: per-section table (run c3 against index 1682 / 1680)
+
+**How to read the table.**
+- Counts come from `build/wgs_private/wire/tables.py` (stage-anchored). Each stage segment N->M is counted once, in
+  the section where it starts.
+- Each count is recorded / ours / matched, by event kind:
+  - `music`, `jingle`: midi songs and jingles
+  - `synth`, `area`: sounds
+  - `pseq`, `pspot`: player seqs and spotanims
+  - `nseq`, `nspot`, `nsay`, `ntrans`, `nhead`: npc seqs, spotanims, says, transforms and headicons
+  - `mspot`: map spotanims
+  - `proj`: projectiles
+  - `loc`, `locdel`, `locanim`: loc adds, deletes and animations
+  - `n_add`: npc adds
+  - `objadd`: ground objects
+- Verdict:
+  - "matched": every kind is equal.
+  - "open": the named kinds differ.
+  - "not anchored": no stage write starts in the window.
+- Kinds that mix in noise, and so overcount a difference:
+  - The recorder's own walking, eating and teleport seqs, and other players' and world npcs' sounds and projectiles.
+  - `music`: the region envelope, which is engine-generic (E2).
+  - `n_add`: our tick log writes no add row for static map spawns.
+  - `objadd`: our kills' drops.
+- Before this table the fixes were made per interaction (the progress log above). No row was re-diffed tick by tick
+  in this pass, so "open" means a residual that has not been examined, not a known bug.
+
+| # | section | stage segments | rec/ours/matched (by kind) | verdict |
+|---|---|---|---|---|
+| 1 | 01_prelude_before_quest (idx 1682 [0..732]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 2 | 02_ivy_sophista_start (idx 1682 [733..836]) | 2->3 | music 4/4/3; jingle 1/1/1; synth 102/187/47; area 100/154/94; pseq 35/72/2; pspot 3/0/0; nseq 117/224/112; nspot 88/131/75; mspot 6/12/6; proj 57/95/57; n_add 6/2/2; nsay 10/13/6; ntrans 1/1/1 | open: short synth, pseq, pspot, nseq, nspot, nsay; extra synth, pseq, nseq, nspot, mspot, proj, nsay |
+| 3 | 03_thaerisk_intro (idx 1682 [836..848]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 4 | 04_taverley_assassins (idx 1682 [848..977]) | 3->4 | music 1/1/1; ntrans 1/1/1 | matched |
+| 5 | 05_thaerisk_briefing (idx 1682 [977..1070]) | 4->5 | music 11/1/0; jingle 1/0/0; area 1/0/0; pseq 1/0/0; mspot 1/0/0; loc 2/2/0; locdel 1/0/0; n_add 2/2/2 | open: short pseq, mspot, loc, locdel; extra loc |
+| 6 | 06_khazard_launderer (idx 1682 [1070..1197]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 7 | 07_hunting_expert_broav (idx 1682 [1197..1352]) | 5->6, 6->7 | music 5/1/1; jingle 1/0/0; synth 7/6/6; area 43/0/0; pseq 5/4/4; nseq 1/1/1; proj 7/0/0; locdel 8/0/0; n_add 3/2/2 | open: short synth, pseq, proj, locdel; extra - |
+| 8 | 08_broav_tracks_to_table (idx 1682 [1352..1416]) | 7->8, 8->9, 9->10, 10->11 | music 1/1/1; synth 17/9/6; area 29/2/2; pseq 8/4/1; nseq 7/3/3; proj 4/0/0; loc 3/1/1; locdel 1/1/1; n_add 9/4/4; nsay 2/2/2 | open: short synth, pseq, nseq, proj, loc; extra synth, pseq |
+| 9 | 09_movario_base_door_and_bookcases (idx 1682 [1416..1560]) | 10->11, 11->12, 12->13, 13->14, 14->15 | music 1/1/1; synth 38/25/22; pseq 17/12/9; nseq 7/3/3; loc 12/4/3; locdel 4/4/4; locanim 20/8/8; n_add 9/4/4 | open: short synth, pseq, nseq, loc, locanim; extra synth, pseq, loc |
+| 10 | 10_movario_base_study (idx 1682 [1560..1690]) | 15->16, 16->17, 17->18, 18->19, 19->20, 20->21, 21->22 | music 11/4/1; jingle 1/0/0; synth 36/60/30; pseq 37/50/33; pspot 21/21/21; nseq 4/16/1; mspot 2/2/2; proj 2/2/2; loc 15/8/8; locdel 7/3/3; locanim 4/4/4; n_add 9/1/1 | open: short synth, pseq, nseq, loc, locdel; extra synth, pseq, nseq |
+| 11 | 11_movario_base_pressure_room (idx 1682 [1690..1866]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 12 | 12_thaerisk_notes_report (idx 1682 [1866..1889]) | 22->23, 23->24 | music 2/1/1; synth 3/0/0; pseq 2/0/0; pspot 1/0/0; n_add 3/3/3 | open: short synth, pseq, pspot; extra - |
+| 13 | 13_to_mcgrubors_wood (idx 1682 [1889..2015]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 14 | 14_mcgrubors_cutscene_and_mercenaries (idx 1682 [2015..2109]) | 24->25, 25->26 | music 2/2/2; synth 61/108/26; area 156/246/156; pseq 20/55/0; pspot 2/0/0; nseq 151/256/144; nspot 53/90/45; proj 25/45/25; loc 3/4/3; locdel 0/1/0; n_add 6/6/6; nsay 1/1/1; ntrans 1/1/1 | open: short synth, pseq, pspot, nseq, nspot; extra synth, pseq, nseq, nspot, proj, loc, locdel |
+| 15 | 15_idria_at_mcgrubors (idx 1682 [2109..2165]) | 26->27 | music 9/3/1; jingle 1/0/0; synth 2/0/0; area 1/0/0; loc 3/3/3; locdel 3/3/3; n_add 4/3/0 | open: short synth; extra - |
+| 16 | 16_falador_council_and_teleorb (idx 1682 [2165..2258]) | 27->28, 28->30, 30->31 | music 4/2/1; synth 3/3/3; pseq 2/2/2; pspot 1/1/1; nseq 1/1/1; nspot 1/1/1; loc 3/1/0; locdel 3/0/0; n_add 1/0/0 | open: short loc, locdel; extra loc |
+| 17 | 17_draynor_teleorb_plant (idx 1682 [2258..2333]) | 31->32 | music 7/1/0; jingle 1/0/0; pseq 1/1/1; loc 3/3/3; locdel 3/3/3; n_add 4/0/0 | matched on the quest's own kinds; ambient/engine kinds differ (jingle, music, n_add) |
+| 18 | 18_spy_cutscene_juice (idx 1682 [2333..2395]) | 32->33, 33->34, 34->35 | music 4/2/1; synth 8/7/7; area 6/0/0; nseq 2/2/2; nspot 1/1/1; mspot 3/0/0; loc 14/9/8; locdel 6/0/0; n_add 9/11/8; ntrans 1/1/1 | open: short synth, mspot, loc, locdel; extra loc |
+| 19 | 19_spy_aftermath_argument_and_seed (idx 1682 [2395..2750]) | 35->36 | music 2/1/1; synth 2/2/2; area 6/0/0; pseq 1/1/1; pspot 1/1/1; nseq 1/1/1; nspot 1/1/1; proj 5/0/0 | open: short proj; extra - |
+| 20 | 20_betty_enriched_snapdragon (idx 1682 [2750..2842]) | 36->37, 37->38, 38->39 | music 17/1/1; jingle 2/0/0; synth 18/12/12; area 16/0/0; pseq 3/2/2; pspot 1/1/1; mspot 3/0/0; proj 20/8/8; loc 24/4/3; locdel 8/4/4; locanim 0/1/0; n_add 7/0/0 | open: short synth, pseq, mspot, proj, loc, locdel; extra loc, locanim |
+| 21 | 21_falador_tower_plant_seed (idx 1682 [2842..3146]) | 39->40 | area 1/0/0; loc 6/1/1; locdel 6/1/1; n_add 5/0/0 | open: short loc, locdel; extra - |
+| 22 | 22_idria_recruit_directive (idx 1682 [3146..3165]) | 40->41 | music 13/2/0; jingle 1/0/0; synth 6/4/4; area 1/0/0; pseq 6/4/4; pspot 5/4/4; loc 0/10/0 | open: short synth, pseq, pspot; extra loc |
+| 23 | 23_recruit_slayer_masters (idx 1682 [3165..3347]) | 41->42 | music 7/1/0; jingle 1/0/0; synth 1/1/1; area 1/0/0; pseq 1/1/1; loc 0/6/0; locdel 0/6/0; n_add 1/0/0 | open: short -; extra loc, locdel |
+| 24 | 24_wait_and_harvest_snapdragon (idx 1682 [3347..3461]) | 42->43 | synth 1/1/1; area 1/0/0; pseq 1/1/1; loc 6/4/1; locdel 6/4/4; n_add 9/0/0 | open: short loc, locdel; extra loc |
+| 25 | 25_truth_serum_and_spy_questioning (idx 1682 [3461..3530]) | 43->44, 44->410, 410->420, 420->430 | synth 7/7/6; pseq 1/1/1; loc 7/5/5; locdel 2/4/2 | open: short synth, loc; extra synth, locdel |
+| 26 | 26_sketch_to_idria (idx 1682 [3530..3590]) | 430->440, 440->450 | music 11/2/1; jingle 1/0/0; synth 4/2/2; area 19/0/0; pseq 1/1/1; proj 4/0/0; loc 33/6/4; locdel 5/6/5; locanim 14/0/0 | open: short synth, proj, loc, locanim; extra loc, locdel |
+| 27 | 27_warriors_guild_recruits (idx 1682 [3590..3690]) | 450->460 | music 15/4/2; jingle 2/0/0; synth 18/13/13; area 2/0/0; pseq 2/1/1; nseq 3/3/3; proj 2/0/0; loc 15/15/14; locdel 3/4/3; n_add 13/3/3 | open: short synth, pseq, proj, loc; extra loc, locdel |
+| 28 | 28_return_to_castle_gap (idx 1682 [3690..3820]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 29 | 29_hazelmere_cutscene (idx 1682 [3820..3910]) | 460->465 | music 1/1/0; loc 4/0/0; locdel 3/0/0; n_add 11/8/6 | open: short loc, locdel; extra - |
+| 30 | 30_akrisae_bkf_directive (idx 1682 [3910..3932]) | 465->470 | music 5/3/3; synth 4/4/4; area 1/0/0; pseq 2/2/2; pspot 1/1/1; nseq 1/1/1; nspot 1/1/1; loc 6/4/4; locdel 2/4/2 | open: short loc; extra locdel |
+| 31 | 31_bkf_entry_and_orb_tile (idx 1682 [3932..3997]) | 470->480, 480->490, 490->500 | music 4/2/2; synth 188/241/112; pseq 53/108/5; pspot 18/32/7; nseq 78/101/74; nspot 60/75/59; proj 60/75/60; loc 0/6/0; locdel 0/5/0; n_add 95/0/0; nsay 8/20/8; objadd 0/11/0 | open: short synth, pseq, pspot, nseq, nspot; extra synth, pseq, pspot, nseq, nspot, proj, loc, locdel, nsay |
+| 32 | 32_catacombs_bridge_and_elite_knights (idx 1682 [3997..4478]) | 490->500, 500->510 | music 6/6/3; synth 564/956/318; area 27/66/27; pseq 199/457/34; pspot 50/97/7; nseq 250/520/211; nspot 93/141/59; proj 90/141/60; loc 2/9/2; locdel 0/6/0; n_add 108/0/0; nsay 28/31/19; nhead 20/14/11; objadd 0/21/0 | open: short synth, pseq, pspot, nseq, nspot, proj, nsay, nhead; extra synth, pseq, pspot, nseq, nspot, proj, loc, locdel, nsay, nhead |
+| 33 | 33_dark_squall_inner_base_search (idx 1682 [4478..4655]) | 510->520, 520->530, 530->540 | synth 14/7/6; pseq 2/1/0; nseq 2/1/1; loc 6/2/2; locdel 2/2/1; n_add 16/0/0 | open: short synth, pseq, nseq, loc, locdel; extra synth, pseq, locdel |
+| 34 | 34_silif_rescue_and_escort (idx 1682 [4655..4766]) | 540->550, 550->570, 570->580, 580->590, 590->595 | music 0/2/0; synth 7/14/2; area 3/0/0; pseq 3/1/1; nseq 5/3/3; nspot 1/1/1; loc 6/4/2; locdel 2/2/2; n_add 27/5/5; ntrans 1/1/1; objadd 0/11/0 | open: short synth, pseq, nseq, loc; extra synth, loc |
+| 35 | 35_surok_reveal_cutscene_and_aborted_attempt (idx 1682 [4766..4803]) | 595->597 | music 23/3/2; jingle 2/0/0; synth 323/238/195; area 94/13/13; pseq 115/115/63; pspot 122/117/84; nseq 77/79/71; nspot 123/129/84; mspot 136/2/2; proj 121/115/112; loc 17/2/2; locdel 8/0/0; n_add 43/10/7; nsay 28/29/22; ntrans 1/1/1; nhead 7/6/4; objadd 0/3/0 | open: short synth, pseq, pspot, nseq, nspot, mspot, proj, loc, locdel, nsay, nhead; extra synth, pseq, pspot, nseq, nspot, proj, nsay, nhead |
+| 36 | 36_between_surok_attempts (idx 1682 [4803..5693]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 37 | 37_catacombs_second_run (idx 1682 [5693..5757]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 38 | 38_surok_fight (idx 1682 [5757..6156]) | 597->600 | music 1/1/1; pseq 1/0/0; ntrans 1/1/1 | open: short pseq; extra - |
+| 39 | 39_surok_orb_plant (idx 1682 [6156..6177]) | 597->600, 600->610 | music 8/2/2; jingle 1/0/0; synth 3/0/0; area 19/0/0; pseq 1/1/0; proj 2/0/0; loc 4/3/3; locdel 3/3/3; locanim 18/0/0; n_add 4/0/0; ntrans 1/1/1 | open: short synth, pseq, proj, loc, locanim; extra pseq |
+| 40 | 40_akrisae_plan_and_teleorb (idx 1682 [6177..6262]) | 610->620, 620->630, 630->640 | music 1/1/1; synth 7/6/6; area 2/0/0; pseq 2/2/1; pspot 0/1/0; nseq 0/1/0; nspot 0/1/0; mspot 2/0/0; loc 3/2/2; locdel 1/2/1; n_add 17/0/0 | open: short synth, pseq, mspot, loc; extra pseq, pspot, nseq, nspot, locdel |
+| 41 | 41_lucien_camp_cutscene (idx 1682 [6262..6545]) | 640->660, 660->670, 670->680 | music 11/6/4; jingle 1/0/0; synth 35/36/34; area 211/183/183; pseq 4/4/2; nseq 231/231/231; nspot 40/40/40; mspot 12/12/12; proj 24/24/24; loc 3/9/3; locdel 3/9/3; n_add 60/45/45; ntrans 8/8/8 | open: short synth, pseq; extra synth, pseq, loc, locdel |
+| 42 | 42_falador_debrief_lumbridge_swamp (idx 1682 [6545..6613]) | 680->690, 690->700 | music 12/1/1; jingle 2/0/0; synth 1/0/0; area 3/1/1; pseq 1/0/0; loc 31/0/0; n_add 19/1/1 | open: short synth, pseq, loc; extra - |
+| 43 | 43_movario_at_chasm (idx 1682 [6613..6880]) | 700->710, 710->740 | music 13/2/1; jingle 2/0/0; synth 4/2/2; area 2/0/0; pseq 3/2/2; pspot 1/1/1; nseq 1/2/1; nspot 0/1/0; proj 1/1/1; loc 22/0/0; n_add 24/0/0; ntrans 2/3/2 | open: short synth, pseq, loc; extra nseq, nspot, ntrans |
+| 44 | 44_chasm_skeletons_and_orbs (idx 1682 [6880..7090]) | 740->760 | music 0/1/0; synth 28/32/26; pseq 36/38/35; loc 23/18/12; locdel 0/6/0; locanim 2/2/2; n_add 13/0/0; objadd 0/6/0 | open: short synth, pseq, loc; extra synth, pseq, loc, locdel |
+| 45 | 45_chasm_skull_blocks (idx 1682 [7090..7300]) | 760->770, 770->780 | music 1/7/1; synth 89/96/82; pseq 54/53/53; pspot 26/25/25; nseq 8/8/8; nspot 8/8/8; mspot 64/56/56; proj 8/8/8; loc 48/30/30; locdel 8/0/0; locanim 8/8/8; n_add 35/0/0; objadd 0/32/0 | open: short synth, pseq, pspot, mspot, loc, locdel; extra synth |
+| 46 | 46_chasm_druid_statues (idx 1682 [7300..8376]) | 770->780 | music 1/4/1; synth 88/81/81; pseq 53/52/52; pspot 26/25/25; nseq 8/8/8; nspot 8/8/8; mspot 64/56/56; proj 8/8/8; loc 45/30/30; locdel 8/0/0; locanim 8/8/8; n_add 35/0/0; objadd 0/18/0 | open: short synth, pseq, pspot, mspot, loc, locdel; extra - |
+| 47 | 47_giant_door_opens (idx 1682 [8376..8460]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 48 | 48_session_end (idx 1682 [8460..8610]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 49 | 49_login_stage_780 (idx 1680 [0..262]) | 780->800 | music 28/0/0; jingle 4/0/0; synth 8/6/0; area 9/0/0; pseq 8/0/0; pspot 1/0/0; nseq 3/0/0; nspot 1/0/0; loc 85/18/2; locanim 0/8/0; n_add 85/0/0; ntrans 2/0/0; objadd 0/6/0 | open: short synth, pseq, pspot, nseq, nspot, loc, ntrans; extra synth, loc, locanim |
+| 50 | 50_chasm_entry_1 (idx 1680 [262..427]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 51 | 51_temple_walk_1 (idx 1680 [427..595]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 52 | 52_balance_elemental_intro_dialogue (idx 1680 [595..606]) | 800->840 | music 16/3/2; jingle 2/0/0; synth 620/323/177; area 70/45/45; pseq 222/135/69; pspot 244/123/28; nseq 151/88/80; nspot 146/89/43; mspot 1/0/0; proj 233/123/78; loc 46/0/0; n_add 104/1/1; ntrans 3/1/1; nhead 22/16/12 | open: short synth, pseq, pspot, nseq, nspot, mspot, proj, loc, ntrans, nhead; extra synth, pseq, pspot, nseq, nspot, proj, nhead |
+| 53 | 53_balance_elemental_fight_1 (idx 1680 [606..1122]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 54 | 54_regroup_after_fight_1 (idx 1680 [1122..1240]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 55 | 55_chasm_entry_2 (idx 1680 [1240..1365]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 56 | 56_balance_elemental_fight_2 (idx 1680 [1365..1761]) | 840->860 | music 0/3/0; synth 0/4/0; pseq 1/3/1; nseq 2/1/1; loc 5/1/1; n_add 5/0/0; objadd 0/2/0 | open: short nseq, loc; extra synth, pseq |
+| 57 | 57_stone_vision_cutscene (idx 1680 [1761..1807]) | 840->860, 860->870 | music 1/4/1; synth 0/4/0; pseq 1/3/1; pspot 6/7/6; nseq 2/1/1; loc 11/1/1; n_add 34/2/2; objadd 0/2/0 | open: short nseq, loc; extra synth, pseq, pspot |
+| 58 | 58_movario_and_lucien_at_stone (idx 1680 [1807..1845]) | 870->880, 880->890 | music 4/1/1; synth 206/141/98; area 152/88/66; pseq 81/65/41; pspot 161/121/97; nseq 522/294/292; nspot 399/250/193; mspot 28/12/12; proj 322/195/172; loc 7/2/2; locdel 0/1/0; n_add 13/10/10; nsay 1/1/0; ntrans 1/0/0; nhead 10/12/5 | open: short synth, pseq, pspot, nseq, nspot, mspot, proj, loc, nsay, ntrans, nhead; extra synth, pseq, pspot, nseq, nspot, proj, locdel, nsay, nhead |
+| 59 | 59_tormented_demons_fight (idx 1680 [1845..2124]) | 880->890, 890->900 | music 9/7/5; synth 214/149/106; area 152/88/66; pseq 82/66/42; pspot 159/119/95; nseq 526/298/296; nspot 399/250/193; mspot 28/12/12; proj 322/195/172; loc 13/2/2; locdel 0/1/0; n_add 29/29/23; nsay 2/2/0; ntrans 4/3/3; nhead 10/12/5 | open: short synth, pseq, pspot, nseq, nspot, mspot, proj, loc, nsay, ntrans, nhead; extra synth, pseq, pspot, nseq, nspot, proj, locdel, nsay, nhead |
+| 60 | 60_idria_after_demons (idx 1680 [2124..2141]) | 890->900 | music 6/7/5; synth 9/9/9; pseq 1/1/1; pspot 5/4/4; nseq 5/5/5; nspot 1/1/1; loc 6/0/0; n_add 17/20/14; nsay 1/1/0; ntrans 3/3/3 | open: short pspot, loc, nsay; extra nsay |
+| 61 | 61_falador_ending_dialogue (idx 1680 [2141..2284]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 62 | 62_dragonkin_cutscene_and_completion (idx 1680 [2284..2316]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+| 63 | 63_post_quest (idx 1680 [2316..2490]) | none start here | - | not anchored: no stage write starts in this window; its events are counted in the segment that covers it |
+
+
+### Final write-up (2026-10-24)
+
+**Verified from a recording (index 1682 = rsprox.net 1698, stages 0..780; index 1680 = rsprox.net 1696, 780..900;
+index 481 for the post-quest talks):**
+- The whole stage ladder: about 70 values, every write tick from the wire.
+- Every dialogue page the recorder saw, verbatim, with `<displayname>` for his name.
+- The cutscenes' casts, cameras, walks and music envelopes, drafted by `rsprox_cutscene.py` from the recorded windows
+  and fixed against them per scene.
+- Movario's base puzzles in recorded order: the rune door, the wire bookcases, the stairs trap, the ruby key, the bed
+  chest, the weights.
+- The temple's braziers, orbs, skull keys and druid statues. The statue seeds are this character's
+  (8, 2, 3, 4, 1, 11, 7, 13).
+- The seven fights, each audited per encounter (`Combat:` sections).
+- The music unlocks (9 of 9), the 255 stats at [1808] and their restore at [2141], the four XP rewards and 5 QP.
+- The post-quest talks.
+
+**Unverified (no recording; sources in brackets):**
+- The journal [wiki journal transcript].
+- The start refusals [content convention].
+- Every branch the recorder did not take:
+  - the dead bookcases;
+  - a live electric gate's blow;
+  - a wrong rune at the door;
+  - the other four door runes;
+  - other statue keywords;
+  - a full pack anywhere;
+  - a second snapdragon seed;
+  - the guild's other menu rows;
+  - death in either finale fight.
+- The messenger's spawn trigger.
+- The pressure gauge's reading text.
+- Surok's surges as homing npcs; his blast projectile heights (43/31 copied undivided).
+- The Balance Elemental's air-form melee and its chase steps.
+
+**Open gaps, by name:**
+1. **The assassins' prayer aid.** `::wgs_assassins_pray` stays: the T+5 swap is a one-tick window that the bot
+   misses about 1 time in 2 (measured above).
+2. **Non-combat wire residuals.** 43 sections read "open" in the table above. None was re-diffed tick by tick in
+   this pass.
+3. **World-global temple state.** The temple puzzle locs and statues are the world's, so a second player sees the
+   first player's state. Movario's base, the Dark Squall's base and the camp are also the world's.
+4. **The two GUIDE-GAPs.** `useLensOnCounter`: the driver's use_on leaves the doorway tile. `talkToMovarioAtStone`:
+   there is no Talk-to; it is inside the vision scene.
+5. **The messenger never spawns.** His spawn trigger is unrecorded.
+6. **Unbuilt replies.**
+   - Rows the recorder did not choose have no source; they are `UNBUILT` comments: the guild's other rows, Thaerisk's
+     second seed, the broav expert after training, Ivy after the quest.
+   - The 99 Strength door refuses with the engine default.
+7. **The pressure gauge's text** is ours. The wiki says only that the gauge "displays a number".
+8. **Engine-generic, not this quest's files:**
+   - region music envelope 0/30/0/30 against the recorded 0/60/60/0 (193/193);
+   - `door_open` synth missing on shared doors (62/71);
+   - no spawn-angle column in `.spawn` files;
+   - a melee npc swings a tick after arriving in reach (`build/wgs_private/mcgrubor/arrival_swing.patch` is not
+     applied);
+   - `enabled_ops 0` goes out on the killing blow, a tick early;
+   - one headbar entry per tick where Jagex sends two;
+   - npc info has no "customised, empty" state;
+   - the first update of a map or copy spawn carries no face_coord;
+   - no tick-log row for a respawn;
+   - no command for `midi_song_withsecondary` (the elemental's 796/791 and the dragonkin's 794/793 play only the
+     settling track);
+   - `cam_moveto_arc` / `cam_rotateby` are approximated;
+   - no per-slot body-model command (assassin_2's bow/dagger `[body_customisation]`).
+9. **Shared content, not changed:**
+   - `~music_unlock`'s colour (`ff3045` against the recorded `e00a19`);
+   - `poison.rs2:214` lists the trident of the seas as a venom weapon;
+   - a splash on an npc shows a 0 splat;
+   - the shared `chat_layout` does not repeat `<col>` per wrapped row (worked around for Hazelmere).
+10. **Combat, fitted rather than measured:**
+    - the elites' accuracy and damage;
+    - the knights' prayer switching against the recorded 46/46;
+    - the quest Tormented Demons' shield, bind and debuff tables against `boss_tormented_demons`;
+    - the guardians' roughly 300 walk steps;
+    - our damage taken in the demon fight, about 2 hp a tick against about 1 recorded;
+    - the elemental's normal-swing accuracy and max (2 landed of 72);
+    - the "You feel weakened..." timing;
+    - the knights' drop table beyond bones (1682 [4313]: 10 noted sapphire necklaces);
+    - a venom kill leaves the elite's prayer icon up through its death.
+11. **Not reproduced from the recording:**
+    - the druid spirits wander in the recording (~35) but ours are 8 that stand still;
+    - the post-780 re-entry route (chasm ride, climbs, skull crawl) is not walked by the test;
+    - the vision's 3-tile glides and teleport staging;
+    - varbit 10809 `movario_vis` at [998];
+    - varbit 10807 `idria_temple` unused;
+    - the broav walks 8 of 10 steps and arrives 2 ticks late;
+    - the camp skeletons' and mages' wander rate;
+    - Silif's cell-shell facing churn;
+    - the BKF walk-through doors send no loc or sound changes (`quest_blackknight`, rec [3951..3961]);
+    - the recruit varbit lands 2 ticks from the stage write;
+    - camera lines are not in the tick log.
+12. **Combat leftovers.** Everything in the six encounter sections' "Open (named)"
+    lists stands as written there.
+
+**Files (this pass).**
+- In the owner's 19:17 commit:
+  - `quest_whileguthixsleeps/scripts/`: `wgs_journal.rs2` (regenerated), `wgs_warguild.rs2`, `wgs_messenger.rs2`,
+    `wgs_postquest.rs2`, `wgs_recruit.rs2`, `wgs_spy.rs2`, `wgs_betty.rs2`, `wgs_broav.rs2`, `wgs_druids.rs2`,
+    `wgs_temple.rs2`, `wgs_lucien.rs2`, `wgs_movario.rs2`, `wgs_surok.rs2`, `wgs_taverley.rs2`, `wgs_hazelmere.rs2`,
+    `wgs_mcgrubor.rs2`, `wgs_catacombs.rs2`, `wgs_silif.rs2`, `wgs_quest.rs2` (comments).
+- Uncommitted after it: `wgs_lucien.rs2` and `wgs_ending.rs2` (the two unlocks), `test/quests/whileguthixsleeps.lua`,
+  and this notebook.
+- Shared files touched: none.
+- Scratch: `build/wgs_private/closer/`.

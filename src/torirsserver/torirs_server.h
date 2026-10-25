@@ -4539,6 +4539,10 @@ struct ToriRSServerPlayer
     /** Two ticks after a track ran out: the same row again from the top. */
     int music_replay_tick;
     int music_replay_row;
+    /** A jingle's end (`ToriRSServer_MusicJingleStarted`): the tick the area's
+     *  track comes back, cut, and its row; -1 with no jingle running. */
+    int music_jingle_end_tick;
+    int music_jingle_row;
     /** Content's own `%varb12393_busy` write, held: `busy` on the wire is this
      *  OR delayed OR a modal open (ToriRSServer_BusyUpdate). */
     int busy_hold;
@@ -7719,6 +7723,12 @@ ToriRSServer_WorldStunInterrupt(struct ToriRSServerPlayer* player);
  *  moved. */
 void
 ToriRSServer_WorldPlayerLevelChanged(struct ToriRSServerPlayer* player);
+
+/** A script moved the active player (`p_teleport` / `p_telejump`): their scene
+ *  window follows on the spot, as `ToriRSServer_WorldTeleport`'s does, so the
+ *  rest of the script and this tick's zone sends see the place they are in. */
+void
+ToriRSServer_WorldPlayerMoved(struct ToriRSServer* srv);
 
 /** Queue a route to an absolute destination (ground click). Clears any prior
  *  waypoints and fills from a collision-aware BFS. */

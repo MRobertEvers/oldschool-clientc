@@ -14906,7 +14906,11 @@ return {
             if type(t.msg) ~= "table" or not t.msg.last then return missing("msg", "last") end
             if type(t.ticklog) ~= "table" or not t.ticklog.rows then return missing("ticklog", "rows") end
             local BIT = 1 << 8
-            local LINE = "unlocked a new music track: Welcome to the Theatre"
+            -- The track name rides behind the chatbox's @mes_hl_red@ tag, as every
+            -- rev 241 recording sends it (RSProx index 4336, 4367); the client
+            -- may show the line raw or translated, so the tag is optional here.
+            local LINE = "unlocked a new music track: "
+            local TRACK = "Welcome to the Theatre"
             -- Lumbridge first, so the lobby is a crossing whatever came before.
             local g1 = goto_tile(3222, 3218, 0)
             settle(2)
@@ -14930,7 +14934,8 @@ return {
             local _, lines = t.msg.last(20)
             local unlocks = 0
             for _, m in ipairs(lines or {}) do
-                if (m.serial or 0) > msg_since and string.find(m.text or "", LINE, 1, true) then
+                if (m.serial or 0) > msg_since and string.find(m.text or "", LINE, 1, true)
+                    and string.find(m.text or "", TRACK, 1, true) then
                     unlocks = unlocks + 1
                 end
             end

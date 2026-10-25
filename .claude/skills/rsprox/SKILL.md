@@ -34,6 +34,7 @@ spotanim midi synth jingle clientscripts text ambience`.
 Search rules:
 - **Enumerate a content area by `mapsquare`** over all of its squares, not by npc or obj. Content search missed sessions that the square search found (the CoX skilling survey).
 - Search finds only `indexed` sessions. A `queued` or `failed` one is invisible to search but still transcribes, so check `latest` and `stats` before concluding "0 results".
+- **Before concluding that nothing records the content, read `latest 30` for a description naming it.** The owner labels uploads ("Romeo and Juliet", "Plague City"). When the index worker is down, every new upload stays `queued` (`stats`: queued keeps growing; `server.log`: "the RSProx index worker did not start"). Romeo & Juliet's only playthrough, index 4361, sat there while search said no session ever completed the quest (2026-10-24). `get <id>` transcribes it anyway.
 - A result row shows `<index id>  net <rsprox.net id>  rev  world  date  status  activity  description  [matches]`. The **activity** tells you whether a session is seasonal: "Leagues V", "Grid Master:…", or `-` / a place name for a normal world.
 
 ## 2. Transcribe
@@ -75,6 +76,7 @@ Generic tools (all take transcript paths):
 | `tools/rsprox/rsprox_timeline.py <txt> <t0> <t1>`, `rsprox_pages.py`, `rsprox_annotate.py` | quest/dialogue: ops, pages, choices, varbits; names rev-227 ids |
 | `tools/rsprox_frame_check.py <translated> <raw>` | which room cells a translated transcript measures right |
 | `tools/cox/rsprox_room.py` | one CoX room in template tiles (fixes quarter-turn mirroring) |
+| `tools/rsprox/content_asset_inventory.py --names '<regex>'` | every cache symbol named after the content (npcs, locs, objs, seqs, spotanims, varbits, jingles, synths) that our scripts never use, and every multiloc/multinpc switch var we never write. Run it first for ported content (`rsprox-content` §16). |
 
 Per-content parsers are in `tools/rsprox_*.py`, `tools/cox/rsprox_*.py` and `tools/rsprox/`
 (Nylocas/Maiden/Bloat/Sotetseg/Xarpus/Verzik, ToA rooms, Wintertodt, scythe, ancients, TD, ...).

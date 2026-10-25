@@ -152,7 +152,10 @@ return {
                 local _, pv = t.var.varbit("varb4117_prayer_protectfrommissiles")
                 t.check("killAssassins.protectMissiles", pv == 1, "varb4117_prayer_protectfrommissiles=" .. tostring(pv))
                 -- Protect from Melee for the dagger, from the glowing arrow's landing to the strike
-                -- (1682 [889] [912]); the bot cannot time the swap itself.
+                -- (1682 [889] [912]); the bot cannot time the swap itself: the arrow (T+4) reads Missiles
+                -- and the strike (T+5) Melee, a one-tick window. A bot-read try (closer, 2026-10-24: press
+                -- on the tick seen as smoke-seq + 3) landed early 2 times and late 3 times of 5 and the
+                -- character died (build/wgs_private/closer/runs/asn1.*), so the swap stays an aid.
                 t.cheat("::wgs_assassins_pray") -- lint: aid
                 t.exec("killAssassins.attack1", t.player.attack, "wgs_taverley_assassin_1", 2, 30)
                 t.exec("killAssassins.dead1", t.npc.await_dead_engaged, 200, 3, { eat = { item = "shark", below = 50 } })
@@ -321,7 +324,8 @@ return {
                 t.ticks(3)
                 t.exec("quest.stage.wire_puzzle", t.quest.expect_stage, "wire_puzzle")
 
-                -- the bookcases whose wires are dead (nothing happens), then the lit ones in order
+                -- the lit bookcases in order (1682 [1510..1543]); the recorder never pressed a dead one, so the
+                -- dead ones' answer has no source and is not checked (closer, 2026-10-24)
                 local cases = { [1] = { 4181, 4959 }, [2] = { 4174, 4957 }, [3] = { 4172, 4950 }, [4] = { 4169, 4953 },
                                 [5] = { 4169, 4961 }, [6] = { 4175, 4964 }, [7] = { 4187, 4962 } }
                 local function lit()
@@ -331,16 +335,14 @@ return {
                     end
                     return nil
                 end
-                for _, k in ipairs({ 1, 4, 6, 7 }) do
-                    t.exec("searchBookcase" .. k, t.player.click_loc, "luc2_mov_bookcase_wire_puzzle_" .. k, 1)
-                    t.ticks(2)
-                end
                 for press = 1, 6 do
                     local k = lit()
                     t.check("wire.lit" .. press, k ~= nil, "lit section " .. tostring(k))
                     t.exec("searchBookcase" .. tostring(k), t.player.click_loc, "luc2_mov_bookcase_wire_puzzle_" .. k, 1)
                     open_box("searchBookcase" .. tostring(k) .. ".box")
                 end
+                -- solveElectricityPuzzle: the six lit bookcases pulled turn the gate off (1682 [1543])
+                t.exec("solveElectricityPuzzle", t.var.await, "varb10797_wgs_mov_base_electric_gate", 1, 5)
                 t.exec("quest.stage.library_stairs", t.quest.expect_stage, "library_stairs")
                 t.exec("enterElectricDoor", t.player.click_loc, "luc2_mov_electric_rail_gate_multi", 1, { at = { 4181, 4953, 0 } })
                 t.ticks(3)
@@ -735,7 +737,7 @@ return {
                 local _, acell = t.player._inv_cell("handsand_rose_lens")
                 local arm_r, arm_d = t.player._arm_held("handsand_rose_lens", acell)
                 t.check("useLensOnCounter.arm", arm_r == "ok", "arm " .. tostring(arm_r) .. " " .. tostring(arm_d))
-                -- GUIDE-GAP: useLensOnCounter t.player.use_on walks to range 2 of the counter and leaves the doorway tile the content demands (wgs_betty.rs2:104, 1682 [2811]: the beam is focused from 3016,3259); the press is composed from arm + click_minimenu, as handinthesand.lua does
+                -- GUIDE-GAP: useLensOnCounter t.player.use_on walks to range 2 of the counter and leaves the doorway tile the content demands (wgs_betty.rs2:105, 1682 [2811]: the beam is focused from 3016,3259); the press is composed from arm + click_minimenu, as handinthesand.lua does
                 t.exec("useLensOnCounter", function(target)
                     local r, d = t.drive.click_minimenu(target, "select")
                     t.var.await("varb9653_wgs", STAGES.seed_focused, 30)
@@ -2316,7 +2318,7 @@ return {
                     t.expect(name, r, d)
                 end
                 -- touchStone: the Stone, the vision (1680 [1764..1804]), Movario and Darve, Lucien (to [1845])
-                -- GUIDE-GAP: talkToMovarioAtStone Movario and Darve speak inside the vision scene after the touch, with no Talk-to click (1680 [1811..1844]); wgs_vision.rs2:120
+                -- GUIDE-GAP: talkToMovarioAtStone Movario and Darve speak inside the vision scene after the touch, with no Talk-to click (1680 [1811..1844]); wgs_vision.rs2:127
                 t.exec("touchStone", t.player.click_loc, "luc2_stone_of_jas_named", 1)
                 t.expect("touchStone.opens", t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the vision speaks" }, 80))
                 -- the vision, Movario and Darve, Lucien: pages with blank boxes between the scenes

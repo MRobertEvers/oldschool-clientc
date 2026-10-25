@@ -435,8 +435,13 @@ return {
             far_desc = "out in the street, z >= 3273" })
         t.exec("goto-goDownManhole2", t.player.goto_tile, 2529, 3305, 0)
         t.ticks(2)
-        t.exec("goDownManhole2", t.player.click_loc, "plaguemanholeclosed", 1)
-        t.ticks(3)
+        -- The pipe opened the manhole for 500 ticks when the player came up
+        -- through it (sewerpipe.rs2, RSProx index 4360 [816]); a slower run
+        -- finds it shut again and pulls the cover back first.
+        if t.world.loc_near("plaguemanholeclosed", 3) == "ok" then
+            t.exec("goDownManhole2", t.player.click_loc, "plaguemanholeclosed", 1)
+            t.ticks(3)
+        end
         t.exec("goDownManhole", t.player.click_loc, "plaguemanholeopen", 1)
         t.ticks(5)
         t.exec("goDownManhole-text", t.chat.play, { "mesbox:You climb down through the manhole." })

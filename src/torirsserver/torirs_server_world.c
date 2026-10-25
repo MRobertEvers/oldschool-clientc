@@ -7810,6 +7810,28 @@ handle_opnpc(
  * is not a plane change has no business dropping a queued walk.
  */
 void
+ToriRSServer_WorldPlayerMoved(struct ToriRSServer* srv)
+{
+    assert(srv);
+    /*
+     * The window follows the move NOW, not at the end of the tick.
+     *
+     * `p_telejump` into a map-instance copy used to leave the player's window
+     * on the square they left until the tick's own `maybe_rebuild`, which runs
+     * after the scripts. Everything the same script did next in the copy then
+     * went to a window that did not hold it: `loc_find` found none of the
+     * copy's map locs, so a `loc_del` there sent nothing (Plague City's grill
+     * scene), and a `loc_add` was kept but reached the client a tick after the
+     * rebuild (Goblin Diplomacy's door and cave `_noop` locs, F+2 where RSProx
+     * index 4367 [459] sends them with the move). Jagex's copy is the player's
+     * map from the move's own tick. A move that stays inside the margins
+     * rebuilds nothing (maybe_rebuild's skip test), so a short `p_teleport` is
+     * unchanged.
+     */
+    maybe_rebuild(srv);
+}
+
+void
 ToriRSServer_WorldPlayerLevelChanged(struct ToriRSServerPlayer* player)
 {
     player->place_dirty = 1;
@@ -16513,6 +16535,8 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->music_end_row = -1;
     player->music_replay_tick = -1;
     player->music_replay_row = -1;
+    player->music_jingle_end_tick = -1;
+    player->music_jingle_row = -1;
     player->ambient_scape = -1;
     player->ambient_script_map_x = -1;
     player->ambient_script_map_z = -1;
@@ -19594,6 +19618,11 @@ ToriRSServer_MusicPlay(
     assert(song >= 0);
     player->music_track = song;
     player->music_replay_tick = -1;
+    /* Another track over a jingle owns the music: nothing comes back when the
+     * jingle ends (the Colosseum's death: `you_are_dead`, then the lobby's
+     * track the next tick and never the arena's again, 12/12). */
+    if( row >= 0 && row != player->music_jingle_row )
+        player->music_jingle_end_tick = -1;
     if( row >= 0 && varp >= 0 && player->varps[varp] != row )
     {
         ToriRSServer_WorldSetVarpOn(srv, player, varp, row);
@@ -19645,6 +19674,44 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
             ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_no_fades,
                                    TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
     }
+    if( player->music_jingle_end_tick >= 0 && srv->tick >= player->music_jingle_end_tick )
+    {
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRow(player->music_jingle_row);
+        static const int k_cut[4] = { 0, 0, 0, 0 };
+
+        player->music_jingle_end_tick = -1;
+        assert(row);
+        ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_cut,
+                               TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+    }
+}
+
+/*
+ * A jingle has started: when it ends, the track the music tab names comes back
+ * from the top, cut (fades 0/0/0/0), whatever silenced it for the jingle. RSProx
+ * index 4368: Doric's two jingles at [221] (5,869 ms) and [225] (5,908 ms), song
+ * 54 cut at [230] and [235]; the fortress's 35,050 ms jingle at [723], Knightmare
+ * cut at [781]; the completion's 6,325 ms at [861], song 15 cut at [871]. The
+ * delay is the length in whole ticks, rounded down (3 of 4; [225] came a tick
+ * later). One jingle is tracked: a second one before the first ends moves the
+ * comeback to its own end (Doric's [230] is the one this does not send). A tab
+ * naming nothing (varp -1, a script track with no music row) brings nothing back.
+ */
+void
+ToriRSServer_MusicJingleStarted(
+    struct ToriRSServerPlayer* player,
+    int length_ms)
+{
+    struct ToriRSServer* srv = player->world;
+    int const varp = music_current_track_varp();
+
+    assert(srv);
+    assert(length_ms >= 0);
+    player->music_jingle_end_tick = -1;
+    if( varp < 0 || player->varps[varp] < 0 || !ToriRSServer_DbRow(player->varps[varp]) )
+        return;
+    player->music_jingle_row = player->varps[varp];
+    player->music_jingle_end_tick = srv->tick + length_ms / 600;
 }
 
 void
@@ -19695,10 +19762,14 @@ ToriRSServer_MusicEnterRegion(
              */
             player->varps[track->varp] |= mask;
             ToriRSServer_WorldMarkVarp(player, track->varp);
+            /* As every rev 241 recording sends it (RSProx index 4336, 4340,
+             * 4349, 4360, 4363, 4367): the track's name behind the
+             * @mes_hl_red@ tag, which the chatbox's own translations
+             * (translations_colours_setup) colour. */
             snprintf(
                 line,
                 sizeof(line),
-                "<col=ff0000>You have unlocked a new music track: %s",
+                "You have unlocked a new music track: @mes_hl_red@%s",
                 track->name);
             ToriRSServer_SendMessage(player, line);
         }
@@ -19711,12 +19782,14 @@ ToriRSServer_MusicEnterRegion(
         return;
     if( player->music_track != track->song )
     {
-        /* script9628 uses this proven reference profile for musical state
-         * changes: 30 client cycles (600 ms) down and up. The backend has one
-         * synthesizer, so it serializes rather than overlaps the two ramps.
-         * The tab's label is `music_current_track` and clientscript 3932,
-         * which ToriRSServer_MusicPlay sends (rev 237+; no IF_SETTEXT). */
-        static const int k_region_fades[4] = { 0, 30, 0, 30 };
+        /* As Jagex sends a region's track: the old one fades out over 60
+         * cycles, the new one starts after 60 at full gain -- fadeoutdelay 0,
+         * fadeoutspeed 60, fadeindelay 60, fadeinspeed 0 on every region
+         * change in RSProx index 4368 (9 of 9), 4367, 4363, 4336 and 4289;
+         * 0/30/0/30 is in none of them. The tab's label is
+         * `music_current_track` and clientscript 3932, which
+         * ToriRSServer_MusicPlay sends (rev 237+; no IF_SETTEXT). */
+        static const int k_region_fades[4] = { 0, 60, 60, 0 };
 
         ToriRSServer_MusicPlay(player, track->song, k_region_fades,
                                TORIRSSERVER_TICKLOG_MUSIC_REGION);
@@ -19985,6 +20058,17 @@ phase_client_out(struct ToriRSServerPlayer* player)
             ToriRSServer_SendSetActiveWorld(player);
             ToriRSServer_SendPlayerInfo(player);
             ToriRSServer_SendNpcInfo(player);
+            /* The copy's zones go out with it, on the move's own tick: RSProx
+             * index 4367 [459] sends the copy's door and cave locs in the
+             * rebuild's tick, after the player's placement, with no
+             * acknowledgement between (Goblin Diplomacy's fitting; Misthalin
+             * Mystery's and Plague City's copies the same). They are stateful,
+             * which is the half of the comment above that may go ahead of the
+             * acknowledgement; our client runs them behind the rebuild's own
+             * load on its serial queue. Held to the ack they arrived a tick
+             * late. Scripts stay held, so no tick event of the new scene is
+             * made before it is real. */
+            ToriRSServer_ZoneUpdatePlayer(player);
             ToriRSServer_SendTickEnd(player);
             player->rebuild_prefix_tick = srv->tick;
             return;

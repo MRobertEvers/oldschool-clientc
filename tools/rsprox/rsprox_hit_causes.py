@@ -151,7 +151,9 @@ class Fight:
 C = r"\((-?\d+), (-?\d+), \d\)"
 TICK = re.compile(r"^\[(\d+)\]")
 PL = re.compile(r"^        \[(\w+)\] player=\(index=\d+, name=([^,]+), coord=" + C + r"\)(?:, newcoord=" + C + ")?")
-NP = re.compile(r"^        \[(\w+)\] npc=\(index=(\d+), id=(?:\S+ )?\(?(\d+)\)?, coord=" + C + r"\)(?:, newcoord=" + C + ")?")
+# `multinpc=<form> (<id>), ` follows the base id on a multinpc (the Draynor
+# Manor trees, 2026-10-24); without it every multinpc was invisible here.
+NP = re.compile(r"^        \[(\w+)\] npc=\(index=(\d+), id=(?:\S+ )?\(?(\d+)\)?, (?:multinpc=\S+ \(-?\d+\), )?coord=" + C + r"\)(?:, newcoord=" + C + ")?")
 ID = r"id=(?:\S+ \()?(-?\d+)\)?"
 
 
