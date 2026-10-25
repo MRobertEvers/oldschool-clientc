@@ -22,6 +22,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -33,6 +34,16 @@
 typedef struct MsgRebuildWorldEntityV4 {
 	int32_t base_x;
 	int32_t base_z;
+	int32_t distinct_mapsquare_count;
+	/** Level-major, then x, then z; -1 where the grid has no zone. */
+	int32_t zones[RSPROT_REGION_ZONES];
+	/** In: the rebuilt world entity's size in zones (WORLDENTITY_INFO), which
+	 *  the grid's length depends on. 0 when unknown: the grid is then carried
+	 *  unread in grid_raw. */
+	int32_t size_x_zones;
+	int32_t size_z_zones;
+	const uint8_t *grid_raw;
+	int32_t grid_raw_length;
 } MsgRebuildWorldEntityV4;
 
 /* v1 -- revs 237-241 (packet_versions.txt 1). */

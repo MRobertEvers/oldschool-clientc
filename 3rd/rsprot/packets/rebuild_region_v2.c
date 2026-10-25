@@ -18,6 +18,8 @@ packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2(x, m->zone_x);
     RSPROT_U2_ALT3(x, m->zone_z);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
 /* v2 -- revs 238 (packet_versions.txt 2). */
@@ -27,6 +29,8 @@ packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_BOOL(x, m->reload);
     RSPROT_U2(x, m->zone_x);
     RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
 /* v3 -- revs 239 (packet_versions.txt 3). */
@@ -36,6 +40,8 @@ packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
 /* v4 -- revs 241 (rsprox_versions.txt 100). */
@@ -45,6 +51,8 @@ packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
     RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
 /* v5 -- revs 240 (rsprox_versions.txt 101). */
@@ -54,6 +62,8 @@ packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
 /*

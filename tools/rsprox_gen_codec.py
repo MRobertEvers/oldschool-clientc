@@ -307,7 +307,7 @@ H_TEMPLATE = '''#ifndef RSPROT_PACKET_{guard}_H
  * Layouts      : {nver} distinct, over {nrun} contiguous revision run(s)
  */
 
-#include "../include/rsprot_exec.h"
+#include "../include/rsprot_exec.h"{tails_include}
 
 /** One struct for every version -- the union of all their fields. */
 typedef struct {msg} {{
@@ -358,8 +358,14 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
         notes = [n for n in (("signed" if signed and ctype == "int32_t" else ""), note) if n]
         tail = f" /* {'; '.join(notes)} */" if notes else ""
         ftext.append(f"\t{ctype}{'' if ctype.endswith('*') else ' '}{name}{dims};{tail}")
+    tail = gen.TAILS.get(prot.upper(), {})
+    assert "body" not in tail and "struct_replace" not in tail, prot
+    ftext += tail.get("fields", [])
     if not ftext:
         ftext.append("\tint32_t unused; /* zero-payload packet */")
+    for info in versions.values():
+        info["body"] = "\n".join(tail.get("prefix", []) + ([info["body"]] if info["body"] else [])
+                                 + tail.get("suffix", []))
     num = gen.layout_numbers(versions)
     decls, bodies = [], []
     for ver in sorted(versions):
@@ -387,7 +393,8 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
             rows.append([r, r, v])
     row_text = "\n".join(f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{sn}_v{num[v]}_out }},"
                          for lo, hi, v in rows)
-    h = H_TEMPLATE.format(guard=sn.upper(), prot=prot, cls=cls, nver=len(versions), nrun=len(rows),
+    h = H_TEMPLATE.format(tails_include='\n#include "../include/rsprot_tails.h"' if prot.upper() in gen.TAILS else "",
+                          guard=sn.upper(), prot=prot, cls=cls, nver=len(versions), nrun=len(rows),
                           msg=msg, fields="\n".join(ftext), decls="\n".join(decls) + "\n",
                           aliases="\n".join(aliases), snake=sn)
     c = C_TEMPLATE.format(prot=prot, snake=sn, rel=rel, bodies="\n".join(bodies), nrun=len(rows),

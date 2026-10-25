@@ -15,6 +15,7 @@
 void
 packet_rebuild_normal_v2_v1_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2(x, m->world_area);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT1(x, m->zone_z);
@@ -24,6 +25,7 @@ packet_rebuild_normal_v2_v1_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 void
 packet_rebuild_normal_v2_v2_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT3(x, m->world_area);
@@ -33,6 +35,7 @@ packet_rebuild_normal_v2_v2_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 void
 packet_rebuild_normal_v2_v3_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2_ALT1(x, m->world_area);
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT2(x, m->zone_x);
@@ -42,6 +45,7 @@ packet_rebuild_normal_v2_v3_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 void
 packet_rebuild_normal_v2_v4_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2(x, m->world_area);
@@ -51,6 +55,7 @@ packet_rebuild_normal_v2_v4_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 void
 packet_rebuild_normal_v2_v5_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->world_area);
     RSPROT_U2_ALT3(x, m->zone_x);

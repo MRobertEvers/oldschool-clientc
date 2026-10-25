@@ -22,6 +22,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -34,6 +35,10 @@ typedef struct MsgRebuildRegionV2 {
 	int32_t reload;
 	int32_t zone_x;
 	int32_t zone_z;
+	/** Distinct source mapsquares: a loading hint, no keys follow. */
+	int32_t distinct_mapsquare_count;
+	/** Level-major, then x, then z; -1 where the grid has no zone. */
+	int32_t zones[RSPROT_REGION_ZONES];
 } MsgRebuildRegionV2;
 
 /* v1 -- revs 237 (packet_versions.txt 1). */

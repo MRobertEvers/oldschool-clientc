@@ -17,6 +17,14 @@ packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
     RSPROT_U2(x, m->base_x);
     RSPROT_U2(x, m->base_z);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&
+        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {
+        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);
+        rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
+    } else {
+        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);
+    }
 }
 
 /* v2 -- revs 237 (packet_versions.txt 2). */
@@ -25,6 +33,14 @@ packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
     RSPROT_U2(x, m->base_x);
     RSPROT_U2(x, m->base_z);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&
+        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {
+        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);
+        rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
+    } else {
+        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);
+    }
 }
 
 /*

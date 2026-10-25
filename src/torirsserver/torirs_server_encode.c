@@ -1017,65 +1017,43 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
     struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
     struct ToriRSServerMapInstanceWindow window;
+    int32_t zones[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                  TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
     int key_count = 0;
 
     ToriRSServer_MapInstanceWindow(player->zone_x, player->zone_z, &window);
 
-    open_packet(&buf, 8192);
-    {
-        const struct ToriRSServerWirePayload* pl = wire_payload(player);
-        if( pl && pl->rebuild_region )
-        {
-            /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
-            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0);
-        }
-        else
-        {
-            rsab_p2(&buf, 0);
-            rsab_p2_alt2(&buf, player->zone_x);
-            rsab_p2(&buf, player->zone_z);
-        }
-    }
-
-/*
-     * The distinct source map squares.
-     *
-     * Counted before the grid rather than after it, because revision 239 wants
-     * the number HERE -- `encodeRegionV2` back-patches a p2 in front of the bit
-     * buffer -- while the classic packet writes it afterwards as the length of
-     * a trailing XTEA key block. Same number, two different places, and V2 has
-     * no key block at all (map archives are stored plain from 237).
-     *
-     * Getting this wrong is what logs a client out: the grid is read as though
-     * the count were part of it, so every zone descriptor after the first is
-     * shifted and the packet ends somewhere the client does not expect.
-     */
-    /* One key block per source square the descriptors name, which is what the
-     * client would need if it were taking keys off the wire. Counted from the
-     * window so the two never disagree about how many follow. */
+    /* The descriptor grid (level-major, -1 where the window has no zone), and
+     * the distinct source map squares it names, which every revision states:
+     * V2 (239+) in front of the grid as a loading hint -- `encodeRegionV2`
+     * back-patches the p2 -- and the classic packet after it, as the length of
+     * the trailing XTEA key block. Same number, two places. Getting the place
+     * wrong is what logs a client out: the grid is read as though the count
+     * were part of it. */
     {
         int seen_x[TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
                    TORIRSSERVER_MAPINSTANCE_SCENE_ZONES];
         int seen_z[sizeof(seen_x) / sizeof(*seen_x)];
+        int i = 0;
 
         for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
             for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
-                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
+                for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++, i++ )
                 {
                     const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
                     int map_x;
                     int map_z;
                     int dup = 0;
 
+                    zones[i] = -1;
                     if( !zone->set )
                         continue;
+                    zones[i] = ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
+                               ((zone->src_zone_x & 0x3ff) << 14) | ((zone->src_level & 3) << 24);
                     map_x = zone->src_zone_x >> 3;
                     map_z = zone->src_zone_z >> 3;
-                    for( int i = 0; i < key_count && !dup; i++ )
-                    {
-                        if( seen_x[i] == map_x && seen_z[i] == map_z )
-                            dup = 1;
-                    }
+                    for( int k = 0; k < key_count && !dup; k++ )
+                        dup = seen_x[k] == map_x && seen_z[k] == map_z;
                     if( dup )
                         continue;
                     seen_x[key_count] = map_x;
@@ -1083,38 +1061,31 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
                     key_count++;
                 }
     }
-    if( wire_is_v5(player) )
-        rsab_p2(&buf, key_count);
 
-    rsab_bits(&buf);
-    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+    open_packet(&buf, 8192);
     {
-        for( int zx = 0; zx < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zx++ )
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        if( pl && pl->rebuild_region )
+            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0, zones, key_count);
+        else
         {
-            for( int zz = 0; zz < TORIRSSERVER_MAPINSTANCE_SCENE_ZONES; zz++ )
+            /* The classic packet: header, grid, then one key block per source
+             * square. */
+            rsab_p2(&buf, 0);
+            rsab_p2_alt2(&buf, player->zone_x);
+            rsab_p2(&buf, player->zone_z);
+            rsab_bits(&buf);
+            for( int i = 0; i < (int)(sizeof(zones) / sizeof(zones[0])); i++ )
             {
-                const struct ToriRSServerMapInstanceZone* zone = &window.zones[level][zx][zz];
-
-                if( !zone->set )
-                {
-                    rsab_pbit(&buf, 1, 0);
-                    continue;
-                }
-                rsab_pbit(&buf, 1, 1);
-                rsab_pbit(&buf, 26,
-                          ((zone->rotation & 3) << 1) | ((zone->src_zone_z & 0x7ff) << 3) |
-                              ((zone->src_zone_x & 0x3ff) << 14) |
-                              ((zone->src_level & 3) << 24));
+                rsab_pbit(&buf, 1, zones[i] != -1);
+                if( zones[i] != -1 )
+                    rsab_pbit(&buf, 26, zones[i]);
             }
+            rsab_bytes(&buf);
+            rsab_p2(&buf, key_count);
+            for( int i = 0; i < key_count * 4; i++ )
+                rsab_p4(&buf, 0);
         }
-    }
-    rsab_bytes(&buf);
-
-    if( !wire_is_v5(player) )
-    {
-        rsab_p2(&buf, key_count);
-        for( int i = 0; i < key_count * 4; i++ )
-            rsab_p4(&buf, 0);
     }
 
     flush(player, &buf, OP_REBUILD_REGION, 2);

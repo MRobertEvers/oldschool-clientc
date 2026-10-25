@@ -7,14 +7,19 @@
  * Hand-written from RSProx (ReflectionCheckerDecoder, protocol/osrs-<N>/.../decoder/codec/misc/client/ReflectionCheckerDecoder.kt).
  * RSProt has no codec for this prot, and the RSProx decoder loops over checks that each branch on an opcode, two of them with nested lists, which
  * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * never overwrites it. Field names are RSProx's.
+ *
+ * Both counts are one byte on the wire. The parameter list takes the wire's
+ * whole range -- Jagex sends 20 (RSProx index 1130, rev 237) where this was
+ * once 16; the check list is bounded lower, because each check carries a
+ * parameter list and 255 x 255 would make the struct megabytes. A payload past
+ * either fails the codec rather than truncating.
  */
 
 #include "../include/rsprot_exec.h"
 
 #define MSG_REFLECTION_CHECKER_MAX_CHECKS 32
-#define MSG_REFLECTION_CHECKER_MAX_PARAMS 16
+#define MSG_REFLECTION_CHECKER_MAX_PARAMS 255
 
 /**
  * One check. `opcode`: 0 get field value, 1 set field value (`value`),

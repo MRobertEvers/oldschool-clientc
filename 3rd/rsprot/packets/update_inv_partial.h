@@ -51,10 +51,12 @@ typedef struct MsgUpdateInvPartial
 } MsgUpdateInvPartial;
 
 /** Caller-supplied `slots` capacity. A count-less array has no length field to
- *  bound it, so the buffer is the bound and the codec fails past it. */
-#define MSG_UPDATE_INV_PARTIAL_MAX_SLOTS 256
+ *  bound it, so the buffer is the bound and the codec fails past it. A bank's
+ *  partial update runs past 256 slots (two of the 27,640 in the recording
+ *  check did), so this is UPDATE_INV_FULL's bound. */
+#define MSG_UPDATE_INV_PARTIAL_MAX_SLOTS 4096
 
-/* v1 -- revs 221-239. */
+/* v1 -- revs 221-241 (RSProx's decoder is the same at every revision 227-241). */
 void packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m);
 
 #define packet_update_inv_partial_osrs221_out packet_update_inv_partial_v1_out

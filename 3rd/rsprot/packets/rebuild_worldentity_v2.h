@@ -19,6 +19,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -31,6 +32,10 @@ typedef struct MsgRebuildWorldEntityV2 {
 	int32_t index;
 	int32_t base_x;
 	int32_t base_z;
+	int32_t xtea_count;
+	/** Level-major, then x, then z; -1 where the grid has no zone. */
+	int32_t zones[RSPROT_REGION_ZONES];
+	int32_t keys[RSPROT_REGION_KEYS_MAX * 4];
 } MsgRebuildWorldEntityV2;
 
 /* v1 -- revs 225-228 (packet_versions.txt 1). */

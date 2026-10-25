@@ -828,14 +828,33 @@ w239_cam_unlock(struct RSAreaBuf* buf, int unlock)
  * silent if missed: zoneZ comes FIRST, both are plain p2 rather than alt
  * orders, and there is a `reload` flag the older packet has no field for. The
  * zone descriptor grid follows this header and the XTEA key block that used to
- * trail it is gone, as it is for REBUILD_NORMAL.
+ * trail it is gone, as it is for REBUILD_NORMAL. `encodeRegionV2` back-patches
+ * the distinct source-square count in front of the bit grid.
  */
 static void
-w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
+w239_rebuild_region(
+    struct RSAreaBuf* buf,
+    int zone_x,
+    int zone_z,
+    int reload,
+    int32_t const* zones,
+    int distinct_squares)
 {
+    int const count = TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                      TORIRSSERVER_MAPINSTANCE_SCENE_ZONES;
+
     rsab_p2(buf, zone_z);
     rsab_p2(buf, zone_x);
     rsab_p1_alt1(buf, reload ? 1 : 0);
+    rsab_p2(buf, distinct_squares);
+    rsab_bits(buf);
+    for( int i = 0; i < count; i++ )
+    {
+        rsab_pbit(buf, 1, zones[i] != -1);
+        if( zones[i] != -1 )
+            rsab_pbit(buf, 26, zones[i]);
+    }
+    rsab_bytes(buf);
 }
 
 /*

@@ -97,10 +97,6 @@
 
 #include "log/torirs_log.h"
 
-/* The player-info init block that leads the login variant of REBUILD_NORMAL:
- * 30 bits of local coordinate and 2046 x 18 bits of rough position. */
-#define GPI_INIT_BYTES ((30 + 2046 * 18 + 7) / 8)
-
 static int
 sign24(int v)
 {
@@ -507,6 +503,8 @@ parse_zone_enclosed(
         enc->level = hdr.level;
         enc->base_z = hdr.zone_z;
         enc->base_x = hdr.zone_x;
+        /* The codec carries the sub-packets as `payload`; walk them here. */
+        c->rpos = len - hdr.payload_length;
     }
     enc->count = 0;
     enc->entries = (struct PktZoneSubPacket*)ToriMem_Alloc(
@@ -542,42 +540,36 @@ parse_zone_enclosed(
 /* Map rebuilds                                                        */
 /* ------------------------------------------------------------------ */
 
-static int
-take_keys(RsprotBuf* c, int count, struct PktMapRebuild* p)
+/* A rebuild's XTEA keys, from its codec, into the canonical arm. */
+static void
+take_keys(int32_t const* keys, int count, struct PktMapRebuild* p)
 {
-    if( count < 0 || count > PKT_MAP_REBUILD_ZONES )
-        return 0;
+    assert(count >= 0);
+    assert(count <= PKT_MAP_REBUILD_ZONES);
     p->region_count = count;
     if( count == 0 )
-        return 1;
+        return;
     p->region_keys =
         (int32_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)count * 4 * sizeof(*p->region_keys));
     assert(p->region_keys);
-    for( int i = 0; i < count * 4; i++ )
-        p->region_keys[i] = rsprot_g4(c);
-    return !c->err;
+    memcpy(p->region_keys, keys, (size_t)count * 4 * sizeof(*p->region_keys));
 }
 
-static int
-take_grid(RsprotBuf* c, struct PktMapRebuild* p)
+/* A region grid, from its codec (-1: no zone) into the canonical arm (0). */
+static void
+take_grid(int32_t const* zones, struct PktMapRebuild* p)
 {
     p->zones = ToriMem_Calloc(ToriMem_Net(), PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
     assert(p->zones);
-    rsprot_buf_bit_begin(c);
-    for( int i = 0; i < PKT_MAP_REBUILD_ZONES && !c->err; i++ )
-        if( rsprot_gbits(c, 1) )
-            p->zones[i] = rsprot_gbits(c, 26);
-    rsprot_buf_bit_end(c);
-    return !c->err;
+    for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )
+        p->zones[i] = zones[i] == -1 ? 0 : zones[i];
 }
 
 /*
  * REBUILD_NORMAL (227-236), _V1 (237), _V2 (237+). The login variant puts the
- * player-info init block first and shares the opcode; the frame's length is
- * the only discriminator. V2's fields are the trailing six bytes; the older
- * forms' header is followed by a counted XTEA key list, so a payload that
- * frames exactly as `header + count + keys` is the plain form and anything
- * GPI_INIT_BYTES longer is the login one.
+ * player-info init block first and shares the opcode; the codec tells the two
+ * apart by length (rsprot_tail_gpi_init) and hands the block back, which seeds
+ * the player table here as REBUILD_LOGIN does in the deob.
  */
 static int
 parse_rebuild_normal(
@@ -590,56 +582,34 @@ parse_rebuild_normal(
     struct PktMapRebuild* p = &out->_map_rebuild;
     RsprotBuf b;
     RsprotBuf* c = &b;
-    int start = 0;
 
     memset(p, 0, sizeof(*p));
     out->packet_type = PKT_NAME_REBUILD_NORMAL;
+    rsprot_buf_wrap_read(c, data, len);
     if( strcmp(prot, "REBUILD_NORMAL_V2") == 0 )
     {
-        if( len < 6 )
-            return 0;
-        if( len > 6 )
-            rsprot_entity_init(data, len - 6);
-        rsprot_buf_wrap_read(c, data + len - 6, 6);
-        {
-            RUN(prot, MsgRebuildNormalV2, m);
-            p->world_area = (int16_t)m.world_area;
-            p->zonex = m.zone_x;
-            p->zonez = m.zone_z;
-        }
-        return 1;
-    }
-
-    /* The plain form, at offset 0, or the login form after the init block. */
-    for( int attempt = 0; attempt < 2; attempt++ )
-    {
-        MsgRebuildNormal m;
-
-        start = attempt == 0 ? 0 : GPI_INIT_BYTES;
-        if( start >= len )
-            break;
-        memset(&m, 0, sizeof(m));
-        rsprot_buf_wrap_read(c, data + start, len - start);
-        if( !run(revision, prot, c, &m) || c->rpos != len - start )
-            continue;
-        if( start > 0 )
-            rsprot_entity_init(data, start);
+        RUN(prot, MsgRebuildNormalV2, m);
+        if( m.gpi_init_length > 0 )
+            rsprot_entity_init(m.gpi_init, m.gpi_init_length);
         p->world_area = (int16_t)m.world_area;
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
-        p->region_count = m.xtea_count;
-        if( m.xtea_count > 0 )
-        {
-            p->region_keys = (int32_t*)ToriMem_Alloc(
-                ToriMem_Net(), (size_t)m.xtea_count * 4 * sizeof(*p->region_keys));
-            assert(p->region_keys);
-            for( int i = 0; i < m.xtea_count; i++ )
-                for( int k = 0; k < 4; k++ )
-                    p->region_keys[i * 4 + k] = m.keys[i][k];
-        }
+        return c->rpos == len;
+    }
+    {
+        MsgRebuildNormal m;
+
+        memset(&m, 0, sizeof(m));
+        if( !run(revision, prot, c, &m) || c->rpos != len )
+            return 0;
+        if( m.gpi_init_length > 0 )
+            rsprot_entity_init(m.gpi_init, m.gpi_init_length);
+        p->world_area = (int16_t)m.world_area;
+        p->zonex = m.zone_x;
+        p->zonez = m.zone_z;
+        take_keys(&m.keys[0][0], m.xtea_count, p);
         return 1;
     }
-    return 0;
 }
 
 /*
@@ -651,34 +621,32 @@ static int
 parse_rebuild_region(int revision, char const* prot, RsprotBuf* c, int len, struct RevPacket* out)
 {
     struct PktMapRebuild* p = &out->_map_rebuild;
-    int v2 = strcmp(prot, "REBUILD_REGION_V2") == 0;
-    int count;
 
     memset(p, 0, sizeof(*p));
     out->packet_type = PKT_NAME_REBUILD_REGION;
-    if( v2 )
+    if( strcmp(prot, "REBUILD_REGION_V2") == 0 )
     {
         RUN(prot, MsgRebuildRegionV2, m);
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
+        take_grid(m.zones, p);
     }
     else if( strcmp(prot, "REBUILD_REGION_V1") == 0 )
     {
         RUN(prot, MsgRebuildRegionV1, m);
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
+        take_grid(m.zones, p);
+        take_keys(m.keys, m.xtea_count, p);
     }
     else
     {
         RUN(prot, MsgRebuildRegion, m);
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
+        take_grid(m.zones, p);
+        take_keys(m.keys, m.xtea_count, p);
     }
-    count = rsprot_g2(c);
-    if( c->err || count < 0 || count > PKT_MAP_REBUILD_ZONES || !take_grid(c, p) )
-        return 0;
-    if( !v2 && !take_keys(c, count, p) )
-        return 0;
     return c->rpos == len;
 }
 
@@ -686,7 +654,9 @@ parse_rebuild_region(int revision, char const* prot, RsprotBuf* c, int len, stru
  * REBUILD_WORLDENTITY_V2 (227-228: a view index leads), _V3 (229-237: keys
  * trail the grid), _V4 (237+). The grid's size is the ACTIVE view's, which this
  * layer does not know, so it is carried raw for the exec layer
- * (PktRebuildWev_DecodeZones), keys and all.
+ * (PktRebuildWev_DecodeZones), keys and all: the V3 / V4 codecs, run without a
+ * size, hand it back unread (grid_raw). V2's grid is a fixed 13x13 that the
+ * codec decodes whole; its raw bytes follow the 8-byte head.
  */
 static int
 parse_rebuild_wev(int revision, char const* prot, RsprotBuf* c, int len, struct RevPacket* out)
@@ -696,31 +666,35 @@ parse_rebuild_wev(int revision, char const* prot, RsprotBuf* c, int len, struct 
 
     memset(p, 0, sizeof(*p));
     out->packet_type = PKT_NAME_REBUILD_WORLDENTITY;
+    uint8_t const* grid = NULL;
+
     if( strcmp(prot, "REBUILD_WORLDENTITY_V2") == 0 )
     {
         RUN(prot, MsgRebuildWorldEntityV2, m);
         p->base_x = m.base_x;
         p->base_z = m.base_z;
+        grid = len > 8 ? data + 8 : NULL;
     }
     else if( strcmp(prot, "REBUILD_WORLDENTITY_V3") == 0 )
     {
         RUN(prot, MsgRebuildWorldEntityV3, m);
         p->base_x = m.base_x;
         p->base_z = m.base_z;
+        grid = m.grid_raw_length > 0 ? m.grid_raw : NULL;
     }
     else
     {
         RUN(prot, MsgRebuildWorldEntityV4, m);
         p->base_x = m.base_x;
         p->base_z = m.base_z;
+        grid = m.grid_raw_length > 0 ? m.grid_raw : NULL;
     }
-    (void)rsprot_g2(c); /* xtea / source-square count */
-    if( c->err || len - c->rpos < 1 )
+    if( !grid )
         return 0;
-    p->length = len - c->rpos;
+    p->length = len - (int)(grid - data);
     p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)p->length);
     assert(p->data);
-    memcpy(p->data, data + c->rpos, (size_t)p->length);
+    memcpy(p->data, grid, (size_t)p->length);
     return 1;
 }
 
@@ -1434,7 +1408,7 @@ rsprox_parse_validate(
     static union
     {
         long double align;
-        uint8_t bytes[1 << 17];
+        uint8_t bytes[1 << 20];
     } scratch;
     RsprotExec x;
     RsprotBuf b;

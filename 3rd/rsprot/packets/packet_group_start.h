@@ -22,6 +22,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -31,9 +32,8 @@
  * codec.
  */
 typedef struct MsgPacketGroupStart {
-	/* No payload at any version. C has no empty
-	 * struct; nothing reads this. */
-	int32_t _unused;
+	/** Bytes of the packets that follow in this group. */
+	int32_t length;
 } MsgPacketGroupStart;
 
 /* v1 -- revs 227-241 (packet_versions.txt 1). */

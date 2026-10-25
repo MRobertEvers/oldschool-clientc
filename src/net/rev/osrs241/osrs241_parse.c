@@ -172,33 +172,6 @@ wev_read_flag_payload(
     return c->err ? 0 : 1;
 }
 
-/* Bounds-checked MSB-first bit read used by the instanced-region descriptor
- * grid. Net_BitBuffer deliberately asserts on malformed input; a network
- * decoder must reject a short frame instead of terminating the client. */
-static uint32_t
-gbits_checked(
-    uint8_t const* data,
-    int len,
-    int* bit_pos,
-    int count,
-    int* ok)
-{
-    uint32_t value = 0;
-
-    if( !*ok || count < 0 || count > 32 || *bit_pos < 0 ||
-        *bit_pos + count > len * 8 )
-    {
-        *ok = 0;
-        return 0;
-    }
-    for( int i = 0; i < count; i++ )
-    {
-        int pos = (*bit_pos)++;
-        value = (value << 1) | ((data[pos >> 3] >> (7 - (pos & 7))) & 1u);
-    }
-    return value;
-}
-
 /*
  * A NUL-terminated Jagex string.
  *
@@ -940,6 +913,8 @@ osrs241_parse(
             enc->level = hdr.level;
             enc->base_z = hdr.zone_z;
             enc->base_x = hdr.zone_x;
+            /* The codec carries the sub-packets as `payload`; walk them here. */
+            c.rpos = len - hdr.payload_length;
         }
         enc->count = 0;
         enc->entries =
@@ -1050,18 +1025,13 @@ osrs241_parse(
     case PKT_NAME_REBUILD_REGION:
     {
         struct PktMapRebuild* p = &out->_map_rebuild;
-        int source_square_count;
-        int bit_pos;
-        int ok = 1;
-
         MsgRebuildRegionV2 hdr;
 
         memset(p, 0, sizeof(*p));
         /*
-         * The three-field HEADER runs its generated codec against this cursor;
-         * what follows is a bit-packed descriptor grid, which is not part of the
-         * payload codec and stays here. `reload` is read and dropped -- a region
-         * rebuild is forced downstream regardless.
+         * The codec reads the header, the source-square count and the
+         * descriptor grid (rsprot_tail_zone_grid). `reload` is read and dropped
+         * -- a region rebuild is forced downstream regardless.
          */
         memset(&hdr, 0, sizeof(hdr));
         if( !zone_run(&c, rsprot_rebuild_region_v2_out,
@@ -1069,25 +1039,12 @@ osrs241_parse(
             return 0;
         p->zonez = hdr.zone_z;
         p->zonex = hdr.zone_x;
-        source_square_count = RSProt_BufferG2Be(&c);
-        if( c.err || source_square_count < 0 ||
-            source_square_count > PKT_MAP_REBUILD_ZONES )
+        if( c.rpos != len )
             return 0;
-
         p->zones = ToriMem_Calloc(ToriMem_Net(), PKT_MAP_REBUILD_ZONES, sizeof(*p->zones));
         assert(p->zones);
-        bit_pos = c.rpos * 8;
-        for( int i = 0; i < PKT_MAP_REBUILD_ZONES && ok; i++ )
-        {
-            if( gbits_checked(data, len, &bit_pos, 1, &ok) )
-                p->zones[i] = (int32_t)gbits_checked(data, len, &bit_pos, 26, &ok);
-        }
-        if( !ok || (bit_pos + 7) / 8 != len )
-        {
-            ToriMem_Free(ToriMem_Net(), p->zones);
-            p->zones = NULL;
-            return 0;
-        }
+        for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )
+            p->zones[i] = hdr.zones[i] == -1 ? 0 : hdr.zones[i];
         return 1;
     }
 

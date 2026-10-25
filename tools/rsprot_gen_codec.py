@@ -2178,6 +2178,123 @@ REV_LO, REV_HI = 221, 239
 #
 # A name here that stops matching a hand-written file is reported, not ignored:
 # silently skipping a packet nobody wrote is how a gap becomes permanent.
+# --- tails: what RSProt writes outside a codec's Kotlin -------------------------
+#
+# A few prots are finished by RSProt's Netty layer or by a shared helper this
+# generator cannot transcribe: PACKET_GROUP_START's length is a placeholder the
+# Netty encoder back-patches, ENCLOSED's sub-packets are written by Netty after
+# the header, REBUILD_REGION's grid and keys come from map/util/RegionEncoder
+# (which back-patches a count and de-duplicates keys), and the login
+# REBUILD_NORMAL puts the GPI init block first. The Kotlin stops before them,
+# so the codec did too and no real payload decoded whole. Each tail is stated
+# once in 3rd/rsprot/include/rsprot_tails.h and named here: `fields` join the
+# message struct, `prefix` / `suffix` wrap every version's body, and `body`
+# replaces it. tools/rsprox_gen_codec.py applies the same table.
+
+_REGION_FIELDS = [
+    "\tint32_t xtea_count;",
+    "\t/** Level-major, then x, then z; -1 where the grid has no zone. */",
+    "\tint32_t zones[RSPROT_REGION_ZONES];",
+    "\tint32_t keys[RSPROT_REGION_KEYS_MAX * 4];",
+]
+_REGION_KEYS_SUFFIX = [
+    "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+    "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+    "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);",
+]
+_SIZED_FIELDS = [
+    "\t/** In: the rebuilt world entity's size in zones (WORLDENTITY_INFO), which",
+    "\t *  the grid's length depends on. 0 when unknown: the grid is then carried",
+    "\t *  unread in grid_raw. */",
+    "\tint32_t size_x_zones;",
+    "\tint32_t size_z_zones;",
+    "\tconst uint8_t *grid_raw;",
+    "\tint32_t grid_raw_length;",
+]
+_SIZED_GRID = [
+    "    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&",
+    "        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {",
+    "        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);",
+    "        KEYS",
+    "    } else {",
+    "        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);",
+    "    }",
+]
+_GPI_FIELDS = [
+    "\t/** The login form's GPI init block (RSPROT_GPI_INIT_BYTES), or length 0. */",
+    "\tconst uint8_t *gpi_init;",
+    "\tint32_t gpi_init_length;",
+]
+
+
+def _gpi_prefix(after):
+    return ["    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, %d);" % after]
+
+
+TAILS = {
+    "PACKET_GROUP_START": {
+        "struct_replace": ("\t/* No payload at any version. C has no empty\n\t * struct; nothing reads this. */\n\tint32_t _unused;",
+                           "\t/** Bytes of the packets that follow in this group. */\n\tint32_t length;"),
+        "body": ["    RSPROT_U2(x, m->length);"],
+    },
+    "UPDATE_ZONE_PARTIAL_ENCLOSED": {
+        "fields": ["\t/** The zone sub-packets, each an ordinal byte and its prot's payload",
+                   "\t *  (rsprot_zone_prot_name). */",
+                   "\tconst uint8_t *payload;", "\tint32_t payload_length;"],
+        "suffix": ["    RSPROT_REST(x, m->payload, m->payload_length);"],
+    },
+    "REBUILD_REGION": {"fields": _REGION_FIELDS, "suffix": _REGION_KEYS_SUFFIX},
+    "REBUILD_REGION_V1": {"fields": _REGION_FIELDS, "suffix": _REGION_KEYS_SUFFIX},
+    "REBUILD_REGION_V2": {
+        "fields": ["\t/** Distinct source mapsquares: a loading hint, no keys follow. */",
+                   "\tint32_t distinct_mapsquare_count;",
+                   "\t/** Level-major, then x, then z; -1 where the grid has no zone. */",
+                   "\tint32_t zones[RSPROT_REGION_ZONES];"],
+        "suffix": ["    RSPROT_U2(x, m->distinct_mapsquare_count);",
+                   "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);"],
+    },
+    "REBUILD_WORLDENTITY_V2": {"fields": _REGION_FIELDS, "suffix": _REGION_KEYS_SUFFIX},
+    "REBUILD_WORLDENTITY_V3": {
+        "fields": _REGION_FIELDS + _SIZED_FIELDS,
+        "suffix": ["    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);"] + [
+            l.replace("KEYS", "rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);") for l in _SIZED_GRID],
+    },
+    "REBUILD_WORLDENTITY_V4": {
+        "fields": ["\tint32_t distinct_mapsquare_count;",
+                   "\t/** Level-major, then x, then z; -1 where the grid has no zone. */",
+                   "\tint32_t zones[RSPROT_REGION_ZONES];"] + _SIZED_FIELDS,
+        "suffix": ["    RSPROT_U2(x, m->distinct_mapsquare_count);"] + [
+            l for l in _SIZED_GRID if "KEYS" not in l],
+    },
+    "REBUILD_NORMAL": {"fields": _GPI_FIELDS, "prefix": _gpi_prefix(8)},
+    "REBUILD_NORMAL_V1": {"fields": _GPI_FIELDS, "prefix": _gpi_prefix(8)},
+    "REBUILD_NORMAL_V2": {"fields": _GPI_FIELDS, "prefix": _gpi_prefix(6)},
+}
+
+
+def apply_tail(prot, struct_text, versions):
+    """The prot's tail on its struct and every version body (see TAILS).
+    Returns the struct text; the bodies are changed in place."""
+    tail = TAILS.get(prot.upper())
+    if not tail:
+        return struct_text
+    if "struct_replace" in tail:
+        old, new = tail["struct_replace"]
+        assert old in struct_text, (prot, struct_text)
+        struct_text = struct_text.replace(old, new)
+    if "fields" in tail:
+        close = struct_text.rindex("\n}")
+        struct_text = struct_text[:close] + "\n" + "\n".join(tail["fields"]) + struct_text[close:]
+    for slot in versions.values():
+        if "body" in tail:
+            slot["body"] = "\n".join(tail["body"])
+            continue
+        body = slot["body"] or ""
+        lines = ([*tail.get("prefix", [])] + ([body] if body else []) + [*tail.get("suffix", [])])
+        slot["body"] = "\n".join(lines)
+    return struct_text
+
+
 HAND_WRITTEN_PROTS = {
     "IF_OPENTOP",
     # The five this generator cannot model, hand-written into packets/ instead.
@@ -2331,7 +2448,7 @@ PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
  *                    grep '^{cls}\\t{ledger_dir}\\t' 3rd/rsprot/gen/packet_versions.txt{overlay_h}
  */
 
-#include "../include/rsprot_exec.h"
+#include "../include/rsprot_exec.h"{tails_include}
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -2440,6 +2557,7 @@ def emit_packet_files(pkt, out_dir):
             " * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past " + str(REV_HI) + "\n"
             " * that is not listed has no layout here and picks NULL.")
     h = PACKET_H.format(
+        tails_include='\n#include "../include/rsprot_tails.h"' if pkt["prot"].upper() in TAILS else "",
         overlay_h=overlay_h,
         guard=snake.upper(),
         prot=pkt["prot"],
@@ -2805,6 +2923,7 @@ def main():
         # Revisions past RSProt's last, from RSProx (see the overlay's docstring).
         # Run on the renamed bodies: they are what a 241 layout is compared to.
         overlay.extend(cls, direction, prot, versions, rev_to_ver)
+        struct_text = apply_tail(prot, struct_text, versions)
 
         emit_packet_files({
             "snake": snake, "prot": prot, "cls": cls, "dir": direction,

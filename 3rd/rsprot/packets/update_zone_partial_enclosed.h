@@ -22,6 +22,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /**
  * One struct for every version -- the union of all their fields.
@@ -34,6 +35,10 @@ typedef struct MsgDesktopUpdateZonePartialEnclosed {
 	int32_t zone_z;
 	int32_t zone_x;
 	int32_t level;
+	/** The zone sub-packets, each an ordinal byte and its prot's payload
+	 *  (rsprot_zone_prot_name). */
+	const uint8_t *payload;
+	int32_t payload_length;
 } MsgDesktopUpdateZonePartialEnclosed;
 
 /* v1 -- revs 225 (packet_versions.txt 5). */

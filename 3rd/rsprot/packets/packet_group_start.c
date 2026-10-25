@@ -15,7 +15,7 @@
 void
 packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m)
 {
-    RSPROT_CONST(x, U2, 0);
+    RSPROT_U2(x, m->length);
 }
 
 /*

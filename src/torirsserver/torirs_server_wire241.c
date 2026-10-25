@@ -777,12 +777,26 @@ w241_rebuild_normal(
 }
 
 static void
-w241_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
+w241_rebuild_region(
+    struct RSAreaBuf* buf,
+    int zone_x,
+    int zone_z,
+    int reload,
+    int32_t const* zones,
+    int distinct_squares)
 {
-    MsgRebuildRegionV2 m = { 0 };
+    static MsgRebuildRegionV2 m;
+
+    _Static_assert(sizeof(m.zones) / sizeof(m.zones[0]) ==
+                       TORIRSSERVER_MAPINSTANCE_LEVELS * TORIRSSERVER_MAPINSTANCE_SCENE_ZONES *
+                           TORIRSSERVER_MAPINSTANCE_SCENE_ZONES,
+                   "the codec's grid is the instance window");
+    memset(&m, 0, sizeof(m));
     m.zone_x = zone_x;
     m.zone_z = zone_z;
     m.reload = reload ? 1 : 0;
+    m.distinct_mapsquare_count = distinct_squares;
+    memcpy(m.zones, zones, sizeof(m.zones));
     W241(rsprot_rebuild_region_v2_out, m);
 }
 

@@ -262,9 +262,16 @@ struct ToriRSServerWirePayload
      *  than a flat array of base-37 longs. */
     void (*ignore_entry)(struct RSAreaBuf* buf, const char* name);
 
-    /** REBUILD_REGION's header. The zone descriptor grid follows and is written
-     *  by the caller, which already knows how to bit-pack it. */
-    void (*rebuild_region)(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload);
+    /** The whole REBUILD_REGION: header, the distinct source-square count and
+     *  the descriptor grid. `zones` is level-major, then x, then z, with -1
+     *  where the window has no zone (TORIRSSERVER_MAPINSTANCE_* dimensions). */
+    void (*rebuild_region)(
+        struct RSAreaBuf* buf,
+        int zone_x,
+        int zone_z,
+        int reload,
+        int32_t const* zones,
+        int distinct_squares);
 
     /**
      * REBUILD_WORLDENTITY_V4's header (op 109, revision 237+): the SW tile of

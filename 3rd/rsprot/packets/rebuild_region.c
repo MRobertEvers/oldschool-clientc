@@ -18,6 +18,9 @@ packet_rebuild_region_v1_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U1_ALT3(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v2 -- revs 224 (packet_versions.txt 4). */
@@ -27,6 +30,9 @@ packet_rebuild_region_v2_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v3 -- revs 225 (packet_versions.txt 5). */
@@ -36,6 +42,9 @@ packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v4 -- revs 226 (packet_versions.txt 6). */
@@ -45,6 +54,9 @@ packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v5 -- revs 227 (packet_versions.txt 7). */
@@ -54,6 +66,9 @@ packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT2(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v6 -- revs 228 (packet_versions.txt 8). */
@@ -63,6 +78,9 @@ packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v7 -- revs 229 (packet_versions.txt 9). */
@@ -72,6 +90,9 @@ packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U1_ALT3(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v8 -- revs 230 (packet_versions.txt 10). */
@@ -81,6 +102,9 @@ packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_BOOL(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v9 -- revs 231 (packet_versions.txt 11). */
@@ -90,6 +114,9 @@ packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_U2(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v10 -- revs 232 (packet_versions.txt 12). */
@@ -99,6 +126,9 @@ packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_BOOL(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v11 -- revs 233 (packet_versions.txt 13). */
@@ -108,6 +138,9 @@ packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v12 -- revs 234 (packet_versions.txt 14). */
@@ -117,6 +150,9 @@ packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_BOOL(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
     RSPROT_U2(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v13 -- revs 235 (packet_versions.txt 15). */
@@ -126,6 +162,9 @@ packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /* v14 -- revs 236 (packet_versions.txt 16). */
@@ -135,6 +174,9 @@ packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /*

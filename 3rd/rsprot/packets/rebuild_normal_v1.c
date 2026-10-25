@@ -14,6 +14,7 @@ packet_rebuild_normal_v1_v1_out(RsprotExec *x, MsgRebuildNormalV1 *m)
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
      */
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
     RSPROT_U2_ALT3(x, m->world_area);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT2(x, m->zone_z);

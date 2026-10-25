@@ -18,6 +18,7 @@ packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v2 -- revs 226 (packet_versions.txt 6). */
@@ -27,6 +28,7 @@ packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT2(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->level);
     RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v3 -- revs 227 (packet_versions.txt 7). */
@@ -36,6 +38,7 @@ packet_update_zone_partial_enclosed_v3_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->level);
     RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v4 -- revs 228 (packet_versions.txt 8). */
@@ -45,6 +48,7 @@ packet_update_zone_partial_enclosed_v4_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v5 -- revs 229 (packet_versions.txt 9). */
@@ -54,6 +58,7 @@ packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT3(x, m->zone_x);
     RSPROT_U1(x, m->level);
     RSPROT_U1(x, m->zone_z);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v6 -- revs 230, 234 (packet_versions.txt 10). */
@@ -63,6 +68,7 @@ packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT3(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->zone_z);
     RSPROT_U1(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v7 -- revs 231 (packet_versions.txt 11). */
@@ -72,6 +78,7 @@ packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT1(x, m->level);
     RSPROT_U1(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v8 -- revs 232 (packet_versions.txt 12). */
@@ -81,6 +88,7 @@ packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v9 -- revs 233 (packet_versions.txt 13). */
@@ -90,6 +98,7 @@ packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePa
     RSPROT_U1_ALT3(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v10 -- revs 235 (packet_versions.txt 14). */
@@ -99,6 +108,7 @@ packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1_ALT2(x, m->zone_z);
     RSPROT_U1(x, m->level);
     RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v11 -- revs 236 (packet_versions.txt 15). */
@@ -108,6 +118,7 @@ packet_update_zone_partial_enclosed_v11_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v12 -- revs 237, 240 (packet_versions.txt 16). */
@@ -117,6 +128,7 @@ packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1_ALT3(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v13 -- revs 238 (packet_versions.txt 17). */
@@ -126,6 +138,7 @@ packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1(x, m->level);
     RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v14 -- revs 239 (packet_versions.txt 18). */
@@ -135,6 +148,7 @@ packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1_ALT2(x, m->level);
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /* v15 -- revs 241 (rsprox_versions.txt 100). */
@@ -144,6 +158,7 @@ packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->level);
+    RSPROT_REST(x, m->payload, m->payload_length);
 }
 
 /*

@@ -18,6 +18,9 @@ packet_rebuild_region_v1_v1_out(RsprotExec *x, MsgRebuildRegionV1 *m)
     RSPROT_U2_ALT1(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_BOOL(x, m->reload);
+    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
 /*

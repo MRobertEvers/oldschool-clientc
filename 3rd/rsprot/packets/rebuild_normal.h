@@ -17,6 +17,7 @@
  */
 
 #include "../include/rsprot_exec.h"
+#include "../include/rsprot_tails.h"
 
 /** One struct for every version -- the union of all their fields. */
 typedef struct MsgRebuildNormal {
@@ -25,6 +26,9 @@ typedef struct MsgRebuildNormal {
 	int32_t zone_z;
 	int32_t xtea_count;
 	int32_t keys[169][4];
+	/** The login form's GPI init block (RSPROT_GPI_INIT_BYTES), or length 0. */
+	const uint8_t *gpi_init;
+	int32_t gpi_init_length;
 } MsgRebuildNormal;
 
 /* v1 -- revs 227 (rsprox_versions.txt 100). */

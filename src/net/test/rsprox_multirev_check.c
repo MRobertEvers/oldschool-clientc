@@ -39,6 +39,9 @@
 #include "net/rev/rsprox/rsprox_rev.h"
 #include "net/rsprox_recording.h"
 #include "info_op_dump.h"
+#include "net/exec/pkt_codec_storage.h"
+#include "rsprot_exec.h"
+#include "rsprot_registry.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -165,6 +168,33 @@ explain_player_info(struct GameProtoRevTable const* rev)
 /* MULTIREV_DUMP_OPS=<file>: every PLAYER_INFO / NPC_INFO op list the
  * executor would read, as text (info_op_dump.h). */
 static FILE* g_dump;
+
+/* MULTIREV_WHY: where a prot's codec stopped, for its first failures. */
+static void
+explain_codec(int revision, char const* prot, uint8_t const* data, int len)
+{
+    static union
+    {
+        long double align;
+        uint8_t bytes[1 << 20];
+    } scratch;
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, revision);
+    RsprotExec x;
+    RsprotBuf b;
+
+    if( !fn )
+        return;
+    memset(&scratch, 0, sizeof(scratch));
+    pkt_codec_storage_provide(prot, &scratch, 0);
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    fn(&x, &scratch);
+    printf("  why %s rev %d: %d bytes, read %d, exec ok %d, buf err %d; head:", prot, revision, len,
+           (int)b.rpos, rsprot_exec_ok(&x), b.err);
+    for( int k = 0; k < len && k < 24; k++ )
+        printf(" %02x", data[k]);
+    printf("\n");
+}
 
 static int
 check_one(char const* path, int verbose)
@@ -299,6 +329,8 @@ check_one(char const* path, int verbose)
             ok = rsprox_parse_validate(rev, d->name, data, len);
             if( ok < 0 && packet.packet_type != PKT_NAME_NONE )
                 ok = parsed > 0; /* no codec: the special parse is the check */
+            if( ok == 0 && getenv("MULTIREV_WHY") && t->failed < 2 )
+                explain_codec(rec.revision, d->name, data, len);
         }
         if( packet.packet_type == PKT_NAME_NONE )
             t->dropped++;
