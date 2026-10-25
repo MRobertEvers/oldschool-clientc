@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ObjAddSpecificEncoder
- * Layouts      : 9 distinct, over 9 contiguous revision run(s)
+ * Layouts      : 10 distinct, over 10 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ObjAddSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -58,6 +58,8 @@ void packet_obj_add_specific_v7_out(RsprotExec *x, MsgObjAddSpecific *m);
 void packet_obj_add_specific_v8_out(RsprotExec *x, MsgObjAddSpecific *m);
 /* v100 -- revs 241. */
 void packet_obj_add_specific_v100_out(RsprotExec *x, MsgObjAddSpecific *m);
+/* v101 -- revs 240. */
+void packet_obj_add_specific_v101_out(RsprotExec *x, MsgObjAddSpecific *m);
 
 /* Per-revision aliases: `packet_obj_add_specific_rev239_out` is greppable, which is the
  * point -- "what does 239 do for OBJ_ADD_SPECIFIC" without reading a table. */
@@ -69,6 +71,7 @@ void packet_obj_add_specific_v100_out(RsprotExec *x, MsgObjAddSpecific *m);
 #define packet_obj_add_specific_rev237_out packet_obj_add_specific_v6_out
 #define packet_obj_add_specific_rev238_out packet_obj_add_specific_v7_out
 #define packet_obj_add_specific_rev239_out packet_obj_add_specific_v8_out
+#define packet_obj_add_specific_rev240_out packet_obj_add_specific_v101_out
 #define packet_obj_add_specific_rev241_out packet_obj_add_specific_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

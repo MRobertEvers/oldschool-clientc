@@ -52,8 +52,8 @@ packet_update_friendlist_v1_out(RsprotExec *x, MsgUpdateFriendList *m)
 
 const RsprotVersionRange rsprot_update_friendlist_out[] = {
     { 221, 239, (RsprotCodecFn)packet_update_friendlist_v1_out },
-    /* 241 (RSProx osrs-241, UpdateFriendListDecoder): decode body unchanged from 239. */
-    { 241, 241, (RsprotCodecFn)packet_update_friendlist_v1_out },
+    /* 240-241 (RSProx osrs-240 and osrs-241, UpdateFriendListDecoder): decode body unchanged from 239. */
+    { 240, 241, (RsprotCodecFn)packet_update_friendlist_v1_out },
 };
 
 const int rsprot_update_friendlist_out_count =

@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamLookAtV3Encoder
- * Layouts      : 2 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 3 distinct, over 3 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamLookAtV3Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -42,10 +42,13 @@ typedef struct MsgCamLookAtV3 {
 void packet_cam_lookat_v3_v1_out(RsprotExec *x, MsgCamLookAtV3 *m);
 /* v100 -- revs 241. */
 void packet_cam_lookat_v3_v100_out(RsprotExec *x, MsgCamLookAtV3 *m);
+/* v101 -- revs 240. */
+void packet_cam_lookat_v3_v101_out(RsprotExec *x, MsgCamLookAtV3 *m);
 
 /* Per-revision aliases: `packet_cam_lookat_v3_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_LOOKAT_V3" without reading a table. */
 #define packet_cam_lookat_v3_rev239_out packet_cam_lookat_v3_v1_out
+#define packet_cam_lookat_v3_rev240_out packet_cam_lookat_v3_v101_out
 #define packet_cam_lookat_v3_rev241_out packet_cam_lookat_v3_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MoveGameClickDecoder
- * Layouts      : 19 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MoveGameClickDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -73,6 +73,8 @@ void packet_move_gameclick_v17_in(RsprotExec *x, MsgMoveGameClick *m);
 void packet_move_gameclick_v18_in(RsprotExec *x, MsgMoveGameClick *m);
 /* v100 -- revs 241. */
 void packet_move_gameclick_v100_in(RsprotExec *x, MsgMoveGameClick *m);
+/* v101 -- revs 240. */
+void packet_move_gameclick_v101_in(RsprotExec *x, MsgMoveGameClick *m);
 
 /* Per-revision aliases: `packet_move_gameclick_rev239_in` is greppable, which is the
  * point -- "what does 239 do for MOVE_GAMECLICK" without reading a table. */
@@ -95,6 +97,7 @@ void packet_move_gameclick_v100_in(RsprotExec *x, MsgMoveGameClick *m);
 #define packet_move_gameclick_rev237_in packet_move_gameclick_v16_in
 #define packet_move_gameclick_rev238_in packet_move_gameclick_v17_in
 #define packet_move_gameclick_rev239_in packet_move_gameclick_v18_in
+#define packet_move_gameclick_rev240_in packet_move_gameclick_v101_in
 #define packet_move_gameclick_rev241_in packet_move_gameclick_v100_in
 
 /** Revision -> layout. See the .c for the rows. */

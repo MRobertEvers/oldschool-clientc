@@ -18,7 +18,7 @@ packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m)
     RSPROT_U4_ALT3(x, m->model);
 }
 
-/* v2 -- revs 239. */
+/* v2 -- revs 239-240. */
 void
 packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m)
 {
@@ -38,13 +38,13 @@ packet_cam_skybox_v100_out(RsprotExec *x, MsgCamSkybox *m)
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_cam_skybox_out[] = {
     { 238, 238, (RsprotCodecFn)packet_cam_skybox_v1_out },
-    { 239, 239, (RsprotCodecFn)packet_cam_skybox_v2_out },
+    { 239, 240, (RsprotCodecFn)packet_cam_skybox_v2_out },
     { 241, 241, (RsprotCodecFn)packet_cam_skybox_v100_out },
 };
 

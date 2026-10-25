@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : RebuildWorldEntityV4Encoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^RebuildWorldEntityV4Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -34,7 +34,7 @@ typedef struct MsgRebuildWorldEntityV4 {
 	int32_t base_z;
 } MsgRebuildWorldEntityV4;
 
-/* v1 -- revs 237-239, 241. */
+/* v1 -- revs 237-241. */
 void packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m);
 
 /* Per-revision aliases: `packet_rebuild_worldentity_v4_rev239_out` is greppable, which is the
@@ -42,6 +42,7 @@ void packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4
 #define packet_rebuild_worldentity_v4_rev237_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_rev238_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_rev239_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_rev240_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_rev241_out packet_rebuild_worldentity_v4_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

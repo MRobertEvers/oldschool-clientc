@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSubOpDecoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSubOpDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -37,7 +37,7 @@ typedef struct MsgIfSubOp {
 	int32_t subop;
 } MsgIfSubOp;
 
-/* v1 -- revs 224-239, 241. */
+/* v1 -- revs 224-241. */
 void packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m);
 
 /* Per-revision aliases: `packet_if_subop_rev239_in` is greppable, which is the
@@ -58,6 +58,7 @@ void packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m);
 #define packet_if_subop_rev237_in packet_if_subop_v1_in
 #define packet_if_subop_rev238_in packet_if_subop_v1_in
 #define packet_if_subop_rev239_in packet_if_subop_v1_in
+#define packet_if_subop_rev240_in packet_if_subop_v1_in
 #define packet_if_subop_rev241_in packet_if_subop_v1_in
 
 /** Revision -> layout. See the .c for the rows. */

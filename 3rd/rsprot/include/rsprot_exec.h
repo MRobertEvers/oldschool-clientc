@@ -378,6 +378,18 @@ void rsprot_xclamp(
  */
 int rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap);
 
+/**
+ * Loop guard for an array the wire DOES count.
+ *
+ * `for (i = 0; i < m->n && RSPROT_WITHIN(x, i, cap); i++)`. A count read off
+ * the wire bounds the loop, but nothing bounds the count: IF_RESYNC's is two
+ * bytes, and a payload that says 60000 would walk 60000 elements into storage
+ * the caller sized for its real use. This fails the exec at `cap` instead --
+ * in every direction, because an encoder handed more elements than a decoder
+ * could hold is writing a packet nothing can read.
+ */
+int rsprot_within(RsprotExec *x, int32_t i, int32_t cap);
+
 /** Bytes left unread in this payload. DECODE only; 0 in every other direction,
  *  where "what is left" is not a question the buffer can answer. */
 int32_t rsprot_remaining(RsprotExec *x);
@@ -392,6 +404,22 @@ int32_t rsprot_remaining(RsprotExec *x);
  */
 int32_t rsprot_xcount(
     RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t max, const char *name);
+
+/**
+ * A blob that runs to the end of the payload.
+ *
+ * GROUP_FULL and GROUP_VAR (RSProx osrs-239+) end an entry with
+ * `ByteArray(buffer.readableBytes())`: no length on the wire, the frame is the
+ * length. The two directions split the way they do for rsprot_more, because
+ * encoding knows the length and decoding discovers it:
+ *
+ *   ENCODE    writes `*length` bytes from `*value`
+ *   DECODE    borrows every remaining byte, and stores how many in `*length`
+ *   DESCRIBE  records the field
+ *   FILL      sets `*length` to 0 and leaves `*value` alone, as rsprot_xdata
+ *             does: the caller owns the storage
+ */
+void rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name);
 
 /* Bit mode, for packed property bytes. Whole bit *streams* are not codecs —
  * see 3rd/rsprot/streams/ — but a packed byte inside a flat packet is. */
@@ -475,10 +503,17 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 /* Wire carries `min(src, cap)`; the full value lives in `src`. */
 #define RSPROT_CLAMP(x, prim, f, src, cap)                                                         \
     rsprot_xclamp((x), RSPROT_PRIM_##prim, &(f), &(src), (cap), #f)
+/* Loop guard for a counted array. See rsprot_within(). */
+#define RSPROT_WITHIN(x, i, cap) rsprot_within((x), (i), (cap))
 /* Loop condition for a count-less trailing array. See rsprot_more(). */
 #define RSPROT_MORE(x, f, i, cap) rsprot_more((x), &(f), (i), (cap))
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
 #define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2, &(f), (max), #f)
+/* A count the wire carries in a transformed byte or short:
+ * RSPROT_COUNT_AS(x, U1_ALT3, m->retexture_count, 255). */
+#define RSPROT_COUNT_AS(x, prim, f, max) rsprot_xcount((x), RSPROT_PRIM_##prim, &(f), (max), #f)
+/* The rest of the payload, borrowed. See rsprot_xrest(). */
+#define RSPROT_REST(x, f, len) rsprot_xrest((x), &(f), &(len), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)
 #define RSPROT_BRANCH(x, f) rsprot_branch((x), &(f))
 

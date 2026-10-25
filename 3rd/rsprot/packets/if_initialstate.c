@@ -17,7 +17,7 @@ packet_if_initialstate_v1_out(RsprotExec *x, MsgIfInitialState *m)
 {
     RSPROT_U2(x, m->top_level_interface);
     RSPROT_U2(x, m->sub_interfaces_count);
-    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count; rs_i_sub_interface++) {
+    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count && RSPROT_WITHIN(x, rs_i_sub_interface, 4096); rs_i_sub_interface++) {
         Rsprot_MsgIfInitialState_sub_interfacesElem *elem = &m->sub_interfaces[rs_i_sub_interface];
         RSPROT_U4(x, elem->destination_combined_id);
         RSPROT_U2(x, elem->interface_id);
@@ -38,7 +38,7 @@ packet_if_initialstate_v2_out(RsprotExec *x, MsgIfInitialState *m)
 {
     RSPROT_U2(x, m->top_level_interface);
     RSPROT_U2(x, m->sub_interfaces_count);
-    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count; rs_i_sub_interface++) {
+    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count && RSPROT_WITHIN(x, rs_i_sub_interface, 4096); rs_i_sub_interface++) {
         Rsprot_MsgIfInitialState_sub_interfacesElem *elem = &m->sub_interfaces[rs_i_sub_interface];
         RSPROT_COM(x, elem->destination_combined_id);
         RSPROT_U2(x, elem->interface_id);

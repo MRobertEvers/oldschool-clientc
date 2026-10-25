@@ -56,10 +56,14 @@ void packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m);
 /* v100 -- rev 241 (RSProx; >= 100 is the RSProx numbering, gen/rsprox_versions.txt).
  * The per-slot id moved in front of the count, and the 4-byte count is Alt2. */
 void packet_update_inv_full_v100_out(RsprotExec *x, MsgUpdateInvFull *m);
+/* v101 -- rev 240 (RSProx). 239's order, with the long count and the id
+ * untransformed. */
+void packet_update_inv_full_v101_out(RsprotExec *x, MsgUpdateInvFull *m);
 
 #define packet_update_inv_full_rev221_out packet_update_inv_full_v1_out
 #define packet_update_inv_full_rev230_out packet_update_inv_full_v1_out
 #define packet_update_inv_full_rev239_out packet_update_inv_full_v1_out
+#define packet_update_inv_full_rev240_out packet_update_inv_full_v101_out
 #define packet_update_inv_full_rev241_out packet_update_inv_full_v100_out
 
 extern const RsprotVersionRange rsprot_update_inv_full_out[];

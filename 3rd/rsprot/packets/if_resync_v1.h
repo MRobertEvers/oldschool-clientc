@@ -47,11 +47,15 @@ typedef struct MsgIfResyncV1 {
 	int32_t events_count;
 } MsgIfResyncV1;
 
-/* v1 -- revs 231. */
+/* v1 -- revs 227-231. */
 void packet_if_resync_v1_v1_out(RsprotExec *x, MsgIfResyncV1 *m);
 
 /* Per-revision aliases: `packet_if_resync_v1_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_RESYNC_V1" without reading a table. */
+#define packet_if_resync_v1_rev227_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_rev228_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_rev229_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_rev230_out packet_if_resync_v1_v1_out
 #define packet_if_resync_v1_rev231_out packet_if_resync_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

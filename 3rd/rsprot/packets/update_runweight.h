@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : UpdateRunWeightEncoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^UpdateRunWeightEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -33,7 +33,7 @@ typedef struct MsgUpdateRunWeight {
 	int32_t runweight;
 } MsgUpdateRunWeight;
 
-/* v1 -- revs 221-239, 241. */
+/* v1 -- revs 221-241. */
 void packet_update_runweight_v1_out(RsprotExec *x, MsgUpdateRunWeight *m);
 
 /* Per-revision aliases: `packet_update_runweight_rev239_out` is greppable, which is the
@@ -57,6 +57,7 @@ void packet_update_runweight_v1_out(RsprotExec *x, MsgUpdateRunWeight *m);
 #define packet_update_runweight_rev237_out packet_update_runweight_v1_out
 #define packet_update_runweight_rev238_out packet_update_runweight_v1_out
 #define packet_update_runweight_rev239_out packet_update_runweight_v1_out
+#define packet_update_runweight_rev240_out packet_update_runweight_v1_out
 #define packet_update_runweight_rev241_out packet_update_runweight_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

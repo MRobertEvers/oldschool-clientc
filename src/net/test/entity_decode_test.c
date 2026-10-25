@@ -396,8 +396,21 @@ enum
  * here so the decoder is tested against the layout rather than against the
  * writer's helper functions. `obj_tag` is a parameter so the test can hand the
  * v5 reader a classic-tagged word and watch what it becomes. */
+static void build_v5_blob_with(
+    struct BitWriter* w, int obj_tag, int customisation_flag, int model_bytes);
+
 static void
 build_v5_blob(struct BitWriter* w, int obj_tag, int customisation_flag)
+{
+    build_v5_blob_with(w, obj_tag, customisation_flag, 0);
+}
+
+/* `model_bytes` > 0 writes one obj customisation block per set flag bit, in
+ * RSProx's 227-240 shape: slot flag 0x1 | 0x4, a recolour index pair with one
+ * replacement (index 2; the second index is 15, so none), and two worn model
+ * ids `model_bytes` wide. */
+static void
+build_v5_blob_with(struct BitWriter* w, int obj_tag, int customisation_flag, int model_bytes)
 {
     bw_byte(w, 0);   /* gender */
     bw_byte(w, 255); /* skull icon: none */
@@ -428,6 +441,20 @@ build_v5_blob(struct BitWriter* w, int obj_tag, int customisation_flag)
     bw_word(w, 99); /* skill level */
     bw_byte(w, 0);  /* hidden */
     bw_word(w, customisation_flag);
+    for( int i = 0; model_bytes > 0 && i < 12; i++ )
+    {
+        if( !((customisation_flag >> (12 - i)) & 1) )
+            continue;
+        bw_byte(w, 0x1 | 0x4);
+        bw_byte(w, 0xF2);
+        bw_word(w, 1234);
+        for( int m = 0; m < 2; m++ )
+        {
+            if( model_bytes == 4 )
+                bw_word(w, 0);
+            bw_word(w, 4321);
+        }
+    }
     bw_jstr(w, "");
     bw_jstr(w, "");
     bw_jstr(w, "");
@@ -539,11 +566,24 @@ test_appearance_rejects_undecodable(void)
     struct BitWriter w = { 0 };
     struct PktPlayerAppearance app;
 
-    /* A per-obj customisation block follows a set flag bit, and it is variable
-     * length — guessing its size reads every later field at the wrong offset,
-     * so the block is refused whole. */
+    /* A per-obj customisation block follows a set flag bit. It delimits
+     * itself (RSProx decodeAppearance, 227-240), so a block that IS there is
+     * stepped over -- and one the flag promises but the blob lacks reads the
+     * name extras out of place and is refused. Models are four bytes at 237+
+     * (v5) and two below it (v4). */
     build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_V5, 1 << 12);
     TEST_CHECK(!PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, w.buf, bw_len(&w)));
+    {
+        struct BitWriter v5 = { 0 };
+        struct BitWriter v4 = { 0 };
+
+        build_v5_blob_with(&v5, APPEARANCE_WIRE_OBJ_TAG_V5, (1 << 12) | (1 << 9), 4);
+        TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V5, v5.buf, bw_len(&v5)));
+        TEST_CHECK(app.combat_level == FIXTURE_COMBAT_LEVEL);
+        build_v5_blob_with(&v4, APPEARANCE_WIRE_OBJ_TAG_V5, (1 << 12) | (1 << 9), 2);
+        TEST_CHECK(PktPlayerAppearance_DecodeAs(&app, APPEARANCE_ENC_V4, v4.buf, bw_len(&v4)));
+        TEST_CHECK(app.combat_level == FIXTURE_COMBAT_LEVEL);
+    }
 
     /* Truncation is rejected rather than silently decoding a naked player:
      * rsbuffer's getters return 0 past the end instead of failing. */

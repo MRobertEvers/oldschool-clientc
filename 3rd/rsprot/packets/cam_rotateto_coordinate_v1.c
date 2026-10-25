@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 236. */
+/* v1 -- revs 227-236. */
 void
 packet_cam_rotateto_coordinate_v1_v1_out(RsprotExec *x, MsgCamRotateToCoordinateV1 *m)
 {
@@ -29,7 +29,7 @@ packet_cam_rotateto_coordinate_v1_v1_out(RsprotExec *x, MsgCamRotateToCoordinate
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v1_out[] = {
-    { 236, 236, (RsprotCodecFn)packet_cam_rotateto_coordinate_v1_v1_out },
+    { 227, 236, (RsprotCodecFn)packet_cam_rotateto_coordinate_v1_v1_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v1_out_count =

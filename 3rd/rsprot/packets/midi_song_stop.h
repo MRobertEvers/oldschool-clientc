@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MidiSongStopEncoder
- * Layouts      : 13 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 14 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MidiSongStopEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -60,6 +60,8 @@ void packet_midi_song_stop_v11_out(RsprotExec *x, MsgMidiSongStop *m);
 void packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m);
 /* v100 -- revs 241. */
 void packet_midi_song_stop_v100_out(RsprotExec *x, MsgMidiSongStop *m);
+/* v101 -- revs 240. */
+void packet_midi_song_stop_v101_out(RsprotExec *x, MsgMidiSongStop *m);
 
 /* Per-revision aliases: `packet_midi_song_stop_rev239_out` is greppable, which is the
  * point -- "what does 239 do for MIDI_SONG_STOP" without reading a table. */
@@ -82,6 +84,7 @@ void packet_midi_song_stop_v100_out(RsprotExec *x, MsgMidiSongStop *m);
 #define packet_midi_song_stop_rev237_out packet_midi_song_stop_v10_out
 #define packet_midi_song_stop_rev238_out packet_midi_song_stop_v2_out
 #define packet_midi_song_stop_rev239_out packet_midi_song_stop_v12_out
+#define packet_midi_song_stop_rev240_out packet_midi_song_stop_v101_out
 #define packet_midi_song_stop_rev241_out packet_midi_song_stop_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

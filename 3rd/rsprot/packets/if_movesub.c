@@ -67,7 +67,7 @@ packet_if_movesub_v7_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM(x, m->destination_combined_id);
 }
 
-/* v8 -- revs 228-229. */
+/* v8 -- revs 228-229, 240. */
 void
 packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -124,14 +124,14 @@ packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m)
 }
 
 /*
- * 19 row(s) for 14 layout(s), complete over revisions 221-239.
+ * 20 row(s) for 14 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_if_movesub_out[] = {
     { 221, 221, (RsprotCodecFn)packet_if_movesub_v1_out },
@@ -152,6 +152,7 @@ const RsprotVersionRange rsprot_if_movesub_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_movesub_v13_out },
     { 238, 238, (RsprotCodecFn)packet_if_movesub_v5_out },
     { 239, 239, (RsprotCodecFn)packet_if_movesub_v14_out },
+    { 240, 240, (RsprotCodecFn)packet_if_movesub_v8_out },
     { 241, 241, (RsprotCodecFn)packet_if_movesub_v4_out },
 };
 

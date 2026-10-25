@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : EventCameraPositionDecoder
- * Layouts      : 12 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 13 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^EventCameraPositionDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -58,6 +58,8 @@ void packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *
 void packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m);
 /* v12 -- revs 238. */
 void packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m);
+/* v100 -- revs 240. */
+void packet_event_camera_position_v100_in(RsprotExec *x, MsgEventCameraPosition *m);
 
 /* Per-revision aliases: `packet_event_camera_position_rev239_in` is greppable, which is the
  * point -- "what does 239 do for EVENT_CAMERA_POSITION" without reading a table. */
@@ -80,6 +82,7 @@ void packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *
 #define packet_event_camera_position_rev237_in packet_event_camera_position_v1_in
 #define packet_event_camera_position_rev238_in packet_event_camera_position_v12_in
 #define packet_event_camera_position_rev239_in packet_event_camera_position_v11_in
+#define packet_event_camera_position_rev240_in packet_event_camera_position_v100_in
 #define packet_event_camera_position_rev241_in packet_event_camera_position_v11_in
 
 /** Revision -> layout. See the .c for the rows. */

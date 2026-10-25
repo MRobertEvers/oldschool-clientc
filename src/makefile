@@ -898,6 +898,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/loginproto_osrs241.c \
 	net/rev/osrs241/gameproto_rev_osrs241.c net/rev/osrs241/osrs241_parse.c \
 	net/rev/osrs241/osrs241_entity_info.c net/rev/osrs241/osrs241_clientprot.c \
+	$(RSPROX_REV_SRCS) \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
@@ -1284,7 +1285,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) $(OBJC_OBJS) \
 	$(OBJ_DIR)/hmap.o $(EMBED_SERVER_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(TORIDRAW_UNITY_LINK_OBJS) \
 	$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_packets_unity.o \
-	$(OBJ_DIR)/pkt_exec.o \
+	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/pkt_codec_storage.o \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
 	$(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
@@ -1339,7 +1340,7 @@ endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
 .PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-long test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
-.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
+.PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-pktsweep test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: bench-trspk-bake test-trspk-color-simd test-trspk-swizzle-simd test-trspk-modelarena-index test-trspk-batch32 test-es3-index-pack
@@ -1666,6 +1667,13 @@ $(OBJ_DIR)/$(notdir $(1:.m=.o)): $(1) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(PLATFORM_OBJC_CFLAGS) -c $(1) -o $$@
 endef
 
+# The data-driven OSRS revisions, 227-241 (net/rev/rsprox/rsprox_rev.h). Like
+# rsprot_bridge.c they read 3rd/rsprot's codec, prot-table and info-stream
+# headers, so they have explicit rules below and stay out of the generic one.
+RSPROX_REV_SRCS = net/rev/rsprox/gameproto_rev_rsprox.c net/rev/rsprox/rsprox_canon.c \
+	net/rev/rsprox/rsprox_parse.c net/rev/rsprox/rsprox_entity_info.c
+RSPROX_REV_OBJS = $(patsubst net/rev/rsprox/%.c,$(OBJ_DIR)/%.o,$(RSPROX_REV_SRCS))
+
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/lc289/gameproto_rev_lc289.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
@@ -1680,7 +1688,7 @@ DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c
 	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c \
 	plugin/torirs_plugin_drive_record.c
 
-$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS) $(RSPROX_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 $(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
@@ -2748,9 +2756,17 @@ $(OBJ_DIR)/rsprot_packets_unity.o: $(RSPROT_PACKETS_UNITY_SRC) | $(OBJ_DIR)
 $(OBJ_DIR)/pkt_exec.o: net/exec/pkt_exec.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
+# Pools for the codecs whose arrays are caller-owned, for anything that runs a
+# codec over a zeroed message (the sweep, the recording check).
+$(OBJ_DIR)/pkt_codec_storage.o: net/exec/pkt_codec_storage.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
+
 # The bridge asks rsprot for a packet's layout, so it needs rsprot's headers on
 # top of the main build's. Own rule for the same reason pkt_exec.o has one.
 $(OBJ_DIR)/rsprot_bridge.o: net/rev/rsprot_bridge.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
+
+$(RSPROX_REV_OBJS): $(OBJ_DIR)/%.o: net/rev/rsprox/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
 # `make -C src rsprot` is the compile gate for all three, so a codec or an
@@ -2790,6 +2806,15 @@ test-pktpackets: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.
 		net/exec/test/pkt_packets_test.c \
 		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) -lm
 	./$(OBJ_DIR)/pkt_packets_test
+
+# Every codec at every revision 227-241, against the revision's prot table:
+# coverage, described size, and a fill/encode/decode/encode round trip.
+test-pktsweep: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unity.o \
+		$(OBJ_DIR)/pkt_codec_storage.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/pkt_codec_sweep_test \
+		net/exec/test/pkt_codec_sweep_test.c $(OBJ_DIR)/pkt_codec_storage.o \
+		$(OBJ_DIR)/rsprot_packets_unity.o $(RSPROT_TEST_DEPS) -lm
+	./$(OBJ_DIR)/pkt_codec_sweep_test
 
 $(OBJ_DIR)/bzip.o: $(REPO_ROOT)/3rd/bzip/bzip.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
@@ -3584,7 +3609,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 # either hand-written parser, so anything linking net.o needs all four: the
 # bridge, the codecs, the executor they call, and rsprot_buf underneath.
 RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
-	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o
+	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(RSPROX_REV_OBJS)
 # PLAYER_INFO v5 round-trip: the encoder against a decoder transcribed from
 # RSProt's own reference client, written in the opposite direction. Catches the
 # skip-run off-by-ones and misaligned bit sections that otherwise decode into
@@ -3692,6 +3717,15 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 # An RSProx recording played through the replay transport into a real rev-241
 # network: the answered handshake, the mirrored cipher, the map-build barrier
 # and the closing LOGOUT (platform/net_transport_replay.c).
+# Decode RSProx recordings at their own revision (227-241) with the data-driven
+# tables, packet by packet: `RECORDINGS="a.bin.gz b.bin.gz"`. Not a suite test --
+# it needs recordings, which are not in the tree.
+.PHONY: rsprox-multirev-check
+rsprox-multirev-check: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprox_multirev_check \
+		net/test/rsprox_multirev_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rsprox_multirev_check $(RECORDINGS)
+
 .PHONY: test-rsprox-replay
 test-rsprox-replay: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rsprox_replay_test \

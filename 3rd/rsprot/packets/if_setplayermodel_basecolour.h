@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetPlayerModelBaseColourEncoder
- * Layouts      : 19 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetPlayerModelBaseColourEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -73,6 +73,8 @@ void packet_if_setplayermodel_basecolour_v17_out(RsprotExec *x, MsgIfSetPlayerMo
 void packet_if_setplayermodel_basecolour_v18_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
 /* v100 -- revs 241. */
 void packet_if_setplayermodel_basecolour_v100_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
+/* v101 -- revs 240. */
+void packet_if_setplayermodel_basecolour_v101_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
 
 /* Per-revision aliases: `packet_if_setplayermodel_basecolour_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_SETPLAYERMODEL_BASECOLOUR" without reading a table. */
@@ -95,6 +97,7 @@ void packet_if_setplayermodel_basecolour_v100_out(RsprotExec *x, MsgIfSetPlayerM
 #define packet_if_setplayermodel_basecolour_rev237_out packet_if_setplayermodel_basecolour_v17_out
 #define packet_if_setplayermodel_basecolour_rev238_out packet_if_setplayermodel_basecolour_v18_out
 #define packet_if_setplayermodel_basecolour_rev239_out packet_if_setplayermodel_basecolour_v10_out
+#define packet_if_setplayermodel_basecolour_rev240_out packet_if_setplayermodel_basecolour_v101_out
 #define packet_if_setplayermodel_basecolour_rev241_out packet_if_setplayermodel_basecolour_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

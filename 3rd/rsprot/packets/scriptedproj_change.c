@@ -39,18 +39,33 @@ packet_scriptedproj_change_v100_out(RsprotExec *x, MsgScriptedProjChange *m)
     RSPROT_U4_ALT2(x, m->target_coord_packed);
 }
 
+/* v101 -- revs 240. */
+void
+packet_scriptedproj_change_v101_out(RsprotExec *x, MsgScriptedProjChange *m)
+{
+    RSPROT_U2_ALT3(x, m->freeze_duration);
+    RSPROT_U1_ALT1(x, m->delete_on_freeze_end);
+    RSPROT_U2_ALT2(x, m->target_offset_x);
+    RSPROT_U4(x, m->target_coord_packed);
+    RSPROT_U2_ALT1(x, m->target_offset_z);
+    RSPROT_U2_ALT3(x, m->target_height);
+    RSPROT_U2_ALT1(x, m->slot);
+    RSPROT_U3(x, m->target_index);
+}
+
 /*
- * 2 row(s) for 2 layout(s), complete over revisions 221-239.
+ * 3 row(s) for 3 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_change_out[] = {
     { 239, 239, (RsprotCodecFn)packet_scriptedproj_change_v1_out },
+    { 240, 240, (RsprotCodecFn)packet_scriptedproj_change_v101_out },
     { 241, 241, (RsprotCodecFn)packet_scriptedproj_change_v100_out },
 };
 

@@ -37,11 +37,20 @@ typedef struct MsgCamMoveToArcV1 {
 	int32_t easing_id;
 } MsgCamMoveToArcV1;
 
-/* v1 -- revs 236. */
+/* v1 -- revs 227-236. */
 void packet_cam_moveto_arc_v1_v1_out(RsprotExec *x, MsgCamMoveToArcV1 *m);
 
 /* Per-revision aliases: `packet_cam_moveto_arc_v1_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_MOVETO_ARC_V1" without reading a table. */
+#define packet_cam_moveto_arc_v1_rev227_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev228_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev229_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev230_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev231_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev232_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev233_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev234_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_rev235_out packet_cam_moveto_arc_v1_v1_out
 #define packet_cam_moveto_arc_v1_rev236_out packet_cam_moveto_arc_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -164,9 +164,10 @@ test_range_table_covers_every_revision(void)
     const RsprotVersionRange *r = rsprot_if_opentop_out;
     const int n = rsprot_if_opentop_out_count;
 
-    /* 13 runs over 4 layouts from RSProt, plus revision 241's row from RSProx
-     * (tools/rsprox_codec_overlay.py; IfOpenTopDecoder unchanged since 239). */
-    CHECK_EQ(n, 14);
+    /* 13 runs over 4 layouts from RSProt, plus revisions 240 and 241 from
+     * RSProx (IfOpenTopDecoder: g2Alt3 at 240 -- v2 again -- and 239's g2Alt2
+     * at 241). */
+    CHECK_EQ(n, 15);
 
     for (int rev = 221; rev <= 239; rev++)
         CHECK(rsprot_version_pick(r, n, rev) != NULL);
@@ -177,11 +178,12 @@ test_range_table_covers_every_revision(void)
     CHECK(rsprot_version_pick(r, n, 235) == (RsprotCodecFn)packet_if_opentop_v2_out);
     CHECK(rsprot_version_pick(r, n, 239) == (RsprotCodecFn)packet_if_opentop_v4_out);
 
+    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_v2_out);
+    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_rev240_out);
     CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_v4_out);
     CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_rev241_out);
 
     CHECK(rsprot_version_pick(r, n, 220) == NULL); /* before the first range */
-    CHECK(rsprot_version_pick(r, n, 240) == NULL); /* the gap RSProx-derived rows leave */
     CHECK(rsprot_version_pick(r, n, 242) == NULL); /* after the last */
 }
 

@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MapProjAnimV2Encoder
- * Layouts      : 10 distinct, over 10 contiguous revision run(s)
+ * Layouts      : 11 distinct, over 11 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MapProjAnimV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -63,6 +63,8 @@ void packet_map_projanim_v2_v8_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 void packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 /* v100 -- revs 241. */
 void packet_map_projanim_v2_v100_out(RsprotExec *x, MsgMapProjAnimV2 *m);
+/* v101 -- revs 240. */
+void packet_map_projanim_v2_v101_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 
 /* Per-revision aliases: `packet_map_projanim_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for MAP_PROJANIM_V2" without reading a table. */
@@ -75,6 +77,7 @@ void packet_map_projanim_v2_v100_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 #define packet_map_projanim_v2_rev237_out packet_map_projanim_v2_v7_out
 #define packet_map_projanim_v2_rev238_out packet_map_projanim_v2_v8_out
 #define packet_map_projanim_v2_rev239_out packet_map_projanim_v2_v9_out
+#define packet_map_projanim_v2_rev240_out packet_map_projanim_v2_v101_out
 #define packet_map_projanim_v2_rev241_out packet_map_projanim_v2_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

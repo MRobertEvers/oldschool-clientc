@@ -370,12 +370,62 @@ skip_obj_customisation_v6(struct RSCache_Buffer* rsbuf)
     return 1;
 }
 
+/*
+ * One worn slot's obj customisation at 227-240 (RSProx decodeAppearance): a
+ * slot flag byte; 0x1 recolours and 0x2 retextures, each a byte of two 4-bit
+ * indices with a g2 replacement behind each index that is not 15; then 0x4 two
+ * worn and 0x8 two head model ids, `model_bytes` wide (2 below 237, 4 from it).
+ * Read and dropped, like v6's.
+ */
+static int
+skip_obj_customisation_v5(
+    struct RSCache_Buffer* rsbuf,
+    int model_bytes)
+{
+    int slot_flag;
+
+    if( !need(rsbuf, 1) )
+        return 0;
+    slot_flag = g1(rsbuf);
+    for( int bit = 0x1; bit <= 0x2; bit <<= 1 )
+    {
+        if( slot_flag & bit )
+        {
+            int indices;
+
+            if( !need(rsbuf, 1) )
+                return 0;
+            indices = g1(rsbuf);
+            for( int half = 0; half < 2; half++ )
+            {
+                if( ((indices >> (4 * half)) & 15) == 15 )
+                    continue;
+                if( !need(rsbuf, 2) )
+                    return 0;
+                rsbuf->position += 2;
+            }
+        }
+    }
+    for( int bit = 0x4; bit <= 0x8; bit <<= 1 )
+    {
+        if( slot_flag & bit )
+        {
+            if( !need(rsbuf, 2 * model_bytes) )
+                return 0;
+            rsbuf->position += (uint32_t)(2 * model_bytes);
+        }
+    }
+    return 1;
+}
+
 static int
 read_v5(
     struct OpWriter* w,
     struct RSCache_Buffer* rsbuf,
-    int v6)
+    enum AppearanceEncoding encoding)
 {
+    int v6 = encoding == APPEARANCE_ENC_V6;
+
     if( !need(rsbuf, 3) )
         return 0;
     op_value(w, PKT_APPEARANCE_OP_GENDER, g1(rsbuf));
@@ -460,13 +510,20 @@ read_v5(
         int flag = g2(rsbuf);
         if( flag & 0x1ffe )
         {
-            if( !v6 )
-                return 0;
             /* `customisationFlag shr (12 - i) and 1` per wear position i, and
              * 32768 alone is the refresh bit with no blocks behind it. */
             for( int i = 0; i < 12; i++ )
-                if( ((flag >> (12 - i)) & 1) && !skip_obj_customisation_v6(rsbuf) )
+            {
+                int ok;
+
+                if( !((flag >> (12 - i)) & 1) )
+                    continue;
+                ok = v6 ? skip_obj_customisation_v6(rsbuf)
+                        : skip_obj_customisation_v5(rsbuf,
+                                                    encoding == APPEARANCE_ENC_V4 ? 2 : 4);
+                if( !ok )
                     return 0;
+            }
         }
     }
 
@@ -510,8 +567,9 @@ pkt_appearance_read(
     w.capacity = ops_capacity;
     RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)len);
 
-    if( encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6 )
-        ok = read_v5(&w, &rsbuf, encoding == APPEARANCE_ENC_V6);
+    if( encoding == APPEARANCE_ENC_V4 || encoding == APPEARANCE_ENC_V5 ||
+        encoding == APPEARANCE_ENC_V6 )
+        ok = read_v5(&w, &rsbuf, encoding);
     else if( encoding == APPEARANCE_ENC_CLASSIC_LC289 )
         ok = read_classic_lc289(&w, &rsbuf);
     else

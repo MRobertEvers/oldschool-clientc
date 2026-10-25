@@ -159,6 +159,7 @@ static const RsprotProtDef rsprot_rev236_server[] = {
     { "HISCORE_REPLY", 112, RSPROT_VARU16 },
     { "PACKET_GROUP_START", 125, 2 },
     { "UNKNOWN_STRING", 9, RSPROT_VARU8 },
+    { "WORLDENTITY_INFO_V6", 129, RSPROT_VARU16 },  /* RSProx only */
 };
 static const RsprotProtDef rsprot_rev236_client[] = {
     { "IF_BUTTON", 57, 4 },

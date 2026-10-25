@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 236. */
+/* v1 -- revs 229, 231-232, 235-236. */
 void
 packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m)
 {
@@ -19,13 +19,15 @@ packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 3 row(s) for 1 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v1_out[] = {
-    { 236, 236, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { 229, 229, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { 231, 232, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { 235, 236, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
 };
 
 const int rsprot_update_reboot_timer_v1_out_count =

@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetHideEncoder
- * Layouts      : 18 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 18 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetHideEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -42,7 +42,7 @@ void packet_if_sethide_v2_out(RsprotExec *x, MsgIfSetHide *m);
 void packet_if_sethide_v3_out(RsprotExec *x, MsgIfSetHide *m);
 /* v4 -- revs 224, 235. */
 void packet_if_sethide_v4_out(RsprotExec *x, MsgIfSetHide *m);
-/* v5 -- revs 225. */
+/* v5 -- revs 225, 240. */
 void packet_if_sethide_v5_out(RsprotExec *x, MsgIfSetHide *m);
 /* v6 -- revs 226. */
 void packet_if_sethide_v6_out(RsprotExec *x, MsgIfSetHide *m);
@@ -92,6 +92,7 @@ void packet_if_sethide_v100_out(RsprotExec *x, MsgIfSetHide *m);
 #define packet_if_sethide_rev237_out packet_if_sethide_v15_out
 #define packet_if_sethide_rev238_out packet_if_sethide_v16_out
 #define packet_if_sethide_rev239_out packet_if_sethide_v17_out
+#define packet_if_sethide_rev240_out packet_if_sethide_v5_out
 #define packet_if_sethide_rev241_out packet_if_sethide_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

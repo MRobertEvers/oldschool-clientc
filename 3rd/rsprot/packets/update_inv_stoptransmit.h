@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : UpdateInvStopTransmitEncoder
- * Layouts      : 4 distinct, over 17 contiguous revision run(s)
+ * Layouts      : 4 distinct, over 18 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^UpdateInvStopTransmitEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -39,7 +39,7 @@ void packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransm
 void packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 /* v3 -- revs 224, 227, 230, 232, 236. */
 void packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v4 -- revs 235, 237. */
+/* v4 -- revs 235, 237, 240. */
 void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 
 /* Per-revision aliases: `packet_update_inv_stoptransmit_rev239_out` is greppable, which is the
@@ -63,6 +63,7 @@ void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransm
 #define packet_update_inv_stoptransmit_rev237_out packet_update_inv_stoptransmit_v4_out
 #define packet_update_inv_stoptransmit_rev238_out packet_update_inv_stoptransmit_v2_out
 #define packet_update_inv_stoptransmit_rev239_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_rev240_out packet_update_inv_stoptransmit_v4_out
 #define packet_update_inv_stoptransmit_rev241_out packet_update_inv_stoptransmit_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

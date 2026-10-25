@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfOpenSubEncoder
- * Layouts      : 19 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 20 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfOpenSubEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -73,6 +73,8 @@ void packet_if_opensub_v17_out(RsprotExec *x, MsgIfOpenSub *m);
 void packet_if_opensub_v18_out(RsprotExec *x, MsgIfOpenSub *m);
 /* v100 -- revs 241. */
 void packet_if_opensub_v100_out(RsprotExec *x, MsgIfOpenSub *m);
+/* v101 -- revs 240. */
+void packet_if_opensub_v101_out(RsprotExec *x, MsgIfOpenSub *m);
 
 /* Per-revision aliases: `packet_if_opensub_rev239_out` is greppable, which is the
  * point -- "what does 239 do for IF_OPENSUB" without reading a table. */
@@ -95,6 +97,7 @@ void packet_if_opensub_v100_out(RsprotExec *x, MsgIfOpenSub *m);
 #define packet_if_opensub_rev237_out packet_if_opensub_v17_out
 #define packet_if_opensub_rev238_out packet_if_opensub_v15_out
 #define packet_if_opensub_rev239_out packet_if_opensub_v18_out
+#define packet_if_opensub_rev240_out packet_if_opensub_v101_out
 #define packet_if_opensub_rev241_out packet_if_opensub_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

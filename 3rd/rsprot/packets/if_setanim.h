@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetAnimEncoder
- * Layouts      : 15 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetAnimEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -60,7 +60,7 @@ void packet_if_setanim_v11_out(RsprotExec *x, MsgIfSetAnim *m);
 void packet_if_setanim_v12_out(RsprotExec *x, MsgIfSetAnim *m);
 /* v13 -- revs 236. */
 void packet_if_setanim_v13_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v14 -- revs 237. */
+/* v14 -- revs 237, 240. */
 void packet_if_setanim_v14_out(RsprotExec *x, MsgIfSetAnim *m);
 /* v100 -- revs 241. */
 void packet_if_setanim_v100_out(RsprotExec *x, MsgIfSetAnim *m);
@@ -86,6 +86,7 @@ void packet_if_setanim_v100_out(RsprotExec *x, MsgIfSetAnim *m);
 #define packet_if_setanim_rev237_out packet_if_setanim_v14_out
 #define packet_if_setanim_rev238_out packet_if_setanim_v6_out
 #define packet_if_setanim_rev239_out packet_if_setanim_v11_out
+#define packet_if_setanim_rev240_out packet_if_setanim_v14_out
 #define packet_if_setanim_rev241_out packet_if_setanim_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

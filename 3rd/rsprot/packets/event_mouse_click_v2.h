@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : EventMouseClickV2Decoder
- * Layouts      : 9 distinct, over 9 contiguous revision run(s)
+ * Layouts      : 10 distinct, over 10 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^EventMouseClickV2Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -56,6 +56,8 @@ void packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 void packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 /* v100 -- revs 241. */
 void packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m);
+/* v101 -- revs 240. */
+void packet_event_mouse_click_v2_v101_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 
 /* Per-revision aliases: `packet_event_mouse_click_v2_rev239_in` is greppable, which is the
  * point -- "what does 239 do for EVENT_MOUSE_CLICK_V2" without reading a table. */
@@ -67,6 +69,7 @@ void packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 #define packet_event_mouse_click_v2_rev237_in packet_event_mouse_click_v2_v6_in
 #define packet_event_mouse_click_v2_rev238_in packet_event_mouse_click_v2_v7_in
 #define packet_event_mouse_click_v2_rev239_in packet_event_mouse_click_v2_v8_in
+#define packet_event_mouse_click_v2_rev240_in packet_event_mouse_click_v2_v101_in
 #define packet_event_mouse_click_v2_rev241_in packet_event_mouse_click_v2_v100_in
 
 /** Revision -> layout. See the .c for the rows. */

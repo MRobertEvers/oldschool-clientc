@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SetNpcUpdateOriginEncoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SetNpcUpdateOriginEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -34,7 +34,7 @@ typedef struct MsgSetNpcUpdateOrigin {
 	int32_t origin_z;
 } MsgSetNpcUpdateOrigin;
 
-/* v1 -- revs 222-239, 241. */
+/* v1 -- revs 222-241. */
 void packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m);
 
 /* Per-revision aliases: `packet_set_npc_update_origin_rev239_out` is greppable, which is the
@@ -57,6 +57,7 @@ void packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m
 #define packet_set_npc_update_origin_rev237_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_rev238_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_rev239_out packet_set_npc_update_origin_v1_out
+#define packet_set_npc_update_origin_rev240_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_rev241_out packet_set_npc_update_origin_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -107,15 +107,23 @@ packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT1(x, m->angle_y);
 }
 
+/* v100 -- revs 240. */
+void
+packet_event_camera_position_v100_in(RsprotExec *x, MsgEventCameraPosition *m)
+{
+    RSPROT_U2(x, m->angle_x);
+    RSPROT_U2_ALT2(x, m->angle_y);
+}
+
 /*
- * 20 row(s) for 12 layout(s), complete over revisions 221-239.
+ * 21 row(s) for 13 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_event_camera_position_in[] = {
     { 221, 221, (RsprotCodecFn)packet_event_camera_position_v1_in },
@@ -137,6 +145,7 @@ const RsprotVersionRange rsprot_event_camera_position_in[] = {
     { 237, 237, (RsprotCodecFn)packet_event_camera_position_v1_in },
     { 238, 238, (RsprotCodecFn)packet_event_camera_position_v12_in },
     { 239, 239, (RsprotCodecFn)packet_event_camera_position_v11_in },
+    { 240, 240, (RsprotCodecFn)packet_event_camera_position_v100_in },
     { 241, 241, (RsprotCodecFn)packet_event_camera_position_v11_in },
 };
 

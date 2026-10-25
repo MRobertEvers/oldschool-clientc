@@ -1232,6 +1232,111 @@ static struct BridgeRow const k_rows[] = {
     { PKT_NAME_SERVER_TICK_END, bridge_server_tick_end },
 };
 
+/*
+ * The same adapters, keyed by the PROT whose codec each one runs.
+ *
+ * rsprot_bridge_parse above keys on the canonical name, which is safe only
+ * because each hand-written revision maps one prot to each name. The
+ * data-driven revisions (net/rev/rsprox/) do not: CAM_LOOKAT is CAM_LOOKAT_V2
+ * and CAM_LOOKAT_V3 at once at 239-240, and running the V2 adapter on the V3
+ * prot decodes six bytes of a seven-byte layout. So a row here names the exact
+ * prot its adapter's codec table is, and a prot with no row is the caller's.
+ */
+struct BridgeProtRow
+{
+    char const* prot;
+    int pkt_name;
+    int (*fn)(int revision, uint8_t const* data, int len, struct RevPacket* out);
+};
+
+static struct BridgeProtRow const k_prot_rows[] = {
+    { "IF_OPENTOP", PKT_NAME_IF_OPENTOP, bridge_if_opentop },
+    { "IF_OPENSUB", PKT_NAME_IF_OPENSUB, bridge_if_opensub },
+    { "IF_CLOSESUB", PKT_NAME_IF_CLOSESUB, bridge_if_closesub },
+    { "IF_SETTEXT", PKT_NAME_IF_SETTEXT, bridge_if_settext },
+    { "IF_SETANIM", PKT_NAME_IF_SETANIM, bridge_if_setanim },
+    { "VARP_SMALL", PKT_NAME_VARP_SMALL, bridge_varp_small },
+    { "VARP_LARGE", PKT_NAME_VARP_LARGE, bridge_varp_large },
+    { "VARP_LONG", PKT_NAME_VARP_LONG, bridge_varp_long },
+    { "UPDATE_RUNENERGY", PKT_NAME_UPDATE_RUNENERGY, bridge_update_runenergy },
+    { "MESSAGE_GAME", PKT_NAME_MESSAGE_GAME, bridge_message_game },
+    { "IF_CLEARINV", PKT_NAME_IF_CLEARINV, bridge_if_clearinv },
+    { "IF_MOVESUB", PKT_NAME_IF_MOVESUB, bridge_if_movesub },
+    { "IF_SETANGLE", PKT_NAME_IF_SETANGLE, bridge_if_setangle },
+    { "IF_SETCOLOUR", PKT_NAME_IF_SETCOLOUR, bridge_if_setcolour },
+    { "IF_SETEVENTS_V2", PKT_NAME_IF_SETEVENTS, bridge_if_setevents },
+    { "IF_SETMODEL_V2", PKT_NAME_IF_SETMODEL, bridge_if_setmodel },
+    { "IF_SETNPCHEAD", PKT_NAME_IF_SETNPCHEAD, bridge_if_setnpchead },
+    { "IF_SETNPCHEAD_ACTIVE", PKT_NAME_IF_SETNPCHEAD_ACTIVE, bridge_if_setnpchead_active },
+    { "IF_SETOBJECT", PKT_NAME_IF_SETOBJECT, bridge_if_setobject },
+    { "IF_SETPLAYERHEAD", PKT_NAME_IF_SETPLAYERHEAD, bridge_if_setplayerhead },
+    { "IF_SETPOSITION", PKT_NAME_IF_SETPOSITION, bridge_if_setposition },
+    { "IF_SETROTATESPEED", PKT_NAME_IF_SETROTATESPEED, bridge_if_setrotatespeed },
+    { "IF_SETSCROLLPOS", PKT_NAME_IF_SETSCROLLPOS, bridge_if_setscrollpos },
+    { "UPDATE_ZONE_FULL_FOLLOWS", PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS,
+      bridge_update_zone_full_follows },
+    { "UPDATE_ZONE_PARTIAL_FOLLOWS", PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+      bridge_update_zone_partial_follows },
+    { "UPDATE_STAT_V2", PKT_NAME_UPDATE_STAT, bridge_update_stat },
+    { "SYNTH_SOUND", PKT_NAME_SYNTH_SOUND, bridge_synth_sound },
+    { "MIDI_SONG_V2", PKT_NAME_MIDI_SONG, bridge_midi_song },
+    { "MIDI_JINGLE", PKT_NAME_MIDI_JINGLE, bridge_midi_jingle },
+    { "CAM_SHAKE", PKT_NAME_CAM_SHAKE, bridge_cam_shake },
+    { "IF_RESYNC_V2", PKT_NAME_IF_RESYNC_V2, bridge_if_resync },
+    /* bridge_cam_lookat runs V2 below 241 and has no 241 V2 to see. */
+    { "CAM_LOOKAT_V2", PKT_NAME_CAM_LOOKAT, bridge_cam_lookat },
+    { "CAM_LOOKAT_V3", PKT_NAME_CAM_LOOKAT, bridge_cam_lookat_v3 },
+    { "CAM_MOVETO_V2", PKT_NAME_CAM_MOVETO, bridge_cam_moveto },
+    { "CAM_MOVETO_V3", PKT_NAME_CAM_MOVETO, bridge_cam_moveto_v3 },
+    { "CAM_MOVETO_CYCLES_V3", PKT_NAME_CAM_MOVETO_CYCLES, bridge_cam_moveto_cycles },
+    { "CAM_ROTATETO_COORDINATE_V3", PKT_NAME_CAM_ROTATETO_COORDINATE,
+      bridge_cam_rotateto_coordinate },
+    { "UPDATE_INV_FULL", PKT_NAME_UPDATE_INV_FULL, bridge_update_inv_full },
+    { "UPDATE_INV_PARTIAL", PKT_NAME_UPDATE_INV_PARTIAL, bridge_update_inv_partial },
+    { "UPDATE_INV_STOPTRANSMIT", PKT_NAME_UPDATE_INV_STOP_TRANSMIT,
+      bridge_update_inv_stop_transmit },
+    { "UPDATE_IGNORELIST", PKT_NAME_UPDATE_IGNORELIST, bridge_update_ignorelist },
+    { "UPDATE_FRIENDLIST", PKT_NAME_UPDATE_FRIENDLIST, bridge_update_friendlist },
+    { "RUNCLIENTSCRIPT", PKT_NAME_RUNCLIENTSCRIPT, bridge_runclientscript },
+    { "SET_MAP_FLAG_V2", PKT_NAME_UNSET_MAP_FLAG, bridge_unset_map_flag },
+    { "SET_NPC_UPDATE_ORIGIN", PKT_NAME_SET_NPC_UPDATE_ORIGIN, bridge_set_npc_update_origin },
+    { "CHAT_FILTER_SETTINGS", PKT_NAME_CHAT_FILTER_SETTINGS, bridge_chat_filter_settings },
+    { "IF_SETHIDE", PKT_NAME_IF_SETHIDE, bridge_if_sethide },
+    { "MINIMAP_TOGGLE", PKT_NAME_MINIMAP_TOGGLE, bridge_minimap_toggle },
+    { "CAM_UNLOCK", PKT_NAME_CAM_UNLOCK, bridge_cam_unlock },
+    { "HIDENPCOPS", PKT_NAME_HIDENPCOPS, bridge_hidenpcops },
+    { "HIDELOCOPS", PKT_NAME_HIDELOCOPS, bridge_hidelocops },
+    { "HIDEOBJOPS", PKT_NAME_HIDEOBJOPS, bridge_hideobjops },
+    { "IF_SETPLAYERMODEL_BASECOLOUR", PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR,
+      bridge_if_setplayermodel_basecolour },
+    { "IF_SETPLAYERMODEL_BODYTYPE", PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE,
+      bridge_if_setplayermodel_bodytype },
+    { "IF_SETPLAYERMODEL_OBJ", PKT_NAME_IF_SETPLAYERMODEL_OBJ, bridge_if_setplayermodel_obj },
+    { "IF_SETPLAYERMODEL_SELF", PKT_NAME_IF_SETPLAYERMODEL_SELF,
+      bridge_if_setplayermodel_self },
+    { "FRIENDLIST_LOADED", PKT_NAME_FRIENDLIST_LOADED, bridge_friendlist_loaded },
+    { "SERVER_TICK_END", PKT_NAME_SERVER_TICK_END, bridge_server_tick_end },
+};
+
+int
+rsprot_bridge_parse_prot(
+    int revision,
+    char const* prot,
+    uint8_t const* data,
+    int len,
+    struct RevPacket* out)
+{
+    assert(prot);
+    for( size_t i = 0; i < sizeof(k_prot_rows) / sizeof(k_prot_rows[0]); i++ )
+    {
+        if( strcmp(k_prot_rows[i].prot, prot) != 0 )
+            continue;
+        out->packet_type = (enum GameProtoPktName)k_prot_rows[i].pkt_name;
+        return k_prot_rows[i].fn(revision, data, len, out);
+    }
+    return -1;
+}
+
 int
 rsprot_bridge_parse(
     struct GameProtoRevTable const* rev,

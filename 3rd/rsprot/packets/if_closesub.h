@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfCloseSubEncoder
- * Layouts      : 2 distinct, over 3 contiguous revision run(s)
+ * Layouts      : 2 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfCloseSubEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -35,7 +35,7 @@ typedef struct MsgIfCloseSub {
 
 /* v1 -- revs 221. */
 void packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m);
-/* v2 -- revs 222-239, 241. */
+/* v2 -- revs 222-241. */
 void packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m);
 
 /* Per-revision aliases: `packet_if_closesub_rev239_out` is greppable, which is the
@@ -59,6 +59,7 @@ void packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m);
 #define packet_if_closesub_rev237_out packet_if_closesub_v2_out
 #define packet_if_closesub_rev238_out packet_if_closesub_v2_out
 #define packet_if_closesub_rev239_out packet_if_closesub_v2_out
+#define packet_if_closesub_rev240_out packet_if_closesub_v2_out
 #define packet_if_closesub_rev241_out packet_if_closesub_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

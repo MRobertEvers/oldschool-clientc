@@ -64,6 +64,20 @@ rsprot_bridge_parse(
     int len,
     struct RevPacket* out);
 
+/**
+ * Decode `data` as the prot named `prot` at RSProt revision `revision`, with
+ * the adapter whose codec IS that prot. Returns as rsprot_bridge_parse, and <0
+ * when no adapter runs exactly that prot. For the data-driven revisions
+ * (net/rev/rsprox/), which cannot key on canonical names.
+ */
+int
+rsprot_bridge_parse_prot(
+    int revision,
+    char const* prot,
+    uint8_t const* data,
+    int len,
+    struct RevPacket* out);
+
 /** The RSProt revision number a rev table speaks, or 0 for the project-native
  *  protocols RSProt never carried. Exposed for tests and for the trace. */
 int

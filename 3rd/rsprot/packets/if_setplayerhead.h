@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetPlayerHeadEncoder
- * Layouts      : 5 distinct, over 17 contiguous revision run(s)
+ * Layouts      : 5 distinct, over 18 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetPlayerHeadEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -39,7 +39,7 @@ void packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 void packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 /* v3 -- revs 223, 227, 229, 232, 241. */
 void packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v4 -- revs 226, 230, 233-235, 237. */
+/* v4 -- revs 226, 230, 233-235, 237, 240. */
 void packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 /* v5 -- revs 231, 238. */
 void packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m);
@@ -65,6 +65,7 @@ void packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 #define packet_if_setplayerhead_rev237_out packet_if_setplayerhead_v4_out
 #define packet_if_setplayerhead_rev238_out packet_if_setplayerhead_v5_out
 #define packet_if_setplayerhead_rev239_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_rev240_out packet_if_setplayerhead_v4_out
 #define packet_if_setplayerhead_rev241_out packet_if_setplayerhead_v3_out
 
 /** Revision -> layout. See the .c for the rows. */

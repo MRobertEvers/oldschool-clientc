@@ -82,3 +82,143 @@ UpdateZoneFullFollowsEncoder	out	241	100	RSPROT_U1(x, m->zone_z); RSPROT_U1(x, m
 UpdateZonePartialFollowsEncoder	out	241	100	RSPROT_U1_ALT1(x, m->level); RSPROT_U1_ALT1(x, m->zone_z); RSPROT_U1(x, m->zone_x);
 VarpLargeEncoder	out	241	100	RSPROT_U2_ALT3(x, m->id); RSPROT_U4_ALT3(x, m->value);
 UpdateInvFullEncoder	out	241	100	hand-written: 3rd/rsprot/packets/update_inv_full.c (packet_update_inv_full_v100_out)
+AmbientSoundStartEncoder	out	240	101	RSPROT_U2_ALT2(x, m->id); RSPROT_U1_ALT2(x, m->fade);
+AnimSpecificEncoder	out	240	100	RSPROT_U1_ALT1(x, m->delay); RSPROT_U2_ALT2(x, m->id);
+BugReportDecoder	in	240	101	RSPROT_JSTR(x, m->description); RSPROT_JSTR(x, m->instructions); RSPROT_U1_ALT3(x, m->type);
+CamLookAtCyclesEncoder	out	240	101	RSPROT_U2_ALT2(x, m->x); RSPROT_U2_ALT2(x, m->cycles); RSPROT_U1_ALT3(x, m->easing_id); RSPROT_U2(x, m->z); RSPROT_U1_ALT3(x, m->height_relative); RSPROT_U2_ALT1(x, m->height);
+CamLookAtV2Encoder	out	240	100	RSPROT_U1_ALT3(x, m->rate2); RSPROT_U2(x, m->height); RSPROT_U2(x, m->z); RSPROT_U1_ALT3(x, m->rate); RSPROT_U2_ALT1(x, m->x);
+CamLookAtV3Encoder	out	240	101	RSPROT_U1_ALT2(x, m->rate); RSPROT_U2(x, m->height); RSPROT_U2_ALT3(x, m->x); RSPROT_U2(x, m->z); RSPROT_U1_ALT2(x, m->rate2); RSPROT_U1_ALT3(x, m->height_relative);
+CamMoveToArcV2Encoder	out	240	100	RSPROT_U2_ALT3(x, m->destination_x); RSPROT_U2_ALT3(x, m->center_z); RSPROT_U1_ALT3(x, m->easing_id); RSPROT_U2_ALT2(x, m->center_x); RSPROT_U2_ALT1(x, m->cycles); RSPROT_U2_ALT2(x, m->height); RSPROT_U2(x, m->destination_z); RSPROT_U1_ALT1(x, m->ignore_terrain);
+CamMoveToArcV3Encoder	out	240	101	RSPROT_U2_ALT2(x, m->center_z); RSPROT_U1_ALT1(x, m->height_relative); RSPROT_U2_ALT3(x, m->height); RSPROT_U1_ALT2(x, m->easing_id); RSPROT_U2_ALT3(x, m->destination_z); RSPROT_U2_ALT2(x, m->cycles); RSPROT_U1(x, m->ignore_terrain); RSPROT_U2_ALT3(x, m->center_x); RSPROT_U2_ALT1(x, m->destination_x);
+CamMoveToCyclesV2Encoder	out	240	100	RSPROT_U1(x, m->ignore_terrain); RSPROT_U2_ALT3(x, m->z); RSPROT_U2_ALT2(x, m->cycles); RSPROT_U2_ALT1(x, m->height); RSPROT_U1(x, m->easing_id); RSPROT_U2(x, m->x);
+CamMoveToCyclesV3Encoder	out	240	101	RSPROT_U1_ALT2(x, m->ignore_terrain); RSPROT_U1_ALT1(x, m->easing_id); RSPROT_U1(x, m->height_relative); RSPROT_U2_ALT3(x, m->height); RSPROT_U2_ALT2(x, m->z); RSPROT_U2_ALT1(x, m->cycles); RSPROT_U2_ALT3(x, m->x);
+CamMoveToV2Encoder	out	240	100	RSPROT_U2(x, m->z); RSPROT_U1_ALT1(x, m->rate2); RSPROT_U2(x, m->height); RSPROT_U2_ALT3(x, m->x); RSPROT_U1_ALT3(x, m->rate);
+CamMoveToV3Encoder	out	240	101	RSPROT_U1_ALT2(x, m->rate); RSPROT_U2(x, m->z); RSPROT_U1_ALT1(x, m->rate2); RSPROT_U2_ALT1(x, m->height); RSPROT_U2_ALT3(x, m->x); RSPROT_BOOL(x, m->height_relative);
+CamRotateToCoordinateV2Encoder	out	240	100	RSPROT_U2_ALT1(x, m->x); RSPROT_U2_ALT1(x, m->cycles); RSPROT_U2_ALT3(x, m->height); RSPROT_U2_ALT1(x, m->z); RSPROT_U1_ALT2(x, m->easing_id);
+CamRotateToCoordinateV3Encoder	out	240	101	RSPROT_U2_ALT2(x, m->height); RSPROT_U2_ALT2(x, m->x); RSPROT_U1(x, m->easing_id); RSPROT_U2(x, m->cycles); RSPROT_BOOL(x, m->height_relative); RSPROT_U2_ALT3(x, m->z); RSPROT_U1(x, m->track_target);
+EventCameraPositionDecoder	in	240	100	RSPROT_U2(x, m->angle_x); RSPROT_U2_ALT2(x, m->angle_y);
+EventMouseClickV2Decoder	in	240	101	RSPROT_U1(x, m->code); RSPROT_U2_ALT3(x, m->y); RSPROT_U2(x, m->packed); RSPROT_U2_ALT3(x, m->x); int32_t right_click = (m->packed & (0x1 != 0)); int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1))); m->last_transmitted_mouse_click = last_transmitted_mouse_click; m->right_click = right_click;
+IfButtonDDecoder	in	240	101	RSPROT_U2_ALT2(x, m->selected_sub); RSPROT_COM(x, m->target_combined_id); RSPROT_U2(x, m->target_sub); RSPROT_COM(x, m->selected_combined_id); RSPROT_U2_ALT2(x, m->target_obj); RSPROT_U2_ALT3(x, m->selected_obj);
+IfButtonTDecoder	in	240	101	RSPROT_U2_ALT1(x, m->selected_obj); RSPROT_COM(x, m->selected_combined_id); RSPROT_U2_ALT3(x, m->target_sub); RSPROT_U2_ALT2(x, m->target_obj); RSPROT_U2_ALT3(x, m->selected_sub); RSPROT_COM_ALT3(x, m->target_combined_id);
+IfCrmViewOpDecoder	in	240	101	RSPROT_U4(x, m->behaviour2); RSPROT_U4_ALT1(x, m->behaviour1); RSPROT_U4_ALT3(x, m->behaviour3); RSPROT_U4(x, m->server_target); RSPROT_U2_ALT2(x, m->sub); RSPROT_COM(x, m->combined_id);
+IfOpenSubEncoder	out	240	101	RSPROT_U1(x, m->type); RSPROT_U2_ALT3(x, m->interface_id); RSPROT_COM_ALT3(x, m->destination_combined_id);
+IfSetAngleEncoder	out	240	101	RSPROT_COM_ALT1(x, m->combined_id); RSPROT_U2_ALT2(x, m->angle_y); RSPROT_U2(x, m->angle_x); RSPROT_U2(x, m->zoom);
+IfSetColourEncoder	out	240	100	RSPROT_U2_ALT3(x, m->colour15_bit_packed); RSPROT_COM_ALT1(x, m->combined_id);
+IfSetEventsV2Encoder	out	240	101	RSPROT_COM(x, m->combined_id); RSPROT_U4_ALT3(x, m->events1); RSPROT_U2_ALT2(x, m->start); RSPROT_U4_ALT1(x, m->events2); RSPROT_U2_ALT1(x, m->end);
+IfSetModelV2Encoder	out	240	101	RSPROT_U4_ALT1(x, m->model); RSPROT_COM_ALT1(x, m->combined_id);
+IfSetNpcHeadActiveEncoder	out	240	101	RSPROT_COM_ALT1(x, m->combined_id); RSPROT_U2_ALT3(x, m->index);
+IfSetNpcHeadEncoder	out	240	101	RSPROT_COM_ALT2(x, m->combined_id); RSPROT_U2_ALT1(x, m->npc);
+IfSetObjectEncoder	out	240	101	RSPROT_U2_ALT3(x, m->obj); RSPROT_U4_ALT3(x, m->count); RSPROT_COM_ALT3(x, m->combined_id);
+IfSetPlayerModelBaseColourEncoder	out	240	101	RSPROT_U1_ALT2(x, m->colour); RSPROT_U1_ALT3(x, m->index); RSPROT_COM_ALT2(x, m->combined_id);
+IfSetPlayerModelObjEncoder	out	240	100	RSPROT_U4_ALT3(x, m->obj); RSPROT_COM(x, m->combined_id);
+IfSetPositionEncoder	out	240	101	RSPROT_U2_ALT2(x, m->x); RSPROT_U2_ALT2(x, m->y); RSPROT_COM_ALT1(x, m->combined_id);
+IfSetRotateSpeedEncoder	out	240	101	RSPROT_U2_ALT1(x, m->x_speed); RSPROT_COM_ALT3(x, m->combined_id); RSPROT_U2_ALT1(x, m->y_speed);
+LocAddChangeV2Encoder	out	240	101	RSPROT_U1_ALT3(x, m->op_flags); RSPROT_U1(x, m->ops_count); if ((!(m->ops_count == 0))) { for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) { Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops]; RSPROT_XFORM(x, U1_ALT1, elem->key, -1); RSPROT_JSTR(x, elem->value); } } RSPROT_U1(x, m->coord_in_zone_packed); RSPROT_U2_ALT2(x, m->id); RSPROT_U1(x, m->loc_properties_packed);
+LocAnimEncoder	out	240	101	RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U1(x, m->loc_properties_packed); RSPROT_U2_ALT2(x, m->id);
+LocAnimSpecificEncoder	out	240	101	RSPROT_U2_ALT3(x, m->id); RSPROT_U3(x, m->coord_in_build_area_packed); RSPROT_U1_ALT3(x, m->loc_properties_packed);
+LocMergeEncoder	out	240	101	RSPROT_U1(x, m->min_z); RSPROT_U2_ALT3(x, m->id); RSPROT_U2(x, m->end); RSPROT_U1_ALT2(x, m->loc_properties_packed); RSPROT_U2_ALT3(x, m->start); RSPROT_U1_ALT2(x, m->max_z); RSPROT_U1(x, m->min_x); RSPROT_U1_ALT2(x, m->max_x); RSPROT_U2_ALT2(x, m->index); RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+MapAnimEncoder	out	240	101	RSPROT_U2_ALT3(x, m->id); RSPROT_U2_ALT3(x, m->delay); RSPROT_U1(x, m->coord_in_zone_packed); RSPROT_U1_ALT2(x, m->height);
+MapAnimSpecificEncoder	out	240	101	RSPROT_U2_ALT3(x, m->id); RSPROT_U2_ALT3(x, m->delay); RSPROT_U1(x, m->height); RSPROT_U3(x, m->coord_in_build_area_packed);
+MapProjAnimV2Encoder	out	240	101	RSPROT_U2_ALT2(x, m->progress); RSPROT_U2(x, m->id); RSPROT_U1_ALT3(x, m->angle); RSPROT_U2_ALT3(x, m->end_height); RSPROT_U3_ALT1(x, m->target_index); RSPROT_U4(x, m->end_packed); RSPROT_U1_ALT2(x, m->coord_in_zone_packed); RSPROT_U2(x, m->start_height); RSPROT_U2_ALT3(x, m->end_time); RSPROT_U3(x, m->source_index); RSPROT_U2_ALT3(x, m->start_time);
+MidiSongStopEncoder	out	240	101	RSPROT_U2_ALT2(x, m->fade_out_delay); RSPROT_U2_ALT1(x, m->fade_out_speed);
+MidiSongV2Encoder	out	240	101	RSPROT_U2(x, m->fade_out_speed); RSPROT_U2_ALT1(x, m->fade_in_delay); RSPROT_U2_ALT2(x, m->fade_in_speed); RSPROT_U2(x, m->fade_out_delay); RSPROT_U2(x, m->id);
+MidiSongWithSecondaryEncoder	out	240	101	RSPROT_U2(x, m->fade_out_delay); RSPROT_U2(x, m->secondary_id); RSPROT_U2_ALT2(x, m->fade_in_speed); RSPROT_U2_ALT3(x, m->fade_out_speed); RSPROT_U2_ALT2(x, m->primary_id); RSPROT_U2_ALT3(x, m->fade_in_delay);
+MidiSwapEncoder	out	240	101	RSPROT_U2_ALT3(x, m->fade_in_delay); RSPROT_U2_ALT1(x, m->fade_out_speed); RSPROT_U2(x, m->fade_out_delay); RSPROT_U2(x, m->fade_in_speed);
+MoveGameClickDecoder	in	240	101	RSPROT_U2_ALT3(x, m->z); RSPROT_U1_ALT2(x, m->key_combination); RSPROT_U2_ALT3(x, m->x);
+MoveMinimapClickDecoder	in	240	101	RSPROT_U2_ALT3(x, m->z); RSPROT_U1_ALT2(x, m->key_combination); RSPROT_U2_ALT3(x, m->x); RSPROT_U1(x, m->minimap_width); RSPROT_U1(x, m->minimap_height); RSPROT_U2(x, m->camera_angle_y); RSPROT_U1(x, m->checkpoint1); RSPROT_U1(x, m->checkpoint2); RSPROT_U1(x, m->checkpoint3); RSPROT_U1(x, m->checkpoint4); RSPROT_U2(x, m->fine_x); RSPROT_U2(x, m->fine_z); RSPROT_U1(x, m->checkpoint5);
+NpcAnimSpecificEncoder	out	240	101	RSPROT_U2_ALT1(x, m->index); RSPROT_U2_ALT1(x, m->id); RSPROT_U1_ALT1(x, m->delay);
+NpcHeadIconSpecificEncoder	out	240	101	RSPROT_U4_ALT2(x, m->sprite_group); RSPROT_U2(x, m->index); RSPROT_U1_ALT3(x, m->head_icon_slot); RSPROT_U2_ALT2(x, m->sprite_index);
+ObjAddEncoder	out	240	101	RSPROT_U2(x, m->time_until_despawn); RSPROT_U2(x, m->time_until_public); RSPROT_U4_ALT3(x, m->quantity); RSPROT_BOOL(x, m->never_becomes_public); RSPROT_U2_ALT1(x, m->id); RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U1_ALT2(x, m->op_flags); RSPROT_U1_ALT2(x, m->ownership_type);
+ObjAddSpecificEncoder	out	240	101	RSPROT_U4_ALT1(x, m->quantity); RSPROT_U1_ALT2(x, m->op_flags); RSPROT_U4_ALT3(x, m->coord_grid_packed); RSPROT_U1_ALT2(x, m->never_becomes_public); RSPROT_U2_ALT2(x, m->id); RSPROT_U2(x, m->time_until_despawn); RSPROT_U1(x, m->ownership_type); RSPROT_U2_ALT1(x, m->time_until_public);
+ObjCountEncoder	out	240	101	RSPROT_U1_ALT3(x, m->coord_in_zone_packed); RSPROT_U4_ALT3(x, m->old_quantity); RSPROT_U4(x, m->new_quantity); RSPROT_U2_ALT3(x, m->id);
+ObjCountSpecificEncoder	out	240	101	RSPROT_U2_ALT1(x, m->id); RSPROT_U4_ALT2(x, m->coord_grid_packed); RSPROT_U4_ALT1(x, m->old_quantity); RSPROT_U4_ALT2(x, m->new_quantity);
+ObjCustomiseEncoder	out	240	101	RSPROT_U2_ALT1(x, m->recol_index); RSPROT_U2_ALT2(x, m->id); RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U2_ALT1(x, m->recol); RSPROT_U2_ALT1(x, m->retex_index); RSPROT_U2_ALT3(x, m->retex); RSPROT_U4_ALT3(x, m->quantity); RSPROT_U2_ALT3(x, m->model);
+ObjCustomiseSpecificEncoder	out	240	101	RSPROT_U4_ALT3(x, m->coord_grid_packed); RSPROT_U2_ALT1(x, m->recol_index); RSPROT_U2_ALT3(x, m->model); RSPROT_U2_ALT3(x, m->id); RSPROT_U2_ALT1(x, m->retex_index); RSPROT_U4(x, m->quantity); RSPROT_U2_ALT3(x, m->recol); RSPROT_U2_ALT3(x, m->retex);
+ObjDelEncoder	out	240	101	RSPROT_U2_ALT1(x, m->id); RSPROT_U1_ALT3(x, m->coord_in_zone_packed); RSPROT_U4(x, m->quantity);
+ObjDelSpecificEncoder	out	240	101	RSPROT_U4_ALT3(x, m->quantity); RSPROT_U4_ALT1(x, m->coord_grid_packed); RSPROT_U2_ALT3(x, m->id);
+ObjEnabledOpsEncoder	out	240	101	RSPROT_U2_ALT2(x, m->id); RSPROT_U1_ALT2(x, m->op_flags); RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+ObjEnabledOpsSpecificEncoder	out	240	101	RSPROT_U2_ALT3(x, m->id); RSPROT_U4_ALT2(x, m->coord_grid_packed); RSPROT_U1_ALT3(x, m->op_flags);
+ObjUncustomiseEncoder	out	240	101	RSPROT_U4_ALT3(x, m->quantity); RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U2_ALT1(x, m->id);
+ObjUncustomiseSpecificEncoder	out	240	101	RSPROT_U2_ALT2(x, m->id); RSPROT_U4_ALT2(x, m->coord_grid_packed); RSPROT_U4_ALT2(x, m->quantity);
+OpObj6Decoder	in	240	101	RSPROT_U2_ALT1(x, m->id); RSPROT_U2_ALT3(x, m->z); RSPROT_U2(x, m->x);
+ProjAnimSpecificV4Encoder	out	240	101	RSPROT_U3_ALT2(x, m->source_index); RSPROT_U2(x, m->start_time); RSPROT_U2_ALT3(x, m->end_height); RSPROT_U2_ALT3(x, m->id); RSPROT_U3(x, m->target_index); RSPROT_U2_ALT1(x, m->progress); RSPROT_U1(x, m->angle); RSPROT_U2_ALT2(x, m->start_height); RSPROT_U4(x, m->start_packed); RSPROT_U4(x, m->end_packed); RSPROT_U2_ALT3(x, m->end_time);
+RebuildNormalV2Encoder	out	240	101	RSPROT_U2_ALT3(x, m->zone_z); RSPROT_U2_ALT3(x, m->world_area); RSPROT_U2_ALT3(x, m->zone_x);
+RebuildRegionV2Encoder	out	240	101	RSPROT_U2_ALT2(x, m->zone_z); RSPROT_U2_ALT1(x, m->zone_x); RSPROT_U1_ALT1(x, m->reload);
+ScriptedProjAddEncoder	out	240	101	RSPROT_U3_ALT3(x, m->target_index); RSPROT_U2(x, m->target_height); RSPROT_U2_ALT3(x, m->end_time); RSPROT_U2_ALT3(x, m->slot); RSPROT_U2(x, m->source_offset_z); RSPROT_U3_ALT1(x, m->source_index); RSPROT_U2_ALT2(x, m->curve_script_h); RSPROT_U2_ALT1(x, m->id); RSPROT_U2_ALT3(x, m->source_offset_x); RSPROT_U2(x, m->source_height); RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U4_ALT1(x, m->target_coord_packed); RSPROT_U2(x, m->start_time); RSPROT_U2_ALT2(x, m->target_offset_z); RSPROT_U2(x, m->target_offset_x); RSPROT_U2_ALT1(x, m->curve_script_t); RSPROT_U2_ALT3(x, m->curve_script_a);
+ScriptedProjChangeEncoder	out	240	101	RSPROT_U2_ALT3(x, m->freeze_duration); RSPROT_U1_ALT1(x, m->delete_on_freeze_end); RSPROT_U2_ALT2(x, m->target_offset_x); RSPROT_U4(x, m->target_coord_packed); RSPROT_U2_ALT1(x, m->target_offset_z); RSPROT_U2_ALT3(x, m->target_height); RSPROT_U2_ALT1(x, m->slot); RSPROT_U3(x, m->target_index);
+SendPingReplyDecoder	in	240	101	RSPROT_U1_ALT1(x, m->fps); RSPROT_U1_ALT2(x, m->gc_percent_time); RSPROT_U4_ALT1(x, m->value1); RSPROT_U4_ALT3(x, m->value2);
+SoundAreaEncoder	out	240	101	RSPROT_U1_ALT1(x, m->drop_off_range); RSPROT_U1_ALT1(x, m->loops); RSPROT_U1_ALT3(x, m->delay); RSPROT_U1_ALT1(x, m->coord_in_zone_packed); RSPROT_U1_ALT2(x, m->range); RSPROT_U2_ALT3(x, m->id);
+TeleportDecoder	in	240	101	RSPROT_U1_ALT3(x, m->level); RSPROT_U2_ALT3(x, m->x); RSPROT_U4(x, m->oculus_sync_value); RSPROT_U2(x, m->z);
+UpdateStatV2Encoder	out	240	101	RSPROT_U1_ALT3(x, m->stat); RSPROT_U4_ALT1(x, m->experience); RSPROT_U1(x, m->invisible_boosted_level); RSPROT_U1_ALT3(x, m->current_level);
+UpdateZoneFullFollowsEncoder	out	240	101	RSPROT_U1(x, m->zone_z); RSPROT_U1(x, m->zone_x); RSPROT_U1_ALT3(x, m->level);
+UpdateZonePartialFollowsEncoder	out	240	101	RSPROT_U1(x, m->level); RSPROT_U1_ALT3(x, m->zone_z); RSPROT_U1_ALT3(x, m->zone_x);
+VarpSmallEncoder	out	240	100	RSPROT_U2_ALT2(x, m->id); RSPROT_U1_ALT2(x, m->value);
+RSProx.CamTargetV2Decoder	out	227	100	RSPROT_U1(x, m->type); RSPROT_U2(x, m->index); RSPROT_U2(x, m->camera_locked_player_index);
+RSProx.CamTargetV3Decoder	out	229	100	RSPROT_U1(x, m->type); RSPROT_I2(x, m->world_entity_index); RSPROT_U2(x, m->target_index);
+RSProx.CamTargetV4Decoder	out	238	100	RSPROT_U1(x, m->type); RSPROT_U4_ALT1(x, m->value);
+RSProx.CamTargetV4Decoder	out	239	101	RSPROT_U4(x, m->value); RSPROT_U1_ALT2(x, m->type);
+RSProx.CamTargetV4Decoder	out	240	102	RSPROT_U1_ALT3(x, m->type); RSPROT_U4_ALT3(x, m->value);
+RSProx.ClearEntitiesDecoder	out	227	100	
+RSProx.NpcSpotAnimSpecificDecoder	out	227	100	RSPROT_U1_ALT1(x, m->slot); RSPROT_U2_ALT2(x, m->id); RSPROT_U2_ALT1(x, m->index); RSPROT_U4(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	228	101	RSPROT_U2_ALT3(x, m->index); RSPROT_U2_ALT3(x, m->id); RSPROT_U1_ALT1(x, m->slot); RSPROT_U4_ALT2(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	229	102	RSPROT_U2(x, m->index); RSPROT_U4_ALT2(x, m->packed); RSPROT_U1_ALT3(x, m->slot); RSPROT_U2_ALT3(x, m->id);
+RSProx.NpcSpotAnimSpecificDecoder	out	230	103	RSPROT_U1_ALT3(x, m->slot); RSPROT_U2_ALT1(x, m->id); RSPROT_U2(x, m->index); RSPROT_U4_ALT2(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	231	104	RSPROT_U2(x, m->index); RSPROT_U1(x, m->slot); RSPROT_U2_ALT1(x, m->id); RSPROT_U4(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	232	105	RSPROT_U1_ALT3(x, m->slot); RSPROT_U2_ALT1(x, m->id); RSPROT_U4_ALT1(x, m->packed); RSPROT_U2_ALT2(x, m->index);
+RSProx.NpcSpotAnimSpecificDecoder	out	233	106	RSPROT_U4_ALT3(x, m->packed); RSPROT_U2_ALT1(x, m->id); RSPROT_U2_ALT3(x, m->index); RSPROT_U1(x, m->slot);
+RSProx.NpcSpotAnimSpecificDecoder	out	234	107	RSPROT_U1(x, m->slot); RSPROT_U4_ALT3(x, m->packed); RSPROT_U2_ALT2(x, m->id); RSPROT_U2_ALT2(x, m->index);
+RSProx.NpcSpotAnimSpecificDecoder	out	235	108	RSPROT_U1_ALT2(x, m->slot); RSPROT_U2(x, m->id); RSPROT_U4_ALT1(x, m->packed); RSPROT_U2(x, m->index);
+RSProx.NpcSpotAnimSpecificDecoder	out	236	109	RSPROT_U2_ALT3(x, m->index); RSPROT_U4_ALT3(x, m->packed); RSPROT_U2_ALT1(x, m->id); RSPROT_U1(x, m->slot);
+RSProx.NpcSpotAnimSpecificDecoder	out	237	110	RSPROT_U2_ALT1(x, m->index); RSPROT_U1_ALT1(x, m->slot); RSPROT_U2_ALT3(x, m->id); RSPROT_U4_ALT1(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	238	111	RSPROT_U4_ALT3(x, m->packed); RSPROT_U1_ALT1(x, m->slot); RSPROT_U2_ALT2(x, m->id); RSPROT_U2_ALT2(x, m->index);
+RSProx.NpcSpotAnimSpecificDecoder	out	239	112	RSPROT_U1_ALT1(x, m->slot); RSPROT_U2(x, m->index); RSPROT_U2(x, m->id); RSPROT_U4_ALT2(x, m->packed);
+RSProx.NpcSpotAnimSpecificDecoder	out	240	113	RSPROT_U2_ALT1(x, m->id); RSPROT_U4(x, m->packed); RSPROT_U2(x, m->index); RSPROT_U1_ALT3(x, m->slot);
+RSProx.NpcSpotAnimSpecificDecoder	out	241	114	RSPROT_U2_ALT3(x, m->index); RSPROT_U2_ALT1(x, m->id); RSPROT_U1_ALT3(x, m->slot); RSPROT_U4_ALT1(x, m->packed);
+RSProx.ObjUnlockResetDecoder	out	241	100	
+RSProx.PlayerSpotAnimSpecificDecoder	out	227	100	RSPROT_U2_ALT1(x, m->index); RSPROT_U1_ALT2(x, m->slot); RSPROT_U4_ALT1(x, m->packed); RSPROT_U2_ALT3(x, m->id);
+RSProx.PlayerSpotAnimSpecificDecoder	out	228	101	RSPROT_U4_ALT3(x, m->packed); RSPROT_U2_ALT1(x, m->index); RSPROT_U2_ALT2(x, m->id); RSPROT_U1_ALT3(x, m->slot);
+RSProx.PlayerSpotAnimSpecificDecoder	out	229	102	RSPROT_U1_ALT2(x, m->slot); RSPROT_U2(x, m->id); RSPROT_U2(x, m->index); RSPROT_U4_ALT3(x, m->packed);
+RSProx.PlayerSpotAnimSpecificDecoder	out	230	103	RSPROT_U2(x, m->id); RSPROT_U2_ALT3(x, m->index); RSPROT_U4(x, m->packed); RSPROT_U1(x, m->slot);
+RSProx.PlayerSpotAnimSpecificDecoder	out	231	104	RSPROT_U1_ALT2(x, m->slot); RSPROT_U2_ALT2(x, m->index); RSPROT_U2_ALT2(x, m->id); RSPROT_U4_ALT2(x, m->packed);
+RSProx.PlayerSpotAnimSpecificDecoder	out	232	105	RSPROT_U2_ALT3(x, m->index); RSPROT_U2(x, m->id); RSPROT_U4_ALT1(x, m->packed); RSPROT_U1_ALT3(x, m->slot);
+RSProx.PlayerSpotAnimSpecificDecoder	out	233	106	RSPROT_U4_ALT2(x, m->packed); RSPROT_U2(x, m->index); RSPROT_U2_ALT1(x, m->id); RSPROT_U1(x, m->slot);
+RSProx.PlayerSpotAnimSpecificDecoder	out	234	107	RSPROT_U2(x, m->index); RSPROT_U1_ALT3(x, m->slot); RSPROT_U4_ALT3(x, m->packed); RSPROT_U2(x, m->id);
+RSProx.PlayerSpotAnimSpecificDecoder	out	235	108	RSPROT_U2_ALT1(x, m->id); RSPROT_U1_ALT1(x, m->slot); RSPROT_U4_ALT1(x, m->packed); RSPROT_U2_ALT2(x, m->index);
+RSProx.PlayerSpotAnimSpecificDecoder	out	236	109	RSPROT_U4_ALT1(x, m->packed); RSPROT_U2(x, m->id); RSPROT_U1_ALT2(x, m->slot); RSPROT_U2_ALT3(x, m->index);
+RSProx.PlayerSpotAnimSpecificDecoder	out	237	110	RSPROT_U1_ALT3(x, m->slot); RSPROT_U2_ALT3(x, m->index); RSPROT_U2_ALT2(x, m->id); RSPROT_U4_ALT1(x, m->packed);
+RSProx.PlayerSpotAnimSpecificDecoder	out	238	111	RSPROT_U2(x, m->id); RSPROT_U2_ALT1(x, m->index); RSPROT_U4(x, m->packed); RSPROT_U1_ALT1(x, m->slot);
+RSProx.PlayerSpotAnimSpecificDecoder	out	239	112	RSPROT_U2_ALT2(x, m->id); RSPROT_U4(x, m->packed); RSPROT_U1_ALT3(x, m->slot); RSPROT_U2(x, m->index);
+RSProx.PlayerSpotAnimSpecificDecoder	out	240	113	RSPROT_U4_ALT2(x, m->packed); RSPROT_U1_ALT3(x, m->slot); RSPROT_U2_ALT2(x, m->id); RSPROT_U2_ALT2(x, m->index);
+RSProx.PlayerSpotAnimSpecificDecoder	out	241	114	RSPROT_U2_ALT3(x, m->index); RSPROT_U4(x, m->packed); RSPROT_U1_ALT3(x, m->slot); RSPROT_U2(x, m->id);
+RSProx.StaticRebuildDecoder	out	227	100	RSPROT_U2_ALT1(x, m->world_area); RSPROT_U2_ALT1(x, m->zone_x); RSPROT_U2_ALT2(x, m->zone_z); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	228	101	RSPROT_U2_ALT1(x, m->zone_z); RSPROT_U2(x, m->zone_x); RSPROT_U2_ALT3(x, m->world_area); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	229	102	RSPROT_U2_ALT3(x, m->zone_z); RSPROT_U2_ALT1(x, m->zone_x); RSPROT_U2_ALT3(x, m->world_area); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	230	103	RSPROT_I2(x, m->world_area); RSPROT_U2_ALT2(x, m->zone_x); RSPROT_U2(x, m->zone_z); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	231	104	RSPROT_U2_ALT3(x, m->world_area); RSPROT_U2_ALT3(x, m->zone_x); RSPROT_U2_ALT2(x, m->zone_z); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	232	105	RSPROT_U2_ALT1(x, m->world_area); RSPROT_U2_ALT1(x, m->zone_x); RSPROT_U2_ALT3(x, m->zone_z); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	234	106	RSPROT_U2_ALT1(x, m->world_area); RSPROT_U2(x, m->zone_z); RSPROT_U2(x, m->zone_x); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	235	107	RSPROT_U2(x, m->zone_x); RSPROT_U2_ALT3(x, m->zone_z); RSPROT_U2_ALT3(x, m->world_area); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.StaticRebuildDecoder	out	236	108	RSPROT_U2(x, m->zone_z); RSPROT_U2_ALT3(x, m->zone_x); RSPROT_U2_ALT1(x, m->world_area); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }
+RSProx.SetActiveWorldV1Decoder	out	227	100	RSPROT_U1(x, m->type); RSPROT_U2(x, m->index); RSPROT_U1(x, m->active_level);
+RSProx.SetActiveWorldV2Decoder	out	229	100	RSPROT_I2(x, m->index); RSPROT_U1(x, m->active_level);
+RSProx.SetPlayerOpDecoder	out	227	100	RSPROT_U1_ALT2(x, m->priority); RSPROT_U1_ALT2(x, m->id); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	228	101	RSPROT_U1(x, m->priority); RSPROT_JSTR(x, m->op); RSPROT_U1_ALT1(x, m->id);
+RSProx.SetPlayerOpDecoder	out	229	102	RSPROT_JSTR(x, m->op); RSPROT_U1_ALT3(x, m->priority); RSPROT_U1_ALT2(x, m->id);
+RSProx.SetPlayerOpDecoder	out	230	103	RSPROT_U1_ALT1(x, m->priority); RSPROT_U1(x, m->id); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	232	104	RSPROT_U1_ALT1(x, m->priority); RSPROT_U1_ALT3(x, m->id); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	233	105	RSPROT_U1_ALT2(x, m->id); RSPROT_U1_ALT2(x, m->priority); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	234	106	RSPROT_U1_ALT3(x, m->id); RSPROT_JSTR(x, m->op); RSPROT_U1_ALT2(x, m->priority);
+RSProx.SetPlayerOpDecoder	out	235	107	RSPROT_U1_ALT2(x, m->id); RSPROT_U1(x, m->priority); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	236	108	RSPROT_U1_ALT3(x, m->priority); RSPROT_JSTR(x, m->op); RSPROT_U1_ALT1(x, m->id);
+RSProx.SetPlayerOpDecoder	out	237	109	RSPROT_U1_ALT2(x, m->priority); RSPROT_U1(x, m->id); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	238	110	RSPROT_U1_ALT2(x, m->id); RSPROT_JSTR(x, m->op); RSPROT_U1_ALT1(x, m->priority);
+RSProx.SetPlayerOpDecoder	out	239	111	RSPROT_U1(x, m->priority); RSPROT_U1_ALT1(x, m->id); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	240	112	RSPROT_U1_ALT3(x, m->id); RSPROT_U1_ALT3(x, m->priority); RSPROT_JSTR(x, m->op);
+RSProx.SetPlayerOpDecoder	out	241	113	RSPROT_U1_ALT3(x, m->id); RSPROT_JSTR(x, m->op); RSPROT_U1(x, m->priority);
+RSProx.UnknownStringDecoder	out	227	100	RSPROT_JSTR(x, m->string);
+RSProx.UpdateRebootTimerV2Decoder	out	236	100	RSPROT_JSTR(x, m->message); RSPROT_U2_ALT2(x, m->game_cycles);
+RSProx.UpdateRebootTimerV2Decoder	out	237	101	RSPROT_JSTR(x, m->message); RSPROT_U2_ALT3(x, m->game_cycles);
+RSProx.UpdateRebootTimerV2Decoder	out	238	102	RSPROT_U2_ALT2(x, m->game_cycles); RSPROT_JSTR(x, m->message);
+RSProx.UpdateRebootTimerV2Decoder	out	239	103	RSPROT_JSTR(x, m->message); RSPROT_U2(x, m->game_cycles);
+RSProx.VarpLongDecoder	out	241	100	RSPROT_U4_ALT3(x, m->high); RSPROT_U4_ALT3(x, m->low); RSPROT_U2(x, m->id);
+RSProx.StaticRebuildV1Decoder	out	237	100	RSPROT_U2_ALT3(x, m->world_area); RSPROT_U2_ALT1(x, m->zone_x); RSPROT_U2_ALT2(x, m->zone_z); RSPROT_COUNT2(x, m->xtea_count, 169); for (int32_t i = 0; i < m->xtea_count; i++) { RSPROT_U4(x, m->keys[i][0]); RSPROT_U4(x, m->keys[i][1]); RSPROT_U4(x, m->keys[i][2]); RSPROT_U4(x, m->keys[i][3]); }

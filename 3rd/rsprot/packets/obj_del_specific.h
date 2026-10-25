@@ -15,7 +15,7 @@
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ObjDelSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -51,8 +51,8 @@ void packet_obj_del_specific_v6_out(RsprotExec *x, MsgObjDelSpecific *m);
 void packet_obj_del_specific_v7_out(RsprotExec *x, MsgObjDelSpecific *m);
 /* v8 -- revs 239. */
 void packet_obj_del_specific_v8_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v100 -- revs 241. */
-void packet_obj_del_specific_v100_out(RsprotExec *x, MsgObjDelSpecific *m);
+/* v101 -- revs 240-241. */
+void packet_obj_del_specific_v101_out(RsprotExec *x, MsgObjDelSpecific *m);
 
 /* Per-revision aliases: `packet_obj_del_specific_rev239_out` is greppable, which is the
  * point -- "what does 239 do for OBJ_DEL_SPECIFIC" without reading a table. */
@@ -64,7 +64,8 @@ void packet_obj_del_specific_v100_out(RsprotExec *x, MsgObjDelSpecific *m);
 #define packet_obj_del_specific_rev237_out packet_obj_del_specific_v6_out
 #define packet_obj_del_specific_rev238_out packet_obj_del_specific_v7_out
 #define packet_obj_del_specific_rev239_out packet_obj_del_specific_v8_out
-#define packet_obj_del_specific_rev241_out packet_obj_del_specific_v100_out
+#define packet_obj_del_specific_rev240_out packet_obj_del_specific_v101_out
+#define packet_obj_del_specific_rev241_out packet_obj_del_specific_v101_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_del_specific_out[];

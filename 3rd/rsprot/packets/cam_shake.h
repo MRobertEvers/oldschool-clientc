@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamShakeEncoder
- * Layouts      : 2 distinct, over 3 contiguous revision run(s)
+ * Layouts      : 2 distinct, over 2 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamShakeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -42,7 +42,7 @@ typedef struct MsgCamShake {
 
 /* v1 -- revs 221-222. */
 void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
-/* v2 -- revs 223-239, 241. */
+/* v2 -- revs 223-241. */
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 
 /* Per-revision aliases: `packet_cam_shake_rev239_out` is greppable, which is the
@@ -66,6 +66,7 @@ void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 #define packet_cam_shake_rev237_out packet_cam_shake_v2_out
 #define packet_cam_shake_rev238_out packet_cam_shake_v2_out
 #define packet_cam_shake_rev239_out packet_cam_shake_v2_out
+#define packet_cam_shake_rev240_out packet_cam_shake_v2_out
 #define packet_cam_shake_rev241_out packet_cam_shake_v2_out
 
 /** Revision -> layout. See the .c for the rows. */

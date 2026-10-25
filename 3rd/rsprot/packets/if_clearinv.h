@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfClearInvEncoder
- * Layouts      : 5 distinct, over 17 contiguous revision run(s)
+ * Layouts      : 5 distinct, over 18 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfClearInvEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -37,7 +37,7 @@ typedef struct MsgIfClearInv {
 void packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m);
 /* v2 -- revs 222, 227, 230, 235-236. */
 void packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m);
-/* v3 -- revs 223, 237. */
+/* v3 -- revs 223, 237, 240. */
 void packet_if_clearinv_v3_out(RsprotExec *x, MsgIfClearInv *m);
 /* v4 -- revs 224-226, 228, 231, 233, 238, 241. */
 void packet_if_clearinv_v4_out(RsprotExec *x, MsgIfClearInv *m);
@@ -65,6 +65,7 @@ void packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m);
 #define packet_if_clearinv_rev237_out packet_if_clearinv_v3_out
 #define packet_if_clearinv_rev238_out packet_if_clearinv_v4_out
 #define packet_if_clearinv_rev239_out packet_if_clearinv_v5_out
+#define packet_if_clearinv_rev240_out packet_if_clearinv_v3_out
 #define packet_if_clearinv_rev241_out packet_if_clearinv_v4_out
 
 /** Revision -> layout. See the .c for the rows. */

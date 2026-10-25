@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : ResumePauseButtonDecoder
- * Layouts      : 16 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 16 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^ResumePauseButtonDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -34,7 +34,7 @@ typedef struct MsgResumePauseButton {
 	int32_t sub;
 } MsgResumePauseButton;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221, 240. */
 void packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m);
 /* v2 -- revs 222, 238. */
 void packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m);
@@ -88,6 +88,7 @@ void packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m);
 #define packet_resume_pausebutton_rev237_in packet_resume_pausebutton_v4_in
 #define packet_resume_pausebutton_rev238_in packet_resume_pausebutton_v2_in
 #define packet_resume_pausebutton_rev239_in packet_resume_pausebutton_v16_in
+#define packet_resume_pausebutton_rev240_in packet_resume_pausebutton_v1_in
 #define packet_resume_pausebutton_rev241_in packet_resume_pausebutton_v14_in
 
 /** Revision -> layout. See the .c for the rows. */

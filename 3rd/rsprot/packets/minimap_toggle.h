@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MinimapToggleEncoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MinimapToggleEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -33,7 +33,7 @@ typedef struct MsgMinimapToggle {
 	int32_t minimap_state;
 } MsgMinimapToggle;
 
-/* v1 -- revs 221-239, 241. */
+/* v1 -- revs 221-241. */
 void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
 
 /* Per-revision aliases: `packet_minimap_toggle_rev239_out` is greppable, which is the
@@ -57,6 +57,7 @@ void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
 #define packet_minimap_toggle_rev237_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_rev238_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_rev239_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_rev240_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_rev241_out packet_minimap_toggle_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 222-239, 241. */
+/* v1 -- revs 222-241. */
 void
 packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m)
 {
@@ -20,18 +20,17 @@ packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m)
 }
 
 /*
- * 2 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 1 row(s) for 1 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_set_npc_update_origin_out[] = {
-    { 222, 239, (RsprotCodecFn)packet_set_npc_update_origin_v1_out },
-    { 241, 241, (RsprotCodecFn)packet_set_npc_update_origin_v1_out },
+    { 222, 241, (RsprotCodecFn)packet_set_npc_update_origin_v1_out },
 };
 
 const int rsprot_set_npc_update_origin_out_count =

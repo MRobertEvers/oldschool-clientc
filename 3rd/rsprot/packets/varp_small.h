@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : VarpSmallEncoder
- * Layouts      : 14 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 15 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^VarpSmallEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -62,6 +62,8 @@ void packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m);
 void packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m);
 /* v14 -- revs 238. */
 void packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m);
+/* v100 -- revs 240. */
+void packet_varp_small_v100_out(RsprotExec *x, MsgVarpSmall *m);
 
 /* Per-revision aliases: `packet_varp_small_rev239_out` is greppable, which is the
  * point -- "what does 239 do for VARP_SMALL" without reading a table. */
@@ -84,6 +86,7 @@ void packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m);
 #define packet_varp_small_rev237_out packet_varp_small_v13_out
 #define packet_varp_small_rev238_out packet_varp_small_v14_out
 #define packet_varp_small_rev239_out packet_varp_small_v6_out
+#define packet_varp_small_rev240_out packet_varp_small_v100_out
 #define packet_varp_small_rev241_out packet_varp_small_v4_out
 
 /** Revision -> layout. See the .c for the rows. */

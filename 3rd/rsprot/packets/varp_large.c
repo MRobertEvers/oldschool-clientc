@@ -35,7 +35,7 @@ packet_varp_large_v3_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT2(x, m->value);
 }
 
-/* v4 -- revs 224, 234. */
+/* v4 -- revs 224, 234, 240. */
 void
 packet_varp_large_v4_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -132,14 +132,14 @@ packet_varp_large_v100_out(RsprotExec *x, MsgVarpLarge *m)
 }
 
 /*
- * 20 row(s) for 15 layout(s), complete over revisions 221-239.
+ * 21 row(s) for 15 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_varp_large_out[] = {
     { 221, 221, (RsprotCodecFn)packet_varp_large_v1_out },
@@ -161,6 +161,7 @@ const RsprotVersionRange rsprot_varp_large_out[] = {
     { 237, 237, (RsprotCodecFn)packet_varp_large_v12_out },
     { 238, 238, (RsprotCodecFn)packet_varp_large_v14_out },
     { 239, 239, (RsprotCodecFn)packet_varp_large_v1_out },
+    { 240, 240, (RsprotCodecFn)packet_varp_large_v4_out },
     { 241, 241, (RsprotCodecFn)packet_varp_large_v100_out },
 };
 

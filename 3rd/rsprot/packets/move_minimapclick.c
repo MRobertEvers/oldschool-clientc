@@ -372,15 +372,34 @@ packet_move_minimapclick_v100_in(RsprotExec *x, MsgMoveMinimapClick *m)
     RSPROT_U1(x, m->checkpoint5);
 }
 
+/* v101 -- revs 240. */
+void
+packet_move_minimapclick_v101_in(RsprotExec *x, MsgMoveMinimapClick *m)
+{
+    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U1_ALT2(x, m->key_combination);
+    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U1(x, m->minimap_width);
+    RSPROT_U1(x, m->minimap_height);
+    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U1(x, m->checkpoint1);
+    RSPROT_U1(x, m->checkpoint2);
+    RSPROT_U1(x, m->checkpoint3);
+    RSPROT_U1(x, m->checkpoint4);
+    RSPROT_U2(x, m->fine_x);
+    RSPROT_U2(x, m->fine_z);
+    RSPROT_U1(x, m->checkpoint5);
+}
+
 /*
- * 20 row(s) for 19 layout(s), complete over revisions 221-239.
+ * 21 row(s) for 20 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_move_minimapclick_in[] = {
     { 221, 221, (RsprotCodecFn)packet_move_minimapclick_v1_in },
@@ -402,6 +421,7 @@ const RsprotVersionRange rsprot_move_minimapclick_in[] = {
     { 237, 237, (RsprotCodecFn)packet_move_minimapclick_v16_in },
     { 238, 238, (RsprotCodecFn)packet_move_minimapclick_v17_in },
     { 239, 239, (RsprotCodecFn)packet_move_minimapclick_v18_in },
+    { 240, 240, (RsprotCodecFn)packet_move_minimapclick_v101_in },
     { 241, 241, (RsprotCodecFn)packet_move_minimapclick_v100_in },
 };
 

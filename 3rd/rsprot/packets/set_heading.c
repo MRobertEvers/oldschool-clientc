@@ -18,7 +18,7 @@ packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m)
     RSPROT_U1_ALT2(x, m->heading);
 }
 
-/* v2 -- revs 227, 232-233, 235-236, 241. */
+/* v2 -- revs 227, 232-233, 235-236, 240-241. */
 void
 packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m)
 {
@@ -45,9 +45,9 @@ packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m)
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_set_heading_in[] = {
     { 226, 226, (RsprotCodecFn)packet_set_heading_v1_in },
@@ -61,7 +61,7 @@ const RsprotVersionRange rsprot_set_heading_in[] = {
     { 237, 237, (RsprotCodecFn)packet_set_heading_v3_in },
     { 238, 238, (RsprotCodecFn)packet_set_heading_v1_in },
     { 239, 239, (RsprotCodecFn)packet_set_heading_v4_in },
-    { 241, 241, (RsprotCodecFn)packet_set_heading_v2_in },
+    { 240, 241, (RsprotCodecFn)packet_set_heading_v2_in },
 };
 
 const int rsprot_set_heading_in_count =

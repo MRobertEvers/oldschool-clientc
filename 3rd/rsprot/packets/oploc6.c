@@ -18,7 +18,7 @@ packet_oploc6_v1_in(RsprotExec *x, MsgOpLoc6 *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v2 -- revs 222, 226-227, 229, 231, 233-234, 239. */
+/* v2 -- revs 222, 226-227, 229, 231, 233-234, 239-240. */
 void
 packet_oploc6_v2_in(RsprotExec *x, MsgOpLoc6 *m)
 {
@@ -45,9 +45,9 @@ packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m)
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_oploc6_in[] = {
     { 221, 221, (RsprotCodecFn)packet_oploc6_v1_in },
@@ -65,7 +65,7 @@ const RsprotVersionRange rsprot_oploc6_in[] = {
     { 235, 236, (RsprotCodecFn)packet_oploc6_v3_in },
     { 237, 237, (RsprotCodecFn)packet_oploc6_v4_in },
     { 238, 238, (RsprotCodecFn)packet_oploc6_v1_in },
-    { 239, 239, (RsprotCodecFn)packet_oploc6_v2_in },
+    { 239, 240, (RsprotCodecFn)packet_oploc6_v2_in },
     { 241, 241, (RsprotCodecFn)packet_oploc6_v3_in },
 };
 

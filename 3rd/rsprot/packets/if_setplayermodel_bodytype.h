@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfSetPlayerModelBodyTypeEncoder
- * Layouts      : 16 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 16 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfSetPlayerModelBodyTypeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -46,7 +46,7 @@ void packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModel
 void packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 /* v6 -- revs 226, 232. */
 void packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227, 240. */
 void packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 /* v8 -- revs 229. */
 void packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
@@ -88,6 +88,7 @@ void packet_if_setplayermodel_bodytype_v100_out(RsprotExec *x, MsgIfSetPlayerMod
 #define packet_if_setplayermodel_bodytype_rev237_out packet_if_setplayermodel_bodytype_v13_out
 #define packet_if_setplayermodel_bodytype_rev238_out packet_if_setplayermodel_bodytype_v14_out
 #define packet_if_setplayermodel_bodytype_rev239_out packet_if_setplayermodel_bodytype_v15_out
+#define packet_if_setplayermodel_bodytype_rev240_out packet_if_setplayermodel_bodytype_v7_out
 #define packet_if_setplayermodel_bodytype_rev241_out packet_if_setplayermodel_bodytype_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

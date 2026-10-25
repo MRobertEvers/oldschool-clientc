@@ -83,7 +83,7 @@ packet_if_setscrollpos_v9_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v10 -- revs 230, 239. */
+/* v10 -- revs 230, 239-240. */
 void
 packet_if_setscrollpos_v10_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -137,9 +137,9 @@ packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m)
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
     { 221, 221, (RsprotCodecFn)packet_if_setscrollpos_v1_out },
@@ -159,7 +159,7 @@ const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
     { 235, 235, (RsprotCodecFn)packet_if_setscrollpos_v13_out },
     { 236, 237, (RsprotCodecFn)packet_if_setscrollpos_v14_out },
     { 238, 238, (RsprotCodecFn)packet_if_setscrollpos_v15_out },
-    { 239, 239, (RsprotCodecFn)packet_if_setscrollpos_v10_out },
+    { 239, 240, (RsprotCodecFn)packet_if_setscrollpos_v10_out },
     { 241, 241, (RsprotCodecFn)packet_if_setscrollpos_v14_out },
 };
 

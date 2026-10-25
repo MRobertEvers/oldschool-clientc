@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : HiscoreRequestDecoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^HiscoreRequestDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -35,7 +35,7 @@ typedef struct MsgHiscoreRequest {
 	const char *name;
 } MsgHiscoreRequest;
 
-/* v1 -- revs 221-239, 241. */
+/* v1 -- revs 221-241. */
 void packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m);
 
 /* Per-revision aliases: `packet_hiscore_request_rev239_in` is greppable, which is the
@@ -59,6 +59,7 @@ void packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m);
 #define packet_hiscore_request_rev237_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_rev238_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_rev239_in packet_hiscore_request_v1_in
+#define packet_hiscore_request_rev240_in packet_hiscore_request_v1_in
 #define packet_hiscore_request_rev241_in packet_hiscore_request_v1_in
 
 /** Revision -> layout. See the .c for the rows. */

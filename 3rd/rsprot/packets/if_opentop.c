@@ -70,6 +70,8 @@ const RsprotVersionRange rsprot_if_opentop_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_opentop_v3_out },
     { 238, 238, (RsprotCodecFn)packet_if_opentop_v2_out },
     { 239, 239, (RsprotCodecFn)packet_if_opentop_v4_out },
+    /* 240 (RSProx osrs-240, IfOpenTopDecoder): g2Alt3 -- v2, again. */
+    { 240, 240, (RsprotCodecFn)packet_if_opentop_v2_out },
     /* 241 (RSProx osrs-241, IfOpenTopDecoder): decode body unchanged from 239. */
     { 241, 241, (RsprotCodecFn)packet_if_opentop_v4_out },
 };

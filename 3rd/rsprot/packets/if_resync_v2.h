@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfResyncV2Encoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfResyncV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -51,7 +51,7 @@ typedef struct MsgIfResyncV2 {
 	int32_t events_count;
 } MsgIfResyncV2;
 
-/* v1 -- revs 231-239, 241. */
+/* v1 -- revs 231-241. */
 void packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m);
 
 /* Per-revision aliases: `packet_if_resync_v2_rev239_out` is greppable, which is the
@@ -65,6 +65,7 @@ void packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m);
 #define packet_if_resync_v2_rev237_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_rev238_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_rev239_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_rev240_out packet_if_resync_v2_v1_out
 #define packet_if_resync_v2_rev241_out packet_if_resync_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : SoundAreaEncoder
- * Layouts      : 20 distinct, over 20 contiguous revision run(s)
+ * Layouts      : 21 distinct, over 21 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^SoundAreaEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -78,6 +78,8 @@ void packet_sound_area_v18_out(RsprotExec *x, MsgSoundArea *m);
 void packet_sound_area_v19_out(RsprotExec *x, MsgSoundArea *m);
 /* v100 -- revs 241. */
 void packet_sound_area_v100_out(RsprotExec *x, MsgSoundArea *m);
+/* v101 -- revs 240. */
+void packet_sound_area_v101_out(RsprotExec *x, MsgSoundArea *m);
 
 /* Per-revision aliases: `packet_sound_area_rev239_out` is greppable, which is the
  * point -- "what does 239 do for SOUND_AREA" without reading a table. */
@@ -100,6 +102,7 @@ void packet_sound_area_v100_out(RsprotExec *x, MsgSoundArea *m);
 #define packet_sound_area_rev237_out packet_sound_area_v17_out
 #define packet_sound_area_rev238_out packet_sound_area_v18_out
 #define packet_sound_area_rev239_out packet_sound_area_v19_out
+#define packet_sound_area_rev240_out packet_sound_area_v101_out
 #define packet_sound_area_rev241_out packet_sound_area_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

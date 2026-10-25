@@ -325,6 +325,15 @@ rsprot_remaining(RsprotExec *x)
 }
 
 int
+rsprot_within(RsprotExec *x, int32_t i, int32_t cap)
+{
+    if (i < cap)
+        return 1;
+    rsprot_exec_fail(x, "counted array exceeds the caller's capacity");
+    return 0;
+}
+
+int
 rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap)
 {
     switch (x->dir) {
@@ -548,6 +557,8 @@ rsprot_xcount(RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t max, const
     return *value;
 }
 
+static const uint8_t k_fill_blob[4096];
+
 void
 rsprot_xdata(
     RsprotExec *x, const uint8_t **value, int32_t length, RsprotDataOrder order, const char *name)
@@ -590,9 +601,44 @@ rsprot_xdata(
         x->transferred++;
         break;
     case RSPROT_FILL:
-        /* Left alone: the caller owns the storage, and inventing a pointer here
-         * would make the round-trip test compare against memory this file
-         * allocated and nobody frees. */
+        /*
+         * Pointed at a static run of zeros: nothing allocated, so nothing for
+         * anyone to free, and a following ENCODE has real bytes to write. Left
+         * alone instead, a fixed-width blob (HINT_ARROW's padding) would encode
+         * from a NULL. A blob longer than the run is a fill this codec cannot
+         * make, and says so.
+         */
+        if (length > (int32_t)sizeof(k_fill_blob)) {
+            rsprot_exec_fail(x, "fill: blob longer than the static fill run");
+            return;
+        }
+        *value = k_fill_blob;
+        break;
+    }
+}
+
+void
+rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name)
+{
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        if (*length < 0) {
+            rsprot_exec_fail(x, "negative blob length");
+            return;
+        }
+        rsprot_pdata(x->buf, *value, *length);
+        break;
+    case RSPROT_DECODE:
+        *length = rsprot_remaining(x);
+        *value = x->buf->data + x->buf->rpos;
+        x->buf->rpos += *length;
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_DATA, RSPROT_PRIM_U1, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        *length = 0;
         break;
     }
 }

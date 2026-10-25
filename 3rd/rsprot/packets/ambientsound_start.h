@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : AmbientSoundStartEncoder
- * Layouts      : 2 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 3 distinct, over 3 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^AmbientSoundStartEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -38,11 +38,14 @@ typedef struct MsgAmbientSoundStart {
 void packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m);
 /* v100 -- revs 241. */
 void packet_ambientsound_start_v100_out(RsprotExec *x, MsgAmbientSoundStart *m);
+/* v101 -- revs 240. */
+void packet_ambientsound_start_v101_out(RsprotExec *x, MsgAmbientSoundStart *m);
 
 /* Per-revision aliases: `packet_ambientsound_start_rev239_out` is greppable, which is the
  * point -- "what does 239 do for AMBIENTSOUND_START" without reading a table. */
 #define packet_ambientsound_start_rev238_out packet_ambientsound_start_v1_out
 #define packet_ambientsound_start_rev239_out packet_ambientsound_start_v1_out
+#define packet_ambientsound_start_rev240_out packet_ambientsound_start_v101_out
 #define packet_ambientsound_start_rev241_out packet_ambientsound_start_v100_out
 
 /** Revision -> layout. See the .c for the rows. */

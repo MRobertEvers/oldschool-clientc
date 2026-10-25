@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CloseModalDecoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CloseModalDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -35,7 +35,7 @@ typedef struct MsgCloseModal {
 	int32_t _unused;
 } MsgCloseModal;
 
-/* v1 -- revs 221-239, 241. */
+/* v1 -- revs 221-241. */
 void packet_close_modal_v1_in(RsprotExec *x, MsgCloseModal *m);
 
 /* Per-revision aliases: `packet_close_modal_rev239_in` is greppable, which is the
@@ -59,6 +59,7 @@ void packet_close_modal_v1_in(RsprotExec *x, MsgCloseModal *m);
 #define packet_close_modal_rev237_in packet_close_modal_v1_in
 #define packet_close_modal_rev238_in packet_close_modal_v1_in
 #define packet_close_modal_rev239_in packet_close_modal_v1_in
+#define packet_close_modal_rev240_in packet_close_modal_v1_in
 #define packet_close_modal_rev241_in packet_close_modal_v1_in
 
 /** Revision -> layout. See the .c for the rows. */

@@ -160,8 +160,18 @@ enum AppearanceEncoding
      * (g1 index, g2 colour), and a new 0x10 field (g1 override flag, g2 colour)
      * before the model ids. So v6 can step over a customised slot where v5 has
      * to reject the whole appearance.
+     *
+     * (Not so: RSProx's 237-240 decodeAppearance reads that pair byte and then
+     * a g2 behind each index that is not 15, which delimits itself as well as
+     * v6's count does. v5 steps over a customised slot that way now.)
      */
-    APPEARANCE_ENC_V6 = 3
+    APPEARANCE_ENC_V6 = 3,
+    /*
+     * osrs227-236 (RSProx PlayerInfoClient.decodeAppearance): v5 byte for byte,
+     * except the obj customisation's worn and head model overrides, which are
+     * TWO bytes each where 237 widened them to four.
+     */
+    APPEARANCE_ENC_V4 = 4
 };
 
 /* Wire tags, stated together so a mismatch is one line apart rather than one
@@ -176,7 +186,8 @@ enum AppearanceEncoding
 static inline int
 Appearance_WireObjTag(enum AppearanceEncoding encoding)
 {
-    return (encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6)
+    return (encoding == APPEARANCE_ENC_V4 || encoding == APPEARANCE_ENC_V5 ||
+            encoding == APPEARANCE_ENC_V6)
                ? APPEARANCE_WIRE_OBJ_TAG_V5
                : APPEARANCE_WIRE_OBJ_TAG_CLASSIC;
 }

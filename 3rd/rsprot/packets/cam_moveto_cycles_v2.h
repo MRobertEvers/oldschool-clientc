@@ -11,10 +11,13 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : CamMoveToCyclesV2Encoder
- * Layouts      : 4 distinct, over 4 contiguous revision run(s)
+ * Layouts      : 5 distinct, over 5 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^CamMoveToCyclesV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
+ *                Revision(s) 240 come from RSProx, not RSProt
+ *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
+ *                gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -43,6 +46,8 @@ void packet_cam_moveto_cycles_v2_v2_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m);
 void packet_cam_moveto_cycles_v2_v3_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m);
 /* v4 -- revs 239. */
 void packet_cam_moveto_cycles_v2_v4_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m);
+/* v100 -- revs 240. */
+void packet_cam_moveto_cycles_v2_v100_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m);
 
 /* Per-revision aliases: `packet_cam_moveto_cycles_v2_rev239_out` is greppable, which is the
  * point -- "what does 239 do for CAM_MOVETO_CYCLES_V2" without reading a table. */
@@ -50,6 +55,7 @@ void packet_cam_moveto_cycles_v2_v4_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m);
 #define packet_cam_moveto_cycles_v2_rev237_out packet_cam_moveto_cycles_v2_v2_out
 #define packet_cam_moveto_cycles_v2_rev238_out packet_cam_moveto_cycles_v2_v3_out
 #define packet_cam_moveto_cycles_v2_rev239_out packet_cam_moveto_cycles_v2_v4_out
+#define packet_cam_moveto_cycles_v2_rev240_out packet_cam_moveto_cycles_v2_v100_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_moveto_cycles_v2_out[];

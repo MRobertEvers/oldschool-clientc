@@ -35,6 +35,8 @@
 #include "rev237_prot.h"
 #include "rev238_prot.h"
 #include "rev239_prot.h"
+#include "rev240_prot.h"
+#include "rev241_prot.h"
 
 /* clang-format off */
 static const RsprotRevTable rsprot_all_revisions[] = {
@@ -57,6 +59,8 @@ static const RsprotRevTable rsprot_all_revisions[] = {
     { 237, rsprot_rev237_server, RSPROT_REV237_SERVER_COUNT, rsprot_rev237_client, RSPROT_REV237_CLIENT_COUNT, rsprot_rev237_zone_order, RSPROT_REV237_ZONE_COUNT },
     { 238, rsprot_rev238_server, RSPROT_REV238_SERVER_COUNT, rsprot_rev238_client, RSPROT_REV238_CLIENT_COUNT, rsprot_rev238_zone_order, RSPROT_REV238_ZONE_COUNT },
     { 239, rsprot_rev239_server, RSPROT_REV239_SERVER_COUNT, rsprot_rev239_client, RSPROT_REV239_CLIENT_COUNT, rsprot_rev239_zone_order, RSPROT_REV239_ZONE_COUNT },
+    { 240, rsprot_rev240_server, RSPROT_REV240_SERVER_COUNT, rsprot_rev240_client, RSPROT_REV240_CLIENT_COUNT, rsprot_rev240_zone_order, RSPROT_REV240_ZONE_COUNT },
+    { 241, rsprot_rev241_server, RSPROT_REV241_SERVER_COUNT, rsprot_rev241_client, RSPROT_REV241_CLIENT_COUNT, rsprot_rev241_zone_order, RSPROT_REV241_ZONE_COUNT },
 };
 /* clang-format on */
 

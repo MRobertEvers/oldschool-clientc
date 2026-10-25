@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : IfMoveSubEncoder
- * Layouts      : 14 distinct, over 19 contiguous revision run(s)
+ * Layouts      : 14 distinct, over 20 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^IfMoveSubEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -48,7 +48,7 @@ void packet_if_movesub_v5_out(RsprotExec *x, MsgIfMoveSub *m);
 void packet_if_movesub_v6_out(RsprotExec *x, MsgIfMoveSub *m);
 /* v7 -- revs 227. */
 void packet_if_movesub_v7_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v8 -- revs 228-229. */
+/* v8 -- revs 228-229, 240. */
 void packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m);
 /* v9 -- revs 231, 235. */
 void packet_if_movesub_v9_out(RsprotExec *x, MsgIfMoveSub *m);
@@ -84,6 +84,7 @@ void packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m);
 #define packet_if_movesub_rev237_out packet_if_movesub_v13_out
 #define packet_if_movesub_rev238_out packet_if_movesub_v5_out
 #define packet_if_movesub_rev239_out packet_if_movesub_v14_out
+#define packet_if_movesub_rev240_out packet_if_movesub_v8_out
 #define packet_if_movesub_rev241_out packet_if_movesub_v4_out
 
 /** Revision -> layout. See the .c for the rows. */

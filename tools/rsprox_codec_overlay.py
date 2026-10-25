@@ -55,8 +55,12 @@ sys.path.insert(0, HERE)
 
 import rsprox_prot  # noqa: E402
 
-OVERLAY_REVS = (241,)
+OVERLAY_REVS = (240, 241)
 BASE_REV = 239
+# Revisions RSProt vendors whose gaps (a revision its generator could not
+# parse) are filled from an identical RSProx decoder; see Overlay._fill_gaps.
+# 227 is the oldest revision this tree speaks.
+FILL_REVS = range(227, 240)
 OVERLAY_LEDGER = os.path.join(REPO_ROOT, "3rd", "rsprot", "gen", "rsprox_versions.txt")
 OVERLAY_VERSION_FLOOR = 100
 
@@ -357,6 +361,49 @@ MANUAL = {
     # -- g1 autocomplete == 1. The optional byte has no codec construct; a
     # sender that omits it is a valid 241 sender, so the layout is the command.
     ("in", "CLIENT_CHEAT", 241): "    RSPROT_JSTR(x, m->command);",
+
+    # --- 240: the same six, from RSProx's osrs-240 decoders. ---
+    # LocAddChangeV2Decoder (osrs-240): g1Alt3 opFlags, g1 opOverrideCount,
+    # [g1Alt1 index, gjstr]*count, g1 coordInZone, g2Alt2 id, g1 locProperties.
+    ("out", "LOC_ADD_CHANGE_V2", 240): (
+        "    RSPROT_U1_ALT3(x, m->op_flags);\n"
+        "    RSPROT_U1(x, m->ops_count);\n"
+        "    if ((!(m->ops_count == 0))) {\n"
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {\n"
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];\n"
+        "            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);\n"
+        "            RSPROT_JSTR(x, elem->value);\n"
+        "        }\n"
+        "    }\n"
+        "    RSPROT_U1(x, m->coord_in_zone_packed);\n"
+        "    RSPROT_U2_ALT2(x, m->id);\n"
+        "    RSPROT_U1(x, m->loc_properties_packed);"),
+    # StaticRebuildV2Decoder (osrs-240): [player-info init block], g2Alt3 zoneZ,
+    # g2sAlt3 worldArea, g2Alt3 zoneX.
+    ("out", "REBUILD_NORMAL_V2", 240): (
+        "    RSPROT_U2_ALT3(x, m->zone_z);\n"
+        "    RSPROT_U2_ALT3(x, m->world_area);\n"
+        "    RSPROT_U2_ALT3(x, m->zone_x);"),
+    # RebuildRegionV2Decoder (osrs-240): g2Alt2 zoneZ, g2Alt1 zoneX, g1Alt1
+    # reload, then g2 mapsquare count and the bit grid.
+    ("out", "REBUILD_REGION_V2", 240): (
+        "    RSPROT_U2_ALT2(x, m->zone_z);\n"
+        "    RSPROT_U2_ALT1(x, m->zone_x);\n"
+        "    RSPROT_U1_ALT1(x, m->reload);"),
+    # UpdateZonePartialEnclosedDecoder (osrs-240): g1Alt3 zoneX, g1Alt1 zoneZ,
+    # g1Alt2 level, then the indexed sub-packets.
+    ("out", "UPDATE_ZONE_PARTIAL_ENCLOSED", 240): (
+        "    RSPROT_U1_ALT3(x, m->zone_x);\n"
+        "    RSPROT_U1_ALT1(x, m->zone_z);\n"
+        "    RSPROT_U1_ALT2(x, m->level);"),
+    # BugReportDecoder (osrs-240): gjstr description, gjstr instructions,
+    # g1Alt3 type.
+    ("in", "BUG_REPORT", 240): (
+        "    RSPROT_JSTR(x, m->description);\n"
+        "    RSPROT_JSTR(x, m->instructions);\n"
+        "    RSPROT_U1_ALT3(x, m->type);"),
+    # ClientCheatDecoder (osrs-240): as 241.
+    ("in", "CLIENT_CHEAT", 240): "    RSPROT_JSTR(x, m->command);",
 }
 
 
@@ -404,10 +451,43 @@ class Overlay:
         self.report = []  # (prot, dir, rev, outcome, detail)
 
     def extend(self, cls, direction, prot, versions, rev_to_ver):
-        """Add OVERLAY_REVS rows to one packet's (versions, rev_to_ver) in place."""
+        """Add OVERLAY_REVS rows to one packet's (versions, rev_to_ver) in place,
+        then fill the FILL_REVS gaps."""
         for rev in OVERLAY_REVS:
             outcome, detail = self._extend_one(cls, direction, prot, versions, rev_to_ver, rev)
             self.report.append((prot, direction, rev, outcome, detail))
+        for rev, ver, src in self._fill_gaps(direction, prot, rev_to_ver):
+            versions[ver]["revs"].append(rev)
+            rev_to_ver[rev] = ver
+            self.report.append((prot, direction, rev, "FILLED", f"v{ver} (RSProx {rev} == {src})"))
+
+    def _fill_gaps(self, direction, prot, rev_to_ver):
+        """Rows for the revisions RSProt could not generate, by identity.
+
+        RSProt's generator skips a revision whose encoder it cannot parse
+        (UrlOpenEncoder enciphers its bytes at 221-234) or whose class it has no
+        ledger for (CamMoveToArc, 227-235). RSProx still has a decoder there,
+        and when that decoder's body is IDENTICAL to RSProx's decoder at a
+        revision this packet does carry a layout for, the wire is the same --
+        so the gap reuses that layout's number. Nothing is respelled or guessed:
+        no identical decoder, no row."""
+        rx_name = rsprox_prot.RSPROT_ALIASES.get(prot, prot)
+        bodies = {}
+        for rev in FILL_REVS:
+            path = _decoders(rev).get((direction, rx_name))
+            if path is not None:
+                b = decode_body(path)
+                if b is not None:
+                    bodies[rev] = normalize(b)
+        out = []
+        for rev in FILL_REVS:
+            if rev in rev_to_ver or rev not in bodies:
+                continue
+            src = next((r for r in sorted(rev_to_ver, key=lambda r: abs(r - rev))
+                        if bodies.get(r) == bodies[rev]), None)
+            if src is not None:
+                out.append((rev, rev_to_ver[src], src))
+        return out
 
     def _extend_one(self, cls, direction, prot, versions, rev_to_ver, rev):
         base_ver = rev_to_ver.get(BASE_REV)

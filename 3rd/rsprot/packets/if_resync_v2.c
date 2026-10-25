@@ -11,13 +11,13 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231-239, 241. */
+/* v1 -- revs 231-241. */
 void
 packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m)
 {
     RSPROT_U2(x, m->top_level_interface);
     RSPROT_U2(x, m->sub_interfaces_count);
-    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count; rs_i_sub_interface++) {
+    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count && RSPROT_WITHIN(x, rs_i_sub_interface, 4096); rs_i_sub_interface++) {
         Rsprot_MsgIfResyncV2_sub_interfacesElem *elem = &m->sub_interfaces[rs_i_sub_interface];
         RSPROT_COM(x, elem->destination_combined_id);
         RSPROT_U2(x, elem->interface_id);
@@ -34,18 +34,17 @@ packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m)
 }
 
 /*
- * 2 row(s) for 1 layout(s), complete over revisions 221-239.
+ * 1 row(s) for 1 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
  * revision outside that span. An incomplete one would conflate "not
  * transcribed" with "no such packet", and those are different facts.
  *
- * Plus revision(s) 241, which RSProt never vendored: derived from
- * RSProx's decoders by tools/rsprox_codec_overlay.py. Revisions between 239
- * and those are not covered and pick NULL.
+ * Plus revision(s) 240, 241, which RSProt never vendored: derived from
+ * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past 239
+ * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_if_resync_v2_out[] = {
-    { 231, 239, (RsprotCodecFn)packet_if_resync_v2_v1_out },
-    { 241, 241, (RsprotCodecFn)packet_if_resync_v2_v1_out },
+    { 231, 241, (RsprotCodecFn)packet_if_resync_v2_v1_out },
 };
 
 const int rsprot_if_resync_v2_out_count =

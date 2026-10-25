@@ -11,11 +11,11 @@
  * and is the pattern this file is generated into. Read that one first.
  *
  * RSProt class : MessageGameEncoder
- * Layouts      : 1 distinct, over 2 contiguous revision run(s)
+ * Layouts      : 1 distinct, over 1 contiguous revision run(s)
  * Version nos. : from gen/packet_versions.txt (append-only; never allocated
  *                here). Cross-check with:
  *                    grep '^MessageGameEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
- *                Revision(s) 241 come from RSProx, not RSProt
+ *                Revision(s) 240, 241 come from RSProx, not RSProt
  *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
  *                gen/rsprox_versions.txt.
  */
@@ -36,7 +36,7 @@ typedef struct MsgMessageGame {
 	const char *message;
 } MsgMessageGame;
 
-/* v1 -- revs 221-239, 241. */
+/* v1 -- revs 221-241. */
 void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
 
 /* Per-revision aliases: `packet_message_game_rev239_out` is greppable, which is the
@@ -60,6 +60,7 @@ void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
 #define packet_message_game_rev237_out packet_message_game_v1_out
 #define packet_message_game_rev238_out packet_message_game_v1_out
 #define packet_message_game_rev239_out packet_message_game_v1_out
+#define packet_message_game_rev240_out packet_message_game_v1_out
 #define packet_message_game_rev241_out packet_message_game_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
