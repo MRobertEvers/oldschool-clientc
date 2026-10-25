@@ -76,6 +76,12 @@ App_SpeedUnlock(void)
     s_speed_unlocked = 1;
 }
 
+void
+App_SpeedRelock(void)
+{
+    s_speed_unlocked = 0;
+}
+
 int
 App_SpeedUnlocked(void)
 {

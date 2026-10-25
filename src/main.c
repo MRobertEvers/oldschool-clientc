@@ -23,6 +23,7 @@
 #include "../tools/perf/gles2_frame_times.h"
 #endif
 #include "platform/net_transport.h"
+#include "net/rsprox_recording.h"
 #include "platform/platform_audio.h"
 #include "platform/platform_window.h"
 #if !defined(TORIRS_PLATFORM_WEB)
@@ -2056,6 +2057,16 @@ eip_sample_warmup_frames(void)
     return warmup;
 }
 static struct NetTransport* sock;
+/*
+ * --replay FILE (or TORIRS_RSPROX_REPLAY): an RSProx recording this client
+ * plays as its server (platform/net_transport_replay.c). Opened at boot, so its
+ * header can choose the revision before the network is made; moved into the
+ * transport when that is. `rsprox_replay_uncapped` is `uncapped` as the flags
+ * left it, which an unlocked replay overrides and a relocked one restores.
+ */
+static char const* rsprox_replay_path;
+static struct RsproxRecording rsprox_replay_rec;
+static int rsprox_replay_uncapped;
 static int sim_openmain = -1;
 static int sim_openmain_done;
 static int sim_openside = -1;
@@ -2078,6 +2089,29 @@ static int unlocked_opt;
 /* TORIRS_PACE_SPIN=1: burn the pacing wait instead of sleeping it. Profiling
  * aid for isolating wake-up cost from render cost; see docs/PERF_HARNESS.md. */
 static int pace_spin;
+
+/*
+ * A replay's unlock, followed every frame. --unlocked or the page
+ * (torirs_replay_set_unlocked) sets it on the transport, and the client's own
+ * clock follows: one logic cycle a frame and no frame cap (App_SpeedUnlock)
+ * while it is set, the wall clock again when it is not. The transport reads
+ * the cycles, so the recording's gaps are kept in cycles either way.
+ */
+static void
+main_rsprox_replay_frame(void)
+{
+    int const unlocked = NetTransport_ReplayUnlocked(sock);
+
+    if( unlocked != App_SpeedUnlocked() )
+    {
+        if( unlocked )
+            App_SpeedUnlock();
+        else
+            App_SpeedRelock();
+        uncapped = unlocked ? 1 : rsprox_replay_uncapped;
+    }
+    NetTransport_ReplayClock(sock, App_LogicCyclesRun());
+}
 
 /*
  * How the frame is paced. `--pacer=NAME` or TORIRS_PACER, NAME being
@@ -2902,8 +2936,15 @@ frame_loop_step(void)
          */
         int waiting = app.app_state != APP_STATE_READY && PlatformWeb_PendingTotal() > 0;
         int hidden = !waiting && web_document_hidden();
-        int mode = (waiting || hidden) ? EM_TIMING_SETTIMEOUT : EM_TIMING_RAF;
-        int value = waiting ? 0 : (hidden ? 50 : 1);
+        /* An unlocked replay is the one browser run with no display rate to
+         * keep: setImmediate (a posted message, so no 4 ms timer clamp) runs
+         * the next frame as soon as this one returns, and the transport plays
+         * the recording at whatever rate that is (main_rsprox_replay_frame). */
+        int fast = rsprox_replay_path && App_SpeedUnlocked();
+        int mode = fast                  ? EM_TIMING_SETIMMEDIATE
+                   : (waiting || hidden) ? EM_TIMING_SETTIMEOUT
+                                         : EM_TIMING_RAF;
+        int value = fast ? 0 : waiting ? 0 : (hidden ? 50 : 1);
 
         if( mode != paced_mode || value != paced_value )
         {
@@ -3354,7 +3395,9 @@ frame_loop_step(void)
                     /* The unlocked clock: the server's time is the cycles
                      * the client has run, so it is handed over before the
                      * poll that may tick it. */
-                    if( App_SpeedUnlocked() )
+                    if( rsprox_replay_path )
+                        main_rsprox_replay_frame();
+                    else if( App_SpeedUnlocked() )
                         NetTransport_CycleClock(sock, App_LogicCyclesRun());
                     NetTransport_Poll(sock, app.net, &bus);
                 }
@@ -6141,6 +6184,43 @@ torirs_web_io_pump(void)
     return 1;
 }
 
+/*
+ * The replay's controls, for the page that embeds a replaying client
+ * (rsprox-index's replay view). Both answer 0 / NULL until the transport
+ * exists, which is a boot that has not got that far yet rather than a
+ * mistake: the page polls from its first frame.
+ */
+EMSCRIPTEN_KEEPALIVE int
+torirs_replay_set_unlocked(int unlocked)
+{
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return 0;
+    NetTransport_ReplaySetUnlocked(sock, unlocked);
+    return 1;
+}
+
+/* {"phase","tick","ticks","clock_ms","duration_ms","unlocked","waiting_map",
+ * "revision","world","sessions"}, malloc'd; the page frees it with _free. */
+EMSCRIPTEN_KEEPALIVE char*
+torirs_replay_status_json(void)
+{
+    struct NetTransportReplayStatus st;
+    char* json;
+
+    if( !sock || !NetTransport_IsReplay(sock) )
+        return NULL;
+    NetTransport_ReplayGetStatus(sock, &st);
+    json = malloc(256);
+    assert(json);
+    snprintf(json, 256,
+             "{\"phase\":\"%s\",\"tick\":%d,\"ticks\":%d,\"clock_ms\":%llu,"
+             "\"duration_ms\":%llu,\"unlocked\":%d,\"waiting_map\":%d,\"revision\":%d,"
+             "\"world\":%d,\"sessions\":%d}",
+             st.phase, st.tick, st.tick_count, st.clock_ms, st.duration_ms, st.unlocked,
+             st.waiting_map, st.revision, st.world, st.sessions);
+    return json;
+}
+
 /* The boot marks and both runners' counters as JSON, malloc'd; the page
  * frees it with _free. See boot_telemetry.h. */
 EMSCRIPTEN_KEEPALIVE char*
@@ -6395,6 +6475,7 @@ main_print_usage(char const* program)
         "[--pass P] [--rev lc254|lc245_2|xrsps233] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
+        "[--replay <rsprox.bin[.gz]>] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
@@ -6552,6 +6633,11 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--unlocked") == 0 )
         {
             unlocked_opt = 1;
+            continue;
+        }
+        if( strcmp(argv[argi], "--replay") == 0 && argi + 1 < argc )
+        {
+            rsprox_replay_path = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--pacer") == 0 && argi + 1 < argc )
@@ -6923,7 +7009,55 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-host") == 0 || strcmp(argument, "--js5-port") == 0 ||
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
-           strcmp(argument, "--window") == 0;
+           strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0;
+}
+
+/*
+ * --replay: open the recording and shape the boot around it.
+ *
+ * The revision is the recording's, because its packets are that revision's
+ * prots; a manifest or --rev naming another is refused rather than played
+ * with the wrong decoder. The "server" is the replay transport, and the
+ * credentials are throwaway: the title screen's autologin submits them and the
+ * transport answers whatever it is sent. Returns 0 to stop the boot.
+ */
+static int
+main_rsprox_replay_open(void)
+{
+    char err[256];
+    char const* rev_name;
+
+    if( RsproxRecording_OpenFile(&rsprox_replay_rec, rsprox_replay_path, err, sizeof(err)) != 0 )
+    {
+        TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
+        return 0;
+    }
+    rev_name = RsproxRecording_RevName(&rsprox_replay_rec);
+    if( !rev_name )
+    {
+        TORIRS_ERR("replay: %s is a revision %d recording; this client replays revision 241 "
+                   "(its cache's revision) only\n",
+                   rsprox_replay_path, rsprox_replay_rec.revision);
+        return 0;
+    }
+    if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )
+    {
+        TORIRS_ERR("replay: the recording is %s but this boot speaks %s (--rev / [net:boot] "
+                   "rev=)\n",
+                   rev_name, cfg.rev_name);
+        return 0;
+    }
+    cfg.rev_name = rev_name;
+    cfg.connect_target = "replay";
+    if( !cfg.connect_user || !cfg.connect_user[0] )
+        cfg.connect_user = "replay";
+    if( !cfg.connect_pass || !cfg.connect_pass[0] )
+        cfg.connect_pass = "replay";
+    TORIRS_REPORT("replay: %s: revision %d.%d, world %d (%s), %s, player %d\n",
+                  rsprox_replay_path, rsprox_replay_rec.revision, rsprox_replay_rec.sub_revision,
+                  rsprox_replay_rec.world_id, rsprox_replay_rec.world_host,
+                  rsprox_replay_rec.client_name, rsprox_replay_rec.local_player_index);
+    return 1;
 }
 
 int
@@ -7048,6 +7182,10 @@ main(
         return 1;
     if( !main_parse_argument_layer(argc, argv, 1, 0, argv[0], &arg_state) )
         return 1;
+    if( !rsprox_replay_path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
+        rsprox_replay_path = getenv("TORIRS_RSPROX_REPLAY");
+    if( rsprox_replay_path && !main_rsprox_replay_open() )
+        return 2;
 
     int const write_bmp = arg_state.write_bmp;
     int const use_opengl3 = arg_state.use_opengl3;
@@ -8760,11 +8898,26 @@ main(
                 cfg.net_server_scripts[0] && !getenv("TORIRSSERVER_SCRIPTS") )
                 setenv("TORIRSSERVER_SCRIPTS", cfg.net_server_scripts, 0);
 
-            sock = app.net ? NetTransport_New(
-                                 transport_kind,
-                                 cfg.connect_port > 0 ? cfg.connect_port : 43594,
-                                 app.net->rev->name)
-                           : NULL;
+            if( rsprox_replay_path && app.net )
+            {
+                /* Framed with the client's own prot tables for the revision
+                 * main_rsprox_replay_open chose, so a table that cannot frame
+                 * the recording is found here, before anything is played. */
+                char err[256];
+
+                if( RsproxRecording_Index(&rsprox_replay_rec, app.net->rev, err, sizeof(err)) != 0 )
+                {
+                    TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
+                    exit(2);
+                }
+                sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
+            }
+            else
+                sock = app.net ? NetTransport_New(
+                                     transport_kind,
+                                     cfg.connect_port > 0 ? cfg.connect_port : 43594,
+                                     app.net->rev->name)
+                               : NULL;
 
             /*
              * THE UNLOCKED CLOCK: `--unlocked`, TORIRS_UNLOCKED=1, or
@@ -8791,7 +8944,17 @@ main(
                     unlocked = atoi(env_unlocked) != 0;
                 if( unlocked_opt )
                     unlocked = 1;
-                if( unlocked )
+                rsprox_replay_uncapped = uncapped;
+                if( unlocked && rsprox_replay_path )
+                {
+                    /* A replay's clock is its own, so the unlock is its too,
+                     * in a browser as well: set on the transport and followed
+                     * every frame (main_rsprox_replay_frame), and switchable
+                     * from the page at run time. */
+                    assert(sock);
+                    NetTransport_ReplaySetUnlocked(sock, 1);
+                }
+                else if( unlocked )
                 {
 #if defined(TORIRS_PLATFORM_WEB)
                     /* requestAnimationFrame paces every frame; there is no

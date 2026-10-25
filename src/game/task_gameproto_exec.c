@@ -43,15 +43,19 @@ struct Task_GameProtoExec
     int32_t wev_zones[PKT_MAP_REBUILD_ZONES];
 };
 
-/* The view a REBUILD packet addresses: its own world_area prefix (0 = root),
- * not the SET_ACTIVE_WORLD cursor — the deob reads the id off the rebuild
- * itself. Resolved fresh at every use because locals do not survive the
- * protothread await; Get() asserts the id names a live view, the same loud
- * stop as the deob's unknown-world-entity throw. */
+/* The view a REBUILD_NORMAL / REBUILD_REGION rebuilds: always the root. The
+ * deob's static rebuild (Statics.method12016) reads the leading worldArea
+ * short and discards it, then rebuilds client.field930 -- the top-level
+ * view's scene (client.method1711 asserts isTopLevel). Jagex does send a
+ * non-zero worldArea there: 10 under Taverley (RSProx index 4377, tick 258,
+ * the Witch's House basement), which this client used to drop as a
+ * world-entity rebuild, losing the scene and then the session. A boat's
+ * rebuild is REBUILD_WORLDENTITY, the branch below. Resolved fresh at every
+ * use because locals do not survive the protothread await. */
 static struct Worldview*
 rebuild_view(struct Task_GameProtoExec* self)
 {
-    return WorldviewRegistry_Get(&self->app->worldviews, self->packet._map_rebuild.world_area);
+    return WorldviewRegistry_Get(&self->app->worldviews, WORLDVIEW_ROOT);
 }
 
 /* The boat view a REBUILD_WORLDENTITY addresses: the SET_ACTIVE_WORLD cursor
@@ -192,20 +196,8 @@ Task_GameProtoExec_Run(
         self->zone_x = self->packet._map_rebuild.zonex;
         self->zone_z = self->packet._map_rebuild.zonez;
         /* The tail below (App_WorldRebuildBegin's root flags, the entity
-         * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene:
-         * a boat's rebuild arrives as REBUILD_WORLDENTITY (the branch below)
-         * and never through here. world_area is WIRE data — a non-root value
-         * is a malformed packet, and under NDEBUG the old assert let it
-         * index the registry out of bounds through rebuild_view(); drop the
-         * packet instead. */
-        if( self->packet._map_rebuild.world_area != WORLDVIEW_ROOT )
-        {
-            fprintf(
-                stderr,
-                "gameproto: REBUILD addressed world_area %d, not root — dropped\n",
-                self->packet._map_rebuild.world_area);
-            PT_EXIT(&self->pt);
-        }
+         * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene,
+         * whatever worldArea the packet carries (rebuild_view). */
         {
             int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION ||
                         app->net_force_rebuild;

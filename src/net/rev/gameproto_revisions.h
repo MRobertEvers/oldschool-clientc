@@ -119,6 +119,11 @@ struct GameProtoRevTable
     int (*packetin_wire)(int pkt_name);
     /** Canonical GameProtoPktOutName -> wire opcode; <0 = not in this rev. */
     int (*packetout_code)(int pkt_out_name);
+    /** Client->server payload size for a wire opcode, as packetin_size: the
+     *  receiving side's framing. NULL where nothing in the client reads its
+     *  own stream back; an RSProx replay needs it (net/rsprox_recording.c),
+     *  because a recording interleaves both directions unframed. */
+    int (*packetout_size)(int wire_opcode);
 
     /* --- generation-module extensions (NULL / 0 = classic lc254 behavior) ---
      * lc254 / lc245_2 leave every slot below at its zero default (designated

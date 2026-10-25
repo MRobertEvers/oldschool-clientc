@@ -517,7 +517,8 @@
           argument === '--revconfig' || argument === '--revconfig-cache' ||
           argument === '--connect' || argument === '--user' ||
           argument === '--pass' || argument === '--rev' ||
-          argument === '--windowmode' || argument === '--window';
+          argument === '--windowmode' || argument === '--window' ||
+          argument === '--replay';
       }
 
       async function takeArgFiles(argv) {
@@ -575,6 +576,33 @@
   // table is fetched on demand like any other container, by an executor that
   // can await it. So there is nothing to install before main() and nothing to
   // wait for.
+  const REPLAY_PATH = 'replay/session.bin';
+
+  /*
+   * The replay's controls, for a page that embeds this one (rsprox-index's
+   * replay view reaches them as iframe.contentWindow.ToriRS_Replay). Both are
+   * quiet until the client has made its replay transport: setUnlocked answers
+   * false and status() null, and the caller polls.
+   */
+  window.ToriRS_Replay = {
+    setUnlocked(on) {
+      try {
+        return typeof Module._torirs_replay_set_unlocked === 'function' &&
+          Module._torirs_replay_set_unlocked(on ? 1 : 0) === 1;
+      } catch (err) { return false; }
+    },
+    status() {
+      try {
+        if (typeof Module._torirs_replay_status_json !== 'function') { return null; }
+        const ptr = Module._torirs_replay_status_json();
+        if (!ptr) { return null; }
+        const status = JSON.parse(Module.UTF8ToString(ptr));
+        Module._free(ptr);
+        return status;
+      } catch (err) { return null; }
+    },
+  };
+
   const clientBoot = {
     async start() {
       /*
@@ -604,6 +632,29 @@
         }
       } catch (err) {
         log(`torirs: boot files could not be staged — ${err && err.message}`, true);
+      }
+
+      /*
+       * ?replay=<url>: an RSProx recording (.bin or .bin.gz -- the client
+       * detects gzip itself) played back as the server, the way rsprox-index's
+       * replay view boots this page. Staged into MEMFS like a boot file, because
+       * --replay opens it by name before anything else runs; ?unlocked=1 starts
+       * it unlocked. A recording that cannot be fetched is said so here and the
+       * client boots without it, to its login screen.
+       */
+      const replayUrl = params.get('replay');
+      if (replayUrl) {
+        try {
+          const response = await fetch(replayUrl, { cache: 'no-store' });
+          if (!response.ok) { throw new Error(`HTTP ${response.status}`); }
+          const bytes = new Uint8Array(await response.arrayBuffer());
+          boot.write(REPLAY_PATH, bytes);
+          args.push('--replay', `/${REPLAY_PATH}`);
+          if (params.get('unlocked') === '1') { args.push('--unlocked'); }
+          log(`torirs: replay ${replayUrl} (${kb(bytes.length)})`);
+        } catch (err) {
+          log(`torirs: replay ${replayUrl} could not be fetched — ${err && err.message}`, true);
+        }
       }
 
       try {

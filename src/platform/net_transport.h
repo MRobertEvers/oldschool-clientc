@@ -65,4 +65,48 @@ struct ToriRSServerEmbed* NetTransport_TestClock(struct NetTransport* t, unsigne
  * transport has a server whose clock is this client's; `t` must be one. */
 void NetTransport_CycleClock(struct NetTransport* t, unsigned long long cycles);
 
+/*
+ * RSProx replay (net_transport_replay.c): the server's half of a recorded
+ * Jagex session, played back at this client. Created directly rather than by
+ * kind, because it needs the recording: `rec` is an indexed
+ * RsproxRecording (net/rsprox_recording.h), moved into the transport.
+ * `rev` is the client's table for the recording's revision.
+ */
+struct RsproxRecording;
+struct GameProtoRevTable;
+
+struct NetTransport*
+NetTransport_NewReplay(struct RsproxRecording* rec, struct GameProtoRevTable const* rev);
+
+int NetTransport_IsReplay(struct NetTransport const* t);
+
+/** The client's logic cycles run so far, every frame before the poll: the
+ *  unlocked replay clock is cycles x 20 ms. `t` must be a replay transport. */
+void NetTransport_ReplayClock(struct NetTransport* t, unsigned long long cycles);
+
+/** Unlocked: play as fast as the client runs, the recording's gaps kept in
+ *  cycles. Locked (the default): at the recording's own pace. Switchable at
+ *  any time; the clock does not jump. */
+void NetTransport_ReplaySetUnlocked(struct NetTransport* t, int unlocked);
+int NetTransport_ReplayUnlocked(struct NetTransport* t);
+
+struct NetTransportReplayStatus
+{
+    /** "idle", "connecting", "logging_in", "playing", "finished". */
+    char const* phase;
+    int tick;
+    int tick_count;
+    unsigned long long clock_ms;
+    unsigned long long duration_ms;
+    int unlocked;
+    /** Held at a rebuild until the client reports MAP_BUILD_COMPLETE. */
+    int waiting_map;
+    int revision;
+    int world;
+    /** Logins answered so far: "idle" with none is a client still booting. */
+    int sessions;
+};
+
+void NetTransport_ReplayGetStatus(struct NetTransport* t, struct NetTransportReplayStatus* out);
+
 #endif

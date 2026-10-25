@@ -888,6 +888,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c platform/launch_sessions.c \
+	platform/net_transport_replay.c net/rsprox_recording.c \
 	net/loginproto_xrsps.c net/loginproto_osrs230.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c \
@@ -3678,6 +3679,15 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_out_resume_test \
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_out_resume_test
+
+# An RSProx recording played through the replay transport into a real rev-241
+# network: the answered handshake, the mirrored cipher, the map-build barrier
+# and the closing LOGOUT (platform/net_transport_replay.c).
+.PHONY: test-rsprox-replay
+test-rsprox-replay: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rsprox_replay_test \
+		net/test/rsprox_replay_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rsprox_replay_test
 
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test $(TORIMEM_SRCS) \

@@ -106,6 +106,7 @@ static struct GameProtoRevTable k_rev_osrs241 = {
     .packetin_code = rev_packetin_code,
     .packetin_wire = rev_packetin_wire,
     .packetout_code = rev_packetout_code,
+    .packetout_size = osrs241_packetout_size,
 
     .transport_kind = NET_TRANSPORT_TCP,
     .opcode_plaintext = 0, /* ISAAC-scrambled opcodes */

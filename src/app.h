@@ -3523,11 +3523,19 @@ App_FrameLockEngage(void);
  *  drops the frame-cap wait. The one thing that does not move is the ratio:
  *  the embedded server's 600 ms tick is clocked off App_LogicCyclesRun
  *  (NetTransport_CycleClock), so a server tick is always 30 client cycles
- *  however fast either one runs. Only the in-process server's clock is this
- *  client's to drive, so main.c refuses it on any other transport. Set at
- *  boot, never released. */
+ *  however fast either one runs. Only the in-process server's clock and an
+ *  RSProx replay's are this client's to drive, so main.c refuses it on any
+ *  other transport. Set at boot; only a replay releases it (App_SpeedRelock),
+ *  and may set it again later. */
 void
 App_SpeedUnlock(void);
+
+/** Release the unlocked clock: back to the wall clock and the frame cap. For
+ *  an RSProx replay only (main.c main_rsprox_replay_frame), whose transport is
+ *  the one clock that shares the client's: the embedded server's tick, a
+ *  party's lock step and a bounded run's frame clock stay locked once locked. */
+void
+App_SpeedRelock(void);
 
 int
 App_SpeedUnlocked(void);
