@@ -1129,8 +1129,8 @@ end
 --      test assumes; a failure is ONE FAIL row, watch.account, and the end;
 --   4. QD.core_setup_run below: the login-grant wait and the setup list.
 --
--- QD.core_setup_run(quest_setup, quest_run) -> function(t): THE ONE SETUP
--- LOOP. Every lane that runs a test runs its setup through this function and
+-- QD.core_setup_run(quest_setup, quest_run[, opts]) -> function(t): THE ONE
+-- SETUP LOOP. Every lane that runs a test runs its setup through this function and
 -- no copy of it: run.py's generated wrapper (tools/quest_gate/run.py
 -- write_wrapper_script: QUEST.run = QD_ROOT.core_setup_run(...)), scriptrun's
 -- bootstrap (torirsserver/torirs_server_scriptrun.c BOOTSTRAP) and a watched
@@ -1140,10 +1140,27 @@ end
 -- (owner, 2026-10-12: identical tick logs, absolute stamps included).
 -- Before 2026-10-12 run.py generated this Lua inline and core.lua carried a
 -- hand-kept copy, while scriptrun ran its own list with fixed t.ticks(2).
-function QD.core_setup_run(quest_setup, quest_run)
+--
+-- opts.ticklog (2026-10-25): a QUEST run turns the server's tick log on
+-- before anything else, so every quest session -- run.py's and a watched
+-- Play's -- leaves build/quest_gate/<session>/ticklog.tsv behind.  The
+-- watched Cook's Assistant that lost its lever press (watch/cooksass1) had
+-- none, and the packet order that explained it had to be inferred from
+-- shots.  Raids, bosses and the rest call t.ticklog.start() where their
+-- reads begin, and several read rows with no `since`, so they are not
+-- opted in.  A quest's own t.ticklog.start() later is then a no-op that
+-- answers the current serial, which is what every quest reads from.  A
+-- lane with no embedded server answers `unsupported` and runs on.
+function QD.core_setup_run(quest_setup, quest_run, opts)
     assert(type(quest_run) == "function", "core_setup_run: no run function")
     assert(quest_setup == nil or type(quest_setup) == "table", "core_setup_run: setup is not a table")
+    assert(opts == nil or type(opts) == "table", "core_setup_run: opts is not a table")
+    local want_ticklog = opts ~= nil and opts.ticklog == true
     return function(t)
+        if want_ticklog then
+            local log_result, log_detail = QD.ticklog.start()
+            api_drive.report("quest ticklog: " .. tostring(log_result) .. " " .. tostring(log_detail))
+        end
         -- WAIT FOR THE LOGIN GRANT before the first setup cheat.
         --
         -- The backpack a fixture starts with is not in the fixture: the
@@ -1516,5 +1533,5 @@ function QD.core_run_test(loader, options)
     api_drive.report(string.format("watch: camera %s; %s (%s) on %s: %s; %s", tostring(camera_result),
         tostring(options.id),
         tostring(options.suite), tostring(options.account), tostring(options.start or "fresh"), tostring(start_detail)))
-    return QD.core_setup_run(quest_setup, QUEST.run)(QD)
+    return QD.core_setup_run(quest_setup, QUEST.run, { ticklog = options.suite == "quest" })(QD)
 end

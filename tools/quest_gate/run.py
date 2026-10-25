@@ -390,6 +390,16 @@ end
 """
 
 
+def is_quest_test(path):
+    """True for a quest test proper: a file directly in test/quests/ whose
+    name does not start with `_` (the conformance and cheat harnesses read
+    tick-log rows with no `since`, so they keep starting the log themselves)."""
+    quests_dir = os.path.realpath(os.path.join(REPO_ROOT, "test", "quests"))
+    real = os.path.realpath(path)
+    return (os.path.dirname(real) == quests_dir
+            and not os.path.basename(real).startswith("_"))
+
+
 def write_wrapper_script(quest_file, out_path, leg_mode=None, party=None):
     """A copy of the quest file wrapped so its `setup` cheats run before
     `run(t)` does, matching test/quests/README.md's
@@ -476,6 +486,10 @@ def write_wrapper_script(quest_file, out_path, leg_mode=None, party=None):
     # generate the loop inline and core.lua kept a copy in step by hand).
     with open(quest_file, "r", encoding="utf-8") as handle:
         source = handle.read()
+    # A quest test (test/quests/<name>.lua, not a `_` harness) runs with the
+    # server's tick log on from its first frame: QD.core_setup_run's
+    # opts.ticklog, which a watched Play sets from its suite the same way.
+    quest_ticklog = is_quest_test(quest_file)
     if leg_mode:
         leg_prelude = "local LEG_FROM = %d\nlocal LEG_ONLY = %s\nlocal LEG_TILE = %s\n" % (
             leg_mode["from"], "true" if leg_mode["only"] else "false",
@@ -517,7 +531,8 @@ def write_wrapper_script(quest_file, out_path, leg_mode=None, party=None):
         "-- its effect reaches this client: QD.core_setup_run\n"
         "-- (script/plugins/quest_driver/core.lua), the ONE setup loop -- scriptrun's\n"
         "-- bootstrap and a watched Play run the same function.\n"
-        "QUEST.run = QD_ROOT.core_setup_run(quest_setup, quest_run)\n"
+        "QUEST.run = QD_ROOT.core_setup_run(quest_setup, quest_run, { ticklog = %s })\n"
+        % ("true" if quest_ticklog else "false") +
         "return QUEST\n"
     )
     with open(out_path, "w", encoding="utf-8") as handle:

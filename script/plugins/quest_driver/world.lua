@@ -715,16 +715,20 @@ QD.player._antipoison_doses = { "1doseantipoison", "2doseantipoison", "3doseanti
 -- (free, text): `text` is "" when the player was free on the first read.
 QD.player._free_ticks = 8
 
+-- (held, row): held is nil when the server's hold cannot be read (a socket
+-- run answers `unsupported`), and row is then that result word.
+function QD.player._delayed_now()
+    local result, row = api_drive.player_delayed()
+    if result ~= "ok" then
+        return nil, result
+    end
+    assert(type(row) == "table", "api_drive.player_delayed answered ok without a row")
+    return row.delayed == true, row
+end
+
 function QD.player._await_free(what)
     assert(type(what) == "string", "_await_free names what landed")
-    local function delayed_now()
-        local result, row = api_drive.player_delayed()
-        if result ~= "ok" then
-            return nil, result
-        end
-        assert(type(row) == "table", "api_drive.player_delayed answered ok without a row")
-        return row.delayed == true, row
-    end
+    local delayed_now = QD.player._delayed_now
     local held, first = delayed_now()
     if held == nil then
         return false, "; the server's hold could not be read (player_delayed -> " .. tostring(first) .. ")"
@@ -745,6 +749,53 @@ function QD.player._await_free(what)
             .. tostring(first.delay_ticks) .. " tick(s) left when it landed) -- the next item use may be dropped"
     end
     return true, "; held " .. waited .. " tick(s) after the landing by the server's p_delay, waited it out"
+end
+
+-- SEAM click_inside_previous_p_delay (2026-10-25) -- A WORLD CLICK WAITS FOR
+-- THE LAST ACTION TO LET GO.
+--
+-- A row can settle before its script is done with the player: the hopper's
+-- Fill takes the grain, then `anim` + `p_delay(0)`, and only THEN says "You put
+-- the grain in the hopper." (windmills.rs2 [label,hopper_put_grain]).  The
+-- watched Cook's Assistant (build/quest_gate/watch/cooksass1) pressed the
+-- levers inside that delay.  The server only LATCHES a world op there
+-- (ToriRSServer_WorldProcessInteraction), the lever settle resolved on the
+-- hopper's own trailing line (the chat_message arm takes any new line), the
+-- ladder press replaced the latched op, and the hopper was never ground:
+-- operate_levers PASS, have_flour FAIL three rows later.
+--
+-- So talk_to, click_loc, click_obj and use_on call this at the top, before
+-- any walk or before-snapshot: while the server says the player is held,
+-- wait (bounded, QD.player._free_ticks) for it to let go, then one more
+-- server tick so the client has applied the tick the parked script resumed
+-- on -- its trailing lines are then OLDER than the press's serial and cannot
+-- answer for it.  Free on the first read = no wait, no tick: a row costs
+-- nothing unless it would have pressed into a delay.  An unreadable hold (a
+-- socket run) presses as before.  The combat, spell and solver presses are
+-- not fenced: their timing is the tick log's, not this.
+function QD.player._fence_free(verb)
+    assert(type(verb) == "string", "_fence_free names the verb that is about to press")
+    local held, first = QD.player._delayed_now()
+    if held ~= true then
+        return
+    end
+    local started = api_drive.tick()
+    local result = QD.await({
+        level = function()
+            return QD.player._delayed_now() == false
+        end,
+        note = verb .. ": the previous action's p_delay",
+    }, QD.player._free_ticks)
+    QD.await({ event = "server_tick", match = function() return true end,
+        note = verb .. ": the tick the parked script resumed on" }, 2)
+    local waited = api_drive.tick() - started
+    if result ~= "ok" then
+        QD.note(verb .. ": pressed while still held after " .. waited .. " tick(s) (p_delay "
+            .. tostring(first.delay_ticks) .. " tick(s) left at the first read) -- the press may only latch")
+        return
+    end
+    QD.note(verb .. ": waited " .. waited .. " tick(s) for the previous action's p_delay ("
+        .. tostring(first.delay_ticks) .. " tick(s) left at the first read)")
 end
 
 -- A spec's {x, z[, level]} as three values (level nil when not stated).

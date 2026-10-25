@@ -3775,6 +3775,13 @@ function QD.player._settle_after_click(ticks, before_kind, before_text, extra)
     if result == "ok" and resolved_by == nil and jump.landed then
         return "ok", "teleport: " .. jump.landed, "teleport", settle_line
     end
+    -- The chat_message arm takes ANY new line, so the row names the line: a
+    -- press answered by another script's leftover reads as exactly that
+    -- (watch cooksass1's operate_levers: a bare `chat_message` that was the
+    -- hopper's own "You put the grain in the hopper.").
+    if result == "ok" and resolved_detail == nil and resolved_by == "chat_message" then
+        resolved_detail = "chat_message: " .. tostring(settle_line):gsub("[\t\r\n]", " ")
+    end
     if result == "ok" then
         return "ok", resolved_detail or resolved_by or "settled", resolved_by or "settled", settle_line
     end
@@ -4018,6 +4025,8 @@ function QD.player.talk_to(npc, op, opts)
         end
         copy_text = copy_detail
     end
+    -- Not into the last action's p_delay (QD.player._fence_free).
+    QD.player._fence_free("talk_to " .. tostring(npc))
     -- BEFORE the click: the page the settle compares against has to be the
     -- one that was up when the player pressed, not the one the press has
     -- already begun to replace.  See _settle_after_click's fourth arm.
@@ -4372,6 +4381,9 @@ function QD.player.click_loc(loc, op, opts)
     -- `from_here`: press it where the player stands, as the real client
     -- does, for a loc nobody can walk up to that answers at range
     -- ([aploc], e.g. Ocellus's censers behind the chasms).
+    -- Not into the last action's p_delay (QD.player._fence_free) -- above the
+    -- walk, which is part of this press.
+    QD.player._fence_free("click_loc " .. tostring(loc))
     if not (type(opts) == "table" and opts.from_here) then
         QD.player.walk_near(target, nil, QD.player._loc_standoff)
     end
@@ -4554,6 +4566,8 @@ function QD.player.click_obj(obj, op)
     if not target then
         return sym_result, sym_name
     end
+    -- Not into the last action's p_delay (QD.player._fence_free).
+    QD.player._fence_free("click_obj " .. tostring(obj))
     -- Stand on it first.  A ground stack has no approach tile of its own --
     -- Take is performed from the stack's own square -- and a verb that ran
     -- earlier may have walked the player half a map away from it (click_loc
@@ -5218,6 +5232,8 @@ function QD.player.use_on(item, target, opts)
     if type(target) ~= "table" or target.kind == nil then
         return "unsupported", "use_on: target must be a {kind,id} world target"
     end
+    -- Not into the last action's p_delay (QD.player._fence_free).
+    QD.player._fence_free("use_on " .. tostring(item))
     -- Inherited, not re-resolved: by_symbol already picked the placed id and
     -- stamped the rule on the target.  The note is here for the same reason
     -- it is in click_loc -- the row has to say which loc the item was used on.
