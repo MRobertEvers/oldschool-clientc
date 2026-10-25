@@ -376,14 +376,23 @@ RsproxRecording_Index(
 char const*
 RsproxRecording_RevName(struct RsproxRecording const* rec)
 {
+    static char names[RSPROX_RECORDING_REV_LAST - RSPROX_RECORDING_REV_FIRST + 1][16];
+
     assert(rec);
-    /* Replay plays the recording with the client's own decoder for that
-     * revision, against this tree's cache. Only 241 has both: the cache is
-     * rev 241 (osrs-content/meta.ini), and an older recording's ids name
-     * different things in it (seq 579 is an axe special here). */
-    if( rec->revision == 241 )
-        return "osrs241";
-    return NULL;
+    /* Every revision plays on the data-driven family's table (net/rev/rsprox/),
+     * which is generated from the same RSProx that wrote the recording. The
+     * cache is this tree's rev 241, so an older recording's ids can name
+     * different things than they did when it was recorded (seq 579 is an axe
+     * special here): the packets decode exactly, the content they point at may
+     * not. */
+    if( rec->revision < RSPROX_RECORDING_REV_FIRST || rec->revision > RSPROX_RECORDING_REV_LAST )
+        return NULL;
+    {
+        char* name = names[rec->revision - RSPROX_RECORDING_REV_FIRST];
+
+        snprintf(name, sizeof(names[0]), "rsprox%d", rec->revision);
+        return name;
+    }
 }
 
 void

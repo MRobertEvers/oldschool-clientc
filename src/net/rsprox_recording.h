@@ -154,8 +154,13 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
-/** The client protocol name ("osrs241") this recording's revision is played
- *  with, or NULL when this client has no table for it. */
+/** Revisions a recording can be replayed at: the data-driven family's range
+ *  (net/rev/rsprox/rsprox_rev.h). */
+#define RSPROX_RECORDING_REV_FIRST 227
+#define RSPROX_RECORDING_REV_LAST 241
+
+/** The client protocol name this recording's revision is played with
+ *  ("rsprox<N>"), or NULL outside that range. */
 char const*
 RsproxRecording_RevName(struct RsproxRecording const* rec);
 

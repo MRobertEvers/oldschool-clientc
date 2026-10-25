@@ -529,8 +529,9 @@ net_process_packets(struct ToriRS_Network* net)
         else
         {
             /*
-             * Three parsers, tried in order, each returning <0 for "not mine".
+             * The parsers, tried in order, each returning <0 for "not mine".
              *
+             *   0. rev->parse_wire -- by wire opcode, where a table needs it.
              *   1. rsprot   — the generated per-layout codecs in
              *                 3rd/rsprot/packets/, selected by (packet,
              *                 revision). This is where packets are migrating
@@ -551,7 +552,12 @@ net_process_packets(struct ToriRS_Network* net)
             /* Set the canonical name up front so a rev->parse override need not
              * (the shared gameproto_parse also sets it). */
             packet.packet_type = name;
-            parsed = rsprot_bridge_parse(net->rev, name, pdata, psize, &packet);
+            /* A table whose names do not identify a layout (net/rev/rsprox/:
+             * CAM_TARGET_V3 and _V4 share one) parses by wire opcode first. */
+            if( net->rev->parse_wire )
+                parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
+            if( parsed < 0 )
+                parsed = rsprot_bridge_parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 && net->rev->parse )
                 parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 )

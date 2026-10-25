@@ -318,7 +318,7 @@ map_built(
 static void
 test_replay_plays_a_recording(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
     struct Rec r = build_recording(rev);
     struct RsproxRecording rec;
     struct ToriRS_Network net;
@@ -334,7 +334,7 @@ test_replay_plays_a_recording(void)
     TEST_CHECK(rec.local_player_index == LOCAL_INDEX);
     TEST_CHECK(strcmp(rec.world_host, "oldschool331.runescape.com") == 0);
     TEST_CHECK(strcmp(rec.client_name, "RuneLite (Win)") == 0);
-    TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrs241") == 0);
+    TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "rsprox241") == 0);
     TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
     /* Both client packets framed past, eight server packets kept. */
     TEST_CHECK(rec.frame_count == 8);
@@ -412,7 +412,7 @@ test_replay_plays_a_recording(void)
 static void
 test_replay_refuses_what_it_cannot_frame(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
     struct RsproxRecording rec;
     char err[256];
 
@@ -435,12 +435,20 @@ test_replay_refuses_what_it_cannot_frame(void)
         TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == -1);
         TEST_CHECK(strstr(err, "header version 9") != NULL);
     }
-    /* An older revision: this client's cache is 241, so it is refused by
-     * name rather than played with the wrong ids. */
+    /* An older revision plays on the data-driven family's table; one outside
+     * 227-241 has no table and is refused by name. */
     {
         struct Rec r = build_recording(rev);
 
         r.data[7] = 239;
+        TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+        TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "rsprox239") == 0);
+        RsproxRecording_Free(&rec);
+    }
+    {
+        struct Rec r = build_recording(rev);
+
+        r.data[7] = 226;
         TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
         TEST_CHECK(RsproxRecording_RevName(&rec) == NULL);
         RsproxRecording_Free(&rec);
@@ -473,7 +481,7 @@ w_pseudo(
 static void
 test_replay_reconnects_where_the_recording_did(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
     struct Rec r;
     struct RsproxRecording rec;
     struct ToriRS_Network net;
@@ -496,7 +504,7 @@ test_replay_reconnects_where_the_recording_did(void)
     w_server(&r, rev, 3, PKT_NAME_REBUILD_NORMAL, login_rebuild, (int)sizeof(login_rebuild));
     w_server(&r, rev, 6, PKT_NAME_SERVER_TICK_END, NULL, 0);
     /* tick 1: a group, the hop, and the new world's first packet */
-    /* PACKET_GROUP_START (osrs241 packetin.h: 58, two bytes), which the
+    /* PACKET_GROUP_START (gen/osrs241_prot.h: 58, two bytes), which the
      * client frames and drops. */
     w_packet_head(&r, 600, 1, 58);
     w1(&r, group[0]);

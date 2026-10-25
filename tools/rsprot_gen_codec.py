@@ -2184,7 +2184,7 @@ HAND_WRITTEN_PROTS = {
     # Each file's header states which construct defeated the generator AND what
     # the decode rule is -- which is the point of writing them out rather than
     # teaching the generator to infer. See docs/RSPROT_CODEC_GENERATOR_PLAN.md.
-    "UPDATE_INV_FULL",     # accessors on a packed value + clamp-with-escape
+    "UPDATE_INV_FULL",     # accessors + clamp-with-escape: tools/rsprot_gen_inv_full.py
     "UPDATE_INV_PARTIAL",  # the above, plus a count-less entry list
     "UPDATE_FRIENDLIST",   # sealed-type `when`; the tag is world_id > 0
     "UPDATE_IGNORELIST",   # sealed-type `when`; the tag is the 0x4 bit

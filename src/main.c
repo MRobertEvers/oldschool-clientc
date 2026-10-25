@@ -7015,9 +7015,9 @@ main_argument_takes_value(char const* argument)
 /*
  * --replay: open the recording and shape the boot around it.
  *
- * The revision is the recording's, because its packets are that revision's
- * prots; a manifest or --rev naming another is refused rather than played
- * with the wrong decoder. The "server" is the replay transport, and the
+ * The protocol is the recording's, because its packets are that revision's
+ * prots: it replaces whatever the manifest or --rev named (the replay manifest
+ * is rev 241's, for its cache). The "server" is the replay transport, and the
  * credentials are throwaway: the title screen's autologin submits them and the
  * transport answers whatever it is sent. Returns 0 to stop the boot.
  */
@@ -7035,18 +7035,16 @@ main_rsprox_replay_open(void)
     rev_name = RsproxRecording_RevName(&rsprox_replay_rec);
     if( !rev_name )
     {
-        TORIRS_ERR("replay: %s is a revision %d recording; this client replays revision 241 "
-                   "(its cache's revision) only\n",
-                   rsprox_replay_path, rsprox_replay_rec.revision);
+        TORIRS_ERR("replay: %s is a revision %d recording; this client replays revisions "
+                   "%d-%d\n",
+                   rsprox_replay_path, rsprox_replay_rec.revision, RSPROX_RECORDING_REV_FIRST,
+                   RSPROX_RECORDING_REV_LAST);
         return 0;
     }
     if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )
-    {
-        TORIRS_ERR("replay: the recording is %s but this boot speaks %s (--rev / [net:boot] "
-                   "rev=)\n",
-                   rev_name, cfg.rev_name);
-        return 0;
-    }
+        TORIRS_REPORT("replay: the recording is %s; it replaces the boot's %s (the cache stays "
+                      "the manifest's)\n",
+                      rev_name, cfg.rev_name);
     cfg.rev_name = rev_name;
     cfg.connect_target = "replay";
     if( !cfg.connect_user || !cfg.connect_user[0] )

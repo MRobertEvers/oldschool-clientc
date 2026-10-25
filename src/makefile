@@ -3734,6 +3734,14 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 # tables, packet by packet: `RECORDINGS="a.bin.gz b.bin.gz"`. Not a suite test --
 # it needs recordings, which are not in the tree.
 .PHONY: rsprox-multirev-check
+# One recording through a reference table and the data-driven one, packet
+# for packet (net/test/rsprox_table_diff.c).
+.PHONY: rsprox-table-diff
+rsprox-table-diff: $(OBJ_DIR) $(OBJS)
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprox_table_diff \
+		net/test/rsprox_table_diff.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	./$(OBJ_DIR)/rsprox_table_diff $(RECORDING) $(REF)
+
 rsprox-multirev-check: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/rsprox_multirev_check \
 		net/test/rsprox_multirev_check.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
