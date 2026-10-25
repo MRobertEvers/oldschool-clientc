@@ -34,32 +34,9 @@ packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U2_ALT1(x, m->curve_script_t);
 }
 
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m)
-{
-    RSPROT_U2(x, m->curve_script_a);
-    RSPROT_U3_ALT1(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->source_offset_x);
-    RSPROT_U2_ALT3(x, m->target_offset_x);
-    RSPROT_U2(x, m->source_height);
-    RSPROT_U2_ALT2(x, m->target_height);
-    RSPROT_U2_ALT1(x, m->target_offset_z);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->slot);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT2(x, m->source_offset_z);
-    RSPROT_U2_ALT3(x, m->curve_script_t);
-    RSPROT_U4_ALT1(x, m->target_coord_packed);
-    RSPROT_U2_ALT3(x, m->curve_script_h);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-}
-
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
     RSPROT_U3_ALT3(x, m->target_index);
     RSPROT_U2(x, m->target_height);
@@ -80,6 +57,29 @@ packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U2_ALT3(x, m->curve_script_a);
 }
 
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
+{
+    RSPROT_U2(x, m->curve_script_a);
+    RSPROT_U3_ALT1(x, m->source_index);
+    RSPROT_U2_ALT2(x, m->source_offset_x);
+    RSPROT_U2_ALT3(x, m->target_offset_x);
+    RSPROT_U2(x, m->source_height);
+    RSPROT_U2_ALT2(x, m->target_height);
+    RSPROT_U2_ALT1(x, m->target_offset_z);
+    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U3_ALT2(x, m->target_index);
+    RSPROT_U2(x, m->end_time);
+    RSPROT_U2_ALT3(x, m->slot);
+    RSPROT_U2(x, m->start_time);
+    RSPROT_U2_ALT2(x, m->source_offset_z);
+    RSPROT_U2_ALT3(x, m->curve_script_t);
+    RSPROT_U4_ALT1(x, m->target_coord_packed);
+    RSPROT_U2_ALT3(x, m->curve_script_h);
+    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+}
+
 /*
  * 3 row(s) for 3 layout(s), complete over revisions 221-239.
  * A complete table makes rsprot_version_pick's NULL mean exactly one thing: a
@@ -92,8 +92,8 @@ packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
  */
 const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
     { 239, 239, (RsprotCodecFn)packet_scriptedproj_add_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_scriptedproj_add_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_scriptedproj_add_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_scriptedproj_add_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_scriptedproj_add_v3_out },
 };
 
 const int rsprot_scriptedproj_add_out_count =

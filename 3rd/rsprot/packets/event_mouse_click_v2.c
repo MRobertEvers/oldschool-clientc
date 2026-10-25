@@ -123,28 +123,28 @@ packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v9 -- revs 241 (rsprox_versions.txt 100). */
+/* v9 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
+    RSPROT_U1(x, m->code);
     RSPROT_U2_ALT3(x, m->y);
+    RSPROT_U2(x, m->packed);
     RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->packed);
-    RSPROT_U1_ALT2(x, m->code);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
     m->right_click = right_click;
 }
 
-/* v10 -- revs 240 (rsprox_versions.txt 101). */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U1(x, m->code);
     RSPROT_U2_ALT3(x, m->y);
-    RSPROT_U2(x, m->packed);
     RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_ALT2(x, m->packed);
+    RSPROT_U1_ALT2(x, m->code);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -170,8 +170,8 @@ const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
     { 237, 237, (RsprotCodecFn)packet_event_mouse_click_v2_v6_in },
     { 238, 238, (RsprotCodecFn)packet_event_mouse_click_v2_v7_in },
     { 239, 239, (RsprotCodecFn)packet_event_mouse_click_v2_v8_in },
-    { 240, 240, (RsprotCodecFn)packet_event_mouse_click_v2_v10_in },
-    { 241, 241, (RsprotCodecFn)packet_event_mouse_click_v2_v9_in },
+    { 240, 240, (RsprotCodecFn)packet_event_mouse_click_v2_v9_in },
+    { 241, 241, (RsprotCodecFn)packet_event_mouse_click_v2_v10_in },
 };
 
 const int rsprot_event_mouse_click_v2_in_count =

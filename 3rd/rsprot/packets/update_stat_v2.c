@@ -151,24 +151,24 @@ packet_update_stat_v2_v14_out(RsprotExec *x, MsgUpdateStatV2 *m)
     RSPROT_U4_ALT2(x, m->experience);
 }
 
-/* v15 -- revs 241 (rsprox_versions.txt 100). */
+/* v15 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_update_stat_v2_v15_out(RsprotExec *x, MsgUpdateStatV2 *m)
-{
-    RSPROT_U4_ALT1(x, m->experience);
-    RSPROT_U1_ALT1(x, m->invisible_boosted_level);
-    RSPROT_U1_ALT2(x, m->stat);
-    RSPROT_U1_ALT2(x, m->current_level);
-}
-
-/* v16 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m)
 {
     RSPROT_U1_ALT3(x, m->stat);
     RSPROT_U4_ALT1(x, m->experience);
     RSPROT_U1(x, m->invisible_boosted_level);
     RSPROT_U1_ALT3(x, m->current_level);
+}
+
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m)
+{
+    RSPROT_U4_ALT1(x, m->experience);
+    RSPROT_U1_ALT1(x, m->invisible_boosted_level);
+    RSPROT_U1_ALT2(x, m->stat);
+    RSPROT_U1_ALT2(x, m->current_level);
 }
 
 /*
@@ -196,8 +196,8 @@ const RsprotVersionRange rsprot_update_stat_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_update_stat_v2_v12_out },
     { 238, 238, (RsprotCodecFn)packet_update_stat_v2_v13_out },
     { 239, 239, (RsprotCodecFn)packet_update_stat_v2_v14_out },
-    { 240, 240, (RsprotCodecFn)packet_update_stat_v2_v16_out },
-    { 241, 241, (RsprotCodecFn)packet_update_stat_v2_v15_out },
+    { 240, 240, (RsprotCodecFn)packet_update_stat_v2_v15_out },
+    { 241, 241, (RsprotCodecFn)packet_update_stat_v2_v16_out },
 };
 
 const int rsprot_update_stat_v2_out_count =

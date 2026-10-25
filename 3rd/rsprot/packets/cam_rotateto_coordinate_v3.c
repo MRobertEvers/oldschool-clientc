@@ -24,22 +24,9 @@ packet_cam_rotateto_coordinate_v3_v1_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U1(x, m->easing_id);
 }
 
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_cam_rotateto_coordinate_v3_v2_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
-{
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2(x, m->height);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_BOOL(x, m->height_relative);
-    RSPROT_U2_ALT2(x, m->cycles);
-    RSPROT_U1_ALT1(x, m->track_target);
-    RSPROT_U1_ALT3(x, m->easing_id);
-}
-
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
 {
     RSPROT_U2_ALT2(x, m->height);
     RSPROT_U2_ALT2(x, m->x);
@@ -48,6 +35,19 @@ packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_BOOL(x, m->height_relative);
     RSPROT_U2_ALT3(x, m->z);
     RSPROT_U1(x, m->track_target);
+}
+
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
+{
+    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2(x, m->height);
+    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_BOOL(x, m->height_relative);
+    RSPROT_U2_ALT2(x, m->cycles);
+    RSPROT_U1_ALT1(x, m->track_target);
+    RSPROT_U1_ALT3(x, m->easing_id);
 }
 
 /*
@@ -62,8 +62,8 @@ packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinate
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v3_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v3_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v3_out_count =

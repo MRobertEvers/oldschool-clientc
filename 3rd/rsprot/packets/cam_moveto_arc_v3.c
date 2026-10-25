@@ -26,24 +26,9 @@ packet_cam_moveto_arc_v3_v1_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
     RSPROT_U2_ALT2(x, m->cycles);
 }
 
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_cam_moveto_arc_v3_v2_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
-{
-    RSPROT_U2_ALT2(x, m->center_z);
-    RSPROT_U2_ALT2(x, m->center_x);
-    RSPROT_U1_ALT1(x, m->height_relative);
-    RSPROT_U1_ALT3(x, m->easing_id);
-    RSPROT_U2_ALT2(x, m->height);
-    RSPROT_U2_ALT2(x, m->destination_z);
-    RSPROT_U2(x, m->destination_x);
-    RSPROT_U1_ALT1(x, m->ignore_terrain);
-    RSPROT_U2_ALT2(x, m->cycles);
-}
-
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
 {
     RSPROT_U2_ALT2(x, m->center_z);
     RSPROT_U1_ALT1(x, m->height_relative);
@@ -54,6 +39,21 @@ packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
     RSPROT_U1(x, m->ignore_terrain);
     RSPROT_U2_ALT3(x, m->center_x);
     RSPROT_U2_ALT1(x, m->destination_x);
+}
+
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
+{
+    RSPROT_U2_ALT2(x, m->center_z);
+    RSPROT_U2_ALT2(x, m->center_x);
+    RSPROT_U1_ALT1(x, m->height_relative);
+    RSPROT_U1_ALT3(x, m->easing_id);
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U2_ALT2(x, m->destination_z);
+    RSPROT_U2(x, m->destination_x);
+    RSPROT_U1_ALT1(x, m->ignore_terrain);
+    RSPROT_U2_ALT2(x, m->cycles);
 }
 
 /*
@@ -68,8 +68,8 @@ packet_cam_moveto_arc_v3_v3_out(RsprotExec *x, MsgCamMoveToArcV3 *m)
  */
 const RsprotVersionRange rsprot_cam_moveto_arc_v3_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_moveto_arc_v3_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_moveto_arc_v3_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_moveto_arc_v3_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_moveto_arc_v3_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_moveto_arc_v3_v3_out },
 };
 
 const int rsprot_cam_moveto_arc_v3_out_count =

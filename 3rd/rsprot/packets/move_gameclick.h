@@ -72,9 +72,9 @@ void packet_move_gameclick_v16_in(RsprotExec *x, MsgMoveGameClick *m);
 void packet_move_gameclick_v17_in(RsprotExec *x, MsgMoveGameClick *m);
 /* v18 -- revs 239 (packet_versions.txt 18). */
 void packet_move_gameclick_v18_in(RsprotExec *x, MsgMoveGameClick *m);
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void packet_move_gameclick_v19_in(RsprotExec *x, MsgMoveGameClick *m);
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void packet_move_gameclick_v20_in(RsprotExec *x, MsgMoveGameClick *m);
 
 /* Per-revision entry points: `packet_move_gameclick_osrs239_in` is greppable, which
@@ -98,8 +98,8 @@ void packet_move_gameclick_v20_in(RsprotExec *x, MsgMoveGameClick *m);
 #define packet_move_gameclick_osrs237_in packet_move_gameclick_v16_in
 #define packet_move_gameclick_osrs238_in packet_move_gameclick_v17_in
 #define packet_move_gameclick_osrs239_in packet_move_gameclick_v18_in
-#define packet_move_gameclick_osrs240_in packet_move_gameclick_v20_in
-#define packet_move_gameclick_osrs241_in packet_move_gameclick_v19_in
+#define packet_move_gameclick_osrs240_in packet_move_gameclick_v19_in
+#define packet_move_gameclick_osrs241_in packet_move_gameclick_v20_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_move_gameclick_in[];

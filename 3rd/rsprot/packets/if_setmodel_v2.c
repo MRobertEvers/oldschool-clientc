@@ -35,20 +35,20 @@ packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v4 -- revs 241 (rsprox_versions.txt 100). */
+/* v4 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->model);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U4_ALT1(x, m->model);
+    RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v5 -- revs 240 (rsprox_versions.txt 101). */
+/* v5 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT1(x, m->model);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_ALT2(x, m->model);
+    RSPROT_COM(x, m->combined_id);
 }
 
 /*
@@ -65,8 +65,8 @@ const RsprotVersionRange rsprot_if_setmodel_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setmodel_v2_v1_out },
     { 238, 238, (RsprotCodecFn)packet_if_setmodel_v2_v2_out },
     { 239, 239, (RsprotCodecFn)packet_if_setmodel_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setmodel_v2_v5_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setmodel_v2_v4_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setmodel_v2_v4_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setmodel_v2_v5_out },
 };
 
 const int rsprot_if_setmodel_v2_out_count =

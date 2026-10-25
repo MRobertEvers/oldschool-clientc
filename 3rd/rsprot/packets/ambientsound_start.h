@@ -37,17 +37,17 @@ typedef struct MsgAmbientSoundStart {
 
 /* v1 -- revs 238-239 (packet_versions.txt 1). */
 void packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m);
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m);
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m);
 
 /* Per-revision entry points: `packet_ambientsound_start_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for AMBIENTSOUND_START" without reading a table. */
 #define packet_ambientsound_start_osrs238_out packet_ambientsound_start_v1_out
 #define packet_ambientsound_start_osrs239_out packet_ambientsound_start_v1_out
-#define packet_ambientsound_start_osrs240_out packet_ambientsound_start_v3_out
-#define packet_ambientsound_start_osrs241_out packet_ambientsound_start_v2_out
+#define packet_ambientsound_start_osrs240_out packet_ambientsound_start_v2_out
+#define packet_ambientsound_start_osrs241_out packet_ambientsound_start_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_ambientsound_start_out[];

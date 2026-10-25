@@ -75,9 +75,9 @@ void packet_map_anim_v17_out(RsprotExec *x, MsgMapAnim *m);
 void packet_map_anim_v18_out(RsprotExec *x, MsgMapAnim *m);
 /* v19 -- revs 239 (packet_versions.txt 19). */
 void packet_map_anim_v19_out(RsprotExec *x, MsgMapAnim *m);
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void packet_map_anim_v20_out(RsprotExec *x, MsgMapAnim *m);
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
 void packet_map_anim_v21_out(RsprotExec *x, MsgMapAnim *m);
 
 /* Per-revision entry points: `packet_map_anim_osrs239_out` is greppable, which
@@ -101,8 +101,8 @@ void packet_map_anim_v21_out(RsprotExec *x, MsgMapAnim *m);
 #define packet_map_anim_osrs237_out packet_map_anim_v17_out
 #define packet_map_anim_osrs238_out packet_map_anim_v18_out
 #define packet_map_anim_osrs239_out packet_map_anim_v19_out
-#define packet_map_anim_osrs240_out packet_map_anim_v21_out
-#define packet_map_anim_osrs241_out packet_map_anim_v20_out
+#define packet_map_anim_osrs240_out packet_map_anim_v20_out
+#define packet_map_anim_osrs241_out packet_map_anim_v21_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_map_anim_out[];

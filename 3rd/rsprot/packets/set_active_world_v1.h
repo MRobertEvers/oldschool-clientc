@@ -25,9 +25,13 @@ typedef struct MsgSetActiveWorldV1 {
 	int32_t active_level;
 } MsgSetActiveWorldV1;
 
-/* v1 -- revs 227-230 (rsprox_versions.txt 100). */
+/* v1 -- revs 223-230 (rsprox_versions.txt 101). */
 void packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m);
 
+#define packet_set_active_world_v1_osrs223_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs224_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs225_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs226_out packet_set_active_world_v1_v1_out
 #define packet_set_active_world_v1_osrs227_out packet_set_active_world_v1_v1_out
 #define packet_set_active_world_v1_osrs228_out packet_set_active_world_v1_v1_out
 #define packet_set_active_world_v1_osrs229_out packet_set_active_world_v1_v1_out

@@ -956,7 +956,7 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev221 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev221 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev221 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev221 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
+  rev221 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev221 out  map/RebuildRegionEncoder.kt                                  val without '=': val (mapsquares, xteas) = distinctMapsquares.get()
   rev221 out  misc/client/HintArrowEncoder.kt                              when over a sealed type (is HintArrow.NpcHintArrow): no discriminator field on the wire, so decoding would have to infer the arm
   rev221 out  misc/client/HiscoreReplyEncoder.kt                           when over a sealed type (is HiscoreReply.FailedHiscoreReply): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1002,7 +1002,7 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev222 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev222 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev222 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev222 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
+  rev222 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev222 out  map/RebuildRegionEncoder.kt                                  val without '=': val (mapsquares, xteas) = distinctMapsquares.get()
   rev222 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
@@ -1050,7 +1050,7 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev223 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev223 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev223 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev223 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
+  rev223 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev223 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 
@@ -1097,7 +1097,7 @@ revisions 221-239; 282 packets emitted, 3 refused
   rev224 out  friendchat/UpdateFriendChatChannelSingleUserEncoder.kt       internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'UpdateFriendChatChannelSingleUser'), ('op', '.'), ('ident', 'AddedFriendChatUser')]
   rev224 out  inv/UpdateInvFullEncoder.kt                                  unmodeled member access: .NULL
   rev224 out  inv/UpdateInvPartialEncoder.kt                               unmodeled call: getSlot(...)
-  rev224 out  map/RebuildNormalEncoder.kt                                  internal error: SyntaxError: trailing tokens: [('ident', 'is'), ('ident', 'RebuildLogin')]
+  rev224 out  map/RebuildNormalEncoder.kt                                  bare 'intKey' has no wire value
   rev224 out  map/RebuildWorldEntityEncoder.kt                             buffer expression not understood: try {
             buffer.buffer.writeBytes(
                 

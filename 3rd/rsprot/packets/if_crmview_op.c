@@ -239,27 +239,27 @@ packet_if_crmview_op_v19_in(RsprotExec *x, MsgIfCrmViewOp *m)
     RSPROT_U2_ALT1(x, m->sub);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_crmview_op_v20_in(RsprotExec *x, MsgIfCrmViewOp *m)
-{
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4_ALT2(x, m->behaviour1);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4(x, m->behaviour3);
-    RSPROT_COM(x, m->combined_id);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
     RSPROT_U4(x, m->behaviour2);
     RSPROT_U4_ALT1(x, m->behaviour1);
     RSPROT_U4_ALT3(x, m->behaviour3);
     RSPROT_U4(x, m->server_target);
     RSPROT_U2_ALT2(x, m->sub);
+    RSPROT_COM(x, m->combined_id);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m)
+{
+    RSPROT_U4_ALT1(x, m->server_target);
+    RSPROT_U2_ALT1(x, m->sub);
+    RSPROT_U4_ALT2(x, m->behaviour1);
+    RSPROT_U4(x, m->behaviour2);
+    RSPROT_U4(x, m->behaviour3);
     RSPROT_COM(x, m->combined_id);
 }
 
@@ -293,8 +293,8 @@ const RsprotVersionRange rsprot_if_crmview_op_in[] = {
     { 237, 237, (RsprotCodecFn)packet_if_crmview_op_v17_in },
     { 238, 238, (RsprotCodecFn)packet_if_crmview_op_v18_in },
     { 239, 239, (RsprotCodecFn)packet_if_crmview_op_v19_in },
-    { 240, 240, (RsprotCodecFn)packet_if_crmview_op_v21_in },
-    { 241, 241, (RsprotCodecFn)packet_if_crmview_op_v20_in },
+    { 240, 240, (RsprotCodecFn)packet_if_crmview_op_v20_in },
+    { 241, 241, (RsprotCodecFn)packet_if_crmview_op_v21_in },
 };
 
 const int rsprot_if_crmview_op_in_count =

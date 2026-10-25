@@ -698,6 +698,11 @@ def parse_one(s, is_decoder):
         return {"op": "write", "fn": fn, "expr": parse_expr(argtext)}
     if s.startswith("for ("):
         return parse_for(s, is_decoder)
+    # 221-226's REBUILD_NORMAL writes the login form's GPI block itself, behind
+    # `if (message is RebuildLogin)`; the REBUILD_NORMAL tail (TAILS: the GPI
+    # prefix) is that block, so the subtype test carries no field.
+    if re.match(r"^if\s*\(\s*message is RebuildLogin\s*\)", s):
+        return {"op": "ignore", "text": s}
     if s.startswith("if (") or s.startswith("if("):
         return parse_if_stmt(s, is_decoder)
     if s.startswith("when (") or s.startswith("when("):
@@ -2453,14 +2458,16 @@ def fmt_ranges(ranges):
 
 
 def layout_numbers(versions):
-    """Ledger version -> the layout's number in C: 1..N in ledger order.
+    """Ledger version -> the layout's number in C: 1..N by first revision.
 
     The ledgers (gen/packet_versions.txt from 1, gen/rsprox_versions.txt from
     100) are append-only identities and stay so; the C names count a packet's
-    own layouts, so `packet_<prot>_v<n>` is the n-th layout that packet has
-    had. Each layout's comment names its ledger row.
+    own layouts in revision order, so `packet_<prot>_v1` is the earliest layout
+    the library carries, whichever ledger row it was given (223-226 joined the
+    ledgers after 227-241). Each layout's comment names its ledger row.
     """
-    return {v: n for n, v in enumerate(sorted(versions), 1)}
+    order = sorted(versions, key=lambda v: (min(versions[v]["revs"]), v))
+    return {v: n for n, v in enumerate(order, 1)}
 
 
 def ledger_name(ver):
@@ -2565,7 +2572,7 @@ def emit_packet_files(pkt, out_dir):
     num = layout_numbers(versions)
     decls = []
     bodies = []
-    for ver in sorted(versions):
+    for ver in sorted(versions, key=num.get):
         info = versions[ver]
         rngs = fmt_ranges(compress_ranges(info["revs"]))
         fn = f"packet_{snake}_v{num[ver]}_{direction}"

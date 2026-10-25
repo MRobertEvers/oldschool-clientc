@@ -82,9 +82,9 @@ void packet_move_minimapclick_v16_in(RsprotExec *x, MsgMoveMinimapClick *m);
 void packet_move_minimapclick_v17_in(RsprotExec *x, MsgMoveMinimapClick *m);
 /* v18 -- revs 239 (packet_versions.txt 18). */
 void packet_move_minimapclick_v18_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m);
 
 /* Per-revision entry points: `packet_move_minimapclick_osrs239_in` is greppable, which
@@ -108,8 +108,8 @@ void packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m);
 #define packet_move_minimapclick_osrs237_in packet_move_minimapclick_v16_in
 #define packet_move_minimapclick_osrs238_in packet_move_minimapclick_v17_in
 #define packet_move_minimapclick_osrs239_in packet_move_minimapclick_v18_in
-#define packet_move_minimapclick_osrs240_in packet_move_minimapclick_v20_in
-#define packet_move_minimapclick_osrs241_in packet_move_minimapclick_v19_in
+#define packet_move_minimapclick_osrs240_in packet_move_minimapclick_v19_in
+#define packet_move_minimapclick_osrs241_in packet_move_minimapclick_v20_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_move_minimapclick_in[];

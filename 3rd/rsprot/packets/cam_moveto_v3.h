@@ -41,16 +41,16 @@ typedef struct MsgCamMoveToV3 {
 
 /* v1 -- revs 239 (packet_versions.txt 1). */
 void packet_cam_moveto_v3_v1_out(RsprotExec *x, MsgCamMoveToV3 *m);
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void packet_cam_moveto_v3_v2_out(RsprotExec *x, MsgCamMoveToV3 *m);
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void packet_cam_moveto_v3_v3_out(RsprotExec *x, MsgCamMoveToV3 *m);
 
 /* Per-revision entry points: `packet_cam_moveto_v3_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for CAM_MOVETO_V3" without reading a table. */
 #define packet_cam_moveto_v3_osrs239_out packet_cam_moveto_v3_v1_out
-#define packet_cam_moveto_v3_osrs240_out packet_cam_moveto_v3_v3_out
-#define packet_cam_moveto_v3_osrs241_out packet_cam_moveto_v3_v2_out
+#define packet_cam_moveto_v3_osrs240_out packet_cam_moveto_v3_v2_out
+#define packet_cam_moveto_v3_osrs241_out packet_cam_moveto_v3_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_moveto_v3_out[];

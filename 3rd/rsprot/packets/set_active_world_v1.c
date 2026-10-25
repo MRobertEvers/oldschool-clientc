@@ -7,7 +7,7 @@
  *       decoder/codec/worldentity/SetActiveWorldV1Decoder.kt
  */
 
-/* v1 -- revs 227-230 (rsprox_versions.txt 100). */
+/* v1 -- revs 223-230 (rsprox_versions.txt 101). */
 void
 packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
 {
@@ -21,11 +21,11 @@ packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s), over revisions 227-230. A revision not
+ * 1 row(s) for 1 layout(s), over revisions 223-230. A revision not
  * listed has no SET_ACTIVE_WORLD_V1 and picks NULL.
  */
 const RsprotVersionRange rsprot_set_active_world_v1_out[] = {
-    { 227, 230, (RsprotCodecFn)packet_set_active_world_v1_v1_out },
+    { 223, 230, (RsprotCodecFn)packet_set_active_world_v1_v1_out },
 };
 
 const int rsprot_set_active_world_v1_out_count =

@@ -201,24 +201,24 @@ packet_teleport_v19_in(RsprotExec *x, MsgTeleport *m)
     RSPROT_U2_ALT2(x, m->x);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_teleport_v20_in(RsprotExec *x, MsgTeleport *m)
-{
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U1_ALT2(x, m->level);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_teleport_v21_in(RsprotExec *x, MsgTeleport *m)
 {
     RSPROT_U1_ALT3(x, m->level);
     RSPROT_U2_ALT3(x, m->x);
     RSPROT_U4(x, m->oculus_sync_value);
     RSPROT_U2(x, m->z);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_teleport_v21_in(RsprotExec *x, MsgTeleport *m)
+{
+    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U4_ALT3(x, m->oculus_sync_value);
+    RSPROT_U1_ALT2(x, m->level);
 }
 
 /*
@@ -251,8 +251,8 @@ const RsprotVersionRange rsprot_teleport_in[] = {
     { 237, 237, (RsprotCodecFn)packet_teleport_v17_in },
     { 238, 238, (RsprotCodecFn)packet_teleport_v18_in },
     { 239, 239, (RsprotCodecFn)packet_teleport_v19_in },
-    { 240, 240, (RsprotCodecFn)packet_teleport_v21_in },
-    { 241, 241, (RsprotCodecFn)packet_teleport_v20_in },
+    { 240, 240, (RsprotCodecFn)packet_teleport_v20_in },
+    { 241, 241, (RsprotCodecFn)packet_teleport_v21_in },
 };
 
 const int rsprot_teleport_in_count =

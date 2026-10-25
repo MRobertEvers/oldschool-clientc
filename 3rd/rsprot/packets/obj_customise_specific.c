@@ -123,23 +123,9 @@ packet_obj_customise_specific_v8_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
     RSPROT_U2_ALT3(x, m->recol_index);
 }
 
-/* v9 -- revs 241 (rsprox_versions.txt 100). */
+/* v9 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_obj_customise_specific_v9_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
-{
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->recol);
-    RSPROT_U2_ALT3(x, m->retex);
-    RSPROT_U2_ALT2(x, m->retex_index);
-    RSPROT_U2_ALT3(x, m->recol_index);
-    RSPROT_U2_ALT2(x, m->model);
-}
-
-/* v10 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_obj_customise_specific_v10_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
     RSPROT_U4_ALT3(x, m->coord_grid_packed);
     RSPROT_U2_ALT1(x, m->recol_index);
@@ -149,6 +135,20 @@ packet_obj_customise_specific_v10_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
     RSPROT_U4(x, m->quantity);
     RSPROT_U2_ALT3(x, m->recol);
     RSPROT_U2_ALT3(x, m->retex);
+}
+
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_obj_customise_specific_v10_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
+{
+    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U4_ALT1(x, m->coord_grid_packed);
+    RSPROT_U4_ALT3(x, m->quantity);
+    RSPROT_U2_ALT3(x, m->recol);
+    RSPROT_U2_ALT3(x, m->retex);
+    RSPROT_U2_ALT2(x, m->retex_index);
+    RSPROT_U2_ALT3(x, m->recol_index);
+    RSPROT_U2_ALT2(x, m->model);
 }
 
 /*
@@ -170,8 +170,8 @@ const RsprotVersionRange rsprot_obj_customise_specific_out[] = {
     { 237, 237, (RsprotCodecFn)packet_obj_customise_specific_v6_out },
     { 238, 238, (RsprotCodecFn)packet_obj_customise_specific_v7_out },
     { 239, 239, (RsprotCodecFn)packet_obj_customise_specific_v8_out },
-    { 240, 240, (RsprotCodecFn)packet_obj_customise_specific_v10_out },
-    { 241, 241, (RsprotCodecFn)packet_obj_customise_specific_v9_out },
+    { 240, 240, (RsprotCodecFn)packet_obj_customise_specific_v9_out },
+    { 241, 241, (RsprotCodecFn)packet_obj_customise_specific_v10_out },
 };
 
 const int rsprot_obj_customise_specific_out_count =

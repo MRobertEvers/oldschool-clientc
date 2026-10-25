@@ -23,9 +23,13 @@ typedef struct MsgClearEntities {
 	int32_t unused; /* zero-payload packet */
 } MsgClearEntities;
 
-/* v1 -- revs 227-229 (rsprox_versions.txt 100). */
+/* v1 -- revs 223-229 (rsprox_versions.txt 101). */
 void packet_clear_entities_v1_out(RsprotExec *x, MsgClearEntities *m);
 
+#define packet_clear_entities_osrs223_out packet_clear_entities_v1_out
+#define packet_clear_entities_osrs224_out packet_clear_entities_v1_out
+#define packet_clear_entities_osrs225_out packet_clear_entities_v1_out
+#define packet_clear_entities_osrs226_out packet_clear_entities_v1_out
 #define packet_clear_entities_osrs227_out packet_clear_entities_v1_out
 #define packet_clear_entities_osrs228_out packet_clear_entities_v1_out
 #define packet_clear_entities_osrs229_out packet_clear_entities_v1_out

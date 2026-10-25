@@ -107,20 +107,20 @@ packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT3(x, m->fade_out_speed);
 }
 
-/* v13 -- revs 241 (rsprox_versions.txt 100). */
+/* v13 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_midi_song_stop_v13_out(RsprotExec *x, MsgMidiSongStop *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_out_delay);
-    RSPROT_U2_ALT2(x, m->fade_out_speed);
+    RSPROT_U2_ALT2(x, m->fade_out_delay);
+    RSPROT_U2_ALT1(x, m->fade_out_speed);
 }
 
-/* v14 -- revs 240 (rsprox_versions.txt 101). */
+/* v14 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_midi_song_stop_v14_out(RsprotExec *x, MsgMidiSongStop *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2_ALT1(x, m->fade_out_speed);
+    RSPROT_U2_ALT3(x, m->fade_out_delay);
+    RSPROT_U2_ALT2(x, m->fade_out_speed);
 }
 
 /*
@@ -152,8 +152,8 @@ const RsprotVersionRange rsprot_midi_song_stop_out[] = {
     { 237, 237, (RsprotCodecFn)packet_midi_song_stop_v10_out },
     { 238, 238, (RsprotCodecFn)packet_midi_song_stop_v2_out },
     { 239, 239, (RsprotCodecFn)packet_midi_song_stop_v12_out },
-    { 240, 240, (RsprotCodecFn)packet_midi_song_stop_v14_out },
-    { 241, 241, (RsprotCodecFn)packet_midi_song_stop_v13_out },
+    { 240, 240, (RsprotCodecFn)packet_midi_song_stop_v13_out },
+    { 241, 241, (RsprotCodecFn)packet_midi_song_stop_v14_out },
 };
 
 const int rsprot_midi_song_stop_out_count =

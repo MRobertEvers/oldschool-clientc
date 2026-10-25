@@ -9,11 +9,11 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.StaticRebuildDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. v1..v9 are this packet's layouts in ledger
+ * RSProx's variable names. v1..v13 are this packet's layouts in ledger
  * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.StaticRebuildDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
- * Layouts      : 9 distinct, over 10 contiguous revision run(s)
+ * Layouts      : 13 distinct, over 14 contiguous revision run(s)
  */
 
 #include "../include/rsprot_exec.h"
@@ -31,35 +31,47 @@ typedef struct MsgRebuildNormal {
 	int32_t gpi_init_length;
 } MsgRebuildNormal;
 
-/* v1 -- revs 227 (rsprox_versions.txt 100). */
+/* v1 -- revs 223 (rsprox_versions.txt 109). */
 void packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v2 -- revs 228 (rsprox_versions.txt 101). */
+/* v2 -- revs 224 (rsprox_versions.txt 110). */
 void packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v3 -- revs 229 (rsprox_versions.txt 102). */
+/* v3 -- revs 225 (rsprox_versions.txt 111). */
 void packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v4 -- revs 230, 233 (rsprox_versions.txt 103). */
+/* v4 -- revs 226 (rsprox_versions.txt 112). */
 void packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v5 -- revs 231 (rsprox_versions.txt 104). */
+/* v5 -- revs 227 (rsprox_versions.txt 100). */
 void packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v6 -- revs 232 (rsprox_versions.txt 105). */
+/* v6 -- revs 228 (rsprox_versions.txt 101). */
 void packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v7 -- revs 234 (rsprox_versions.txt 106). */
+/* v7 -- revs 229 (rsprox_versions.txt 102). */
 void packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v8 -- revs 235 (rsprox_versions.txt 107). */
+/* v8 -- revs 230, 233 (rsprox_versions.txt 103). */
 void packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v9 -- revs 236 (rsprox_versions.txt 108). */
+/* v9 -- revs 231 (rsprox_versions.txt 104). */
 void packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m);
+/* v10 -- revs 232 (rsprox_versions.txt 105). */
+void packet_rebuild_normal_v10_out(RsprotExec *x, MsgRebuildNormal *m);
+/* v11 -- revs 234 (rsprox_versions.txt 106). */
+void packet_rebuild_normal_v11_out(RsprotExec *x, MsgRebuildNormal *m);
+/* v12 -- revs 235 (rsprox_versions.txt 107). */
+void packet_rebuild_normal_v12_out(RsprotExec *x, MsgRebuildNormal *m);
+/* v13 -- revs 236 (rsprox_versions.txt 108). */
+void packet_rebuild_normal_v13_out(RsprotExec *x, MsgRebuildNormal *m);
 
-#define packet_rebuild_normal_osrs227_out packet_rebuild_normal_v1_out
-#define packet_rebuild_normal_osrs228_out packet_rebuild_normal_v2_out
-#define packet_rebuild_normal_osrs229_out packet_rebuild_normal_v3_out
-#define packet_rebuild_normal_osrs230_out packet_rebuild_normal_v4_out
-#define packet_rebuild_normal_osrs231_out packet_rebuild_normal_v5_out
-#define packet_rebuild_normal_osrs232_out packet_rebuild_normal_v6_out
-#define packet_rebuild_normal_osrs233_out packet_rebuild_normal_v4_out
-#define packet_rebuild_normal_osrs234_out packet_rebuild_normal_v7_out
-#define packet_rebuild_normal_osrs235_out packet_rebuild_normal_v8_out
-#define packet_rebuild_normal_osrs236_out packet_rebuild_normal_v9_out
+#define packet_rebuild_normal_osrs223_out packet_rebuild_normal_v1_out
+#define packet_rebuild_normal_osrs224_out packet_rebuild_normal_v2_out
+#define packet_rebuild_normal_osrs225_out packet_rebuild_normal_v3_out
+#define packet_rebuild_normal_osrs226_out packet_rebuild_normal_v4_out
+#define packet_rebuild_normal_osrs227_out packet_rebuild_normal_v5_out
+#define packet_rebuild_normal_osrs228_out packet_rebuild_normal_v6_out
+#define packet_rebuild_normal_osrs229_out packet_rebuild_normal_v7_out
+#define packet_rebuild_normal_osrs230_out packet_rebuild_normal_v8_out
+#define packet_rebuild_normal_osrs231_out packet_rebuild_normal_v9_out
+#define packet_rebuild_normal_osrs232_out packet_rebuild_normal_v10_out
+#define packet_rebuild_normal_osrs233_out packet_rebuild_normal_v8_out
+#define packet_rebuild_normal_osrs234_out packet_rebuild_normal_v11_out
+#define packet_rebuild_normal_osrs235_out packet_rebuild_normal_v12_out
+#define packet_rebuild_normal_osrs236_out packet_rebuild_normal_v13_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_normal_out[];

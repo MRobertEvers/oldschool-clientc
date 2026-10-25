@@ -68,9 +68,9 @@ void packet_loc_add_change_v2_v10_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 void packet_loc_add_change_v2_v11_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 /* v12 -- revs 239 (packet_versions.txt 12). */
 void packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v13 -- revs 241 (rsprox_versions.txt 100). */
+/* v13 -- revs 240 (rsprox_versions.txt 101). */
 void packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v14 -- revs 240 (rsprox_versions.txt 101). */
+/* v14 -- revs 241 (rsprox_versions.txt 100). */
 void packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 
 /* Per-revision entry points: `packet_loc_add_change_v2_osrs239_out` is greppable, which
@@ -87,8 +87,8 @@ void packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 #define packet_loc_add_change_v2_osrs237_out packet_loc_add_change_v2_v10_out
 #define packet_loc_add_change_v2_osrs238_out packet_loc_add_change_v2_v11_out
 #define packet_loc_add_change_v2_osrs239_out packet_loc_add_change_v2_v12_out
-#define packet_loc_add_change_v2_osrs240_out packet_loc_add_change_v2_v14_out
-#define packet_loc_add_change_v2_osrs241_out packet_loc_add_change_v2_v13_out
+#define packet_loc_add_change_v2_osrs240_out packet_loc_add_change_v2_v13_out
+#define packet_loc_add_change_v2_osrs241_out packet_loc_add_change_v2_v14_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_add_change_v2_out[];

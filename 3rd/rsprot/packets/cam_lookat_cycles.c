@@ -23,21 +23,9 @@ packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m)
     RSPROT_U2_ALT2(x, m->height);
 }
 
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_cam_lookat_cycles_v2_out(RsprotExec *x, MsgCamLookAtCycles *m)
-{
-    RSPROT_U2_ALT2(x, m->height);
-    RSPROT_U1(x, m->easing_id);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT3(x, m->cycles);
-    RSPROT_U1_ALT1(x, m->height_relative);
-}
-
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m)
 {
     RSPROT_U2_ALT2(x, m->x);
     RSPROT_U2_ALT2(x, m->cycles);
@@ -45,6 +33,18 @@ packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m)
     RSPROT_U2(x, m->z);
     RSPROT_U1_ALT3(x, m->height_relative);
     RSPROT_U2_ALT1(x, m->height);
+}
+
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m)
+{
+    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U1(x, m->easing_id);
+    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_ALT3(x, m->cycles);
+    RSPROT_U1_ALT1(x, m->height_relative);
 }
 
 /*
@@ -59,8 +59,8 @@ packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m)
  */
 const RsprotVersionRange rsprot_cam_lookat_cycles_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_lookat_cycles_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_lookat_cycles_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_lookat_cycles_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_lookat_cycles_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_lookat_cycles_v3_out },
 };
 
 const int rsprot_cam_lookat_cycles_out_count =

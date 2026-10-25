@@ -72,9 +72,9 @@ void packet_opobj6_v16_in(RsprotExec *x, MsgOpObj6 *m);
 void packet_opobj6_v17_in(RsprotExec *x, MsgOpObj6 *m);
 /* v18 -- revs 239 (packet_versions.txt 18). */
 void packet_opobj6_v18_in(RsprotExec *x, MsgOpObj6 *m);
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void packet_opobj6_v19_in(RsprotExec *x, MsgOpObj6 *m);
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m);
 
 /* Per-revision entry points: `packet_opobj6_osrs239_in` is greppable, which
@@ -98,8 +98,8 @@ void packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m);
 #define packet_opobj6_osrs237_in packet_opobj6_v16_in
 #define packet_opobj6_osrs238_in packet_opobj6_v17_in
 #define packet_opobj6_osrs239_in packet_opobj6_v18_in
-#define packet_opobj6_osrs240_in packet_opobj6_v20_in
-#define packet_opobj6_osrs241_in packet_opobj6_v19_in
+#define packet_opobj6_osrs240_in packet_opobj6_v19_in
+#define packet_opobj6_osrs241_in packet_opobj6_v20_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opobj6_in[];

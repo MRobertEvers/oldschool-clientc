@@ -72,9 +72,9 @@ void packet_loc_anim_v16_out(RsprotExec *x, MsgLocAnim *m);
 void packet_loc_anim_v17_out(RsprotExec *x, MsgLocAnim *m);
 /* v18 -- revs 239 (packet_versions.txt 18). */
 void packet_loc_anim_v18_out(RsprotExec *x, MsgLocAnim *m);
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void packet_loc_anim_v19_out(RsprotExec *x, MsgLocAnim *m);
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m);
 
 /* Per-revision entry points: `packet_loc_anim_osrs239_out` is greppable, which
@@ -98,8 +98,8 @@ void packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m);
 #define packet_loc_anim_osrs237_out packet_loc_anim_v14_out
 #define packet_loc_anim_osrs238_out packet_loc_anim_v17_out
 #define packet_loc_anim_osrs239_out packet_loc_anim_v18_out
-#define packet_loc_anim_osrs240_out packet_loc_anim_v20_out
-#define packet_loc_anim_osrs241_out packet_loc_anim_v19_out
+#define packet_loc_anim_osrs240_out packet_loc_anim_v19_out
+#define packet_loc_anim_osrs241_out packet_loc_anim_v20_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_anim_out[];

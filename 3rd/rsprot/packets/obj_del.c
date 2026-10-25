@@ -164,21 +164,21 @@ packet_obj_del_v17_out(RsprotExec *x, MsgObjDel *m)
     RSPROT_U4_ALT2(x, m->quantity);
 }
 
-/* v18 -- revs 241 (rsprox_versions.txt 100). */
+/* v18 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m)
 {
     RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
     RSPROT_U4(x, m->quantity);
 }
 
-/* v19 -- revs 240 (rsprox_versions.txt 101). */
+/* v19 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m)
 {
     RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
     RSPROT_U4(x, m->quantity);
 }
 
@@ -212,8 +212,8 @@ const RsprotVersionRange rsprot_obj_del_out[] = {
     { 237, 237, (RsprotCodecFn)packet_obj_del_v15_out },
     { 238, 238, (RsprotCodecFn)packet_obj_del_v16_out },
     { 239, 239, (RsprotCodecFn)packet_obj_del_v17_out },
-    { 240, 240, (RsprotCodecFn)packet_obj_del_v19_out },
-    { 241, 241, (RsprotCodecFn)packet_obj_del_v18_out },
+    { 240, 240, (RsprotCodecFn)packet_obj_del_v18_out },
+    { 241, 241, (RsprotCodecFn)packet_obj_del_v19_out },
 };
 
 const int rsprot_obj_del_out_count =

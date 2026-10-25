@@ -239,21 +239,9 @@ packet_midi_song_withsecondary_v19_out(RsprotExec *x, MsgMidiSongWithSecondary *
     RSPROT_U2_ALT3(x, m->fade_in_speed);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_midi_song_withsecondary_v20_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
-{
-    RSPROT_U2_ALT2(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->primary_id);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
     RSPROT_U2(x, m->fade_out_delay);
     RSPROT_U2(x, m->secondary_id);
@@ -261,6 +249,18 @@ packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *
     RSPROT_U2_ALT3(x, m->fade_out_speed);
     RSPROT_U2_ALT2(x, m->primary_id);
     RSPROT_U2_ALT3(x, m->fade_in_delay);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
+{
+    RSPROT_U2_ALT2(x, m->secondary_id);
+    RSPROT_U2_ALT2(x, m->fade_out_delay);
+    RSPROT_U2_ALT3(x, m->fade_in_speed);
+    RSPROT_U2(x, m->fade_in_delay);
+    RSPROT_U2_ALT3(x, m->primary_id);
+    RSPROT_U2_ALT3(x, m->fade_out_speed);
 }
 
 /*
@@ -293,8 +293,8 @@ const RsprotVersionRange rsprot_midi_song_withsecondary_out[] = {
     { 237, 237, (RsprotCodecFn)packet_midi_song_withsecondary_v17_out },
     { 238, 238, (RsprotCodecFn)packet_midi_song_withsecondary_v18_out },
     { 239, 239, (RsprotCodecFn)packet_midi_song_withsecondary_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_midi_song_withsecondary_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_midi_song_withsecondary_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_midi_song_withsecondary_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_midi_song_withsecondary_v21_out },
 };
 
 const int rsprot_midi_song_withsecondary_out_count =

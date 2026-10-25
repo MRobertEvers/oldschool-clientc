@@ -19,20 +19,20 @@ packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->fade);
+    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U1_ALT2(x, m->fade);
 }
 
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->fade);
+    RSPROT_U2(x, m->id);
+    RSPROT_U1_ALT1(x, m->fade);
 }
 
 /*
@@ -47,8 +47,8 @@ packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
  */
 const RsprotVersionRange rsprot_ambientsound_start_out[] = {
     { 238, 239, (RsprotCodecFn)packet_ambientsound_start_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_ambientsound_start_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_ambientsound_start_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_ambientsound_start_v2_out },
+    { 241, 241, (RsprotCodecFn)packet_ambientsound_start_v3_out },
 };
 
 const int rsprot_ambientsound_start_out_count =

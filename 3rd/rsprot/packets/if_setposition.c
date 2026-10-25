@@ -182,22 +182,22 @@ packet_if_setposition_v19_out(RsprotExec *x, MsgIfSetPosition *m)
     RSPROT_U2_ALT3(x, m->x);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_setposition_v20_out(RsprotExec *x, MsgIfSetPosition *m)
-{
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_COM_ALT2(x, m->combined_id);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_if_setposition_v21_out(RsprotExec *x, MsgIfSetPosition *m)
 {
     RSPROT_U2_ALT2(x, m->x);
     RSPROT_U2_ALT2(x, m->y);
     RSPROT_COM_ALT1(x, m->combined_id);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_if_setposition_v21_out(RsprotExec *x, MsgIfSetPosition *m)
+{
+    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_ALT3(x, m->y);
+    RSPROT_COM_ALT2(x, m->combined_id);
 }
 
 /*
@@ -230,8 +230,8 @@ const RsprotVersionRange rsprot_if_setposition_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setposition_v17_out },
     { 238, 238, (RsprotCodecFn)packet_if_setposition_v18_out },
     { 239, 239, (RsprotCodecFn)packet_if_setposition_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setposition_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setposition_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setposition_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setposition_v21_out },
 };
 
 const int rsprot_if_setposition_out_count =

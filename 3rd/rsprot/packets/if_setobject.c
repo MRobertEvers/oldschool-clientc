@@ -182,22 +182,22 @@ packet_if_setobject_v19_out(RsprotExec *x, MsgIfSetObject *m)
     RSPROT_U4(x, m->count);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_setobject_v20_out(RsprotExec *x, MsgIfSetObject *m)
 {
     RSPROT_U2_ALT3(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->count);
+    RSPROT_U4_ALT3(x, m->count);
+    RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_if_setobject_v21_out(RsprotExec *x, MsgIfSetObject *m)
 {
     RSPROT_U2_ALT3(x, m->obj);
-    RSPROT_U4_ALT3(x, m->count);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_ALT2(x, m->count);
 }
 
 /*
@@ -230,8 +230,8 @@ const RsprotVersionRange rsprot_if_setobject_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setobject_v17_out },
     { 238, 238, (RsprotCodecFn)packet_if_setobject_v18_out },
     { 239, 239, (RsprotCodecFn)packet_if_setobject_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setobject_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setobject_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setobject_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setobject_v21_out },
 };
 
 const int rsprot_if_setobject_out_count =

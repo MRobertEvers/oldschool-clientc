@@ -77,9 +77,9 @@ void packet_sound_area_v17_out(RsprotExec *x, MsgSoundArea *m);
 void packet_sound_area_v18_out(RsprotExec *x, MsgSoundArea *m);
 /* v19 -- revs 239 (packet_versions.txt 19). */
 void packet_sound_area_v19_out(RsprotExec *x, MsgSoundArea *m);
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void packet_sound_area_v20_out(RsprotExec *x, MsgSoundArea *m);
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
 void packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m);
 
 /* Per-revision entry points: `packet_sound_area_osrs239_out` is greppable, which
@@ -103,8 +103,8 @@ void packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m);
 #define packet_sound_area_osrs237_out packet_sound_area_v17_out
 #define packet_sound_area_osrs238_out packet_sound_area_v18_out
 #define packet_sound_area_osrs239_out packet_sound_area_v19_out
-#define packet_sound_area_osrs240_out packet_sound_area_v21_out
-#define packet_sound_area_osrs241_out packet_sound_area_v20_out
+#define packet_sound_area_osrs240_out packet_sound_area_v20_out
+#define packet_sound_area_osrs241_out packet_sound_area_v21_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_sound_area_out[];

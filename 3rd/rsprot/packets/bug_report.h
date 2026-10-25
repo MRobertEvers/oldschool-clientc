@@ -40,9 +40,9 @@ typedef struct MsgBugReport {
 void packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m);
 /* v2 -- revs 222-239 (packet_versions.txt 2). */
 void packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m);
-/* v3 -- revs 241 (rsprox_versions.txt 100). */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m);
-/* v4 -- revs 240 (rsprox_versions.txt 101). */
+/* v4 -- revs 241 (rsprox_versions.txt 100). */
 void packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m);
 
 /* Per-revision entry points: `packet_bug_report_osrs239_in` is greppable, which
@@ -66,8 +66,8 @@ void packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m);
 #define packet_bug_report_osrs237_in packet_bug_report_v2_in
 #define packet_bug_report_osrs238_in packet_bug_report_v2_in
 #define packet_bug_report_osrs239_in packet_bug_report_v2_in
-#define packet_bug_report_osrs240_in packet_bug_report_v4_in
-#define packet_bug_report_osrs241_in packet_bug_report_v3_in
+#define packet_bug_report_osrs240_in packet_bug_report_v3_in
+#define packet_bug_report_osrs241_in packet_bug_report_v4_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_bug_report_in[];

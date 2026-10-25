@@ -139,20 +139,20 @@ packet_if_setnpchead_active_v16_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v17 -- revs 241 (rsprox_versions.txt 100). */
+/* v17 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_setnpchead_active_v17_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_ALT3(x, m->index);
 }
 
-/* v18 -- revs 240 (rsprox_versions.txt 101). */
+/* v18 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_if_setnpchead_active_v18_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_ALT2(x, m->index);
 }
 
 /*
@@ -184,8 +184,8 @@ const RsprotVersionRange rsprot_if_setnpchead_active_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setnpchead_active_v15_out },
     { 238, 238, (RsprotCodecFn)packet_if_setnpchead_active_v16_out },
     { 239, 239, (RsprotCodecFn)packet_if_setnpchead_active_v4_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setnpchead_active_v18_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setnpchead_active_v17_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setnpchead_active_v17_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setnpchead_active_v18_out },
 };
 
 const int rsprot_if_setnpchead_active_out_count =

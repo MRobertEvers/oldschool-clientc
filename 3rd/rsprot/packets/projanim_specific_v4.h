@@ -62,9 +62,9 @@ void packet_projanim_specific_v4_v7_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 void packet_projanim_specific_v4_v8_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
 /* v9 -- revs 239 (packet_versions.txt 9). */
 void packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v10 -- revs 241 (rsprox_versions.txt 100). */
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
 void packet_projanim_specific_v4_v10_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v11 -- revs 240 (rsprox_versions.txt 101). */
+/* v11 -- revs 241 (rsprox_versions.txt 100). */
 void packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
 
 /* Per-revision entry points: `packet_projanim_specific_v4_osrs239_out` is greppable, which
@@ -78,8 +78,8 @@ void packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m
 #define packet_projanim_specific_v4_osrs237_out packet_projanim_specific_v4_v7_out
 #define packet_projanim_specific_v4_osrs238_out packet_projanim_specific_v4_v8_out
 #define packet_projanim_specific_v4_osrs239_out packet_projanim_specific_v4_v9_out
-#define packet_projanim_specific_v4_osrs240_out packet_projanim_specific_v4_v11_out
-#define packet_projanim_specific_v4_osrs241_out packet_projanim_specific_v4_v10_out
+#define packet_projanim_specific_v4_osrs240_out packet_projanim_specific_v4_v10_out
+#define packet_projanim_specific_v4_osrs241_out packet_projanim_specific_v4_v11_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_projanim_specific_v4_out[];

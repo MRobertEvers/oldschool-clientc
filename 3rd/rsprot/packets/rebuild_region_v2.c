@@ -44,24 +44,24 @@ packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v4 -- revs 241 (rsprox_versions.txt 100). */
+/* v4 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m)
-{
-    RSPROT_U2(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->reload);
-    RSPROT_U2_ALT1(x, m->zone_z);
-    RSPROT_U2(x, m->distinct_mapsquare_count);
-    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
-}
-
-/* v5 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->reload);
+    RSPROT_U2(x, m->distinct_mapsquare_count);
+    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
+}
+
+/* v5 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+{
+    RSPROT_U2(x, m->zone_x);
+    RSPROT_U1_ALT2(x, m->reload);
+    RSPROT_U2_ALT1(x, m->zone_z);
     RSPROT_U2(x, m->distinct_mapsquare_count);
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
@@ -80,8 +80,8 @@ const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_rebuild_region_v2_v1_out },
     { 238, 238, (RsprotCodecFn)packet_rebuild_region_v2_v2_out },
     { 239, 239, (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
-    { 241, 241, (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
+    { 240, 240, (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
+    { 241, 241, (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
 };
 
 const int rsprot_rebuild_region_v2_out_count =

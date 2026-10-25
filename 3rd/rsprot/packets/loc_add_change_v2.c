@@ -227,27 +227,9 @@ packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v13 -- revs 241 (rsprox_versions.txt 100). */
+/* v13 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m)
-{
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->ops_count);
-    if ((!(m->ops_count == 0))) {
-        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
-            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);
-            RSPROT_JSTR(x, elem->value);
-        }
-    }
-    RSPROT_U2(x, m->id);
-}
-
-/* v14 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
     RSPROT_U1_ALT3(x, m->op_flags);
     RSPROT_U1(x, m->ops_count);
@@ -261,6 +243,24 @@ packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m)
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U2_ALT2(x, m->id);
     RSPROT_U1(x, m->loc_properties_packed);
+}
+
+/* v14 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m)
+{
+    RSPROT_U1_ALT1(x, m->loc_properties_packed);
+    RSPROT_U1(x, m->op_flags);
+    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ALT2(x, m->ops_count);
+    if ((!(m->ops_count == 0))) {
+        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
+            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
+            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);
+            RSPROT_JSTR(x, elem->value);
+        }
+    }
+    RSPROT_U2(x, m->id);
 }
 
 /*
@@ -286,8 +286,8 @@ const RsprotVersionRange rsprot_loc_add_change_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_loc_add_change_v2_v10_out },
     { 238, 238, (RsprotCodecFn)packet_loc_add_change_v2_v11_out },
     { 239, 239, (RsprotCodecFn)packet_loc_add_change_v2_v12_out },
-    { 240, 240, (RsprotCodecFn)packet_loc_add_change_v2_v14_out },
-    { 241, 241, (RsprotCodecFn)packet_loc_add_change_v2_v13_out },
+    { 240, 240, (RsprotCodecFn)packet_loc_add_change_v2_v13_out },
+    { 241, 241, (RsprotCodecFn)packet_loc_add_change_v2_v14_out },
 };
 
 const int rsprot_loc_add_change_v2_out_count =

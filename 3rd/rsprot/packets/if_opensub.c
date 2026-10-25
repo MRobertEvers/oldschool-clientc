@@ -173,22 +173,22 @@ packet_if_opensub_v18_out(RsprotExec *x, MsgIfOpenSub *m)
     RSPROT_U1(x, m->type);
 }
 
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_if_opensub_v19_out(RsprotExec *x, MsgIfOpenSub *m)
-{
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_U1_ALT1(x, m->type);
-}
-
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_if_opensub_v20_out(RsprotExec *x, MsgIfOpenSub *m)
 {
     RSPROT_U1(x, m->type);
     RSPROT_U2_ALT3(x, m->interface_id);
     RSPROT_COM_ALT3(x, m->destination_combined_id);
+}
+
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_if_opensub_v20_out(RsprotExec *x, MsgIfOpenSub *m)
+{
+    RSPROT_COM_ALT3(x, m->destination_combined_id);
+    RSPROT_U2_ALT2(x, m->interface_id);
+    RSPROT_U1_ALT1(x, m->type);
 }
 
 /*
@@ -221,8 +221,8 @@ const RsprotVersionRange rsprot_if_opensub_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_opensub_v17_out },
     { 238, 238, (RsprotCodecFn)packet_if_opensub_v15_out },
     { 239, 239, (RsprotCodecFn)packet_if_opensub_v18_out },
-    { 240, 240, (RsprotCodecFn)packet_if_opensub_v20_out },
-    { 241, 241, (RsprotCodecFn)packet_if_opensub_v19_out },
+    { 240, 240, (RsprotCodecFn)packet_if_opensub_v19_out },
+    { 241, 241, (RsprotCodecFn)packet_if_opensub_v20_out },
 };
 
 const int rsprot_if_opensub_out_count =

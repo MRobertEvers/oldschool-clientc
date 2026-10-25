@@ -41,16 +41,16 @@ typedef struct MsgCamLookAtCycles {
 
 /* v1 -- revs 239 (packet_versions.txt 1). */
 void packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m);
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void packet_cam_lookat_cycles_v2_out(RsprotExec *x, MsgCamLookAtCycles *m);
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m);
 
 /* Per-revision entry points: `packet_cam_lookat_cycles_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for CAM_LOOKAT_CYCLES" without reading a table. */
 #define packet_cam_lookat_cycles_osrs239_out packet_cam_lookat_cycles_v1_out
-#define packet_cam_lookat_cycles_osrs240_out packet_cam_lookat_cycles_v3_out
-#define packet_cam_lookat_cycles_osrs241_out packet_cam_lookat_cycles_v2_out
+#define packet_cam_lookat_cycles_osrs240_out packet_cam_lookat_cycles_v2_out
+#define packet_cam_lookat_cycles_osrs241_out packet_cam_lookat_cycles_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_lookat_cycles_out[];

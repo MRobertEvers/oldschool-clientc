@@ -182,22 +182,22 @@ packet_update_zone_partial_follows_v19_out(RsprotExec *x, MsgUpdateZonePartialFo
     RSPROT_U1_ALT2(x, m->level);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_update_zone_partial_follows_v20_out(RsprotExec *x, MsgUpdateZonePartialFollows *m)
-{
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1(x, m->zone_x);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_update_zone_partial_follows_v21_out(RsprotExec *x, MsgUpdateZonePartialFollows *m)
 {
     RSPROT_U1(x, m->level);
     RSPROT_U1_ALT3(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->zone_x);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_update_zone_partial_follows_v21_out(RsprotExec *x, MsgUpdateZonePartialFollows *m)
+{
+    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_ALT1(x, m->zone_z);
+    RSPROT_U1(x, m->zone_x);
 }
 
 /*
@@ -230,8 +230,8 @@ const RsprotVersionRange rsprot_update_zone_partial_follows_out[] = {
     { 237, 237, (RsprotCodecFn)packet_update_zone_partial_follows_v17_out },
     { 238, 238, (RsprotCodecFn)packet_update_zone_partial_follows_v18_out },
     { 239, 239, (RsprotCodecFn)packet_update_zone_partial_follows_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_update_zone_partial_follows_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_update_zone_partial_follows_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_update_zone_partial_follows_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_update_zone_partial_follows_v21_out },
 };
 
 const int rsprot_update_zone_partial_follows_out_count =

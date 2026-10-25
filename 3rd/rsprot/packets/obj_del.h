@@ -70,9 +70,9 @@ void packet_obj_del_v15_out(RsprotExec *x, MsgObjDel *m);
 void packet_obj_del_v16_out(RsprotExec *x, MsgObjDel *m);
 /* v17 -- revs 239 (packet_versions.txt 17). */
 void packet_obj_del_v17_out(RsprotExec *x, MsgObjDel *m);
-/* v18 -- revs 241 (rsprox_versions.txt 100). */
+/* v18 -- revs 240 (rsprox_versions.txt 101). */
 void packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m);
-/* v19 -- revs 240 (rsprox_versions.txt 101). */
+/* v19 -- revs 241 (rsprox_versions.txt 100). */
 void packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m);
 
 /* Per-revision entry points: `packet_obj_del_osrs239_out` is greppable, which
@@ -96,8 +96,8 @@ void packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m);
 #define packet_obj_del_osrs237_out packet_obj_del_v15_out
 #define packet_obj_del_osrs238_out packet_obj_del_v16_out
 #define packet_obj_del_osrs239_out packet_obj_del_v17_out
-#define packet_obj_del_osrs240_out packet_obj_del_v19_out
-#define packet_obj_del_osrs241_out packet_obj_del_v18_out
+#define packet_obj_del_osrs240_out packet_obj_del_v18_out
+#define packet_obj_del_osrs241_out packet_obj_del_v19_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_del_out[];

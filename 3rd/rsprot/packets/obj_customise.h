@@ -69,9 +69,9 @@ void packet_obj_customise_v12_out(RsprotExec *x, MsgObjCustomise *m);
 void packet_obj_customise_v13_out(RsprotExec *x, MsgObjCustomise *m);
 /* v14 -- revs 239 (packet_versions.txt 14). */
 void packet_obj_customise_v14_out(RsprotExec *x, MsgObjCustomise *m);
-/* v15 -- revs 241 (rsprox_versions.txt 100). */
+/* v15 -- revs 240 (rsprox_versions.txt 101). */
 void packet_obj_customise_v15_out(RsprotExec *x, MsgObjCustomise *m);
-/* v16 -- revs 240 (rsprox_versions.txt 101). */
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
 void packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m);
 
 /* Per-revision entry points: `packet_obj_customise_osrs239_out` is greppable, which
@@ -90,8 +90,8 @@ void packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m);
 #define packet_obj_customise_osrs237_out packet_obj_customise_v12_out
 #define packet_obj_customise_osrs238_out packet_obj_customise_v13_out
 #define packet_obj_customise_osrs239_out packet_obj_customise_v14_out
-#define packet_obj_customise_osrs240_out packet_obj_customise_v16_out
-#define packet_obj_customise_osrs241_out packet_obj_customise_v15_out
+#define packet_obj_customise_osrs240_out packet_obj_customise_v15_out
+#define packet_obj_customise_osrs241_out packet_obj_customise_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_customise_out[];

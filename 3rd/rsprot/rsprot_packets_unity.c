@@ -55,6 +55,7 @@
 #include "packets/cam_shake.c"
 #include "packets/cam_skybox.c"
 #include "packets/cam_smoothreset.c"
+#include "packets/cam_target_v1.c"
 #include "packets/cam_target_v2.c"
 #include "packets/cam_target_v3.c"
 #include "packets/cam_target_v4.c"
@@ -254,6 +255,7 @@
 #include "packets/packet_group_start.c"
 #include "packets/player_spotanim_specific.c"
 #include "packets/projanim_specific.c"
+#include "packets/projanim_specific_v2.c"
 #include "packets/projanim_specific_v3.c"
 #include "packets/projanim_specific_v4.c"
 #include "packets/rebuild_normal.c"
@@ -262,6 +264,7 @@
 #include "packets/rebuild_region.c"
 #include "packets/rebuild_region_v1.c"
 #include "packets/rebuild_region_v2.c"
+#include "packets/rebuild_worldentity_v1.c"
 #include "packets/rebuild_worldentity_v2.c"
 #include "packets/rebuild_worldentity_v3.c"
 #include "packets/rebuild_worldentity_v4.c"
@@ -459,6 +462,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "CAM_SHAKE", RSPROT_REG_OUT, rsprot_cam_shake_out, &rsprot_cam_shake_out_count },
     { "CAM_SKYBOX", RSPROT_REG_OUT, rsprot_cam_skybox_out, &rsprot_cam_skybox_out_count },
     { "CAM_SMOOTHRESET", RSPROT_REG_OUT, rsprot_cam_smoothreset_out, &rsprot_cam_smoothreset_out_count },
+    { "CAM_TARGET_V1", RSPROT_REG_OUT, rsprot_cam_target_v1_out, &rsprot_cam_target_v1_out_count },
     { "CAM_TARGET_V2", RSPROT_REG_OUT, rsprot_cam_target_v2_out, &rsprot_cam_target_v2_out_count },
     { "CAM_TARGET_V3", RSPROT_REG_OUT, rsprot_cam_target_v3_out, &rsprot_cam_target_v3_out_count },
     { "CAM_TARGET_V4", RSPROT_REG_OUT, rsprot_cam_target_v4_out, &rsprot_cam_target_v4_out_count },
@@ -667,6 +671,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "PACKET_GROUP_START", RSPROT_REG_OUT, rsprot_packet_group_start_out, &rsprot_packet_group_start_out_count },
     { "PLAYER_SPOTANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_player_spotanim_specific_out, &rsprot_player_spotanim_specific_out_count },
     { "PROJANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_projanim_specific_out, &rsprot_projanim_specific_out_count },
+    { "PROJANIM_SPECIFIC_V2", RSPROT_REG_OUT, rsprot_projanim_specific_v2_out, &rsprot_projanim_specific_v2_out_count },
     { "PROJANIM_SPECIFIC_V3", RSPROT_REG_OUT, rsprot_projanim_specific_v3_out, &rsprot_projanim_specific_v3_out_count },
     { "PROJANIM_SPECIFIC_V4", RSPROT_REG_OUT, rsprot_projanim_specific_v4_out, &rsprot_projanim_specific_v4_out_count },
     { "REBUILD_NORMAL", RSPROT_REG_OUT, rsprot_rebuild_normal_out, &rsprot_rebuild_normal_out_count },
@@ -675,6 +680,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "REBUILD_REGION", RSPROT_REG_OUT, rsprot_rebuild_region_out, &rsprot_rebuild_region_out_count },
     { "REBUILD_REGION_V1", RSPROT_REG_OUT, rsprot_rebuild_region_v1_out, &rsprot_rebuild_region_v1_out_count },
     { "REBUILD_REGION_V2", RSPROT_REG_OUT, rsprot_rebuild_region_v2_out, &rsprot_rebuild_region_v2_out_count },
+    { "REBUILD_WORLDENTITY_V1", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v1_out, &rsprot_rebuild_worldentity_v1_out_count },
     { "REBUILD_WORLDENTITY_V2", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v2_out, &rsprot_rebuild_worldentity_v2_out_count },
     { "REBUILD_WORLDENTITY_V3", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v3_out, &rsprot_rebuild_worldentity_v3_out_count },
     { "REBUILD_WORLDENTITY_V4", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v4_out, &rsprot_rebuild_worldentity_v4_out_count },

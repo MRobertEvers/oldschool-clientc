@@ -7,9 +7,89 @@
  *       decoder/codec/map/StaticRebuildDecoder.kt
  */
 
-/* v1 -- revs 227 (rsprox_versions.txt 100). */
+/* v1 -- revs 223 (rsprox_versions.txt 109). */
 void
 packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m)
+{
+    /* RSProx derives, after the reads:
+     *   (caller) the login variant's player-info init block precedes this
+     */
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
+    RSPROT_U2_ALT2(x, m->world_area);
+    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, 169);
+    for (int32_t i = 0; i < m->xtea_count; i++) {
+        RSPROT_U4(x, m->keys[i][0]);
+        RSPROT_U4(x, m->keys[i][1]);
+        RSPROT_U4(x, m->keys[i][2]);
+        RSPROT_U4(x, m->keys[i][3]);
+    }
+}
+
+/* v2 -- revs 224 (rsprox_versions.txt 110). */
+void
+packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m)
+{
+    /* RSProx derives, after the reads:
+     *   (caller) the login variant's player-info init block precedes this
+     */
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
+    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_COUNT2(x, m->xtea_count, 169);
+    for (int32_t i = 0; i < m->xtea_count; i++) {
+        RSPROT_U4(x, m->keys[i][0]);
+        RSPROT_U4(x, m->keys[i][1]);
+        RSPROT_U4(x, m->keys[i][2]);
+        RSPROT_U4(x, m->keys[i][3]);
+    }
+}
+
+/* v3 -- revs 225 (rsprox_versions.txt 111). */
+void
+packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m)
+{
+    /* RSProx derives, after the reads:
+     *   (caller) the login variant's player-info init block precedes this
+     */
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
+    RSPROT_U2(x, m->zone_x);
+    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, 169);
+    for (int32_t i = 0; i < m->xtea_count; i++) {
+        RSPROT_U4(x, m->keys[i][0]);
+        RSPROT_U4(x, m->keys[i][1]);
+        RSPROT_U4(x, m->keys[i][2]);
+        RSPROT_U4(x, m->keys[i][3]);
+    }
+}
+
+/* v4 -- revs 226 (rsprox_versions.txt 112). */
+void
+packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m)
+{
+    /* RSProx derives, after the reads:
+     *   (caller) the login variant's player-info init block precedes this
+     */
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
+    RSPROT_U2_ALT2(x, m->world_area);
+    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_COUNT2(x, m->xtea_count, 169);
+    for (int32_t i = 0; i < m->xtea_count; i++) {
+        RSPROT_U4(x, m->keys[i][0]);
+        RSPROT_U4(x, m->keys[i][1]);
+        RSPROT_U4(x, m->keys[i][2]);
+        RSPROT_U4(x, m->keys[i][3]);
+    }
+}
+
+/* v5 -- revs 227 (rsprox_versions.txt 100). */
+void
+packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -27,9 +107,9 @@ packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v2 -- revs 228 (rsprox_versions.txt 101). */
+/* v6 -- revs 228 (rsprox_versions.txt 101). */
 void
-packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -47,9 +127,9 @@ packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v3 -- revs 229 (rsprox_versions.txt 102). */
+/* v7 -- revs 229 (rsprox_versions.txt 102). */
 void
-packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -67,9 +147,9 @@ packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v4 -- revs 230, 233 (rsprox_versions.txt 103). */
+/* v8 -- revs 230, 233 (rsprox_versions.txt 103). */
 void
-packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -87,9 +167,9 @@ packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v5 -- revs 231 (rsprox_versions.txt 104). */
+/* v9 -- revs 231 (rsprox_versions.txt 104). */
 void
-packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -107,9 +187,9 @@ packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v6 -- revs 232 (rsprox_versions.txt 105). */
+/* v10 -- revs 232 (rsprox_versions.txt 105). */
 void
-packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v10_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -127,9 +207,9 @@ packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v7 -- revs 234 (rsprox_versions.txt 106). */
+/* v11 -- revs 234 (rsprox_versions.txt 106). */
 void
-packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v11_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -147,9 +227,9 @@ packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v8 -- revs 235 (rsprox_versions.txt 107). */
+/* v12 -- revs 235 (rsprox_versions.txt 107). */
 void
-packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v12_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -167,9 +247,9 @@ packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m)
     }
 }
 
-/* v9 -- revs 236 (rsprox_versions.txt 108). */
+/* v13 -- revs 236 (rsprox_versions.txt 108). */
 void
-packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m)
+packet_rebuild_normal_v13_out(RsprotExec *x, MsgRebuildNormal *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -188,20 +268,24 @@ packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m)
 }
 
 /*
- * 10 row(s) for 9 layout(s), over revisions 227-236. A revision not
+ * 14 row(s) for 13 layout(s), over revisions 223-236. A revision not
  * listed has no REBUILD_NORMAL and picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_normal_out[] = {
-    { 227, 227, (RsprotCodecFn)packet_rebuild_normal_v1_out },
-    { 228, 228, (RsprotCodecFn)packet_rebuild_normal_v2_out },
-    { 229, 229, (RsprotCodecFn)packet_rebuild_normal_v3_out },
-    { 230, 230, (RsprotCodecFn)packet_rebuild_normal_v4_out },
-    { 231, 231, (RsprotCodecFn)packet_rebuild_normal_v5_out },
-    { 232, 232, (RsprotCodecFn)packet_rebuild_normal_v6_out },
-    { 233, 233, (RsprotCodecFn)packet_rebuild_normal_v4_out },
-    { 234, 234, (RsprotCodecFn)packet_rebuild_normal_v7_out },
-    { 235, 235, (RsprotCodecFn)packet_rebuild_normal_v8_out },
-    { 236, 236, (RsprotCodecFn)packet_rebuild_normal_v9_out },
+    { 223, 223, (RsprotCodecFn)packet_rebuild_normal_v1_out },
+    { 224, 224, (RsprotCodecFn)packet_rebuild_normal_v2_out },
+    { 225, 225, (RsprotCodecFn)packet_rebuild_normal_v3_out },
+    { 226, 226, (RsprotCodecFn)packet_rebuild_normal_v4_out },
+    { 227, 227, (RsprotCodecFn)packet_rebuild_normal_v5_out },
+    { 228, 228, (RsprotCodecFn)packet_rebuild_normal_v6_out },
+    { 229, 229, (RsprotCodecFn)packet_rebuild_normal_v7_out },
+    { 230, 230, (RsprotCodecFn)packet_rebuild_normal_v8_out },
+    { 231, 231, (RsprotCodecFn)packet_rebuild_normal_v9_out },
+    { 232, 232, (RsprotCodecFn)packet_rebuild_normal_v10_out },
+    { 233, 233, (RsprotCodecFn)packet_rebuild_normal_v8_out },
+    { 234, 234, (RsprotCodecFn)packet_rebuild_normal_v11_out },
+    { 235, 235, (RsprotCodecFn)packet_rebuild_normal_v12_out },
+    { 236, 236, (RsprotCodecFn)packet_rebuild_normal_v13_out },
 };
 
 const int rsprot_rebuild_normal_out_count =

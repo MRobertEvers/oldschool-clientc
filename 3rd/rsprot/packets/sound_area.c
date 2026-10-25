@@ -239,21 +239,9 @@ packet_sound_area_v19_out(RsprotExec *x, MsgSoundArea *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_sound_area_v20_out(RsprotExec *x, MsgSoundArea *m)
-{
-    RSPROT_U1_ALT1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U2(x, m->id);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1_ALT1(x, m->drop_off_range);
     RSPROT_U1_ALT1(x, m->loops);
@@ -261,6 +249,18 @@ packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m)
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
     RSPROT_U1_ALT2(x, m->range);
     RSPROT_U2_ALT3(x, m->id);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m)
+{
+    RSPROT_U1_ALT1(x, m->drop_off_range);
+    RSPROT_U1_ALT1(x, m->loops);
+    RSPROT_U1(x, m->range);
+    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_ALT3(x, m->delay);
+    RSPROT_U2(x, m->id);
 }
 
 /*
@@ -293,8 +293,8 @@ const RsprotVersionRange rsprot_sound_area_out[] = {
     { 237, 237, (RsprotCodecFn)packet_sound_area_v17_out },
     { 238, 238, (RsprotCodecFn)packet_sound_area_v18_out },
     { 239, 239, (RsprotCodecFn)packet_sound_area_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_sound_area_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_sound_area_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_sound_area_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_sound_area_v21_out },
 };
 
 const int rsprot_sound_area_out_count =

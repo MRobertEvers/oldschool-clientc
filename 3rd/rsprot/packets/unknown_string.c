@@ -7,7 +7,7 @@
  *       decoder/codec/unknown/UnknownStringDecoder.kt
  */
 
-/* v1 -- revs 227-241 (rsprox_versions.txt 100). */
+/* v1 -- revs 224-241 (rsprox_versions.txt 101). */
 void
 packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
 {
@@ -15,11 +15,11 @@ packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
 }
 
 /*
- * 1 row(s) for 1 layout(s), over revisions 227-241. A revision not
+ * 1 row(s) for 1 layout(s), over revisions 224-241. A revision not
  * listed has no UNKNOWN_STRING and picks NULL.
  */
 const RsprotVersionRange rsprot_unknown_string_out[] = {
-    { 227, 241, (RsprotCodecFn)packet_unknown_string_v1_out },
+    { 224, 241, (RsprotCodecFn)packet_unknown_string_v1_out },
 };
 
 const int rsprot_unknown_string_out_count =

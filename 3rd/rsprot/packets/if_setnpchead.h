@@ -65,9 +65,9 @@ void packet_if_setnpchead_v13_out(RsprotExec *x, MsgIfSetNpcHead *m);
 void packet_if_setnpchead_v14_out(RsprotExec *x, MsgIfSetNpcHead *m);
 /* v15 -- revs 239 (packet_versions.txt 15). */
 void packet_if_setnpchead_v15_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v16 -- revs 241 (rsprox_versions.txt 100). */
+/* v16 -- revs 240 (rsprox_versions.txt 101). */
 void packet_if_setnpchead_v16_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v17 -- revs 240 (rsprox_versions.txt 101). */
+/* v17 -- revs 241 (rsprox_versions.txt 100). */
 void packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m);
 
 /* Per-revision entry points: `packet_if_setnpchead_osrs239_out` is greppable, which
@@ -91,8 +91,8 @@ void packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m);
 #define packet_if_setnpchead_osrs237_out packet_if_setnpchead_v13_out
 #define packet_if_setnpchead_osrs238_out packet_if_setnpchead_v14_out
 #define packet_if_setnpchead_osrs239_out packet_if_setnpchead_v15_out
-#define packet_if_setnpchead_osrs240_out packet_if_setnpchead_v17_out
-#define packet_if_setnpchead_osrs241_out packet_if_setnpchead_v16_out
+#define packet_if_setnpchead_osrs240_out packet_if_setnpchead_v16_out
+#define packet_if_setnpchead_osrs241_out packet_if_setnpchead_v17_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setnpchead_out[];

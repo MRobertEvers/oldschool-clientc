@@ -201,24 +201,24 @@ packet_npc_headicon_specific_v19_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
     RSPROT_U4_ALT3(x, m->sprite_group);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_npc_headicon_specific_v20_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
-{
-    RSPROT_U2(x, m->index);
-    RSPROT_U2_ALT2(x, m->sprite_index);
-    RSPROT_U4_ALT1(x, m->sprite_group);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_npc_headicon_specific_v21_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
     RSPROT_U4_ALT2(x, m->sprite_group);
     RSPROT_U2(x, m->index);
     RSPROT_U1_ALT3(x, m->head_icon_slot);
     RSPROT_U2_ALT2(x, m->sprite_index);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_npc_headicon_specific_v21_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
+{
+    RSPROT_U2(x, m->index);
+    RSPROT_U2_ALT2(x, m->sprite_index);
+    RSPROT_U4_ALT1(x, m->sprite_group);
+    RSPROT_U1_ALT1(x, m->head_icon_slot);
 }
 
 /*
@@ -251,8 +251,8 @@ const RsprotVersionRange rsprot_npc_headicon_specific_out[] = {
     { 237, 237, (RsprotCodecFn)packet_npc_headicon_specific_v17_out },
     { 238, 238, (RsprotCodecFn)packet_npc_headicon_specific_v18_out },
     { 239, 239, (RsprotCodecFn)packet_npc_headicon_specific_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_npc_headicon_specific_v21_out },
-    { 241, 241, (RsprotCodecFn)packet_npc_headicon_specific_v20_out },
+    { 240, 240, (RsprotCodecFn)packet_npc_headicon_specific_v20_out },
+    { 241, 241, (RsprotCodecFn)packet_npc_headicon_specific_v21_out },
 };
 
 const int rsprot_npc_headicon_specific_out_count =

@@ -201,24 +201,24 @@ packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m)
     RSPROT_U1_ALT2(x, m->gc_percent_time);
 }
 
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_send_ping_reply_v20_in(RsprotExec *x, MsgSendPingReply *m)
-{
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
-    RSPROT_U1_ALT3(x, m->fps);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
-}
-
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m)
 {
     RSPROT_U1_ALT1(x, m->fps);
     RSPROT_U1_ALT2(x, m->gc_percent_time);
     RSPROT_U4_ALT1(x, m->value1);
     RSPROT_U4_ALT3(x, m->value2);
+}
+
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m)
+{
+    RSPROT_U4_ALT1(x, m->value1);
+    RSPROT_U4_ALT3(x, m->value2);
+    RSPROT_U1_ALT3(x, m->fps);
+    RSPROT_U1_ALT2(x, m->gc_percent_time);
 }
 
 /*
@@ -251,8 +251,8 @@ const RsprotVersionRange rsprot_send_ping_reply_in[] = {
     { 237, 237, (RsprotCodecFn)packet_send_ping_reply_v17_in },
     { 238, 238, (RsprotCodecFn)packet_send_ping_reply_v18_in },
     { 239, 239, (RsprotCodecFn)packet_send_ping_reply_v19_in },
-    { 240, 240, (RsprotCodecFn)packet_send_ping_reply_v21_in },
-    { 241, 241, (RsprotCodecFn)packet_send_ping_reply_v20_in },
+    { 240, 240, (RsprotCodecFn)packet_send_ping_reply_v20_in },
+    { 241, 241, (RsprotCodecFn)packet_send_ping_reply_v21_in },
 };
 
 const int rsprot_send_ping_reply_in_count =

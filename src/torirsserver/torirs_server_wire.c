@@ -1039,7 +1039,7 @@ w239_midi_song_stop(struct RSAreaBuf* buf, int fade_out_delay, int fade_out_spee
  *
  * Confirmed three independent ways rather than transcribed once:
  *   - the vendored generated codec, 3rd/rsprot/packets/midi_jingle.c:134-140
- *     (`packet_midi_jingle_v16_out`, table row `{239, 239, ...}`)
+ *     (`packet_midi_jingle_osrs239_out`, table row `{239, 239, ...}`)
  *   - the 239 Kotlin transcription, 3rd/rsprot/gen/codec/encoders_239.h:1496
  *   - the rev-239 deob: `class243(118, 5)` and the g3/g2Alt3 read pair in
  *     `client.java`'s handler for opcode 118.

@@ -55,9 +55,9 @@ void packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 void packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 /* v8 -- revs 239 (packet_versions.txt 8). */
 void packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v9 -- revs 241 (rsprox_versions.txt 100). */
+/* v9 -- revs 240 (rsprox_versions.txt 101). */
 void packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v10 -- revs 240 (rsprox_versions.txt 101). */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 
 /* Per-revision entry points: `packet_event_mouse_click_v2_osrs239_in` is greppable, which
@@ -70,8 +70,8 @@ void packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 #define packet_event_mouse_click_v2_osrs237_in packet_event_mouse_click_v2_v6_in
 #define packet_event_mouse_click_v2_osrs238_in packet_event_mouse_click_v2_v7_in
 #define packet_event_mouse_click_v2_osrs239_in packet_event_mouse_click_v2_v8_in
-#define packet_event_mouse_click_v2_osrs240_in packet_event_mouse_click_v2_v10_in
-#define packet_event_mouse_click_v2_osrs241_in packet_event_mouse_click_v2_v9_in
+#define packet_event_mouse_click_v2_osrs240_in packet_event_mouse_click_v2_v9_in
+#define packet_event_mouse_click_v2_osrs241_in packet_event_mouse_click_v2_v10_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v2_in[];

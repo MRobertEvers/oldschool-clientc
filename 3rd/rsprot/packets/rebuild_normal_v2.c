@@ -41,24 +41,24 @@ packet_rebuild_normal_v2_v3_out(RsprotExec *x, MsgRebuildNormalV2 *m)
     RSPROT_U2_ALT2(x, m->zone_x);
 }
 
-/* v4 -- revs 241 (rsprox_versions.txt 100). */
+/* v4 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_rebuild_normal_v2_v4_out(RsprotExec *x, MsgRebuildNormalV2 *m)
-{
-    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2(x, m->zone_z);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2(x, m->world_area);
-}
-
-/* v5 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_rebuild_normal_v2_v5_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->world_area);
     RSPROT_U2_ALT3(x, m->zone_x);
+}
+
+/* v5 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_rebuild_normal_v2_v5_out(RsprotExec *x, MsgRebuildNormalV2 *m)
+{
+    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U2_ALT1(x, m->zone_x);
+    RSPROT_U2(x, m->world_area);
 }
 
 /*
@@ -75,8 +75,8 @@ const RsprotVersionRange rsprot_rebuild_normal_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_rebuild_normal_v2_v1_out },
     { 238, 238, (RsprotCodecFn)packet_rebuild_normal_v2_v2_out },
     { 239, 239, (RsprotCodecFn)packet_rebuild_normal_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_rebuild_normal_v2_v5_out },
-    { 241, 241, (RsprotCodecFn)packet_rebuild_normal_v2_v4_out },
+    { 240, 240, (RsprotCodecFn)packet_rebuild_normal_v2_v4_out },
+    { 241, 241, (RsprotCodecFn)packet_rebuild_normal_v2_v5_out },
 };
 
 const int rsprot_rebuild_normal_v2_out_count =

@@ -173,22 +173,22 @@ packet_loc_anim_v18_out(RsprotExec *x, MsgLocAnim *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_loc_anim_v19_out(RsprotExec *x, MsgLocAnim *m)
-{
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
-}
-
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m)
 {
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->loc_properties_packed);
     RSPROT_U2_ALT2(x, m->id);
+}
+
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m)
+{
+    RSPROT_U1_ALT1(x, m->loc_properties_packed);
+    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_ALT3(x, m->id);
 }
 
 /*
@@ -221,8 +221,8 @@ const RsprotVersionRange rsprot_loc_anim_out[] = {
     { 237, 237, (RsprotCodecFn)packet_loc_anim_v14_out },
     { 238, 238, (RsprotCodecFn)packet_loc_anim_v17_out },
     { 239, 239, (RsprotCodecFn)packet_loc_anim_v18_out },
-    { 240, 240, (RsprotCodecFn)packet_loc_anim_v20_out },
-    { 241, 241, (RsprotCodecFn)packet_loc_anim_v19_out },
+    { 240, 240, (RsprotCodecFn)packet_loc_anim_v19_out },
+    { 241, 241, (RsprotCodecFn)packet_loc_anim_v20_out },
 };
 
 const int rsprot_loc_anim_out_count =

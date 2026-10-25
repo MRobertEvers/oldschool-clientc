@@ -67,9 +67,9 @@ void packet_if_setnpchead_active_v14_out(RsprotExec *x, MsgIfSetNpcHeadActive *m
 void packet_if_setnpchead_active_v15_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
 /* v16 -- revs 238 (packet_versions.txt 16). */
 void packet_if_setnpchead_active_v16_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
-/* v17 -- revs 241 (rsprox_versions.txt 100). */
+/* v17 -- revs 240 (rsprox_versions.txt 101). */
 void packet_if_setnpchead_active_v17_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
-/* v18 -- revs 240 (rsprox_versions.txt 101). */
+/* v18 -- revs 241 (rsprox_versions.txt 100). */
 void packet_if_setnpchead_active_v18_out(RsprotExec *x, MsgIfSetNpcHeadActive *m);
 
 /* Per-revision entry points: `packet_if_setnpchead_active_osrs239_out` is greppable, which
@@ -93,8 +93,8 @@ void packet_if_setnpchead_active_v18_out(RsprotExec *x, MsgIfSetNpcHeadActive *m
 #define packet_if_setnpchead_active_osrs237_out packet_if_setnpchead_active_v15_out
 #define packet_if_setnpchead_active_osrs238_out packet_if_setnpchead_active_v16_out
 #define packet_if_setnpchead_active_osrs239_out packet_if_setnpchead_active_v4_out
-#define packet_if_setnpchead_active_osrs240_out packet_if_setnpchead_active_v18_out
-#define packet_if_setnpchead_active_osrs241_out packet_if_setnpchead_active_v17_out
+#define packet_if_setnpchead_active_osrs240_out packet_if_setnpchead_active_v17_out
+#define packet_if_setnpchead_active_osrs241_out packet_if_setnpchead_active_v18_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setnpchead_active_out[];

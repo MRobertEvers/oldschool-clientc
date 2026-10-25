@@ -173,22 +173,22 @@ packet_opobj6_v18_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_opobj6_v19_in(RsprotExec *x, MsgOpObj6 *m)
-{
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT3(x, m->x);
-}
-
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m)
 {
     RSPROT_U2_ALT1(x, m->id);
     RSPROT_U2_ALT3(x, m->z);
     RSPROT_U2(x, m->x);
+}
+
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m)
+{
+    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2_ALT3(x, m->x);
 }
 
 /*
@@ -221,8 +221,8 @@ const RsprotVersionRange rsprot_opobj6_in[] = {
     { 237, 237, (RsprotCodecFn)packet_opobj6_v16_in },
     { 238, 238, (RsprotCodecFn)packet_opobj6_v17_in },
     { 239, 239, (RsprotCodecFn)packet_opobj6_v18_in },
-    { 240, 240, (RsprotCodecFn)packet_opobj6_v20_in },
-    { 241, 241, (RsprotCodecFn)packet_opobj6_v19_in },
+    { 240, 240, (RsprotCodecFn)packet_opobj6_v19_in },
+    { 241, 241, (RsprotCodecFn)packet_opobj6_v20_in },
 };
 
 const int rsprot_opobj6_in_count =

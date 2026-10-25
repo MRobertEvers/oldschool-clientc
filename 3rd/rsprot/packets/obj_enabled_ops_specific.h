@@ -52,9 +52,9 @@ void packet_obj_enabled_ops_specific_v6_out(RsprotExec *x, MsgObjEnabledOpsSpeci
 void packet_obj_enabled_ops_specific_v7_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m);
 /* v8 -- revs 239 (packet_versions.txt 8). */
 void packet_obj_enabled_ops_specific_v8_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m);
-/* v9 -- revs 241 (rsprox_versions.txt 100). */
+/* v9 -- revs 240 (rsprox_versions.txt 101). */
 void packet_obj_enabled_ops_specific_v9_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m);
-/* v10 -- revs 240 (rsprox_versions.txt 101). */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void packet_obj_enabled_ops_specific_v10_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m);
 
 /* Per-revision entry points: `packet_obj_enabled_ops_specific_osrs239_out` is greppable, which
@@ -67,8 +67,8 @@ void packet_obj_enabled_ops_specific_v10_out(RsprotExec *x, MsgObjEnabledOpsSpec
 #define packet_obj_enabled_ops_specific_osrs237_out packet_obj_enabled_ops_specific_v6_out
 #define packet_obj_enabled_ops_specific_osrs238_out packet_obj_enabled_ops_specific_v7_out
 #define packet_obj_enabled_ops_specific_osrs239_out packet_obj_enabled_ops_specific_v8_out
-#define packet_obj_enabled_ops_specific_osrs240_out packet_obj_enabled_ops_specific_v10_out
-#define packet_obj_enabled_ops_specific_osrs241_out packet_obj_enabled_ops_specific_v9_out
+#define packet_obj_enabled_ops_specific_osrs240_out packet_obj_enabled_ops_specific_v9_out
+#define packet_obj_enabled_ops_specific_osrs241_out packet_obj_enabled_ops_specific_v10_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_enabled_ops_specific_out[];

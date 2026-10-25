@@ -65,9 +65,9 @@ void packet_update_stat_v2_v12_out(RsprotExec *x, MsgUpdateStatV2 *m);
 void packet_update_stat_v2_v13_out(RsprotExec *x, MsgUpdateStatV2 *m);
 /* v14 -- revs 239 (packet_versions.txt 14). */
 void packet_update_stat_v2_v14_out(RsprotExec *x, MsgUpdateStatV2 *m);
-/* v15 -- revs 241 (rsprox_versions.txt 100). */
+/* v15 -- revs 240 (rsprox_versions.txt 101). */
 void packet_update_stat_v2_v15_out(RsprotExec *x, MsgUpdateStatV2 *m);
-/* v16 -- revs 240 (rsprox_versions.txt 101). */
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
 void packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m);
 
 /* Per-revision entry points: `packet_update_stat_v2_osrs239_out` is greppable, which
@@ -86,8 +86,8 @@ void packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m);
 #define packet_update_stat_v2_osrs237_out packet_update_stat_v2_v12_out
 #define packet_update_stat_v2_osrs238_out packet_update_stat_v2_v13_out
 #define packet_update_stat_v2_osrs239_out packet_update_stat_v2_v14_out
-#define packet_update_stat_v2_osrs240_out packet_update_stat_v2_v16_out
-#define packet_update_stat_v2_osrs241_out packet_update_stat_v2_v15_out
+#define packet_update_stat_v2_osrs240_out packet_update_stat_v2_v15_out
+#define packet_update_stat_v2_osrs241_out packet_update_stat_v2_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_stat_v2_out[];

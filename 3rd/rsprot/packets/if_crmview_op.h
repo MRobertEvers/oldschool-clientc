@@ -77,9 +77,9 @@ void packet_if_crmview_op_v17_in(RsprotExec *x, MsgIfCrmViewOp *m);
 void packet_if_crmview_op_v18_in(RsprotExec *x, MsgIfCrmViewOp *m);
 /* v19 -- revs 239 (packet_versions.txt 19). */
 void packet_if_crmview_op_v19_in(RsprotExec *x, MsgIfCrmViewOp *m);
-/* v20 -- revs 241 (rsprox_versions.txt 100). */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void packet_if_crmview_op_v20_in(RsprotExec *x, MsgIfCrmViewOp *m);
-/* v21 -- revs 240 (rsprox_versions.txt 101). */
+/* v21 -- revs 241 (rsprox_versions.txt 100). */
 void packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m);
 
 /* Per-revision entry points: `packet_if_crmview_op_osrs239_in` is greppable, which
@@ -103,8 +103,8 @@ void packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m);
 #define packet_if_crmview_op_osrs237_in packet_if_crmview_op_v17_in
 #define packet_if_crmview_op_osrs238_in packet_if_crmview_op_v18_in
 #define packet_if_crmview_op_osrs239_in packet_if_crmview_op_v19_in
-#define packet_if_crmview_op_osrs240_in packet_if_crmview_op_v21_in
-#define packet_if_crmview_op_osrs241_in packet_if_crmview_op_v20_in
+#define packet_if_crmview_op_osrs240_in packet_if_crmview_op_v20_in
+#define packet_if_crmview_op_osrs241_in packet_if_crmview_op_v21_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_crmview_op_in[];

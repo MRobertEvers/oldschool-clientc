@@ -164,26 +164,9 @@ packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U3(x, m->target_index);
 }
 
-/* v10 -- revs 241 (rsprox_versions.txt 100). */
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_projanim_specific_v4_v10_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
-{
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2_ALT1(x, m->progress);
-    RSPROT_U4_ALT3(x, m->start_packed);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U2_ALT3(x, m->end_height);
-    RSPROT_U2_ALT1(x, m->end_time);
-    RSPROT_U3(x, m->source_index);
-    RSPROT_U4(x, m->end_packed);
-    RSPROT_U1_ALT3(x, m->angle);
-}
-
-/* v11 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
     RSPROT_U3_ALT2(x, m->source_index);
     RSPROT_U2(x, m->start_time);
@@ -196,6 +179,23 @@ packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U4(x, m->start_packed);
     RSPROT_U4(x, m->end_packed);
     RSPROT_U2_ALT3(x, m->end_time);
+}
+
+/* v11 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+{
+    RSPROT_U2(x, m->start_time);
+    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U3_ALT2(x, m->target_index);
+    RSPROT_U2_ALT1(x, m->progress);
+    RSPROT_U4_ALT3(x, m->start_packed);
+    RSPROT_U2(x, m->start_height);
+    RSPROT_U2_ALT3(x, m->end_height);
+    RSPROT_U2_ALT1(x, m->end_time);
+    RSPROT_U3(x, m->source_index);
+    RSPROT_U4(x, m->end_packed);
+    RSPROT_U1_ALT3(x, m->angle);
 }
 
 /*
@@ -218,8 +218,8 @@ const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
     { 237, 237, (RsprotCodecFn)packet_projanim_specific_v4_v7_out },
     { 238, 238, (RsprotCodecFn)packet_projanim_specific_v4_v8_out },
     { 239, 239, (RsprotCodecFn)packet_projanim_specific_v4_v9_out },
-    { 240, 240, (RsprotCodecFn)packet_projanim_specific_v4_v11_out },
-    { 241, 241, (RsprotCodecFn)packet_projanim_specific_v4_v10_out },
+    { 240, 240, (RsprotCodecFn)packet_projanim_specific_v4_v10_out },
+    { 241, 241, (RsprotCodecFn)packet_projanim_specific_v4_v11_out },
 };
 
 const int rsprot_projanim_specific_v4_out_count =

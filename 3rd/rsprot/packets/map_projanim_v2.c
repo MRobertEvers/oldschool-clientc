@@ -164,26 +164,9 @@ packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U3(x, m->target_index);
 }
 
-/* v10 -- revs 241 (rsprox_versions.txt 100). */
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_map_projanim_v2_v10_out(RsprotExec *x, MsgMapProjAnimV2 *m)
-{
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U2(x, m->id);
-    RSPROT_U3_ALT3(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->start_time);
-    RSPROT_U2_ALT1(x, m->start_height);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->end_height);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2_ALT2(x, m->end_time);
-    RSPROT_U4_ALT3(x, m->end_packed);
-}
-
-/* v11 -- revs 240 (rsprox_versions.txt 101). */
-void
-packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
     RSPROT_U2_ALT2(x, m->progress);
     RSPROT_U2(x, m->id);
@@ -196,6 +179,23 @@ packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U2_ALT3(x, m->end_time);
     RSPROT_U3(x, m->source_index);
     RSPROT_U2_ALT3(x, m->start_time);
+}
+
+/* v11 -- revs 241 (rsprox_versions.txt 100). */
+void
+packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
+{
+    RSPROT_U1_ALT2(x, m->angle);
+    RSPROT_U2(x, m->id);
+    RSPROT_U3_ALT3(x, m->source_index);
+    RSPROT_U2_ALT3(x, m->start_time);
+    RSPROT_U2_ALT1(x, m->start_height);
+    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U2_ALT2(x, m->end_height);
+    RSPROT_U2_ALT2(x, m->progress);
+    RSPROT_U3_ALT2(x, m->target_index);
+    RSPROT_U2_ALT2(x, m->end_time);
+    RSPROT_U4_ALT3(x, m->end_packed);
 }
 
 /*
@@ -218,8 +218,8 @@ const RsprotVersionRange rsprot_map_projanim_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_map_projanim_v2_v7_out },
     { 238, 238, (RsprotCodecFn)packet_map_projanim_v2_v8_out },
     { 239, 239, (RsprotCodecFn)packet_map_projanim_v2_v9_out },
-    { 240, 240, (RsprotCodecFn)packet_map_projanim_v2_v11_out },
-    { 241, 241, (RsprotCodecFn)packet_map_projanim_v2_v10_out },
+    { 240, 240, (RsprotCodecFn)packet_map_projanim_v2_v10_out },
+    { 241, 241, (RsprotCodecFn)packet_map_projanim_v2_v11_out },
 };
 
 const int rsprot_map_projanim_v2_out_count =

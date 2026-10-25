@@ -52,16 +52,16 @@ typedef struct MsgScriptedProjAdd {
 
 /* v1 -- revs 239 (packet_versions.txt 1). */
 void packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m);
-/* v2 -- revs 241 (rsprox_versions.txt 100). */
+/* v2 -- revs 240 (rsprox_versions.txt 101). */
 void packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m);
-/* v3 -- revs 240 (rsprox_versions.txt 101). */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m);
 
 /* Per-revision entry points: `packet_scriptedproj_add_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for SCRIPTEDPROJ_ADD" without reading a table. */
 #define packet_scriptedproj_add_osrs239_out packet_scriptedproj_add_v1_out
-#define packet_scriptedproj_add_osrs240_out packet_scriptedproj_add_v3_out
-#define packet_scriptedproj_add_osrs241_out packet_scriptedproj_add_v2_out
+#define packet_scriptedproj_add_osrs240_out packet_scriptedproj_add_v2_out
+#define packet_scriptedproj_add_osrs241_out packet_scriptedproj_add_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_scriptedproj_add_out[];

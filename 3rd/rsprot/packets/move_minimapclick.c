@@ -353,13 +353,13 @@ packet_move_minimapclick_v18_in(RsprotExec *x, MsgMoveMinimapClick *m)
     RSPROT_U1(x, m->checkpoint5);
 }
 
-/* v19 -- revs 241 (rsprox_versions.txt 100). */
+/* v19 -- revs 240 (rsprox_versions.txt 101). */
 void
 packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U1_ALT2(x, m->key_combination);
+    RSPROT_U2_ALT3(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
     RSPROT_U2(x, m->camera_angle_y);
@@ -372,13 +372,13 @@ packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m)
     RSPROT_U1(x, m->checkpoint5);
 }
 
-/* v20 -- revs 240 (rsprox_versions.txt 101). */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void
 packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT2(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U1_ALT1(x, m->key_combination);
+    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U2_ALT2(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
     RSPROT_U2(x, m->camera_angle_y);
@@ -421,8 +421,8 @@ const RsprotVersionRange rsprot_move_minimapclick_in[] = {
     { 237, 237, (RsprotCodecFn)packet_move_minimapclick_v16_in },
     { 238, 238, (RsprotCodecFn)packet_move_minimapclick_v17_in },
     { 239, 239, (RsprotCodecFn)packet_move_minimapclick_v18_in },
-    { 240, 240, (RsprotCodecFn)packet_move_minimapclick_v20_in },
-    { 241, 241, (RsprotCodecFn)packet_move_minimapclick_v19_in },
+    { 240, 240, (RsprotCodecFn)packet_move_minimapclick_v19_in },
+    { 241, 241, (RsprotCodecFn)packet_move_minimapclick_v20_in },
 };
 
 const int rsprot_move_minimapclick_in_count =
