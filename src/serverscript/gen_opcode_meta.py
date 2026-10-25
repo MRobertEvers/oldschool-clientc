@@ -1283,6 +1283,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # every death respawn and a cutscene's lock (Sol, index 3268 [13015]).
     "P_HEADBAR_CLEAR": (11290, 1, 0, 0, 0),
 
+    # npc_setpassthru(boolean $passthru)
+    #
+    # The active npc's own steps from now on ignore entity occupancy, as
+    # `moverestrict=passthru` does for a type, while its type keeps its own
+    # restriction (indoors, ...). For a scripted walk Jagex sends through the
+    # player: Sir Prysin to Silverlight's case and back (RSProx index 4375
+    # [1126], [1152]: onto the player's tile both ways). Cleared by false and
+    # by a respawn.
+    "NPC_SETPASSTHRU": (11291, 1, 0, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -1923,6 +1933,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "HITMARK_BAR": (0, 0),
     "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETBLOCKWALK": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETPASSTHRU": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETBASESTAT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),

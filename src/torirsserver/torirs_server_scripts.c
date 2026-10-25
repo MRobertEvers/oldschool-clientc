@@ -7743,6 +7743,26 @@ script_command(
         return 1;
     }
 
+    case SS_OP_NPC_SETPASSTHRU:
+    {
+        /* npc_setpassthru(boolean): the active npc walks through entities
+         * (players and npcs) until false or its next life -- a scripted walk
+         * Jagex sends onto the player's tile (Sir Prysin, RSProx index 4375
+         * [1126], [1152]). */
+        int32_t passthru;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &passthru) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setpassthru with no active npc");
+            return 1;
+        }
+        npc->passthru = passthru != 0;
+        return 1;
+    }
+
     case SS_OP_NPC_SETHEADBARRESERVE:
     {
         int32_t reserve;

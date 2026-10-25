@@ -2865,6 +2865,7 @@ struct ToriRSServerNpc
     int size;      /* footprint; from npcinfo at spawn, default 1 */
     int turnspeed; /* NpcType.turnspeed; from npcinfo at spawn. 0 = never turns */
     int blockwalk; /* 0 none, 1 npc, 2 all, 3 player — from def */
+    int passthru;  /* `npc_setpassthru`: own steps ignore entity occupancy; cleared at spawn */
     int blocksight; /* 0/1 — sets PROJ_BLOCK_ENTITY when moving */
 
     /** Which extended-info fields this npc has to send. Cleared in phase 11. */

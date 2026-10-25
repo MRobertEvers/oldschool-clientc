@@ -662,38 +662,38 @@ def check_manifest() -> None:
 
 
 def check_delrith() -> None:
+    # Rebuilt from RSProx index 4375 (docs/rsprox-analysis/quests/demon_slayer.md):
+    # the circle watcher, a copy per summoning and per fight, zero hitpoints as
+    # the weakening (death_script), the incantation as five "Select a word" menus.
     script = DELRITH.read_text()
     require_text(
         script,
         (
-            "[zone,0_50_52_24_32]",
-            "[zone,0_50_52_24_40]",
+            "[mapzone,0_50_52]",
+            "[timer,demon_circle]",
+            "[proc,demon_fight_enter]",
+            "[proc,demon_circle_leave]",
             "[proc,demon_slayer_init_incantation]",
             "[proc,demon_slayer_incantation_word](int $word)(string)",
             "[proc,demon_slayer_incantation_text]()(string)",
-            "[proc,demon_slayer_choose_incantation_word](string $position)(int)",
+            "[proc,demon_slayer_say_word](int $last)(int)",
             "[proc,demon_slayer_incantation_ready]()(boolean)",
             "%varb2562_delrith_incantation_1 = random(5);",
-            "def_int $word_5 = ~demon_slayer_choose_incantation_word(\"fifth\");",
+            "def_int $word_5 = ~demon_slayer_say_word(1);",
             "calc($word_5 - 1) = %varb2566_delrith_incantation_5",
             "[opnpc2,delrith]",
             "@player_combat_start;",
             "[apnpc2,delrith]",
             "@player_combat_start_ap;",
-            "[ai_queue2,delrith]",
-            "$damage = calc($damage * 2);",
             "[ai_queue3,delrith]",
-            "npc_setowner;",
-            "~demon_slayer_ready_for_delrith = false",
-            "inv_total(worn, silverlight) > 0",
-            "npc_changetype(delrith_weakened, 500);",
+            "npc_changetype(delrith_weakened, ^demon_actor_ticks);",
             "[opnpc1,delrith_weakened]",
-            "queue(demon_slayer_start_incantation, 0, npc_uid);",
-            "[queue,demon_slayer_start_incantation](npc_uid $delrith)",
+            "queue(demon_slayer_incantation, 0, npc_uid);",
+            "[queue,demon_slayer_incantation](npc_uid $delrith)",
             "npc_finduid($delrith)",
             "npc_statheal(hitpoints, 0, 100);",
             "npc_del;",
-            "~demon_slayer_commit_complete;",
+            "queue(demon_slayer_complete, 0, 0);",
         ),
         "Delrith",
     )
@@ -728,11 +728,11 @@ def check_delrith() -> None:
     require_text(
         aris,
         (
-            "[label,demon_slayer_aris_quest_start]",
-            "~demon_slayer_init_incantation;",
-            "[label,demon_slayer_aris_incantation]",
+            "[label,demon_aris_start]",
+            "~demon_wally_scene;",
+            "[proc,demon_aris_incantation]",
             "~demon_slayer_incantation_text",
-            "~chatnpc_anim(^chat_happy, $incantation);",
+            "Have you got that?",
         ),
         "Aris incantation reminder",
     )

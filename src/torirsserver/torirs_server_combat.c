@@ -4432,6 +4432,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * the last life's footprint at whatever it set; the stamp below takes
          * the type's own. */
         npc->blockwalk = npc_def(npc)->blockwalk;
+        npc->passthru = 0;
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));

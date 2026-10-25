@@ -98,6 +98,7 @@ EXTRA_DECLARATIONS = [
     "[command,projanim_pl_raw](coord $from, player_uid $uid, spotanim $spotanim, int $start_height, int $end_height, int $start, int $end, int $angle, int $progress)",
     "[command,projanim_npc_raw](coord $from, npc_uid $uid, spotanim $spotanim, int $start_height, int $end_height, int $start, int $end, int $angle, int $progress)",
     "[command,npc_setblockwalk](int $blockwalk)",
+    "[command,npc_setpassthru](boolean $passthru)",
     "[command,cam_moveto_cycles](coord $coord, int $height, int $cycles, int $ignore_terrain, int $easing)",
     "[command,cam_rotateto_coordinate](coord $coord, int $height, int $cycles, int $easing)",
     "[command,cam_unlock](boolean $unlock)",

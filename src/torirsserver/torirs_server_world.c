@@ -794,6 +794,10 @@ npc_travel_extra(struct ToriRSServerNpc const* npc)
     assert(npc);
     if( npc->def && (npc->def->moverestrict == 1 /* blocked */ || npc->def->moverestrict == 6 /* passthru */) )
         return COLL_FLAG_OPEN;
+    /* `npc_setpassthru`: the same answer for this npc alone, its type's
+     * restriction (indoors, ...) still applying to the map. */
+    if( npc->passthru )
+        return COLL_FLAG_OPEN;
 
     flag = COLL_FLAG_BLOCK_NPC_AND_PLAYERS | COLL_FLAG_PLAYER_OCC;
     /* blockwalk=none: do not respect npc-occupancy. */
@@ -4520,6 +4524,7 @@ npc_spawn(
                                                  : (info ? info->turnspeed : 32);
         }
         npc->blockwalk = def->blockwalk;
+        npc->passthru = 0;
         npc->blocksight = def->blocksight;
         /* `timer=<ticks>` arms the type's `[ai_timer]` at spawn. The hook is
          * resolved by type when it fires, so a changetype picks up the new

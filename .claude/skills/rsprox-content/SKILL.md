@@ -374,6 +374,12 @@ index reuse):
   - `telejump` snaps.
   - Ours: `npc_walk` / modes give steps, `npc_tele` ≤2 tiles glides, and further moves are a `telejump` (removed and re-added under the same client index in one packet, as Jagex sends it). A boss that vanishes and reappears also fades: `npc_transparency` (Ocellus: `30, 45, 0, 255` out, `0, 20, 255, 0` in, `-1, -1, 0, 255` to stay unseen through a jump).
   - Count tiles per tick to get the speed.
+  - Our npcs are stopped by players. A scripted walk Jagex sends onto the player's tile (Sir
+    Prysin to Silverlight's case and back, index 4375 [1126], [1152]) needs
+    `npc_setpassthru(true)` on that npc for the walk, and `false` after; the type keeps its own
+    `moverestrict`.
+  - A click is answered BEFORE the npc phase: an `npc_queue(.., 1)` from a dialogue's continue
+    steps on that same tick; use 2 for a step on click+1 (Prysin's walks).
 - **Facing (in npc info: diff it tick by tick, section "The wire audit" 3):**
   - Record **every** `[facing]` line the npc gets: when it turns to a tile, when it faces a raider,
     when it resets, and what it does across an attack (Ocellus: `type=reset` as each volley starts,

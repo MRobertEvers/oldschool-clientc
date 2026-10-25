@@ -98,11 +98,10 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
         "item_gamevals": ["silverlight"],
         "loc_gamevals": ["qip_ds_stone_table"],
         "trigger_handlers": [
-            "zone:0_50_52_24_32",
-            "zone:0_50_52_24_40",
+            "mapzone:0_50_52",
+            "timer:demon_circle",
             "opnpc2:delrith",
             "apnpc2:delrith",
-            "ai_queue2:delrith",
             "ai_queue3:delrith",
             "opnpc1:delrith_weakened",
         ],
@@ -112,7 +111,7 @@ AUDITED_OVERRIDES: dict[str, dict[str, object]] = {
             "torirsserver-selftest:npc-owner-visibility",
         ],
         "known_gaps": [
-            "The summoning ritual is narrated; full NPC/camera/audio choreography is pending.",
+            "Delrith's own attack is unrecorded (RSProx 4375 kills him in one hit); the wrong-incantation branch is the wiki's.",
             "A real-client concurrent-player, death, and relog smoke is still pending.",
         ],
     },

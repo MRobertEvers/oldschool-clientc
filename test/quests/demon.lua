@@ -1,6 +1,9 @@
 -- Demon Slayer, driven end to end from Quest Helper's demonslayer/DemonSlayer.java
 -- (steps Aris -> Prysin -> Rovin -> bucket/sink/drain -> manhole -> sewer key ->
--- Traiborn's bones -> Silverlight -> Delrith and the incantation).
+-- Traiborn's bones -> Silverlight -> Delrith and the incantation). The pages,
+-- menus and scenes are RSProx index 4375's (docs/rsprox-analysis/quests/
+-- demon_slayer.md): the crystal ball and Wally's vision, Prysin's case, the
+-- wardrobe, the summoning in a copy of the circle and the banishing.
 -- Brought along (getItemRequirements): coins, 25 bones, combat stats. The bucket,
 -- the water and every key are obtained by playing the quest.
 --
@@ -62,6 +65,45 @@ return {
         })
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- the wire audit against RSProx 4375 reads this (build/quest_gate/<run>/ticklog.tsv)
+        t.ticklog.start()
+        t.ticklog.mark("leg.aris")
+
+        -- A page the server mounts with no continue (Wally's "Die, foul demon!",
+        -- the summoning's "The wizards cast an evil spell...", each spoken word)
+        -- is waited out: the next page is looked for by its text.
+        local function await_text(name, fragment, ticks)
+            local seen = "none"
+            local found = false
+            for _ = 1, ticks or 40 do
+                if t.chat.kind() ~= "none" then
+                    local kr, txt = t.chat.text()
+                    if kr == "ok" and txt then
+                        seen = txt
+                        if txt:find(fragment, 1, true) then
+                            found = true
+                            break
+                        end
+                    end
+                end
+                t.ticks(1)
+            end
+            t.check(name, found, "page with '" .. fragment .. "' (last: " .. tostring(seen) .. ")")
+        end
+        -- The camera read is the live client's: scriptrun keeps no camera
+        -- serial (cutscene.mark answers nil there), so the row is a note.
+        local camera_lane = t.cutscene.mark() ~= nil
+        local function cutscene_row(name, opts)
+            if not camera_lane then
+                t.note("cutscene." .. name .. ": no camera ring on this lane")
+                return
+            end
+            t.exec("cutscene." .. name, t.cutscene.await, name, opts)
+        end
+        local function await_options(name, ticks)
+            local r = t.await({ level = function() return t.chat.kind() == "options" end, note = name }, ticks or 12)
+            t.check(name, r == "ok", "a menu -> " .. tostring(r))
+        end
 
         local CASTLE_DOOR, CASTLE_DOOR_OPEN = "fai_varrock_castle_door", "fai_varrock_castle_door_open"
         local TOWER_DOOR, TOWER_DOOR_OPEN = "fai_wiztower_poor_door", "fai_wiztower_poor_door_open"
@@ -81,19 +123,18 @@ return {
         -- square outside the tent's open doorway.
         t.exec("goto-talkToAris", t.player.goto_tile, 3208, 3424, 0)
         t.exec("talkToAris", t.player.talk_to, "aris", 1)
+        local wally_mark = t.cutscene.mark() or 0
         t.exec("talkToAris-dialog", t.chat.play, {
             "npc:Hello young one. Cross my palm",
-            "choose:Ok, here you go.",
-            "player:Ok, here you go.",
+            "choose:Yes.",
+            "player:Okay, here you go.",
             "npc:Come closer",
             "npc:I can see images forming",
             "npc:very impressive looking sword",
             "npc:big dark shadow",
-            "npc:Aaargh",
-            "choose:Aaargh?",
-            "player:Aaargh?",
-            "npc:It's Delrith",
-            "choose:Who's Delrith?",
+            "npc:Aaargh!",
+            "player:Are you all right?",
+            "npc:It's Delrith! Delrith is coming!",
             "player:Who's Delrith?",
             "npc:Delrith...",
             "npc:powerful demon",
@@ -101,31 +142,55 @@ return {
             "npc:tried to destroy this city",
             "npc:Using his magic sword",
             "npc:Ye gods",
-            "choose:Okay, where is he? I'll kill him for you!",
-            "player:Okay, where is he",
-            "npc:can't just go and fight",
-            "npc:Wally managed",
+            "choose:Wally doesn't sound like a very heroic name.",
+            "player:Wally doesn't sound a very heroic name.",
+            "npc:Yes I know. Maybe that is why",
+            "npc:Who knows how much pain",
+            "npc:It looks like you are going to need",
+            "choose:So how did Wally kill Delrith?",
+            "player:So how did Wally kill Delrith?",
+        })
+        -- Wally's vision ([87..145]): a copy of the circle, the player as Wally.
+        await_text("wally.narration", "Wally managed to arrive", 20)
+        t.exec("wally.narration-click", t.chat.play, { "npc:Wally managed to arrive" })
+        await_text("wally.incantation_q", "Now, what was that incantation again?", 20)
+        t.exec("wally.pages", t.chat.play, {
+            "npc:Now, what was that incantation again?",
+        })
+        -- the incantation is rolled per player: Wally says its five words
+        local ok, txt = t.chat.text()
+        local chant_words = {}
+        if txt then
+            for w in txt:gmatch("%a+") do chant_words[#chant_words + 1] = w end
+        end
+        t.check("wally.chant_words", #chant_words == 5, table.concat(chant_words, ","))
+        t.exec("wally.chant", t.chat.play, { "npc:" .. (chant_words[1] or "") })
+        await_text("wally.boast", "I am the greatest demon slayer EVER!", 20)
+        t.exec("wally.end", t.chat.play, {
+            "npc:I am the greatest demon slayer EVER!",
             "npc:By reciting the correct magical incantation",
+        })
+        await_text("aris.after_vision", "Delrith will come forth", 20)
+        cutscene_row("wallyVision", { since = wally_mark, quiet = 60, expect = {
+            { op = "moveto", height = 300 },
+            { op = "lookat", height = 250 },
+            { op = "reset" },
+        } })
+        t.expect("quest.stage.talked_aris", t.quest.expect_stage("talked_aris"))
+        t.exec("talkToAris-dialog2", t.chat.play, {
             "npc:Delrith will come forth",
             "npc:evil sorcerer",
             "choose:What is the magical incantation?",
             "player:What is the magical incantation?",
             "npc:let me think a second",
-        })
-        t.expect("quest.stage.talked_aris", t.quest.expect_stage("talked_aris"))
-        -- the incantation is rolled per player: read its five words off the page
-        local ok, txt = t.chat.text()
-        local chant_words = {}
-        if txt then
-            local tail = txt:match("goes%.+%s*(.-)%.%s*Have") or ""
-            for w in tail:gmatch("%a+") do chant_words[#chant_words + 1] = w end
-        end
-        t.check("aris.chant_words", #chant_words == 5, table.concat(chant_words, ","))
-        t.exec("talkToAris-dialog2", t.chat.play, {
             "npc:Alright, I think I've got it",
             "player:I think so, yes.",
+            "choose:Where can I find Silverlight?",
+            "player:Where can I find Silverlight?",
+            "npc:Silverlight has been passed down",
+            "npc:Tell him Aris sent you.",
             "choose:Okay, thanks. I'll do my best to stop the demon.",
-            "player:Okay, thanks",
+            "player:Ok thanks",
             "npc:Good luck",
         })
         t.chat.close()
@@ -137,28 +202,36 @@ return {
             { 3212, 3452 }, { 3212, 3460 } })
         prysin_in("talkToPrysin")
         t.exec("talkToPrysin", t.player.talk_to, "sir_prysin", 1)
+        t.ticklog.mark("leg.prysin")
         t.exec("talkToPrysin-dialog", t.chat.play, {
             "npc:Hello, who are you?",
-            "choose:Gypsy Aris said I should come and talk to you.",
-            "player:Gypsy Aris said",
-            "npc:Gypsy Aris? Is she still alive?",
-            "choose:I need to find Silverlight.",
+            "choose:Aris said I should come and talk to you.",
+            "player:Aris said I should come and talk to you.",
+            "npc:Aris? Is she still alive?",
+            "choose:Yes, she is still alive.",
+            "player:Yes she is still alive.",
+            "npc:Oh, is that the same Aris?",
+            "npc:Anyway, what can I do for you?",
             "player:I need to find Silverlight.",
             "npc:What do you need to find that for?",
             "player:I need it to fight Delrith.",
             "npc:Delrith? I thought the world",
-            "choose:He's back and unfortunately I've got to deal with him.",
-            "player:He's back",
-            "npc:You don't look up to much",
+            "choose:Well, Aris' crystal ball seems to think otherwise.",
+            "player:Well Aris' crystal ball",
+            "npc:Well if the ball says so",
             "npc:The problem is getting Silverlight.",
             "player:You mean you don't have it?",
             "npc:Oh I do have it",
-            "choose:So give me the keys!",
-            "player:So give me the keys!",
-            "npc:Um, well it's not so easy.",
+            "choose:And why is this a problem?",
+            "player:And why is this a problem?",
             "npc:I kept one of the keys",
             "npc:One I gave to Rovin",
             "npc:I gave the other to the wizard Traiborn",
+            "choose:Can you give me your key?",
+            "player:Can you give me your key?",
+            "npc:Um.... ah....",
+            "npc:Well there's a problem there as well.",
+            "npc:I managed to drop the key in the drain",
             "choose:Where can I find Captain Rovin?",
             "player:Where can I find Captain Rovin?",
             "npc:Captain Rovin lives at the top",
@@ -181,6 +254,7 @@ return {
         t.exec("goUpToRovin2", t.player.climb, { loc = "varrock_spiralstairs_middle_taller", op = 2,
             op_name = "Climb-up", at = { 3202, 3497, 1 }, src = { 3204, 3497 }, dest = { 3204, 3497, 2 } })
         t.exec("talkToRovin", t.player.talk_to, "captain_rovin", 1)
+        t.ticklog.mark("leg.rovin")
         t.exec("talkToRovin-dialog", t.chat.play, {
             "npc:What are you doing up here?",
             "choose:Yes I know, but this is important.",
@@ -189,12 +263,32 @@ return {
             "choose:There's a demon who wants to invade this city.",
             "player:There's a demon who wants to invade",
             "npc:Is it a powerful demon?",
+            "choose:Yes, very.",
             "player:Yes, very.",
             "npc:As good as the palace guards",
+            "choose:It's not them who are going to fight the demon, it's me.",
             "player:It's not them who are going to fight",
             "npc:What, all by yourself?",
             "player:I'm going to use the powerful sword Silverlight",
-            "npc:Yes you are right. Here you go.",
+            "npc:Yes, I do. But why should I give it to you?",
+            "choose:Fortune-teller Aris said I was destined to kill the demon.",
+            "player:Fortune-teller Aris said",
+            "npc:A fortune-teller? Destiny?",
+            "choose:Otherwise the demon will destroy the city",
+            "player:Otherwise the demon will destroy the city!",
+            "npc:You can't fool me!",
+            "choose:Sir Prysin said you would give me the key",
+            "player:Sir Prysin said you would give me the key.",
+            "npc:Oh, he did, did he?",
+            "npc:I didn't work my way up",
+            "choose:Why did he give you one of the keys then?",
+            "player:Why did he give you one of the keys then?",
+            "npc:Only because the king ordered him to!",
+            "npc:I got one key and I think some wizard got another.",
+            "player:Sir Prysin dropped it down a drain!",
+            "npc:Ha ha ha! The idiot!",
+            "npc:Okay, I'll give you the key",
+            "objbox:Captain Rovin hands you a key.",
         })
         t.exec("talkToRovin-key", t.inv.await, "silverlight_key_2", 1, 8)
         t.chat.close()
@@ -234,7 +328,18 @@ return {
         -- useFilledBucketOnDrain: pour the bucket of water down the drain (demon_slayer.rs2:
         -- the water leaves, an empty bucket comes back, the key is washed into the sewer).
         local dr = t.player.by_symbol("loc", "questdrain")
+        t.ticklog.mark("leg.drain")
+        t.exec("searchDrain", t.player.click_loc, "questdrain", 1)
+        t.exec("searchDrain-dialog", t.chat.play, {
+            "player:That must be the key Sir Prysin dropped.",
+            "player:I don't seem to be able to reach it.",
+        })
+        t.chat.close()
         t.exec("useFilledBucketOnDrain", t.player.use_on, "bucket_water", dr)
+        t.exec("useFilledBucketOnDrain-dialog", t.chat.play, {
+            "player:OK, I think I've washed the key down into the sewer.",
+        })
+        t.chat.close()
         t.exec("useFilledBucketOnDrain.var", t.var.await_server, "varb2568_delrith_drain_key", 1, 8)
         t.expect("useFilledBucketOnDrain.waterGone", t.inv.expect_absent("bucket_water"))
         t.exec("useFilledBucketOnDrain.bucketBack", t.inv.await, "bucket_empty", 1, 4)
@@ -261,8 +366,11 @@ return {
         -- pickupSecondKey: north through the sewer to the key at the drain pipe.
         t.exec("pickupSecondKey.walk", t.player.walk_route, { { 3236, 9862 }, { 3231, 9865 }, { 3229, 9871 },
             { 3230, 9878 }, { 3231, 9885 }, { 3231, 9893 }, { 3228, 9898 }, { 3226, 9897 } })
+        t.ticklog.mark("leg.sewer")
         t.exec("pickupSecondKey", t.player.click_loc, "qip_ds_sewer_key", 1)
         t.exec("pickupSecondKey.inv", t.inv.await, "silverlight_key_3", 1, 8)
+        t.exec("pickupSecondKey-box", t.chat.play, { "objbox:You pick up an old rusty key." })
+        t.chat.close()
 
         -- goUpManhole: back to the ladder and up it.
         t.exec("goUpManhole.walk", t.player.walk_route, { { 3231, 9896 }, { 3231, 9888 }, { 3231, 9880 },
@@ -281,12 +389,21 @@ return {
             at = { 3103, 3159, 0 }, src = { 3105, 3160 }, dest = { 3104, 3161, 1 } })
         t.exec("talkToTraiborn.roomDoorIn", t.player.pass_door, { closed = TOWER_DOOR, open = TOWER_DOOR_OPEN,
             at = { 3109, 3162, 1 }, near = { 3109, 3162 }, far = { 3111, 3162 } })
+        t.ticklog.mark("leg.traiborn")
         t.exec("talkToTraiborn", t.player.talk_to, "traiborn", 1)
         t.exec("traiborn.dialog", t.chat.play, {
             "npc:Ello young thingummywut.",
-            "choose:I need to get a key given to you by Sir Prysin.",
-            "player:I need to get a key",
+            "choose:Talk about Demon Slayer.",
+            "player:I need to get a key given to you by Sir Prysin.",
             "npc:Sir Prysin? Who's that?",
+            "choose:He's one of the King's knights.",
+            "player:He's one of the King's knights.",
+            "npc:Say, I remember one of the King's knights.",
+            "npc:...and didn't like my homemade spinach rolls.",
+            "choose:Yes please.",
+            "player:Yes please.",
+            "objbox:Traiborn digs around in the pockets",
+            "player:Thank you very much.",
             "choose:Well, have you got any keys knocking around?",
             "player:Well, have you got any keys knocking around?",
             "npc:Now you come to mention it",
@@ -300,23 +417,17 @@ return {
             "player:Okay, I'll speak to you",
         })
         t.chat.close()
-        t.exec("traiborn.talk2", t.player.talk_to, "traiborn", 1)
-        t.exec("traiborn.dialog2", t.chat.play, {
-            "npc:How are you doing finding bones?",
-            "player:I have some bones.",
-            "npc:Give 'em here then.",
-        })
-        t.exec("traiborn.bones", t.var.await_server, "varp7818_demon_bones_given", 25, 60)
+        -- the bones used on him ([699], [711])
+        t.exec("traiborn.useBones", t.player.use_on, "bones", t.player.by_symbol("npc", "traiborn"))
         t.exec("traiborn.ritual", t.chat.play, {
+            "mesbox:You give Traiborn 25 sets of bones.",
             "npc:Hurrah! That's all 25 sets of bones.",
-            "mesbox:Traiborn places the bones in a circle",
-            "mesbox:Traiborn waves his arms about",
             "npc:Wings of dark and colour too",
-            "mesbox:The wizard waves his arms some more",
         })
         t.exec("traiborn.key", t.inv.await, "silverlight_key_1", 1, 12)
-        t.ticks(4)
+        await_text("traiborn.keybox", "Traiborn hands you a key.", 12)
         t.exec("traiborn.thanks", t.chat.play, {
+            "objbox:Traiborn hands you a key.",
             "player:Thank you very much.",
             "npc:Not a problem for a friend",
         })
@@ -344,16 +455,24 @@ return {
         t.exec("goto-prysin2", t.player.goto_tile, 3212, 3460, 0)
         prysin_in("returnToPrysin")
         t.exec("returnToPrysin", t.player.talk_to, "sir_prysin", 1)
+        t.ticklog.mark("leg.silverlight")
         t.exec("prysin2.dialog", t.chat.play, {
             "npc:So how are you doing with getting the keys?",
             "player:I've got all three keys!",
             "npc:Excellent! Now I can give you Silverlight.",
         })
-        t.exec("silverlight.got", t.inv.await, "silverlight", 1, 12)
+        -- [1125..1145]: he walks to the case, opens it and hands the sword over
+        await_text("silverlight.box", "Sir Prysin hands you a very shiny sword.", 30)
+        t.exec("silverlight.got", t.inv.await, "silverlight", 1, 4)
         t.expect("keys.gone", t.inv.expect_absent("silverlight_key_1"))
         t.expect("keys.gone2", t.inv.expect_absent("silverlight_key_2"))
         t.expect("keys.gone3", t.inv.expect_absent("silverlight_key_3"))
         t.exec("case.var", t.var.await_server, "varb2567_delrith_silverlight_case", 1, 5)
+        t.exec("prysin2.after", t.chat.play, {
+            "objbox:Sir Prysin hands you a very shiny sword.",
+            "npc:That sword belonged to my great-grandfather.",
+            "npc:Now go kill that demon!",
+        })
         t.chat.close()
 
         -- ================= BOSS =================
@@ -361,10 +480,54 @@ return {
         prysin_out("killDelrith")
         t.exec("killDelrith.walkOutOfPalace", t.player.walk_route, { { 3212, 3468 }, { 3212, 3460 } })
         t.exec("goto-circle-edge", t.player.goto_tile, 3221, 3366, 0)
+        -- The summoning ([1216..1245]): walking into the circle with
+        -- Silverlight; the walk is cut short by the move into the copy.
+        t.ticklog.mark("leg.summon")
+        local summon_mark = t.cutscene.mark() or 0
         t.player.walk_to(3226, 3366)
-        t.ticks(4)
-        t.exec("summon.mesbox", t.chat.play, { "mesbox:The dark wizards complete their ritual" })
-        t.chat.close()
+        await_text("summon.denath", "Arise, O mighty Delrith!", 20)
+        t.exec("summon.pages", t.chat.play, {
+            "npc:Arise, O mighty Delrith!",
+            "npc:Arise, Delrith!",
+        })
+        await_text("summon.free", "At last you are free", 30)
+        t.exec("summon.pages2", t.chat.play, {
+            "npc:Ha ha ha! At last you are free",
+            "npc:Who's that?",
+            "npc:Noo! Not Silverlight!",
+            "npc:I've got to get out of here...",
+        })
+        cutscene_row("summoning", { since = summon_mark, quiet = 40, expect = {
+            { op = "moveto", height = 475 },
+            { op = "lookat", height = 300 },
+            { op = "reset" },
+        } })
+        t.exec("summon.seen", t.var.await_server, "varb2569_delrith_seen_summoning_cutscene", 1, 5)
+        -- As recorded ([1245..1264]): off the circle's west edge is out of the
+        -- copy, onto the same tile in the world ([1250]); back in, a new copy
+        -- with Delrith south of the broken table and three wizards ([1264]).
+        local cr, cat = t.world.tile()
+        t.check("summon.in_copy", cr == "ok" and cat.x > 6000, "in the copy -> " .. tostring(cr)
+            .. " " .. (cr == "ok" and (cat.x .. "," .. cat.z) or tostring(cat)))
+        if cr == "ok" then
+            t.player.walk_to(cat.x - 4, cat.z)
+        end
+        local out_ok = false
+        for _ = 1, 12 do
+            local wr, wat = t.world.tile()
+            if wr == "ok" and wat.x < 6000 then out_ok = true break end
+            t.ticks(1)
+        end
+        t.check("copy.edge_out", out_ok, "walked off the circle's west edge -> back in the world")
+        t.ticklog.mark("leg.fight")
+        t.player.walk_to(3224, 3367)
+        local in_ok = false
+        for _ = 1, 12 do
+            local wr, wat = t.world.tile()
+            if wr == "ok" and wat.x > 6000 then in_ok = true break end
+            t.ticks(1)
+        end
+        t.check("copy.fight_in", in_ok, "back into the circle -> the fight's copy")
 
         -- Each round of the fight is sampled every tick: the lowest hitpoints seen, and a
         -- lobster eaten below EAT_BELOW. The margin row reads both.
@@ -406,33 +569,22 @@ return {
 
         t.exec("delrith.present", t.npc.await_present, "delrith", 12, 12)
         fight_until_weakened("killDelrithStep")
-        t.ticks(2)
-        t.exec("banish.press", t.player.press, "delrith_weakened", 1, 8)
-        -- wrong incantation first: fixed alphabetical order, unless it happens to be the real one
-        local wrong = { "Aber", "Camerinthum", "Carlem", "Gabindo", "Purchai" }
-        local same = true
-        for i = 1, 5 do if wrong[i] ~= chant_words[i] then same = false end end
-        if same then wrong = { "Purchai", "Gabindo", "Carlem", "Camerinthum", "Aber" } end
-        local pages = { "player:Now what was that incantation again?" }
-        for i = 1, 5 do pages[#pages + 1] = "choose:" .. wrong[i] end
-        pages[#pages + 1] = "player:" .. table.concat(wrong, " ")
-        pages[#pages + 1] = "mesbox:As you chant, Delrith is sucked"
-        pages[#pages + 1] = "mesbox:The vortex collapses"
-        t.exec("chant.wrong", t.chat.play, pages)
-        t.chat.close()
-        t.expect("wrong.stage_unchanged", t.quest.expect_stage("key_hunt"))
-        t.exec("delrith.restored", t.npc.await_present, "delrith", 12, 12)
-        fight_until_weakened("delrith2")
-        t.ticks(2)
-        t.exec("banish2.press", t.player.press, "delrith_weakened", 1, 8)
-        local rpages = { "player:Now what was that incantation again?" }
-        for i = 1, 5 do rpages[#rpages + 1] = "choose:" .. chant_words[i] end
-        rpages[#rpages + 1] = "player:" .. table.concat(chant_words, " ")
-        rpages[#rpages + 1] = "mesbox:Delrith is sucked into the vortex"
-        rpages[#rpages + 1] = "mesbox:back into the dark dimension"
-        t.exec("chant.right", t.chat.play, rpages)
-        t.chat.close()
+        -- [1272]: the question comes on its own, then a word per menu, each
+        -- spoken over his head on a page with no continue ([1277]..[1298]).
+        await_text("chant.question", "Now what was that incantation again?", 8)
+        t.exec("chant.question-click", t.chat.play, { "player:Now what was that incantation again?" })
+        for i = 1, 5 do
+            await_options("chant.menu" .. i, 8)
+            t.exec("chant.word" .. i, t.chat.choose, chant_words[i] or "Carlem")
+        end
+        await_text("chant.vortex", "Delrith is sucked into the vortex...", 10)
+        await_text("chant.back", "back into the dark dimension", 24)
+        t.exec("chant.back-click", t.chat.play, { "mesbox:back into the dark dimension" })
         t.ticks(6)
+        local sr, at = t.world.tile()
+        t.check("scurry.tile", sr == "ok" and at.x == 3212 and at.z == 3373 and at.level == 0,
+            "after the banishing -> " .. tostring(sr) .. " " .. (sr == "ok" and (at.x .. "," .. at.z .. "," .. at.level) or tostring(at))
+                .. " (want 3212,3373,0, index 4375 [1319])")
         t.quest.expect_complete()
         t.finish(0)
     end,
