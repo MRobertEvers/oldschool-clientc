@@ -110,6 +110,7 @@
 #include "packets/if_resync.c"
 #include "packets/if_resync_v1.c"
 #include "packets/if_resync_v2.c"
+#include "packets/if_script_trigger.c"
 #include "packets/if_setangle.c"
 #include "packets/if_setanim.c"
 #include "packets/if_setcolour.c"
@@ -268,6 +269,7 @@
 #include "packets/rebuild_worldentity_v2.c"
 #include "packets/rebuild_worldentity_v3.c"
 #include "packets/rebuild_worldentity_v4.c"
+#include "packets/reflection_check_reply.c"
 #include "packets/reflection_checker.c"
 #include "packets/reset_anims.c"
 #include "packets/reset_interaction_mode.c"
@@ -528,6 +530,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "IF_RESYNC", RSPROT_REG_OUT, rsprot_if_resync_out, &rsprot_if_resync_out_count },
     { "IF_RESYNC_V1", RSPROT_REG_OUT, rsprot_if_resync_v1_out, &rsprot_if_resync_v1_out_count },
     { "IF_RESYNC_V2", RSPROT_REG_OUT, rsprot_if_resync_v2_out, &rsprot_if_resync_v2_out_count },
+    { "IF_SCRIPT_TRIGGER", RSPROT_REG_IN, rsprot_if_script_trigger_in, &rsprot_if_script_trigger_in_count },
     { "IF_SETANGLE", RSPROT_REG_OUT, rsprot_if_setangle_out, &rsprot_if_setangle_out_count },
     { "IF_SETANIM", RSPROT_REG_OUT, rsprot_if_setanim_out, &rsprot_if_setanim_out_count },
     { "IF_SETCOLOUR", RSPROT_REG_OUT, rsprot_if_setcolour_out, &rsprot_if_setcolour_out_count },
@@ -686,6 +689,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "REBUILD_WORLDENTITY_V2", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v2_out, &rsprot_rebuild_worldentity_v2_out_count },
     { "REBUILD_WORLDENTITY_V3", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v3_out, &rsprot_rebuild_worldentity_v3_out_count },
     { "REBUILD_WORLDENTITY_V4", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v4_out, &rsprot_rebuild_worldentity_v4_out_count },
+    { "REFLECTION_CHECK_REPLY", RSPROT_REG_IN, rsprot_reflection_check_reply_in, &rsprot_reflection_check_reply_in_count },
     { "REFLECTION_CHECKER", RSPROT_REG_OUT, rsprot_reflection_checker_out, &rsprot_reflection_checker_out_count },
     { "RESET_ANIMS", RSPROT_REG_OUT, rsprot_reset_anims_out, &rsprot_reset_anims_out_count },
     { "RESET_INTERACTION_MODE", RSPROT_REG_OUT, rsprot_reset_interaction_mode_out, &rsprot_reset_interaction_mode_out_count },

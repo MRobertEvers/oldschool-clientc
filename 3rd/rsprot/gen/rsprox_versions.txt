@@ -301,3 +301,5 @@ RSProx.SetPlayerOpDecoder	out	223	114	RSPROT_U1_ALT1(x, m->id); RSPROT_U1_ALT3(x
 RSProx.SetPlayerOpDecoder	out	224	115	RSPROT_U1_ALT2(x, m->id); RSPROT_U1(x, m->priority); RSPROT_JSTR(x, m->op);
 RSProx.SetPlayerOpDecoder	out	226	116	RSPROT_JSTR(x, m->op); RSPROT_U1_ALT3(x, m->priority); RSPROT_U1_ALT3(x, m->id);
 RSProx.UnknownStringDecoder	out	224	101	RSPROT_JSTR(x, m->string);
+IfScriptTriggerDecoder	in	240	100	RSPROT_U4_ALT2(x, m->crc); RSPROT_U2(x, m->obj); RSPROT_COM_ALT2(x, m->combined_id); RSPROT_U2_ALT1(x, m->sub); RSPROT_REST(x, m->copy, m->copy_length);
+IfScriptTriggerDecoder	in	241	101	RSPROT_COM_ALT2(x, m->combined_id); RSPROT_U2_ALT1(x, m->obj); RSPROT_U2_ALT1(x, m->sub); RSPROT_U4_ALT2(x, m->crc); RSPROT_REST(x, m->copy, m->copy_length);

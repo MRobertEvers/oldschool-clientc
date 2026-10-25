@@ -690,6 +690,8 @@ def parse_one(s, is_decoder):
     # payload (TAILS), so the copy itself is not a field.
     if re.match(r"^buffer\.buffer\.writeBytes\(\s*message\.payload\b", s):
         return {"op": "ignore", "text": s}
+    if s == "buffer.buffer.readerIndex(buffer.buffer.writerIndex())":
+        return {"op": "rest"}
     if s.startswith("buffer."):
         m = WRITE_FN_RE.match(s)
         if not m:
@@ -736,6 +738,11 @@ def parse_val(s, is_decoder):
     name, rhs = m.groups()
     rhs = rhs.strip()
 
+    if is_decoder and rhs == "buffer.buffer.copy()":
+        # The rest of the payload, kept whole (IF_SCRIPT_TRIGGER's arguments,
+        # REFLECTION_CHECK_REPLY's body): marked here, taken where the Kotlin
+        # then marks the buffer read (`readerIndex(writerIndex())`).
+        return {"op": "rest_mark", "name": name}
     if is_decoder:
         gm = READ_FN_RE.match(rhs)
         if gm:
@@ -1522,6 +1529,23 @@ def gen_op(op, scope, em, indent, ctx):
                 f"field to decode back into")
         em.emit(f"{macro}(x, {expr_c});", indent)
         em.mark_transferred(expr_c)
+        return
+
+    if kind == "rest_mark":
+        # Only reads AFTER the copy are its own fields; a copy taken before
+        # them (REFLECTION_CHECK_REPLY copies before reading its id) is the
+        # same bytes again, so the blob is what is left when it is taken.
+        scope.locals["__rest__"] = op["name"]
+        return
+
+    if kind == "rest":
+        name = c_escape_ident(scope.locals.get("__rest__", "rest"))
+        scope.add_field(name, "const uint8_t *")
+        scope.add_field(name + "_length", "int32_t")
+        ptr = struct_ptr_expr(scope, ctx)
+        em.emit(f"RSPROT_REST(x, {ptr}->{name}, {ptr}->{name}_length);", indent)
+        em.mark_transferred(f"{ptr}->{name}")
+        scope.locals[scope.locals.get("__rest__", "rest")] = ("field", ptr, name)
         return
 
     if kind == "read":

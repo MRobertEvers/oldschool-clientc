@@ -216,6 +216,11 @@ def c_flat_lines(body):
                 return None, None
             out.append((m.group(1), m.group(2)))
             continue
+        # The rest of the payload, taken last (IF_SCRIPT_TRIGGER's arguments):
+        # no field order to respell, so it rides along like a derived line.
+        if line.strip().startswith("RSPROT_REST("):
+            tail.append(line)
+            continue
         if "RSPROT_" in line or "{" in line or "}" in line:
             return None, None
         tail.append(line)
