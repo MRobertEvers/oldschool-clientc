@@ -351,9 +351,12 @@ def lowres(rev):
     else:
         v5 = fields(rec)
     names = {r["name"] for r in rsprox_prot.load_prots(rev)["server"]}
-    # V4 (223-226) is another name for the V5 wire: RSProx's NpcInfoClient
-    # ignores the version it is handed, and 226 carries both.
-    v4 = v5 if "NPC_INFO_SMALL_V4" in names else []
+    # V4 (223-226) reads with the same NpcInfoClient as V5 -- the version it is
+    # handed goes unused -- but that client's SMALL deltas are 5 bits at 223-225
+    # and 6 from 226 (decodeDelta), so V4 is a version of its own.
+    # 226 still lists V4 but decodes only V5: a version is one RSProx reads.
+    decoded = {prot for (d, prot) in rsprox_prot.decoder_files(rev) if d == "out"}
+    v4 = v5 if "NPC_INFO_SMALL_V4" in names and "NPC_INFO_SMALL_V4" in decoded else []
     if "NPC_INFO_SMALL_V5" not in names:
         v5 = []
     if "NPC_INFO_SMALL_V6" not in names:
@@ -367,7 +370,16 @@ def lowres(rev):
     spawn, types = arr("spawnClockBitcodes"), arr("typeBitcodes")
     if v6 and (not spawn or not types or len(spawn) != 4 or len(types) != 4):
         raise Refused(f"npc {rev}: V6 width selectors not found")
-    return v4, v5, v6, spawn or [0, 0, 0, 0], types or [0, 0, 0, 0]
+    src_delta = ex.strip_comments(open(ex.client_path("NpcInfoClient", rev)).read())
+    delta = src_delta[src_delta.index("private fun decodeDelta("):]
+    delta = delta[:delta.index("\n    }\n")]
+    widths = re.findall(r"var delta = buffer\.gBits\((\d+)\)", delta)
+    if "if (large)" not in delta or len(widths) != 2:
+        raise Refused(f"npc {rev}: decodeDelta is not a large/small pair of widths")
+    small_bits = int(widths[1])
+    if int(widths[0]) != 8:
+        raise Refused(f"npc {rev}: LARGE delta is {widths[0]} bits, not 8")
+    return v4, v5, v6, spawn or [0, 0, 0, 0], types or [0, 0, 0, 0], small_bits
 
 
 def record_reader(name, fields, spawn, types):
@@ -726,32 +738,36 @@ def emit_player(revs):
 
 # --- NPC_INFO --------------------------------------------------------------------------
 
-NPC_VERSIONS = (("v5", "V5"), ("v6", "V6"))
+NPC_VERSIONS = (("v4", "V4"), ("v5", "V5"), ("v6", "V6"))
 
 
 def emit_npc(revs):
     files = {}
     public_h = ["#ifndef RSPROT_STREAM_NPC_INFO_H", "#define RSPROT_STREAM_NPC_INFO_H", ""]
-    public_h += banner(["NPC_INFO_{SMALL,LARGE}_V5 / _V6 -- server -> client: the per-revision",
-                        "entry points.", "",
+    public_h += banner(["NPC_INFO_{SMALL,LARGE}_V4 / _V5 / _V6 -- server -> client: the",
+                        "per-revision entry points.", "",
                         "npc_info_<size>_<version>_osrs<N> reads revision N's prot through its",
-                        "version, npc_info_<size>_<version> (npc_info_v5.c, npc_info_v6.c)."])
+                        "version, npc_info_<size>_<version> (npc_info_v4.c, npc_info_v5.c,",
+                        "npc_info_v6.c)."])
     public_h += ["", '#include "rsprot_info.h"', ""]
     sig = ("const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx, "
            "RsprotInfoList *out")
     lookups = {}
     per_rev = {}
     for ver, VER in NPC_VERSIONS:
-        # The V5 reader also reads V4, its older name.
-        rows = [(r, d) for r, d in revs if d[ver] or (ver == "v5" and d["v4"])]
+        rows = [(r, d) for r, d in revs if d[ver]]
         vrevs = [r for r, _d in rows]
+        widths = {d["small_bits"] for _r, d in rows}
+        if len(widths) != 1:
+            raise SystemExit(f"NPC_INFO_*_{VER}: SMALL delta widths {sorted(widths)} across one version")
+        small_bits = widths.pop()
         kinds = version_kinds(rows, "npc")
         type_name = f"NpcInfo{VER}"
         stem = f"npc_info_{ver}"
         h = [f"#ifndef RSPROT_STREAM_NPC_INFO_{VER}_H", f"#define RSPROT_STREAM_NPC_INFO_{VER}_H", ""]
         h += banner([f"NPC_INFO_*_{VER} -- revs {rev_text(vrevs)}: the version, its constants' shape,",
                      "and the SMALL and LARGE readers each revision's entry points call. SMALL",
-                     "and LARGE differ only in the entering-view record's delta width (6 or 8",
+                     f"and LARGE differ only in the entering-view record's delta width ({small_bits} or 8",
                      "bits).", "",
                      ] + wrap("Its blocks: " + ", ".join(m for m, _k in kinds) + ".", 76))
         h += ["", '#include "rsprot_info_blocks.h"', ""]
@@ -781,7 +797,7 @@ def emit_npc(revs):
               "            break;",
               "    }",
               "    return rsprot_info_finish(&b, out, len);", "}"]
-        for size, bits in (("small", 6), ("large", 8)):
+        for size, bits in (("small", small_bits), ("large", 8)):
             c += ["", "int", f"npc_info_{size}_{ver}(", "    " + wrap_params(f"const {type_name} *k, " + sig) + ")", "{",
                   f"    return {stem}_read(k, {bits}, data, len, lengths, ctx, out);", "}"]
         files[os.path.join(OUT_DIR, stem + ".h")] = "\n".join(h) + "\n"
@@ -800,23 +816,21 @@ def emit_npc(revs):
         for ver, VER, type_name, stem, d in per_rev[rev]:
             vstem = f"{rstem}_{ver}"
             rc += ["/* clang-format off */"]
-            rc += record_reader(f"{vstem}_record", d[ver] or d["v4"], d["spawn"], d["types"])
+            rc += record_reader(f"{vstem}_record", d[ver], d["spawn"], d["types"])
             rc += ["/* clang-format on */"]
             rc += dispatch_lines(f"{vstem}_blocks", type_name, d["npc"]["blocks"]) + [""]
             rc += ["/* clang-format off */"]
             rc += const_lines(f"k_{vstem}", type_name, d["npc"],
                               [f"    .record = {vstem}_record,", f"    .blocks = {vstem}_blocks,"])
             rc += ["/* clang-format on */"]
-            prots = [p for p, present in ((ver, d[ver]), ("v4", ver == "v5" and d["v4"])) if present]
-            for pver in prots:
-                for size in ("small", "large"):
-                    entry = f"npc_info_{size}_{pver}_osrs{rev}"
-                    rc += ["", "int", f"{entry}(", "    " + wrap_params(sig) + ")", "{",
-                           f"    return npc_info_{size}_{ver}(",
-                           f"        &k_{vstem}, data, len, lengths, ctx, out);",
-                           "}"]
-                    public_h += [f"int {entry}(", "    " + wrap_params(sig) + ");"]
-                    lookups.setdefault(f"npc_info_{size}_{pver}", []).append((rev, entry))
+            for size in ("small", "large"):
+                entry = f"npc_info_{size}_{ver}_osrs{rev}"
+                rc += ["", "int", f"{entry}(", "    " + wrap_params(sig) + ")", "{",
+                       f"    return npc_info_{size}_{ver}(",
+                       f"        &k_{vstem}, data, len, lengths, ctx, out);",
+                       "}"]
+                public_h += [f"int {entry}(", "    " + wrap_params(sig) + ");"]
+                lookups.setdefault(f"npc_info_{size}_{ver}", []).append((rev, entry))
             rc.append("")
         rc += flag_undefs(d["npc"])
         files[os.path.join(OUT_DIR, rstem + ".c")] = "\n".join(rc).rstrip() + "\n"
@@ -868,7 +882,7 @@ def main():
                                 "decodeExtendedInfo"),
                  "npc": side("NpcInfoClient", rev, "processExtendedInfo", "flag",
                              "processExtendedInfo")}
-            d["v4"], d["v5"], d["v6"], d["spawn"], d["types"] = lowres(rev)
+            d["v4"], d["v5"], d["v6"], d["spawn"], d["types"], d["small_bits"] = lowres(rev)
             revs.append((rev, d))
             print(f"rev {rev}: player {len(d['player']['blocks'])} blocks, "
                   f"npc {len(d['npc']['blocks'])} blocks, lowres v5={len(d['v5'])} v6={len(d['v6'])}",

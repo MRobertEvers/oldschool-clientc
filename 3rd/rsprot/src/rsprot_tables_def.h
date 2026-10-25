@@ -17,6 +17,11 @@ typedef struct RsprotProtDef {
 	int code;         /* wire opcode; -1 if the prot has no top-level opcode
 	                    * (UPDATE_ZONE_PARTIAL_ENCLOSED sub-packets only) */
 	int size;          /* payload byte count, or RSPROT_VARU8/RSPROT_VARU16 */
+	/* The registry name of the codec that reads this row, where it is not the
+	 * row's own name: at 223-225 the tables use RSProx's names for the prots
+	 * RSProt calls X / X_OLD (RSProx's X_V2 / X_V1), and RSProt's codecs keep
+	 * RSProt's names. NULL everywhere else -- resolve by `name`. */
+	const char *codec;
 } RsprotProtDef;
 
 typedef struct RsprotRevTable {

@@ -31,11 +31,15 @@ typedef struct MsgHintArrow {
 	const uint8_t *skip0;
 } MsgHintArrow;
 
-/* v1 (rsprox_versions.txt 100) -- revs 227-234. */
+/* v1 (rsprox_versions.txt 100) -- revs 223-234. */
 void packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m);
 /* v2 (rsprox_versions.txt 101) -- revs 235-241. */
 void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 
+#define packet_hint_arrow_osrs223_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs224_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs225_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs226_out packet_hint_arrow_v1_out
 #define packet_hint_arrow_osrs227_out packet_hint_arrow_v1_out
 #define packet_hint_arrow_osrs228_out packet_hint_arrow_v1_out
 #define packet_hint_arrow_osrs229_out packet_hint_arrow_v1_out

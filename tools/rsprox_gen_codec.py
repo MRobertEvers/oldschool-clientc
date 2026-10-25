@@ -410,6 +410,28 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
         fh.write(c)
 
 
+def table_codec(rev, prot):
+    """The RSProt registry name gen/osrs<rev>_prot.h files `prot`'s codec under:
+    the row's codec field (223-225, where the tables take RSProx's name for a
+    prot RSProt calls X / X_OLD), or None when the row resolves by its name."""
+    path = os.path.join(os.path.dirname(PACKETS_DIR), "gen", f"osrs{rev}_prot.h")
+    src = open(path).read()
+    src = src[src.index(f"rsprot_osrs{rev}_server[]"):]
+    src = src[:src.index("};")]
+    m = re.search(r'\{ "' + re.escape(prot) + r'", -?\d+, \w+, "(\w+)" \}', src)
+    return m.group(1) if m else None
+
+
+def rsprot_covers(name, rev, out_dir):
+    """RSProt's (not this generator's) codec file for `name` has a row for `rev`."""
+    sn = gen.prot_to_snake(name)
+    c = os.path.join(out_dir, f"{sn}.c")
+    if not os.path.exists(c) or is_ours_or_absent(os.path.join(out_dir, f"{sn}.h")):
+        return False
+    rows = re.findall(r"\{ (\d+), (\d+), \(RsprotCodecFn\)", open(c).read())
+    return any(int(lo) <= rev <= int(hi) for lo, hi in rows)
+
+
 def is_ours_or_absent(path):
     if not os.path.exists(path):
         return True
@@ -453,12 +475,19 @@ def main():
         # RSProt's, and the overlay's gap fill is what extends it.
         back = {v: k for k, v in rsprox_prot.RSPROT_ALIASES.items()}
         spellings = {back.get(prot, prot), re.sub(r"_V1$", "", prot)} - {prot}
-        if any(not is_ours_or_absent(os.path.join(args.out, gen.prot_to_snake(n) + ".h"))
-               for n in spellings):
-            continue
         if not is_ours_or_absent(hpath):
             continue  # RSProt's file (or a hand one); the coverage check says if it falls short
         revs = by_prot[prot]
+        if any(not is_ours_or_absent(os.path.join(args.out, gen.prot_to_snake(n) + ".h"))
+               for n in spellings):
+            # Before 226 the spelling can name a different prot: RSProt's X is
+            # RSProx's X_V2, its X_OLD RSProx's X_V1. So there a revision is
+            # RSProt's only where the codec the table row names covers it.
+            revs = {r: p for r, p in revs.items() if r < 226 and not any(
+                rsprot_covers(n, r, args.out) for n in ([table_codec(r, prot)] if table_codec(r, prot)
+                                                        else spellings))}
+            if not revs:
+                continue
         versions, rev_to_ver, fields = {}, {}, []
         fnames = set()
         refused = None

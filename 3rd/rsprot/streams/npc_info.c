@@ -14,7 +14,6 @@ npc_info_large_v4_osrs(int revision)
     case 223: return npc_info_large_v4_osrs223;
     case 224: return npc_info_large_v4_osrs224;
     case 225: return npc_info_large_v4_osrs225;
-    case 226: return npc_info_large_v4_osrs226;
     default: return NULL;
     }
 }
@@ -59,7 +58,6 @@ npc_info_small_v4_osrs(int revision)
     case 223: return npc_info_small_v4_osrs223;
     case 224: return npc_info_small_v4_osrs224;
     case 225: return npc_info_small_v4_osrs225;
-    case 226: return npc_info_small_v4_osrs226;
     default: return NULL;
     }
 }

@@ -218,24 +218,6 @@ npc_info_large_v5_osrs226(
         &k_npc_info_osrs226_v5, data, len, lengths, ctx, out);
 }
 
-int
-npc_info_small_v4_osrs226(
-    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
-    RsprotInfoList *out)
-{
-    return npc_info_small_v5(
-        &k_npc_info_osrs226_v5, data, len, lengths, ctx, out);
-}
-
-int
-npc_info_large_v4_osrs226(
-    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
-    RsprotInfoList *out)
-{
-    return npc_info_large_v5(
-        &k_npc_info_osrs226_v5, data, len, lengths, ctx, out);
-}
-
 #undef BIT_COMBAT_LEVEL_CHANGE
 #undef BIT_ENABLED_OPS
 #undef BIT_BODY_CUSTOMISATION
