@@ -811,8 +811,10 @@ rsprot_registry_resolve_def(const RsprotProtDef *def, RsprotRegistryDir dir, int
                 *prot_out = rsprot_registry_find(tries[i], dir)->prot;
             return fn;
         }
+        /* The codec name is exact: its whole point is that the suffix rule
+         * pairs the wrong prots there. */
         n = strlen(tries[i]);
-        if (n + 4 >= sizeof(alt))
+        if (i == 0 || n + 4 >= sizeof(alt))
             continue;
         memcpy(alt, tries[i], n + 1);
         if (n > 3 && strcmp(tries[i] + n - 3, "_V1") == 0)
