@@ -690,6 +690,11 @@ names every packet, `pkt`).
   tick; ours sends neither per tick. The `tracking_*` counters (4510..4528: damage dealt and
   taken, food, potions, kills) and the xp tracker's multipliers (3181..3183) change on every
   hit in the recordings and never in ours.
+- **The face release's tick after a walk.** Standing, the release (angle, or the dialogue's
+  square again) comes the tick after the op fires in both revisions, as ours. After a walk
+  the rev 238 Colosseum sends it on the op's own tick beside Minimus's cards (14 walked
+  cases), while a rev 241 walked dialogue (index 4289 [136]) still sends it a tick later;
+  ours keeps a tick later.
 - **Region music** keeps its 0,30,0,30 envelope; recorded region songs are 0,60,60,0, often
   sent twice. Outside the Colosseum (its own songs are scripted and match).
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording

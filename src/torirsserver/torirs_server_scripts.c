@@ -10978,6 +10978,7 @@ script_command(
         player->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
         player->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
         player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
+        player->face_square_tick = srv->tick;
         return 1;
     }
 

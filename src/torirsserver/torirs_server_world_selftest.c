@@ -703,6 +703,32 @@ selftest_capture_find_varp_large(
     return -1;
 }
 
+/* The packet index of the first VARP_SMALL or VARP_LARGE naming `varp_id`, or
+ * -1. Every tick carries VARPs now (the clock vars, busy), so "no VARP packet"
+ * says nothing about one varp. */
+static int
+selftest_capture_find_varp(
+    struct ToriRSServerCapture* capture,
+    struct ToriRSServerWire const* wire,
+    int varp_id)
+{
+    assert(capture);
+    assert(wire);
+    for( int i = 0; i < capture->count; i++ )
+    {
+        struct ToriRSServerCapturedPacket* pkt = &capture->packets[i];
+        int id = -1;
+        int value = 0;
+
+        if( pkt->name != PKT_NAME_VARP_SMALL && pkt->name != PKT_NAME_VARP_LARGE )
+            continue;
+        if( ToriRSServer_WireReadVarp(wire, pkt->name, pkt->data, pkt->len, &id, &value) &&
+            id == varp_id )
+            return i;
+    }
+    return -1;
+}
+
 /* Read the two IF_SETTEXT layouts so a region-music test verifies the name and
  * its target component, not merely that some text packet was emitted. */
 static int
@@ -17885,7 +17911,8 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(!ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT) ||
                                !ToriRSServer_ContentVarp(SELFTEST_VARP_GREETING_COUNT)->transmit,
                            "mock_greeting_count must not be declared transmit=yes");
-            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_VARP_SMALL, 0) < 0,
+            SELFTEST_CHECK(selftest_capture_find_varp(&capture, srv->wire,
+                                                      SELFTEST_VARP_GREETING_COUNT) < 0,
                            "an undeclared varp must stay off the wire");
 
             /* A trigger with no script must fall through to the C behaviour,
@@ -18343,8 +18370,6 @@ ToriRSServer_WorldSelftest(void)
                     struct ToriRSServerNpc* hans = &srv->npcs[hans_slot];
                     int want_player_face_x = ToriRSServer_CoordFine(hans->x, 1);
                     int want_player_face_z = ToriRSServer_CoordFine(hans->z, 1);
-                    int want_npc_face_x = ToriRSServer_CoordFine(player->x, 1);
-                    int want_npc_face_z = ToriRSServer_CoordFine(player->z, 1);
 
                     SELFTEST_CHECK(
                         player->face_x == want_player_face_x &&
@@ -18354,30 +18379,16 @@ ToriRSServer_WorldSelftest(void)
                         player->face_z,
                         want_player_face_x,
                         want_player_face_z);
-                    SELFTEST_CHECK(
-                        hans->face_x == want_npc_face_x && hans->face_z == want_npc_face_z,
-                        "npc_facesquare is the player's fine centre, got %d,%d want %d,%d",
-                        hans->face_x,
-                        hans->face_z,
-                        want_npc_face_x,
-                        want_npc_face_z);
-                    /* A coord facing supersedes the entity latch, and the
-                     * server's copy has to say so. The rev-239 client drops
-                     * `facing.entity_id` the moment a FACE_COORD arrives, and
-                     * `ToriRSServer_NpcFaceNpc` only re-sends the latch when its
-                     * VALUE changes — so a server that kept believing it faced
-                     * pid N here would never ship it again, and the npc would
-                     * stare in one direction for good. Hans is in
-                     * `playerfaceclose` (mode 6), which re-latches him on the
-                     * very next turn; that re-latch is the self-heal, and it
-                     * only happens because this dropped to -1 first.
-                     *
-                     * Found via summoned familiars: every special move calls
-                     * `npc_facesquare`, and one call stopped a familiar
-                     * tracking the victim it was mid-fight with. */
-                    SELFTEST_CHECK(hans->face_entity == -1,
-                                   "npc_facesquare must drop the FACE_ENTITY latch so the "
-                                   "next derivation re-ships it, got %d",
+                    /* Hans turns by his `playerfaceclose` mode, which the npc
+                     * phase applies a tick after the page -- `[facing] player=`
+                     * one tick after the first page, as Jagex sends it (19/22,
+                     * RSProx 4289 and the Colosseum). The chat procs no longer
+                     * `npc_facesquare` the player on the page's tick: Jagex
+                     * never sends that coord face. */
+                    selftest_tick(srv);
+                    SELFTEST_CHECK(hans->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + player->pid,
+                                   "Hans faces the player by his mode a tick after the page, "
+                                   "got %d",
                                    hans->face_entity);
                 }
 
@@ -24601,7 +24612,9 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(player->combat_target == -1,
                            "walking away ends the fight");
             /* Packets are phase 1 and the derivation is phase 5, so the walk-off
-             * clears within the tick that handled it, and ships on it. */
+             * clears within the tick that handled it, and ships on it: the
+             * reset, because the player is stepping (player_face_release;
+             * standing, it would be the angle to the goblin). */
             SELFTEST_CHECK(player->face_entity == -1,
                            "and stops facing, got %d", player->face_entity);
             SELFTEST_CHECK((player->sent_masks & TORIRSSERVER_PMASK_FACE_ENTITY) != 0,

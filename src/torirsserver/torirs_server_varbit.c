@@ -337,3 +337,28 @@ ToriRSServer_VarbitSetOn(
     g_patching--;
     return range->basevar;
 }
+
+/*
+ * Several varbits of one carrier in one write, and so in one VARP packet: the
+ * bits under `mask` set from `bits`, the rest of the word kept. The engine's
+ * own fields that share a word with content's varbits (the date fields of
+ * varp 3077 beside `busy`) go through here rather than a whole-varp write.
+ */
+void
+ToriRSServer_VarbitSetBitsOn(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int varp,
+    uint32_t mask,
+    uint32_t bits)
+{
+    uint32_t current;
+
+    assert(player);
+    assert(varp >= 0);
+    assert(varp < TORIRSSERVER_VARP_COUNT);
+    current = ((uint32_t)player->varps[varp] & ~mask) | (bits & mask);
+    g_patching++;
+    ToriRSServer_WorldSetVarpOn(srv, player, varp, (int)current);
+    g_patching--;
+}

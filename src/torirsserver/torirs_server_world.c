@@ -16486,6 +16486,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
      * face point (scene origin), so reorient would fire a spurious FACE_COORD. */
     player->face_target_x = -1;
     player->face_target_z = -1;
+    player->face_square_tick = -1;
     /* -1, not the memset's 0, because 0 is a real obj id and a real backpack
      * slot: a script reading `last_useitem` outside a use-on must get a sentinel
      * rather than "the player used a Dwarf remains on it". `Player.ts:371-374`
@@ -17903,12 +17904,16 @@ player_reorient(struct ToriRSServerPlayer* player)
 }
 
 /*
- * The player lets go of an entity it faced: an npc or player that is still
- * there is faced as its square (FACE_COORD), not reset. Rev 241 sends
- * `[facing] coord=` of the npc's tile the tick after a dialogue's first page
- * (28/35 Tutorial Island talks, index 4289; the 7 others walk away); a reset
- * only follows a target that is gone (after a kill, 559/559 in the Colosseum's
- * sessions). Rev 237/238 sent the same release as `angle=`.
+ * The player lets go of an entity it faced (the fight or the interaction is
+ * over). What goes out depends on the player (RSProx: 1,606 releases over 31
+ * sessions):
+ *   - stepping this tick: the reset (697/698);
+ *   - standing, with a square faced this tick or the last (a dialogue's
+ *     `facesquare(npc_coord)`): that square again (Minimus's Leave, 4102
+ *     [4626]; 20 Tutorial Island talks, rev 241);
+ *   - standing otherwise: the angle to the entity (885 in the Colosseum's
+ *     sessions; the rats and chickens of index 4289) -- `[facing] angle=`.
+ * A target that is gone leaves the reset.
  */
 static void
 player_face_release(
@@ -17919,7 +17924,17 @@ player_face_release(
     int x;
     int z;
     int size = 1;
+    double dx;
+    double dz;
 
+    if( player_has_waypoints(player) )
+        return;
+    if( player->face_square_tick >= 0 && player->face_square_tick >= srv->tick - 1 )
+    {
+        player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
+        player->masks &= ~(uint32_t)TORIRSSERVER_PMASK_FACE_ENTITY;
+        return;
+    }
     if( was < TORIRSSERVER_FACE_PLAYER_BASE )
     {
         const struct ToriRSServerNpc* npc;
@@ -17946,10 +17961,14 @@ player_face_release(
         x = other->x;
         z = other->z;
     }
-    player->face_x = ToriRSServer_CoordFine(x, size);
-    player->face_z = ToriRSServer_CoordFine(z, size);
-    player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
-    player->masks &= ~(uint32_t)TORIRSSERVER_PMASK_FACE_ENTITY;
+    /* 0 south, 512 west, 1024 north, 1536 east: the way from the player's
+     * centre to the entity's. */
+    dx = (double)(x * 128 + size * 64) - (double)(player->x * 128 + 64);
+    dz = (double)(z * 128 + size * 64) - (double)(player->z * 128 + 64);
+    player->face_angle = (int)lround(atan2(-dx, -dz) * 1024.0 / 3.14159265358979323846) & 2047;
+    player->face_angle_instant = 0;
+    player->masks |= TORIRSSERVER_PMASK_FACE_ANGLE;
+    player->masks &= ~(uint32_t)(TORIRSSERVER_PMASK_FACE_ENTITY | TORIRSSERVER_PMASK_FACE_COORD);
 }
 
 /*
@@ -17979,11 +17998,10 @@ player_clock_vars(
     }
     if( date_vars >= 0 )
     {
-        int const ms = (int)(now % 1000LL);
-        int const seconds = (int)((now / 1000LL) % 60LL);
-        int const value = (player->varps[date_vars] & ~0xffff) | ms | (seconds << 10);
+        uint32_t const ms = (uint32_t)(now % 1000LL);
+        uint32_t const seconds = (uint32_t)((now / 1000LL) % 60LL);
 
-        ToriRSServer_WorldSetVarpOn(srv, player, date_vars, value);
+        ToriRSServer_VarbitSetBitsOn(srv, player, date_vars, 0xffffu, ms | (seconds << 10));
     }
     if( map_clock >= 0 )
         ToriRSServer_WorldSetVarpOn(srv, player, map_clock, srv->tick);

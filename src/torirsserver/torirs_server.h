@@ -4247,6 +4247,9 @@ struct ToriRSServerPlayer
      */
     int face_target_x;
     int face_target_z;
+    /** The tick a script last faced a square (`facesquare`), for the release
+     *  of an entity face (player_face_release); -1 never. */
+    int face_square_tick;
     char say[80];
     /** The last graphic sent this tick, for the classic writers (one graphic,
      *  no slot) and the selftests. */
@@ -5842,6 +5845,11 @@ ToriRSServer_VarbitSetOn(
     struct ToriRSServerPlayer* player,
     int varbit_id,
     int value);
+
+/* Several varbits of carrier `varp` in one write (one VARP packet): the bits
+ * under `mask` from `bits`. */
+void ToriRSServer_VarbitSetBitsOn(struct ToriRSServer* srv, struct ToriRSServerPlayer* player,
+                                  int varp, uint32_t mask, uint32_t bits);
 
 /** Whether the session logged in as a mobile client (rsprot LoginClientType
  *  ENHANCED_ANDROID 7 / ENHANCED_IOS 8 or the pre-enhanced ANDROID 2 / IOS 3,
