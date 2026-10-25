@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_movesub_v1_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -19,7 +19,7 @@ packet_if_movesub_v1_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_U4_ALT2(x, m->destination_combined_id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_if_movesub_v2_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -27,7 +27,7 @@ packet_if_movesub_v2_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT1(x, m->source_combined_id);
 }
 
-/* v3 -- revs 223, 230. */
+/* v3 -- revs 223, 230 (packet_versions.txt 3). */
 void
 packet_if_movesub_v3_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -35,7 +35,7 @@ packet_if_movesub_v3_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT1(x, m->source_combined_id);
 }
 
-/* v4 -- revs 224, 241. */
+/* v4 -- revs 224, 241 (packet_versions.txt 4). */
 void
 packet_if_movesub_v4_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -43,7 +43,7 @@ packet_if_movesub_v4_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT1(x, m->destination_combined_id);
 }
 
-/* v5 -- revs 225, 238. */
+/* v5 -- revs 225, 238 (packet_versions.txt 5). */
 void
 packet_if_movesub_v5_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -51,7 +51,7 @@ packet_if_movesub_v5_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT1(x, m->destination_combined_id);
 }
 
-/* v6 -- revs 226, 232. */
+/* v6 -- revs 226, 232 (packet_versions.txt 6). */
 void
 packet_if_movesub_v6_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -59,7 +59,7 @@ packet_if_movesub_v6_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT2(x, m->destination_combined_id);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_if_movesub_v7_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -67,7 +67,7 @@ packet_if_movesub_v7_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM(x, m->destination_combined_id);
 }
 
-/* v8 -- revs 228-229, 240. */
+/* v8 -- revs 228-229, 240 (packet_versions.txt 8). */
 void
 packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -75,7 +75,7 @@ packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT3(x, m->destination_combined_id);
 }
 
-/* v9 -- revs 231, 235. */
+/* v9 -- revs 231, 235 (packet_versions.txt 9). */
 void
 packet_if_movesub_v9_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -83,7 +83,7 @@ packet_if_movesub_v9_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT1(x, m->destination_combined_id);
 }
 
-/* v10 -- revs 233. */
+/* v10 -- revs 233 (packet_versions.txt 10). */
 void
 packet_if_movesub_v10_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -91,7 +91,7 @@ packet_if_movesub_v10_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM(x, m->destination_combined_id);
 }
 
-/* v11 -- revs 234. */
+/* v11 -- revs 234 (packet_versions.txt 11). */
 void
 packet_if_movesub_v11_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -99,7 +99,7 @@ packet_if_movesub_v11_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT3(x, m->source_combined_id);
 }
 
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void
 packet_if_movesub_v12_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -107,7 +107,7 @@ packet_if_movesub_v12_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT2(x, m->source_combined_id);
 }
 
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void
 packet_if_movesub_v13_out(RsprotExec *x, MsgIfMoveSub *m)
 {
@@ -115,7 +115,7 @@ packet_if_movesub_v13_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_ALT2(x, m->source_combined_id);
 }
 
-/* v14 -- revs 239. */
+/* v14 -- revs 239 (packet_versions.txt 14). */
 void
 packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m)
 {

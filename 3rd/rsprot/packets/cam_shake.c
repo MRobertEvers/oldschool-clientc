@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void
 packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m)
 {
@@ -21,7 +21,7 @@ packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m)
     RSPROT_U1(x, m->sine_frequency);
 }
 
-/* v2 -- revs 223-241. */
+/* v2 -- revs 223-241 (packet_versions.txt 2). */
 void
 packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m)
 {

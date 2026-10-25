@@ -326,7 +326,7 @@ app_cs2_flush_notifications(struct App* app)
              *
              * No local echo, unlike the private send above: a public line comes
              * back in the sender's own PLAYER_INFO extended info, and
-             * task_exec_entity_info's PKT_PLAYER_INFO_OP_CHAT arm is what adds
+             * task_exec_entity_info's RSPROT_OP_CHAT arm is what adds
              * the chatbox row and the overhead bubble for it. Echoing here as
              * well would print every line the player says twice.
              */

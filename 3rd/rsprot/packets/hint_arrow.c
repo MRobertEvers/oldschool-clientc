@@ -2,11 +2,11 @@
 #include "hint_arrow.h"
 
 /*
- * v100 -- revs 227-234.
+ * v1 (rsprox_versions.txt 100) -- revs 227-234.
  * g1 type, then per type (see the struct).
  */
 void
-packet_hint_arrow_v100_out(RsprotExec *x, MsgHintArrow *m)
+packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m)
 {
     int32_t t;
 
@@ -27,11 +27,11 @@ packet_hint_arrow_v100_out(RsprotExec *x, MsgHintArrow *m)
 }
 
 /*
- * v101 -- revs 235-241.
+ * v2 (rsprox_versions.txt 101) -- revs 235-241.
  * 227's arms, plus type 11: g2 world entity index, g3 height.
  */
 void
-packet_hint_arrow_v101_out(RsprotExec *x, MsgHintArrow *m)
+packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m)
 {
     int32_t t;
 
@@ -55,8 +55,8 @@ packet_hint_arrow_v101_out(RsprotExec *x, MsgHintArrow *m)
 }
 
 const RsprotVersionRange rsprot_hint_arrow_out[] = {
-    { 227, 234, (RsprotCodecFn)packet_hint_arrow_v100_out },
-    { 235, 241, (RsprotCodecFn)packet_hint_arrow_v101_out },
+    { 227, 234, (RsprotCodecFn)packet_hint_arrow_v1_out },
+    { 235, 241, (RsprotCodecFn)packet_hint_arrow_v2_out },
 };
 
 const int rsprot_hint_arrow_out_count =

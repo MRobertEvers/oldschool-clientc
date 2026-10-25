@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231. */
+/* v1 -- revs 231 (packet_versions.txt 1). */
 void
 packet_if_setevents_v2_v1_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -22,7 +22,7 @@ packet_if_setevents_v2_v1_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U2(x, m->start);
 }
 
-/* v2 -- revs 232. */
+/* v2 -- revs 232 (packet_versions.txt 2). */
 void
 packet_if_setevents_v2_v2_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -33,7 +33,7 @@ packet_if_setevents_v2_v2_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_ALT1(x, m->events1);
 }
 
-/* v3 -- revs 233. */
+/* v3 -- revs 233 (packet_versions.txt 3). */
 void
 packet_if_setevents_v2_v3_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -44,7 +44,7 @@ packet_if_setevents_v2_v3_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_ALT3(x, m->events2);
 }
 
-/* v4 -- revs 234. */
+/* v4 -- revs 234 (packet_versions.txt 4). */
 void
 packet_if_setevents_v2_v4_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -55,7 +55,7 @@ packet_if_setevents_v2_v4_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_ALT3(x, m->events2);
 }
 
-/* v5 -- revs 235. */
+/* v5 -- revs 235 (packet_versions.txt 5). */
 void
 packet_if_setevents_v2_v5_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -66,7 +66,7 @@ packet_if_setevents_v2_v5_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U2(x, m->end);
 }
 
-/* v6 -- revs 236. */
+/* v6 -- revs 236 (packet_versions.txt 6). */
 void
 packet_if_setevents_v2_v6_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -77,7 +77,7 @@ packet_if_setevents_v2_v6_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4(x, m->events1);
 }
 
-/* v7 -- revs 237. */
+/* v7 -- revs 237 (packet_versions.txt 7). */
 void
 packet_if_setevents_v2_v7_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -88,7 +88,7 @@ packet_if_setevents_v2_v7_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_ALT2(x, m->events2);
 }
 
-/* v8 -- revs 238. */
+/* v8 -- revs 238 (packet_versions.txt 8). */
 void
 packet_if_setevents_v2_v8_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -99,7 +99,7 @@ packet_if_setevents_v2_v8_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U2_ALT1(x, m->start);
 }
 
-/* v9 -- revs 239. */
+/* v9 -- revs 239 (packet_versions.txt 9). */
 void
 packet_if_setevents_v2_v9_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
@@ -110,9 +110,9 @@ packet_if_setevents_v2_v9_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v100 -- revs 241. */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_if_setevents_v2_v100_out(RsprotExec *x, MsgIfSetEventsV2 *m)
+packet_if_setevents_v2_v10_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
     RSPROT_U4_ALT2(x, m->events1);
     RSPROT_U2_ALT3(x, m->end);
@@ -121,9 +121,9 @@ packet_if_setevents_v2_v100_out(RsprotExec *x, MsgIfSetEventsV2 *m)
     RSPROT_U4_ALT1(x, m->events2);
 }
 
-/* v101 -- revs 240. */
+/* v11 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_if_setevents_v2_v101_out(RsprotExec *x, MsgIfSetEventsV2 *m)
+packet_if_setevents_v2_v11_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
     RSPROT_COM(x, m->combined_id);
     RSPROT_U4_ALT3(x, m->events1);
@@ -152,8 +152,8 @@ const RsprotVersionRange rsprot_if_setevents_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setevents_v2_v7_out },
     { 238, 238, (RsprotCodecFn)packet_if_setevents_v2_v8_out },
     { 239, 239, (RsprotCodecFn)packet_if_setevents_v2_v9_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setevents_v2_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setevents_v2_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setevents_v2_v11_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setevents_v2_v10_out },
 };
 
 const int rsprot_if_setevents_v2_out_count =

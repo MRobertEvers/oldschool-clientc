@@ -12,8 +12,9 @@
  *
  * RSProt class : RebuildWorldEntityV3Encoder
  * Layouts      : 2 distinct, over 2 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v2, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^RebuildWorldEntityV3Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -31,22 +32,22 @@ typedef struct MsgRebuildWorldEntityV3 {
 	int32_t base_z;
 } MsgRebuildWorldEntityV3;
 
-/* v1 -- revs 229-236. */
+/* v1 -- revs 229-236 (packet_versions.txt 1). */
 void packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m);
-/* v2 -- revs 237. */
+/* v2 -- revs 237 (packet_versions.txt 2). */
 void packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m);
 
-/* Per-revision aliases: `packet_rebuild_worldentity_v3_rev239_out` is greppable, which is the
- * point -- "what does 239 do for REBUILD_WORLDENTITY_V3" without reading a table. */
-#define packet_rebuild_worldentity_v3_rev229_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev230_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev231_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev232_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev233_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev234_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev235_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev236_out packet_rebuild_worldentity_v3_v1_out
-#define packet_rebuild_worldentity_v3_rev237_out packet_rebuild_worldentity_v3_v2_out
+/* Per-revision entry points: `packet_rebuild_worldentity_v3_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for REBUILD_WORLDENTITY_V3" without reading a table. */
+#define packet_rebuild_worldentity_v3_osrs229_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs230_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs231_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs232_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs233_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs234_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs235_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs236_out packet_rebuild_worldentity_v3_v1_out
+#define packet_rebuild_worldentity_v3_osrs237_out packet_rebuild_worldentity_v3_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_worldentity_v3_out[];

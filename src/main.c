@@ -6472,7 +6472,7 @@ main_print_usage(char const* program)
         "usage: %s [cache_dir] [interface_id] [--manifest <boot.ini>] "
         "[--dat1|--dat2] [--revconfig <ui.ini>] [--revconfig-cache <cache.ini>] "
         "[--bmp] [--connect host[:port]] [--port N] [--offline] [--user U] "
-        "[--pass P] [--rev lc254|lc245_2|xrsps233] "
+        "[--pass P] [--rev lc254|lc245_2|lc289|osrs230|osrs239|osrs241] "
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--replay <rsprox.bin[.gz]>] "
@@ -8910,6 +8910,12 @@ main(
                     TORIRS_ERR("replay: %s: %s\n", rsprox_replay_path, err);
                     exit(2);
                 }
+                /* The index each RECONNECT continues under, which a world hop
+                 * changes and the recording does not state. Found with the
+                 * data-driven table for the revision; it shares the session's
+                 * player table, which the login resets before anything plays. */
+                rsprox_recording_resolve_reconnects(GameProtoRev_Rsprox(rsprox_replay_rec.revision),
+                                                    &rsprox_replay_rec);
                 sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
             }
             else

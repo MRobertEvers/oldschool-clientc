@@ -12,12 +12,13 @@
  *
  * RSProt class : MinimapToggleEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^MinimapToggleEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgMinimapToggle {
 	int32_t minimap_state;
 } MsgMinimapToggle;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
 
-/* Per-revision aliases: `packet_minimap_toggle_rev239_out` is greppable, which is the
- * point -- "what does 239 do for MINIMAP_TOGGLE" without reading a table. */
-#define packet_minimap_toggle_rev221_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev222_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev223_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev224_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev225_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev226_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev227_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev228_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev229_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev230_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev231_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev232_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev233_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev234_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev235_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev236_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev237_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev238_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev239_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev240_out packet_minimap_toggle_v1_out
-#define packet_minimap_toggle_rev241_out packet_minimap_toggle_v1_out
+/* Per-revision entry points: `packet_minimap_toggle_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for MINIMAP_TOGGLE" without reading a table. */
+#define packet_minimap_toggle_osrs221_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs222_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs223_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs224_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs225_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs226_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs227_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs228_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs229_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs230_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs231_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs232_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs233_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs234_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs235_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs236_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs237_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs238_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs239_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs240_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_osrs241_out packet_minimap_toggle_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_minimap_toggle_out[];

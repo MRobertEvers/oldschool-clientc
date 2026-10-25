@@ -300,7 +300,8 @@ H_TEMPLATE = '''#ifndef RSPROT_PACKET_{guard}_H
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * ({cls}); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v{nver} are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^{cls}\\tout\\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : {nver} distinct, over {nrun} contiguous revision run(s)
@@ -359,12 +360,14 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
         ftext.append(f"\t{ctype}{'' if ctype.endswith('*') else ' '}{name}{dims};{tail}")
     if not ftext:
         ftext.append("\tint32_t unused; /* zero-payload packet */")
+    num = gen.layout_numbers(versions)
     decls, bodies = [], []
     for ver in sorted(versions):
         info = versions[ver]
         rngs = gen.fmt_ranges(gen.compress_ranges(info["revs"]))
-        fn = f"packet_{sn}_v{ver}_out"
-        decls.append(f"/* v{ver} -- revs {rngs}. */")
+        fn = f"packet_{sn}_v{num[ver]}_out"
+        note = f"/* v{num[ver]} -- revs {rngs} ({gen.ledger_name(ver)}). */"
+        decls.append(note)
         decls.append(f"void {fn}(RsprotExec *x, {msg} *m);")
         body = info["body"] or "    (void)x;\n    (void)m;"
         der = info.get("derived") or []
@@ -372,8 +375,8 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
         if der:
             dcomment = "    /* RSProx derives, after the reads:\n" + "".join(
                 f"     *   {d.replace('*/', '* /')}\n" for d in der) + "     */\n"
-        bodies.append(f"/* v{ver} -- revs {rngs}. */\nvoid\n{fn}(RsprotExec *x, {msg} *m)\n{{\n{dcomment}{body}\n}}\n")
-    aliases = [f"#define packet_{sn}_rev{r}_out packet_{sn}_v{rev_to_ver[r]}_out"
+        bodies.append(f"{note}\nvoid\n{fn}(RsprotExec *x, {msg} *m)\n{{\n{dcomment}{body}\n}}\n")
+    aliases = [f"#define packet_{sn}_osrs{r}_out packet_{sn}_v{num[rev_to_ver[r]]}_out"
                for r in sorted(rev_to_ver)]
     rows = []
     for r in sorted(rev_to_ver):
@@ -382,7 +385,8 @@ def emit(prot, cls, rel, versions, rev_to_ver, fields, out_dir):
             rows[-1][1] = r
         else:
             rows.append([r, r, v])
-    row_text = "\n".join(f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{sn}_v{v}_out }}," for lo, hi, v in rows)
+    row_text = "\n".join(f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{sn}_v{num[v]}_out }},"
+                         for lo, hi, v in rows)
     h = H_TEMPLATE.format(guard=sn.upper(), prot=prot, cls=cls, nver=len(versions), nrun=len(rows),
                           msg=msg, fields="\n".join(ftext), decls="\n".join(decls) + "\n",
                           aliases="\n".join(aliases), snake=sn)

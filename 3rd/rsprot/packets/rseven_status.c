@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs 227-241 (packet_versions.txt 1). */
 void
 packet_rseven_status_v1_in(RsprotExec *x, MsgRSevenStatus *m)
 {

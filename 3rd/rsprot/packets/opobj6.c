@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_opobj6_v1_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -20,7 +20,7 @@ packet_opobj6_v1_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v2 -- revs 222, 234. */
+/* v2 -- revs 222, 234 (packet_versions.txt 2). */
 void
 packet_opobj6_v2_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -29,7 +29,7 @@ packet_opobj6_v2_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_opobj6_v3_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -38,7 +38,7 @@ packet_opobj6_v3_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->z);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_opobj6_v4_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -47,7 +47,7 @@ packet_opobj6_v4_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_opobj6_v5_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -56,7 +56,7 @@ packet_opobj6_v5_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_opobj6_v6_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -65,7 +65,7 @@ packet_opobj6_v6_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_opobj6_v7_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -74,7 +74,7 @@ packet_opobj6_v7_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->z);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_opobj6_v8_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -83,7 +83,7 @@ packet_opobj6_v8_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->x);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void
 packet_opobj6_v9_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -92,7 +92,7 @@ packet_opobj6_v9_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void
 packet_opobj6_v10_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -101,7 +101,7 @@ packet_opobj6_v10_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->x);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_opobj6_v11_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -110,7 +110,7 @@ packet_opobj6_v11_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT3(x, m->x);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void
 packet_opobj6_v12_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -119,7 +119,7 @@ packet_opobj6_v12_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs 233 (packet_versions.txt 13). */
 void
 packet_opobj6_v13_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -128,7 +128,7 @@ packet_opobj6_v13_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v14 -- revs 235. */
+/* v14 -- revs 235 (packet_versions.txt 14). */
 void
 packet_opobj6_v14_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -137,7 +137,7 @@ packet_opobj6_v14_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v15 -- revs 236. */
+/* v15 -- revs 236 (packet_versions.txt 15). */
 void
 packet_opobj6_v15_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -146,7 +146,7 @@ packet_opobj6_v15_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT2(x, m->x);
 }
 
-/* v16 -- revs 237. */
+/* v16 -- revs 237 (packet_versions.txt 16). */
 void
 packet_opobj6_v16_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -155,7 +155,7 @@ packet_opobj6_v16_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v17 -- revs 238. */
+/* v17 -- revs 238 (packet_versions.txt 17). */
 void
 packet_opobj6_v17_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -164,7 +164,7 @@ packet_opobj6_v17_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v18 -- revs 239. */
+/* v18 -- revs 239 (packet_versions.txt 18). */
 void
 packet_opobj6_v18_in(RsprotExec *x, MsgOpObj6 *m)
 {
@@ -173,18 +173,18 @@ packet_opobj6_v18_in(RsprotExec *x, MsgOpObj6 *m)
     RSPROT_U2_ALT1(x, m->x);
 }
 
-/* v100 -- revs 241. */
+/* v19 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_opobj6_v100_in(RsprotExec *x, MsgOpObj6 *m)
+packet_opobj6_v19_in(RsprotExec *x, MsgOpObj6 *m)
 {
     RSPROT_U2_ALT2(x, m->z);
     RSPROT_U2_ALT3(x, m->id);
     RSPROT_U2_ALT3(x, m->x);
 }
 
-/* v101 -- revs 240. */
+/* v20 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_opobj6_v101_in(RsprotExec *x, MsgOpObj6 *m)
+packet_opobj6_v20_in(RsprotExec *x, MsgOpObj6 *m)
 {
     RSPROT_U2_ALT1(x, m->id);
     RSPROT_U2_ALT3(x, m->z);
@@ -221,8 +221,8 @@ const RsprotVersionRange rsprot_opobj6_in[] = {
     { 237, 237, (RsprotCodecFn)packet_opobj6_v16_in },
     { 238, 238, (RsprotCodecFn)packet_opobj6_v17_in },
     { 239, 239, (RsprotCodecFn)packet_opobj6_v18_in },
-    { 240, 240, (RsprotCodecFn)packet_opobj6_v101_in },
-    { 241, 241, (RsprotCodecFn)packet_opobj6_v100_in },
+    { 240, 240, (RsprotCodecFn)packet_opobj6_v20_in },
+    { 241, 241, (RsprotCodecFn)packet_opobj6_v19_in },
 };
 
 const int rsprot_opobj6_in_count =

@@ -1,23 +1,22 @@
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/packets/pkt_npc_info.h"
+#include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/revpacket.h"
 #include "packetin.h"
 #include "packetout.h"
 
 #include "net/loginproto_osrs241.h"
 
+#include <stddef.h>
 #include <stdint.h>
 
-/* osrs241_entity_info.c -- the v5 entity streams. */
+/* osrs241_entity_info.c -- the streams' readers over the session's table. */
 int
-osrs241_player_info_read(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
-
+osrs241_player_info_read(uint8_t const* data, int len, struct RsprotInfoList* out);
 int
-osrs241_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+osrs241_npc_info_read(uint8_t const* data, int len, struct RsprotInfoList* out);
 int
-osrs241_npc_info_read_large(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+osrs241_npc_info_read_large(uint8_t const* data, int len, struct RsprotInfoList* out);
 
 void
 osrs241_playerinfo_set_local(int local_index);
@@ -115,12 +114,6 @@ static struct GameProtoRevTable k_rev_osrs241 = {
     .opcode_smart2 = 1,    /* ...and two of them once the opcode reaches 0x80 */
     .server_tick_ms = 600,
     .component_id_bytes = 4,
-    /* These compatibility dimensions belong to the shared/classic reader.
-     * OSRS241 uses the dedicated v5 reader below: a 16-bit per-client index,
-     * a 14-bit initial type, and mask 0x1's transformed unsigned-16-bit type
-     * replacement for ids above 0x3fff. */
-    .npc_slot_bits = 14,
-    .npc_type_bits = 14,
     .login = &g_osrs241_login_vtable,
     /* RSProt separates the two decoders: GAMERECONNECT's authentication
      * section is the previous session's cipher seed, and the answer is
@@ -136,7 +129,6 @@ static struct GameProtoRevTable k_rev_osrs241 = {
     .player_info_read = osrs241_player_info_read,
     .npc_info_read = osrs241_npc_info_read,
     .npc_info_read_large = osrs241_npc_info_read_large,
-    /* This module's own GPI table, not osrs239's. */
     .player_info_set_local = osrs241_playerinfo_set_local,
     .player_info_init = osrs241_playerinfo_init,
     .player_info_state_size = osrs241_playerinfo_state_size,

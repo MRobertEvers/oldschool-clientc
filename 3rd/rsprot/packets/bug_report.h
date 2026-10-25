@@ -12,12 +12,13 @@
  *
  * RSProt class : BugReportDecoder
  * Layouts      : 4 distinct, over 4 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v4, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^BugReportDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,38 +36,38 @@ typedef struct MsgBugReport {
 	const char *instructions;
 } MsgBugReport;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m);
-/* v2 -- revs 222-239. */
+/* v2 -- revs 222-239 (packet_versions.txt 2). */
 void packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m);
-/* v100 -- revs 241. */
-void packet_bug_report_v100_in(RsprotExec *x, MsgBugReport *m);
-/* v101 -- revs 240. */
-void packet_bug_report_v101_in(RsprotExec *x, MsgBugReport *m);
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
+void packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m);
+/* v4 -- revs 240 (rsprox_versions.txt 101). */
+void packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m);
 
-/* Per-revision aliases: `packet_bug_report_rev239_in` is greppable, which is the
- * point -- "what does 239 do for BUG_REPORT" without reading a table. */
-#define packet_bug_report_rev221_in packet_bug_report_v1_in
-#define packet_bug_report_rev222_in packet_bug_report_v2_in
-#define packet_bug_report_rev223_in packet_bug_report_v2_in
-#define packet_bug_report_rev224_in packet_bug_report_v2_in
-#define packet_bug_report_rev225_in packet_bug_report_v2_in
-#define packet_bug_report_rev226_in packet_bug_report_v2_in
-#define packet_bug_report_rev227_in packet_bug_report_v2_in
-#define packet_bug_report_rev228_in packet_bug_report_v2_in
-#define packet_bug_report_rev229_in packet_bug_report_v2_in
-#define packet_bug_report_rev230_in packet_bug_report_v2_in
-#define packet_bug_report_rev231_in packet_bug_report_v2_in
-#define packet_bug_report_rev232_in packet_bug_report_v2_in
-#define packet_bug_report_rev233_in packet_bug_report_v2_in
-#define packet_bug_report_rev234_in packet_bug_report_v2_in
-#define packet_bug_report_rev235_in packet_bug_report_v2_in
-#define packet_bug_report_rev236_in packet_bug_report_v2_in
-#define packet_bug_report_rev237_in packet_bug_report_v2_in
-#define packet_bug_report_rev238_in packet_bug_report_v2_in
-#define packet_bug_report_rev239_in packet_bug_report_v2_in
-#define packet_bug_report_rev240_in packet_bug_report_v101_in
-#define packet_bug_report_rev241_in packet_bug_report_v100_in
+/* Per-revision entry points: `packet_bug_report_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for BUG_REPORT" without reading a table. */
+#define packet_bug_report_osrs221_in packet_bug_report_v1_in
+#define packet_bug_report_osrs222_in packet_bug_report_v2_in
+#define packet_bug_report_osrs223_in packet_bug_report_v2_in
+#define packet_bug_report_osrs224_in packet_bug_report_v2_in
+#define packet_bug_report_osrs225_in packet_bug_report_v2_in
+#define packet_bug_report_osrs226_in packet_bug_report_v2_in
+#define packet_bug_report_osrs227_in packet_bug_report_v2_in
+#define packet_bug_report_osrs228_in packet_bug_report_v2_in
+#define packet_bug_report_osrs229_in packet_bug_report_v2_in
+#define packet_bug_report_osrs230_in packet_bug_report_v2_in
+#define packet_bug_report_osrs231_in packet_bug_report_v2_in
+#define packet_bug_report_osrs232_in packet_bug_report_v2_in
+#define packet_bug_report_osrs233_in packet_bug_report_v2_in
+#define packet_bug_report_osrs234_in packet_bug_report_v2_in
+#define packet_bug_report_osrs235_in packet_bug_report_v2_in
+#define packet_bug_report_osrs236_in packet_bug_report_v2_in
+#define packet_bug_report_osrs237_in packet_bug_report_v2_in
+#define packet_bug_report_osrs238_in packet_bug_report_v2_in
+#define packet_bug_report_osrs239_in packet_bug_report_v2_in
+#define packet_bug_report_osrs240_in packet_bug_report_v4_in
+#define packet_bug_report_osrs241_in packet_bug_report_v3_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_bug_report_in[];

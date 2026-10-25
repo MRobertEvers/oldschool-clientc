@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 239. */
+/* v1 -- revs 221, 239 (packet_versions.txt 1). */
 void
 packet_varp_large_v1_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -19,7 +19,7 @@ packet_varp_large_v1_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT1(x, m->value);
 }
 
-/* v2 -- revs 222, 225. */
+/* v2 -- revs 222, 225 (packet_versions.txt 2). */
 void
 packet_varp_large_v2_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -27,7 +27,7 @@ packet_varp_large_v2_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT2(x, m->value);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_varp_large_v3_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -35,7 +35,7 @@ packet_varp_large_v3_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT2(x, m->value);
 }
 
-/* v4 -- revs 224, 234, 240. */
+/* v4 -- revs 224, 234, 240 (packet_versions.txt 4). */
 void
 packet_varp_large_v4_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -43,7 +43,7 @@ packet_varp_large_v4_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT1(x, m->value);
 }
 
-/* v5 -- revs 226, 228. */
+/* v5 -- revs 226, 228 (packet_versions.txt 5). */
 void
 packet_varp_large_v5_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -51,7 +51,7 @@ packet_varp_large_v5_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4(x, m->value);
 }
 
-/* v6 -- revs 227. */
+/* v6 -- revs 227 (packet_versions.txt 6). */
 void
 packet_varp_large_v6_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -59,7 +59,7 @@ packet_varp_large_v6_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4(x, m->value);
 }
 
-/* v7 -- revs 229. */
+/* v7 -- revs 229 (packet_versions.txt 7). */
 void
 packet_varp_large_v7_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -67,7 +67,7 @@ packet_varp_large_v7_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v8 -- revs 230. */
+/* v8 -- revs 230 (packet_versions.txt 8). */
 void
 packet_varp_large_v8_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -75,7 +75,7 @@ packet_varp_large_v8_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT3(x, m->value);
 }
 
-/* v9 -- revs 231. */
+/* v9 -- revs 231 (packet_versions.txt 9). */
 void
 packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -83,7 +83,7 @@ packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT2(x, m->value);
 }
 
-/* v10 -- revs 232. */
+/* v10 -- revs 232 (packet_versions.txt 10). */
 void
 packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -91,7 +91,7 @@ packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v11 -- revs 233. */
+/* v11 -- revs 233 (packet_versions.txt 11). */
 void
 packet_varp_large_v11_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -99,7 +99,7 @@ packet_varp_large_v11_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4(x, m->value);
 }
 
-/* v12 -- revs 235, 237. */
+/* v12 -- revs 235, 237 (packet_versions.txt 12). */
 void
 packet_varp_large_v12_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -107,7 +107,7 @@ packet_varp_large_v12_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_ALT3(x, m->value);
 }
 
-/* v13 -- revs 236. */
+/* v13 -- revs 236 (packet_versions.txt 13). */
 void
 packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -115,7 +115,7 @@ packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void
 packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m)
 {
@@ -123,9 +123,9 @@ packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v100 -- revs 241. */
+/* v15 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_varp_large_v100_out(RsprotExec *x, MsgVarpLarge *m)
+packet_varp_large_v15_out(RsprotExec *x, MsgVarpLarge *m)
 {
     RSPROT_U2_ALT3(x, m->id);
     RSPROT_U4_ALT3(x, m->value);
@@ -162,7 +162,7 @@ const RsprotVersionRange rsprot_varp_large_out[] = {
     { 238, 238, (RsprotCodecFn)packet_varp_large_v14_out },
     { 239, 239, (RsprotCodecFn)packet_varp_large_v1_out },
     { 240, 240, (RsprotCodecFn)packet_varp_large_v4_out },
-    { 241, 241, (RsprotCodecFn)packet_varp_large_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_varp_large_v15_out },
 };
 
 const int rsprot_varp_large_out_count =

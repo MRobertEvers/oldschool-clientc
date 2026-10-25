@@ -2,12 +2,12 @@
 #include "update_stockmarket_slot_v2.h"
 
 /*
- * v100 -- revs 241.
+ * v1 (rsprox_versions.txt 100) -- revs 241.
  * g1 slot, g1 firstState, [g1 version, g1 status], g2 obj, g8|g4 price,
  * g4 count, g4 completedCount, g8|g4 completedGold, [g4 extLength, gdata].
  */
 void
-packet_update_stockmarket_slot_v2_v100_out(RsprotExec *x, MsgUpdateStockmarketSlotV2 *m)
+packet_update_stockmarket_slot_v2_v1_out(RsprotExec *x, MsgUpdateStockmarketSlotV2 *m)
 {
     int32_t version = 1;
 
@@ -39,7 +39,7 @@ packet_update_stockmarket_slot_v2_v100_out(RsprotExec *x, MsgUpdateStockmarketSl
 }
 
 const RsprotVersionRange rsprot_update_stockmarket_slot_v2_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_update_stockmarket_slot_v2_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_update_stockmarket_slot_v2_v1_out },
 };
 
 const int rsprot_update_stockmarket_slot_v2_out_count =

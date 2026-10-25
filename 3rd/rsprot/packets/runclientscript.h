@@ -68,11 +68,11 @@ typedef struct MsgRunClientScript
 /* v1 -- revs 221-239. */
 void packet_runclientscript_v1_out(RsprotExec *x, MsgRunClientScript *m);
 
-#define packet_runclientscript_rev221_out packet_runclientscript_v1_out
-#define packet_runclientscript_rev230_out packet_runclientscript_v1_out
-#define packet_runclientscript_rev239_out packet_runclientscript_v1_out
-#define packet_runclientscript_rev240_out packet_runclientscript_v1_out
-#define packet_runclientscript_rev241_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs221_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs230_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs239_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs240_out packet_runclientscript_v1_out
+#define packet_runclientscript_osrs241_out packet_runclientscript_v1_out
 
 extern const RsprotVersionRange rsprot_runclientscript_out[];
 extern const int rsprot_runclientscript_out_count;

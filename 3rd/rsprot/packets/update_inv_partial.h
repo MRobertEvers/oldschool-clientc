@@ -57,11 +57,11 @@ typedef struct MsgUpdateInvPartial
 /* v1 -- revs 221-239. */
 void packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m);
 
-#define packet_update_inv_partial_rev221_out packet_update_inv_partial_v1_out
-#define packet_update_inv_partial_rev230_out packet_update_inv_partial_v1_out
-#define packet_update_inv_partial_rev239_out packet_update_inv_partial_v1_out
-#define packet_update_inv_partial_rev240_out packet_update_inv_partial_v1_out
-#define packet_update_inv_partial_rev241_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs221_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs230_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs239_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs240_out packet_update_inv_partial_v1_out
+#define packet_update_inv_partial_osrs241_out packet_update_inv_partial_v1_out
 
 extern const RsprotVersionRange rsprot_update_inv_partial_out[];
 extern const int rsprot_update_inv_partial_out_count;

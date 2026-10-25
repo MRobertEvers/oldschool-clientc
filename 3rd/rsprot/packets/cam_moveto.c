@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void
 packet_cam_moveto_v1_out(RsprotExec *x, MsgCamMoveTo *m)
 {
@@ -22,7 +22,7 @@ packet_cam_moveto_v1_out(RsprotExec *x, MsgCamMoveTo *m)
     RSPROT_U1(x, m->acceleration);
 }
 
-/* v2 -- revs 223-235. */
+/* v2 -- revs 223-235 (packet_versions.txt 2). */
 void
 packet_cam_moveto_v2_out(RsprotExec *x, MsgCamMoveTo *m)
 {

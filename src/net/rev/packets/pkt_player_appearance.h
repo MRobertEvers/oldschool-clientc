@@ -23,14 +23,14 @@
  *
  *   3. AN ENCODING-INDEPENDENT DECODER. Each wire layout is read into one
  *      command stream, the way pkt_npc_info.c reads the npc bitstream into
- *      `PktNpcInfoOp`. Ops carry canonical values — a slot op names a kit or an
+ *      `RsprotInfoOp`. Ops carry canonical values — a slot op names a kit or an
  *      obj, never a tagged word — so a consumer that walks ops cannot tell
  *      which revision produced them, and a new revision is a new reader
  *      function rather than a branch in every consumer.
  *
  * Op payloads are fixed-size by design: unlike the npc/player info streams
  * there is no unbounded field here (the longest is a display name), so there is
- * no heap and therefore no `_ops_free` to forget.
+ * no byte arena to size.
  */
 
 #include <stdint.h>
@@ -118,7 +118,7 @@ Appearance_SlotObj(int packed)
 enum AppearanceEncoding
 {
     /*
-     * lc254 / lc245_2 / xrsps233 / osrs230: gender g1, overhead icons g1, ONE
+     * lc254 / lc245_2 / osrs230: gender g1, overhead icons g1, ONE
      * 12-entry slot array (`0x100 + kit`, `0x200 + obj`), 5 colours g1, 7
      * animations g2, name g8 base-37, combat level g1.
      */

@@ -63,7 +63,7 @@ test_load_fields(void)
     CHECK(strcmp(bm.io_host, "io.example.com") == 0);
     CHECK(bm.io_port == 8099);
 
-    CHECK(strcmp(bm.rev_name, "xrsps233") == 0);
+    CHECK(strcmp(bm.rev_name, "osrs241") == 0);
     CHECK(strcmp(bm.transport, "ws") == 0);
     CHECK(bm.clock_unlocked == 1);
     CHECK(strcmp(bm.host, "example.com") == 0);
@@ -182,7 +182,7 @@ test_apply_to_config(void)
     CHECK(cfg.cache_identity_set == 1);
     CHECK(cfg.cache_revision == 233);
     CHECK(cfg.cache_dir && strcmp(cfg.cache_dir, "bootmanifest/test/some/cache") == 0);
-    CHECK(cfg.rev_name && strcmp(cfg.rev_name, "xrsps233") == 0);
+    CHECK(cfg.rev_name && strcmp(cfg.rev_name, "osrs241") == 0);
     CHECK(cfg.connect_target && strcmp(cfg.connect_target, "example.com") == 0);
     CHECK(cfg.connect_port == 1234);
     CHECK(cfg.client_version == 233);

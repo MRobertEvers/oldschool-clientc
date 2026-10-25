@@ -12,12 +12,13 @@
  *
  * RSProt class : UpdateRunWeightEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^UpdateRunWeightEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgUpdateRunWeight {
 	int32_t runweight;
 } MsgUpdateRunWeight;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_update_runweight_v1_out(RsprotExec *x, MsgUpdateRunWeight *m);
 
-/* Per-revision aliases: `packet_update_runweight_rev239_out` is greppable, which is the
- * point -- "what does 239 do for UPDATE_RUNWEIGHT" without reading a table. */
-#define packet_update_runweight_rev221_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev222_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev223_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev224_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev225_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev226_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev227_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev228_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev229_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev230_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev231_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev232_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev233_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev234_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev235_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev236_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev237_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev238_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev239_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev240_out packet_update_runweight_v1_out
-#define packet_update_runweight_rev241_out packet_update_runweight_v1_out
+/* Per-revision entry points: `packet_update_runweight_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for UPDATE_RUNWEIGHT" without reading a table. */
+#define packet_update_runweight_osrs221_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs222_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs223_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs224_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs225_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs226_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs227_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs228_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs229_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs230_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs231_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs232_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs233_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs234_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs235_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs236_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs237_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs238_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs239_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs240_out packet_update_runweight_v1_out
+#define packet_update_runweight_osrs241_out packet_update_runweight_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_runweight_out[];

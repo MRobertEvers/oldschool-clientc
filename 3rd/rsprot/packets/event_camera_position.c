@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 225, 232, 237. */
+/* v1 -- revs 221, 225, 232, 237 (packet_versions.txt 1). */
 void
 packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -19,7 +19,7 @@ packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT1(x, m->angle_y);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -27,7 +27,7 @@ packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT2(x, m->angle_y);
 }
 
-/* v3 -- revs 223, 230, 234. */
+/* v3 -- revs 223, 230, 234 (packet_versions.txt 3). */
 void
 packet_event_camera_position_v3_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -35,7 +35,7 @@ packet_event_camera_position_v3_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT3(x, m->angle_x);
 }
 
-/* v4 -- revs 224, 227. */
+/* v4 -- revs 224, 227 (packet_versions.txt 4). */
 void
 packet_event_camera_position_v4_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -43,7 +43,7 @@ packet_event_camera_position_v4_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2(x, m->angle_x);
 }
 
-/* v5 -- revs 226. */
+/* v5 -- revs 226 (packet_versions.txt 5). */
 void
 packet_event_camera_position_v5_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -51,7 +51,7 @@ packet_event_camera_position_v5_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2(x, m->angle_y);
 }
 
-/* v6 -- revs 228. */
+/* v6 -- revs 228 (packet_versions.txt 6). */
 void
 packet_event_camera_position_v6_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -59,7 +59,7 @@ packet_event_camera_position_v6_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT2(x, m->angle_x);
 }
 
-/* v7 -- revs 229. */
+/* v7 -- revs 229 (packet_versions.txt 7). */
 void
 packet_event_camera_position_v7_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -67,7 +67,7 @@ packet_event_camera_position_v7_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT1(x, m->angle_x);
 }
 
-/* v8 -- revs 231. */
+/* v8 -- revs 231 (packet_versions.txt 8). */
 void
 packet_event_camera_position_v8_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -75,7 +75,7 @@ packet_event_camera_position_v8_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT3(x, m->angle_x);
 }
 
-/* v9 -- revs 233. */
+/* v9 -- revs 233 (packet_versions.txt 9). */
 void
 packet_event_camera_position_v9_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -83,7 +83,7 @@ packet_event_camera_position_v9_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2(x, m->angle_y);
 }
 
-/* v10 -- revs 235. */
+/* v10 -- revs 235 (packet_versions.txt 10). */
 void
 packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -91,7 +91,7 @@ packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT3(x, m->angle_x);
 }
 
-/* v11 -- revs 236, 239, 241. */
+/* v11 -- revs 236, 239, 241 (packet_versions.txt 11). */
 void
 packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -99,7 +99,7 @@ packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT3(x, m->angle_y);
 }
 
-/* v12 -- revs 238. */
+/* v12 -- revs 238 (packet_versions.txt 12). */
 void
 packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
@@ -107,9 +107,9 @@ packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_ALT1(x, m->angle_y);
 }
 
-/* v100 -- revs 240. */
+/* v13 -- revs 240 (rsprox_versions.txt 100). */
 void
-packet_event_camera_position_v100_in(RsprotExec *x, MsgEventCameraPosition *m)
+packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
     RSPROT_U2(x, m->angle_x);
     RSPROT_U2_ALT2(x, m->angle_y);
@@ -145,7 +145,7 @@ const RsprotVersionRange rsprot_event_camera_position_in[] = {
     { 237, 237, (RsprotCodecFn)packet_event_camera_position_v1_in },
     { 238, 238, (RsprotCodecFn)packet_event_camera_position_v12_in },
     { 239, 239, (RsprotCodecFn)packet_event_camera_position_v11_in },
-    { 240, 240, (RsprotCodecFn)packet_event_camera_position_v100_in },
+    { 240, 240, (RsprotCodecFn)packet_event_camera_position_v13_in },
     { 241, 241, (RsprotCodecFn)packet_event_camera_position_v11_in },
 };
 

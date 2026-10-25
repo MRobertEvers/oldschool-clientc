@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 226. */
+/* v1 -- revs 226 (packet_versions.txt 1). */
 void
 packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -29,7 +29,7 @@ packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ALT1(x, m->delta_z);
 }
 
-/* v2 -- revs 227. */
+/* v2 -- revs 227 (packet_versions.txt 2). */
 void
 packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -47,7 +47,7 @@ packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ALT1(x, m->start_height);
 }
 
-/* v3 -- revs 228. */
+/* v3 -- revs 228 (packet_versions.txt 3). */
 void
 packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -65,7 +65,7 @@ packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U3_ALT2(x, m->source_index);
 }
 
-/* v4 -- revs 229. */
+/* v4 -- revs 229 (packet_versions.txt 4). */
 void
 packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -83,7 +83,7 @@ packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1(x, m->angle);
 }
 
-/* v5 -- revs 230. */
+/* v5 -- revs 230 (packet_versions.txt 5). */
 void
 packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -101,7 +101,7 @@ packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ALT1(x, m->delta_x);
 }
 
-/* v6 -- revs 231. */
+/* v6 -- revs 231 (packet_versions.txt 6). */
 void
 packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {

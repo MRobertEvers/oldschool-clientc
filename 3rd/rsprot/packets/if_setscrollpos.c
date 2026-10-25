@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setscrollpos_v1_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -19,7 +19,7 @@ packet_if_setscrollpos_v1_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U4_ALT3(x, m->combined_id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_if_setscrollpos_v2_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -27,7 +27,7 @@ packet_if_setscrollpos_v2_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 234. */
+/* v3 -- revs 223, 234 (packet_versions.txt 3). */
 void
 packet_if_setscrollpos_v3_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -35,7 +35,7 @@ packet_if_setscrollpos_v3_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v4 -- revs 224, 233. */
+/* v4 -- revs 224, 233 (packet_versions.txt 4). */
 void
 packet_if_setscrollpos_v4_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -43,7 +43,7 @@ packet_if_setscrollpos_v4_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT3(x, m->scroll_pos);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_setscrollpos_v5_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -51,7 +51,7 @@ packet_if_setscrollpos_v5_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT2(x, m->scroll_pos);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_if_setscrollpos_v6_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -59,7 +59,7 @@ packet_if_setscrollpos_v6_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT2(x, m->scroll_pos);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_if_setscrollpos_v7_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -67,7 +67,7 @@ packet_if_setscrollpos_v7_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_if_setscrollpos_v8_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -75,7 +75,7 @@ packet_if_setscrollpos_v8_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT3(x, m->scroll_pos);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void
 packet_if_setscrollpos_v9_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -83,7 +83,7 @@ packet_if_setscrollpos_v9_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v10 -- revs 230, 239-240. */
+/* v10 -- revs 230, 239-240 (packet_versions.txt 10). */
 void
 packet_if_setscrollpos_v10_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -91,7 +91,7 @@ packet_if_setscrollpos_v10_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_if_setscrollpos_v11_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -99,7 +99,7 @@ packet_if_setscrollpos_v11_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void
 packet_if_setscrollpos_v12_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -107,7 +107,7 @@ packet_if_setscrollpos_v12_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT1(x, m->scroll_pos);
 }
 
-/* v13 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 13). */
 void
 packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -115,7 +115,7 @@ packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2(x, m->scroll_pos);
 }
 
-/* v14 -- revs 236-237, 241. */
+/* v14 -- revs 236-237, 241 (packet_versions.txt 14). */
 void
 packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
@@ -123,7 +123,7 @@ packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_ALT1(x, m->scroll_pos);
 }
 
-/* v15 -- revs 238. */
+/* v15 -- revs 238 (packet_versions.txt 15). */
 void
 packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {

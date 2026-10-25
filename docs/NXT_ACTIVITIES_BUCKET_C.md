@@ -319,7 +319,7 @@ All ten server rows want to read a varbit the server does not have.
   writes `mgr->var[]` only, and `VarPManager_ApplySync` overwrites `var[]` from
   `var_serv[]` whenever the server speaks about that varp.
 - **rev 239 has no client packet that carries it.** The whole client prot table
-  is `3rd/rsprot/gen/rev239_prot.h`; the only settings-shaped entry is
+  is `3rd/rsprot/gen/osrs239_prot.h`; the only settings-shaped entry is
   `SET_CHATFILTERSETTINGS`. There is no varp, no varbit, no generic setting op.
 - The reference client does not transmit either. `ClientVarCache::SetVarbit`
   writes `m_var` and returns; `m_varServ` is written only by the inbound

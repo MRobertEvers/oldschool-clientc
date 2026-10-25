@@ -131,7 +131,7 @@ def merge_rsprox(rev, dump):
 
 
 def gen_rev_header(rev, dump, src_hash):
-    guard = f"RSPROT_GEN_REV{rev}_PROT_H"
+    guard = f"RSPROT_GEN_OSRS{rev}_PROT_H"
     lines = [
         f"#ifndef {guard}",
         f"#define {guard}",
@@ -141,7 +141,7 @@ def gen_rev_header(rev, dump, src_hash):
         '#include "../src/rsprot_tables_def.h"',
         "",
         "/* clang-format off */",
-        f"static const RsprotProtDef rsprot_rev{rev}_server[] = {{",
+        f"static const RsprotProtDef rsprot_osrs{rev}_server[] = {{",
     ]
     for r in dump["server"]:
         lines.append(
@@ -150,7 +150,7 @@ def gen_rev_header(rev, dump, src_hash):
         )
     lines += [
         "};",
-        f"static const RsprotProtDef rsprot_rev{rev}_client[] = {{",
+        f"static const RsprotProtDef rsprot_osrs{rev}_client[] = {{",
     ]
     for r in dump["client"]:
         lines.append(
@@ -160,18 +160,18 @@ def gen_rev_header(rev, dump, src_hash):
     lines += ["};", ""]
 
     zone = dump["zone"] if "zone" in dump else read_zone_order(rev)
-    lines.append(f"static const char *const rsprot_rev{rev}_zone_order[] = {{")
+    lines.append(f"static const char *const rsprot_osrs{rev}_zone_order[] = {{")
     for name in zone:
         lines.append(f'    "{name}",')
     lines += ["};", "/* clang-format on */", ""]
 
     lines += [
-        f"#define RSPROT_REV{rev}_SERVER_COUNT "
-        f"((int)(sizeof(rsprot_rev{rev}_server) / sizeof(rsprot_rev{rev}_server[0])))",
-        f"#define RSPROT_REV{rev}_CLIENT_COUNT "
-        f"((int)(sizeof(rsprot_rev{rev}_client) / sizeof(rsprot_rev{rev}_client[0])))",
-        f"#define RSPROT_REV{rev}_ZONE_COUNT "
-        f"((int)(sizeof(rsprot_rev{rev}_zone_order) / sizeof(rsprot_rev{rev}_zone_order[0])))",
+        f"#define RSPROT_OSRS{rev}_SERVER_COUNT "
+        f"((int)(sizeof(rsprot_osrs{rev}_server) / sizeof(rsprot_osrs{rev}_server[0])))",
+        f"#define RSPROT_OSRS{rev}_CLIENT_COUNT "
+        f"((int)(sizeof(rsprot_osrs{rev}_client) / sizeof(rsprot_osrs{rev}_client[0])))",
+        f"#define RSPROT_OSRS{rev}_ZONE_COUNT "
+        f"((int)(sizeof(rsprot_osrs{rev}_zone_order) / sizeof(rsprot_osrs{rev}_zone_order[0])))",
         "",
         "#endif",
         "",
@@ -190,7 +190,7 @@ def gen_tables_dispatch(revisions, src_hash):
         " * Umbrella table: every vendored revision's {name, code, size} rows, plus a",
         " * runtime lookup by revision number. This is the ONLY file that needs to",
         " * change to add a revision RSProt vendors -- re-run",
-        " * tools/rsprot_gen_tables.py, which regenerates every rev<N>_prot.h and",
+        " * tools/rsprot_gen_tables.py, which regenerates every osrs<N>_prot.h and",
         " * this dispatch together so they cannot drift.",
         " */",
         "",
@@ -198,7 +198,7 @@ def gen_tables_dispatch(revisions, src_hash):
         "",
     ]
     for r in revisions:
-        lines.append(f'#include "rev{r}_prot.h"')
+        lines.append(f'#include "osrs{r}_prot.h"')
     lines += ["", "/* clang-format off */"]
     lines.append("static const RsprotRevTable rsprot_all_revisions[] = {")
     for r in revisions:
@@ -253,7 +253,7 @@ def main():
             )
             dump = merge_rsprox(rev, dump)
             text = gen_rev_header(rev, dump, src_hash)
-        path = os.path.join(GEN_DIR, f"rev{rev}_prot.h")
+        path = os.path.join(GEN_DIR, f"osrs{rev}_prot.h")
         with open(path, "w") as fh:
             fh.write(text)
         print(
@@ -265,9 +265,9 @@ def main():
     all_revs = sorted(
         set(revisions)
         | {
-            int(re.match(r"rev(\d+)_prot\.h", f).group(1))
+            int(re.match(r"osrs(\d+)_prot\.h", f).group(1))
             for f in os.listdir(GEN_DIR)
-            if re.match(r"rev\d+_prot\.h", f)
+            if re.match(r"osrs\d+_prot\.h", f)
         }
     )
     dispatch_path = os.path.join(GEN_DIR, "rsprot_tables.h")

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_buttond_v1_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -23,7 +23,7 @@ packet_if_buttond_v1_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT3(x, m->target_obj);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_if_buttond_v2_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -35,7 +35,7 @@ packet_if_buttond_v2_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT3(x, m->target_sub);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_if_buttond_v3_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -47,7 +47,7 @@ packet_if_buttond_v3_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT1(x, m->selected_obj);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_if_buttond_v4_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -59,7 +59,7 @@ packet_if_buttond_v4_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->selected_sub);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_buttond_v5_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -71,7 +71,7 @@ packet_if_buttond_v5_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM_ALT1(x, m->target_combined_id);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_if_buttond_v6_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -83,7 +83,7 @@ packet_if_buttond_v6_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2(x, m->selected_sub);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_if_buttond_v7_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -95,7 +95,7 @@ packet_if_buttond_v7_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT3(x, m->target_obj);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_if_buttond_v8_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -107,7 +107,7 @@ packet_if_buttond_v8_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM(x, m->selected_combined_id);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void
 packet_if_buttond_v9_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -119,7 +119,7 @@ packet_if_buttond_v9_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->target_sub);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void
 packet_if_buttond_v10_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -131,7 +131,7 @@ packet_if_buttond_v10_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM_ALT3(x, m->target_combined_id);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_if_buttond_v11_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -143,7 +143,7 @@ packet_if_buttond_v11_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT3(x, m->selected_obj);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void
 packet_if_buttond_v12_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -155,7 +155,7 @@ packet_if_buttond_v12_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM_ALT2(x, m->target_combined_id);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs 233 (packet_versions.txt 13). */
 void
 packet_if_buttond_v13_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -167,7 +167,7 @@ packet_if_buttond_v13_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM_ALT3(x, m->target_combined_id);
 }
 
-/* v14 -- revs 234. */
+/* v14 -- revs 234 (packet_versions.txt 14). */
 void
 packet_if_buttond_v14_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -179,7 +179,7 @@ packet_if_buttond_v14_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT1(x, m->target_obj);
 }
 
-/* v15 -- revs 235. */
+/* v15 -- revs 235 (packet_versions.txt 15). */
 void
 packet_if_buttond_v15_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -191,7 +191,7 @@ packet_if_buttond_v15_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT1(x, m->target_sub);
 }
 
-/* v16 -- revs 236. */
+/* v16 -- revs 236 (packet_versions.txt 16). */
 void
 packet_if_buttond_v16_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -203,7 +203,7 @@ packet_if_buttond_v16_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->selected_sub);
 }
 
-/* v17 -- revs 237. */
+/* v17 -- revs 237 (packet_versions.txt 17). */
 void
 packet_if_buttond_v17_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -215,7 +215,7 @@ packet_if_buttond_v17_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->target_obj);
 }
 
-/* v18 -- revs 238. */
+/* v18 -- revs 238 (packet_versions.txt 18). */
 void
 packet_if_buttond_v18_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -227,7 +227,7 @@ packet_if_buttond_v18_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->target_sub);
 }
 
-/* v19 -- revs 239. */
+/* v19 -- revs 239 (packet_versions.txt 19). */
 void
 packet_if_buttond_v19_in(RsprotExec *x, MsgIfButtonD *m)
 {
@@ -239,9 +239,9 @@ packet_if_buttond_v19_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_U2_ALT2(x, m->target_sub);
 }
 
-/* v100 -- revs 241. */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_if_buttond_v100_in(RsprotExec *x, MsgIfButtonD *m)
+packet_if_buttond_v20_in(RsprotExec *x, MsgIfButtonD *m)
 {
     RSPROT_U2_ALT1(x, m->selected_obj);
     RSPROT_COM_ALT3(x, m->selected_combined_id);
@@ -251,9 +251,9 @@ packet_if_buttond_v100_in(RsprotExec *x, MsgIfButtonD *m)
     RSPROT_COM_ALT3(x, m->target_combined_id);
 }
 
-/* v101 -- revs 240. */
+/* v21 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_if_buttond_v101_in(RsprotExec *x, MsgIfButtonD *m)
+packet_if_buttond_v21_in(RsprotExec *x, MsgIfButtonD *m)
 {
     RSPROT_U2_ALT2(x, m->selected_sub);
     RSPROT_COM(x, m->target_combined_id);
@@ -293,8 +293,8 @@ const RsprotVersionRange rsprot_if_buttond_in[] = {
     { 237, 237, (RsprotCodecFn)packet_if_buttond_v17_in },
     { 238, 238, (RsprotCodecFn)packet_if_buttond_v18_in },
     { 239, 239, (RsprotCodecFn)packet_if_buttond_v19_in },
-    { 240, 240, (RsprotCodecFn)packet_if_buttond_v101_in },
-    { 241, 241, (RsprotCodecFn)packet_if_buttond_v100_in },
+    { 240, 240, (RsprotCodecFn)packet_if_buttond_v21_in },
+    { 241, 241, (RsprotCodecFn)packet_if_buttond_v20_in },
 };
 
 const int rsprot_if_buttond_in_count =

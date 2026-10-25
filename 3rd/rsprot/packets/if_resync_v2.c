@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231-241. */
+/* v1 -- revs 231-241 (packet_versions.txt 1). */
 void
 packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m)
 {

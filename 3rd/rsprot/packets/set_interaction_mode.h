@@ -12,12 +12,13 @@
  *
  * RSProt class : SetInteractionModeEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^SetInteractionModeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,27 +36,27 @@ typedef struct MsgSetInteractionMode {
 	int32_t entity_interaction_mode;
 } MsgSetInteractionMode;
 
-/* v1 -- revs 226-241. */
+/* v1 -- revs 226-241 (packet_versions.txt 1). */
 void packet_set_interaction_mode_v1_out(RsprotExec *x, MsgSetInteractionMode *m);
 
-/* Per-revision aliases: `packet_set_interaction_mode_rev239_out` is greppable, which is the
- * point -- "what does 239 do for SET_INTERACTION_MODE" without reading a table. */
-#define packet_set_interaction_mode_rev226_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev227_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev228_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev229_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev230_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev231_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev232_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev233_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev234_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev235_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev236_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev237_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev238_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev239_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev240_out packet_set_interaction_mode_v1_out
-#define packet_set_interaction_mode_rev241_out packet_set_interaction_mode_v1_out
+/* Per-revision entry points: `packet_set_interaction_mode_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for SET_INTERACTION_MODE" without reading a table. */
+#define packet_set_interaction_mode_osrs226_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs227_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs228_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs229_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs230_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs231_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs232_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs233_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs234_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs235_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs236_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs237_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs238_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs239_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs240_out packet_set_interaction_mode_v1_out
+#define packet_set_interaction_mode_osrs241_out packet_set_interaction_mode_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_interaction_mode_out[];

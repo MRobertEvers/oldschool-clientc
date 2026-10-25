@@ -12,12 +12,13 @@
  *
  * RSProt class : HideObjOpsEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^HideObjOpsEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,30 +34,30 @@ typedef struct MsgHideObjOps {
 	int32_t hidden;
 } MsgHideObjOps;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-241 (packet_versions.txt 1). */
 void packet_hideobjops_v1_out(RsprotExec *x, MsgHideObjOps *m);
 
-/* Per-revision aliases: `packet_hideobjops_rev239_out` is greppable, which is the
- * point -- "what does 239 do for HIDEOBJOPS" without reading a table. */
-#define packet_hideobjops_rev223_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev224_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev225_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev226_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev227_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev228_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev229_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev230_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev231_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev232_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev233_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev234_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev235_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev236_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev237_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev238_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev239_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev240_out packet_hideobjops_v1_out
-#define packet_hideobjops_rev241_out packet_hideobjops_v1_out
+/* Per-revision entry points: `packet_hideobjops_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for HIDEOBJOPS" without reading a table. */
+#define packet_hideobjops_osrs223_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs224_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs225_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs226_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs227_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs228_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs229_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs230_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs231_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs232_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs233_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs234_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs235_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs236_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs237_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs238_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs239_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs240_out packet_hideobjops_v1_out
+#define packet_hideobjops_osrs241_out packet_hideobjops_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hideobjops_out[];

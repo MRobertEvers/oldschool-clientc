@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 236-241. */
+/* v1 -- revs 236-241 (packet_versions.txt 1). */
 void
 packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m)
 {

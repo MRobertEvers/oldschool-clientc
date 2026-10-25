@@ -12,12 +12,13 @@
  *
  * RSProt class : ResumePauseButtonDecoder
  * Layouts      : 16 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v16, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ResumePauseButtonDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,62 +35,62 @@ typedef struct MsgResumePauseButton {
 	int32_t sub;
 } MsgResumePauseButton;
 
-/* v1 -- revs 221, 240. */
+/* v1 -- revs 221, 240 (packet_versions.txt 1). */
 void packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v2 -- revs 222, 238. */
+/* v2 -- revs 222, 238 (packet_versions.txt 2). */
 void packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_resume_pausebutton_v3_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v4 -- revs 224, 237. */
+/* v4 -- revs 224, 237 (packet_versions.txt 4). */
 void packet_resume_pausebutton_v4_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v5 -- revs 225, 232. */
+/* v5 -- revs 225, 232 (packet_versions.txt 5). */
 void packet_resume_pausebutton_v5_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_resume_pausebutton_v6_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_resume_pausebutton_v7_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void packet_resume_pausebutton_v8_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void packet_resume_pausebutton_v9_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void packet_resume_pausebutton_v10_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void packet_resume_pausebutton_v11_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v12 -- revs 233. */
+/* v12 -- revs 233 (packet_versions.txt 12). */
 void packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v13 -- revs 234. */
+/* v13 -- revs 234 (packet_versions.txt 13). */
 void packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v14 -- revs 235, 241. */
+/* v14 -- revs 235, 241 (packet_versions.txt 14). */
 void packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v15 -- revs 236. */
+/* v15 -- revs 236 (packet_versions.txt 15). */
 void packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v16 -- revs 239. */
+/* v16 -- revs 239 (packet_versions.txt 16). */
 void packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m);
 
-/* Per-revision aliases: `packet_resume_pausebutton_rev239_in` is greppable, which is the
- * point -- "what does 239 do for RESUME_PAUSEBUTTON" without reading a table. */
-#define packet_resume_pausebutton_rev221_in packet_resume_pausebutton_v1_in
-#define packet_resume_pausebutton_rev222_in packet_resume_pausebutton_v2_in
-#define packet_resume_pausebutton_rev223_in packet_resume_pausebutton_v3_in
-#define packet_resume_pausebutton_rev224_in packet_resume_pausebutton_v4_in
-#define packet_resume_pausebutton_rev225_in packet_resume_pausebutton_v5_in
-#define packet_resume_pausebutton_rev226_in packet_resume_pausebutton_v6_in
-#define packet_resume_pausebutton_rev227_in packet_resume_pausebutton_v7_in
-#define packet_resume_pausebutton_rev228_in packet_resume_pausebutton_v8_in
-#define packet_resume_pausebutton_rev229_in packet_resume_pausebutton_v9_in
-#define packet_resume_pausebutton_rev230_in packet_resume_pausebutton_v10_in
-#define packet_resume_pausebutton_rev231_in packet_resume_pausebutton_v11_in
-#define packet_resume_pausebutton_rev232_in packet_resume_pausebutton_v5_in
-#define packet_resume_pausebutton_rev233_in packet_resume_pausebutton_v12_in
-#define packet_resume_pausebutton_rev234_in packet_resume_pausebutton_v13_in
-#define packet_resume_pausebutton_rev235_in packet_resume_pausebutton_v14_in
-#define packet_resume_pausebutton_rev236_in packet_resume_pausebutton_v15_in
-#define packet_resume_pausebutton_rev237_in packet_resume_pausebutton_v4_in
-#define packet_resume_pausebutton_rev238_in packet_resume_pausebutton_v2_in
-#define packet_resume_pausebutton_rev239_in packet_resume_pausebutton_v16_in
-#define packet_resume_pausebutton_rev240_in packet_resume_pausebutton_v1_in
-#define packet_resume_pausebutton_rev241_in packet_resume_pausebutton_v14_in
+/* Per-revision entry points: `packet_resume_pausebutton_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for RESUME_PAUSEBUTTON" without reading a table. */
+#define packet_resume_pausebutton_osrs221_in packet_resume_pausebutton_v1_in
+#define packet_resume_pausebutton_osrs222_in packet_resume_pausebutton_v2_in
+#define packet_resume_pausebutton_osrs223_in packet_resume_pausebutton_v3_in
+#define packet_resume_pausebutton_osrs224_in packet_resume_pausebutton_v4_in
+#define packet_resume_pausebutton_osrs225_in packet_resume_pausebutton_v5_in
+#define packet_resume_pausebutton_osrs226_in packet_resume_pausebutton_v6_in
+#define packet_resume_pausebutton_osrs227_in packet_resume_pausebutton_v7_in
+#define packet_resume_pausebutton_osrs228_in packet_resume_pausebutton_v8_in
+#define packet_resume_pausebutton_osrs229_in packet_resume_pausebutton_v9_in
+#define packet_resume_pausebutton_osrs230_in packet_resume_pausebutton_v10_in
+#define packet_resume_pausebutton_osrs231_in packet_resume_pausebutton_v11_in
+#define packet_resume_pausebutton_osrs232_in packet_resume_pausebutton_v5_in
+#define packet_resume_pausebutton_osrs233_in packet_resume_pausebutton_v12_in
+#define packet_resume_pausebutton_osrs234_in packet_resume_pausebutton_v13_in
+#define packet_resume_pausebutton_osrs235_in packet_resume_pausebutton_v14_in
+#define packet_resume_pausebutton_osrs236_in packet_resume_pausebutton_v15_in
+#define packet_resume_pausebutton_osrs237_in packet_resume_pausebutton_v4_in
+#define packet_resume_pausebutton_osrs238_in packet_resume_pausebutton_v2_in
+#define packet_resume_pausebutton_osrs239_in packet_resume_pausebutton_v16_in
+#define packet_resume_pausebutton_osrs240_in packet_resume_pausebutton_v1_in
+#define packet_resume_pausebutton_osrs241_in packet_resume_pausebutton_v14_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_pausebutton_in[];

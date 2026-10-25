@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231. */
+/* v1 -- revs 231 (packet_versions.txt 1). */
 void
 packet_projanim_specific_v4_v1_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -28,7 +28,7 @@ packet_projanim_specific_v4_v1_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U2_ALT1(x, m->progress);
 }
 
-/* v2 -- revs 232. */
+/* v2 -- revs 232 (packet_versions.txt 2). */
 void
 packet_projanim_specific_v4_v2_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -45,7 +45,7 @@ packet_projanim_specific_v4_v2_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U4_ALT2(x, m->end_packed);
 }
 
-/* v3 -- revs 233. */
+/* v3 -- revs 233 (packet_versions.txt 3). */
 void
 packet_projanim_specific_v4_v3_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -62,7 +62,7 @@ packet_projanim_specific_v4_v3_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U2_ALT3(x, m->end_time);
 }
 
-/* v4 -- revs 234. */
+/* v4 -- revs 234 (packet_versions.txt 4). */
 void
 packet_projanim_specific_v4_v4_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -79,7 +79,7 @@ packet_projanim_specific_v4_v4_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U4_ALT1(x, m->end_packed);
 }
 
-/* v5 -- revs 235. */
+/* v5 -- revs 235 (packet_versions.txt 5). */
 void
 packet_projanim_specific_v4_v5_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -96,7 +96,7 @@ packet_projanim_specific_v4_v5_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U2_ALT1(x, m->progress);
 }
 
-/* v6 -- revs 236. */
+/* v6 -- revs 236 (packet_versions.txt 6). */
 void
 packet_projanim_specific_v4_v6_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -113,7 +113,7 @@ packet_projanim_specific_v4_v6_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U4(x, m->end_packed);
 }
 
-/* v7 -- revs 237. */
+/* v7 -- revs 237 (packet_versions.txt 7). */
 void
 packet_projanim_specific_v4_v7_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -130,7 +130,7 @@ packet_projanim_specific_v4_v7_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U1_ALT1(x, m->angle);
 }
 
-/* v8 -- revs 238. */
+/* v8 -- revs 238 (packet_versions.txt 8). */
 void
 packet_projanim_specific_v4_v8_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -147,7 +147,7 @@ packet_projanim_specific_v4_v8_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U3_ALT2(x, m->target_index);
 }
 
-/* v9 -- revs 239. */
+/* v9 -- revs 239 (packet_versions.txt 9). */
 void
 packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
@@ -164,9 +164,9 @@ packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U3(x, m->target_index);
 }
 
-/* v100 -- revs 241. */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_projanim_specific_v4_v100_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+packet_projanim_specific_v4_v10_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
     RSPROT_U2(x, m->start_time);
     RSPROT_U2_ALT2(x, m->id);
@@ -181,9 +181,9 @@ packet_projanim_specific_v4_v100_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
     RSPROT_U1_ALT3(x, m->angle);
 }
 
-/* v101 -- revs 240. */
+/* v11 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_projanim_specific_v4_v101_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
+packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 {
     RSPROT_U3_ALT2(x, m->source_index);
     RSPROT_U2(x, m->start_time);
@@ -218,8 +218,8 @@ const RsprotVersionRange rsprot_projanim_specific_v4_out[] = {
     { 237, 237, (RsprotCodecFn)packet_projanim_specific_v4_v7_out },
     { 238, 238, (RsprotCodecFn)packet_projanim_specific_v4_v8_out },
     { 239, 239, (RsprotCodecFn)packet_projanim_specific_v4_v9_out },
-    { 240, 240, (RsprotCodecFn)packet_projanim_specific_v4_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_projanim_specific_v4_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_projanim_specific_v4_v11_out },
+    { 241, 241, (RsprotCodecFn)packet_projanim_specific_v4_v10_out },
 };
 
 const int rsprot_projanim_specific_v4_out_count =

@@ -12,12 +12,13 @@
  *
  * RSProt class : UrlOpenEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^UrlOpenEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,26 +34,26 @@ typedef struct MsgUrlOpen {
 	const char *url;
 } MsgUrlOpen;
 
-/* v2 -- revs 227-241. */
-void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
+/* v1 -- revs 227-241 (packet_versions.txt 2). */
+void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
 
-/* Per-revision aliases: `packet_url_open_rev239_out` is greppable, which is the
- * point -- "what does 239 do for URL_OPEN" without reading a table. */
-#define packet_url_open_rev227_out packet_url_open_v2_out
-#define packet_url_open_rev228_out packet_url_open_v2_out
-#define packet_url_open_rev229_out packet_url_open_v2_out
-#define packet_url_open_rev230_out packet_url_open_v2_out
-#define packet_url_open_rev231_out packet_url_open_v2_out
-#define packet_url_open_rev232_out packet_url_open_v2_out
-#define packet_url_open_rev233_out packet_url_open_v2_out
-#define packet_url_open_rev234_out packet_url_open_v2_out
-#define packet_url_open_rev235_out packet_url_open_v2_out
-#define packet_url_open_rev236_out packet_url_open_v2_out
-#define packet_url_open_rev237_out packet_url_open_v2_out
-#define packet_url_open_rev238_out packet_url_open_v2_out
-#define packet_url_open_rev239_out packet_url_open_v2_out
-#define packet_url_open_rev240_out packet_url_open_v2_out
-#define packet_url_open_rev241_out packet_url_open_v2_out
+/* Per-revision entry points: `packet_url_open_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for URL_OPEN" without reading a table. */
+#define packet_url_open_osrs227_out packet_url_open_v1_out
+#define packet_url_open_osrs228_out packet_url_open_v1_out
+#define packet_url_open_osrs229_out packet_url_open_v1_out
+#define packet_url_open_osrs230_out packet_url_open_v1_out
+#define packet_url_open_osrs231_out packet_url_open_v1_out
+#define packet_url_open_osrs232_out packet_url_open_v1_out
+#define packet_url_open_osrs233_out packet_url_open_v1_out
+#define packet_url_open_osrs234_out packet_url_open_v1_out
+#define packet_url_open_osrs235_out packet_url_open_v1_out
+#define packet_url_open_osrs236_out packet_url_open_v1_out
+#define packet_url_open_osrs237_out packet_url_open_v1_out
+#define packet_url_open_osrs238_out packet_url_open_v1_out
+#define packet_url_open_osrs239_out packet_url_open_v1_out
+#define packet_url_open_osrs240_out packet_url_open_v1_out
+#define packet_url_open_osrs241_out packet_url_open_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_url_open_out[];

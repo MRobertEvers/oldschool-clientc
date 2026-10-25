@@ -6,9 +6,8 @@
 #include "net/wordpack.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/packets/pkt_npc_info.h"
+#include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/revpacket.h"
 #include "torirsserver/torirs_server.h"
 #include "world/entity_npc.h"
@@ -28,22 +27,13 @@
 enum
 {
     CORE_ENTITY_OPS_MAX = 2048,
+    /* An op list's strings and blobs: the payload and a NUL per op at most. */
+    CORE_ENTITY_BYTES_MAX = 65536 + CORE_ENTITY_OPS_MAX,
     CORE_LOCAL_SENTINEL = 2047,
 };
 
 static FILE*
 core_wirelog_file(void);
-
-/* net/rev/osrs239/osrs239_entity_info.c: the v5 player table, one per process.
- * Declared where they are used, as net/net.c declares them. */
-void
-osrs239_playerinfo_set_local(int local_index);
-size_t
-osrs239_playerinfo_state_size(void);
-void
-osrs239_playerinfo_state_save(void* out);
-void
-osrs239_playerinfo_state_load(void const* in);
 
 /* world/world.h's hitmark defaults: the values the client falls back to when
  * the hitsplat config has no record (game/rs_hitsplat.c). */
@@ -70,22 +60,22 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     assert(core->esync);
     RS_EntitySync_Init(core->esync);
     core->npc_ops =
-        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct PktNpcInfoOp));
+        ToriMem_Calloc(ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
     assert(core->npc_ops);
     core->player_ops = ToriMem_Calloc(
-        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct PktPlayerInfoOp));
+        ToriMem_ServerPlayers(), CORE_ENTITY_OPS_MAX, sizeof(struct RsprotInfoOp));
     assert(core->player_ops);
+    core->info_bytes = ToriMem_Alloc(ToriMem_ServerPlayers(), CORE_ENTITY_BYTES_MAX);
+    assert(core->info_bytes);
     for( int i = 0; i < SCRIPTRUN_INVS; i++ )
         core->invs[i].inv_id = -1;
     core->toplevel = -1;
     core->resume_pending = -1;
     core->next_element_id = 1;
-    if( rev->player_info_read )
+    if( rev->player_info_state_size )
     {
         core->player_decoder_state =
-            ToriMem_Calloc(ToriMem_ServerPlayers(), 1,
-                           rev->player_info_state_size ? rev->player_info_state_size()
-                                                       : osrs239_playerinfo_state_size());
+            ToriMem_Calloc(ToriMem_ServerPlayers(), 1, rev->player_info_state_size());
         assert(core->player_decoder_state);
     }
     core->run_energy = 10000;
@@ -105,6 +95,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core)
     World_Free(core->world);
     ToriMem_Free(ToriMem_ServerPlayers(), core->npc_ops);
     ToriMem_Free(ToriMem_ServerPlayers(), core->player_ops);
+    ToriMem_Free(ToriMem_ServerPlayers(), core->info_bytes);
     ToriMem_Free(ToriMem_ServerPlayers(), core->player_decoder_state);
     ToriMem_Free(ToriMem_ServerPlayers(), core);
 }
@@ -120,15 +111,10 @@ ScriptrunCore_SetLocalIndex(
     /* The live client mirrors this every frame (app_world_frame); the world's
      * local-player rules (the scene-edge teleport, the off-band reset) read it. */
     core->world->local_pid = index;
-    if( core->player_decoder_state && core->rev->player_info_set_local )
+    if( core->player_decoder_state )
     {
         core->rev->player_info_set_local(index);
         core->rev->player_info_state_save(core->player_decoder_state);
-    }
-    else if( core->player_decoder_state )
-    {
-        osrs239_playerinfo_set_local(index);
-        osrs239_playerinfo_state_save(core->player_decoder_state);
     }
 }
 
@@ -425,54 +411,54 @@ player_target(
 static int
 player_target_op(
     struct PlayerApply* self,
-    struct PktPlayerInfoOp const* op)
+    struct RsprotInfoOp const* op)
 {
     struct ScriptrunCore* core = self->core;
     struct RS_EntitySync* esync = core->esync;
 
     switch( op->kind )
     {
-    case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
+    case RSPROT_OP_SET_LOCAL_PLAYER:
         self->cur_pid = core_local_pid(core);
         break;
-    case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
+    case RSPROT_OP_ADD_OLD:
         self->cur_pid =
-            (int)op->_bitvalue < self->old_count ? core->player_old_list[op->_bitvalue] : -1;
+            (int)op->value < self->old_count ? core->player_old_list[op->value] : -1;
         if( esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
             esync->active_players[esync->active_player_count++] = self->cur_pid;
         break;
-    case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
-        self->cur_pid = (int)op->_bitvalue;
+    case RSPROT_OP_ADD_NEW:
+        self->cur_pid = (int)op->value;
         if( esync->active_player_count < RS_ENTITY_SYNC_MAX_PLAYERS )
             esync->active_players[esync->active_player_count++] = self->cur_pid;
         break;
-    case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
-        self->cur_pid = (int)op->_bitvalue < esync->active_player_count
-                            ? esync->active_players[op->_bitvalue]
+    case RSPROT_OP_SET_EXT:
+        self->cur_pid = (int)op->value < esync->active_player_count
+                            ? esync->active_players[op->value]
                             : -1;
         break;
-    case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
+    case RSPROT_OP_CLEAR_OLD:
     {
         int pid =
-            (int)op->_bitvalue < self->old_count ? core->player_old_list[op->_bitvalue] : -1;
+            (int)op->value < self->old_count ? core->player_old_list[op->value] : -1;
         if( pid >= 0 )
             RS_EntitySync_RemovePlayer(esync, core->world, pid);
         self->cur_pid = -1;
         return 1;
     }
-    case PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID:
-        RS_EntitySync_RemovePlayer(esync, core->world, (int)op->_bitvalue);
+    case RSPROT_OP_REMOVE_PID:
+        RS_EntitySync_RemovePlayer(esync, core->world, (int)op->value);
         self->cur_pid = -1;
         return 1;
-    case PKT_PLAYER_INFO_OPBITS_COUNT_RESET:
+    case RSPROT_OP_COUNT_RESET:
     {
-        int keep = (int)op->_bitvalue;
+        int keep = (int)op->value;
         for( int i = keep; i < self->old_count; i++ )
             RS_EntitySync_RemovePlayer(esync, core->world, core->player_old_list[i]);
         esync->active_player_count = 0;
         return 1;
     }
-    case PKT_PLAYER_INFO_OPBITS_INFO:
+    case RSPROT_OP_INFO:
         return 1;
     default:
         return 0;
@@ -533,7 +519,7 @@ core_message(
 static void
 player_apply_op(
     struct PlayerApply* self,
-    struct PktPlayerInfoOp const* op)
+    struct RsprotInfoOp const* op)
 {
     struct ScriptrunCore* core = self->core;
     struct World* world = core->world;
@@ -544,37 +530,37 @@ player_apply_op(
 
     switch( op->kind )
     {
-    case PKT_PLAYER_INFO_OPBITS_WALKDIR:
-        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->_bitvalue);
+    case RSPROT_OP_WALKDIR:
+        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->value);
         break;
-    case PKT_PLAYER_INFO_OPBITS_RUNDIR:
-        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->_bitvalue);
+    case RSPROT_OP_RUNDIR:
+        World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->value);
         break;
-    case PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL:
+    case RSPROT_OP_LOCAL_XZLEVEL:
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
         World_PlayerPathJump(
-            world, idx, op->_local_xz_level.jump, op->_local_xz_level.x, op->_local_xz_level.z);
+            world, idx, op->xz_level.jump, op->xz_level.x, op->xz_level.z);
         if( player )
-            player->grid_position.level = op->_local_xz_level.level;
+            player->grid_position.level = op->xz_level.level;
         break;
     }
-    case PKT_PLAYER_INFO_OP_ABS_XZLEVEL:
+    case RSPROT_OP_ABS_XZLEVEL:
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-        int next_x = op->_local_xz_level.x - core_base_x(core);
-        int next_z = op->_local_xz_level.z - core_base_z(core);
+        int next_x = op->xz_level.x - core_base_x(core);
+        int next_z = op->xz_level.z - core_base_z(core);
         int step_type = WORLD_PATHSTEP_WALK;
         /* task_exec_entity_info.c: a coordinate inside a live view's staging
          * rectangle is a rider on a deck, rebased into the view's own space
          * (root-relative it overflows the uint8_t route queue). */
         int home_view =
-            core_home_view(core, op->_local_xz_level.x, op->_local_xz_level.z);
+            core_home_view(core, op->xz_level.x, op->xz_level.z);
 
         if( home_view > 0 )
         {
-            next_x = op->_local_xz_level.x - core->views[home_view].base_x;
-            next_z = op->_local_xz_level.z - core->views[home_view].base_z;
+            next_x = op->xz_level.x - core->views[home_view].base_x;
+            next_z = op->xz_level.z - core->views[home_view].base_z;
         }
         if( player )
             player->view_placement.home_view = home_view;
@@ -582,27 +568,27 @@ player_apply_op(
             core->local_view = home_view;
 
         /* class174: 2 run, 0 crawl, anything else the walk default. */
-        if( op->_local_xz_level.has_move_speed &&
-            op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN )
+        if( op->xz_level.has_move_speed &&
+            op->xz_level.move_speed == RSPROT_TRAVERSAL_RUN )
             step_type = WORLD_PATHSTEP_RUN;
-        else if( op->_local_xz_level.has_move_speed &&
-                 op->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_CRAWL )
+        else if( op->xz_level.has_move_speed &&
+                 op->xz_level.move_speed == RSPROT_TRAVERSAL_CRAWL )
             step_type = WORLD_PATHSTEP_CRAWL;
         World_PlayerPathJumpCollisionAware(
-            world, idx, NULL, op->_local_xz_level.jump, next_x, next_z, step_type);
+            world, idx, NULL, op->xz_level.jump, next_x, next_z, step_type);
         if( player )
-            player->grid_position.level = op->_local_xz_level.level;
+            player->grid_position.level = op->xz_level.level;
         break;
     }
-    case PKT_PLAYER_INFO_OP_DELTA_XZ:
+    case RSPROT_OP_DELTA_XZ:
     {
         int lx, lz, llevel;
         core_player_local_tile(core, &lx, &lz, &llevel);
         World_PlayerPathJump(
-            world, idx, op->_delta_xz.jump, lx + op->_delta_xz.dx, lz + op->_delta_xz.dz);
+            world, idx, op->delta_xz.jump, lx + op->delta_xz.dx, lz + op->delta_xz.dz);
         break;
     }
-    case PKT_PLAYER_INFO_OP_APPEARANCE:
+    case RSPROT_OP_APPEARANCE:
     {
         /* The name is what a client draws over a player and what the drive's
          * players() reports; the body is not modelled here. */
@@ -612,9 +598,9 @@ player_apply_op(
         memset(&decoded, 0, sizeof(decoded));
         ok = core->rev->appearance_decode
                  ? core->rev->appearance_decode(
-                       op->_appearance.appearance, op->_appearance.len, &decoded)
+                       op->appearance.appearance, op->appearance.len, &decoded)
                  : PktPlayerAppearance_Decode(
-                       &decoded, op->_appearance.appearance, op->_appearance.len);
+                       &decoded, op->appearance.appearance, op->appearance.len);
         if( ok )
         {
             struct WorldEntity_Player* player =
@@ -632,10 +618,10 @@ player_apply_op(
         }
         break;
     }
-    case PKT_PLAYER_INFO_OP_SEQUENCE:
+    case RSPROT_OP_SEQUENCE:
         World_PlayerSetPrimaryAnimation(
-            world, idx, op->_sequence.sequence_id, op->_sequence.delay);
-        if( self->cur_pid == core_local_pid(core) && op->_sequence.sequence_id >= 0 )
+            world, idx, op->sequence.sequence_id, op->sequence.delay);
+        if( self->cur_pid == core_local_pid(core) && op->sequence.sequence_id >= 0 )
         {
             int k = core->own_seq_count < 16 ? core->own_seq_count++ : 15;
             if( k == 15 && core->own_seq_count == 16 )
@@ -645,111 +631,111 @@ player_apply_op(
                 memmove(core->own_seq_n, core->own_seq_n + 1, 15 * sizeof(int));
             }
             core->own_seq_starts++;
-            core->own_seq[k] = op->_sequence.sequence_id;
+            core->own_seq[k] = op->sequence.sequence_id;
             core->own_seq_tick[k] = core->tick;
             core->own_seq_n[k] = core->own_seq_starts;
         }
         break;
-    case PKT_PLAYER_INFO_OP_FACE_ENTITY:
+    case RSPROT_OP_FACE_ENTITY:
     {
-        int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
+        int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\tface_entity\t%d\n", core->tick, entity_id);
-        if( op->_face_entity.modern )
-            World_PlayerBeginModernFacing(world, idx, op->_face_entity.movement_mode);
+        if( op->face_entity.modern )
+            World_PlayerBeginModernFacing(world, idx, op->face_entity.movement_mode);
         World_PlayerFaceEntityDetailed(
             world,
             idx,
             entity_id,
-            op->_face_entity.has_fallback_angle ? op->_face_entity.fallback_angle : -1,
-            op->_face_entity.instant);
+            op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
+            op->face_entity.instant);
         break;
     }
-    case PKT_PLAYER_INFO_OP_FACE_COORD:
+    case RSPROT_OP_FACE_COORD:
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick, op->_face_coord.x >> 1,
-                    op->_face_coord.z >> 1);
-        if( op->_face_coord.modern )
-            World_PlayerBeginModernFacing(world, idx, op->_face_coord.movement_mode);
-        World_PlayerFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick, op->face_coord.x >> 1,
+                    op->face_coord.z >> 1);
+        if( op->face_coord.modern )
+            World_PlayerBeginModernFacing(world, idx, op->face_coord.movement_mode);
+        World_PlayerFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
         break;
-    case PKT_PLAYER_INFO_OP_SAY:
-        if( op->_say.text )
+    case RSPROT_OP_SAY:
+        if( op->say.text )
         {
             /* the client's arm: a chatbox row (public, the speaker's name)
              * and the overhead line */
             struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
             core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player",
-                         op->_say.text);
+                         op->say.text);
             ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0, 0);
-            World_PlayerSetChat(world, idx, op->_say.text, 0, 0);
+            World_PlayerSetChat(world, idx, op->say.text, 0, 0);
         }
         break;
-    case PKT_PLAYER_INFO_OP_CHAT:
+    case RSPROT_OP_CHAT:
         /* Public chat (the player-info chat block, the sender's own included:
          * the server echoes a line only this way). The client's arm in
          * game/task_exec_entity_info.c, minus the UI: unpack, a chatbox row of
          * type RS_CHAT_TYPE_PUBLIC under the speaker's name, the overhead. */
-        if( op->_chat.data && op->_chat.length > 0 )
+        if( op->chat.data && op->chat.length > 0 )
         {
             struct RSCache_Buffer chatbuf;
             char* text;
-            RSCache_BufferInit(&chatbuf, (uint8_t*)op->_chat.data, op->_chat.length);
-            text = wordpack_unpack(&chatbuf, op->_chat.length);
+            RSCache_BufferInit(&chatbuf, (uint8_t*)op->chat.data, op->chat.length);
+            text = wordpack_unpack(&chatbuf, op->chat.length);
             if( text )
             {
                 struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
                 core_message(core, RS_CHAT_TYPE_PUBLIC, player && player->name[0] ? player->name : "Player", text);
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0,
                                     0);
-                World_PlayerSetChat(world, idx, text, op->_chat.colour_effect >> 8, op->_chat.colour_effect & 0xff);
+                World_PlayerSetChat(world, idx, text, op->chat.colour_effect >> 8, op->chat.colour_effect & 0xff);
                 ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
             }
         }
         break;
-    case PKT_PLAYER_INFO_OP_DAMAGE:
-    case PKT_PLAYER_INFO_OP_DAMAGE2:
+    case RSPROT_OP_DAMAGE:
+    case RSPROT_OP_DAMAGE2:
         World_PlayerAddHitmarkTimed(
             world,
             idx,
-            op->_damage.damage_type,
-            op->_damage.damage,
-            op->_damage.health,
-            op->_damage.total_health,
-            op->_damage.delay,
-            op->_damage.slots,
+            op->damage.damage_type,
+            op->damage.damage,
+            op->damage.health,
+            op->damage.total_health,
+            op->damage.delay,
+            op->damage.slots,
             WORLD_HITMARK_DEFAULT_DURATION,
             WORLD_HITMARK_POLICY_DISCARD);
         break;
-    case PKT_PLAYER_INFO_OP_HEADBAR:
-        if( op->_headbar.remove )
+    case RSPROT_OP_HEADBAR:
+        if( op->headbar.remove )
             World_PlayerClearHealthbar(world, idx);
         else
             World_PlayerSetHealthbar(
                 world,
                 idx,
                 core_headbar(
-                    core, op->_headbar.type, op->_headbar.duration, op->_headbar.start_delay,
-                    op->_headbar.start_fill, op->_headbar.end_fill));
+                    core, op->headbar.type, op->headbar.duration, op->headbar.start_delay,
+                    op->headbar.start_fill, op->headbar.end_fill));
         break;
-    case PKT_PLAYER_INFO_OP_SPOTANIM:
+    case RSPROT_OP_SPOTANIM:
         World_PlayerSetSpotanim(
             world,
             idx,
-            op->_spotanim.slot,
-            op->_spotanim.spotanim_id,
-            op->_spotanim.height_delay >> 16,
-            op->_spotanim.height_delay & 0xffff,
-            op->_spotanim.loop);
+            op->spotanim.slot,
+            op->spotanim.spotanim_id,
+            op->spotanim.height_delay >> 16,
+            op->spotanim.height_delay & 0xffff,
+            op->spotanim.loop);
         break;
-    case PKT_PLAYER_INFO_OP_EXACT_MOVE:
+    case RSPROT_OP_EXACT_MOVE:
     {
-        int sx = op->_exactmove.start_x;
-        int sz = op->_exactmove.start_z;
-        int ex = op->_exactmove.end_x;
-        int ez = op->_exactmove.end_z;
+        int sx = op->exact_move.start_x;
+        int sz = op->exact_move.start_z;
+        int ex = op->exact_move.end_x;
+        int ez = op->exact_move.end_z;
 
-        if( op->_exactmove.relative )
+        if( op->exact_move.relative )
         {
             struct WorldEntity_Player* player =
                 World_EntityPoolGet(&world->entities.player, idx);
@@ -763,8 +749,8 @@ player_apply_op(
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\texactmove\t%d,%d\t%d,%d\t%d\t%d\t%d\n", core->tick,
                     sx + world->_base_tile_x, sz + world->_base_tile_z, ex + world->_base_tile_x,
-                    ez + world->_base_tile_z, op->_exactmove.end_cycle_delta, op->_exactmove.start_cycle_delta,
-                    op->_exactmove.facing);
+                    ez + world->_base_tile_z, op->exact_move.end_cycle_delta, op->exact_move.start_cycle_delta,
+                    op->exact_move.facing);
         World_PlayerSetExactMoveDetailed(
             world,
             idx,
@@ -772,33 +758,33 @@ player_apply_op(
             sz,
             ex,
             ez,
-            op->_exactmove.start_cycle_delta,
-            op->_exactmove.end_cycle_delta,
-            op->_exactmove.facing,
-            op->_exactmove.facing_is_yaw);
+            op->exact_move.start_cycle_delta,
+            op->exact_move.end_cycle_delta,
+            op->exact_move.facing,
+            op->exact_move.facing_is_yaw);
         break;
     }
-    case PKT_PLAYER_INFO_OP_FACE_ANGLE:
+    case RSPROT_OP_FACE_ANGLE:
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\t%d\n", core->tick, op->_face_angle.angle,
-                    op->_face_angle.instant ? 1 : 0);
-        if( op->_face_angle.modern )
-            World_PlayerBeginModernFacing(world, idx, op->_face_angle.movement_mode);
-        World_PlayerFaceAngle(world, idx, op->_face_angle.angle, op->_face_angle.instant);
+            fprintf(core_wirelog_file(), "%d\tface_angle\t%d\t%d\n", core->tick, op->face_angle.angle,
+                    op->face_angle.instant ? 1 : 0);
+        if( op->face_angle.modern )
+            World_PlayerBeginModernFacing(world, idx, op->face_angle.movement_mode);
+        World_PlayerFaceAngle(world, idx, op->face_angle.angle, op->face_angle.instant);
         break;
-    case PKT_PLAYER_INFO_OP_TRANSPARENCY:
+    case RSPROT_OP_TRANSPARENCY:
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\ttransparency\t%d\t%d\t%d\t%d\t%d\n", core->tick,
-                    op->_transparency.start_cycle_delta, op->_transparency.end_cycle_delta,
-                    op->_transparency.from, op->_transparency.to, op->_transparency.use_start ? 1 : 0);
+                    op->transparency.start_cycle_delta, op->transparency.end_cycle_delta,
+                    op->transparency.from, op->transparency.to, op->transparency.use_start ? 1 : 0);
         World_PlayerSetTransparency(
             world,
             idx,
-            op->_transparency.start_cycle_delta,
-            op->_transparency.end_cycle_delta,
-            op->_transparency.from,
-            op->_transparency.to,
-            op->_transparency.use_start);
+            op->transparency.start_cycle_delta,
+            op->transparency.end_cycle_delta,
+            op->transparency.from,
+            op->transparency.to,
+            op->transparency.use_start);
         break;
     default:
         break;
@@ -811,12 +797,14 @@ core_player_info(
     uint8_t const* data,
     int length)
 {
-    struct PktPlayerInfoOp* ops = core->player_ops;
+    struct RsprotInfoOp* ops = core->player_ops;
     struct PlayerApply self;
+    RsprotInfoList list;
     int op_count;
 
     assert(core->rev->player_info_read);
-    op_count = core->rev->player_info_read(data, length, ops, CORE_ENTITY_OPS_MAX);
+    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
+    op_count = core->rev->player_info_read(data, length, &list);
 
     memset(&self, 0, sizeof(self));
     self.core = core;
@@ -834,7 +822,6 @@ core_player_info(
         if( !consumed )
             player_apply_op(&self, &ops[i]);
     }
-    pkt_player_info_ops_free(ops, op_count);
 }
 
 /* --------------------------------------------------------------- npc info */
@@ -1049,24 +1036,24 @@ core_npcs_reresolve(struct ScriptrunCore* core)
 static int
 npc_target_op(
     struct NpcApply* self,
-    struct PktNpcInfoOp const* op)
+    struct RsprotInfoOp const* op)
 {
     struct ScriptrunCore* core = self->core;
     struct RS_EntitySync* esync = core->esync;
 
     switch( op->kind )
     {
-    case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
+    case RSPROT_OP_ADD_OLD:
         self->cur_slot =
-            (int)op->_bitvalue < self->old_count ? core->npc_old_list[op->_bitvalue] : -1;
+            (int)op->value < self->old_count ? core->npc_old_list[op->value] : -1;
         if( *self->count < self->cap )
             self->list[(*self->count)++] = self->cur_slot;
         break;
-    case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
+    case RSPROT_OP_ADD_NEW:
     {
         int stale_world_idx = -1;
         int stale_element_id = -1;
-        self->cur_slot = (int)op->_bitvalue;
+        self->cur_slot = (int)op->value;
         if( self->cur_slot >= 0 &&
             RS_EntitySync_FindNpc(esync, self->cur_slot, &stale_world_idx, &stale_element_id) )
             RS_EntitySync_RemoveNpc(esync, core->world, self->cur_slot);
@@ -1074,28 +1061,28 @@ npc_target_op(
             self->list[(*self->count)++] = self->cur_slot;
         break;
     }
-    case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
-        self->cur_slot = (int)op->_bitvalue < *self->count
-                             ? self->list[op->_bitvalue]
+    case RSPROT_OP_SET_EXT:
+        self->cur_slot = (int)op->value < *self->count
+                             ? self->list[op->value]
                              : -1;
         break;
-    case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+    case RSPROT_OP_CLEAR_OLD:
     {
-        int slot = (int)op->_bitvalue < self->old_count ? core->npc_old_list[op->_bitvalue] : -1;
+        int slot = (int)op->value < self->old_count ? core->npc_old_list[op->value] : -1;
         if( slot >= 0 )
             RS_EntitySync_RemoveNpc(esync, core->world, slot);
         self->cur_slot = -1;
         return 1;
     }
-    case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+    case RSPROT_OP_COUNT_RESET:
     {
-        int keep = (int)op->_bitvalue;
+        int keep = (int)op->value;
         for( int i = keep; i < self->old_count; i++ )
             RS_EntitySync_RemoveNpc(esync, core->world, core->npc_old_list[i]);
         *self->count = 0;
         return 1;
     }
-    case PKT_NPC_INFO_OPBITS_INFO:
+    case RSPROT_OP_INFO:
         return 1;
     default:
         return 0;
@@ -1109,7 +1096,7 @@ npc_target_op(
 static void
 npc_apply_op(
     struct NpcApply* self,
-    struct PktNpcInfoOp const* op)
+    struct RsprotInfoOp const* op)
 {
     struct ScriptrunCore* core = self->core;
     struct World* world = core->world;
@@ -1117,24 +1104,24 @@ npc_apply_op(
 
     switch( op->kind )
     {
-    case PKT_NPC_INFO_OPBITS_NPCTYPE:
-        self->pending_base_type = (int)op->_bitvalue;
+    case RSPROT_OP_NPCTYPE:
+        self->pending_base_type = (int)op->value;
         if( self->cur_slot >= 0 && idx < 0 )
             npc_spawn_now(self);
         break;
-    case PKT_NPC_INFO_OPBITS_WALKDIR:
+    case RSPROT_OP_WALKDIR:
         if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->_bitvalue);
+            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->value);
         break;
-    case PKT_NPC_INFO_OPBITS_RUNDIR:
+    case RSPROT_OP_RUNDIR:
         if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->_bitvalue);
+            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->value);
         break;
-    case PKT_NPC_INFO_OPBITS_CRAWLDIR:
+    case RSPROT_OP_CRAWLDIR:
         if( idx >= 0 )
-            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_CRAWL, (int)op->_bitvalue);
+            World_NpcPathPushStep(world, idx, WORLD_PATHSTEP_CRAWL, (int)op->value);
         break;
-    case PKT_NPC_INFO_OP_DELTA_XZ:
+    case RSPROT_OP_DELTA_XZ:
         if( idx >= 0 )
         {
             int lx, lz, llevel;
@@ -1144,111 +1131,111 @@ npc_apply_op(
              * `[telejump]` and a fresh add 1). */
             if( getenv("TORIRS_SCRIPTRUN_NPC_MOVE_TRACE") )
                 fprintf(stderr, "scriptrun_npc_move: slot=%d tile=%d,%d jump=%d\n", self->cur_slot,
-                        lx + op->_delta_xz.dx, lz + op->_delta_xz.dz, op->_delta_xz.jump ? 1 : 0);
+                        lx + op->delta_xz.dx, lz + op->delta_xz.dz, op->delta_xz.jump ? 1 : 0);
             World_NpcPathJump(
-                world, idx, op->_delta_xz.jump, lx + op->_delta_xz.dx, lz + op->_delta_xz.dz);
+                world, idx, op->delta_xz.jump, lx + op->delta_xz.dx, lz + op->delta_xz.dz);
         }
         break;
-    case PKT_NPC_INFO_OP_SEQUENCE:
+    case RSPROT_OP_SEQUENCE:
         if( idx >= 0 )
         {
             World_NpcSetPrimaryAnimation(
-                world, idx, op->_sequence.sequence_id, op->_sequence.delay);
+                world, idx, op->sequence.sequence_id, op->sequence.delay);
             /* DRIVE_STAMP npc_seq: a=slot b=seq c=tick, on the op's arrival. */
             ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_SEQ, self->cur_slot,
-                                op->_sequence.sequence_id, core->tick, 0);
+                                op->sequence.sequence_id, core->tick, 0);
         }
         break;
-    case PKT_NPC_INFO_OP_FACE_ENTITY:
+    case RSPROT_OP_FACE_ENTITY:
         if( idx >= 0 )
         {
-            int entity_id = op->_face_entity.entity_id == 65535 ? -1 : op->_face_entity.entity_id;
-            if( op->_face_entity.modern )
-                World_NpcBeginModernFacing(world, idx, op->_face_entity.movement_mode);
+            int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
+            if( op->face_entity.modern )
+                World_NpcBeginModernFacing(world, idx, op->face_entity.movement_mode);
             World_NpcFaceEntityDetailed(
                 world,
                 idx,
                 entity_id,
-                op->_face_entity.has_fallback_angle ? op->_face_entity.fallback_angle : -1,
-                op->_face_entity.instant);
+                op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
+                op->face_entity.instant);
         }
         break;
-    case PKT_NPC_INFO_OP_FACE_COORD:
+    case RSPROT_OP_FACE_COORD:
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc;
-            if( op->_face_coord.modern )
-                World_NpcBeginModernFacing(world, idx, op->_face_coord.movement_mode);
-            World_NpcFaceCoord(world, idx, op->_face_coord.x, op->_face_coord.z);
+            if( op->face_coord.modern )
+                World_NpcBeginModernFacing(world, idx, op->face_coord.movement_mode);
+            World_NpcFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
             npc = World_EntityPoolAt(&world->entities.npc, idx);
-            if( op->_face_coord.instant )
+            if( op->face_coord.instant )
                 npc->facing.instant = true;
-            npc->face_sent_x = op->_face_coord.x;
-            npc->face_sent_z = op->_face_coord.z;
+            npc->face_sent_x = op->face_coord.x;
+            npc->face_sent_z = op->face_coord.z;
             npc->face_sent_cycle = (int)world->cycle;
             /* DRIVE_STAMP npc_face: a=slot b=x c=z d=tick (tiles, halved). */
             ScriptrunCore_Event(core, SCRIPTRUN_EV_NPC_FACE, self->cur_slot,
-                                op->_face_coord.x >> 1, op->_face_coord.z >> 1, core->tick);
+                                op->face_coord.x >> 1, op->face_coord.z >> 1, core->tick);
         }
         break;
-    case PKT_NPC_INFO_OP_SAY:
-        if( idx >= 0 && op->_say.text )
-            World_NpcSetChat(world, idx, op->_say.text, 0, 0);
+    case RSPROT_OP_SAY:
+        if( idx >= 0 && op->say.text )
+            World_NpcSetChat(world, idx, op->say.text, 0, 0);
         break;
-    case PKT_NPC_INFO_OP_DAMAGE:
+    case RSPROT_OP_DAMAGE:
         if( idx >= 0 )
             World_NpcAddHitmarkTimed(
                 world,
                 idx,
-                op->_damage.damage_type,
-                op->_damage.damage,
-                op->_damage.health,
-                op->_damage.total_health,
-                op->_damage.delay,
-                op->_damage.slots,
+                op->damage.damage_type,
+                op->damage.damage,
+                op->damage.health,
+                op->damage.total_health,
+                op->damage.delay,
+                op->damage.slots,
                 WORLD_HITMARK_DEFAULT_DURATION,
                 WORLD_HITMARK_POLICY_DISCARD);
         break;
-    case PKT_NPC_INFO_OP_HEADBAR:
+    case RSPROT_OP_HEADBAR:
         if( idx >= 0 )
         {
-            if( op->_headbar.remove )
+            if( op->headbar.remove )
                 World_NpcClearHealthbar(world, idx);
             else
                 World_NpcSetHealthbar(
                     world,
                     idx,
                     core_headbar(
-                        core, op->_headbar.type, op->_headbar.duration, op->_headbar.start_delay,
-                        op->_headbar.start_fill, op->_headbar.end_fill));
+                        core, op->headbar.type, op->headbar.duration, op->headbar.start_delay,
+                        op->headbar.start_fill, op->headbar.end_fill));
         }
         break;
-    case PKT_NPC_INFO_OP_CHANGE_TYPE:
-        self->pending_base_type = op->_change_type.npc_type;
+    case RSPROT_OP_CHANGE_TYPE:
+        self->pending_base_type = op->change_type.npc_type;
         if( idx >= 0 )
             npc_retype_now(self, idx);
         break;
-    case PKT_NPC_INFO_OP_SPOTANIM:
+    case RSPROT_OP_SPOTANIM:
         if( idx >= 0 )
             World_NpcSetSpotanim(
                 world,
                 idx,
-                op->_spotanim.slot,
-                op->_spotanim.spotanim_id,
-                op->_spotanim.height_delay >> 16,
-                op->_spotanim.height_delay & 0xffff,
-                op->_spotanim.loop);
+                op->spotanim.slot,
+                op->spotanim.spotanim_id,
+                op->spotanim.height_delay >> 16,
+                op->spotanim.height_delay & 0xffff,
+                op->spotanim.loop);
         break;
-    case PKT_NPC_INFO_OP_EXACT_MOVE:
+    case RSPROT_OP_EXACT_MOVE:
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            int sx = op->_exactmove.start_x;
-            int sz = op->_exactmove.start_z;
-            int ex = op->_exactmove.end_x;
-            int ez = op->_exactmove.end_z;
+            int sx = op->exact_move.start_x;
+            int sz = op->exact_move.start_z;
+            int ex = op->exact_move.end_x;
+            int ez = op->exact_move.end_z;
 
-            if( op->_exactmove.relative )
+            if( op->exact_move.relative )
             {
                 sx += npc->pathing.route_x[0];
                 sz += npc->pathing.route_z[0];
@@ -1256,46 +1243,46 @@ npc_apply_op(
                 ez += npc->pathing.route_z[0];
             }
             World_NpcSetExactMoveDetailed(
-                world, idx, sx, sz, ex, ez, op->_exactmove.start_cycle_delta,
-                op->_exactmove.end_cycle_delta, op->_exactmove.facing,
-                op->_exactmove.facing_is_yaw);
+                world, idx, sx, sz, ex, ez, op->exact_move.start_cycle_delta,
+                op->exact_move.end_cycle_delta, op->exact_move.facing,
+                op->exact_move.facing_is_yaw);
         }
         break;
-    case PKT_NPC_INFO_OP_FACE_ANGLE:
+    case RSPROT_OP_FACE_ANGLE:
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
             int angle;
-            if( op->_face_angle.modern )
-                World_NpcBeginModernFacing(world, idx, op->_face_angle.movement_mode);
-            angle = op->_face_angle.spawn && npc->facing.turn_speed == 0 ? 0
-                                                                         : op->_face_angle.angle;
-            World_NpcFaceAngle(world, idx, angle, op->_face_angle.instant);
+            if( op->face_angle.modern )
+                World_NpcBeginModernFacing(world, idx, op->face_angle.movement_mode);
+            angle = op->face_angle.spawn && npc->facing.turn_speed == 0 ? 0
+                                                                         : op->face_angle.angle;
+            World_NpcFaceAngle(world, idx, angle, op->face_angle.instant);
         }
         break;
-    case PKT_NPC_INFO_OP_SPAWN_CYCLE:
+    case RSPROT_OP_SPAWN_CYCLE:
         if( idx >= 0 )
             ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->spawn_cycle =
-                (uint32_t)op->_bitvalue;
+                (uint32_t)op->value;
         break;
-    case PKT_NPC_INFO_OP_VISIBLE_OPS:
+    case RSPROT_OP_VISIBLE_OPS:
         if( idx >= 0 )
             ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->visible_ops =
-                (uint8_t)op->_bitvalue;
+                (uint8_t)op->value;
         break;
-    case PKT_NPC_INFO_OP_NAME_CHANGE:
-        if( idx >= 0 && op->_name_change.name )
+    case RSPROT_OP_NAME_CHANGE:
+        if( idx >= 0 && op->name_change.name )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            snprintf(npc->name, sizeof(npc->name), "%s", op->_name_change.name);
+            snprintf(npc->name, sizeof(npc->name), "%s", op->name_change.name);
         }
         break;
-    case PKT_NPC_INFO_OP_LEVEL_CHANGE:
+    case RSPROT_OP_LEVEL_CHANGE:
         if( idx >= 0 )
             ((struct WorldEntity_NPC*)World_EntityPoolAt(&world->entities.npc, idx))->combat_level =
-                (int)(uint32_t)op->_bitvalue;
+                (int)(uint32_t)op->value;
         break;
-    case PKT_NPC_INFO_OP_HEADICON_CUSTOM:
+    case RSPROT_OP_HEADICON_CUSTOM:
         if( idx >= 0 )
         {
             int group[WORLD_NPC_HEADICON_SLOTS];
@@ -1303,37 +1290,37 @@ npc_apply_op(
 
             for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
             {
-                group[i] = op->_headicon.group[i];
-                index[i] = op->_headicon.index[i];
+                group[i] = op->headicon.group[i];
+                index[i] = op->headicon.index[i];
             }
-            World_NpcSetHeadiconCustom(world, idx, op->_headicon.mask != 0, group, index);
+            World_NpcSetHeadiconCustom(world, idx, op->headicon.mask != 0, group, index);
         }
         break;
-    case PKT_NPC_INFO_OP_BODY_CUSTOM:
+    case RSPROT_OP_BODY_CUSTOM:
         if( idx >= 0 )
             World_NpcSetBodyModels(
-                world, idx, op->_body.models, op->_body.reset ? 0 : op->_body.model_count);
+                world, idx, op->body.models, op->body.reset ? 0 : op->body.model_count);
         break;
-    case PKT_NPC_INFO_OP_BAS_CHANGE:
+    case RSPROT_OP_BAS_CHANGE:
         if( idx >= 0 )
         {
             struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            uint32_t mask = op->_bas_change.mask;
-            if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->_bas_change.turnanim;
-            if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->_bas_change.turnanim_r;
-            if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->_bas_change.walkanim;
-            if( mask & (1u << 3) ) npc->idle_animations.walkanim_b = op->_bas_change.walkanim_b;
-            if( mask & (1u << 4) ) npc->idle_animations.walkanim_l = op->_bas_change.walkanim_l;
-            if( mask & (1u << 5) ) npc->idle_animations.walkanim_r = op->_bas_change.walkanim_r;
-            if( mask & (1u << 6) ) npc->idle_animations.runanim = op->_bas_change.runanim;
-            if( mask & (1u << 7) ) npc->idle_animations.runanim_b = op->_bas_change.runanim_b;
-            if( mask & (1u << 8) ) npc->idle_animations.runanim_l = op->_bas_change.runanim_l;
-            if( mask & (1u << 9) ) npc->idle_animations.runanim_r = op->_bas_change.runanim_r;
-            if( mask & (1u << 10) ) npc->idle_animations.crawlanim = op->_bas_change.crawlanim;
-            if( mask & (1u << 11) ) npc->idle_animations.crawlanim_b = op->_bas_change.crawlanim_b;
-            if( mask & (1u << 12) ) npc->idle_animations.crawlanim_l = op->_bas_change.crawlanim_l;
-            if( mask & (1u << 13) ) npc->idle_animations.crawlanim_r = op->_bas_change.crawlanim_r;
-            if( mask & (1u << 14) ) npc->idle_animations.readyanim = op->_bas_change.readyanim;
+            uint32_t mask = op->bas_change.mask;
+            if( mask & (1u << 0) ) npc->idle_animations.turnanim = op->bas_change.turnanim;
+            if( mask & (1u << 1) ) npc->idle_animations.turnanim_r = op->bas_change.turnanim_r;
+            if( mask & (1u << 2) ) npc->idle_animations.walkanim = op->bas_change.walkanim;
+            if( mask & (1u << 3) ) npc->idle_animations.walkanim_b = op->bas_change.walkanim_b;
+            if( mask & (1u << 4) ) npc->idle_animations.walkanim_l = op->bas_change.walkanim_l;
+            if( mask & (1u << 5) ) npc->idle_animations.walkanim_r = op->bas_change.walkanim_r;
+            if( mask & (1u << 6) ) npc->idle_animations.runanim = op->bas_change.runanim;
+            if( mask & (1u << 7) ) npc->idle_animations.runanim_b = op->bas_change.runanim_b;
+            if( mask & (1u << 8) ) npc->idle_animations.runanim_l = op->bas_change.runanim_l;
+            if( mask & (1u << 9) ) npc->idle_animations.runanim_r = op->bas_change.runanim_r;
+            if( mask & (1u << 10) ) npc->idle_animations.crawlanim = op->bas_change.crawlanim;
+            if( mask & (1u << 11) ) npc->idle_animations.crawlanim_b = op->bas_change.crawlanim_b;
+            if( mask & (1u << 12) ) npc->idle_animations.crawlanim_l = op->bas_change.crawlanim_l;
+            if( mask & (1u << 13) ) npc->idle_animations.crawlanim_r = op->bas_change.crawlanim_r;
+            if( mask & (1u << 14) ) npc->idle_animations.readyanim = op->bas_change.readyanim;
         }
         break;
     default:
@@ -1347,21 +1334,20 @@ core_npc_info(
     uint8_t const* data,
     int length)
 {
-    struct PktNpcInfoOp* ops = core->npc_ops;
+    struct RsprotInfoOp* ops = core->npc_ops;
     struct NpcApply self;
+    RsprotInfoList list;
     int op_count;
 
     assert(core->rev->npc_info_read);
-    op_count = core->rev->npc_info_read(data, length, ops, CORE_ENTITY_OPS_MAX);
+    rsprot_info_list_init(&list, ops, CORE_ENTITY_OPS_MAX, core->info_bytes, CORE_ENTITY_BYTES_MAX);
+    op_count = core->rev->npc_info_read(data, length, &list);
 
     memset(&self, 0, sizeof(self));
     self.core = core;
     self.view = core->active_world;
     if( self.view > 0 && !core->views[self.view].live )
-    {
-        pkt_npc_info_ops_free(ops, op_count);
         return;
-    }
     RS_EntitySync_NpcList(core->esync, self.view, &self.list, &self.count, &self.cap);
     self.old_count = *self.count;
     memcpy(core->npc_old_list, self.list, (size_t)self.old_count * sizeof(core->npc_old_list[0]));
@@ -1374,7 +1360,6 @@ core_npc_info(
         if( !npc_target_op(&self, &ops[i]) )
             npc_apply_op(&self, &ops[i]);
     }
-    pkt_npc_info_ops_free(ops, op_count);
 }
 
 /* ------------------------------------------------------------ zone packets */
@@ -2017,15 +2002,11 @@ ScriptrunCore_Packet(
     assert(core);
     assert(len >= 0);
     core->packets++;
-    if( core->player_decoder_state && core->rev->player_info_state_load )
+    if( core->player_decoder_state )
         core->rev->player_info_state_load(core->player_decoder_state);
-    else if( core->player_decoder_state )
-        osrs239_playerinfo_state_load(core->player_decoder_state);
     core_packet(core, pkt_name, payload, len);
-    if( core->player_decoder_state && core->rev->player_info_state_save )
+    if( core->player_decoder_state )
         core->rev->player_info_state_save(core->player_decoder_state);
-    else if( core->player_decoder_state )
-        osrs239_playerinfo_state_save(core->player_decoder_state);
 }
 
 static void

@@ -2,12 +2,12 @@
 #include "update_tradingpost_v2.h"
 
 /*
- * v100 -- revs 241.
+ * v1 (rsprox_versions.txt 100) -- revs 241.
  * g1 hasUpdate; != 0: g8 age, g2 obj, g1 status, g2 offerCount,
  * [gjstr name, gjstr previousName, g2 world, g8 time, g8 price, g4 count]*.
  */
 void
-packet_update_tradingpost_v2_v100_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
+packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
 {
     RSPROT_U1(x, m->has_update);
     if (RSPROT_BRANCH(x, m->has_update) == 0)
@@ -29,7 +29,7 @@ packet_update_tradingpost_v2_v100_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
 }
 
 const RsprotVersionRange rsprot_update_tradingpost_v2_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_update_tradingpost_v2_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_update_tradingpost_v2_v1_out },
 };
 
 const int rsprot_update_tradingpost_v2_out_count =

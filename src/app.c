@@ -720,8 +720,8 @@ App_Init(
      * REVISION, shared by every world that boots that profile; a manifest's
      * `[features:boot]` is a statement about one WORLD, and some of what it has
      * to say is not derivable from the cache at all — era=server_routed is a
-     * property of the server, and manifest_osrs233xrsps.ini states it over a
-     * rev-233 cache whose own profile would say osrs.
+     * property of the server, which a manifest can state over a cache whose
+     * own profile would say osrs.
      */
     {
         struct RevConfigFeaturesItem const* rc_features = &app->revconfig_profile.features;

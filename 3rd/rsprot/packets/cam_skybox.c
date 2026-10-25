@@ -11,23 +11,23 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 238. */
+/* v1 -- revs 238 (packet_versions.txt 1). */
 void
 packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m)
 {
     RSPROT_U4_ALT3(x, m->model);
 }
 
-/* v2 -- revs 239-240. */
+/* v2 -- revs 239-240 (packet_versions.txt 2). */
 void
 packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m)
 {
     RSPROT_U4_ALT2(x, m->model);
 }
 
-/* v100 -- revs 241. */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_cam_skybox_v100_out(RsprotExec *x, MsgCamSkybox *m)
+packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m)
 {
     RSPROT_U4_ALT1(x, m->model);
 }
@@ -45,7 +45,7 @@ packet_cam_skybox_v100_out(RsprotExec *x, MsgCamSkybox *m)
 const RsprotVersionRange rsprot_cam_skybox_out[] = {
     { 238, 238, (RsprotCodecFn)packet_cam_skybox_v1_out },
     { 239, 240, (RsprotCodecFn)packet_cam_skybox_v2_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_skybox_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_skybox_v3_out },
 };
 
 const int rsprot_cam_skybox_out_count =

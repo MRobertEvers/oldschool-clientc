@@ -27,10 +27,10 @@ typedef struct MsgObjunlockUpdate {
 	MsgObjUnlockEntry entries[MSG_OBJUNLOCK_UPDATE_MAX_ENTRIES];
 } MsgObjunlockUpdate;
 
-/* v100 -- revs 241. */
-void packet_objunlock_update_v100_out(RsprotExec *x, MsgObjunlockUpdate *m);
+/* v1 (rsprox_versions.txt 100) -- revs 241. */
+void packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m);
 
-#define packet_objunlock_update_rev241_out packet_objunlock_update_v100_out
+#define packet_objunlock_update_osrs241_out packet_objunlock_update_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_objunlock_update_out[];

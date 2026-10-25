@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239 (packet_versions.txt 1). */
 void
 packet_cam_moveto_v3_v1_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
@@ -23,9 +23,9 @@ packet_cam_moveto_v3_v1_out(RsprotExec *x, MsgCamMoveToV3 *m)
     RSPROT_U1_ALT1(x, m->rate2);
 }
 
-/* v100 -- revs 241. */
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_cam_moveto_v3_v100_out(RsprotExec *x, MsgCamMoveToV3 *m)
+packet_cam_moveto_v3_v2_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
     RSPROT_U2(x, m->height);
     RSPROT_U1_ALT3(x, m->rate);
@@ -35,9 +35,9 @@ packet_cam_moveto_v3_v100_out(RsprotExec *x, MsgCamMoveToV3 *m)
     RSPROT_BOOL(x, m->height_relative);
 }
 
-/* v101 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_cam_moveto_v3_v101_out(RsprotExec *x, MsgCamMoveToV3 *m)
+packet_cam_moveto_v3_v3_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
     RSPROT_U1_ALT2(x, m->rate);
     RSPROT_U2(x, m->z);
@@ -59,8 +59,8 @@ packet_cam_moveto_v3_v101_out(RsprotExec *x, MsgCamMoveToV3 *m)
  */
 const RsprotVersionRange rsprot_cam_moveto_v3_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_moveto_v3_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_moveto_v3_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_moveto_v3_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_moveto_v3_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_moveto_v3_v2_out },
 };
 
 const int rsprot_cam_moveto_v3_out_count =

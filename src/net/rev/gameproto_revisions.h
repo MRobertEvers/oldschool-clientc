@@ -30,7 +30,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_INVALID = 0,
     GAMEPROTO_REVISION_LC254 = 1,
     GAMEPROTO_REVISION_LC245_2 = 2,
-    GAMEPROTO_REVISION_XRSPS233 = 3,
+    /* 3 was xrsps233, removed 2026-10-25. */
     GAMEPROTO_REVISION_OSRS230 = 4,
     GAMEPROTO_REVISION_OSRS239 = 5,
     GAMEPROTO_REVISION_LC289 = 6,
@@ -103,8 +103,7 @@ enum NetReconnectKind
 
 /* Forward decls: the generation-module slots below take pointers only. */
 struct RevPacket;
-struct PktPlayerInfoOp;
-struct PktNpcInfoOp;
+struct RsprotInfoList;
 struct PktPlayerAppearance;
 struct NetLoginVTable;
 struct NetOutVTable;
@@ -155,7 +154,7 @@ struct GameProtoRevTable
      * byte of each one as the next opcode and never resynchronises.
      */
     int opcode_smart2;
-    /** Server tick in ms (xrsps 600); 0 = revision has no explicit tick clock. */
+    /** Server tick in ms (600); 0 = revision has no explicit tick clock. */
     int server_tick_ms;
 
     /* --- NPC_INFO new-entity field widths (0 = classic) ---------------------
@@ -175,13 +174,6 @@ struct GameProtoRevTable
      * cannot tell 231:5 from 217:5 and a resume button can never be matched.
      */
     int component_id_bytes;
-
-    /** Bits in the new-npc record's slot field. The all-ones value is the
-     *  section terminator, so this sets that too. 0 = classic 14. */
-    int npc_slot_bits;
-    /** Bits in the new-npc record's npc-type field. 0 = classic 11, i.e. a
-     *  maximum id of 2047 — far below the OSRS-era npc count. */
-    int npc_type_bits;
 
     /** Login handshake driver. NULL = the classic loginproto.c state machine. */
     struct NetLoginVTable const* login;
@@ -206,21 +198,20 @@ struct GameProtoRevTable
         int len,
         struct RevPacket* out);
 
-    /** Modern entity-info readers emitting the shared op list. NULL = classic
-     * bitcodec (pkt_player_info.c / pkt_npc_info.c). Wired in Phase 3. */
-    int (*player_info_read)(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
-    int (*npc_info_read)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+    /** The entity-info readers, each writing the op list the executor reads:
+     * <prot>_osrs<N> (3rd/rsprot/streams) or <prot>_rs<N> (net/rev/rs/).
+     * Every table that carries PLAYER_INFO / NPC_INFO names its own. */
+    int (*player_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
+    int (*npc_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
     /** NPC_INFO in extended view (PKT_NAME_NPC_INFO_LARGE), where the
      *  revision names one: npc_info_read's stream with 8-bit low-resolution
      *  deltas. NULL where the table routes no large packet. */
-    int (*npc_info_read_large)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+    int (*npc_info_read_large)(uint8_t const* data, int len, struct RsprotInfoList* out);
     /**
-     * The modern player stream's session state lives inside its reader's
-     * module (a 2048-slot high-resolution table), and the host has to seed,
-     * park and restore it. NULL here means "the osrs239 module's" -- the
-     * functions net.c and scriptrun_core.c called by name before a second
-     * modern revision existed; a revision with its OWN reader (osrs241) must
-     * set all five, or its stream is decoded against another module's table.
+     * The modern player stream's session state (a 2048-slot high-resolution
+     * table, net/rev/rsprot_entity_state.c) the host seeds, parks and
+     * restores. All five or none: NULL is a stream with no state across
+     * packets (the classic bitcodec, lc289).
      */
     void (*player_info_set_local)(int local_index);
     void (*player_info_init)(uint8_t const* data, int len);
@@ -262,9 +253,6 @@ struct GameProtoRevTable const*
 GameProtoRev_LC254(void);
 
 struct GameProtoRevTable const*
-GameProtoRev_XRSPS233(void);
-
-struct GameProtoRevTable const*
 GameProtoRev_OSRS230(void);
 
 struct GameProtoRevTable const*
@@ -277,7 +265,7 @@ GameProtoRev_OSRS241(void);
 struct GameProtoRevTable const*
 GameProtoRev_LC289(void);
 
-/** Resolve a revision by name ("lc254", "lc289", "lc245_2", "xrsps233",
+/** Resolve a revision by name ("lc254", "lc289", "lc245_2",
  *  "osrs230", "osrs239", "osrs241"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);

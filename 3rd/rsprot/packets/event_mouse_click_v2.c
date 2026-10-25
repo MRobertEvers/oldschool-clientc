@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 232. */
+/* v1 -- revs 232 (packet_versions.txt 1). */
 void
 packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -25,7 +25,7 @@ packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v2 -- revs 233. */
+/* v2 -- revs 233 (packet_versions.txt 2). */
 void
 packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -39,7 +39,7 @@ packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v3 -- revs 234. */
+/* v3 -- revs 234 (packet_versions.txt 3). */
 void
 packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -53,7 +53,7 @@ packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v4 -- revs 235. */
+/* v4 -- revs 235 (packet_versions.txt 4). */
 void
 packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -67,7 +67,7 @@ packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v5 -- revs 236. */
+/* v5 -- revs 236 (packet_versions.txt 5). */
 void
 packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -81,7 +81,7 @@ packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v6 -- revs 237. */
+/* v6 -- revs 237 (packet_versions.txt 6). */
 void
 packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -95,7 +95,7 @@ packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v7 -- revs 238. */
+/* v7 -- revs 238 (packet_versions.txt 7). */
 void
 packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -109,7 +109,7 @@ packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v8 -- revs 239. */
+/* v8 -- revs 239 (packet_versions.txt 8). */
 void
 packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
@@ -123,9 +123,9 @@ packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v100 -- revs 241. */
+/* v9 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m)
+packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
     RSPROT_U2_ALT3(x, m->y);
     RSPROT_U2_ALT3(x, m->x);
@@ -137,9 +137,9 @@ packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m)
     m->right_click = right_click;
 }
 
-/* v101 -- revs 240. */
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_event_mouse_click_v2_v101_in(RsprotExec *x, MsgEventMouseClickV2 *m)
+packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
     RSPROT_U1(x, m->code);
     RSPROT_U2_ALT3(x, m->y);
@@ -170,8 +170,8 @@ const RsprotVersionRange rsprot_event_mouse_click_v2_in[] = {
     { 237, 237, (RsprotCodecFn)packet_event_mouse_click_v2_v6_in },
     { 238, 238, (RsprotCodecFn)packet_event_mouse_click_v2_v7_in },
     { 239, 239, (RsprotCodecFn)packet_event_mouse_click_v2_v8_in },
-    { 240, 240, (RsprotCodecFn)packet_event_mouse_click_v2_v101_in },
-    { 241, 241, (RsprotCodecFn)packet_event_mouse_click_v2_v100_in },
+    { 240, 240, (RsprotCodecFn)packet_event_mouse_click_v2_v10_in },
+    { 241, 241, (RsprotCodecFn)packet_event_mouse_click_v2_v9_in },
 };
 
 const int rsprot_event_mouse_click_v2_in_count =

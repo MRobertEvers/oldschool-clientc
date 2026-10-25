@@ -11,14 +11,14 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m)
 {
     RSPROT_U4(x, m->combined_id);
 }
 
-/* v2 -- revs 222-241. */
+/* v2 -- revs 222-241 (packet_versions.txt 2). */
 void
 packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m)
 {

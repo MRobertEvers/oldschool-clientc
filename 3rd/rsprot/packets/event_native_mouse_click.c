@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 222. */
+/* v1 -- revs 222 (packet_versions.txt 1). */
 void
 packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -20,7 +20,7 @@ packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v2 -- revs 223. */
+/* v2 -- revs 223 (packet_versions.txt 2). */
 void
 packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -29,7 +29,7 @@ packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2_ALT3(x, m->last_transmitted_mouse_click);
 }
 
-/* v3 -- revs 224. */
+/* v3 -- revs 224 (packet_versions.txt 3). */
 void
 packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -38,7 +38,7 @@ packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v4 -- revs 225. */
+/* v4 -- revs 225 (packet_versions.txt 4). */
 void
 packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -47,7 +47,7 @@ packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2_ALT3(x, m->last_transmitted_mouse_click);
 }
 
-/* v5 -- revs 226. */
+/* v5 -- revs 226 (packet_versions.txt 5). */
 void
 packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -56,7 +56,7 @@ packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2(x, m->last_transmitted_mouse_click);
 }
 
-/* v6 -- revs 227. */
+/* v6 -- revs 227 (packet_versions.txt 6). */
 void
 packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -65,7 +65,7 @@ packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1_ALT2(x, m->code);
 }
 
-/* v7 -- revs 228. */
+/* v7 -- revs 228 (packet_versions.txt 7). */
 void
 packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -74,7 +74,7 @@ packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U4_ALT2(x, m->packed_coord);
 }
 
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void
 packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -83,7 +83,7 @@ packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1_ALT1(x, m->code);
 }
 
-/* v9 -- revs 230. */
+/* v9 -- revs 230 (packet_versions.txt 9). */
 void
 packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -92,7 +92,7 @@ packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void
 packet_event_native_mouse_click_v10_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {

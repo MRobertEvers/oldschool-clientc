@@ -12,12 +12,13 @@
  *
  * RSProt class : IfButtonXDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfButtonXDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,22 +37,22 @@ typedef struct MsgIfButtonX {
 	int32_t op;
 } MsgIfButtonX;
 
-/* v1 -- revs 231-241. */
+/* v1 -- revs 231-241 (packet_versions.txt 1). */
 void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 
-/* Per-revision aliases: `packet_if_buttonx_rev239_in` is greppable, which is the
- * point -- "what does 239 do for IF_BUTTONX" without reading a table. */
-#define packet_if_buttonx_rev231_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev232_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev233_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev234_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev235_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev236_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev237_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev238_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev239_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev240_in packet_if_buttonx_v1_in
-#define packet_if_buttonx_rev241_in packet_if_buttonx_v1_in
+/* Per-revision entry points: `packet_if_buttonx_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for IF_BUTTONX" without reading a table. */
+#define packet_if_buttonx_osrs231_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs232_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs233_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs234_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs235_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs236_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs237_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs238_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs239_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs240_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrs241_in packet_if_buttonx_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_buttonx_in[];

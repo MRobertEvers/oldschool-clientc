@@ -11,28 +11,28 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 226, 229, 231, 233-234. */
+/* v1 -- revs 221, 226, 229, 231, 233-234 (packet_versions.txt 1). */
 void
 packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2_ALT3(x, m->inventory_id);
 }
 
-/* v2 -- revs 222-223, 225, 228, 238-239, 241. */
+/* v2 -- revs 222-223, 225, 228, 238-239, 241 (packet_versions.txt 2). */
 void
 packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2_ALT2(x, m->inventory_id);
 }
 
-/* v3 -- revs 224, 227, 230, 232, 236. */
+/* v3 -- revs 224, 227, 230, 232, 236 (packet_versions.txt 3). */
 void
 packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2(x, m->inventory_id);
 }
 
-/* v4 -- revs 235, 237, 240. */
+/* v4 -- revs 235, 237, 240 (packet_versions.txt 4). */
 void
 packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 237. */
+/* v1 -- revs 237 (packet_versions.txt 1). */
 void
 packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -20,7 +20,7 @@ packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2_ALT3(x, m->zone_z);
 }
 
-/* v2 -- revs 238. */
+/* v2 -- revs 238 (packet_versions.txt 2). */
 void
 packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -29,7 +29,7 @@ packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U2_ALT2(x, m->zone_z);
 }
 
-/* v3 -- revs 239. */
+/* v3 -- revs 239 (packet_versions.txt 3). */
 void
 packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -38,18 +38,18 @@ packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     RSPROT_U1_ALT1(x, m->reload);
 }
 
-/* v100 -- revs 241. */
+/* v4 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_rebuild_region_v2_v100_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
     RSPROT_U2(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
     RSPROT_U2_ALT1(x, m->zone_z);
 }
 
-/* v101 -- revs 240. */
+/* v5 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_rebuild_region_v2_v101_out(RsprotExec *x, MsgRebuildRegionV2 *m)
+packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U2_ALT1(x, m->zone_x);
@@ -70,8 +70,8 @@ const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_rebuild_region_v2_v1_out },
     { 238, 238, (RsprotCodecFn)packet_rebuild_region_v2_v2_out },
     { 239, 239, (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_rebuild_region_v2_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_rebuild_region_v2_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
+    { 241, 241, (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
 };
 
 const int rsprot_rebuild_region_v2_out_count =

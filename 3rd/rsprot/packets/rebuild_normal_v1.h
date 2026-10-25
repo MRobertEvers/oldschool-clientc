@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.StaticRebuildV1Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.StaticRebuildV1Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -26,10 +27,10 @@ typedef struct MsgRebuildNormalV1 {
 	int32_t keys[169][4];
 } MsgRebuildNormalV1;
 
-/* v100 -- revs 237. */
-void packet_rebuild_normal_v1_v100_out(RsprotExec *x, MsgRebuildNormalV1 *m);
+/* v1 -- revs 237 (rsprox_versions.txt 100). */
+void packet_rebuild_normal_v1_v1_out(RsprotExec *x, MsgRebuildNormalV1 *m);
 
-#define packet_rebuild_normal_v1_rev237_out packet_rebuild_normal_v1_v100_out
+#define packet_rebuild_normal_v1_osrs237_out packet_rebuild_normal_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_normal_v1_out[];

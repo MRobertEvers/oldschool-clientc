@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.ObjUnlockResetDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.ObjUnlockResetDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -22,10 +23,10 @@ typedef struct MsgObjunlockReset {
 	int32_t unused; /* zero-payload packet */
 } MsgObjunlockReset;
 
-/* v100 -- revs 241. */
-void packet_objunlock_reset_v100_out(RsprotExec *x, MsgObjunlockReset *m);
+/* v1 -- revs 241 (rsprox_versions.txt 100). */
+void packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m);
 
-#define packet_objunlock_reset_rev241_out packet_objunlock_reset_v100_out
+#define packet_objunlock_reset_osrs241_out packet_objunlock_reset_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_objunlock_reset_out[];

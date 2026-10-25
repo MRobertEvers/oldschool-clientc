@@ -11,23 +11,23 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 238, 240. */
+/* v1 -- revs 238, 240 (packet_versions.txt 1). */
 void
 packet_cam_unlock_v1_out(RsprotExec *x, MsgCamUnlock *m)
 {
     RSPROT_U1_ALT1(x, m->unlock);
 }
 
-/* v2 -- revs 239. */
+/* v2 -- revs 239 (packet_versions.txt 2). */
 void
 packet_cam_unlock_v2_out(RsprotExec *x, MsgCamUnlock *m)
 {
     RSPROT_BOOL(x, m->unlock);
 }
 
-/* v100 -- revs 241. */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_cam_unlock_v100_out(RsprotExec *x, MsgCamUnlock *m)
+packet_cam_unlock_v3_out(RsprotExec *x, MsgCamUnlock *m)
 {
     RSPROT_U1_ALT3(x, m->unlock);
 }
@@ -46,7 +46,7 @@ const RsprotVersionRange rsprot_cam_unlock_out[] = {
     { 238, 238, (RsprotCodecFn)packet_cam_unlock_v1_out },
     { 239, 239, (RsprotCodecFn)packet_cam_unlock_v2_out },
     { 240, 240, (RsprotCodecFn)packet_cam_unlock_v1_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_unlock_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_unlock_v3_out },
 };
 
 const int rsprot_cam_unlock_out_count =

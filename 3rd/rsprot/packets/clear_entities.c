@@ -7,9 +7,9 @@
  *       decoder/codec/worldentity/ClearEntitiesDecoder.kt
  */
 
-/* v100 -- revs 227-229. */
+/* v1 -- revs 227-229 (rsprox_versions.txt 100). */
 void
-packet_clear_entities_v100_out(RsprotExec *x, MsgClearEntities *m)
+packet_clear_entities_v1_out(RsprotExec *x, MsgClearEntities *m)
 {
     (void)x;
     (void)m;
@@ -20,7 +20,7 @@ packet_clear_entities_v100_out(RsprotExec *x, MsgClearEntities *m)
  * listed has no CLEAR_ENTITIES and picks NULL.
  */
 const RsprotVersionRange rsprot_clear_entities_out[] = {
-    { 227, 229, (RsprotCodecFn)packet_clear_entities_v100_out },
+    { 227, 229, (RsprotCodecFn)packet_clear_entities_v1_out },
 };
 
 const int rsprot_clear_entities_out_count =

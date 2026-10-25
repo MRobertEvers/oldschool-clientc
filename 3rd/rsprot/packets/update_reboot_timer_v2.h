@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.UpdateRebootTimerV2Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v4 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.UpdateRebootTimerV2Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 4 distinct, over 5 contiguous revision run(s)
@@ -23,21 +24,21 @@ typedef struct MsgUpdateRebootTimerV2 {
 	int32_t game_cycles;
 } MsgUpdateRebootTimerV2;
 
-/* v100 -- revs 236, 240-241. */
-void packet_update_reboot_timer_v2_v100_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
-/* v101 -- revs 237. */
-void packet_update_reboot_timer_v2_v101_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
-/* v102 -- revs 238. */
-void packet_update_reboot_timer_v2_v102_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
-/* v103 -- revs 239. */
-void packet_update_reboot_timer_v2_v103_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
+/* v1 -- revs 236, 240-241 (rsprox_versions.txt 100). */
+void packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
+/* v2 -- revs 237 (rsprox_versions.txt 101). */
+void packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
+/* v3 -- revs 238 (rsprox_versions.txt 102). */
+void packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
+/* v4 -- revs 239 (rsprox_versions.txt 103). */
+void packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m);
 
-#define packet_update_reboot_timer_v2_rev236_out packet_update_reboot_timer_v2_v100_out
-#define packet_update_reboot_timer_v2_rev237_out packet_update_reboot_timer_v2_v101_out
-#define packet_update_reboot_timer_v2_rev238_out packet_update_reboot_timer_v2_v102_out
-#define packet_update_reboot_timer_v2_rev239_out packet_update_reboot_timer_v2_v103_out
-#define packet_update_reboot_timer_v2_rev240_out packet_update_reboot_timer_v2_v100_out
-#define packet_update_reboot_timer_v2_rev241_out packet_update_reboot_timer_v2_v100_out
+#define packet_update_reboot_timer_v2_osrs236_out packet_update_reboot_timer_v2_v1_out
+#define packet_update_reboot_timer_v2_osrs237_out packet_update_reboot_timer_v2_v2_out
+#define packet_update_reboot_timer_v2_osrs238_out packet_update_reboot_timer_v2_v3_out
+#define packet_update_reboot_timer_v2_osrs239_out packet_update_reboot_timer_v2_v4_out
+#define packet_update_reboot_timer_v2_osrs240_out packet_update_reboot_timer_v2_v1_out
+#define packet_update_reboot_timer_v2_osrs241_out packet_update_reboot_timer_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_reboot_timer_v2_out[];

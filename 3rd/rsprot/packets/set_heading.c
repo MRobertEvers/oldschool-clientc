@@ -11,28 +11,28 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 226, 229, 238. */
+/* v1 -- revs 226, 229, 238 (packet_versions.txt 1). */
 void
 packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_ALT2(x, m->heading);
 }
 
-/* v2 -- revs 227, 232-233, 235-236, 240-241. */
+/* v2 -- revs 227, 232-233, 235-236, 240-241 (packet_versions.txt 2). */
 void
 packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_ALT1(x, m->heading);
 }
 
-/* v3 -- revs 228, 237. */
+/* v3 -- revs 228, 237 (packet_versions.txt 3). */
 void
 packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_ALT3(x, m->heading);
 }
 
-/* v4 -- revs 230-231, 234, 239. */
+/* v4 -- revs 230-231, 234, 239 (packet_versions.txt 4). */
 void
 packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m)
 {

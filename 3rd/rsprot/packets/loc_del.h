@@ -12,12 +12,13 @@
  *
  * RSProt class : LocDelEncoder
  * Layouts      : 15 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v15, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^LocDelEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,60 +35,60 @@ typedef struct MsgLocDel {
 	int32_t loc_properties_packed;
 } MsgLocDel;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_loc_del_v1_out(RsprotExec *x, MsgLocDel *m);
-/* v2 -- revs 222, 229. */
+/* v2 -- revs 222, 229 (packet_versions.txt 2). */
 void packet_loc_del_v2_out(RsprotExec *x, MsgLocDel *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_loc_del_v3_out(RsprotExec *x, MsgLocDel *m);
-/* v4 -- revs 224, 240. */
+/* v4 -- revs 224, 240 (packet_versions.txt 4). */
 void packet_loc_del_v4_out(RsprotExec *x, MsgLocDel *m);
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void packet_loc_del_v5_out(RsprotExec *x, MsgLocDel *m);
-/* v6 -- revs 226, 235. */
+/* v6 -- revs 226, 235 (packet_versions.txt 6). */
 void packet_loc_del_v6_out(RsprotExec *x, MsgLocDel *m);
-/* v7 -- revs 227, 241. */
+/* v7 -- revs 227, 241 (packet_versions.txt 7). */
 void packet_loc_del_v7_out(RsprotExec *x, MsgLocDel *m);
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m);
-/* v9 -- revs 230, 233. */
+/* v9 -- revs 230, 233 (packet_versions.txt 9). */
 void packet_loc_del_v9_out(RsprotExec *x, MsgLocDel *m);
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void packet_loc_del_v10_out(RsprotExec *x, MsgLocDel *m);
-/* v11 -- revs 232, 234. */
+/* v11 -- revs 232, 234 (packet_versions.txt 11). */
 void packet_loc_del_v11_out(RsprotExec *x, MsgLocDel *m);
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void packet_loc_del_v12_out(RsprotExec *x, MsgLocDel *m);
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m);
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m);
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
 
-/* Per-revision aliases: `packet_loc_del_rev239_out` is greppable, which is the
- * point -- "what does 239 do for LOC_DEL" without reading a table. */
-#define packet_loc_del_rev221_out packet_loc_del_v1_out
-#define packet_loc_del_rev222_out packet_loc_del_v2_out
-#define packet_loc_del_rev223_out packet_loc_del_v3_out
-#define packet_loc_del_rev224_out packet_loc_del_v4_out
-#define packet_loc_del_rev225_out packet_loc_del_v5_out
-#define packet_loc_del_rev226_out packet_loc_del_v6_out
-#define packet_loc_del_rev227_out packet_loc_del_v7_out
-#define packet_loc_del_rev228_out packet_loc_del_v8_out
-#define packet_loc_del_rev229_out packet_loc_del_v2_out
-#define packet_loc_del_rev230_out packet_loc_del_v9_out
-#define packet_loc_del_rev231_out packet_loc_del_v10_out
-#define packet_loc_del_rev232_out packet_loc_del_v11_out
-#define packet_loc_del_rev233_out packet_loc_del_v9_out
-#define packet_loc_del_rev234_out packet_loc_del_v11_out
-#define packet_loc_del_rev235_out packet_loc_del_v6_out
-#define packet_loc_del_rev236_out packet_loc_del_v12_out
-#define packet_loc_del_rev237_out packet_loc_del_v13_out
-#define packet_loc_del_rev238_out packet_loc_del_v14_out
-#define packet_loc_del_rev239_out packet_loc_del_v15_out
-#define packet_loc_del_rev240_out packet_loc_del_v4_out
-#define packet_loc_del_rev241_out packet_loc_del_v7_out
+/* Per-revision entry points: `packet_loc_del_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for LOC_DEL" without reading a table. */
+#define packet_loc_del_osrs221_out packet_loc_del_v1_out
+#define packet_loc_del_osrs222_out packet_loc_del_v2_out
+#define packet_loc_del_osrs223_out packet_loc_del_v3_out
+#define packet_loc_del_osrs224_out packet_loc_del_v4_out
+#define packet_loc_del_osrs225_out packet_loc_del_v5_out
+#define packet_loc_del_osrs226_out packet_loc_del_v6_out
+#define packet_loc_del_osrs227_out packet_loc_del_v7_out
+#define packet_loc_del_osrs228_out packet_loc_del_v8_out
+#define packet_loc_del_osrs229_out packet_loc_del_v2_out
+#define packet_loc_del_osrs230_out packet_loc_del_v9_out
+#define packet_loc_del_osrs231_out packet_loc_del_v10_out
+#define packet_loc_del_osrs232_out packet_loc_del_v11_out
+#define packet_loc_del_osrs233_out packet_loc_del_v9_out
+#define packet_loc_del_osrs234_out packet_loc_del_v11_out
+#define packet_loc_del_osrs235_out packet_loc_del_v6_out
+#define packet_loc_del_osrs236_out packet_loc_del_v12_out
+#define packet_loc_del_osrs237_out packet_loc_del_v13_out
+#define packet_loc_del_osrs238_out packet_loc_del_v14_out
+#define packet_loc_del_osrs239_out packet_loc_del_v15_out
+#define packet_loc_del_osrs240_out packet_loc_del_v4_out
+#define packet_loc_del_osrs241_out packet_loc_del_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_del_out[];

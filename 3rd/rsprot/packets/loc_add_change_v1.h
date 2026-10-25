@@ -12,8 +12,9 @@
  *
  * RSProt class : LocAddChangeV1Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^LocAddChangeV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -33,12 +34,12 @@ typedef struct MsgLocAddChangeV1 {
 	int32_t loc_properties_packed;
 } MsgLocAddChangeV1;
 
-/* v1 -- revs 228. */
+/* v1 -- revs 228 (packet_versions.txt 1). */
 void packet_loc_add_change_v1_v1_out(RsprotExec *x, MsgLocAddChangeV1 *m);
 
-/* Per-revision aliases: `packet_loc_add_change_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for LOC_ADD_CHANGE_V1" without reading a table. */
-#define packet_loc_add_change_v1_rev228_out packet_loc_add_change_v1_v1_out
+/* Per-revision entry points: `packet_loc_add_change_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for LOC_ADD_CHANGE_V1" without reading a table. */
+#define packet_loc_add_change_v1_osrs228_out packet_loc_add_change_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_add_change_v1_out[];

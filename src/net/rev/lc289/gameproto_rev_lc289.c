@@ -1,4 +1,8 @@
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/packets/pkt_player_appearance.h"
+#include "net/rev/rs/info_rs.h"
+
+#include <assert.h>
 
 #include "packetin.h"
 #include "packetout.h"
@@ -8,17 +12,19 @@
 #include <string.h>
 #include "log/torirs_log.h"
 
-/* This revision's own PLAYER_INFO / NPC_INFO bit streams (lc289_entity_info.c).
- * Declared here rather than in a header of their own: the rev table is the only
- * thing that may reach them, which is the point of the hook. */
-int
-lc289_player_info_read(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
-
-int
-lc289_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
-
-int
-lc289_appearance_decode(uint8_t const* data, int len, struct PktPlayerAppearance* out);
+/* 289's appearance block is 254's plus a two-byte SKILL LEVEL after the
+ * combat level (APPEARANCE_ENC_CLASSIC_LC289). Length-prefixed, so the 254
+ * decoder read it without complaint and simply never saw the field. */
+static int
+rev_appearance_decode(
+    uint8_t const* data,
+    int len,
+    struct PktPlayerAppearance* out)
+{
+    assert(data);
+    assert(out);
+    return PktPlayerAppearance_DecodeAs(out, APPEARANCE_ENC_CLASSIC_LC289, data, len);
+}
 
 static int
 rev_packetin_size(int wire_opcode)
@@ -74,15 +80,11 @@ static struct GameProtoRevTable k_rev_lc289 = {
     /* LostCity re-establishes a session with opcode 18 and an otherwise
      * identical block; the answer is a bare 15 (Client-TS Client.ts). */
     .reconnect_kind = NET_RECONNECT_CREDS,
-    /* 289 has its own entity-info readers rather than 254's. The wire
-     * difference is one bit in the new-npc record, but a bit stream has no
-     * partial compatibility: the layout is the unit, so the reader is too. */
-    .player_info_read = lc289_player_info_read,
-    .npc_info_read = lc289_npc_info_read,
-    /* 289's appearance block is 254's plus a trailing two-byte skill level.
-     * Length-prefixed, so the 254 decoder read it without complaint and simply
-     * never saw the field. */
-    .appearance_decode = lc289_appearance_decode,
+    /* The player stream is 254's; the npc stream is version 2, with the
+     * new-npc jump bit (net/rev/rs/info_rs.h). */
+    .player_info_read = player_info_rs289,
+    .npc_info_read = npc_info_rs289,
+    .appearance_decode = rev_appearance_decode,
 };
 
 struct GameProtoRevTable const*

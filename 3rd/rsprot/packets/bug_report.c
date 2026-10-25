@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -20,7 +20,7 @@ packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v2 -- revs 222-239. */
+/* v2 -- revs 222-239 (packet_versions.txt 2). */
 void
 packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -29,18 +29,18 @@ packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v100 -- revs 241. */
+/* v3 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_bug_report_v100_in(RsprotExec *x, MsgBugReport *m)
+packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->instructions);
     RSPROT_U1_ALT2(x, m->type);
     RSPROT_JSTR(x, m->description);
 }
 
-/* v101 -- revs 240. */
+/* v4 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_bug_report_v101_in(RsprotExec *x, MsgBugReport *m)
+packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
     RSPROT_JSTR(x, m->instructions);
@@ -60,8 +60,8 @@ packet_bug_report_v101_in(RsprotExec *x, MsgBugReport *m)
 const RsprotVersionRange rsprot_bug_report_in[] = {
     { 221, 221, (RsprotCodecFn)packet_bug_report_v1_in },
     { 222, 239, (RsprotCodecFn)packet_bug_report_v2_in },
-    { 240, 240, (RsprotCodecFn)packet_bug_report_v101_in },
-    { 241, 241, (RsprotCodecFn)packet_bug_report_v100_in },
+    { 240, 240, (RsprotCodecFn)packet_bug_report_v4_in },
+    { 241, 241, (RsprotCodecFn)packet_bug_report_v3_in },
 };
 
 const int rsprot_bug_report_in_count =

@@ -12,12 +12,13 @@
  *
  * RSProt class : VarClanEnableEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^VarClanEnableEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgVarClanEnable {
 	int32_t _unused;
 } MsgVarClanEnable;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m);
 
-/* Per-revision aliases: `packet_varclan_enable_rev239_out` is greppable, which is the
- * point -- "what does 239 do for VARCLAN_ENABLE" without reading a table. */
-#define packet_varclan_enable_rev221_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev222_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev223_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev224_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev225_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev226_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev227_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev228_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev229_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev230_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev231_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev232_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev233_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev234_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev235_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev236_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev237_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev238_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev239_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev240_out packet_varclan_enable_v1_out
-#define packet_varclan_enable_rev241_out packet_varclan_enable_v1_out
+/* Per-revision entry points: `packet_varclan_enable_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for VARCLAN_ENABLE" without reading a table. */
+#define packet_varclan_enable_osrs221_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs222_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs223_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs224_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs225_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs226_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs227_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs228_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs229_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs230_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs231_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs232_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs233_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs234_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs235_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs236_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs237_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs238_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs239_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs240_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrs241_out packet_varclan_enable_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varclan_enable_out[];

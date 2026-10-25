@@ -2,11 +2,11 @@
 #include "objunlock_update.h"
 
 /*
- * v100 -- revs 241.
+ * v1 (rsprox_versions.txt 100) -- revs 241.
  * while readable: gSmart1or2 delta, g8 bits.
  */
 void
-packet_objunlock_update_v100_out(RsprotExec *x, MsgObjunlockUpdate *m)
+packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m)
 {
     for (int32_t i = 0; RSPROT_MORE(x, m->entries_count, i, MSG_OBJUNLOCK_UPDATE_MAX_ENTRIES); i++) {
         RSPROT_SMART(x, m->entries[i].delta);
@@ -15,7 +15,7 @@ packet_objunlock_update_v100_out(RsprotExec *x, MsgObjunlockUpdate *m)
 }
 
 const RsprotVersionRange rsprot_objunlock_update_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_objunlock_update_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_objunlock_update_v1_out },
 };
 
 const int rsprot_objunlock_update_out_count =

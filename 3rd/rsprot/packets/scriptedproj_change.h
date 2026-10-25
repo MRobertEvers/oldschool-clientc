@@ -12,12 +12,13 @@
  *
  * RSProt class : ScriptedProjChangeEncoder
  * Layouts      : 3 distinct, over 3 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v3, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ScriptedProjChangeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -40,18 +41,18 @@ typedef struct MsgScriptedProjChange {
 	int32_t delete_on_freeze_end;
 } MsgScriptedProjChange;
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239 (packet_versions.txt 1). */
 void packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m);
-/* v100 -- revs 241. */
-void packet_scriptedproj_change_v100_out(RsprotExec *x, MsgScriptedProjChange *m);
-/* v101 -- revs 240. */
-void packet_scriptedproj_change_v101_out(RsprotExec *x, MsgScriptedProjChange *m);
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
+void packet_scriptedproj_change_v2_out(RsprotExec *x, MsgScriptedProjChange *m);
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
+void packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m);
 
-/* Per-revision aliases: `packet_scriptedproj_change_rev239_out` is greppable, which is the
- * point -- "what does 239 do for SCRIPTEDPROJ_CHANGE" without reading a table. */
-#define packet_scriptedproj_change_rev239_out packet_scriptedproj_change_v1_out
-#define packet_scriptedproj_change_rev240_out packet_scriptedproj_change_v101_out
-#define packet_scriptedproj_change_rev241_out packet_scriptedproj_change_v100_out
+/* Per-revision entry points: `packet_scriptedproj_change_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for SCRIPTEDPROJ_CHANGE" without reading a table. */
+#define packet_scriptedproj_change_osrs239_out packet_scriptedproj_change_v1_out
+#define packet_scriptedproj_change_osrs240_out packet_scriptedproj_change_v3_out
+#define packet_scriptedproj_change_osrs241_out packet_scriptedproj_change_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_scriptedproj_change_out[];

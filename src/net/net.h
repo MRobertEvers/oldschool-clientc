@@ -88,7 +88,7 @@ struct ToriRS_Network
     int rsa_ready;
 
     struct LoginProto* loginproto;   /* classic login; live only in LOGIN */
-    void* login_generic;             /* rev->login vtable handle (xrsps); live only in LOGIN */
+    void* login_generic;             /* rev->login vtable handle; live only in LOGIN */
     struct PacketBuffer packet_buffer; /* live only in GAME */
 
     /** game -> platform: CONNECT / SEND_DATA frames (not on the command bus). */

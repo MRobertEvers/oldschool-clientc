@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -21,7 +21,7 @@ packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_ALT3(x, m->op_flags);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -31,7 +31,7 @@ packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -41,7 +41,7 @@ packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -51,7 +51,7 @@ packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -61,7 +61,7 @@ packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -71,7 +71,7 @@ packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_loc_add_change_v7_out(RsprotExec *x, MsgLocAddChange *m)
 {

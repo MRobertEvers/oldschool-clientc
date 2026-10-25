@@ -48,12 +48,12 @@ VAR_SIZES = {"RSPROT_VARU8": -1, "RSPROT_VARU16": -2}
 
 
 def load_rsprot_table(rev):
-    """{name: (opcode, size)} from 3rd/rsprot/gen/rev<NNN>_prot.h.
+    """{name: (opcode, size)} from 3rd/rsprot/gen/osrs<NNN>_prot.h.
 
     Generated straight from RSProt's Kotlin, so it is the same statement of the
     wire the real client is built against rather than a transcription of it.
     """
-    path = os.path.join(ROOT, "3rd", "rsprot", "gen", "rev%d_prot.h" % rev)
+    path = os.path.join(ROOT, "3rd", "rsprot", "gen", "osrs%d_prot.h" % rev)
     if not os.path.exists(path):
         sys.exit("no vendored RSProt table for revision %d (%s)" % (rev, path))
     out = {}

@@ -7,33 +7,33 @@
  *       decoder/codec/misc/client/UpdateRebootTimerV2Decoder.kt
  */
 
-/* v100 -- revs 236, 240-241. */
+/* v1 -- revs 236, 240-241 (rsprox_versions.txt 100). */
 void
-packet_update_reboot_timer_v2_v100_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
     RSPROT_U2_ALT2(x, m->game_cycles);
 }
 
-/* v101 -- revs 237. */
+/* v2 -- revs 237 (rsprox_versions.txt 101). */
 void
-packet_update_reboot_timer_v2_v101_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
     RSPROT_U2_ALT3(x, m->game_cycles);
 }
 
-/* v102 -- revs 238. */
+/* v3 -- revs 238 (rsprox_versions.txt 102). */
 void
-packet_update_reboot_timer_v2_v102_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_U2_ALT2(x, m->game_cycles);
     RSPROT_JSTR(x, m->message);
 }
 
-/* v103 -- revs 239. */
+/* v4 -- revs 239 (rsprox_versions.txt 103). */
 void
-packet_update_reboot_timer_v2_v103_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
+packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
     RSPROT_U2(x, m->game_cycles);
@@ -44,11 +44,11 @@ packet_update_reboot_timer_v2_v103_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
  * listed has no UPDATE_REBOOT_TIMER_V2 and picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
-    { 236, 236, (RsprotCodecFn)packet_update_reboot_timer_v2_v100_out },
-    { 237, 237, (RsprotCodecFn)packet_update_reboot_timer_v2_v101_out },
-    { 238, 238, (RsprotCodecFn)packet_update_reboot_timer_v2_v102_out },
-    { 239, 239, (RsprotCodecFn)packet_update_reboot_timer_v2_v103_out },
-    { 240, 241, (RsprotCodecFn)packet_update_reboot_timer_v2_v100_out },
+    { 236, 236, (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
+    { 237, 237, (RsprotCodecFn)packet_update_reboot_timer_v2_v2_out },
+    { 238, 238, (RsprotCodecFn)packet_update_reboot_timer_v2_v3_out },
+    { 239, 239, (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
+    { 240, 241, (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
 };
 
 const int rsprot_update_reboot_timer_v2_out_count =

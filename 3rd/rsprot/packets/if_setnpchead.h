@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetNpcHeadEncoder
  * Layouts      : 17 distinct, over 20 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v17, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetNpcHeadEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,64 +35,64 @@ typedef struct MsgIfSetNpcHead {
 	int32_t combined_id;
 } MsgIfSetNpcHead;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_setnpchead_v1_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v2 -- revs 222-223, 225. */
+/* v2 -- revs 222-223, 225 (packet_versions.txt 2). */
 void packet_if_setnpchead_v2_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v3 -- revs 224. */
+/* v3 -- revs 224 (packet_versions.txt 3). */
 void packet_if_setnpchead_v3_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v4 -- revs 226. */
+/* v4 -- revs 226 (packet_versions.txt 4). */
 void packet_if_setnpchead_v4_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v5 -- revs 227. */
+/* v5 -- revs 227 (packet_versions.txt 5). */
 void packet_if_setnpchead_v5_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v6 -- revs 228. */
+/* v6 -- revs 228 (packet_versions.txt 6). */
 void packet_if_setnpchead_v6_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v7 -- revs 229. */
+/* v7 -- revs 229 (packet_versions.txt 7). */
 void packet_if_setnpchead_v7_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v8 -- revs 230. */
+/* v8 -- revs 230 (packet_versions.txt 8). */
 void packet_if_setnpchead_v8_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v9 -- revs 231, 236. */
+/* v9 -- revs 231, 236 (packet_versions.txt 9). */
 void packet_if_setnpchead_v9_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v10 -- revs 232. */
+/* v10 -- revs 232 (packet_versions.txt 10). */
 void packet_if_setnpchead_v10_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v11 -- revs 233. */
+/* v11 -- revs 233 (packet_versions.txt 11). */
 void packet_if_setnpchead_v11_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v12 -- revs 234. */
+/* v12 -- revs 234 (packet_versions.txt 12). */
 void packet_if_setnpchead_v12_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v13 -- revs 235, 237. */
+/* v13 -- revs 235, 237 (packet_versions.txt 13). */
 void packet_if_setnpchead_v13_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void packet_if_setnpchead_v14_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void packet_if_setnpchead_v15_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v100 -- revs 241. */
-void packet_if_setnpchead_v100_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v101 -- revs 240. */
-void packet_if_setnpchead_v101_out(RsprotExec *x, MsgIfSetNpcHead *m);
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
+void packet_if_setnpchead_v16_out(RsprotExec *x, MsgIfSetNpcHead *m);
+/* v17 -- revs 240 (rsprox_versions.txt 101). */
+void packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m);
 
-/* Per-revision aliases: `packet_if_setnpchead_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETNPCHEAD" without reading a table. */
-#define packet_if_setnpchead_rev221_out packet_if_setnpchead_v1_out
-#define packet_if_setnpchead_rev222_out packet_if_setnpchead_v2_out
-#define packet_if_setnpchead_rev223_out packet_if_setnpchead_v2_out
-#define packet_if_setnpchead_rev224_out packet_if_setnpchead_v3_out
-#define packet_if_setnpchead_rev225_out packet_if_setnpchead_v2_out
-#define packet_if_setnpchead_rev226_out packet_if_setnpchead_v4_out
-#define packet_if_setnpchead_rev227_out packet_if_setnpchead_v5_out
-#define packet_if_setnpchead_rev228_out packet_if_setnpchead_v6_out
-#define packet_if_setnpchead_rev229_out packet_if_setnpchead_v7_out
-#define packet_if_setnpchead_rev230_out packet_if_setnpchead_v8_out
-#define packet_if_setnpchead_rev231_out packet_if_setnpchead_v9_out
-#define packet_if_setnpchead_rev232_out packet_if_setnpchead_v10_out
-#define packet_if_setnpchead_rev233_out packet_if_setnpchead_v11_out
-#define packet_if_setnpchead_rev234_out packet_if_setnpchead_v12_out
-#define packet_if_setnpchead_rev235_out packet_if_setnpchead_v13_out
-#define packet_if_setnpchead_rev236_out packet_if_setnpchead_v9_out
-#define packet_if_setnpchead_rev237_out packet_if_setnpchead_v13_out
-#define packet_if_setnpchead_rev238_out packet_if_setnpchead_v14_out
-#define packet_if_setnpchead_rev239_out packet_if_setnpchead_v15_out
-#define packet_if_setnpchead_rev240_out packet_if_setnpchead_v101_out
-#define packet_if_setnpchead_rev241_out packet_if_setnpchead_v100_out
+/* Per-revision entry points: `packet_if_setnpchead_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETNPCHEAD" without reading a table. */
+#define packet_if_setnpchead_osrs221_out packet_if_setnpchead_v1_out
+#define packet_if_setnpchead_osrs222_out packet_if_setnpchead_v2_out
+#define packet_if_setnpchead_osrs223_out packet_if_setnpchead_v2_out
+#define packet_if_setnpchead_osrs224_out packet_if_setnpchead_v3_out
+#define packet_if_setnpchead_osrs225_out packet_if_setnpchead_v2_out
+#define packet_if_setnpchead_osrs226_out packet_if_setnpchead_v4_out
+#define packet_if_setnpchead_osrs227_out packet_if_setnpchead_v5_out
+#define packet_if_setnpchead_osrs228_out packet_if_setnpchead_v6_out
+#define packet_if_setnpchead_osrs229_out packet_if_setnpchead_v7_out
+#define packet_if_setnpchead_osrs230_out packet_if_setnpchead_v8_out
+#define packet_if_setnpchead_osrs231_out packet_if_setnpchead_v9_out
+#define packet_if_setnpchead_osrs232_out packet_if_setnpchead_v10_out
+#define packet_if_setnpchead_osrs233_out packet_if_setnpchead_v11_out
+#define packet_if_setnpchead_osrs234_out packet_if_setnpchead_v12_out
+#define packet_if_setnpchead_osrs235_out packet_if_setnpchead_v13_out
+#define packet_if_setnpchead_osrs236_out packet_if_setnpchead_v9_out
+#define packet_if_setnpchead_osrs237_out packet_if_setnpchead_v13_out
+#define packet_if_setnpchead_osrs238_out packet_if_setnpchead_v14_out
+#define packet_if_setnpchead_osrs239_out packet_if_setnpchead_v15_out
+#define packet_if_setnpchead_osrs240_out packet_if_setnpchead_v17_out
+#define packet_if_setnpchead_osrs241_out packet_if_setnpchead_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setnpchead_out[];

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 226. */
+/* v1 -- revs 226 (packet_versions.txt 1). */
 void
 packet_obj_uncustomise_v1_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -20,7 +20,7 @@ packet_obj_uncustomise_v1_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U4(x, m->quantity);
 }
 
-/* v2 -- revs 227. */
+/* v2 -- revs 227 (packet_versions.txt 2). */
 void
 packet_obj_uncustomise_v2_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -29,7 +29,7 @@ packet_obj_uncustomise_v2_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
 }
 
-/* v3 -- revs 228. */
+/* v3 -- revs 228 (packet_versions.txt 3). */
 void
 packet_obj_uncustomise_v3_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -38,7 +38,7 @@ packet_obj_uncustomise_v3_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U4_ALT1(x, m->quantity);
 }
 
-/* v4 -- revs 229. */
+/* v4 -- revs 229 (packet_versions.txt 4). */
 void
 packet_obj_uncustomise_v4_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -47,7 +47,7 @@ packet_obj_uncustomise_v4_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v5 -- revs 230. */
+/* v5 -- revs 230 (packet_versions.txt 5). */
 void
 packet_obj_uncustomise_v5_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -56,7 +56,7 @@ packet_obj_uncustomise_v5_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v6 -- revs 231. */
+/* v6 -- revs 231 (packet_versions.txt 6). */
 void
 packet_obj_uncustomise_v6_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -65,7 +65,7 @@ packet_obj_uncustomise_v6_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v7 -- revs 232. */
+/* v7 -- revs 232 (packet_versions.txt 7). */
 void
 packet_obj_uncustomise_v7_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -74,7 +74,7 @@ packet_obj_uncustomise_v7_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v8 -- revs 233. */
+/* v8 -- revs 233 (packet_versions.txt 8). */
 void
 packet_obj_uncustomise_v8_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -83,7 +83,7 @@ packet_obj_uncustomise_v8_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U4_ALT3(x, m->quantity);
 }
 
-/* v9 -- revs 234. */
+/* v9 -- revs 234 (packet_versions.txt 9). */
 void
 packet_obj_uncustomise_v9_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -92,7 +92,7 @@ packet_obj_uncustomise_v9_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v10 -- revs 235. */
+/* v10 -- revs 235 (packet_versions.txt 10). */
 void
 packet_obj_uncustomise_v10_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -101,7 +101,7 @@ packet_obj_uncustomise_v10_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v11 -- revs 236. */
+/* v11 -- revs 236 (packet_versions.txt 11). */
 void
 packet_obj_uncustomise_v11_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -110,7 +110,7 @@ packet_obj_uncustomise_v11_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v12 -- revs 237. */
+/* v12 -- revs 237 (packet_versions.txt 12). */
 void
 packet_obj_uncustomise_v12_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -119,7 +119,7 @@ packet_obj_uncustomise_v12_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v13 -- revs 238. */
+/* v13 -- revs 238 (packet_versions.txt 13). */
 void
 packet_obj_uncustomise_v13_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -128,7 +128,7 @@ packet_obj_uncustomise_v13_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v14 -- revs 239. */
+/* v14 -- revs 239 (packet_versions.txt 14). */
 void
 packet_obj_uncustomise_v14_out(RsprotExec *x, MsgObjUncustomise *m)
 {
@@ -137,18 +137,18 @@ packet_obj_uncustomise_v14_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
 }
 
-/* v100 -- revs 241. */
+/* v15 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_obj_uncustomise_v100_out(RsprotExec *x, MsgObjUncustomise *m)
+packet_obj_uncustomise_v15_out(RsprotExec *x, MsgObjUncustomise *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U2(x, m->id);
     RSPROT_U4(x, m->quantity);
 }
 
-/* v101 -- revs 240. */
+/* v16 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_obj_uncustomise_v101_out(RsprotExec *x, MsgObjUncustomise *m)
+packet_obj_uncustomise_v16_out(RsprotExec *x, MsgObjUncustomise *m)
 {
     RSPROT_U4_ALT3(x, m->quantity);
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
@@ -180,8 +180,8 @@ const RsprotVersionRange rsprot_obj_uncustomise_out[] = {
     { 237, 237, (RsprotCodecFn)packet_obj_uncustomise_v12_out },
     { 238, 238, (RsprotCodecFn)packet_obj_uncustomise_v13_out },
     { 239, 239, (RsprotCodecFn)packet_obj_uncustomise_v14_out },
-    { 240, 240, (RsprotCodecFn)packet_obj_uncustomise_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_obj_uncustomise_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_obj_uncustomise_v16_out },
+    { 241, 241, (RsprotCodecFn)packet_obj_uncustomise_v15_out },
 };
 
 const int rsprot_obj_uncustomise_out_count =

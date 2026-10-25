@@ -12,12 +12,13 @@
  *
  * RSProt class : ClanChannelFullRequestDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ClanChannelFullRequestDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgClanChannelFullRequest {
 	int32_t clan_id;
 } MsgClanChannelFullRequest;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequest *m);
 
-/* Per-revision aliases: `packet_clanchannel_full_request_rev239_in` is greppable, which is the
- * point -- "what does 239 do for CLANCHANNEL_FULL_REQUEST" without reading a table. */
-#define packet_clanchannel_full_request_rev221_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev222_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev223_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev224_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev225_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev226_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev227_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev228_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev229_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev230_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev231_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev232_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev233_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev234_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev235_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev236_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev237_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev238_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev239_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev240_in packet_clanchannel_full_request_v1_in
-#define packet_clanchannel_full_request_rev241_in packet_clanchannel_full_request_v1_in
+/* Per-revision entry points: `packet_clanchannel_full_request_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for CLANCHANNEL_FULL_REQUEST" without reading a table. */
+#define packet_clanchannel_full_request_osrs221_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs222_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs223_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs224_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs225_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs226_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs227_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs228_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs229_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs230_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs231_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs232_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs233_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs234_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs235_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs236_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs237_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs238_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs239_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs240_in packet_clanchannel_full_request_v1_in
+#define packet_clanchannel_full_request_osrs241_in packet_clanchannel_full_request_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clanchannel_full_request_in[];

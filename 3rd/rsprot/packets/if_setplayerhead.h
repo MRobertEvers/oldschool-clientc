@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetPlayerHeadEncoder
  * Layouts      : 5 distinct, over 18 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v5, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetPlayerHeadEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,40 +34,40 @@ typedef struct MsgIfSetPlayerHead {
 	int32_t combined_id;
 } MsgIfSetPlayerHead;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v2 -- revs 222, 224-225, 228, 236, 239. */
+/* v2 -- revs 222, 224-225, 228, 236, 239 (packet_versions.txt 2). */
 void packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v3 -- revs 223, 227, 229, 232, 241. */
+/* v3 -- revs 223, 227, 229, 232, 241 (packet_versions.txt 3). */
 void packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v4 -- revs 226, 230, 233-235, 237, 240. */
+/* v4 -- revs 226, 230, 233-235, 237, 240 (packet_versions.txt 4). */
 void packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v5 -- revs 231, 238. */
+/* v5 -- revs 231, 238 (packet_versions.txt 5). */
 void packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 
-/* Per-revision aliases: `packet_if_setplayerhead_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETPLAYERHEAD" without reading a table. */
-#define packet_if_setplayerhead_rev221_out packet_if_setplayerhead_v1_out
-#define packet_if_setplayerhead_rev222_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev223_out packet_if_setplayerhead_v3_out
-#define packet_if_setplayerhead_rev224_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev225_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev226_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev227_out packet_if_setplayerhead_v3_out
-#define packet_if_setplayerhead_rev228_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev229_out packet_if_setplayerhead_v3_out
-#define packet_if_setplayerhead_rev230_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev231_out packet_if_setplayerhead_v5_out
-#define packet_if_setplayerhead_rev232_out packet_if_setplayerhead_v3_out
-#define packet_if_setplayerhead_rev233_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev234_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev235_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev236_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev237_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev238_out packet_if_setplayerhead_v5_out
-#define packet_if_setplayerhead_rev239_out packet_if_setplayerhead_v2_out
-#define packet_if_setplayerhead_rev240_out packet_if_setplayerhead_v4_out
-#define packet_if_setplayerhead_rev241_out packet_if_setplayerhead_v3_out
+/* Per-revision entry points: `packet_if_setplayerhead_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETPLAYERHEAD" without reading a table. */
+#define packet_if_setplayerhead_osrs221_out packet_if_setplayerhead_v1_out
+#define packet_if_setplayerhead_osrs222_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs223_out packet_if_setplayerhead_v3_out
+#define packet_if_setplayerhead_osrs224_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs225_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs226_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs227_out packet_if_setplayerhead_v3_out
+#define packet_if_setplayerhead_osrs228_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs229_out packet_if_setplayerhead_v3_out
+#define packet_if_setplayerhead_osrs230_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs231_out packet_if_setplayerhead_v5_out
+#define packet_if_setplayerhead_osrs232_out packet_if_setplayerhead_v3_out
+#define packet_if_setplayerhead_osrs233_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs234_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs235_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs236_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs237_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs238_out packet_if_setplayerhead_v5_out
+#define packet_if_setplayerhead_osrs239_out packet_if_setplayerhead_v2_out
+#define packet_if_setplayerhead_osrs240_out packet_if_setplayerhead_v4_out
+#define packet_if_setplayerhead_osrs241_out packet_if_setplayerhead_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setplayerhead_out[];

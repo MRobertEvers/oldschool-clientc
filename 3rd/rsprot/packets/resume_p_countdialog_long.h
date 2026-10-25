@@ -12,12 +12,13 @@
  *
  * RSProt class : ResumePCountDialogLongDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ResumePCountDialogLongDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,16 +34,16 @@ typedef struct MsgResumePCountDialogLong {
 	int64_t count;
 } MsgResumePCountDialogLong;
 
-/* v1 -- revs 237-241. */
+/* v1 -- revs 237-241 (packet_versions.txt 1). */
 void packet_resume_p_countdialog_long_v1_in(RsprotExec *x, MsgResumePCountDialogLong *m);
 
-/* Per-revision aliases: `packet_resume_p_countdialog_long_rev239_in` is greppable, which is the
- * point -- "what does 239 do for RESUME_P_COUNTDIALOG_LONG" without reading a table. */
-#define packet_resume_p_countdialog_long_rev237_in packet_resume_p_countdialog_long_v1_in
-#define packet_resume_p_countdialog_long_rev238_in packet_resume_p_countdialog_long_v1_in
-#define packet_resume_p_countdialog_long_rev239_in packet_resume_p_countdialog_long_v1_in
-#define packet_resume_p_countdialog_long_rev240_in packet_resume_p_countdialog_long_v1_in
-#define packet_resume_p_countdialog_long_rev241_in packet_resume_p_countdialog_long_v1_in
+/* Per-revision entry points: `packet_resume_p_countdialog_long_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for RESUME_P_COUNTDIALOG_LONG" without reading a table. */
+#define packet_resume_p_countdialog_long_osrs237_in packet_resume_p_countdialog_long_v1_in
+#define packet_resume_p_countdialog_long_osrs238_in packet_resume_p_countdialog_long_v1_in
+#define packet_resume_p_countdialog_long_osrs239_in packet_resume_p_countdialog_long_v1_in
+#define packet_resume_p_countdialog_long_osrs240_in packet_resume_p_countdialog_long_v1_in
+#define packet_resume_p_countdialog_long_osrs241_in packet_resume_p_countdialog_long_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_countdialog_long_in[];

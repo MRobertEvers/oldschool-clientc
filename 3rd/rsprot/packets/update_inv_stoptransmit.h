@@ -12,12 +12,13 @@
  *
  * RSProt class : UpdateInvStopTransmitEncoder
  * Layouts      : 4 distinct, over 18 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v4, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^UpdateInvStopTransmitEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,38 +34,38 @@ typedef struct MsgUpdateInvStopTransmit {
 	int32_t inventory_id;
 } MsgUpdateInvStopTransmit;
 
-/* v1 -- revs 221, 226, 229, 231, 233-234. */
+/* v1 -- revs 221, 226, 229, 231, 233-234 (packet_versions.txt 1). */
 void packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v2 -- revs 222-223, 225, 228, 238-239, 241. */
+/* v2 -- revs 222-223, 225, 228, 238-239, 241 (packet_versions.txt 2). */
 void packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v3 -- revs 224, 227, 230, 232, 236. */
+/* v3 -- revs 224, 227, 230, 232, 236 (packet_versions.txt 3). */
 void packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v4 -- revs 235, 237, 240. */
+/* v4 -- revs 235, 237, 240 (packet_versions.txt 4). */
 void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 
-/* Per-revision aliases: `packet_update_inv_stoptransmit_rev239_out` is greppable, which is the
- * point -- "what does 239 do for UPDATE_INV_STOPTRANSMIT" without reading a table. */
-#define packet_update_inv_stoptransmit_rev221_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev222_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev223_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev224_out packet_update_inv_stoptransmit_v3_out
-#define packet_update_inv_stoptransmit_rev225_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev226_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev227_out packet_update_inv_stoptransmit_v3_out
-#define packet_update_inv_stoptransmit_rev228_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev229_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev230_out packet_update_inv_stoptransmit_v3_out
-#define packet_update_inv_stoptransmit_rev231_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev232_out packet_update_inv_stoptransmit_v3_out
-#define packet_update_inv_stoptransmit_rev233_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev234_out packet_update_inv_stoptransmit_v1_out
-#define packet_update_inv_stoptransmit_rev235_out packet_update_inv_stoptransmit_v4_out
-#define packet_update_inv_stoptransmit_rev236_out packet_update_inv_stoptransmit_v3_out
-#define packet_update_inv_stoptransmit_rev237_out packet_update_inv_stoptransmit_v4_out
-#define packet_update_inv_stoptransmit_rev238_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev239_out packet_update_inv_stoptransmit_v2_out
-#define packet_update_inv_stoptransmit_rev240_out packet_update_inv_stoptransmit_v4_out
-#define packet_update_inv_stoptransmit_rev241_out packet_update_inv_stoptransmit_v2_out
+/* Per-revision entry points: `packet_update_inv_stoptransmit_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for UPDATE_INV_STOPTRANSMIT" without reading a table. */
+#define packet_update_inv_stoptransmit_osrs221_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs222_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs223_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs224_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs225_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs226_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs227_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs228_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs229_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs230_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs231_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs232_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs233_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs234_out packet_update_inv_stoptransmit_v1_out
+#define packet_update_inv_stoptransmit_osrs235_out packet_update_inv_stoptransmit_v4_out
+#define packet_update_inv_stoptransmit_osrs236_out packet_update_inv_stoptransmit_v3_out
+#define packet_update_inv_stoptransmit_osrs237_out packet_update_inv_stoptransmit_v4_out
+#define packet_update_inv_stoptransmit_osrs238_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs239_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrs240_out packet_update_inv_stoptransmit_v4_out
+#define packet_update_inv_stoptransmit_osrs241_out packet_update_inv_stoptransmit_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_inv_stoptransmit_out[];

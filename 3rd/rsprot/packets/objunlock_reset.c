@@ -7,9 +7,9 @@
  *       decoder/codec/misc/client/ObjUnlockResetDecoder.kt
  */
 
-/* v100 -- revs 241. */
+/* v1 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_objunlock_reset_v100_out(RsprotExec *x, MsgObjunlockReset *m)
+packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m)
 {
     (void)x;
     (void)m;
@@ -20,7 +20,7 @@ packet_objunlock_reset_v100_out(RsprotExec *x, MsgObjunlockReset *m)
  * listed has no OBJUNLOCK_RESET and picks NULL.
  */
 const RsprotVersionRange rsprot_objunlock_reset_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_objunlock_reset_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_objunlock_reset_v1_out },
 };
 
 const int rsprot_objunlock_reset_out_count =

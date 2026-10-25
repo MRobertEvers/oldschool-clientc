@@ -20,7 +20,7 @@
  */
 #include "mem/torirs_mem.h"
 #include "torirsserver/mock239_playerinfo.h"
-#include "net/rev/packets/pkt_player_info.h"
+#include "streams/rsprot_info.h"
 
 #include <rsareabuf.h>
 
@@ -31,11 +31,21 @@ static int g_failures;
 
 void osrs241_playerinfo_set_local(int local_index);
 void osrs241_playerinfo_init(uint8_t const* data, int len);
-int osrs241_player_info_read(
-    uint8_t const* data,
-    int len,
-    struct PktPlayerInfoOp* ops,
-    int cap);
+int osrs241_player_info_read(uint8_t const* data, int len, RsprotInfoList* out);
+
+/* The readers write a list; these hand the test its ops, with the strings
+ * in one arena the next read reuses. */
+static uint8_t g_info_bytes[1 << 16];
+
+static int
+osrs241_player_info_read_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    return osrs241_player_info_read(data, len, &list);
+}
+
 
 #define CHECK(cond, ...)                                                                   \
     do                                                                                     \
@@ -58,7 +68,7 @@ gpi_coord(int level, int x, int z)
 /* One tick of the local player with `ext`, through the 241 reader. */
 static int
 roundtrip(struct Mock239PlayerInfoState* server, const struct Mock239PlayerExt* ext,
-          struct PktPlayerInfoOp* ops, int cap)
+          struct RsprotInfoOp* ops, int cap)
 {
     uint8_t bytes[4096];
     struct RSAreaBuf buf;
@@ -72,11 +82,11 @@ roundtrip(struct Mock239PlayerInfoState* server, const struct Mock239PlayerExt* 
     rsab_wrap(&buf, bytes, sizeof(bytes));
     mock239_playerinfo_write_world(&buf, server, &update, 1);
     CHECK(rsab_ok(&buf), "the packet stays within its buffer");
-    return osrs241_player_info_read(bytes, (int)rsab_len(&buf), ops, cap);
+    return osrs241_player_info_read_ops(bytes, (int)rsab_len(&buf), ops, cap);
 }
 
-static struct PktPlayerInfoOp const*
-find(struct PktPlayerInfoOp const* ops, int n, enum PktPlayerInfoOpKind kind)
+static struct RsprotInfoOp const*
+find(struct RsprotInfoOp const* ops, int n, RsprotInfoOpKind kind)
 {
     for( int i = 0; i < n; i++ )
         if( ops[i].kind == kind )
@@ -88,7 +98,7 @@ int
 main(void)
 {
     struct Mock239PlayerInfoState server;
-    struct PktPlayerInfoOp ops[64];
+    struct RsprotInfoOp ops[64];
     uint8_t init_bytes[4096];
     struct RSAreaBuf init;
     int n;
@@ -103,8 +113,8 @@ main(void)
     fprintf(stderr, "mock241-playerinfo: the Ocellus door's fade out, with an exact move\n");
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp const* t;
-        struct PktPlayerInfoOp const* x;
+        struct RsprotInfoOp const* t;
+        struct RsprotInfoOp const* x;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_exact_move = 1;
@@ -123,24 +133,24 @@ main(void)
         ext.transparency_to = 255;
         ext.transparency_use_start = 0;
         n = roundtrip(&server, &ext, ops, 64);
-        t = find(ops, n, PKT_PLAYER_INFO_OP_TRANSPARENCY);
-        x = find(ops, n, PKT_PLAYER_INFO_OP_EXACT_MOVE);
-        CHECK(t && t->_transparency.start_cycle_delta == 30 && t->_transparency.end_cycle_delta == 60 &&
-                  t->_transparency.from == 0 && t->_transparency.to == 255 &&
-                  !t->_transparency.use_start,
+        t = find(ops, n, RSPROT_OP_TRANSPARENCY);
+        x = find(ops, n, RSPROT_OP_EXACT_MOVE);
+        CHECK(t && t->transparency.start_cycle_delta == 30 && t->transparency.end_cycle_delta == 60 &&
+                  t->transparency.from == 0 && t->transparency.to == 255 &&
+                  !t->transparency.use_start,
               "transparency start/end/from/to/use-start survive (%d %d %d %d %d)",
-              t ? t->_transparency.start_cycle_delta : -99, t ? t->_transparency.end_cycle_delta : -99,
-              t ? t->_transparency.from : -1, t ? t->_transparency.to : -1,
-              t ? t->_transparency.use_start : -1);
-        CHECK(x && x->_exactmove.start_x == -2 && x->_exactmove.end_z == -5 &&
-                  x->_exactmove.facing == 1280,
+              t ? t->transparency.start_cycle_delta : -99, t ? t->transparency.end_cycle_delta : -99,
+              t ? t->transparency.from : -1, t ? t->transparency.to : -1,
+              t ? t->transparency.use_start : -1);
+        CHECK(x && x->exact_move.start_x == -2 && x->exact_move.end_z == -5 &&
+                  x->exact_move.facing == 1280,
               "the exact move before it still reads (the blocks are in the reader's order)");
     }
 
     fprintf(stderr, "mock241-playerinfo: the fade in on arrival, and \"gone already\"\n");
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp const* t;
+        struct RsprotInfoOp const* t;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_transparency = 1;
@@ -150,24 +160,24 @@ main(void)
         ext.transparency_to = 0;
         ext.transparency_use_start = 1;
         n = roundtrip(&server, &ext, ops, 64);
-        t = find(ops, n, PKT_PLAYER_INFO_OP_TRANSPARENCY);
-        CHECK(t && t->_transparency.start_cycle_delta == 0 && t->_transparency.end_cycle_delta == 30 &&
-                  t->_transparency.from == 255 && t->_transparency.to == 0 &&
-                  t->_transparency.use_start,
+        t = find(ops, n, RSPROT_OP_TRANSPARENCY);
+        CHECK(t && t->transparency.start_cycle_delta == 0 && t->transparency.end_cycle_delta == 30 &&
+                  t->transparency.from == 255 && t->transparency.to == 0 &&
+                  t->transparency.use_start,
               "a transparency block alone (third flag byte) reads back");
 
         ext.transparency_start_cycle = -1;
         ext.transparency_end_cycle = -1;
         n = roundtrip(&server, &ext, ops, 64);
-        t = find(ops, n, PKT_PLAYER_INFO_OP_TRANSPARENCY);
-        CHECK(t && t->_transparency.start_cycle_delta == -1 && t->_transparency.end_cycle_delta == -1,
+        t = find(ops, n, RSPROT_OP_TRANSPARENCY);
+        CHECK(t && t->transparency.start_cycle_delta == -1 && t->transparency.end_cycle_delta == -1,
               "the cycles are signed: (-1, -1) survives");
     }
 
     fprintf(stderr, "mock241-playerinfo: a landing's face angle\n");
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp const* f;
+        struct RsprotInfoOp const* f;
 
         memset(&ext, 0, sizeof(ext));
         ext.has_face = 1;
@@ -175,15 +185,15 @@ main(void)
         ext.face.kind = MOCK239_FACE_ANGLE;
         ext.face.angle = 1536;
         n = roundtrip(&server, &ext, ops, 64);
-        f = find(ops, n, PKT_PLAYER_INFO_OP_FACE_ANGLE);
-        CHECK(f && f->_face_angle.angle == 1536 && !f->_face_angle.instant && f->_face_angle.modern,
+        f = find(ops, n, RSPROT_OP_FACE_ANGLE);
+        CHECK(f && f->face_angle.angle == 1536 && !f->face_angle.instant && f->face_angle.modern,
               "angle 1536, not instant (`[facing] angle=1536`)");
 
         ext.face.angle = 0;
         ext.face.instant = 1;
         n = roundtrip(&server, &ext, ops, 64);
-        f = find(ops, n, PKT_PLAYER_INFO_OP_FACE_ANGLE);
-        CHECK(f && f->_face_angle.angle == 0 && f->_face_angle.instant,
+        f = find(ops, n, RSPROT_OP_FACE_ANGLE);
+        CHECK(f && f->face_angle.angle == 0 && f->face_angle.instant,
               "angle 0 with instant (`[facing] angle=0, instant=true`)");
     }
 

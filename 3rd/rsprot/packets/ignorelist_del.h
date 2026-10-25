@@ -12,12 +12,13 @@
  *
  * RSProt class : IgnoreListDelDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IgnoreListDelDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgIgnoreListDel {
 	const char *name;
 } MsgIgnoreListDel;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_ignorelist_del_v1_in(RsprotExec *x, MsgIgnoreListDel *m);
 
-/* Per-revision aliases: `packet_ignorelist_del_rev239_in` is greppable, which is the
- * point -- "what does 239 do for IGNORELIST_DEL" without reading a table. */
-#define packet_ignorelist_del_rev221_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev222_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev223_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev224_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev225_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev226_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev227_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev228_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev229_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev230_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev231_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev232_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev233_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev234_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev235_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev236_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev237_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev238_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev239_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev240_in packet_ignorelist_del_v1_in
-#define packet_ignorelist_del_rev241_in packet_ignorelist_del_v1_in
+/* Per-revision entry points: `packet_ignorelist_del_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for IGNORELIST_DEL" without reading a table. */
+#define packet_ignorelist_del_osrs221_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs222_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs223_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs224_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs225_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs226_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs227_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs228_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs229_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs230_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs231_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs232_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs233_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs234_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs235_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs236_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs237_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs238_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs239_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs240_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrs241_in packet_ignorelist_del_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_ignorelist_del_in[];

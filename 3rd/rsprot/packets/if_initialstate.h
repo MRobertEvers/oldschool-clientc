@@ -12,8 +12,9 @@
  *
  * RSProt class : IfInitialStateEncoder
  * Layouts      : 2 distinct, over 2 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v2, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfInitialStateEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -47,15 +48,15 @@ typedef struct MsgIfInitialState {
 	int32_t events_count;
 } MsgIfInitialState;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_initialstate_v1_out(RsprotExec *x, MsgIfInitialState *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_if_initialstate_v2_out(RsprotExec *x, MsgIfInitialState *m);
 
-/* Per-revision aliases: `packet_if_initialstate_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_INITIALSTATE" without reading a table. */
-#define packet_if_initialstate_rev221_out packet_if_initialstate_v1_out
-#define packet_if_initialstate_rev222_out packet_if_initialstate_v2_out
+/* Per-revision entry points: `packet_if_initialstate_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_INITIALSTATE" without reading a table. */
+#define packet_if_initialstate_osrs221_out packet_if_initialstate_v1_out
+#define packet_if_initialstate_osrs222_out packet_if_initialstate_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_initialstate_out[];

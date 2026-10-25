@@ -130,21 +130,21 @@ test_one_function_runs_both_directions(void)
 static void
 test_aliases_resolve_to_versions(void)
 {
-    CHECK(packet_if_opentop_rev227_out == packet_if_opentop_v3_out);
-    CHECK(packet_if_opentop_rev230_out == packet_if_opentop_v3_out);
-    CHECK(packet_if_opentop_rev239_out == packet_if_opentop_v4_out);
+    CHECK(packet_if_opentop_osrs227_out == packet_if_opentop_v3_out);
+    CHECK(packet_if_opentop_osrs230_out == packet_if_opentop_v3_out);
+    CHECK(packet_if_opentop_osrs239_out == packet_if_opentop_v4_out);
 
     /* A layout that goes away and comes back gets its ORIGINAL number, which
      * is the whole reason numbers are content-hashed rather than incremented:
      * 236 is p2 again, eleven revisions after 225. */
-    CHECK(packet_if_opentop_rev221_out == packet_if_opentop_v1_out);
-    CHECK(packet_if_opentop_rev225_out == packet_if_opentop_v1_out);
-    CHECK(packet_if_opentop_rev236_out == packet_if_opentop_v1_out);
+    CHECK(packet_if_opentop_osrs221_out == packet_if_opentop_v1_out);
+    CHECK(packet_if_opentop_osrs225_out == packet_if_opentop_v1_out);
+    CHECK(packet_if_opentop_osrs236_out == packet_if_opentop_v1_out);
 
     /* Adjacent revisions are not evidence of a shared layout: 230 and 231
      * differ, and 231 matches 239 instead. */
-    CHECK(packet_if_opentop_rev231_out != packet_if_opentop_rev230_out);
-    CHECK(packet_if_opentop_rev231_out == packet_if_opentop_rev239_out);
+    CHECK(packet_if_opentop_osrs231_out != packet_if_opentop_osrs230_out);
+    CHECK(packet_if_opentop_osrs231_out == packet_if_opentop_osrs239_out);
 }
 
 /**
@@ -179,9 +179,9 @@ test_range_table_covers_every_revision(void)
     CHECK(rsprot_version_pick(r, n, 239) == (RsprotCodecFn)packet_if_opentop_v4_out);
 
     CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_v2_out);
-    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_rev240_out);
+    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_osrs240_out);
     CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_v4_out);
-    CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_rev241_out);
+    CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_osrs241_out);
 
     CHECK(rsprot_version_pick(r, n, 220) == NULL); /* before the first range */
     CHECK(rsprot_version_pick(r, n, 242) == NULL); /* after the last */
@@ -199,16 +199,16 @@ static void
 test_aliases_agree_with_range_table(void)
 {
     static const RsprotCodecFn by_rev[] = {
-        (RsprotCodecFn)packet_if_opentop_rev221_out, (RsprotCodecFn)packet_if_opentop_rev222_out,
-        (RsprotCodecFn)packet_if_opentop_rev223_out, (RsprotCodecFn)packet_if_opentop_rev224_out,
-        (RsprotCodecFn)packet_if_opentop_rev225_out, (RsprotCodecFn)packet_if_opentop_rev226_out,
-        (RsprotCodecFn)packet_if_opentop_rev227_out, (RsprotCodecFn)packet_if_opentop_rev228_out,
-        (RsprotCodecFn)packet_if_opentop_rev229_out, (RsprotCodecFn)packet_if_opentop_rev230_out,
-        (RsprotCodecFn)packet_if_opentop_rev231_out, (RsprotCodecFn)packet_if_opentop_rev232_out,
-        (RsprotCodecFn)packet_if_opentop_rev233_out, (RsprotCodecFn)packet_if_opentop_rev234_out,
-        (RsprotCodecFn)packet_if_opentop_rev235_out, (RsprotCodecFn)packet_if_opentop_rev236_out,
-        (RsprotCodecFn)packet_if_opentop_rev237_out, (RsprotCodecFn)packet_if_opentop_rev238_out,
-        (RsprotCodecFn)packet_if_opentop_rev239_out,
+        (RsprotCodecFn)packet_if_opentop_osrs221_out, (RsprotCodecFn)packet_if_opentop_osrs222_out,
+        (RsprotCodecFn)packet_if_opentop_osrs223_out, (RsprotCodecFn)packet_if_opentop_osrs224_out,
+        (RsprotCodecFn)packet_if_opentop_osrs225_out, (RsprotCodecFn)packet_if_opentop_osrs226_out,
+        (RsprotCodecFn)packet_if_opentop_osrs227_out, (RsprotCodecFn)packet_if_opentop_osrs228_out,
+        (RsprotCodecFn)packet_if_opentop_osrs229_out, (RsprotCodecFn)packet_if_opentop_osrs230_out,
+        (RsprotCodecFn)packet_if_opentop_osrs231_out, (RsprotCodecFn)packet_if_opentop_osrs232_out,
+        (RsprotCodecFn)packet_if_opentop_osrs233_out, (RsprotCodecFn)packet_if_opentop_osrs234_out,
+        (RsprotCodecFn)packet_if_opentop_osrs235_out, (RsprotCodecFn)packet_if_opentop_osrs236_out,
+        (RsprotCodecFn)packet_if_opentop_osrs237_out, (RsprotCodecFn)packet_if_opentop_osrs238_out,
+        (RsprotCodecFn)packet_if_opentop_osrs239_out,
     };
 
     for (int i = 0; i < (int)(sizeof(by_rev) / sizeof(by_rev[0])); i++) {

@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.CamTargetV3Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.CamTargetV3Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -24,22 +25,22 @@ typedef struct MsgCamTargetV3 {
 	int32_t target_index;
 } MsgCamTargetV3;
 
-/* v100 -- revs 229-241. */
-void packet_cam_target_v3_v100_out(RsprotExec *x, MsgCamTargetV3 *m);
+/* v1 -- revs 229-241 (rsprox_versions.txt 100). */
+void packet_cam_target_v3_v1_out(RsprotExec *x, MsgCamTargetV3 *m);
 
-#define packet_cam_target_v3_rev229_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev230_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev231_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev232_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev233_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev234_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev235_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev236_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev237_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev238_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev239_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev240_out packet_cam_target_v3_v100_out
-#define packet_cam_target_v3_rev241_out packet_cam_target_v3_v100_out
+#define packet_cam_target_v3_osrs229_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs230_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs231_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs232_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs233_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs234_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs235_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs236_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs237_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs238_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs239_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs240_out packet_cam_target_v3_v1_out
+#define packet_cam_target_v3_osrs241_out packet_cam_target_v3_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_target_v3_out[];

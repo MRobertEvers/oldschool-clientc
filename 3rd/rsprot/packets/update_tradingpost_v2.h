@@ -33,10 +33,10 @@ typedef struct MsgUpdateTradingpostV2 {
 	MsgTradingPostOffer offers[MSG_UPDATE_TRADINGPOST_V2_MAX_OFFERS];
 } MsgUpdateTradingpostV2;
 
-/* v100 -- revs 241. */
-void packet_update_tradingpost_v2_v100_out(RsprotExec *x, MsgUpdateTradingpostV2 *m);
+/* v1 (rsprox_versions.txt 100) -- revs 241. */
+void packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m);
 
-#define packet_update_tradingpost_v2_rev241_out packet_update_tradingpost_v2_v100_out
+#define packet_update_tradingpost_v2_osrs241_out packet_update_tradingpost_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_tradingpost_v2_out[];

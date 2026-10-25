@@ -12,12 +12,13 @@
  *
  * RSProt class : IdleDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IdleDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgIdle {
 	int32_t _unused;
 } MsgIdle;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_idle_v1_in(RsprotExec *x, MsgIdle *m);
 
-/* Per-revision aliases: `packet_idle_rev239_in` is greppable, which is the
- * point -- "what does 239 do for IDLE" without reading a table. */
-#define packet_idle_rev221_in packet_idle_v1_in
-#define packet_idle_rev222_in packet_idle_v1_in
-#define packet_idle_rev223_in packet_idle_v1_in
-#define packet_idle_rev224_in packet_idle_v1_in
-#define packet_idle_rev225_in packet_idle_v1_in
-#define packet_idle_rev226_in packet_idle_v1_in
-#define packet_idle_rev227_in packet_idle_v1_in
-#define packet_idle_rev228_in packet_idle_v1_in
-#define packet_idle_rev229_in packet_idle_v1_in
-#define packet_idle_rev230_in packet_idle_v1_in
-#define packet_idle_rev231_in packet_idle_v1_in
-#define packet_idle_rev232_in packet_idle_v1_in
-#define packet_idle_rev233_in packet_idle_v1_in
-#define packet_idle_rev234_in packet_idle_v1_in
-#define packet_idle_rev235_in packet_idle_v1_in
-#define packet_idle_rev236_in packet_idle_v1_in
-#define packet_idle_rev237_in packet_idle_v1_in
-#define packet_idle_rev238_in packet_idle_v1_in
-#define packet_idle_rev239_in packet_idle_v1_in
-#define packet_idle_rev240_in packet_idle_v1_in
-#define packet_idle_rev241_in packet_idle_v1_in
+/* Per-revision entry points: `packet_idle_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for IDLE" without reading a table. */
+#define packet_idle_osrs221_in packet_idle_v1_in
+#define packet_idle_osrs222_in packet_idle_v1_in
+#define packet_idle_osrs223_in packet_idle_v1_in
+#define packet_idle_osrs224_in packet_idle_v1_in
+#define packet_idle_osrs225_in packet_idle_v1_in
+#define packet_idle_osrs226_in packet_idle_v1_in
+#define packet_idle_osrs227_in packet_idle_v1_in
+#define packet_idle_osrs228_in packet_idle_v1_in
+#define packet_idle_osrs229_in packet_idle_v1_in
+#define packet_idle_osrs230_in packet_idle_v1_in
+#define packet_idle_osrs231_in packet_idle_v1_in
+#define packet_idle_osrs232_in packet_idle_v1_in
+#define packet_idle_osrs233_in packet_idle_v1_in
+#define packet_idle_osrs234_in packet_idle_v1_in
+#define packet_idle_osrs235_in packet_idle_v1_in
+#define packet_idle_osrs236_in packet_idle_v1_in
+#define packet_idle_osrs237_in packet_idle_v1_in
+#define packet_idle_osrs238_in packet_idle_v1_in
+#define packet_idle_osrs239_in packet_idle_v1_in
+#define packet_idle_osrs240_in packet_idle_v1_in
+#define packet_idle_osrs241_in packet_idle_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_idle_in[];

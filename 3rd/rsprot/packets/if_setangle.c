@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setangle_v1_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -21,7 +21,7 @@ packet_if_setangle_v1_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U4(x, m->combined_id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_if_setangle_v2_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -31,7 +31,7 @@ packet_if_setangle_v2_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_if_setangle_v3_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -41,7 +41,7 @@ packet_if_setangle_v3_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2(x, m->zoom);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_if_setangle_v4_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -51,7 +51,7 @@ packet_if_setangle_v4_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT3(x, m->angle_x);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_setangle_v5_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -61,7 +61,7 @@ packet_if_setangle_v5_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_if_setangle_v6_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -71,7 +71,7 @@ packet_if_setangle_v6_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_if_setangle_v7_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -81,7 +81,7 @@ packet_if_setangle_v7_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_if_setangle_v8_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -91,7 +91,7 @@ packet_if_setangle_v8_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT3(x, m->angle_x);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void
 packet_if_setangle_v9_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -101,7 +101,7 @@ packet_if_setangle_v9_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2(x, m->angle_x);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void
 packet_if_setangle_v10_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -111,7 +111,7 @@ packet_if_setangle_v10_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_if_setangle_v11_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -121,7 +121,7 @@ packet_if_setangle_v11_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void
 packet_if_setangle_v12_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -131,7 +131,7 @@ packet_if_setangle_v12_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2(x, m->angle_x);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs 233 (packet_versions.txt 13). */
 void
 packet_if_setangle_v13_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -141,7 +141,7 @@ packet_if_setangle_v13_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v14 -- revs 234. */
+/* v14 -- revs 234 (packet_versions.txt 14). */
 void
 packet_if_setangle_v14_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -151,7 +151,7 @@ packet_if_setangle_v14_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT3(x, m->zoom);
 }
 
-/* v15 -- revs 235. */
+/* v15 -- revs 235 (packet_versions.txt 15). */
 void
 packet_if_setangle_v15_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -161,7 +161,7 @@ packet_if_setangle_v15_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v16 -- revs 236. */
+/* v16 -- revs 236 (packet_versions.txt 16). */
 void
 packet_if_setangle_v16_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -171,7 +171,7 @@ packet_if_setangle_v16_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v17 -- revs 237. */
+/* v17 -- revs 237 (packet_versions.txt 17). */
 void
 packet_if_setangle_v17_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -181,7 +181,7 @@ packet_if_setangle_v17_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT2(x, m->angle_x);
 }
 
-/* v18 -- revs 238. */
+/* v18 -- revs 238 (packet_versions.txt 18). */
 void
 packet_if_setangle_v18_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -191,7 +191,7 @@ packet_if_setangle_v18_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2(x, m->angle_x);
 }
 
-/* v19 -- revs 239. */
+/* v19 -- revs 239 (packet_versions.txt 19). */
 void
 packet_if_setangle_v19_out(RsprotExec *x, MsgIfSetAngle *m)
 {
@@ -201,9 +201,9 @@ packet_if_setangle_v19_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT3(x, m->angle_y);
 }
 
-/* v100 -- revs 241. */
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_if_setangle_v100_out(RsprotExec *x, MsgIfSetAngle *m)
+packet_if_setangle_v20_out(RsprotExec *x, MsgIfSetAngle *m)
 {
     RSPROT_COM(x, m->combined_id);
     RSPROT_U2_ALT3(x, m->angle_x);
@@ -211,9 +211,9 @@ packet_if_setangle_v100_out(RsprotExec *x, MsgIfSetAngle *m)
     RSPROT_U2_ALT1(x, m->zoom);
 }
 
-/* v101 -- revs 240. */
+/* v21 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_if_setangle_v101_out(RsprotExec *x, MsgIfSetAngle *m)
+packet_if_setangle_v21_out(RsprotExec *x, MsgIfSetAngle *m)
 {
     RSPROT_COM_ALT1(x, m->combined_id);
     RSPROT_U2_ALT2(x, m->angle_y);
@@ -251,8 +251,8 @@ const RsprotVersionRange rsprot_if_setangle_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setangle_v17_out },
     { 238, 238, (RsprotCodecFn)packet_if_setangle_v18_out },
     { 239, 239, (RsprotCodecFn)packet_if_setangle_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setangle_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setangle_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setangle_v21_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setangle_v20_out },
 };
 
 const int rsprot_if_setangle_out_count =

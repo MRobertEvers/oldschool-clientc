@@ -12,12 +12,13 @@
  *
  * RSProt class : SoundJingleEndDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^SoundJingleEndDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgSoundJingleEnd {
 	int32_t jingle;
 } MsgSoundJingleEnd;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m);
 
-/* Per-revision aliases: `packet_sound_jingleend_rev239_in` is greppable, which is the
- * point -- "what does 239 do for SOUND_JINGLEEND" without reading a table. */
-#define packet_sound_jingleend_rev221_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev222_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev223_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev224_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev225_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev226_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev227_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev228_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev229_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev230_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev231_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev232_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev233_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev234_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev235_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev236_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev237_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev238_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev239_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev240_in packet_sound_jingleend_v1_in
-#define packet_sound_jingleend_rev241_in packet_sound_jingleend_v1_in
+/* Per-revision entry points: `packet_sound_jingleend_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for SOUND_JINGLEEND" without reading a table. */
+#define packet_sound_jingleend_osrs221_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs222_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs223_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs224_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs225_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs226_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs227_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs228_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs229_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs230_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs231_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs232_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs233_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs234_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs235_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs236_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs237_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs238_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs239_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs240_in packet_sound_jingleend_v1_in
+#define packet_sound_jingleend_osrs241_in packet_sound_jingleend_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_sound_jingleend_in[];

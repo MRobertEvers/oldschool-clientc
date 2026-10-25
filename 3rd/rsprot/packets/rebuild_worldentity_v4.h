@@ -12,12 +12,13 @@
  *
  * RSProt class : RebuildWorldEntityV4Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^RebuildWorldEntityV4Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,16 +35,16 @@ typedef struct MsgRebuildWorldEntityV4 {
 	int32_t base_z;
 } MsgRebuildWorldEntityV4;
 
-/* v1 -- revs 237-241. */
+/* v1 -- revs 237-241 (packet_versions.txt 1). */
 void packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m);
 
-/* Per-revision aliases: `packet_rebuild_worldentity_v4_rev239_out` is greppable, which is the
- * point -- "what does 239 do for REBUILD_WORLDENTITY_V4" without reading a table. */
-#define packet_rebuild_worldentity_v4_rev237_out packet_rebuild_worldentity_v4_v1_out
-#define packet_rebuild_worldentity_v4_rev238_out packet_rebuild_worldentity_v4_v1_out
-#define packet_rebuild_worldentity_v4_rev239_out packet_rebuild_worldentity_v4_v1_out
-#define packet_rebuild_worldentity_v4_rev240_out packet_rebuild_worldentity_v4_v1_out
-#define packet_rebuild_worldentity_v4_rev241_out packet_rebuild_worldentity_v4_v1_out
+/* Per-revision entry points: `packet_rebuild_worldentity_v4_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for REBUILD_WORLDENTITY_V4" without reading a table. */
+#define packet_rebuild_worldentity_v4_osrs237_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_osrs238_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_osrs239_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_osrs240_out packet_rebuild_worldentity_v4_v1_out
+#define packet_rebuild_worldentity_v4_osrs241_out packet_rebuild_worldentity_v4_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_worldentity_v4_out[];

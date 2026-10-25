@@ -3,7 +3,7 @@
  *
  *   make -C src test-pktsweep
  *
- * For each revision 227-241 and each prot its table (3rd/rsprot/gen/rev<N>_prot.h)
+ * For each revision 227-241 and each prot its table (3rd/rsprot/gen/osrs<N>_prot.h)
  * names, server side and zone sub-packets included:
  *
  *   1. COVERAGE  the registry has a codec for the prot at that revision, or the

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231. */
+/* v1 -- revs 231 (packet_versions.txt 1). */
 void
 packet_if_setevents_v1_v1_out(RsprotExec *x, MsgIfSetEventsV1 *m)
 {

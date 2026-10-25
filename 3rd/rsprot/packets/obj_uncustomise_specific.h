@@ -12,12 +12,13 @@
  *
  * RSProt class : ObjUncustomiseSpecificEncoder
  * Layouts      : 10 distinct, over 10 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v10, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ObjUncustomiseSpecificEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,39 +36,39 @@ typedef struct MsgObjUncustomiseSpecific {
 	int32_t quantity;
 } MsgObjUncustomiseSpecific;
 
-/* v1 -- revs 232. */
+/* v1 -- revs 232 (packet_versions.txt 1). */
 void packet_obj_uncustomise_specific_v1_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v2 -- revs 233. */
+/* v2 -- revs 233 (packet_versions.txt 2). */
 void packet_obj_uncustomise_specific_v2_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v3 -- revs 234. */
+/* v3 -- revs 234 (packet_versions.txt 3). */
 void packet_obj_uncustomise_specific_v3_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v4 -- revs 235. */
+/* v4 -- revs 235 (packet_versions.txt 4). */
 void packet_obj_uncustomise_specific_v4_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v5 -- revs 236. */
+/* v5 -- revs 236 (packet_versions.txt 5). */
 void packet_obj_uncustomise_specific_v5_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v6 -- revs 237. */
+/* v6 -- revs 237 (packet_versions.txt 6). */
 void packet_obj_uncustomise_specific_v6_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v7 -- revs 238. */
+/* v7 -- revs 238 (packet_versions.txt 7). */
 void packet_obj_uncustomise_specific_v7_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v8 -- revs 239. */
+/* v8 -- revs 239 (packet_versions.txt 8). */
 void packet_obj_uncustomise_specific_v8_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v100 -- revs 241. */
-void packet_obj_uncustomise_specific_v100_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
-/* v101 -- revs 240. */
-void packet_obj_uncustomise_specific_v101_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
+/* v9 -- revs 241 (rsprox_versions.txt 100). */
+void packet_obj_uncustomise_specific_v9_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
+void packet_obj_uncustomise_specific_v10_out(RsprotExec *x, MsgObjUncustomiseSpecific *m);
 
-/* Per-revision aliases: `packet_obj_uncustomise_specific_rev239_out` is greppable, which is the
- * point -- "what does 239 do for OBJ_UNCUSTOMISE_SPECIFIC" without reading a table. */
-#define packet_obj_uncustomise_specific_rev232_out packet_obj_uncustomise_specific_v1_out
-#define packet_obj_uncustomise_specific_rev233_out packet_obj_uncustomise_specific_v2_out
-#define packet_obj_uncustomise_specific_rev234_out packet_obj_uncustomise_specific_v3_out
-#define packet_obj_uncustomise_specific_rev235_out packet_obj_uncustomise_specific_v4_out
-#define packet_obj_uncustomise_specific_rev236_out packet_obj_uncustomise_specific_v5_out
-#define packet_obj_uncustomise_specific_rev237_out packet_obj_uncustomise_specific_v6_out
-#define packet_obj_uncustomise_specific_rev238_out packet_obj_uncustomise_specific_v7_out
-#define packet_obj_uncustomise_specific_rev239_out packet_obj_uncustomise_specific_v8_out
-#define packet_obj_uncustomise_specific_rev240_out packet_obj_uncustomise_specific_v101_out
-#define packet_obj_uncustomise_specific_rev241_out packet_obj_uncustomise_specific_v100_out
+/* Per-revision entry points: `packet_obj_uncustomise_specific_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for OBJ_UNCUSTOMISE_SPECIFIC" without reading a table. */
+#define packet_obj_uncustomise_specific_osrs232_out packet_obj_uncustomise_specific_v1_out
+#define packet_obj_uncustomise_specific_osrs233_out packet_obj_uncustomise_specific_v2_out
+#define packet_obj_uncustomise_specific_osrs234_out packet_obj_uncustomise_specific_v3_out
+#define packet_obj_uncustomise_specific_osrs235_out packet_obj_uncustomise_specific_v4_out
+#define packet_obj_uncustomise_specific_osrs236_out packet_obj_uncustomise_specific_v5_out
+#define packet_obj_uncustomise_specific_osrs237_out packet_obj_uncustomise_specific_v6_out
+#define packet_obj_uncustomise_specific_osrs238_out packet_obj_uncustomise_specific_v7_out
+#define packet_obj_uncustomise_specific_osrs239_out packet_obj_uncustomise_specific_v8_out
+#define packet_obj_uncustomise_specific_osrs240_out packet_obj_uncustomise_specific_v10_out
+#define packet_obj_uncustomise_specific_osrs241_out packet_obj_uncustomise_specific_v9_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_uncustomise_specific_out[];

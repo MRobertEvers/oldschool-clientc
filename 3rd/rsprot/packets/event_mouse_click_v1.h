@@ -12,12 +12,13 @@
  *
  * RSProt class : EventMouseClickV1Decoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^EventMouseClickV1Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -37,26 +38,26 @@ typedef struct MsgEventMouseClickV1 {
 	int32_t right_click;
 } MsgEventMouseClickV1;
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs 227-241 (packet_versions.txt 1). */
 void packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m);
 
-/* Per-revision aliases: `packet_event_mouse_click_v1_rev239_in` is greppable, which is the
- * point -- "what does 239 do for EVENT_MOUSE_CLICK_V1" without reading a table. */
-#define packet_event_mouse_click_v1_rev227_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev228_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev229_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev230_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev231_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev232_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev233_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev234_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev235_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev236_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev237_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev238_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev239_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev240_in packet_event_mouse_click_v1_v1_in
-#define packet_event_mouse_click_v1_rev241_in packet_event_mouse_click_v1_v1_in
+/* Per-revision entry points: `packet_event_mouse_click_v1_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for EVENT_MOUSE_CLICK_V1" without reading a table. */
+#define packet_event_mouse_click_v1_osrs227_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs228_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs229_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs230_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs231_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs232_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs233_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs234_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs235_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs236_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs237_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs238_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs239_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs240_in packet_event_mouse_click_v1_v1_in
+#define packet_event_mouse_click_v1_osrs241_in packet_event_mouse_click_v1_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v1_in[];

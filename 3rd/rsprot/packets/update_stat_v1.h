@@ -12,8 +12,9 @@
  *
  * RSProt class : UpdateStatV1Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^UpdateStatV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -32,12 +33,12 @@ typedef struct MsgUpdateStatV1 {
 	int32_t stat;
 } MsgUpdateStatV1;
 
-/* v1 -- revs 226. */
+/* v1 -- revs 226 (packet_versions.txt 1). */
 void packet_update_stat_v1_v1_out(RsprotExec *x, MsgUpdateStatV1 *m);
 
-/* Per-revision aliases: `packet_update_stat_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for UPDATE_STAT_V1" without reading a table. */
-#define packet_update_stat_v1_rev226_out packet_update_stat_v1_v1_out
+/* Per-revision entry points: `packet_update_stat_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for UPDATE_STAT_V1" without reading a table. */
+#define packet_update_stat_v1_osrs226_out packet_update_stat_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_stat_v1_out[];

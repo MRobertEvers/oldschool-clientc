@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void
 packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m)
 {

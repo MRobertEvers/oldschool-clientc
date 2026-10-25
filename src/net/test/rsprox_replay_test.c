@@ -447,11 +447,128 @@ test_replay_refuses_what_it_cannot_frame(void)
     }
 }
 
+/* One of RSProx's pseudo-packets (GameServerProt: PACKET_GROUP_END 0xFE, no
+ * payload; RECONNECT 0xFF, var-short). */
+static void
+w_pseudo(
+    struct Rec* r,
+    uint64_t t_ms,
+    int opcode,
+    uint8_t const* payload,
+    int len)
+{
+    w_packet_head(r, t_ms, 1, opcode);
+    if( opcode == RSPROX_RECORDING_RECONNECT )
+        w2(r, len);
+    for( int i = 0; i < len; i++ )
+        w1(r, payload[i]);
+}
+
+/*
+ * A session that moved to a new connection mid-recording. The proxy's notes
+ * never reach the client as bytes: PACKET_GROUP_END is dropped, and RECONNECT
+ * arrives as PKT_NAME_RECONNECT between the packets either side of it -- the
+ * VARP before it executes first -- carrying the index and the GPI block.
+ */
+static void
+test_replay_reconnects_where_the_recording_did(void)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS241();
+    struct Rec r;
+    struct RsproxRecording rec;
+    struct ToriRS_Network net;
+    static struct ToriRS_CmdBus bus;
+    static uint8_t login_rebuild[GPI_INIT_BYTES + 6];
+    static uint8_t gpi[GPI_INIT_BYTES];
+    uint8_t group[2] = { 0, 9 };
+    uint8_t varp[3] = { 7, 0, 1 };
+    struct NetTransport* t;
+    unsigned long long cycles = 0;
+    char err[256];
+    int seen_names[64];
+    int seen_count = 0;
+    int reconnect_at = -1;
+
+    memset(&r, 0, sizeof(r));
+    w_header(&r);
+    memset(login_rebuild, 0, sizeof(login_rebuild));
+    rebuild_tail(login_rebuild + GPI_INIT_BYTES, 365, 435, 0);
+    w_server(&r, rev, 3, PKT_NAME_REBUILD_NORMAL, login_rebuild, (int)sizeof(login_rebuild));
+    w_server(&r, rev, 6, PKT_NAME_SERVER_TICK_END, NULL, 0);
+    /* tick 1: a group, the hop, and the new world's first packet */
+    /* PACKET_GROUP_START (osrs241 packetin.h: 58, two bytes), which the
+     * client frames and drops. */
+    w_packet_head(&r, 600, 1, 58);
+    w1(&r, group[0]);
+    w1(&r, group[1]);
+    w_server(&r, rev, 600, PKT_NAME_VARP_SMALL, varp, 3);
+    w_pseudo(&r, 600, RSPROX_RECORDING_PACKET_GROUP_END, NULL, 0);
+    for( int i = 0; i < GPI_INIT_BYTES; i++ )
+        gpi[i] = (uint8_t)(i * 7);
+    w_pseudo(&r, 601, RSPROX_RECORDING_RECONNECT, gpi, GPI_INIT_BYTES);
+    varp[0] = 8;
+    w_server(&r, rev, 602, PKT_NAME_VARP_SMALL, varp, 3);
+    w_server(&r, rev, 603, PKT_NAME_SERVER_TICK_END, NULL, 0);
+
+    TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+    TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
+    TEST_CHECK(rec.frame_count == 8);
+    TEST_CHECK(rec.frames[5].opcode == RSPROX_RECORDING_RECONNECT);
+    /* No camera names a player after it, so RSProx's rule stands: the
+     * recording's own index. */
+    TEST_CHECK(rsprox_recording_resolve_reconnects(GameProtoRev_Rsprox(241), &rec) == 0);
+    TEST_CHECK(rec.frames[5].reconnect_index == LOCAL_INDEX);
+    /* A hop the resolver found, as the transport would carry it. */
+    rec.frames[5].reconnect_index = 163;
+
+    ToriRS_Network_Init(&net, rev, TEST_RSA_E, TEST_RSA_N);
+    CmdBus_Init(&bus);
+    t = NetTransport_NewReplay(&rec, rev);
+    NetTransport_ReplaySetUnlocked(t, 1);
+    ToriRS_Network_ConnectLogin(&net, "replay", "replay", "replay");
+    for( int i = 0; i < 400; i++ )
+    {
+        struct ToriRS_CmdHeader header;
+        static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+        struct RevPacket packet;
+
+        if( i == 200 )
+            map_built(rev, &net, 0);
+        cycles++;
+        NetTransport_ReplayClock(t, cycles);
+        NetTransport_Poll(t, &net, &bus);
+        while( CmdBus_Pop(&bus, &header, payload) )
+            ToriRS_Network_HandleCmd(&net, header.type, payload, (int)header.length);
+        while( ToriRS_Network_PopPacket(&net, &packet) )
+        {
+            TEST_CHECK(seen_count < 64);
+            if( packet.packet_type == PKT_NAME_RECONNECT )
+            {
+                reconnect_at = seen_count;
+                TEST_CHECK(packet._reconnect.local_player_index == 163);
+                TEST_CHECK(packet._reconnect.length == GPI_INIT_BYTES);
+                TEST_CHECK(memcmp(packet._reconnect.data, gpi, GPI_INIT_BYTES) == 0);
+            }
+            seen_names[seen_count++] = packet.packet_type;
+            gameproto_free(&packet);
+        }
+    }
+    TEST_CHECK(reconnect_at > 0);
+    TEST_CHECK(seen_names[reconnect_at - 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(seen_names[reconnect_at + 1] == PKT_NAME_VARP_SMALL);
+    TEST_CHECK(seen_names[reconnect_at + 2] == PKT_NAME_SERVER_TICK_END);
+    TEST_CHECK(seen_names[seen_count - 1] == PKT_NAME_LOGOUT);
+
+    NetTransport_Free(t);
+    ToriRS_Network_Free(&net);
+}
+
 int
 main(void)
 {
     test_replay_plays_a_recording();
     test_replay_refuses_what_it_cannot_frame();
+    test_replay_reconnects_where_the_recording_did();
     printf("rsprox_replay_test: ok\n");
     return 0;
 }

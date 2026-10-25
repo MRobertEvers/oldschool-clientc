@@ -709,6 +709,14 @@ struct PktUpdatePid
     int unused;             /* g1 */
 };
 
+/* PKT_NAME_RECONNECT */
+struct PktReconnect
+{
+    int local_player_index;
+    int length;
+    uint8_t* data; /* the GPI init block; owned (ToriMem_Net) */
+};
+
 struct PktUpdateRunWeight
 {
     int run_weight; /* g2s: weight in grams */
@@ -1302,6 +1310,7 @@ struct RevPacket
         struct PktIfMoveSub _if_movesub;
         struct PktHintArrow _hint_arrow;
         struct PktUpdatePid _update_pid;
+        struct PktReconnect _reconnect;
         struct PktUpdateRunWeight _update_runweight;
         struct PktUpdateInvStopTransmit _update_inv_stop_transmit;
         struct PktUpdateInvPartial _update_inv_partial;

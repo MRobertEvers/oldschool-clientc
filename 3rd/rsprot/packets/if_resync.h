@@ -12,8 +12,9 @@
  *
  * RSProt class : IfResyncEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfResyncEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -47,19 +48,19 @@ typedef struct MsgIfResync {
 	int32_t events_count;
 } MsgIfResync;
 
-/* v1 -- revs 223-230. */
+/* v1 -- revs 223-230 (packet_versions.txt 1). */
 void packet_if_resync_v1_out(RsprotExec *x, MsgIfResync *m);
 
-/* Per-revision aliases: `packet_if_resync_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_RESYNC" without reading a table. */
-#define packet_if_resync_rev223_out packet_if_resync_v1_out
-#define packet_if_resync_rev224_out packet_if_resync_v1_out
-#define packet_if_resync_rev225_out packet_if_resync_v1_out
-#define packet_if_resync_rev226_out packet_if_resync_v1_out
-#define packet_if_resync_rev227_out packet_if_resync_v1_out
-#define packet_if_resync_rev228_out packet_if_resync_v1_out
-#define packet_if_resync_rev229_out packet_if_resync_v1_out
-#define packet_if_resync_rev230_out packet_if_resync_v1_out
+/* Per-revision entry points: `packet_if_resync_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_RESYNC" without reading a table. */
+#define packet_if_resync_osrs223_out packet_if_resync_v1_out
+#define packet_if_resync_osrs224_out packet_if_resync_v1_out
+#define packet_if_resync_osrs225_out packet_if_resync_v1_out
+#define packet_if_resync_osrs226_out packet_if_resync_v1_out
+#define packet_if_resync_osrs227_out packet_if_resync_v1_out
+#define packet_if_resync_osrs228_out packet_if_resync_v1_out
+#define packet_if_resync_osrs229_out packet_if_resync_v1_out
+#define packet_if_resync_osrs230_out packet_if_resync_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_resync_out[];

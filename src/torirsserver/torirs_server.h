@@ -857,8 +857,8 @@ enum
     TORIRSSERVER_FACE_PLAYER_BASE = 32768,
 
     /* New-npc record field widths. These MUST match what the rev-230 table
-     * declares (GameProtoRevTable.npc_slot_bits / .npc_type_bits) — the two
-     * ends of the same bitstream. A mismatch does not fail the decode, it
+     * reads (k_npc_info_osrs230, net/rev/osrs230/gameproto_rev_osrs230.c) —
+     * the two ends of the same bitstream. A mismatch does not fail the decode, it
      * shifts every field after the offending one. */
     TORIRSSERVER_NPC_SLOT_BITS = 14,
     TORIRSSERVER_NPC_TYPE_BITS = 14,
@@ -874,7 +874,7 @@ enum
 
 /*
  * Extended-info mask bits, mirroring the client's readers exactly
- * (src/net/rev/packets/pkt_player_info.h and pkt_npc_info.h). The writers must
+ * (src/net/rev/rs/info_rs.h, RS_PLAYER_MASK_* / RS_NPC_MASK_*). The writers must
  * emit fields in ascending bit order, because that is the order the reader
  * tests them in — the mask says which fields are present, never where.
  */
@@ -2759,7 +2759,7 @@ struct ToriRSServerNpc
      * `move_dirs[1]`, and `PathingEntity.runDir` in the reference.
      *
      * NPC_INFO's tracked section has always had the op for it (update type 2,
-     * two 3-bit directions; `pkt_npc_info.c` decodes it and
+     * two 3-bit directions; `net/rev/rs/info_rs_blocks.c` decodes it and
      * `World_NpcPathPushStep(WORLD_PATHSTEP_RUN)` applies it), but nothing on
      * this side ever set it, because every npc mover took exactly one step.
      * `playerfollow` needs two: a follower that walks cannot keep up with an
@@ -5062,7 +5062,7 @@ ToriRSServer_PlayerHelper(struct ToriRSServerPlayer const* player)
 /**
  * One queued "this slot's occupant is gone" command — the emitted half of
  * the despawn/reap split (ToriRSServer_WorldNpcFree / ToriRSServer_WorldNpcReap).
- * Mirrors PktNpcInfoOp's reader-emits-commands shape, and the real client's
+ * Mirrors RsprotInfoOp's reader-emits-commands shape, and the real client's
  * own `field956` removal queue (Statics.method13029 in the rev-239 deob):
  * a despawn site doesn't free a slot directly, it emits a command here, and
  * a single reap call later in the tick is what actually acts on it. See

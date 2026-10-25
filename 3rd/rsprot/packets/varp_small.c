@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_varp_small_v1_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -19,7 +19,7 @@ packet_varp_small_v1_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_ALT3(x, m->value);
 }
 
-/* v2 -- revs 222, 224. */
+/* v2 -- revs 222, 224 (packet_versions.txt 2). */
 void
 packet_varp_small_v2_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -27,7 +27,7 @@ packet_varp_small_v2_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v3 -- revs 223, 225, 229. */
+/* v3 -- revs 223, 225, 229 (packet_versions.txt 3). */
 void
 packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -35,7 +35,7 @@ packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v4 -- revs 226, 231, 241. */
+/* v4 -- revs 226, 231, 241 (packet_versions.txt 4). */
 void
 packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -43,7 +43,7 @@ packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v5 -- revs 227. */
+/* v5 -- revs 227 (packet_versions.txt 5). */
 void
 packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -51,7 +51,7 @@ packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1(x, m->value);
 }
 
-/* v6 -- revs 228, 239. */
+/* v6 -- revs 228, 239 (packet_versions.txt 6). */
 void
 packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -59,7 +59,7 @@ packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v7 -- revs 230. */
+/* v7 -- revs 230 (packet_versions.txt 7). */
 void
 packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -67,7 +67,7 @@ packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v8 -- revs 232. */
+/* v8 -- revs 232 (packet_versions.txt 8). */
 void
 packet_varp_small_v8_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -75,7 +75,7 @@ packet_varp_small_v8_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_ALT3(x, m->value);
 }
 
-/* v9 -- revs 233. */
+/* v9 -- revs 233 (packet_versions.txt 9). */
 void
 packet_varp_small_v9_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -83,7 +83,7 @@ packet_varp_small_v9_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v10 -- revs 234. */
+/* v10 -- revs 234 (packet_versions.txt 10). */
 void
 packet_varp_small_v10_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -91,7 +91,7 @@ packet_varp_small_v10_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_ALT2(x, m->value);
 }
 
-/* v11 -- revs 235. */
+/* v11 -- revs 235 (packet_versions.txt 11). */
 void
 packet_varp_small_v11_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -99,7 +99,7 @@ packet_varp_small_v11_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void
 packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -107,7 +107,7 @@ packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_ALT2(x, m->value);
 }
 
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void
 packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -115,7 +115,7 @@ packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_ALT3(x, m->value);
 }
 
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void
 packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -123,9 +123,9 @@ packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v100 -- revs 240. */
+/* v15 -- revs 240 (rsprox_versions.txt 100). */
 void
-packet_varp_small_v100_out(RsprotExec *x, MsgVarpSmall *m)
+packet_varp_small_v15_out(RsprotExec *x, MsgVarpSmall *m)
 {
     RSPROT_U2_ALT2(x, m->id);
     RSPROT_U1_ALT2(x, m->value);
@@ -161,7 +161,7 @@ const RsprotVersionRange rsprot_varp_small_out[] = {
     { 237, 237, (RsprotCodecFn)packet_varp_small_v13_out },
     { 238, 238, (RsprotCodecFn)packet_varp_small_v14_out },
     { 239, 239, (RsprotCodecFn)packet_varp_small_v6_out },
-    { 240, 240, (RsprotCodecFn)packet_varp_small_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_varp_small_v15_out },
     { 241, 241, (RsprotCodecFn)packet_varp_small_v4_out },
 };
 

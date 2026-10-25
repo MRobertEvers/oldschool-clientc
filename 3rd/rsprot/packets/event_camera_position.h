@@ -12,12 +12,13 @@
  *
  * RSProt class : EventCameraPositionDecoder
  * Layouts      : 13 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v13, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^EventCameraPositionDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,56 +35,56 @@ typedef struct MsgEventCameraPosition {
 	int32_t angle_y;
 } MsgEventCameraPosition;
 
-/* v1 -- revs 221, 225, 232, 237. */
+/* v1 -- revs 221, 225, 232, 237 (packet_versions.txt 1). */
 void packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v3 -- revs 223, 230, 234. */
+/* v3 -- revs 223, 230, 234 (packet_versions.txt 3). */
 void packet_event_camera_position_v3_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v4 -- revs 224, 227. */
+/* v4 -- revs 224, 227 (packet_versions.txt 4). */
 void packet_event_camera_position_v4_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v5 -- revs 226. */
+/* v5 -- revs 226 (packet_versions.txt 5). */
 void packet_event_camera_position_v5_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v6 -- revs 228. */
+/* v6 -- revs 228 (packet_versions.txt 6). */
 void packet_event_camera_position_v6_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v7 -- revs 229. */
+/* v7 -- revs 229 (packet_versions.txt 7). */
 void packet_event_camera_position_v7_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v8 -- revs 231. */
+/* v8 -- revs 231 (packet_versions.txt 8). */
 void packet_event_camera_position_v8_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v9 -- revs 233. */
+/* v9 -- revs 233 (packet_versions.txt 9). */
 void packet_event_camera_position_v9_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v10 -- revs 235. */
+/* v10 -- revs 235 (packet_versions.txt 10). */
 void packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v11 -- revs 236, 239, 241. */
+/* v11 -- revs 236, 239, 241 (packet_versions.txt 11). */
 void packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v12 -- revs 238. */
+/* v12 -- revs 238 (packet_versions.txt 12). */
 void packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v100 -- revs 240. */
-void packet_event_camera_position_v100_in(RsprotExec *x, MsgEventCameraPosition *m);
+/* v13 -- revs 240 (rsprox_versions.txt 100). */
+void packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *m);
 
-/* Per-revision aliases: `packet_event_camera_position_rev239_in` is greppable, which is the
- * point -- "what does 239 do for EVENT_CAMERA_POSITION" without reading a table. */
-#define packet_event_camera_position_rev221_in packet_event_camera_position_v1_in
-#define packet_event_camera_position_rev222_in packet_event_camera_position_v2_in
-#define packet_event_camera_position_rev223_in packet_event_camera_position_v3_in
-#define packet_event_camera_position_rev224_in packet_event_camera_position_v4_in
-#define packet_event_camera_position_rev225_in packet_event_camera_position_v1_in
-#define packet_event_camera_position_rev226_in packet_event_camera_position_v5_in
-#define packet_event_camera_position_rev227_in packet_event_camera_position_v4_in
-#define packet_event_camera_position_rev228_in packet_event_camera_position_v6_in
-#define packet_event_camera_position_rev229_in packet_event_camera_position_v7_in
-#define packet_event_camera_position_rev230_in packet_event_camera_position_v3_in
-#define packet_event_camera_position_rev231_in packet_event_camera_position_v8_in
-#define packet_event_camera_position_rev232_in packet_event_camera_position_v1_in
-#define packet_event_camera_position_rev233_in packet_event_camera_position_v9_in
-#define packet_event_camera_position_rev234_in packet_event_camera_position_v3_in
-#define packet_event_camera_position_rev235_in packet_event_camera_position_v10_in
-#define packet_event_camera_position_rev236_in packet_event_camera_position_v11_in
-#define packet_event_camera_position_rev237_in packet_event_camera_position_v1_in
-#define packet_event_camera_position_rev238_in packet_event_camera_position_v12_in
-#define packet_event_camera_position_rev239_in packet_event_camera_position_v11_in
-#define packet_event_camera_position_rev240_in packet_event_camera_position_v100_in
-#define packet_event_camera_position_rev241_in packet_event_camera_position_v11_in
+/* Per-revision entry points: `packet_event_camera_position_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for EVENT_CAMERA_POSITION" without reading a table. */
+#define packet_event_camera_position_osrs221_in packet_event_camera_position_v1_in
+#define packet_event_camera_position_osrs222_in packet_event_camera_position_v2_in
+#define packet_event_camera_position_osrs223_in packet_event_camera_position_v3_in
+#define packet_event_camera_position_osrs224_in packet_event_camera_position_v4_in
+#define packet_event_camera_position_osrs225_in packet_event_camera_position_v1_in
+#define packet_event_camera_position_osrs226_in packet_event_camera_position_v5_in
+#define packet_event_camera_position_osrs227_in packet_event_camera_position_v4_in
+#define packet_event_camera_position_osrs228_in packet_event_camera_position_v6_in
+#define packet_event_camera_position_osrs229_in packet_event_camera_position_v7_in
+#define packet_event_camera_position_osrs230_in packet_event_camera_position_v3_in
+#define packet_event_camera_position_osrs231_in packet_event_camera_position_v8_in
+#define packet_event_camera_position_osrs232_in packet_event_camera_position_v1_in
+#define packet_event_camera_position_osrs233_in packet_event_camera_position_v9_in
+#define packet_event_camera_position_osrs234_in packet_event_camera_position_v3_in
+#define packet_event_camera_position_osrs235_in packet_event_camera_position_v10_in
+#define packet_event_camera_position_osrs236_in packet_event_camera_position_v11_in
+#define packet_event_camera_position_osrs237_in packet_event_camera_position_v1_in
+#define packet_event_camera_position_osrs238_in packet_event_camera_position_v12_in
+#define packet_event_camera_position_osrs239_in packet_event_camera_position_v11_in
+#define packet_event_camera_position_osrs240_in packet_event_camera_position_v13_in
+#define packet_event_camera_position_osrs241_in packet_event_camera_position_v11_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_camera_position_in[];

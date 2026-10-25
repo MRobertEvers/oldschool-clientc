@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 229, 237. */
+/* v1 -- revs 221, 229, 237 (packet_versions.txt 1). */
 void
 packet_midi_jingle_v1_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -19,7 +19,7 @@ packet_midi_jingle_v1_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_midi_jingle_v2_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -27,7 +27,7 @@ packet_midi_jingle_v2_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT3(x, m->length_in_millis);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_midi_jingle_v3_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -35,7 +35,7 @@ packet_midi_jingle_v3_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT2(x, m->length_in_millis);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_midi_jingle_v4_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -43,7 +43,7 @@ packet_midi_jingle_v4_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v5 -- revs 225, 240. */
+/* v5 -- revs 225, 240 (packet_versions.txt 5). */
 void
 packet_midi_jingle_v5_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -51,7 +51,7 @@ packet_midi_jingle_v5_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT1(x, m->length_in_millis);
 }
 
-/* v6 -- revs 226, 233. */
+/* v6 -- revs 226, 233 (packet_versions.txt 6). */
 void
 packet_midi_jingle_v6_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -59,7 +59,7 @@ packet_midi_jingle_v6_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT3(x, m->length_in_millis);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_midi_jingle_v7_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -67,7 +67,7 @@ packet_midi_jingle_v7_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_midi_jingle_v8_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -75,7 +75,7 @@ packet_midi_jingle_v8_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v9 -- revs 230. */
+/* v9 -- revs 230 (packet_versions.txt 9). */
 void
 packet_midi_jingle_v9_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -83,7 +83,7 @@ packet_midi_jingle_v9_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void
 packet_midi_jingle_v10_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -91,7 +91,7 @@ packet_midi_jingle_v10_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT3(x, m->length_in_millis);
 }
 
-/* v11 -- revs 232. */
+/* v11 -- revs 232 (packet_versions.txt 11). */
 void
 packet_midi_jingle_v11_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -99,7 +99,7 @@ packet_midi_jingle_v11_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3(x, m->length_in_millis);
 }
 
-/* v12 -- revs 234. */
+/* v12 -- revs 234 (packet_versions.txt 12). */
 void
 packet_midi_jingle_v12_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -107,7 +107,7 @@ packet_midi_jingle_v12_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v13 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 13). */
 void
 packet_midi_jingle_v13_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -115,7 +115,7 @@ packet_midi_jingle_v13_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT2(x, m->length_in_millis);
 }
 
-/* v14 -- revs 236. */
+/* v14 -- revs 236 (packet_versions.txt 14). */
 void
 packet_midi_jingle_v14_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -123,7 +123,7 @@ packet_midi_jingle_v14_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3_ALT1(x, m->length_in_millis);
 }
 
-/* v15 -- revs 238. */
+/* v15 -- revs 238 (packet_versions.txt 15). */
 void
 packet_midi_jingle_v15_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -131,7 +131,7 @@ packet_midi_jingle_v15_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U3(x, m->length_in_millis);
 }
 
-/* v16 -- revs 239. */
+/* v16 -- revs 239 (packet_versions.txt 16). */
 void
 packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m)
 {
@@ -139,9 +139,9 @@ packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v100 -- revs 241. */
+/* v17 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_midi_jingle_v100_out(RsprotExec *x, MsgMidiJingle *m)
+packet_midi_jingle_v17_out(RsprotExec *x, MsgMidiJingle *m)
 {
     RSPROT_U2_ALT3(x, m->id);
     RSPROT_U3_ALT1(x, m->length_in_millis);
@@ -178,7 +178,7 @@ const RsprotVersionRange rsprot_midi_jingle_out[] = {
     { 238, 238, (RsprotCodecFn)packet_midi_jingle_v15_out },
     { 239, 239, (RsprotCodecFn)packet_midi_jingle_v16_out },
     { 240, 240, (RsprotCodecFn)packet_midi_jingle_v5_out },
-    { 241, 241, (RsprotCodecFn)packet_midi_jingle_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_midi_jingle_v17_out },
 };
 
 const int rsprot_midi_jingle_out_count =

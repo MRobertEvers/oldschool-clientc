@@ -11,28 +11,28 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-222, 235, 240. */
+/* v1 -- revs 221-222, 235, 240 (packet_versions.txt 1). */
 void
 packet_opnpc6_v1_in(RsprotExec *x, MsgOpNpc6 *m)
 {
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v2 -- revs 223-224, 227, 229-230, 234. */
+/* v2 -- revs 223-224, 227, 229-230, 234 (packet_versions.txt 2). */
 void
 packet_opnpc6_v2_in(RsprotExec *x, MsgOpNpc6 *m)
 {
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v3 -- revs 225, 228, 236-237. */
+/* v3 -- revs 225, 228, 236-237 (packet_versions.txt 3). */
 void
 packet_opnpc6_v3_in(RsprotExec *x, MsgOpNpc6 *m)
 {
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v4 -- revs 226, 231-233, 238-239, 241. */
+/* v4 -- revs 226, 231-233, 238-239, 241 (packet_versions.txt 4). */
 void
 packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m)
 {

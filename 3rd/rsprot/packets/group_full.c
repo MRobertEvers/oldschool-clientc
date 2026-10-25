@@ -2,11 +2,11 @@
 #include "group_full.h"
 
 /*
- * v100 -- revs 239-241.
+ * v1 (rsprox_versions.txt 100) -- revs 239-241.
  * while readable: g1 index, gSmart1or2null id; id != -1: g8 uid, gdata(rest).
  */
 void
-packet_group_full_v100_out(RsprotExec *x, MsgGroupFull *m)
+packet_group_full_v1_out(RsprotExec *x, MsgGroupFull *m)
 {
     for (int32_t i = 0; RSPROT_MORE(x, m->updates_count, i, MSG_GROUP_FULL_MAX_UPDATES); i++) {
         MsgGroupFullUpdate *u = &m->updates[i];
@@ -21,7 +21,7 @@ packet_group_full_v100_out(RsprotExec *x, MsgGroupFull *m)
 }
 
 const RsprotVersionRange rsprot_group_full_out[] = {
-    { 239, 241, (RsprotCodecFn)packet_group_full_v100_out },
+    { 239, 241, (RsprotCodecFn)packet_group_full_v1_out },
 };
 
 const int rsprot_group_full_out_count =

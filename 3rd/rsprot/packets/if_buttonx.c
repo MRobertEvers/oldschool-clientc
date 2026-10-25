@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231-241. */
+/* v1 -- revs 231-241 (packet_versions.txt 1). */
 void
 packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m)
 {

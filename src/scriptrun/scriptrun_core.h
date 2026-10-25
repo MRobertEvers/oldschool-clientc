@@ -352,13 +352,15 @@ struct ScriptrunCore
     int own_seq_count;
     int own_seq_starts;
 
-    /* This bot's copy of the revision's player-info table (the osrs239
-     * decoder keeps one file-static table; see ScriptrunCore_Packet). */
+    /* This bot's copy of the revision's player-info table (the decoders
+     * keep one file-static table; see ScriptrunCore_Packet). */
     void* player_decoder_state;
 
-    /* Decoder scratch (the client's ops arrays). */
+    /* Decoder scratch (the client's op lists): ops, and the byte arena
+     * whichever decode is running writes its strings into. */
     void* npc_ops;
     void* player_ops;
+    void* info_bytes;
     int npc_old_list[2048];
     int player_old_list[2048];
     int packets;
@@ -383,7 +385,7 @@ ScriptrunCore_Free(struct ScriptrunCore* core);
 
 /**
  * The login response's player index: what the client learns before the login
- * REBUILD (net/net.c: osrs239_playerinfo_set_local + a synthetic UPDATE_PID).
+ * REBUILD (net/net.c: the table's player_info_set_local + a synthetic UPDATE_PID).
  * Call before the bot's first packet.
  */
 void

@@ -12,8 +12,9 @@
  *
  * RSProt class : RebuildWorldEntityV2Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^RebuildWorldEntityV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -32,15 +33,15 @@ typedef struct MsgRebuildWorldEntityV2 {
 	int32_t base_z;
 } MsgRebuildWorldEntityV2;
 
-/* v1 -- revs 225-228. */
+/* v1 -- revs 225-228 (packet_versions.txt 1). */
 void packet_rebuild_worldentity_v2_v1_out(RsprotExec *x, MsgRebuildWorldEntityV2 *m);
 
-/* Per-revision aliases: `packet_rebuild_worldentity_v2_rev239_out` is greppable, which is the
- * point -- "what does 239 do for REBUILD_WORLDENTITY_V2" without reading a table. */
-#define packet_rebuild_worldentity_v2_rev225_out packet_rebuild_worldentity_v2_v1_out
-#define packet_rebuild_worldentity_v2_rev226_out packet_rebuild_worldentity_v2_v1_out
-#define packet_rebuild_worldentity_v2_rev227_out packet_rebuild_worldentity_v2_v1_out
-#define packet_rebuild_worldentity_v2_rev228_out packet_rebuild_worldentity_v2_v1_out
+/* Per-revision entry points: `packet_rebuild_worldentity_v2_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for REBUILD_WORLDENTITY_V2" without reading a table. */
+#define packet_rebuild_worldentity_v2_osrs225_out packet_rebuild_worldentity_v2_v1_out
+#define packet_rebuild_worldentity_v2_osrs226_out packet_rebuild_worldentity_v2_v1_out
+#define packet_rebuild_worldentity_v2_osrs227_out packet_rebuild_worldentity_v2_v1_out
+#define packet_rebuild_worldentity_v2_osrs228_out packet_rebuild_worldentity_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_worldentity_v2_out[];

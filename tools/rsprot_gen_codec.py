@@ -2294,6 +2294,21 @@ def fmt_ranges(ranges):
     return ", ".join(f"{lo}" if lo == hi else f"{lo}-{hi}" for lo, hi in ranges)
 
 
+def layout_numbers(versions):
+    """Ledger version -> the layout's number in C: 1..N in ledger order.
+
+    The ledgers (gen/packet_versions.txt from 1, gen/rsprox_versions.txt from
+    100) are append-only identities and stay so; the C names count a packet's
+    own layouts, so `packet_<prot>_v<n>` is the n-th layout that packet has
+    had. Each layout's comment names its ledger row.
+    """
+    return {v: n for n, v in enumerate(sorted(versions), 1)}
+
+
+def ledger_name(ver):
+    return f"rsprox_versions.txt {ver}" if ver >= 100 else f"packet_versions.txt {ver}"
+
+
 # --- per-packet file emission --------------------------------------------------
 
 PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
@@ -2310,8 +2325,9 @@ PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
  *
  * RSProt class : {cls}
  * Layouts      : {nver} distinct, over {nrun} contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v{nver}, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^{cls}\\t{ledger_dir}\\t' 3rd/rsprot/gen/packet_versions.txt{overlay_h}
  */
 
@@ -2327,8 +2343,8 @@ PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
 {struct}
 
 {decls}
-/* Per-revision aliases: `packet_{snake}_rev239_{dir}` is greppable, which is the
- * point -- "what does 239 do for {prot}" without reading a table. */
+/* Per-revision entry points: `packet_{snake}_osrs239_{dir}` is greppable, which
+ * is the point -- "what does 239 do for {prot}" without reading a table. */
 {aliases}
 
 /** Revision -> layout. See the .c for the rows. */
@@ -2374,16 +2390,18 @@ def emit_packet_files(pkt, out_dir):
     versions = pkt["versions"]      # {ver: {"body": str, "revs": [..]}}
     rev_to_ver = pkt["rev_to_ver"]
 
+    num = layout_numbers(versions)
     decls = []
     bodies = []
     for ver in sorted(versions):
         info = versions[ver]
         rngs = fmt_ranges(compress_ranges(info["revs"]))
-        fn = f"packet_{snake}_v{ver}_{direction}"
-        decls.append(f"/* v{ver} -- revs {rngs}. */")
+        fn = f"packet_{snake}_v{num[ver]}_{direction}"
+        note = f"/* v{num[ver]} -- revs {rngs} ({ledger_name(ver)}). */"
+        decls.append(note)
         decls.append(f"void {fn}(RsprotExec *x, {msg_struct} *m);")
         body = info["body"] or f"    (void)x;\n    (void)m;"
-        bodies.append(f"/* v{ver} -- revs {rngs}. */\nvoid\n{fn}(RsprotExec *x, {msg_struct} *m)\n{{\n{body}\n}}\n")
+        bodies.append(f"{note}\nvoid\n{fn}(RsprotExec *x, {msg_struct} *m)\n{{\n{body}\n}}\n")
 
     aliases = []
     for rev in range(REV_LO, max([REV_HI] + list(rev_to_ver)) + 1):
@@ -2391,7 +2409,7 @@ def emit_packet_files(pkt, out_dir):
         if ver is None:
             continue
         aliases.append(
-            f"#define packet_{snake}_rev{rev}_{direction} packet_{snake}_v{ver}_{direction}")
+            f"#define packet_{snake}_osrs{rev}_{direction} packet_{snake}_v{num[ver]}_{direction}")
 
     rows = []
     for lo, hi in compress_ranges(rev_to_ver.keys()):
@@ -2406,7 +2424,7 @@ def emit_packet_files(pkt, out_dir):
         rows.append((start, hi, cur))
 
     row_text = "\n".join(
-        f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{snake}_v{ver}_{direction} }},"
+        f"    {{ {lo}, {hi}, (RsprotCodecFn)packet_{snake}_v{num[ver]}_{direction} }},"
         for lo, hi, ver in rows)
 
     overlay_revs = sorted(r for r in rev_to_ver if r > REV_HI)
@@ -2415,8 +2433,8 @@ def emit_packet_files(pkt, out_dir):
         revs_text = ", ".join(str(r) for r in overlay_revs)
         overlay_h = (
             "\n *                Revision(s) " + revs_text + " come from RSProx, not RSProt\n"
-            " *                (tools/rsprox_codec_overlay.py); a number >= 100 is from\n"
-            " *                gen/rsprox_versions.txt.")
+            " *                (tools/rsprox_codec_overlay.py); their layouts name\n"
+            " *                rows of gen/rsprox_versions.txt.")
         overlay_c = (
             "\n *\n * Plus revision(s) " + revs_text + ", which RSProt never vendored: derived from\n"
             " * RSProx's decoders by tools/rsprox_codec_overlay.py. A revision past " + str(REV_HI) + "\n"
@@ -2484,7 +2502,7 @@ REGISTRY_HEADER = """
 /*
  * The registry: every codec table above, keyed by its prot's name.
  *
- * A prot name is the one the revision's prot table uses (gen/rev<N>_prot.h), so
+ * A prot name is the one the revision's prot table uses (gen/osrs<N>_prot.h), so
  * "decode opcode 96 at 239" is two lookups -- the table names the prot, this
  * names the codec -- with no per-packet code in between. Generated from the
  * `extern const RsprotVersionRange rsprot_<prot>_<dir>[]` each packet header

@@ -12,8 +12,9 @@
  *
  * RSProt class : MapProjAnimV1Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^MapProjAnimV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -41,12 +42,12 @@ typedef struct MsgMapProjAnimV1 {
 	int32_t source_index;
 } MsgMapProjAnimV1;
 
-/* v1 -- revs 231. */
+/* v1 -- revs 231 (packet_versions.txt 1). */
 void packet_map_projanim_v1_v1_out(RsprotExec *x, MsgMapProjAnimV1 *m);
 
-/* Per-revision aliases: `packet_map_projanim_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for MAP_PROJANIM_V1" without reading a table. */
-#define packet_map_projanim_v1_rev231_out packet_map_projanim_v1_v1_out
+/* Per-revision entry points: `packet_map_projanim_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for MAP_PROJANIM_V1" without reading a table. */
+#define packet_map_projanim_v1_osrs231_out packet_map_projanim_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_map_projanim_v1_out[];

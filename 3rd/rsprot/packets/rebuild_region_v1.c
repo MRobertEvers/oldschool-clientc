@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 237. */
+/* v1 -- revs 237 (packet_versions.txt 1). */
 void
 packet_rebuild_region_v1_v1_out(RsprotExec *x, MsgRebuildRegionV1 *m)
 {

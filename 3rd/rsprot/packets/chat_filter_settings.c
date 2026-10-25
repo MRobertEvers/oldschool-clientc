@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_chat_filter_settings_v1_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -19,7 +19,7 @@ packet_chat_filter_settings_v1_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT1(x, m->trade_chat_filter);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_chat_filter_settings_v2_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -27,7 +27,7 @@ packet_chat_filter_settings_v2_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT1(x, m->public_chat_filter);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_chat_filter_settings_v3_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -35,7 +35,7 @@ packet_chat_filter_settings_v3_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->public_chat_filter);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_chat_filter_settings_v4_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -43,7 +43,7 @@ packet_chat_filter_settings_v4_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT1(x, m->public_chat_filter);
 }
 
-/* v5 -- revs 225, 237. */
+/* v5 -- revs 225, 237 (packet_versions.txt 5). */
 void
 packet_chat_filter_settings_v5_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -51,7 +51,7 @@ packet_chat_filter_settings_v5_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT1(x, m->trade_chat_filter);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_chat_filter_settings_v6_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -59,7 +59,7 @@ packet_chat_filter_settings_v6_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->public_chat_filter);
 }
 
-/* v7 -- revs 227, 234. */
+/* v7 -- revs 227, 234 (packet_versions.txt 7). */
 void
 packet_chat_filter_settings_v7_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -67,7 +67,7 @@ packet_chat_filter_settings_v7_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT2(x, m->trade_chat_filter);
 }
 
-/* v8 -- revs 228, 238. */
+/* v8 -- revs 228, 238 (packet_versions.txt 8). */
 void
 packet_chat_filter_settings_v8_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -75,7 +75,7 @@ packet_chat_filter_settings_v8_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT3(x, m->trade_chat_filter);
 }
 
-/* v9 -- revs 229, 232. */
+/* v9 -- revs 229, 232 (packet_versions.txt 9). */
 void
 packet_chat_filter_settings_v9_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -83,7 +83,7 @@ packet_chat_filter_settings_v9_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT2(x, m->trade_chat_filter);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void
 packet_chat_filter_settings_v10_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -91,7 +91,7 @@ packet_chat_filter_settings_v10_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->public_chat_filter);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_chat_filter_settings_v11_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -99,7 +99,7 @@ packet_chat_filter_settings_v11_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->trade_chat_filter);
 }
 
-/* v12 -- revs 233. */
+/* v12 -- revs 233 (packet_versions.txt 12). */
 void
 packet_chat_filter_settings_v12_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -107,7 +107,7 @@ packet_chat_filter_settings_v12_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT2(x, m->public_chat_filter);
 }
 
-/* v13 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 13). */
 void
 packet_chat_filter_settings_v13_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -115,7 +115,7 @@ packet_chat_filter_settings_v13_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT2(x, m->trade_chat_filter);
 }
 
-/* v14 -- revs 236, 240. */
+/* v14 -- revs 236, 240 (packet_versions.txt 14). */
 void
 packet_chat_filter_settings_v14_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -123,7 +123,7 @@ packet_chat_filter_settings_v14_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1(x, m->public_chat_filter);
 }
 
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void
 packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
@@ -131,9 +131,9 @@ packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m)
     RSPROT_U1_ALT3(x, m->trade_chat_filter);
 }
 
-/* v100 -- revs 241. */
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_chat_filter_settings_v100_out(RsprotExec *x, MsgChatFilterSettings *m)
+packet_chat_filter_settings_v16_out(RsprotExec *x, MsgChatFilterSettings *m)
 {
     RSPROT_U1_ALT1(x, m->public_chat_filter);
     RSPROT_U1_ALT1(x, m->trade_chat_filter);
@@ -170,7 +170,7 @@ const RsprotVersionRange rsprot_chat_filter_settings_out[] = {
     { 238, 238, (RsprotCodecFn)packet_chat_filter_settings_v8_out },
     { 239, 239, (RsprotCodecFn)packet_chat_filter_settings_v15_out },
     { 240, 240, (RsprotCodecFn)packet_chat_filter_settings_v14_out },
-    { 241, 241, (RsprotCodecFn)packet_chat_filter_settings_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_chat_filter_settings_v16_out },
 };
 
 const int rsprot_chat_filter_settings_out_count =

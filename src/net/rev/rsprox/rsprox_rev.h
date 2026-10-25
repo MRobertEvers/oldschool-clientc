@@ -8,11 +8,13 @@
  * opcode tables, its own parser, its own entity-info readers. This one is
  * written once and DRIVEN by what 3rd/rsprot generates from RSProt and RSProx:
  *
- *   wire tables     gen/rev<N>_prot.h (both directions, plus the zone index)
+ *   wire tables     gen/osrs<N>_prot.h (both directions, plus the zone index)
  *   payloads        the packets/ codecs, found by prot name through
  *                   rsprot_registry, at revision N
- *   info streams    streams/ (PLAYER_INFO / NPC_INFO_*), one file per prot;
- *                   each revision binds stream_<prot>_rev<N>_read
+ *   info streams    streams/: <prot>_osrs<N>, each revision's entry point,
+ *                   which calls its prot's version and writes the list the
+ *                   entity-info executor reads (net/rev/rsprot_entity_state.c
+ *                   holds the player table)
  *
  * so a revision is a NUMBER here, and supporting the next one is regenerating
  * 3rd/rsprot rather than copying a module. RSProx records sessions at all of
@@ -25,8 +27,7 @@
  *                         layout identity), plus the non-codec shapes: the
  *                         rebuild grids, the enclosed zone walk, the raw
  *                         social payloads, WORLDENTITY_INFO
- *   rsprox_entity_info.c  the pass mapping a stream reader's op list onto
- *                         the op lists the entity-info executor consumes
+ *   rsprox_reconnect.c    the player index a recording's world hop moved to
  */
 
 #include "net/rev/gameproto_revisions.h"
@@ -58,8 +59,8 @@ struct RsproxRev
     /** canonical name -> first wire opcode carrying it, or -1. */
     int16_t name_wire[PKT_NAME_COUNT];
     int16_t outname_wire[PKTOUT_NAME_COUNT];
-    /** WORLDENTITY_INFO_V<n>'s reader at this revision, by n; NULL where the
-     *  revision has no such prot. */
+    /** worldentity_info_v<n>_osrs<revision>, by n; NULL where the revision has
+     *  no such prot. */
     RsprotWorldEntityInfoReadFn worldentity_read[8];
     struct GameProtoRevTable table;
     char name[16];
@@ -93,34 +94,5 @@ rsprox_parse_wire(
     int len,
     struct RevPacket* out);
 
-/* rsprox_entity_info.c -- the GameProtoRevTable entity hooks, with the
- * stream reader passed explicitly (gameproto_rev_rsprox.c stamps out the
- * per-revision wrappers the table's context-free slots need). */
-int
-rsprox_player_info_convert(
-    RsprotPlayerInfoReadFn read, uint8_t const* data, int len, struct PktPlayerInfoOp* ops,
-    int cap);
-int
-rsprox_npc_info_convert(
-    RsprotNpcInfoReadFn read, uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
-/** WORLDENTITY_INFO through `read` into the canonical arm. 1 when the stream
- *  read whole and fits the arm, 0 otherwise. */
-int
-rsprox_worldentity_info_convert(
-    RsprotWorldEntityInfoReadFn read, uint8_t const* data, int len, struct PktWorldEntityInfo* out);
-void
-rsprox_playerinfo_set_local(int local_index);
-void
-rsprox_playerinfo_init(uint8_t const* data, int len);
-size_t
-rsprox_playerinfo_state_size(void);
-/** 1 when the last PLAYER_INFO / NPC_INFO decoded consumed its payload exactly
- *  as the revision says (the op lists are delivered either way). */
-int
-rsprox_entity_info_last_ok(void);
-void
-rsprox_playerinfo_state_save(void* out);
-void
-rsprox_playerinfo_state_load(void const* in);
 
 #endif

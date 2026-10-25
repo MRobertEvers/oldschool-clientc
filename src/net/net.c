@@ -227,7 +227,7 @@ connect_login(
 
     if( net->rev->login )
     {
-        /* Generation-specific handshake (xrsps: plaintext welcome/hello/login). */
+        /* Generation-specific handshake (the revision's login vtable). */
         net->login_generic = net->rev->login->new_(net, net->username, net->password);
         assert(net->login_generic);
     }
@@ -375,12 +375,6 @@ push_parsed_packet(
     struct ToriRS_Network* net,
     struct RevPacket const* packet);
 
-/* osrs239_entity_info.c -- see the local-index note in loginproto_drive. */
-void
-osrs239_playerinfo_set_local(int local_index);
-void
-osrs239_playerinfo_init(uint8_t const* data, int len);
-
 /* Flush login outbound bytes, then act on the poll result (port of v0
  * loginproto_drive): on success free the login machine and arm the packet
  * buffer for the game stream — fixing v0's missing packetbuffer_init. */
@@ -429,8 +423,6 @@ loginproto_drive(struct ToriRS_Network* net)
                  * know it before the login REBUILD arrives. */
                 if( net->rev->player_info_set_local )
                     net->rev->player_info_set_local(index);
-                else if( net->rev->player_info_read )
-                    osrs239_playerinfo_set_local(index);
 
                 memset(&packet, 0, sizeof(packet));
                 packet.packet_type = PKT_NAME_UPDATE_PID;
@@ -442,7 +434,7 @@ loginproto_drive(struct ToriRS_Network* net)
          * A reconnect's player table, after the index and before the handle
          * that holds the block is freed.
          *
-         * Order is the whole of it: osrs239_playerinfo_set_local wipes the
+         * Order is the whole of it: player_info_set_local wipes the
          * table to install the index, so seeding first would seed nothing.
          * On a fresh login there is no block here — REBUILD_LOGIN carries it
          * instead — and the hook returns NULL.
@@ -455,8 +447,6 @@ loginproto_drive(struct ToriRS_Network* net)
 
             if( block && block_len > 0 && net->rev->player_info_init )
                 net->rev->player_info_init(block, block_len);
-            else if( block && block_len > 0 && net->rev->player_info_read )
-                osrs239_playerinfo_init(block, block_len);
         }
         net->reconnect = 0;
         net->resume_in_flight = 0;
@@ -667,6 +657,24 @@ ToriRS_Network_HandleCmd(
     case TORIRS_CMD_NET_CONNECT:
         /* Producer-only echo; ConnectLogin drives the real transition. */
         break;
+    case TORIRS_CMD_NET_RESUMED:
+    {
+        /* Queued, not applied: the packets before it are still waiting to
+         * execute, and their PLAYER_INFO reads the table as it was. */
+        struct RevPacket packet;
+
+        assert(net->state == TORIRS_NET_GAME);
+        assert(len >= 2);
+        memset(&packet, 0, sizeof(packet));
+        packet.packet_type = PKT_NAME_RECONNECT;
+        packet._reconnect.local_player_index = (data[0] << 8) | data[1];
+        packet._reconnect.length = len - 2;
+        packet._reconnect.data = ToriMem_Alloc(ToriMem_Net(), (size_t)(len > 2 ? len - 2 : 1));
+        assert(packet._reconnect.data);
+        memcpy(packet._reconnect.data, data + 2, (size_t)(len - 2));
+        push_parsed_packet(net, &packet);
+        break;
+    }
     default:
         break;
     }

@@ -55,11 +55,11 @@ typedef struct MsgUpdateIgnoreList
 /* v1 -- revs 221-239. */
 void packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m);
 
-#define packet_update_ignorelist_rev221_out packet_update_ignorelist_v1_out
-#define packet_update_ignorelist_rev230_out packet_update_ignorelist_v1_out
-#define packet_update_ignorelist_rev239_out packet_update_ignorelist_v1_out
-#define packet_update_ignorelist_rev240_out packet_update_ignorelist_v1_out
-#define packet_update_ignorelist_rev241_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrs221_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrs230_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrs239_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrs240_out packet_update_ignorelist_v1_out
+#define packet_update_ignorelist_osrs241_out packet_update_ignorelist_v1_out
 
 extern const RsprotVersionRange rsprot_update_ignorelist_out[];
 extern const int rsprot_update_ignorelist_out_count;

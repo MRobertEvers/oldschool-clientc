@@ -371,7 +371,7 @@ measure_blade(const struct ToriDraw_Model* m, int first, int count,
  *
  * Frame durations are in client cycles (30 to the server tick) — the unit the
  * cache stores, the unit `spotanim_pl`'s delay is in, and the unit
- * pkt_player_info.h names on the wire. Returns -1 once the sequence has run out,
+ * net/rev/rs/info_rs.h names on the wire. Returns -1 once the sequence has run out,
  * which is a real state and not an error: a graphic that has finished is not
  * drawn, and holding its last frame instead would put a bright arc on screen for
  * the whole of the recovery.

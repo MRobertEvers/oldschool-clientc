@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetTextEncoder
  * Layouts      : 8 distinct, over 19 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v8, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetTextEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,46 +35,46 @@ typedef struct MsgIfSetText {
 	const char *text;
 } MsgIfSetText;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m);
-/* v2 -- revs 222, 227, 231. */
+/* v2 -- revs 222, 227, 231 (packet_versions.txt 2). */
 void packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m);
-/* v3 -- revs 223, 228. */
+/* v3 -- revs 223, 228 (packet_versions.txt 3). */
 void packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m);
-/* v4 -- revs 224, 237-238, 241. */
+/* v4 -- revs 224, 237-238, 241 (packet_versions.txt 4). */
 void packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m);
-/* v5 -- revs 225, 229, 234. */
+/* v5 -- revs 225, 229, 234 (packet_versions.txt 5). */
 void packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m);
-/* v6 -- revs 226, 230, 235-236, 239. */
+/* v6 -- revs 226, 230, 235-236, 239 (packet_versions.txt 6). */
 void packet_if_settext_v6_out(RsprotExec *x, MsgIfSetText *m);
-/* v7 -- revs 232, 240. */
+/* v7 -- revs 232, 240 (packet_versions.txt 7). */
 void packet_if_settext_v7_out(RsprotExec *x, MsgIfSetText *m);
-/* v8 -- revs 233. */
+/* v8 -- revs 233 (packet_versions.txt 8). */
 void packet_if_settext_v8_out(RsprotExec *x, MsgIfSetText *m);
 
-/* Per-revision aliases: `packet_if_settext_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETTEXT" without reading a table. */
-#define packet_if_settext_rev221_out packet_if_settext_v1_out
-#define packet_if_settext_rev222_out packet_if_settext_v2_out
-#define packet_if_settext_rev223_out packet_if_settext_v3_out
-#define packet_if_settext_rev224_out packet_if_settext_v4_out
-#define packet_if_settext_rev225_out packet_if_settext_v5_out
-#define packet_if_settext_rev226_out packet_if_settext_v6_out
-#define packet_if_settext_rev227_out packet_if_settext_v2_out
-#define packet_if_settext_rev228_out packet_if_settext_v3_out
-#define packet_if_settext_rev229_out packet_if_settext_v5_out
-#define packet_if_settext_rev230_out packet_if_settext_v6_out
-#define packet_if_settext_rev231_out packet_if_settext_v2_out
-#define packet_if_settext_rev232_out packet_if_settext_v7_out
-#define packet_if_settext_rev233_out packet_if_settext_v8_out
-#define packet_if_settext_rev234_out packet_if_settext_v5_out
-#define packet_if_settext_rev235_out packet_if_settext_v6_out
-#define packet_if_settext_rev236_out packet_if_settext_v6_out
-#define packet_if_settext_rev237_out packet_if_settext_v4_out
-#define packet_if_settext_rev238_out packet_if_settext_v4_out
-#define packet_if_settext_rev239_out packet_if_settext_v6_out
-#define packet_if_settext_rev240_out packet_if_settext_v7_out
-#define packet_if_settext_rev241_out packet_if_settext_v4_out
+/* Per-revision entry points: `packet_if_settext_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETTEXT" without reading a table. */
+#define packet_if_settext_osrs221_out packet_if_settext_v1_out
+#define packet_if_settext_osrs222_out packet_if_settext_v2_out
+#define packet_if_settext_osrs223_out packet_if_settext_v3_out
+#define packet_if_settext_osrs224_out packet_if_settext_v4_out
+#define packet_if_settext_osrs225_out packet_if_settext_v5_out
+#define packet_if_settext_osrs226_out packet_if_settext_v6_out
+#define packet_if_settext_osrs227_out packet_if_settext_v2_out
+#define packet_if_settext_osrs228_out packet_if_settext_v3_out
+#define packet_if_settext_osrs229_out packet_if_settext_v5_out
+#define packet_if_settext_osrs230_out packet_if_settext_v6_out
+#define packet_if_settext_osrs231_out packet_if_settext_v2_out
+#define packet_if_settext_osrs232_out packet_if_settext_v7_out
+#define packet_if_settext_osrs233_out packet_if_settext_v8_out
+#define packet_if_settext_osrs234_out packet_if_settext_v5_out
+#define packet_if_settext_osrs235_out packet_if_settext_v6_out
+#define packet_if_settext_osrs236_out packet_if_settext_v6_out
+#define packet_if_settext_osrs237_out packet_if_settext_v4_out
+#define packet_if_settext_osrs238_out packet_if_settext_v4_out
+#define packet_if_settext_osrs239_out packet_if_settext_v6_out
+#define packet_if_settext_osrs240_out packet_if_settext_v7_out
+#define packet_if_settext_osrs241_out packet_if_settext_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_settext_out[];

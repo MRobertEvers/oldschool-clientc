@@ -12,12 +12,13 @@
  *
  * RSProt class : MembershipPromotionEligibilityDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^MembershipPromotionEligibilityDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,32 +35,32 @@ typedef struct MsgMembershipPromotionEligibility {
 	int32_t eligible_for_trial_purchase;
 } MsgMembershipPromotionEligibility;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_membership_promotion_eligibility_v1_in(RsprotExec *x, MsgMembershipPromotionEligibility *m);
 
-/* Per-revision aliases: `packet_membership_promotion_eligibility_rev239_in` is greppable, which is the
- * point -- "what does 239 do for MEMBERSHIP_PROMOTION_ELIGIBILITY" without reading a table. */
-#define packet_membership_promotion_eligibility_rev221_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev222_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev223_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev224_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev225_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev226_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev227_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev228_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev229_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev230_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev231_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev232_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev233_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev234_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev235_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev236_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev237_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev238_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev239_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev240_in packet_membership_promotion_eligibility_v1_in
-#define packet_membership_promotion_eligibility_rev241_in packet_membership_promotion_eligibility_v1_in
+/* Per-revision entry points: `packet_membership_promotion_eligibility_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for MEMBERSHIP_PROMOTION_ELIGIBILITY" without reading a table. */
+#define packet_membership_promotion_eligibility_osrs221_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs222_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs223_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs224_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs225_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs226_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs227_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs228_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs229_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs230_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs231_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs232_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs233_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs234_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs235_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs236_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs237_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs238_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs239_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs240_in packet_membership_promotion_eligibility_v1_in
+#define packet_membership_promotion_eligibility_osrs241_in packet_membership_promotion_eligibility_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_membership_promotion_eligibility_in[];

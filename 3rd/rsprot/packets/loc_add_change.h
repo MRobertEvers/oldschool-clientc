@@ -12,8 +12,9 @@
  *
  * RSProt class : LocAddChangeEncoder
  * Layouts      : 7 distinct, over 7 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v7, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^LocAddChangeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -33,30 +34,30 @@ typedef struct MsgLocAddChange {
 	int32_t op_flags;
 } MsgLocAddChange;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m);
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m);
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m);
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_loc_add_change_v7_out(RsprotExec *x, MsgLocAddChange *m);
 
-/* Per-revision aliases: `packet_loc_add_change_rev239_out` is greppable, which is the
- * point -- "what does 239 do for LOC_ADD_CHANGE" without reading a table. */
-#define packet_loc_add_change_rev221_out packet_loc_add_change_v1_out
-#define packet_loc_add_change_rev222_out packet_loc_add_change_v2_out
-#define packet_loc_add_change_rev223_out packet_loc_add_change_v3_out
-#define packet_loc_add_change_rev224_out packet_loc_add_change_v4_out
-#define packet_loc_add_change_rev225_out packet_loc_add_change_v5_out
-#define packet_loc_add_change_rev226_out packet_loc_add_change_v6_out
-#define packet_loc_add_change_rev227_out packet_loc_add_change_v7_out
+/* Per-revision entry points: `packet_loc_add_change_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for LOC_ADD_CHANGE" without reading a table. */
+#define packet_loc_add_change_osrs221_out packet_loc_add_change_v1_out
+#define packet_loc_add_change_osrs222_out packet_loc_add_change_v2_out
+#define packet_loc_add_change_osrs223_out packet_loc_add_change_v3_out
+#define packet_loc_add_change_osrs224_out packet_loc_add_change_v4_out
+#define packet_loc_add_change_osrs225_out packet_loc_add_change_v5_out
+#define packet_loc_add_change_osrs226_out packet_loc_add_change_v6_out
+#define packet_loc_add_change_osrs227_out packet_loc_add_change_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_add_change_out[];

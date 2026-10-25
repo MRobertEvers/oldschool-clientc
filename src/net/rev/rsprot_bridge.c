@@ -85,8 +85,8 @@ rsprot_bridge_revision(struct GameProtoRevTable const* rev)
     case GAMEPROTO_REVISION_OSRS241:
         return 241;
     /*
-     * lc254, lc245_2 and xrsps233 are NOT RSProt revisions — LostCity and a
-     * private server respectively — so there is no revision number to look up
+     * lc254 and lc245_2 are NOT RSProt revisions — they are LostCity's -- so
+     * there is no revision number to look up
      * and no codec to find. Returning 0 makes every lookup miss and the caller
      * fall through to the hand-written parsers, which is the correct answer
      * rather than a degraded one.

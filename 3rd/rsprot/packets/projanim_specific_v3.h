@@ -12,8 +12,9 @@
  *
  * RSProt class : ProjAnimSpecificV3Encoder
  * Layouts      : 6 distinct, over 6 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v6, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ProjAnimSpecificV3Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -41,27 +42,27 @@ typedef struct MsgProjAnimSpecificV3 {
 	int32_t delta_z;
 } MsgProjAnimSpecificV3;
 
-/* v1 -- revs 226. */
+/* v1 -- revs 226 (packet_versions.txt 1). */
 void packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v2 -- revs 227. */
+/* v2 -- revs 227 (packet_versions.txt 2). */
 void packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v3 -- revs 228. */
+/* v3 -- revs 228 (packet_versions.txt 3). */
 void packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v4 -- revs 229. */
+/* v4 -- revs 229 (packet_versions.txt 4). */
 void packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v5 -- revs 230. */
+/* v5 -- revs 230 (packet_versions.txt 5). */
 void packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v6 -- revs 231. */
+/* v6 -- revs 231 (packet_versions.txt 6). */
 void packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
 
-/* Per-revision aliases: `packet_projanim_specific_v3_rev239_out` is greppable, which is the
- * point -- "what does 239 do for PROJANIM_SPECIFIC_V3" without reading a table. */
-#define packet_projanim_specific_v3_rev226_out packet_projanim_specific_v3_v1_out
-#define packet_projanim_specific_v3_rev227_out packet_projanim_specific_v3_v2_out
-#define packet_projanim_specific_v3_rev228_out packet_projanim_specific_v3_v3_out
-#define packet_projanim_specific_v3_rev229_out packet_projanim_specific_v3_v4_out
-#define packet_projanim_specific_v3_rev230_out packet_projanim_specific_v3_v5_out
-#define packet_projanim_specific_v3_rev231_out packet_projanim_specific_v3_v6_out
+/* Per-revision entry points: `packet_projanim_specific_v3_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for PROJANIM_SPECIFIC_V3" without reading a table. */
+#define packet_projanim_specific_v3_osrs226_out packet_projanim_specific_v3_v1_out
+#define packet_projanim_specific_v3_osrs227_out packet_projanim_specific_v3_v2_out
+#define packet_projanim_specific_v3_osrs228_out packet_projanim_specific_v3_v3_out
+#define packet_projanim_specific_v3_osrs229_out packet_projanim_specific_v3_v4_out
+#define packet_projanim_specific_v3_osrs230_out packet_projanim_specific_v3_v5_out
+#define packet_projanim_specific_v3_osrs231_out packet_projanim_specific_v3_v6_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_projanim_specific_v3_out[];

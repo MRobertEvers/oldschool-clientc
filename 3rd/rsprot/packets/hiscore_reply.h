@@ -37,24 +37,24 @@ typedef struct MsgHiscoreReply {
 	const char *reason;
 } MsgHiscoreReply;
 
-/* v100 -- revs 227-241. */
-void packet_hiscore_reply_v100_out(RsprotExec *x, MsgHiscoreReply *m);
+/* v1 (rsprox_versions.txt 100) -- revs 227-241. */
+void packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m);
 
-#define packet_hiscore_reply_rev227_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev228_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev229_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev230_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev231_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev232_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev233_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev234_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev235_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev236_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev237_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev238_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev239_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev240_out packet_hiscore_reply_v100_out
-#define packet_hiscore_reply_rev241_out packet_hiscore_reply_v100_out
+#define packet_hiscore_reply_osrs227_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs228_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs229_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs230_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs231_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs232_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs233_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs234_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs235_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs236_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs237_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs238_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs239_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs240_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs241_out packet_hiscore_reply_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hiscore_reply_out[];

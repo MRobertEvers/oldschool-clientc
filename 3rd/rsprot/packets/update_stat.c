@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_update_stat_v1_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -21,7 +21,7 @@ packet_update_stat_v1_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U4_ALT1(x, m->experience);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_update_stat_v2_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -31,7 +31,7 @@ packet_update_stat_v2_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_ALT1(x, m->stat);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_update_stat_v3_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -41,7 +41,7 @@ packet_update_stat_v3_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_ALT3(x, m->current_level);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_update_stat_v4_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -51,7 +51,7 @@ packet_update_stat_v4_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_ALT1(x, m->stat);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_update_stat_v5_out(RsprotExec *x, MsgUpdateStat *m)
 {

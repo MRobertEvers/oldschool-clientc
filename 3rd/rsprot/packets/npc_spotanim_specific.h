@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.NpcSpotAnimSpecificDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v15 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.NpcSpotAnimSpecificDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 15 distinct, over 15 contiguous revision run(s)
@@ -25,52 +26,52 @@ typedef struct MsgNpcSpotanimSpecific {
 	int32_t packed;
 } MsgNpcSpotanimSpecific;
 
-/* v100 -- revs 227. */
-void packet_npc_spotanim_specific_v100_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v101 -- revs 228. */
-void packet_npc_spotanim_specific_v101_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v102 -- revs 229. */
-void packet_npc_spotanim_specific_v102_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v103 -- revs 230. */
-void packet_npc_spotanim_specific_v103_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v104 -- revs 231. */
-void packet_npc_spotanim_specific_v104_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v105 -- revs 232. */
-void packet_npc_spotanim_specific_v105_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v106 -- revs 233. */
-void packet_npc_spotanim_specific_v106_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v107 -- revs 234. */
-void packet_npc_spotanim_specific_v107_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v108 -- revs 235. */
-void packet_npc_spotanim_specific_v108_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v109 -- revs 236. */
-void packet_npc_spotanim_specific_v109_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v110 -- revs 237. */
-void packet_npc_spotanim_specific_v110_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v111 -- revs 238. */
-void packet_npc_spotanim_specific_v111_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v112 -- revs 239. */
-void packet_npc_spotanim_specific_v112_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v113 -- revs 240. */
-void packet_npc_spotanim_specific_v113_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
-/* v114 -- revs 241. */
-void packet_npc_spotanim_specific_v114_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v1 -- revs 227 (rsprox_versions.txt 100). */
+void packet_npc_spotanim_specific_v1_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v2 -- revs 228 (rsprox_versions.txt 101). */
+void packet_npc_spotanim_specific_v2_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v3 -- revs 229 (rsprox_versions.txt 102). */
+void packet_npc_spotanim_specific_v3_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v4 -- revs 230 (rsprox_versions.txt 103). */
+void packet_npc_spotanim_specific_v4_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v5 -- revs 231 (rsprox_versions.txt 104). */
+void packet_npc_spotanim_specific_v5_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v6 -- revs 232 (rsprox_versions.txt 105). */
+void packet_npc_spotanim_specific_v6_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v7 -- revs 233 (rsprox_versions.txt 106). */
+void packet_npc_spotanim_specific_v7_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v8 -- revs 234 (rsprox_versions.txt 107). */
+void packet_npc_spotanim_specific_v8_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v9 -- revs 235 (rsprox_versions.txt 108). */
+void packet_npc_spotanim_specific_v9_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v10 -- revs 236 (rsprox_versions.txt 109). */
+void packet_npc_spotanim_specific_v10_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v11 -- revs 237 (rsprox_versions.txt 110). */
+void packet_npc_spotanim_specific_v11_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v12 -- revs 238 (rsprox_versions.txt 111). */
+void packet_npc_spotanim_specific_v12_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v13 -- revs 239 (rsprox_versions.txt 112). */
+void packet_npc_spotanim_specific_v13_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v14 -- revs 240 (rsprox_versions.txt 113). */
+void packet_npc_spotanim_specific_v14_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
+/* v15 -- revs 241 (rsprox_versions.txt 114). */
+void packet_npc_spotanim_specific_v15_out(RsprotExec *x, MsgNpcSpotanimSpecific *m);
 
-#define packet_npc_spotanim_specific_rev227_out packet_npc_spotanim_specific_v100_out
-#define packet_npc_spotanim_specific_rev228_out packet_npc_spotanim_specific_v101_out
-#define packet_npc_spotanim_specific_rev229_out packet_npc_spotanim_specific_v102_out
-#define packet_npc_spotanim_specific_rev230_out packet_npc_spotanim_specific_v103_out
-#define packet_npc_spotanim_specific_rev231_out packet_npc_spotanim_specific_v104_out
-#define packet_npc_spotanim_specific_rev232_out packet_npc_spotanim_specific_v105_out
-#define packet_npc_spotanim_specific_rev233_out packet_npc_spotanim_specific_v106_out
-#define packet_npc_spotanim_specific_rev234_out packet_npc_spotanim_specific_v107_out
-#define packet_npc_spotanim_specific_rev235_out packet_npc_spotanim_specific_v108_out
-#define packet_npc_spotanim_specific_rev236_out packet_npc_spotanim_specific_v109_out
-#define packet_npc_spotanim_specific_rev237_out packet_npc_spotanim_specific_v110_out
-#define packet_npc_spotanim_specific_rev238_out packet_npc_spotanim_specific_v111_out
-#define packet_npc_spotanim_specific_rev239_out packet_npc_spotanim_specific_v112_out
-#define packet_npc_spotanim_specific_rev240_out packet_npc_spotanim_specific_v113_out
-#define packet_npc_spotanim_specific_rev241_out packet_npc_spotanim_specific_v114_out
+#define packet_npc_spotanim_specific_osrs227_out packet_npc_spotanim_specific_v1_out
+#define packet_npc_spotanim_specific_osrs228_out packet_npc_spotanim_specific_v2_out
+#define packet_npc_spotanim_specific_osrs229_out packet_npc_spotanim_specific_v3_out
+#define packet_npc_spotanim_specific_osrs230_out packet_npc_spotanim_specific_v4_out
+#define packet_npc_spotanim_specific_osrs231_out packet_npc_spotanim_specific_v5_out
+#define packet_npc_spotanim_specific_osrs232_out packet_npc_spotanim_specific_v6_out
+#define packet_npc_spotanim_specific_osrs233_out packet_npc_spotanim_specific_v7_out
+#define packet_npc_spotanim_specific_osrs234_out packet_npc_spotanim_specific_v8_out
+#define packet_npc_spotanim_specific_osrs235_out packet_npc_spotanim_specific_v9_out
+#define packet_npc_spotanim_specific_osrs236_out packet_npc_spotanim_specific_v10_out
+#define packet_npc_spotanim_specific_osrs237_out packet_npc_spotanim_specific_v11_out
+#define packet_npc_spotanim_specific_osrs238_out packet_npc_spotanim_specific_v12_out
+#define packet_npc_spotanim_specific_osrs239_out packet_npc_spotanim_specific_v13_out
+#define packet_npc_spotanim_specific_osrs240_out packet_npc_spotanim_specific_v14_out
+#define packet_npc_spotanim_specific_osrs241_out packet_npc_spotanim_specific_v15_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_npc_spotanim_specific_out[];

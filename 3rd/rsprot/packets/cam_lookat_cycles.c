@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239 (packet_versions.txt 1). */
 void
 packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m)
 {
@@ -23,9 +23,9 @@ packet_cam_lookat_cycles_v1_out(RsprotExec *x, MsgCamLookAtCycles *m)
     RSPROT_U2_ALT2(x, m->height);
 }
 
-/* v100 -- revs 241. */
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_cam_lookat_cycles_v100_out(RsprotExec *x, MsgCamLookAtCycles *m)
+packet_cam_lookat_cycles_v2_out(RsprotExec *x, MsgCamLookAtCycles *m)
 {
     RSPROT_U2_ALT2(x, m->height);
     RSPROT_U1(x, m->easing_id);
@@ -35,9 +35,9 @@ packet_cam_lookat_cycles_v100_out(RsprotExec *x, MsgCamLookAtCycles *m)
     RSPROT_U1_ALT1(x, m->height_relative);
 }
 
-/* v101 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_cam_lookat_cycles_v101_out(RsprotExec *x, MsgCamLookAtCycles *m)
+packet_cam_lookat_cycles_v3_out(RsprotExec *x, MsgCamLookAtCycles *m)
 {
     RSPROT_U2_ALT2(x, m->x);
     RSPROT_U2_ALT2(x, m->cycles);
@@ -59,8 +59,8 @@ packet_cam_lookat_cycles_v101_out(RsprotExec *x, MsgCamLookAtCycles *m)
  */
 const RsprotVersionRange rsprot_cam_lookat_cycles_out[] = {
     { 239, 239, (RsprotCodecFn)packet_cam_lookat_cycles_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_lookat_cycles_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_lookat_cycles_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_lookat_cycles_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_lookat_cycles_v2_out },
 };
 
 const int rsprot_cam_lookat_cycles_out_count =

@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setanim_v1_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -19,7 +19,7 @@ packet_if_setanim_v1_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U4_ALT1(x, m->combined_id);
 }
 
-/* v2 -- revs 222, 230. */
+/* v2 -- revs 222, 230 (packet_versions.txt 2). */
 void
 packet_if_setanim_v2_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -27,7 +27,7 @@ packet_if_setanim_v2_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_ALT3(x, m->anim);
 }
 
-/* v3 -- revs 223, 228, 235. */
+/* v3 -- revs 223, 228, 235 (packet_versions.txt 3). */
 void
 packet_if_setanim_v3_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -35,7 +35,7 @@ packet_if_setanim_v3_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_if_setanim_v4_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -43,7 +43,7 @@ packet_if_setanim_v4_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_ALT3(x, m->anim);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_setanim_v5_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -51,7 +51,7 @@ packet_if_setanim_v5_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v6 -- revs 226, 238. */
+/* v6 -- revs 226, 238 (packet_versions.txt 6). */
 void
 packet_if_setanim_v6_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -59,7 +59,7 @@ packet_if_setanim_v6_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_if_setanim_v7_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -67,7 +67,7 @@ packet_if_setanim_v7_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void
 packet_if_setanim_v8_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -75,7 +75,7 @@ packet_if_setanim_v8_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v9 -- revs 231. */
+/* v9 -- revs 231 (packet_versions.txt 9). */
 void
 packet_if_setanim_v9_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -83,7 +83,7 @@ packet_if_setanim_v9_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2(x, m->anim);
 }
 
-/* v10 -- revs 232. */
+/* v10 -- revs 232 (packet_versions.txt 10). */
 void
 packet_if_setanim_v10_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -91,7 +91,7 @@ packet_if_setanim_v10_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v11 -- revs 233, 239. */
+/* v11 -- revs 233, 239 (packet_versions.txt 11). */
 void
 packet_if_setanim_v11_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -99,7 +99,7 @@ packet_if_setanim_v11_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_ALT1(x, m->anim);
 }
 
-/* v12 -- revs 234. */
+/* v12 -- revs 234 (packet_versions.txt 12). */
 void
 packet_if_setanim_v12_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -107,7 +107,7 @@ packet_if_setanim_v12_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v13 -- revs 236. */
+/* v13 -- revs 236 (packet_versions.txt 13). */
 void
 packet_if_setanim_v13_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -115,7 +115,7 @@ packet_if_setanim_v13_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2(x, m->anim);
 }
 
-/* v14 -- revs 237, 240. */
+/* v14 -- revs 237, 240 (packet_versions.txt 14). */
 void
 packet_if_setanim_v14_out(RsprotExec *x, MsgIfSetAnim *m)
 {
@@ -123,9 +123,9 @@ packet_if_setanim_v14_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_ALT2(x, m->anim);
 }
 
-/* v100 -- revs 241. */
+/* v15 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_if_setanim_v100_out(RsprotExec *x, MsgIfSetAnim *m)
+packet_if_setanim_v15_out(RsprotExec *x, MsgIfSetAnim *m)
 {
     RSPROT_COM(x, m->combined_id);
     RSPROT_U2_ALT3(x, m->anim);
@@ -162,7 +162,7 @@ const RsprotVersionRange rsprot_if_setanim_out[] = {
     { 238, 238, (RsprotCodecFn)packet_if_setanim_v6_out },
     { 239, 239, (RsprotCodecFn)packet_if_setanim_v11_out },
     { 240, 240, (RsprotCodecFn)packet_if_setanim_v14_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setanim_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setanim_v15_out },
 };
 
 const int rsprot_if_setanim_out_count =

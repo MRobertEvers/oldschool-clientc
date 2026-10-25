@@ -1271,7 +1271,7 @@ struct DriveNpcRow
      * `npc_say` (torirs_server_scripts.c's SS_OP_NPC_SAY) is deliberately
      * NOT routed through the chatbox -- it is a fire-and-forget SAY mask on
      * NPC_INFO, landing in `npc->chat` (World_NpcSetChat, from
-     * PKT_NPC_INFO_OP_SAY).  So for every `[opnpc<n>]` whose whole visible
+     * RSPROT_OP_SAY).  So for every `[opnpc<n>]` whose whole visible
      * answer is a word over the npc's head, this field is the ONLY reading a
      * client has that the press landed at all: there is no message row, no
      * dialogue and -- when the map refuses the npc's step -- no movement

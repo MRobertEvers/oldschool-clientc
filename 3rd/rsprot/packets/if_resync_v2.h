@@ -12,12 +12,13 @@
  *
  * RSProt class : IfResyncV2Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfResyncV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -51,22 +52,22 @@ typedef struct MsgIfResyncV2 {
 	int32_t events_count;
 } MsgIfResyncV2;
 
-/* v1 -- revs 231-241. */
+/* v1 -- revs 231-241 (packet_versions.txt 1). */
 void packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m);
 
-/* Per-revision aliases: `packet_if_resync_v2_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_RESYNC_V2" without reading a table. */
-#define packet_if_resync_v2_rev231_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev232_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev233_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev234_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev235_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev236_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev237_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev238_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev239_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev240_out packet_if_resync_v2_v1_out
-#define packet_if_resync_v2_rev241_out packet_if_resync_v2_v1_out
+/* Per-revision entry points: `packet_if_resync_v2_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_RESYNC_V2" without reading a table. */
+#define packet_if_resync_v2_osrs231_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs232_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs233_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs234_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs235_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs236_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs237_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs238_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs239_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs240_out packet_if_resync_v2_v1_out
+#define packet_if_resync_v2_osrs241_out packet_if_resync_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_resync_v2_out[];

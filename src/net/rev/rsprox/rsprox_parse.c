@@ -23,6 +23,7 @@
 #include "rsprox_rev.h"
 
 #include "net/exec/pkt_codec_storage.h"
+#include "net/rev/rsprot_entity_state.h"
 
 #include "mem/torirs_mem.h"
 #include "net/jbase37.h"
@@ -104,6 +105,106 @@ static int
 sign24(int v)
 {
     return (v & 0x800000) ? v - 0x1000000 : v;
+}
+
+/* --- WORLDENTITY_INFO ------------------------------------------------------ */
+
+static void
+we_ext(
+    RsprotInfoWeExt const* e,
+    unsigned* flags,
+    int* has_op_mask,
+    int* op_mask,
+    int* has_seq,
+    int* seq_id,
+    int* seq_delay)
+{
+    *flags = (unsigned)e->flags;
+    *has_op_mask = e->has_ops;
+    *op_mask = e->has_ops ? e->ops : PKT_WEV_OP_MASK_ALL;
+    *has_seq = e->has_sequence;
+    *seq_id = !e->has_sequence || e->sequence_id == 65535 ? -1 : e->sequence_id;
+    *seq_delay = e->has_sequence ? e->sequence_delay : 0;
+}
+
+/*
+ * The stream's list into the canonical arm, which was shaped by 239+ (struct
+ * PktWorldEntityInfo): V3 / V4 spawns carry no config id or priority (-1 here,
+ * which the executor refuses to spawn) and their level and V4's centre offsets
+ * have no field. 1 when the stream read whole and fits the arm.
+ */
+static int
+worldentity_info_convert(
+    RsprotWorldEntityInfoReadFn read,
+    uint8_t const* data,
+    int len,
+    struct PktWorldEntityInfo* out)
+{
+    /* A g1 count of entries and spawns of at least ten bytes each: the arm's
+     * fifteen run out long before these do. */
+    static RsprotInfoOp ops[512];
+    static uint8_t bytes[1];
+    RsprotInfoList list;
+
+    assert(read);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
+    read(data, len, &list);
+    for( int i = 0; i < list.count; i++ )
+    {
+        RsprotInfoOp const* l = &ops[i];
+        struct PktWevUpdate* u;
+        struct PktWevSpawn* sp;
+
+        switch( l->kind )
+        {
+        case RSPROT_OP_WE_COUNT:
+            /* At most 15 entities exist client-side: a longer list is a
+             * malformed frame (struct PktWorldEntityInfo). */
+            if( l->value > PKT_WEV_INFO_MAX )
+                return 0;
+            out->count = (int)l->value;
+            break;
+        case RSPROT_OP_WE_REMOVE:
+            out->updates[l->who].op = PKT_WEV_OP_DESPAWN;
+            out->updates[l->who].op_mask = PKT_WEV_OP_MASK_ALL;
+            out->updates[l->who].seq_id = -1;
+            break;
+        case RSPROT_OP_WE_IDLE:
+        case RSPROT_OP_WE_MOVE:
+            u = &out->updates[l->who];
+            u->op = l->kind == RSPROT_OP_WE_IDLE ? PKT_WEV_OP_FLAGS
+                    : l->we_move.teleport        ? PKT_WEV_OP_SNAP
+                                                 : PKT_WEV_OP_ENQUEUE;
+            u->dx = l->we_move.dx;
+            u->dy = l->we_move.dy;
+            u->dz = l->we_move.dz;
+            u->dangle = l->we_move.dangle;
+            we_ext(&l->we_move.ext, &u->update_flags, &u->has_op_mask, &u->op_mask, &u->has_seq,
+                   &u->seq_id, &u->seq_delay);
+            break;
+        case RSPROT_OP_WE_ADD:
+            if( out->spawn_count >= PKT_WEV_INFO_MAX )
+                return 0;
+            sp = &out->spawns[out->spawn_count++];
+            sp->id = l->who;
+            sp->config_id = l->we_add.id;
+            sp->priority_group = l->we_add.priority;
+            sp->size_x_tiles = l->we_add.size_x;
+            sp->size_z_tiles = l->we_add.size_z;
+            sp->x = l->we_add.x;
+            sp->y = l->we_add.y;
+            sp->z = l->we_add.z;
+            sp->angle = l->we_add.angle & 0x7ff;
+            we_ext(&l->we_add.ext, &sp->update_flags, &sp->has_op_mask, &sp->op_mask, &sp->has_seq,
+                   &sp->seq_id, &sp->seq_delay);
+            break;
+        default:
+            break;
+        }
+    }
+    return rsprot_info_list_complete(&list);
 }
 
 /** Run `prot`'s codec at `revision` on the cursor. 1 when it decoded cleanly. */
@@ -498,7 +599,7 @@ parse_rebuild_normal(
         if( len < 6 )
             return 0;
         if( len > 6 )
-            rsprox_playerinfo_init(data, len - 6);
+            rsprot_entity_init(data, len - 6);
         rsprot_buf_wrap_read(c, data + len - 6, 6);
         {
             RUN(prot, MsgRebuildNormalV2, m);
@@ -522,7 +623,7 @@ parse_rebuild_normal(
         if( !run(revision, prot, c, &m) || c->rpos != len - start )
             continue;
         if( start > 0 )
-            rsprox_playerinfo_init(data, start);
+            rsprot_entity_init(data, start);
         p->world_area = (int16_t)m.world_area;
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
@@ -759,7 +860,7 @@ parse_special(
         RsprotWorldEntityInfoReadFn read = r->worldentity_read[prot[strlen(prot) - 1] - '0'];
 
         assert(read);
-        return rsprox_worldentity_info_convert(read, data, len, &out->_worldentity_info);
+        return worldentity_info_convert(read, data, len, &out->_worldentity_info);
     }
     if( strncmp(prot, "REBUILD_NORMAL", 14) == 0 )
         return parse_rebuild_normal(revision, prot, data, len, out);

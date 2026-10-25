@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 228. */
+/* v1 -- revs 228 (packet_versions.txt 1). */
 void
 packet_loc_add_change_v1_v1_out(RsprotExec *x, MsgLocAddChangeV1 *m)
 {

@@ -11,28 +11,28 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void
 packet_midi_song_old_v1_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v2 -- revs 223. */
+/* v2 -- revs 223 (packet_versions.txt 2). */
 void
 packet_midi_song_old_v2_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v3 -- revs 224. */
+/* v3 -- revs 224 (packet_versions.txt 3). */
 void
 packet_midi_song_old_v3_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v4 -- revs 225. */
+/* v4 -- revs 225 (packet_versions.txt 4). */
 void
 packet_midi_song_old_v4_out(RsprotExec *x, MsgMidiSongOld *m)
 {

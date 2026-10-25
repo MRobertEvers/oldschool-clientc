@@ -23114,7 +23114,7 @@ ToriRSServer_WorldSelftest(void)
                            npc->ops_hidden);
             if( strcmp(srv->wire->name, "osrs239") == 0 )
             {
-                static struct PktNpcInfoOp ops[2048];
+                static struct RsprotInfoOp ops[2048];
                 int hidden_blocks = 0;
                 int hidden_with_hitmark = 0;
 
@@ -23127,25 +23127,21 @@ ToriRSServer_WorldSelftest(void)
                     if( packet->recipient_pid != player->pid || packet->name != PKT_NAME_NPC_INFO ||
                         packet->truncated )
                         continue;
-                    count = osrs239_npc_info_read(packet->data, packet->len, ops, 2048);
+                    count = osrs239_npc_info_read_ops(packet->data, packet->len, ops, 2048);
                     for( int i = 0; i < count; i++ )
                     {
-                        if( ops[i].kind == PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX )
+                        if( ops[i].kind == RSPROT_OP_SET_EXT )
                             in_hidden_block = 0;
-                        else if( ops[i].kind == PKT_NPC_INFO_OP_VISIBLE_OPS && ops[i]._bitvalue == 0 )
+                        else if( ops[i].kind == RSPROT_OP_VISIBLE_OPS && ops[i].value == 0 )
                         {
                             hidden_blocks++;
                             in_hidden_block = 1;
                         }
-                        else if( ops[i].kind == PKT_NPC_INFO_OP_DAMAGE && in_hidden_block )
+                        else if( ops[i].kind == RSPROT_OP_DAMAGE && in_hidden_block )
                         {
                             hidden_with_hitmark++;
                             in_hidden_block = 0;
                         }
-                        else if( ops[i].kind == PKT_NPC_INFO_OP_SAY && ops[i]._say.text )
-                            ToriMem_Free(ToriMem_Net(), ops[i]._say.text);
-                        else if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE && ops[i]._name_change.name )
-                            ToriMem_Free(ToriMem_Net(), ops[i]._name_change.name);
                     }
                 }
                 SELFTEST_CHECK(hidden_blocks == 1,

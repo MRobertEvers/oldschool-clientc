@@ -31,9 +31,6 @@ static const struct revision_entry REVISIONS[] = {
     { "osrs231", RSCache_ProfileDat2Osrs231 },
     { "osrs232", RSCache_ProfileDat2Osrs232 },
     { "osrs233", RSCache_ProfileDat2Osrs233 },
-    /* The xrsps server serves a stock rev-233 cache; the two names differ only
-     * in transport, which is not a cache concern. */
-    { "xrsps233", RSCache_ProfileDat2Osrs233 },
     { "osrs234", RSCache_ProfileDat2Osrs234 },
     { "osrs235", RSCache_ProfileDat2Osrs235 },
     { "osrs236", RSCache_ProfileDat2Osrs236 },

@@ -10,9 +10,8 @@
 
 #include "gen/rsprot_tables.h"
 #include "net/loginproto_osrs241.h"
-#include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/packets/pkt_player_info.h"
+#include "net/rev/rsprot_entity_state.h"
 
 #include <assert.h>
 #include <stddef.h>
@@ -103,48 +102,46 @@ appearance_encoding(int revision)
     return APPEARANCE_ENC_V4;
 }
 
-/* P is the revision's PLAYER_INFO format generation (player_info_v<P>.h), V
- * the NPC_INFO prot version its canonical arms decode. */
-#define RSPROX_HOOKS(N, P, V)                                                                      \
-    static int in_size_##N(int w) { return in_size(N, w); }                                       \
-    static int in_code_##N(int w) { return in_code(N, w); }                                       \
-    static int in_wire_##N(int n) { return in_wire(N, n); }                                       \
-    static int out_code_##N(int n) { return out_code(N, n); }                                     \
-    static int out_size_##N(int w) { return out_size(N, w); }                                     \
-    static int pinfo_##N(uint8_t const* d, int l, struct PktPlayerInfoOp* o, int c)              \
+/* V is the NPC_INFO prot version the revision's canonical arms decode; each
+ * entry point (<prot>_osrs<N>, 3rd/rsprot/streams) calls its own version. */
+#define RSPROX_HOOKS(N, V)                                                                         \
+    static int in_size_##N(int w) { return in_size(N, w); }                                        \
+    static int in_code_##N(int w) { return in_code(N, w); }                                        \
+    static int in_wire_##N(int n) { return in_wire(N, n); }                                        \
+    static int out_code_##N(int n) { return out_code(N, n); }                                      \
+    static int out_size_##N(int w) { return out_size(N, w); }                                      \
+    static int pinfo_##N(uint8_t const* d, int l, struct RsprotInfoList* o)                       \
     {                                                                                              \
-        return rsprox_player_info_convert(stream_player_info_##P##_rev##N##_read, d, l, o, c);    \
+        return rsprot_entity_player_read(player_info_osrs##N, d, l, o);                            \
     }                                                                                              \
-    static int ninfo_##N(uint8_t const* d, int l, struct PktNpcInfoOp* o, int c)                 \
+    static int ninfo_##N(uint8_t const* d, int l, struct RsprotInfoList* o)                        \
     {                                                                                              \
-        return rsprox_npc_info_convert(stream_npc_info_small_##V##_rev##N##_read, d, l, o, c);    \
+        return rsprot_entity_npc_read(npc_info_small_##V##_osrs##N, d, l, o);                      \
     }                                                                                              \
-    static int ninfo_large_##N(uint8_t const* d, int l, struct PktNpcInfoOp* o, int c)           \
+    static int ninfo_large_##N(uint8_t const* d, int l, struct RsprotInfoList* o)                  \
     {                                                                                              \
-        return rsprox_npc_info_convert(stream_npc_info_large_##V##_rev##N##_read, d, l, o, c);    \
+        return rsprot_entity_npc_read(npc_info_large_##V##_osrs##N, d, l, o);                      \
     }                                                                                              \
-    static void pset_##N(int i) { rsprox_playerinfo_set_local(i); }                               \
-    static void pinit_##N(uint8_t const* d, int l) { rsprox_playerinfo_init(d, l); }              \
-    static int appear_##N(uint8_t const* d, int l, struct PktPlayerAppearance* o)                 \
+    static int appear_##N(uint8_t const* d, int l, struct PktPlayerAppearance* o)                  \
     {                                                                                              \
-        return PktPlayerAppearance_DecodeAs(o, appearance_encoding(N), d, l);                     \
+        return PktPlayerAppearance_DecodeAs(o, appearance_encoding(N), d, l);                      \
     }
 
-RSPROX_HOOKS(227, v1, v5)
-RSPROX_HOOKS(228, v1, v5)
-RSPROX_HOOKS(229, v1, v5)
-RSPROX_HOOKS(230, v1, v5)
-RSPROX_HOOKS(231, v1, v5)
-RSPROX_HOOKS(232, v1, v5)
-RSPROX_HOOKS(233, v1, v5)
-RSPROX_HOOKS(234, v1, v5)
-RSPROX_HOOKS(235, v1, v5)
-RSPROX_HOOKS(236, v1, v5)
-RSPROX_HOOKS(237, v2, v5)
-RSPROX_HOOKS(238, v3, v5)
-RSPROX_HOOKS(239, v4, v5)
-RSPROX_HOOKS(240, v5, v5)
-RSPROX_HOOKS(241, v5, v6)
+RSPROX_HOOKS(227, v5)
+RSPROX_HOOKS(228, v5)
+RSPROX_HOOKS(229, v5)
+RSPROX_HOOKS(230, v5)
+RSPROX_HOOKS(231, v5)
+RSPROX_HOOKS(232, v5)
+RSPROX_HOOKS(233, v5)
+RSPROX_HOOKS(234, v5)
+RSPROX_HOOKS(235, v5)
+RSPROX_HOOKS(236, v5)
+RSPROX_HOOKS(237, v5)
+RSPROX_HOOKS(238, v5)
+RSPROX_HOOKS(239, v5)
+RSPROX_HOOKS(240, v5)
+RSPROX_HOOKS(241, v6)
 
 struct Hooks
 {
@@ -153,11 +150,9 @@ struct Hooks
     int (*in_wire)(int);
     int (*out_code)(int);
     int (*out_size)(int);
-    int (*pinfo)(uint8_t const*, int, struct PktPlayerInfoOp*, int);
-    int (*ninfo)(uint8_t const*, int, struct PktNpcInfoOp*, int);
-    int (*ninfo_large)(uint8_t const*, int, struct PktNpcInfoOp*, int);
-    void (*pset)(int);
-    void (*pinit)(uint8_t const*, int);
+    int (*pinfo)(uint8_t const*, int, struct RsprotInfoList*);
+    int (*ninfo)(uint8_t const*, int, struct RsprotInfoList*);
+    int (*ninfo_large)(uint8_t const*, int, struct RsprotInfoList*);
     int (*appear)(uint8_t const*, int, struct PktPlayerAppearance*);
     /** The prots the canonical NPC_INFO / NPC_INFO_LARGE arms decode. */
     char const* npc_small;
@@ -166,8 +161,7 @@ struct Hooks
 
 #define RSPROX_HOOK_ROW(N, V)                                                                      \
     { in_size_##N, in_code_##N, in_wire_##N, out_code_##N, out_size_##N, pinfo_##N,             \
-      ninfo_##N,   ninfo_large_##N, pset_##N, pinit_##N, appear_##N, "NPC_INFO_SMALL_" #V,      \
-      "NPC_INFO_LARGE_" #V }
+      ninfo_##N,   ninfo_large_##N, appear_##N, "NPC_INFO_SMALL_" #V, "NPC_INFO_LARGE_" #V }
 
 static struct Hooks const k_hooks[RSPROX_REV_COUNT] = {
     RSPROX_HOOK_ROW(227, V5), RSPROX_HOOK_ROW(228, V5), RSPROX_HOOK_ROW(229, V5), RSPROX_HOOK_ROW(230, V5),
@@ -178,18 +172,15 @@ static struct Hooks const k_hooks[RSPROX_REV_COUNT] = {
 
 /* --- building a table ---------------------------------------------------- */
 
-/* Every WORLDENTITY_INFO version's revision -> reader rows. */
+/* Every WORLDENTITY_INFO version's revision -> entry point lookup. */
 static struct
 {
     int version;
-    RsprotWorldEntityInfoRange const* rows;
-    int const* count;
+    RsprotWorldEntityInfoReadFn (*osrs)(int revision);
 } const k_worldentity_streams[] = {
-    { 3, rsprot_worldentity_info_v3_read, &rsprot_worldentity_info_v3_read_count },
-    { 4, rsprot_worldentity_info_v4_read, &rsprot_worldentity_info_v4_read_count },
-    { 5, rsprot_worldentity_info_v5_read, &rsprot_worldentity_info_v5_read_count },
-    { 6, rsprot_worldentity_info_v6_read, &rsprot_worldentity_info_v6_read_count },
-    { 7, rsprot_worldentity_info_v7_read, &rsprot_worldentity_info_v7_read_count },
+    { 3, worldentity_info_v3_osrs }, { 4, worldentity_info_v4_osrs },
+    { 5, worldentity_info_v5_osrs }, { 6, worldentity_info_v6_osrs },
+    { 7, worldentity_info_v7_osrs },
 };
 
 static void
@@ -252,11 +243,8 @@ build(int revision)
     }
 
     for( size_t i = 0; i < sizeof(k_worldentity_streams) / sizeof(k_worldentity_streams[0]); i++ )
-        for( int k = 0; k < *k_worldentity_streams[i].count; k++ )
-            if( revision >= k_worldentity_streams[i].rows[k].rev_lo &&
-                revision <= k_worldentity_streams[i].rows[k].rev_hi )
-                r->worldentity_read[k_worldentity_streams[i].version] =
-                    k_worldentity_streams[i].rows[k].fn;
+        r->worldentity_read[k_worldentity_streams[i].version] =
+            k_worldentity_streams[i].osrs(revision);
 
     snprintf(r->name, sizeof(r->name), "rsprox%d", revision);
     t->revision = GAMEPROTO_REVISION_RSPROX;
@@ -274,8 +262,6 @@ build(int revision)
     t->opcode_smart2 = max_server >= 0x80;
     t->server_tick_ms = 600;
     t->component_id_bytes = 4;
-    t->npc_slot_bits = 14;
-    t->npc_type_bits = 14;
     /* The login block is RSProx's ClientLoginHandler at every revision here
      * (no branch after 232's serverVersion field), with the client version
      * this table states. */
@@ -285,11 +271,11 @@ build(int revision)
     t->player_info_read = h->pinfo;
     t->npc_info_read = h->ninfo;
     t->npc_info_read_large = h->ninfo_large;
-    t->player_info_set_local = h->pset;
-    t->player_info_init = h->pinit;
-    t->player_info_state_size = rsprox_playerinfo_state_size;
-    t->player_info_state_save = rsprox_playerinfo_state_save;
-    t->player_info_state_load = rsprox_playerinfo_state_load;
+    t->player_info_set_local = rsprot_entity_set_local;
+    t->player_info_init = rsprot_entity_init;
+    t->player_info_state_size = rsprot_entity_state_size;
+    t->player_info_state_save = rsprot_entity_state_save;
+    t->player_info_state_load = rsprot_entity_state_load;
     t->appearance_decode = h->appear;
 }
 

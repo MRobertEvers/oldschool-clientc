@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239 (packet_versions.txt 1). */
 void
 packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
@@ -34,9 +34,9 @@ packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U2_ALT1(x, m->curve_script_t);
 }
 
-/* v100 -- revs 241. */
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_scriptedproj_add_v100_out(RsprotExec *x, MsgScriptedProjAdd *m)
+packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
     RSPROT_U2(x, m->curve_script_a);
     RSPROT_U3_ALT1(x, m->source_index);
@@ -57,9 +57,9 @@ packet_scriptedproj_add_v100_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
 }
 
-/* v101 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_scriptedproj_add_v101_out(RsprotExec *x, MsgScriptedProjAdd *m)
+packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
     RSPROT_U3_ALT3(x, m->target_index);
     RSPROT_U2(x, m->target_height);
@@ -92,8 +92,8 @@ packet_scriptedproj_add_v101_out(RsprotExec *x, MsgScriptedProjAdd *m)
  */
 const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
     { 239, 239, (RsprotCodecFn)packet_scriptedproj_add_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_scriptedproj_add_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_scriptedproj_add_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_scriptedproj_add_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_scriptedproj_add_v2_out },
 };
 
 const int rsprot_scriptedproj_add_out_count =

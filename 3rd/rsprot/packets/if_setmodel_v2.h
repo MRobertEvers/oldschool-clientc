@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetModelV2Encoder
  * Layouts      : 5 distinct, over 5 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v5, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetModelV2Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,24 +35,24 @@ typedef struct MsgIfSetModelV2 {
 	int32_t combined_id;
 } MsgIfSetModelV2;
 
-/* v1 -- revs 237. */
+/* v1 -- revs 237 (packet_versions.txt 1). */
 void packet_if_setmodel_v2_v1_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v2 -- revs 238. */
+/* v2 -- revs 238 (packet_versions.txt 2). */
 void packet_if_setmodel_v2_v2_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v3 -- revs 239. */
+/* v3 -- revs 239 (packet_versions.txt 3). */
 void packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v100 -- revs 241. */
-void packet_if_setmodel_v2_v100_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v101 -- revs 240. */
-void packet_if_setmodel_v2_v101_out(RsprotExec *x, MsgIfSetModelV2 *m);
+/* v4 -- revs 241 (rsprox_versions.txt 100). */
+void packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m);
+/* v5 -- revs 240 (rsprox_versions.txt 101). */
+void packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m);
 
-/* Per-revision aliases: `packet_if_setmodel_v2_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETMODEL_V2" without reading a table. */
-#define packet_if_setmodel_v2_rev237_out packet_if_setmodel_v2_v1_out
-#define packet_if_setmodel_v2_rev238_out packet_if_setmodel_v2_v2_out
-#define packet_if_setmodel_v2_rev239_out packet_if_setmodel_v2_v3_out
-#define packet_if_setmodel_v2_rev240_out packet_if_setmodel_v2_v101_out
-#define packet_if_setmodel_v2_rev241_out packet_if_setmodel_v2_v100_out
+/* Per-revision entry points: `packet_if_setmodel_v2_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETMODEL_V2" without reading a table. */
+#define packet_if_setmodel_v2_osrs237_out packet_if_setmodel_v2_v1_out
+#define packet_if_setmodel_v2_osrs238_out packet_if_setmodel_v2_v2_out
+#define packet_if_setmodel_v2_osrs239_out packet_if_setmodel_v2_v3_out
+#define packet_if_setmodel_v2_osrs240_out packet_if_setmodel_v2_v5_out
+#define packet_if_setmodel_v2_osrs241_out packet_if_setmodel_v2_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setmodel_v2_out[];

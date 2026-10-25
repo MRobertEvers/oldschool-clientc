@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-241 (packet_versions.txt 1). */
 void
 packet_hidenpcops_v1_out(RsprotExec *x, MsgHideNpcOps *m)
 {

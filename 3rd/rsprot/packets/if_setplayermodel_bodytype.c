@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setplayermodel_bodytype_v1_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -19,7 +19,7 @@ packet_if_setplayermodel_bodytype_v1_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_U4_ALT2(x, m->combined_id);
 }
 
-/* v2 -- revs 222, 228. */
+/* v2 -- revs 222, 228 (packet_versions.txt 2). */
 void
 packet_if_setplayermodel_bodytype_v2_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -27,7 +27,7 @@ packet_if_setplayermodel_bodytype_v2_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_U1_ALT1(x, m->body_type);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_if_setplayermodel_bodytype_v3_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -35,7 +35,7 @@ packet_if_setplayermodel_bodytype_v3_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_U1_ALT3(x, m->body_type);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -43,7 +43,7 @@ packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -51,7 +51,7 @@ packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v6 -- revs 226, 232. */
+/* v6 -- revs 226, 232 (packet_versions.txt 6). */
 void
 packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -59,7 +59,7 @@ packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v7 -- revs 227, 240. */
+/* v7 -- revs 227, 240 (packet_versions.txt 7). */
 void
 packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -67,7 +67,7 @@ packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void
 packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -75,7 +75,7 @@ packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v9 -- revs 230, 234. */
+/* v9 -- revs 230, 234 (packet_versions.txt 9). */
 void
 packet_if_setplayermodel_bodytype_v9_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -83,7 +83,7 @@ packet_if_setplayermodel_bodytype_v9_out(RsprotExec *x, MsgIfSetPlayerModelBodyT
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v10 -- revs 231, 233. */
+/* v10 -- revs 231, 233 (packet_versions.txt 10). */
 void
 packet_if_setplayermodel_bodytype_v10_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -91,7 +91,7 @@ packet_if_setplayermodel_bodytype_v10_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_U1_ALT1(x, m->body_type);
 }
 
-/* v11 -- revs 235. */
+/* v11 -- revs 235 (packet_versions.txt 11). */
 void
 packet_if_setplayermodel_bodytype_v11_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -99,7 +99,7 @@ packet_if_setplayermodel_bodytype_v11_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_U1_ALT3(x, m->body_type);
 }
 
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void
 packet_if_setplayermodel_bodytype_v12_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -107,7 +107,7 @@ packet_if_setplayermodel_bodytype_v12_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_U1_ALT2(x, m->body_type);
 }
 
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void
 packet_if_setplayermodel_bodytype_v13_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -115,7 +115,7 @@ packet_if_setplayermodel_bodytype_v13_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void
 packet_if_setplayermodel_bodytype_v14_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -123,7 +123,7 @@ packet_if_setplayermodel_bodytype_v14_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_U1_ALT2(x, m->body_type);
 }
 
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void
 packet_if_setplayermodel_bodytype_v15_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
@@ -131,9 +131,9 @@ packet_if_setplayermodel_bodytype_v15_out(RsprotExec *x, MsgIfSetPlayerModelBody
     RSPROT_U1(x, m->body_type);
 }
 
-/* v100 -- revs 241. */
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_if_setplayermodel_bodytype_v100_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
+packet_if_setplayermodel_bodytype_v16_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
     RSPROT_U1(x, m->body_type);
     RSPROT_COM_ALT1(x, m->combined_id);
@@ -170,7 +170,7 @@ const RsprotVersionRange rsprot_if_setplayermodel_bodytype_out[] = {
     { 238, 238, (RsprotCodecFn)packet_if_setplayermodel_bodytype_v14_out },
     { 239, 239, (RsprotCodecFn)packet_if_setplayermodel_bodytype_v15_out },
     { 240, 240, (RsprotCodecFn)packet_if_setplayermodel_bodytype_v7_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setplayermodel_bodytype_v100_out },
+    { 241, 241, (RsprotCodecFn)packet_if_setplayermodel_bodytype_v16_out },
 };
 
 const int rsprot_if_setplayermodel_bodytype_out_count =

@@ -12,12 +12,13 @@
  *
  * RSProt class : CamRotateByEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^CamRotateByEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,30 +37,30 @@ typedef struct MsgCamRotateBy {
 	int32_t easing_id;
 } MsgCamRotateBy;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 223-241 (packet_versions.txt 1). */
 void packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m);
 
-/* Per-revision aliases: `packet_cam_rotateby_rev239_out` is greppable, which is the
- * point -- "what does 239 do for CAM_ROTATEBY" without reading a table. */
-#define packet_cam_rotateby_rev223_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev224_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev225_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev226_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev227_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev228_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev229_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev230_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev231_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev232_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev233_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev234_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev235_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev236_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev237_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev238_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev239_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev240_out packet_cam_rotateby_v1_out
-#define packet_cam_rotateby_rev241_out packet_cam_rotateby_v1_out
+/* Per-revision entry points: `packet_cam_rotateby_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for CAM_ROTATEBY" without reading a table. */
+#define packet_cam_rotateby_osrs223_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs224_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs225_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs226_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs227_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs228_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs229_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs230_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs231_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs232_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs233_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs234_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs235_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs236_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs237_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs238_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs239_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs240_out packet_cam_rotateby_v1_out
+#define packet_cam_rotateby_osrs241_out packet_cam_rotateby_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_rotateby_out[];

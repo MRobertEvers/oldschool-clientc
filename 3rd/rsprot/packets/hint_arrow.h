@@ -31,26 +31,26 @@ typedef struct MsgHintArrow {
 	const uint8_t *skip0;
 } MsgHintArrow;
 
-/* v100 -- revs 227-234. */
-void packet_hint_arrow_v100_out(RsprotExec *x, MsgHintArrow *m);
-/* v101 -- revs 235-241. */
-void packet_hint_arrow_v101_out(RsprotExec *x, MsgHintArrow *m);
+/* v1 (rsprox_versions.txt 100) -- revs 227-234. */
+void packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m);
+/* v2 (rsprox_versions.txt 101) -- revs 235-241. */
+void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 
-#define packet_hint_arrow_rev227_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev228_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev229_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev230_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev231_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev232_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev233_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev234_out packet_hint_arrow_v100_out
-#define packet_hint_arrow_rev235_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev236_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev237_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev238_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev239_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev240_out packet_hint_arrow_v101_out
-#define packet_hint_arrow_rev241_out packet_hint_arrow_v101_out
+#define packet_hint_arrow_osrs227_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs228_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs229_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs230_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs231_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs232_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs233_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs234_out packet_hint_arrow_v1_out
+#define packet_hint_arrow_osrs235_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs236_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs237_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs238_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs239_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs240_out packet_hint_arrow_v2_out
+#define packet_hint_arrow_osrs241_out packet_hint_arrow_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_hint_arrow_out[];

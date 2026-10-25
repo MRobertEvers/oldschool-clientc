@@ -33,10 +33,10 @@ typedef struct MsgObjCustomiseSpecificV2 {
 	int32_t colour;
 } MsgObjCustomiseSpecificV2;
 
-/* v100 -- revs 241. */
-void packet_obj_customise_specific_v2_v100_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
+/* v1 (rsprox_versions.txt 100) -- revs 241. */
+void packet_obj_customise_specific_v2_v1_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
 
-#define packet_obj_customise_specific_v2_rev241_out packet_obj_customise_specific_v2_v100_out
+#define packet_obj_customise_specific_v2_osrs241_out packet_obj_customise_specific_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_customise_specific_v2_out[];

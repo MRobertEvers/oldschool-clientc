@@ -12,8 +12,9 @@
  *
  * RSProt class : EventNativeMouseClickDecoder
  * Layouts      : 10 distinct, over 10 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v10, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^EventNativeMouseClickDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -32,39 +33,39 @@ typedef struct MsgEventNativeMouseClick {
 	int32_t code;
 } MsgEventNativeMouseClick;
 
-/* v1 -- revs 222. */
+/* v1 -- revs 222 (packet_versions.txt 1). */
 void packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v2 -- revs 223. */
+/* v2 -- revs 223 (packet_versions.txt 2). */
 void packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v3 -- revs 224. */
+/* v3 -- revs 224 (packet_versions.txt 3). */
 void packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v4 -- revs 225. */
+/* v4 -- revs 225 (packet_versions.txt 4). */
 void packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v5 -- revs 226. */
+/* v5 -- revs 226 (packet_versions.txt 5). */
 void packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v6 -- revs 227. */
+/* v6 -- revs 227 (packet_versions.txt 6). */
 void packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v7 -- revs 228. */
+/* v7 -- revs 228 (packet_versions.txt 7). */
 void packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v9 -- revs 230. */
+/* v9 -- revs 230 (packet_versions.txt 9). */
 void packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void packet_event_native_mouse_click_v10_in(RsprotExec *x, MsgEventNativeMouseClick *m);
 
-/* Per-revision aliases: `packet_event_native_mouse_click_rev239_in` is greppable, which is the
- * point -- "what does 239 do for EVENT_NATIVE_MOUSE_CLICK" without reading a table. */
-#define packet_event_native_mouse_click_rev222_in packet_event_native_mouse_click_v1_in
-#define packet_event_native_mouse_click_rev223_in packet_event_native_mouse_click_v2_in
-#define packet_event_native_mouse_click_rev224_in packet_event_native_mouse_click_v3_in
-#define packet_event_native_mouse_click_rev225_in packet_event_native_mouse_click_v4_in
-#define packet_event_native_mouse_click_rev226_in packet_event_native_mouse_click_v5_in
-#define packet_event_native_mouse_click_rev227_in packet_event_native_mouse_click_v6_in
-#define packet_event_native_mouse_click_rev228_in packet_event_native_mouse_click_v7_in
-#define packet_event_native_mouse_click_rev229_in packet_event_native_mouse_click_v8_in
-#define packet_event_native_mouse_click_rev230_in packet_event_native_mouse_click_v9_in
-#define packet_event_native_mouse_click_rev231_in packet_event_native_mouse_click_v10_in
+/* Per-revision entry points: `packet_event_native_mouse_click_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for EVENT_NATIVE_MOUSE_CLICK" without reading a table. */
+#define packet_event_native_mouse_click_osrs222_in packet_event_native_mouse_click_v1_in
+#define packet_event_native_mouse_click_osrs223_in packet_event_native_mouse_click_v2_in
+#define packet_event_native_mouse_click_osrs224_in packet_event_native_mouse_click_v3_in
+#define packet_event_native_mouse_click_osrs225_in packet_event_native_mouse_click_v4_in
+#define packet_event_native_mouse_click_osrs226_in packet_event_native_mouse_click_v5_in
+#define packet_event_native_mouse_click_osrs227_in packet_event_native_mouse_click_v6_in
+#define packet_event_native_mouse_click_osrs228_in packet_event_native_mouse_click_v7_in
+#define packet_event_native_mouse_click_osrs229_in packet_event_native_mouse_click_v8_in
+#define packet_event_native_mouse_click_osrs230_in packet_event_native_mouse_click_v9_in
+#define packet_event_native_mouse_click_osrs231_in packet_event_native_mouse_click_v10_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_native_mouse_click_in[];

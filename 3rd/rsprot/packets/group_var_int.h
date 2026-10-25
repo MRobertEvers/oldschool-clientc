@@ -12,12 +12,13 @@
  *
  * RSProt class : GroupVarIntEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^GroupVarIntEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,14 +36,14 @@ typedef struct MsgGroupVarInt {
 	int32_t update_variable_value;
 } MsgGroupVarInt;
 
-/* v1 -- revs 239-241. */
+/* v1 -- revs 239-241 (packet_versions.txt 1). */
 void packet_group_var_int_v1_out(RsprotExec *x, MsgGroupVarInt *m);
 
-/* Per-revision aliases: `packet_group_var_int_rev239_out` is greppable, which is the
- * point -- "what does 239 do for GROUP_VAR_INT" without reading a table. */
-#define packet_group_var_int_rev239_out packet_group_var_int_v1_out
-#define packet_group_var_int_rev240_out packet_group_var_int_v1_out
-#define packet_group_var_int_rev241_out packet_group_var_int_v1_out
+/* Per-revision entry points: `packet_group_var_int_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for GROUP_VAR_INT" without reading a table. */
+#define packet_group_var_int_osrs239_out packet_group_var_int_v1_out
+#define packet_group_var_int_osrs240_out packet_group_var_int_v1_out
+#define packet_group_var_int_osrs241_out packet_group_var_int_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_group_var_int_out[];

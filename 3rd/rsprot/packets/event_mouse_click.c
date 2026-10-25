@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-231. */
+/* v1 -- revs 221-231 (packet_versions.txt 1). */
 void
 packet_event_mouse_click_v1_in(RsprotExec *x, MsgEventMouseClick *m)
 {

@@ -12,12 +12,13 @@
  *
  * RSProt class : ChatFilterSettingsEncoder
  * Layouts      : 16 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v16, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ChatFilterSettingsEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,62 +35,62 @@ typedef struct MsgChatFilterSettings {
 	int32_t trade_chat_filter;
 } MsgChatFilterSettings;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_chat_filter_settings_v1_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_chat_filter_settings_v2_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_chat_filter_settings_v3_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void packet_chat_filter_settings_v4_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v5 -- revs 225, 237. */
+/* v5 -- revs 225, 237 (packet_versions.txt 5). */
 void packet_chat_filter_settings_v5_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_chat_filter_settings_v6_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v7 -- revs 227, 234. */
+/* v7 -- revs 227, 234 (packet_versions.txt 7). */
 void packet_chat_filter_settings_v7_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v8 -- revs 228, 238. */
+/* v8 -- revs 228, 238 (packet_versions.txt 8). */
 void packet_chat_filter_settings_v8_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v9 -- revs 229, 232. */
+/* v9 -- revs 229, 232 (packet_versions.txt 9). */
 void packet_chat_filter_settings_v9_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void packet_chat_filter_settings_v10_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void packet_chat_filter_settings_v11_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v12 -- revs 233. */
+/* v12 -- revs 233 (packet_versions.txt 12). */
 void packet_chat_filter_settings_v12_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v13 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 13). */
 void packet_chat_filter_settings_v13_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v14 -- revs 236, 240. */
+/* v14 -- revs 236, 240 (packet_versions.txt 14). */
 void packet_chat_filter_settings_v14_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v100 -- revs 241. */
-void packet_chat_filter_settings_v100_out(RsprotExec *x, MsgChatFilterSettings *m);
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
+void packet_chat_filter_settings_v16_out(RsprotExec *x, MsgChatFilterSettings *m);
 
-/* Per-revision aliases: `packet_chat_filter_settings_rev239_out` is greppable, which is the
- * point -- "what does 239 do for CHAT_FILTER_SETTINGS" without reading a table. */
-#define packet_chat_filter_settings_rev221_out packet_chat_filter_settings_v1_out
-#define packet_chat_filter_settings_rev222_out packet_chat_filter_settings_v2_out
-#define packet_chat_filter_settings_rev223_out packet_chat_filter_settings_v3_out
-#define packet_chat_filter_settings_rev224_out packet_chat_filter_settings_v4_out
-#define packet_chat_filter_settings_rev225_out packet_chat_filter_settings_v5_out
-#define packet_chat_filter_settings_rev226_out packet_chat_filter_settings_v6_out
-#define packet_chat_filter_settings_rev227_out packet_chat_filter_settings_v7_out
-#define packet_chat_filter_settings_rev228_out packet_chat_filter_settings_v8_out
-#define packet_chat_filter_settings_rev229_out packet_chat_filter_settings_v9_out
-#define packet_chat_filter_settings_rev230_out packet_chat_filter_settings_v10_out
-#define packet_chat_filter_settings_rev231_out packet_chat_filter_settings_v11_out
-#define packet_chat_filter_settings_rev232_out packet_chat_filter_settings_v9_out
-#define packet_chat_filter_settings_rev233_out packet_chat_filter_settings_v12_out
-#define packet_chat_filter_settings_rev234_out packet_chat_filter_settings_v7_out
-#define packet_chat_filter_settings_rev235_out packet_chat_filter_settings_v13_out
-#define packet_chat_filter_settings_rev236_out packet_chat_filter_settings_v14_out
-#define packet_chat_filter_settings_rev237_out packet_chat_filter_settings_v5_out
-#define packet_chat_filter_settings_rev238_out packet_chat_filter_settings_v8_out
-#define packet_chat_filter_settings_rev239_out packet_chat_filter_settings_v15_out
-#define packet_chat_filter_settings_rev240_out packet_chat_filter_settings_v14_out
-#define packet_chat_filter_settings_rev241_out packet_chat_filter_settings_v100_out
+/* Per-revision entry points: `packet_chat_filter_settings_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for CHAT_FILTER_SETTINGS" without reading a table. */
+#define packet_chat_filter_settings_osrs221_out packet_chat_filter_settings_v1_out
+#define packet_chat_filter_settings_osrs222_out packet_chat_filter_settings_v2_out
+#define packet_chat_filter_settings_osrs223_out packet_chat_filter_settings_v3_out
+#define packet_chat_filter_settings_osrs224_out packet_chat_filter_settings_v4_out
+#define packet_chat_filter_settings_osrs225_out packet_chat_filter_settings_v5_out
+#define packet_chat_filter_settings_osrs226_out packet_chat_filter_settings_v6_out
+#define packet_chat_filter_settings_osrs227_out packet_chat_filter_settings_v7_out
+#define packet_chat_filter_settings_osrs228_out packet_chat_filter_settings_v8_out
+#define packet_chat_filter_settings_osrs229_out packet_chat_filter_settings_v9_out
+#define packet_chat_filter_settings_osrs230_out packet_chat_filter_settings_v10_out
+#define packet_chat_filter_settings_osrs231_out packet_chat_filter_settings_v11_out
+#define packet_chat_filter_settings_osrs232_out packet_chat_filter_settings_v9_out
+#define packet_chat_filter_settings_osrs233_out packet_chat_filter_settings_v12_out
+#define packet_chat_filter_settings_osrs234_out packet_chat_filter_settings_v7_out
+#define packet_chat_filter_settings_osrs235_out packet_chat_filter_settings_v13_out
+#define packet_chat_filter_settings_osrs236_out packet_chat_filter_settings_v14_out
+#define packet_chat_filter_settings_osrs237_out packet_chat_filter_settings_v5_out
+#define packet_chat_filter_settings_osrs238_out packet_chat_filter_settings_v8_out
+#define packet_chat_filter_settings_osrs239_out packet_chat_filter_settings_v15_out
+#define packet_chat_filter_settings_osrs240_out packet_chat_filter_settings_v14_out
+#define packet_chat_filter_settings_osrs241_out packet_chat_filter_settings_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_chat_filter_settings_out[];

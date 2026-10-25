@@ -12,8 +12,9 @@
  *
  * RSProt class : UpdateRebootTimerV1Encoder
  * Layouts      : 1 distinct, over 3 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^UpdateRebootTimerV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -30,16 +31,16 @@ typedef struct MsgUpdateRebootTimerV1 {
 	int32_t game_cycles;
 } MsgUpdateRebootTimerV1;
 
-/* v1 -- revs 229, 231-232, 235-236. */
+/* v1 -- revs 229, 231-232, 235-236 (packet_versions.txt 1). */
 void packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m);
 
-/* Per-revision aliases: `packet_update_reboot_timer_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for UPDATE_REBOOT_TIMER_V1" without reading a table. */
-#define packet_update_reboot_timer_v1_rev229_out packet_update_reboot_timer_v1_v1_out
-#define packet_update_reboot_timer_v1_rev231_out packet_update_reboot_timer_v1_v1_out
-#define packet_update_reboot_timer_v1_rev232_out packet_update_reboot_timer_v1_v1_out
-#define packet_update_reboot_timer_v1_rev235_out packet_update_reboot_timer_v1_v1_out
-#define packet_update_reboot_timer_v1_rev236_out packet_update_reboot_timer_v1_v1_out
+/* Per-revision entry points: `packet_update_reboot_timer_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for UPDATE_REBOOT_TIMER_V1" without reading a table. */
+#define packet_update_reboot_timer_v1_osrs229_out packet_update_reboot_timer_v1_v1_out
+#define packet_update_reboot_timer_v1_osrs231_out packet_update_reboot_timer_v1_v1_out
+#define packet_update_reboot_timer_v1_osrs232_out packet_update_reboot_timer_v1_v1_out
+#define packet_update_reboot_timer_v1_osrs235_out packet_update_reboot_timer_v1_v1_out
+#define packet_update_reboot_timer_v1_osrs236_out packet_update_reboot_timer_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_reboot_timer_v1_out[];

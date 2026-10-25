@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 231. */
+/* v1 -- revs 231 (packet_versions.txt 1). */
 void
 packet_map_projanim_v2_v1_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -28,7 +28,7 @@ packet_map_projanim_v2_v1_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U3_ALT1(x, m->source_index);
 }
 
-/* v2 -- revs 232. */
+/* v2 -- revs 232 (packet_versions.txt 2). */
 void
 packet_map_projanim_v2_v2_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -45,7 +45,7 @@ packet_map_projanim_v2_v2_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U3_ALT2(x, m->target_index);
 }
 
-/* v3 -- revs 233. */
+/* v3 -- revs 233 (packet_versions.txt 3). */
 void
 packet_map_projanim_v2_v3_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -62,7 +62,7 @@ packet_map_projanim_v2_v3_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
 }
 
-/* v4 -- revs 234. */
+/* v4 -- revs 234 (packet_versions.txt 4). */
 void
 packet_map_projanim_v2_v4_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -79,7 +79,7 @@ packet_map_projanim_v2_v4_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v5 -- revs 235. */
+/* v5 -- revs 235 (packet_versions.txt 5). */
 void
 packet_map_projanim_v2_v5_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -96,7 +96,7 @@ packet_map_projanim_v2_v5_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U2_ALT2(x, m->id);
 }
 
-/* v6 -- revs 236. */
+/* v6 -- revs 236 (packet_versions.txt 6). */
 void
 packet_map_projanim_v2_v6_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -113,7 +113,7 @@ packet_map_projanim_v2_v6_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U4_ALT1(x, m->end_packed);
 }
 
-/* v7 -- revs 237. */
+/* v7 -- revs 237 (packet_versions.txt 7). */
 void
 packet_map_projanim_v2_v7_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -130,7 +130,7 @@ packet_map_projanim_v2_v7_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U2(x, m->end_height);
 }
 
-/* v8 -- revs 238. */
+/* v8 -- revs 238 (packet_versions.txt 8). */
 void
 packet_map_projanim_v2_v8_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -147,7 +147,7 @@ packet_map_projanim_v2_v8_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U2_ALT2(x, m->progress);
 }
 
-/* v9 -- revs 239. */
+/* v9 -- revs 239 (packet_versions.txt 9). */
 void
 packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
@@ -164,9 +164,9 @@ packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U3(x, m->target_index);
 }
 
-/* v100 -- revs 241. */
+/* v10 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_map_projanim_v2_v100_out(RsprotExec *x, MsgMapProjAnimV2 *m)
+packet_map_projanim_v2_v10_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
     RSPROT_U1_ALT2(x, m->angle);
     RSPROT_U2(x, m->id);
@@ -181,9 +181,9 @@ packet_map_projanim_v2_v100_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U4_ALT3(x, m->end_packed);
 }
 
-/* v101 -- revs 240. */
+/* v11 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_map_projanim_v2_v101_out(RsprotExec *x, MsgMapProjAnimV2 *m)
+packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
     RSPROT_U2_ALT2(x, m->progress);
     RSPROT_U2(x, m->id);
@@ -218,8 +218,8 @@ const RsprotVersionRange rsprot_map_projanim_v2_out[] = {
     { 237, 237, (RsprotCodecFn)packet_map_projanim_v2_v7_out },
     { 238, 238, (RsprotCodecFn)packet_map_projanim_v2_v8_out },
     { 239, 239, (RsprotCodecFn)packet_map_projanim_v2_v9_out },
-    { 240, 240, (RsprotCodecFn)packet_map_projanim_v2_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_map_projanim_v2_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_map_projanim_v2_v11_out },
+    { 241, 241, (RsprotCodecFn)packet_map_projanim_v2_v10_out },
 };
 
 const int rsprot_map_projanim_v2_out_count =

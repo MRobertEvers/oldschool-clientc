@@ -11,126 +11,126 @@
  * cannot drift apart.
  */
 
-/* v3 -- revs 223. */
+/* v1 -- revs 223 (packet_versions.txt 3). */
 void
-packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v1_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U1_ALT3(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2(x, m->zone_x);
 }
 
-/* v4 -- revs 224. */
+/* v2 -- revs 224 (packet_versions.txt 4). */
 void
-packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v2_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
 }
 
-/* v5 -- revs 225. */
+/* v3 -- revs 225 (packet_versions.txt 5). */
 void
-packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
 }
 
-/* v6 -- revs 226. */
+/* v4 -- revs 226 (packet_versions.txt 6). */
 void
-packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->reload);
 }
 
-/* v7 -- revs 227. */
+/* v5 -- revs 227 (packet_versions.txt 7). */
 void
-packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT2(x, m->zone_x);
     RSPROT_U1_ALT3(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_z);
 }
 
-/* v8 -- revs 228. */
+/* v6 -- revs 228 (packet_versions.txt 8). */
+void
+packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U2_ALT1(x, m->zone_x);
+    RSPROT_U2(x, m->zone_z);
+    RSPROT_U1_ALT1(x, m->reload);
+}
+
+/* v7 -- revs 229 (packet_versions.txt 9). */
+void
+packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
+{
+    RSPROT_U1_ALT3(x, m->reload);
+    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U2_ALT1(x, m->zone_x);
+}
+
+/* v8 -- revs 230 (packet_versions.txt 10). */
 void
 packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->reload);
-}
-
-/* v9 -- revs 229. */
-void
-packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
-{
-    RSPROT_U1_ALT3(x, m->reload);
-    RSPROT_U2_ALT2(x, m->zone_z);
-    RSPROT_U2_ALT1(x, m->zone_x);
-}
-
-/* v10 -- revs 230. */
-void
-packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
-{
-    RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT3(x, m->zone_z);
     RSPROT_BOOL(x, m->reload);
 }
 
-/* v11 -- revs 231. */
+/* v9 -- revs 231 (packet_versions.txt 11). */
 void
-packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_x);
     RSPROT_U2(x, m->zone_z);
 }
 
-/* v12 -- revs 232. */
+/* v10 -- revs 232 (packet_versions.txt 12). */
 void
-packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_BOOL(x, m->reload);
     RSPROT_U2_ALT3(x, m->zone_x);
 }
 
-/* v13 -- revs 233. */
+/* v11 -- revs 233 (packet_versions.txt 13). */
 void
-packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2_ALT1(x, m->zone_x);
     RSPROT_U2_ALT2(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->reload);
 }
 
-/* v14 -- revs 234. */
+/* v12 -- revs 234 (packet_versions.txt 14). */
 void
-packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_BOOL(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
     RSPROT_U2(x, m->zone_z);
 }
 
-/* v15 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 15). */
 void
-packet_rebuild_region_v15_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->reload);
     RSPROT_U2_ALT2(x, m->zone_x);
 }
 
-/* v16 -- revs 236. */
+/* v14 -- revs 236 (packet_versions.txt 16). */
 void
-packet_rebuild_region_v16_out(RsprotExec *x, MsgRebuildRegion *m)
+packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
 {
     RSPROT_U2(x, m->zone_z);
     RSPROT_U2_ALT3(x, m->zone_x);
@@ -144,20 +144,20 @@ packet_rebuild_region_v16_out(RsprotExec *x, MsgRebuildRegion *m)
  * transcribed" with "no such packet", and those are different facts.
  */
 const RsprotVersionRange rsprot_rebuild_region_out[] = {
-    { 223, 223, (RsprotCodecFn)packet_rebuild_region_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_rebuild_region_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_rebuild_region_v5_out },
-    { 226, 226, (RsprotCodecFn)packet_rebuild_region_v6_out },
-    { 227, 227, (RsprotCodecFn)packet_rebuild_region_v7_out },
-    { 228, 228, (RsprotCodecFn)packet_rebuild_region_v8_out },
-    { 229, 229, (RsprotCodecFn)packet_rebuild_region_v9_out },
-    { 230, 230, (RsprotCodecFn)packet_rebuild_region_v10_out },
-    { 231, 231, (RsprotCodecFn)packet_rebuild_region_v11_out },
-    { 232, 232, (RsprotCodecFn)packet_rebuild_region_v12_out },
-    { 233, 233, (RsprotCodecFn)packet_rebuild_region_v13_out },
-    { 234, 234, (RsprotCodecFn)packet_rebuild_region_v14_out },
-    { 235, 235, (RsprotCodecFn)packet_rebuild_region_v15_out },
-    { 236, 236, (RsprotCodecFn)packet_rebuild_region_v16_out },
+    { 223, 223, (RsprotCodecFn)packet_rebuild_region_v1_out },
+    { 224, 224, (RsprotCodecFn)packet_rebuild_region_v2_out },
+    { 225, 225, (RsprotCodecFn)packet_rebuild_region_v3_out },
+    { 226, 226, (RsprotCodecFn)packet_rebuild_region_v4_out },
+    { 227, 227, (RsprotCodecFn)packet_rebuild_region_v5_out },
+    { 228, 228, (RsprotCodecFn)packet_rebuild_region_v6_out },
+    { 229, 229, (RsprotCodecFn)packet_rebuild_region_v7_out },
+    { 230, 230, (RsprotCodecFn)packet_rebuild_region_v8_out },
+    { 231, 231, (RsprotCodecFn)packet_rebuild_region_v9_out },
+    { 232, 232, (RsprotCodecFn)packet_rebuild_region_v10_out },
+    { 233, 233, (RsprotCodecFn)packet_rebuild_region_v11_out },
+    { 234, 234, (RsprotCodecFn)packet_rebuild_region_v12_out },
+    { 235, 235, (RsprotCodecFn)packet_rebuild_region_v13_out },
+    { 236, 236, (RsprotCodecFn)packet_rebuild_region_v14_out },
 };
 
 const int rsprot_rebuild_region_out_count =

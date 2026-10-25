@@ -12,12 +12,13 @@
  *
  * RSProt class : OpNpc6Decoder
  * Layouts      : 4 distinct, over 14 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v4, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^OpNpc6Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,38 +34,38 @@ typedef struct MsgOpNpc6 {
 	int32_t id;
 } MsgOpNpc6;
 
-/* v1 -- revs 221-222, 235, 240. */
+/* v1 -- revs 221-222, 235, 240 (packet_versions.txt 1). */
 void packet_opnpc6_v1_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v2 -- revs 223-224, 227, 229-230, 234. */
+/* v2 -- revs 223-224, 227, 229-230, 234 (packet_versions.txt 2). */
 void packet_opnpc6_v2_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v3 -- revs 225, 228, 236-237. */
+/* v3 -- revs 225, 228, 236-237 (packet_versions.txt 3). */
 void packet_opnpc6_v3_in(RsprotExec *x, MsgOpNpc6 *m);
-/* v4 -- revs 226, 231-233, 238-239, 241. */
+/* v4 -- revs 226, 231-233, 238-239, 241 (packet_versions.txt 4). */
 void packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m);
 
-/* Per-revision aliases: `packet_opnpc6_rev239_in` is greppable, which is the
- * point -- "what does 239 do for OPNPC6" without reading a table. */
-#define packet_opnpc6_rev221_in packet_opnpc6_v1_in
-#define packet_opnpc6_rev222_in packet_opnpc6_v1_in
-#define packet_opnpc6_rev223_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev224_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev225_in packet_opnpc6_v3_in
-#define packet_opnpc6_rev226_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev227_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev228_in packet_opnpc6_v3_in
-#define packet_opnpc6_rev229_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev230_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev231_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev232_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev233_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev234_in packet_opnpc6_v2_in
-#define packet_opnpc6_rev235_in packet_opnpc6_v1_in
-#define packet_opnpc6_rev236_in packet_opnpc6_v3_in
-#define packet_opnpc6_rev237_in packet_opnpc6_v3_in
-#define packet_opnpc6_rev238_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev239_in packet_opnpc6_v4_in
-#define packet_opnpc6_rev240_in packet_opnpc6_v1_in
-#define packet_opnpc6_rev241_in packet_opnpc6_v4_in
+/* Per-revision entry points: `packet_opnpc6_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for OPNPC6" without reading a table. */
+#define packet_opnpc6_osrs221_in packet_opnpc6_v1_in
+#define packet_opnpc6_osrs222_in packet_opnpc6_v1_in
+#define packet_opnpc6_osrs223_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs224_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs225_in packet_opnpc6_v3_in
+#define packet_opnpc6_osrs226_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs227_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs228_in packet_opnpc6_v3_in
+#define packet_opnpc6_osrs229_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs230_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs231_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs232_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs233_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs234_in packet_opnpc6_v2_in
+#define packet_opnpc6_osrs235_in packet_opnpc6_v1_in
+#define packet_opnpc6_osrs236_in packet_opnpc6_v3_in
+#define packet_opnpc6_osrs237_in packet_opnpc6_v3_in
+#define packet_opnpc6_osrs238_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs239_in packet_opnpc6_v4_in
+#define packet_opnpc6_osrs240_in packet_opnpc6_v1_in
+#define packet_opnpc6_osrs241_in packet_opnpc6_v4_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opnpc6_in[];

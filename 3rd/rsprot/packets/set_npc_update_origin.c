@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs 222-241 (packet_versions.txt 1). */
 void
 packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m)
 {

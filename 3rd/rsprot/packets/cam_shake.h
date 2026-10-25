@@ -12,12 +12,13 @@
  *
  * RSProt class : CamShakeEncoder
  * Layouts      : 2 distinct, over 2 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v2, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^CamShakeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -40,34 +41,34 @@ typedef struct MsgCamShake {
 	int32_t rate;
 } MsgCamShake;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
-/* v2 -- revs 223-241. */
+/* v2 -- revs 223-241 (packet_versions.txt 2). */
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 
-/* Per-revision aliases: `packet_cam_shake_rev239_out` is greppable, which is the
- * point -- "what does 239 do for CAM_SHAKE" without reading a table. */
-#define packet_cam_shake_rev221_out packet_cam_shake_v1_out
-#define packet_cam_shake_rev222_out packet_cam_shake_v1_out
-#define packet_cam_shake_rev223_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev224_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev225_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev226_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev227_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev228_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev229_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev230_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev231_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev232_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev233_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev234_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev235_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev236_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev237_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev238_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev239_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev240_out packet_cam_shake_v2_out
-#define packet_cam_shake_rev241_out packet_cam_shake_v2_out
+/* Per-revision entry points: `packet_cam_shake_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for CAM_SHAKE" without reading a table. */
+#define packet_cam_shake_osrs221_out packet_cam_shake_v1_out
+#define packet_cam_shake_osrs222_out packet_cam_shake_v1_out
+#define packet_cam_shake_osrs223_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs224_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs225_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs226_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs227_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs228_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs229_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs230_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs231_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs232_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs233_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs234_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs235_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs236_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs237_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs238_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs239_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs240_out packet_cam_shake_v2_out
+#define packet_cam_shake_osrs241_out packet_cam_shake_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_shake_out[];

@@ -12,12 +12,13 @@
  *
  * RSProt class : AffinedClanSettingsAddBannedFromChannelDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^AffinedClanSettingsAddBannedFromChannelDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgAffinedClanSettingsAddBannedFromChannel {
 	const char *name;
 } MsgAffinedClanSettingsAddBannedFromChannel;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_affinedclansettings_addbanned_fromchannel_v1_in(RsprotExec *x, MsgAffinedClanSettingsAddBannedFromChannel *m);
 
-/* Per-revision aliases: `packet_affinedclansettings_addbanned_fromchannel_rev239_in` is greppable, which is the
- * point -- "what does 239 do for AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL" without reading a table. */
-#define packet_affinedclansettings_addbanned_fromchannel_rev221_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev222_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev223_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev224_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev225_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev226_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev227_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev228_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev229_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev230_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev231_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev232_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev233_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev234_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev235_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev236_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev237_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev238_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev239_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev240_in packet_affinedclansettings_addbanned_fromchannel_v1_in
-#define packet_affinedclansettings_addbanned_fromchannel_rev241_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+/* Per-revision entry points: `packet_affinedclansettings_addbanned_fromchannel_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL" without reading a table. */
+#define packet_affinedclansettings_addbanned_fromchannel_osrs221_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs222_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs223_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs224_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs225_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs226_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs227_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs228_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs229_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs230_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs231_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs232_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs233_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs234_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs235_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs236_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs237_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs238_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs239_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs240_in packet_affinedclansettings_addbanned_fromchannel_v1_in
+#define packet_affinedclansettings_addbanned_fromchannel_osrs241_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_affinedclansettings_addbanned_fromchannel_in[];

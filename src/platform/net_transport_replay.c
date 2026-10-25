@@ -145,6 +145,10 @@ struct NetTransportReplay
     uint64_t wait_since_ms;
     int logout_wire;
     int last_tick;
+    /** A RECONNECT frame waiting for the bytes before it to reach the bus
+     *  (-1: none): it goes as TORIRS_CMD_NET_RESUMED, which the stream's bytes
+     *  must not overtake. */
+    int resume_frame;
 
     /* The two clocks, read every poll so a switch between them is seamless. */
     int unlocked;
@@ -283,6 +287,7 @@ replay_reset(struct NetTransportReplay* self)
     self->wait_map = 0;
     self->map_built = 0;
     self->last_tick = 0;
+    self->resume_frame = -1;
 }
 
 /* --- the handshake ------------------------------------------------------- */
@@ -459,7 +464,7 @@ play(struct NetTransportReplay* self)
     if( !self->wait_map || self->map_built )
         self->clock_ms += step;
 
-    while( self->next_frame < self->rec.frame_count &&
+    while( self->resume_frame < 0 && self->next_frame < self->rec.frame_count &&
            self->pend_len - self->pend_off < REPLAY_PENDING_CAP )
     {
         struct RsproxRecordingFrame const* f = &self->rec.frames[self->next_frame];
@@ -472,6 +477,22 @@ play(struct NetTransportReplay* self)
         }
         if( f->t_ms > self->clock_ms )
             break;
+        /* RSProx's pseudo-packets are the proxy's notes, not Jagex bytes. A
+         * PACKET_GROUP_END closes what PACKET_GROUP_START already sized. A
+         * RECONNECT is where the session moved to a new connection (a
+         * reconnect, a world hop): the client restarts its player table there,
+         * so nothing after it is staged until it is on the bus. */
+        if( f->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
+        {
+            self->next_frame++;
+            continue;
+        }
+        if( f->opcode == RSPROX_RECORDING_RECONNECT )
+        {
+            self->resume_frame = self->next_frame++;
+            self->last_tick = f->tick;
+            break;
+        }
         pend_packet(self, f->opcode, self->rec.data + f->offset, (int)f->length);
         self->last_tick = f->tick;
         self->next_frame++;
@@ -484,7 +505,7 @@ play(struct NetTransportReplay* self)
         }
     }
 
-    if( self->next_frame == self->rec.frame_count )
+    if( self->next_frame == self->rec.frame_count && self->resume_frame < 0 )
     {
         /* The recording ends the session, as RSProx's replay does
          * (ReplaySession.logoutClient): with its own LOGOUT when it has one. */
@@ -495,6 +516,31 @@ play(struct NetTransportReplay* self)
         TORIRS_REPORT("replay: finished at tick %d (%.1f s of recording)\n", self->rec.tick_count,
                       (double)self->rec.duration_ms / 1000.0);
     }
+}
+
+/*
+ * A recorded RECONNECT, as the client takes it from a real server: the index
+ * the session continues under (rsprox_recording_resolve_reconnects; the
+ * recording's own unless it found a world hop), then the GPI init block.
+ */
+static void
+push_resume(
+    struct NetTransportReplay* self,
+    struct ToriRS_CmdBus* bus)
+{
+    struct RsproxRecordingFrame const* f = &self->rec.frames[self->resume_frame];
+    static uint8_t cmd[TORIRS_CMD_MAX_PAYLOAD];
+
+    assert((int)f->length + 2 <= (int)sizeof(cmd));
+    if( !CmdBus_CanPush(bus, (uint16_t)(f->length + 2)) )
+        return;
+    cmd[0] = (uint8_t)(f->reconnect_index >> 8);
+    cmd[1] = (uint8_t)f->reconnect_index;
+    memcpy(cmd + 2, self->rec.data + f->offset, f->length);
+    CmdBus_Push(bus, TORIRS_CMD_NET_RESUMED, cmd, (uint16_t)(f->length + 2));
+    TORIRS_REPORT("replay: tick %d: the recorded session reconnected; continuing as player %d\n",
+                  f->tick, f->reconnect_index);
+    self->resume_frame = -1;
 }
 
 /* --- the transport ------------------------------------------------------- */
@@ -566,6 +612,8 @@ replay_poll(
     }
     if( self->pend_off == self->pend_len )
         self->pend_off = self->pend_len = 0;
+    if( self->resume_frame >= 0 && self->pend_len == 0 )
+        push_resume(self, bus);
 }
 
 static void

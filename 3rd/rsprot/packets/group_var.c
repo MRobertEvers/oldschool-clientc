@@ -2,12 +2,12 @@
 #include "group_var.h"
 
 /*
- * v100 -- revs 239-241.
+ * v1 (rsprox_versions.txt 100) -- revs 239-241.
  * while readable: g1 index, g4 packed, then by (packed >>> 16) & 3:
  * g4 | g8 | gjstr | gdata(rest).
  */
 void
-packet_group_var_v100_out(RsprotExec *x, MsgGroupVar *m)
+packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
 {
     for (int32_t i = 0; RSPROT_MORE(x, m->updates_count, i, MSG_GROUP_VAR_MAX_UPDATES); i++) {
         MsgGroupVarUpdate *u = &m->updates[i];
@@ -28,7 +28,7 @@ packet_group_var_v100_out(RsprotExec *x, MsgGroupVar *m)
 }
 
 const RsprotVersionRange rsprot_group_var_out[] = {
-    { 239, 241, (RsprotCodecFn)packet_group_var_v100_out },
+    { 239, 241, (RsprotCodecFn)packet_group_var_v1_out },
 };
 
 const int rsprot_group_var_out_count =

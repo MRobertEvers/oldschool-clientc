@@ -11,35 +11,35 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_U4_ALT2(x, m->combined_id);
 }
 
-/* v2 -- revs 222, 224-225, 228, 236, 239. */
+/* v2 -- revs 222, 224-225, 228, 236, 239 (packet_versions.txt 2). */
 void
 packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 227, 229, 232, 241. */
+/* v3 -- revs 223, 227, 229, 232, 241 (packet_versions.txt 3). */
 void
 packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v4 -- revs 226, 230, 233-235, 237, 240. */
+/* v4 -- revs 226, 230, 233-235, 237, 240 (packet_versions.txt 4). */
 void
 packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v5 -- revs 231, 238. */
+/* v5 -- revs 231, 238 (packet_versions.txt 5). */
 void
 packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {

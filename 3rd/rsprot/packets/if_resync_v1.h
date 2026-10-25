@@ -12,8 +12,9 @@
  *
  * RSProt class : IfResyncV1Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfResyncV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -47,16 +48,16 @@ typedef struct MsgIfResyncV1 {
 	int32_t events_count;
 } MsgIfResyncV1;
 
-/* v1 -- revs 227-231. */
+/* v1 -- revs 227-231 (packet_versions.txt 1). */
 void packet_if_resync_v1_v1_out(RsprotExec *x, MsgIfResyncV1 *m);
 
-/* Per-revision aliases: `packet_if_resync_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_RESYNC_V1" without reading a table. */
-#define packet_if_resync_v1_rev227_out packet_if_resync_v1_v1_out
-#define packet_if_resync_v1_rev228_out packet_if_resync_v1_v1_out
-#define packet_if_resync_v1_rev229_out packet_if_resync_v1_v1_out
-#define packet_if_resync_v1_rev230_out packet_if_resync_v1_v1_out
-#define packet_if_resync_v1_rev231_out packet_if_resync_v1_v1_out
+/* Per-revision entry points: `packet_if_resync_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_RESYNC_V1" without reading a table. */
+#define packet_if_resync_v1_osrs227_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_osrs228_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_osrs229_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_osrs230_out packet_if_resync_v1_v1_out
+#define packet_if_resync_v1_osrs231_out packet_if_resync_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_resync_v1_out[];

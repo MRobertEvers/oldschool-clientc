@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 229-236. */
+/* v1 -- revs 229-236 (packet_versions.txt 1). */
 void
 packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
@@ -19,7 +19,7 @@ packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
     RSPROT_U2(x, m->base_z);
 }
 
-/* v2 -- revs 237. */
+/* v2 -- revs 237 (packet_versions.txt 2). */
 void
 packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {

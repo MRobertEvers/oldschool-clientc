@@ -93,7 +93,7 @@ concept gets a distinct prefix:
 | Instance scene build (13×13 zone templates + rotation) | `WorldBuilder_RebuildInstance`, `src/engine/world_builder/world_builder.h:196` |
 | Model merge (for optional baked billboards) | `ToriDraw_ModelNewMerge`, `3rd/toridraw/toridraw_model_transform.h:19` |
 | Element positions already carry pitch/yaw/roll | `ToriDraw_Position`, `3rd/toridraw/toridraw_types.h:309` |
-| Vendored rev-239 codecs for the whole packet family | `3rd/rsprot/gen/rev239_prot.h:82-85`, `3rd/rsprot/packets/rebuild_worldentity_v4.c` |
+| Vendored rev-239 codecs for the whole packet family | `3rd/rsprot/gen/osrs239_prot.h:82-85`, `3rd/rsprot/packets/rebuild_worldentity_v4.c` |
 | `SET_ACTIVE_WORLD` declared + server-encoded + selftested (root=0) | `src/net/rev/pktnames.h:213`, `torirs_server_encode.c:455` |
 | Server map-instance system (alloc/setchunk/build/free, collision, REBUILD_REGION, script opcodes) | `src/torirsserver/torirs_server_mapinstance.*`, `ss_opcode.h:11009-11086` |
 

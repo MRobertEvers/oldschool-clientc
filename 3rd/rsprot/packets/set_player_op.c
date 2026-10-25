@@ -7,126 +7,126 @@
  *       decoder/codec/misc/player/SetPlayerOpDecoder.kt
  */
 
-/* v100 -- revs 227. */
+/* v1 -- revs 227 (rsprox_versions.txt 100). */
 void
-packet_set_player_op_v100_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT2(x, m->priority);
     RSPROT_U1_ALT2(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v101 -- revs 228. */
+/* v2 -- revs 228 (rsprox_versions.txt 101). */
 void
-packet_set_player_op_v101_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ALT1(x, m->id);
 }
 
-/* v102 -- revs 229. */
+/* v3 -- revs 229 (rsprox_versions.txt 102). */
 void
-packet_set_player_op_v102_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ALT3(x, m->priority);
     RSPROT_U1_ALT2(x, m->id);
 }
 
-/* v103 -- revs 230-231. */
+/* v4 -- revs 230-231 (rsprox_versions.txt 103). */
 void
-packet_set_player_op_v103_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT1(x, m->priority);
     RSPROT_U1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v104 -- revs 232. */
+/* v5 -- revs 232 (rsprox_versions.txt 104). */
 void
-packet_set_player_op_v104_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT1(x, m->priority);
     RSPROT_U1_ALT3(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v105 -- revs 233. */
+/* v6 -- revs 233 (rsprox_versions.txt 105). */
 void
-packet_set_player_op_v105_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT2(x, m->id);
     RSPROT_U1_ALT2(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v106 -- revs 234. */
+/* v7 -- revs 234 (rsprox_versions.txt 106). */
 void
-packet_set_player_op_v106_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT3(x, m->id);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ALT2(x, m->priority);
 }
 
-/* v107 -- revs 235. */
+/* v8 -- revs 235 (rsprox_versions.txt 107). */
 void
-packet_set_player_op_v107_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT2(x, m->id);
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v108 -- revs 236. */
+/* v9 -- revs 236 (rsprox_versions.txt 108). */
 void
-packet_set_player_op_v108_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT3(x, m->priority);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ALT1(x, m->id);
 }
 
-/* v109 -- revs 237. */
+/* v10 -- revs 237 (rsprox_versions.txt 109). */
 void
-packet_set_player_op_v109_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT2(x, m->priority);
     RSPROT_U1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v110 -- revs 238. */
+/* v11 -- revs 238 (rsprox_versions.txt 110). */
 void
-packet_set_player_op_v110_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT2(x, m->id);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ALT1(x, m->priority);
 }
 
-/* v111 -- revs 239. */
+/* v12 -- revs 239 (rsprox_versions.txt 111). */
 void
-packet_set_player_op_v111_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
     RSPROT_U1_ALT1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v112 -- revs 240. */
+/* v13 -- revs 240 (rsprox_versions.txt 112). */
 void
-packet_set_player_op_v112_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT3(x, m->id);
     RSPROT_U1_ALT3(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v113 -- revs 241. */
+/* v14 -- revs 241 (rsprox_versions.txt 113). */
 void
-packet_set_player_op_v113_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ALT3(x, m->id);
     RSPROT_JSTR(x, m->op);
@@ -138,20 +138,20 @@ packet_set_player_op_v113_out(RsprotExec *x, MsgSetPlayerOp *m)
  * listed has no SET_PLAYER_OP and picks NULL.
  */
 const RsprotVersionRange rsprot_set_player_op_out[] = {
-    { 227, 227, (RsprotCodecFn)packet_set_player_op_v100_out },
-    { 228, 228, (RsprotCodecFn)packet_set_player_op_v101_out },
-    { 229, 229, (RsprotCodecFn)packet_set_player_op_v102_out },
-    { 230, 231, (RsprotCodecFn)packet_set_player_op_v103_out },
-    { 232, 232, (RsprotCodecFn)packet_set_player_op_v104_out },
-    { 233, 233, (RsprotCodecFn)packet_set_player_op_v105_out },
-    { 234, 234, (RsprotCodecFn)packet_set_player_op_v106_out },
-    { 235, 235, (RsprotCodecFn)packet_set_player_op_v107_out },
-    { 236, 236, (RsprotCodecFn)packet_set_player_op_v108_out },
-    { 237, 237, (RsprotCodecFn)packet_set_player_op_v109_out },
-    { 238, 238, (RsprotCodecFn)packet_set_player_op_v110_out },
-    { 239, 239, (RsprotCodecFn)packet_set_player_op_v111_out },
-    { 240, 240, (RsprotCodecFn)packet_set_player_op_v112_out },
-    { 241, 241, (RsprotCodecFn)packet_set_player_op_v113_out },
+    { 227, 227, (RsprotCodecFn)packet_set_player_op_v1_out },
+    { 228, 228, (RsprotCodecFn)packet_set_player_op_v2_out },
+    { 229, 229, (RsprotCodecFn)packet_set_player_op_v3_out },
+    { 230, 231, (RsprotCodecFn)packet_set_player_op_v4_out },
+    { 232, 232, (RsprotCodecFn)packet_set_player_op_v5_out },
+    { 233, 233, (RsprotCodecFn)packet_set_player_op_v6_out },
+    { 234, 234, (RsprotCodecFn)packet_set_player_op_v7_out },
+    { 235, 235, (RsprotCodecFn)packet_set_player_op_v8_out },
+    { 236, 236, (RsprotCodecFn)packet_set_player_op_v9_out },
+    { 237, 237, (RsprotCodecFn)packet_set_player_op_v10_out },
+    { 238, 238, (RsprotCodecFn)packet_set_player_op_v11_out },
+    { 239, 239, (RsprotCodecFn)packet_set_player_op_v12_out },
+    { 240, 240, (RsprotCodecFn)packet_set_player_op_v13_out },
+    { 241, 241, (RsprotCodecFn)packet_set_player_op_v14_out },
 };
 
 const int rsprot_set_player_op_out_count =

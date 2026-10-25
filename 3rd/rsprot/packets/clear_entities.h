@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.ClearEntitiesDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.ClearEntitiesDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -22,12 +23,12 @@ typedef struct MsgClearEntities {
 	int32_t unused; /* zero-payload packet */
 } MsgClearEntities;
 
-/* v100 -- revs 227-229. */
-void packet_clear_entities_v100_out(RsprotExec *x, MsgClearEntities *m);
+/* v1 -- revs 227-229 (rsprox_versions.txt 100). */
+void packet_clear_entities_v1_out(RsprotExec *x, MsgClearEntities *m);
 
-#define packet_clear_entities_rev227_out packet_clear_entities_v100_out
-#define packet_clear_entities_rev228_out packet_clear_entities_v100_out
-#define packet_clear_entities_rev229_out packet_clear_entities_v100_out
+#define packet_clear_entities_osrs227_out packet_clear_entities_v1_out
+#define packet_clear_entities_osrs228_out packet_clear_entities_v1_out
+#define packet_clear_entities_osrs229_out packet_clear_entities_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clear_entities_out[];

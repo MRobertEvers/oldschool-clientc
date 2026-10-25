@@ -4,7 +4,7 @@
 /*
  * Every packet codec under packets/, by prot name.
  *
- * The prot tables (gen/rev<N>_prot.h) say which prot an opcode is at a
+ * The prot tables (gen/osrs<N>_prot.h) say which prot an opcode is at a
  * revision; this says which codec reads that prot there. Together they make a
  * revision's inbound path data: a client that knows the revision number frames
  * an opcode with the table and decodes it with

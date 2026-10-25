@@ -5,23 +5,60 @@
  * appearance blob decode and the extended-info byte order.
  */
 #include "net/bitbuffer.h"
-#include "net/rev/packets/pkt_npc_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/packets/pkt_player_info.h"
+#include "net/rev/rs/info_rs.h"
 
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* The 289 reader has no public header -- gameproto_rev_lc289.c forward
- * declares it the same way. */
-int
-lc289_player_info_read(
-    uint8_t const* data,
-    int length,
-    struct PktPlayerInfoOp* ops,
-    int ops_capacity);
+/* The readers write a list; these hand a test its ops, the strings in one
+ * arena the next read reuses, and whether the list overflowed. */
+static uint8_t g_info_bytes[1 << 16];
+static int g_overflow;
+
+/* 254's npc record widths (info_rs.c). */
+static NpcInfoRs const k_classic = { .slot_bits = 14, .type_bits = 11 };
+
+static int
+read_into(
+    int (*read)(uint8_t const*, int, RsprotInfoList*),
+    uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+    int n;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    n = read(data, len, &list);
+    g_overflow = list.overflow;
+    return n;
+}
+
+static int
+player_read(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    return read_into(player_info_rs254, data, len, ops, cap);
+}
+
+static int
+lc289_read(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    return read_into(player_info_rs289, data, len, ops, cap);
+}
+
+static int
+npc_read(
+    NpcInfoRs const* k, uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+    int n;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    n = npc_info_rs_v1(k, data, len, &list);
+    g_overflow = list.overflow;
+    return n;
+}
 
 #define TEST_CHECK(cond)                                                                           \
     do                                                                                             \
@@ -74,11 +111,11 @@ bw_len(struct BitWriter const* w)
     return (w->bit_pos + 7) / 8;
 }
 
-static struct PktPlayerInfoOp const*
+static struct RsprotInfoOp const*
 find_player_op(
-    struct PktPlayerInfoOp const* ops,
+    struct RsprotInfoOp const* ops,
     int count,
-    enum PktPlayerInfoOpKind kind)
+    RsprotInfoOpKind kind)
 {
     for( int i = 0; i < count; i++ )
         if( ops[i].kind == kind )
@@ -104,17 +141,15 @@ test_player_local_teleport(void)
     /* New players: terminator 2047. */
     bw_bits(&w, 2047, 11);
 
-    struct PktPlayerInfoReader reader;
-    struct PktPlayerInfoOp ops[64];
-    int n = pkt_player_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    struct RsprotInfoOp ops[64];
+    int n = player_read(w.buf, bw_len(&w), ops, 64);
 
-    struct PktPlayerInfoOp const* tp =
-        find_player_op(ops, n, PKT_PLAYER_INFO_OP_LOCAL_XZLEVEL);
+    struct RsprotInfoOp const* tp =
+        find_player_op(ops, n, RSPROT_OP_LOCAL_XZLEVEL);
     TEST_CHECK(tp);
-    TEST_CHECK(tp->_local_xz_level.x == 40);
-    TEST_CHECK(tp->_local_xz_level.z == 52);
-    TEST_CHECK(tp->_local_xz_level.level == 0);
-    pkt_player_info_ops_free(ops, n);
+    TEST_CHECK(tp->xz_level.x == 40);
+    TEST_CHECK(tp->xz_level.z == 52);
+    TEST_CHECK(tp->xz_level.level == 0);
     printf("ok - player local teleport block\n");
 }
 
@@ -140,18 +175,16 @@ test_player_new_walk_with_seq(void)
     bw_byte(&w, 42);   /* seq low */
     bw_byte(&w, 3);    /* delay */
 
-    struct PktPlayerInfoReader reader;
-    struct PktPlayerInfoOp ops[64];
-    int n = pkt_player_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    struct RsprotInfoOp ops[64];
+    int n = player_read(w.buf, bw_len(&w), ops, 64);
 
-    struct PktPlayerInfoOp const* add =
-        find_player_op(ops, n, PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID);
-    struct PktPlayerInfoOp const* delta = find_player_op(ops, n, PKT_PLAYER_INFO_OP_DELTA_XZ);
-    struct PktPlayerInfoOp const* seq = find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
-    TEST_CHECK(add && add->_bitvalue == 5);
-    TEST_CHECK(delta && delta->_delta_xz.dx == 1 && delta->_delta_xz.dz == -1);
-    TEST_CHECK(seq && seq->_sequence.sequence_id == 42 && seq->_sequence.delay == 3);
-    pkt_player_info_ops_free(ops, n);
+    struct RsprotInfoOp const* add =
+        find_player_op(ops, n, RSPROT_OP_ADD_NEW);
+    struct RsprotInfoOp const* delta = find_player_op(ops, n, RSPROT_OP_DELTA_XZ);
+    struct RsprotInfoOp const* seq = find_player_op(ops, n, RSPROT_OP_SEQUENCE);
+    TEST_CHECK(add && add->value == 5);
+    TEST_CHECK(delta && delta->delta_xz.dx == 1 && delta->delta_xz.dz == -1);
+    TEST_CHECK(seq && seq->sequence.sequence_id == 42 && seq->sequence.delay == 3);
     printf("ok - player new-add + walk-delta + sequence mask\n");
 }
 
@@ -189,28 +222,26 @@ test_player_exact_move_and_chat_skip(void)
     bw_byte(&w, 9); /* startDelta = 9 */
     bw_byte(&w, 2); /* facing */
 
-    struct PktPlayerInfoReader reader;
-    struct PktPlayerInfoOp ops[64];
-    int n = pkt_player_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    struct RsprotInfoOp ops[64];
+    int n = player_read(w.buf, bw_len(&w), ops, 64);
 
-    struct PktPlayerInfoOp const* chat = find_player_op(ops, n, PKT_PLAYER_INFO_OP_CHAT);
-    struct PktPlayerInfoOp const* em = find_player_op(ops, n, PKT_PLAYER_INFO_OP_EXACT_MOVE);
-    TEST_CHECK(chat && chat->_chat.length == 3);
+    struct RsprotInfoOp const* chat = find_player_op(ops, n, RSPROT_OP_CHAT);
+    struct RsprotInfoOp const* em = find_player_op(ops, n, RSPROT_OP_EXACT_MOVE);
+    TEST_CHECK(chat && chat->chat.length == 3);
     /* The exact-move must have decoded — proving the CHAT payload was
      * consumed and did not desync the stream (the v0 bug this fixes). */
     TEST_CHECK(em);
-    TEST_CHECK(em->_exactmove.start_x == 10 && em->_exactmove.end_z == 13);
-    TEST_CHECK(em->_exactmove.end_cycle_delta == 5 && em->_exactmove.start_cycle_delta == 9);
-    TEST_CHECK(em->_exactmove.facing == 2);
-    pkt_player_info_ops_free(ops, n);
+    TEST_CHECK(em->exact_move.start_x == 10 && em->exact_move.end_z == 13);
+    TEST_CHECK(em->exact_move.end_cycle_delta == 5 && em->exact_move.start_cycle_delta == 9);
+    TEST_CHECK(em->exact_move.facing == 2);
     printf("ok - player CHAT-skip fix + EXACT_MOVE byte order\n");
 }
 
-static struct PktNpcInfoOp const*
+static struct RsprotInfoOp const*
 find_npc_op(
-    struct PktNpcInfoOp const* ops,
+    struct RsprotInfoOp const* ops,
     int count,
-    enum PktNpcInfoOpKind kind)
+    RsprotInfoOpKind kind)
 {
     for( int i = 0; i < count; i++ )
         if( ops[i].kind == kind )
@@ -243,22 +274,19 @@ test_npc_add_change_type_spotanim(void)
     bw_byte(&w, 0x00);
     bw_byte(&w, 0x40); /* heightDelay g4 = 0x00010040 */
 
-    struct PktNpcInfoReader reader;
-    struct PktNpcInfoOp ops[64];
+    struct RsprotInfoOp ops[64];
     int n;
     /* 0, 0 = the classic widths this stream was written with. */
-    pkt_npc_info_reader_init(&reader, 0, 0);
-    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    n = npc_read(&k_classic, w.buf, bw_len(&w), ops, 64);
 
-    struct PktNpcInfoOp const* add = find_npc_op(ops, n, PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID);
-    struct PktNpcInfoOp const* type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
-    struct PktNpcInfoOp const* change = find_npc_op(ops, n, PKT_NPC_INFO_OP_CHANGE_TYPE);
-    struct PktNpcInfoOp const* spot = find_npc_op(ops, n, PKT_NPC_INFO_OP_SPOTANIM);
-    TEST_CHECK(add && add->_bitvalue == 3);
-    TEST_CHECK(type && type->_bitvalue == 100);
-    TEST_CHECK(change && change->_change_type.npc_type == 200);
-    TEST_CHECK(spot && spot->_spotanim.spotanim_id == 55);
-    pkt_npc_info_ops_free(ops, n);
+    struct RsprotInfoOp const* add = find_npc_op(ops, n, RSPROT_OP_ADD_NEW);
+    struct RsprotInfoOp const* type = find_npc_op(ops, n, RSPROT_OP_NPCTYPE);
+    struct RsprotInfoOp const* change = find_npc_op(ops, n, RSPROT_OP_CHANGE_TYPE);
+    struct RsprotInfoOp const* spot = find_npc_op(ops, n, RSPROT_OP_SPOTANIM);
+    TEST_CHECK(add && add->value == 3);
+    TEST_CHECK(type && type->value == 100);
+    TEST_CHECK(change && change->change_type.npc_type == 200);
+    TEST_CHECK(spot && spot->spotanim.spotanim_id == 55);
     printf("ok - npc add + CHANGE_TYPE + SPOTANIM\n");
 }
 
@@ -268,12 +296,44 @@ test_npc_add_change_type_spotanim(void)
  * the OSRS caches) read as 11 bits is 388. Both widths are asserted here so a
  * regression cannot hide behind an id that still resolves to something.
  */
+/*
+ * 289's new-npc record carries a jump bit between (dx, dz) and the
+ * extended-info bit (npc_info_rs_v2). Read through the 289 entry point, the
+ * record's fields land where they were written and the jump survives.
+ */
+static void
+test_npc_rs289_new_npc_jump(void)
+{
+    struct RsprotInfoOp ops[64];
+    struct BitWriter w = { 0 };
+    struct RsprotInfoOp const* type;
+    struct RsprotInfoOp const* delta;
+    int n;
+
+    bw_bits(&w, 0, 8);    /* tracked count 0 */
+    bw_bits(&w, 5, 14);   /* slot 5 */
+    bw_bits(&w, 100, 11); /* type 100 */
+    bw_bits(&w, 1, 5);    /* dx */
+    bw_bits(&w, 2, 5);    /* dz */
+    bw_bits(&w, 1, 1);    /* jump */
+    bw_bits(&w, 0, 1);    /* no extended info */
+    bw_bits(&w, 16383, 14);
+    bw_bits(&w, 0, 32);   /* past the 21-bit loop guard */
+
+    n = read_into(npc_info_rs289, w.buf, bw_len(&w), ops, 64);
+    type = find_npc_op(ops, n, RSPROT_OP_NPCTYPE);
+    delta = find_npc_op(ops, n, RSPROT_OP_DELTA_XZ);
+    TEST_CHECK(type && type->value == 100);
+    TEST_CHECK(delta && delta->delta_xz.dx == 1 && delta->delta_xz.dz == 2);
+    TEST_CHECK(delta && delta->delta_xz.jump);
+    printf("ok - rs289 new-npc record carries the jump bit\n");
+}
+
 static void
 test_npc_type_width(void)
 {
-    struct PktNpcInfoOp const* type;
-    struct PktNpcInfoReader reader;
-    struct PktNpcInfoOp ops[64];
+    struct RsprotInfoOp const* type;
+    struct RsprotInfoOp ops[64];
     struct BitWriter w = { 0 };
     int n;
 
@@ -288,27 +348,21 @@ test_npc_type_width(void)
      * consumed rather than skipped. */
     bw_bits(&w, 0, 32);
 
-    pkt_npc_info_reader_init(&reader, 14, 14);
-    TEST_CHECK(reader.slot_bits == 14 && reader.type_bits == 14);
-    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
-    type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
-    TEST_CHECK(type && type->_bitvalue == 3106);
-    pkt_npc_info_ops_free(ops, n);
+    {
+        NpcInfoRs const wide = { .slot_bits = 14, .type_bits = 14 };
+
+        n = npc_read(&wide, w.buf, bw_len(&w), ops, 64);
+    }
+    type = find_npc_op(ops, n, RSPROT_OP_NPCTYPE);
+    TEST_CHECK(type && type->value == 3106);
 
     /* The same bytes through the classic 11-bit reader take the top 11 bits of
      * the type field and read every later field off by three. That is what
      * made this silent: the decode still succeeds, it just describes a
      * different npc. */
-    pkt_npc_info_reader_init(&reader, 14, 11);
-    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
-    type = find_npc_op(ops, n, PKT_NPC_INFO_OPBITS_NPCTYPE);
-    TEST_CHECK(type && type->_bitvalue == (3106 >> 3));
-    pkt_npc_info_ops_free(ops, n);
-
-    /* An unstated width falls back to classic, never to zero bits. */
-    pkt_npc_info_reader_init(&reader, 0, 0);
-    TEST_CHECK(reader.slot_bits == PKT_NPC_INFO_SLOT_BITS_CLASSIC);
-    TEST_CHECK(reader.type_bits == PKT_NPC_INFO_TYPE_BITS_CLASSIC);
+    n = npc_read(&k_classic, w.buf, bw_len(&w), ops, 64);
+    type = find_npc_op(ops, n, RSPROT_OP_NPCTYPE);
+    TEST_CHECK(type && type->value == (3106 >> 3));
 
     printf("ok - npc type width is per-revision (3106 at 14 bits, %d at 11)\n", 3106 >> 3);
 }
@@ -683,24 +737,21 @@ test_npc_ops_capacity_is_a_guard_not_an_assert(void)
     };
     struct
     {
-        struct PktNpcInfoOp ops[OPS_CAP];
+        struct RsprotInfoOp ops[OPS_CAP];
         unsigned char canary[64];
     } probe;
-    struct PktNpcInfoReader reader;
     int n;
 
     memset(&probe, 0, sizeof(probe));
     memset(probe.canary, 0xA5, sizeof(probe.canary));
 
-    pkt_npc_info_reader_init(&reader, 0, 0);
-    n = pkt_npc_info_reader_read(&reader, w.buf, bw_len(&w), probe.ops, OPS_CAP);
+    n = npc_read(&k_classic, w.buf, bw_len(&w), probe.ops, OPS_CAP);
 
     TEST_CHECK(n <= OPS_CAP);
-    TEST_CHECK(reader.overflowed);
+    TEST_CHECK(g_overflow);
     for( size_t i = 0; i < sizeof(probe.canary); i++ )
         TEST_CHECK(probe.canary[i] == 0xA5);
 
-    pkt_npc_info_ops_free(probe.ops, n);
     printf("ok - npc op overflow stays inside the caller's array\n");
 }
 
@@ -754,7 +805,7 @@ test_bitbuffer_refuses_reads_past_the_end(void)
  */
 static void
 check_dropped_player_leaves_no_list_entry(
-    struct PktPlayerInfoOp const* ops,
+    struct RsprotInfoOp const* ops,
     int n,
     char const* who)
 {
@@ -765,16 +816,16 @@ check_dropped_player_leaves_no_list_entry(
 
     for( int i = 0; i < n; i++ )
     {
-        if( ops[i].kind == PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX &&
+        if( ops[i].kind == RSPROT_OP_ADD_OLD &&
             add_count < (int)(sizeof(adds) / sizeof(adds[0])) )
-            adds[add_count++] = (int)ops[i]._bitvalue;
-        else if( ops[i].kind == PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX )
+            adds[add_count++] = (int)ops[i].value;
+        else if( ops[i].kind == RSPROT_OP_CLEAR_OLD )
         {
             clears++;
-            TEST_CHECK(ops[i]._bitvalue == 1);
+            TEST_CHECK(ops[i].value == 1);
         }
-        else if( ops[i].kind == PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX )
-            set_idx = (int)ops[i]._bitvalue;
+        else if( ops[i].kind == RSPROT_OP_SET_EXT )
+            set_idx = (int)ops[i].value;
     }
 
     TEST_CHECK(clears == 1);
@@ -812,37 +863,34 @@ static void
 test_player_drop_does_not_shift_list_positions(void)
 {
     struct BitWriter w = { 0 };
-    struct PktPlayerInfoReader reader;
-    struct PktPlayerInfoOp ops[64];
+    struct RsprotInfoOp ops[64];
     int n;
 
     write_dropped_player_packet(&w);
-    n = pkt_player_info_reader_read(&reader, w.buf, bw_len(&w), ops, 64);
+    n = player_read(w.buf, bw_len(&w), ops, 64);
     check_dropped_player_leaves_no_list_entry(ops, n, "classic");
     {
-        struct PktPlayerInfoOp const* seq =
-            find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
-        TEST_CHECK(seq && seq->_sequence.sequence_id == 7);
+        struct RsprotInfoOp const* seq =
+            find_player_op(ops, n, RSPROT_OP_SEQUENCE);
+        TEST_CHECK(seq && seq->sequence.sequence_id == 7);
     }
-    pkt_player_info_ops_free(ops, n);
 }
 
 static void
 test_lc289_player_drop_does_not_shift_list_positions(void)
 {
     struct BitWriter w = { 0 };
-    struct PktPlayerInfoOp ops[64];
+    struct RsprotInfoOp ops[64];
     int n;
 
     write_dropped_player_packet(&w);
-    n = lc289_player_info_read(w.buf, bw_len(&w), ops, 64);
+    n = lc289_read(w.buf, bw_len(&w), ops, 64);
     check_dropped_player_leaves_no_list_entry(ops, n, "lc289");
     {
-        struct PktPlayerInfoOp const* seq =
-            find_player_op(ops, n, PKT_PLAYER_INFO_OP_SEQUENCE);
-        TEST_CHECK(seq && seq->_sequence.sequence_id == 7);
+        struct RsprotInfoOp const* seq =
+            find_player_op(ops, n, RSPROT_OP_SEQUENCE);
+        TEST_CHECK(seq && seq->sequence.sequence_id == 7);
     }
-    pkt_player_info_ops_free(ops, n);
 }
 
 int
@@ -857,6 +905,7 @@ main(void)
     test_lc289_player_drop_does_not_shift_list_positions();
     test_npc_add_change_type_spotanim();
     test_npc_type_width();
+    test_npc_rs289_new_npc_jump();
     test_appearance_decode();
     test_appearance_v5_decode();
     test_appearance_encoding_independent();

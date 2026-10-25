@@ -53,6 +53,12 @@ enum ToriRS_CmdType
     TORIRS_CMD_NET_CONNECT = 32, /* "host:port" string, not NUL-terminated */
     TORIRS_CMD_NET_RECV = 33,    /* raw socket bytes */
     TORIRS_CMD_NET_STATUS = 34,  /* struct ToriRS_CmdNetStatus */
+    /* The session continued on a new connection between two packets of the
+     * stream: p2 the local player index it continues under, then the GPI init
+     * block its player table restarts from. Sent by the replay transport for a
+     * recording's RECONNECT, after the bytes before it and before the bytes
+     * after it. */
+    TORIRS_CMD_NET_RESUMED = 35,
 
     /* -> App. The window changed size and the client canvas has to follow it:
      * the whole gameframe is laid out against the canvas, so this is a layout

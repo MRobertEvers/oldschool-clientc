@@ -12,12 +12,13 @@
  *
  * RSProt class : EventMouseClickV2Decoder
  * Layouts      : 10 distinct, over 10 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v10, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^EventMouseClickV2Decoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -38,39 +39,39 @@ typedef struct MsgEventMouseClickV2 {
 	int32_t right_click;
 } MsgEventMouseClickV2;
 
-/* v1 -- revs 232. */
+/* v1 -- revs 232 (packet_versions.txt 1). */
 void packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v2 -- revs 233. */
+/* v2 -- revs 233 (packet_versions.txt 2). */
 void packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v3 -- revs 234. */
+/* v3 -- revs 234 (packet_versions.txt 3). */
 void packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v4 -- revs 235. */
+/* v4 -- revs 235 (packet_versions.txt 4). */
 void packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v5 -- revs 236. */
+/* v5 -- revs 236 (packet_versions.txt 5). */
 void packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v6 -- revs 237. */
+/* v6 -- revs 237 (packet_versions.txt 6). */
 void packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v7 -- revs 238. */
+/* v7 -- revs 238 (packet_versions.txt 7). */
 void packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v8 -- revs 239. */
+/* v8 -- revs 239 (packet_versions.txt 8). */
 void packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v100 -- revs 241. */
-void packet_event_mouse_click_v2_v100_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v101 -- revs 240. */
-void packet_event_mouse_click_v2_v101_in(RsprotExec *x, MsgEventMouseClickV2 *m);
+/* v9 -- revs 241 (rsprox_versions.txt 100). */
+void packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m);
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
+void packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 
-/* Per-revision aliases: `packet_event_mouse_click_v2_rev239_in` is greppable, which is the
- * point -- "what does 239 do for EVENT_MOUSE_CLICK_V2" without reading a table. */
-#define packet_event_mouse_click_v2_rev232_in packet_event_mouse_click_v2_v1_in
-#define packet_event_mouse_click_v2_rev233_in packet_event_mouse_click_v2_v2_in
-#define packet_event_mouse_click_v2_rev234_in packet_event_mouse_click_v2_v3_in
-#define packet_event_mouse_click_v2_rev235_in packet_event_mouse_click_v2_v4_in
-#define packet_event_mouse_click_v2_rev236_in packet_event_mouse_click_v2_v5_in
-#define packet_event_mouse_click_v2_rev237_in packet_event_mouse_click_v2_v6_in
-#define packet_event_mouse_click_v2_rev238_in packet_event_mouse_click_v2_v7_in
-#define packet_event_mouse_click_v2_rev239_in packet_event_mouse_click_v2_v8_in
-#define packet_event_mouse_click_v2_rev240_in packet_event_mouse_click_v2_v101_in
-#define packet_event_mouse_click_v2_rev241_in packet_event_mouse_click_v2_v100_in
+/* Per-revision entry points: `packet_event_mouse_click_v2_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for EVENT_MOUSE_CLICK_V2" without reading a table. */
+#define packet_event_mouse_click_v2_osrs232_in packet_event_mouse_click_v2_v1_in
+#define packet_event_mouse_click_v2_osrs233_in packet_event_mouse_click_v2_v2_in
+#define packet_event_mouse_click_v2_osrs234_in packet_event_mouse_click_v2_v3_in
+#define packet_event_mouse_click_v2_osrs235_in packet_event_mouse_click_v2_v4_in
+#define packet_event_mouse_click_v2_osrs236_in packet_event_mouse_click_v2_v5_in
+#define packet_event_mouse_click_v2_osrs237_in packet_event_mouse_click_v2_v6_in
+#define packet_event_mouse_click_v2_osrs238_in packet_event_mouse_click_v2_v7_in
+#define packet_event_mouse_click_v2_osrs239_in packet_event_mouse_click_v2_v8_in
+#define packet_event_mouse_click_v2_osrs240_in packet_event_mouse_click_v2_v10_in
+#define packet_event_mouse_click_v2_osrs241_in packet_event_mouse_click_v2_v9_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_click_v2_in[];

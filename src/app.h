@@ -101,8 +101,7 @@ struct Dat2BuildCache;
 struct ToriRS_CmdBus;
 struct ToriRS_CmdHeader;
 struct ToriRS_Network;
-struct PktNpcInfoOp;
-struct PktPlayerInfoOp;
+struct RsprotInfoOp;
 struct Editor;
 /** Placeholder requests waiting for a tick; owned by app/app_placeholder.c. */
 struct AppPlaceholderPark;
@@ -1283,15 +1282,17 @@ struct App
     /** Lit model-instance LRU (spot/npc/loc/obj/player). Cleared at map build. */
     struct TorirsModelInstCache model_inst_cache;
     /**
-     * Entity-info decode scratch: one 2048-entry op array per decoder, reused
-     * across packets rather than allocated and freed for each. PLAYER_INFO and
-     * NPC_INFO both arrive every server tick and each was calloc'ing ~80KB.
+     * Entity-info decode scratch: one op list (2048 ops and their byte arena)
+     * per decoder, reused across packets rather than allocated and freed for
+     * each. PLAYER_INFO and NPC_INFO both arrive every server tick.
      * Borrowed by the running exec task and handed back on its free; NULL until
      * first use. Owned here so teardown reclaims them -- see
      * task_exec_entity_info.c for the borrow/release pair.
      */
-    struct PktNpcInfoOp* npc_info_ops_scratch;
-    struct PktPlayerInfoOp* player_info_ops_scratch;
+    struct RsprotInfoOp* npc_info_ops_scratch;
+    struct RsprotInfoOp* player_info_ops_scratch;
+    uint8_t* npc_info_bytes_scratch;
+    uint8_t* player_info_bytes_scratch;
     int npc_info_ops_scratch_busy;
     int player_info_ops_scratch_busy;
 

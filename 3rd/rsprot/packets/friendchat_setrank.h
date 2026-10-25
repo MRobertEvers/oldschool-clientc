@@ -12,12 +12,13 @@
  *
  * RSProt class : FriendChatSetRankDecoder
  * Layouts      : 7 distinct, over 19 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v7, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^FriendChatSetRankDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,44 +35,44 @@ typedef struct MsgFriendChatSetRank {
 	int32_t rank;
 } MsgFriendChatSetRank;
 
-/* v1 -- revs 221, 225, 231, 233. */
+/* v1 -- revs 221, 225, 231, 233 (packet_versions.txt 1). */
 void packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v2 -- revs 222, 240. */
+/* v2 -- revs 222, 240 (packet_versions.txt 2). */
 void packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v3 -- revs 223, 229-230, 237. */
+/* v3 -- revs 223, 229-230, 237 (packet_versions.txt 3). */
 void packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v4 -- revs 224, 226, 235, 239. */
+/* v4 -- revs 224, 226, 235, 239 (packet_versions.txt 4). */
 void packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v5 -- revs 227-228, 236. */
+/* v5 -- revs 227-228, 236 (packet_versions.txt 5). */
 void packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v6 -- revs 232, 234. */
+/* v6 -- revs 232, 234 (packet_versions.txt 6). */
 void packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v7 -- revs 238, 241. */
+/* v7 -- revs 238, 241 (packet_versions.txt 7). */
 void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
 
-/* Per-revision aliases: `packet_friendchat_setrank_rev239_in` is greppable, which is the
- * point -- "what does 239 do for FRIENDCHAT_SETRANK" without reading a table. */
-#define packet_friendchat_setrank_rev221_in packet_friendchat_setrank_v1_in
-#define packet_friendchat_setrank_rev222_in packet_friendchat_setrank_v2_in
-#define packet_friendchat_setrank_rev223_in packet_friendchat_setrank_v3_in
-#define packet_friendchat_setrank_rev224_in packet_friendchat_setrank_v4_in
-#define packet_friendchat_setrank_rev225_in packet_friendchat_setrank_v1_in
-#define packet_friendchat_setrank_rev226_in packet_friendchat_setrank_v4_in
-#define packet_friendchat_setrank_rev227_in packet_friendchat_setrank_v5_in
-#define packet_friendchat_setrank_rev228_in packet_friendchat_setrank_v5_in
-#define packet_friendchat_setrank_rev229_in packet_friendchat_setrank_v3_in
-#define packet_friendchat_setrank_rev230_in packet_friendchat_setrank_v3_in
-#define packet_friendchat_setrank_rev231_in packet_friendchat_setrank_v1_in
-#define packet_friendchat_setrank_rev232_in packet_friendchat_setrank_v6_in
-#define packet_friendchat_setrank_rev233_in packet_friendchat_setrank_v1_in
-#define packet_friendchat_setrank_rev234_in packet_friendchat_setrank_v6_in
-#define packet_friendchat_setrank_rev235_in packet_friendchat_setrank_v4_in
-#define packet_friendchat_setrank_rev236_in packet_friendchat_setrank_v5_in
-#define packet_friendchat_setrank_rev237_in packet_friendchat_setrank_v3_in
-#define packet_friendchat_setrank_rev238_in packet_friendchat_setrank_v7_in
-#define packet_friendchat_setrank_rev239_in packet_friendchat_setrank_v4_in
-#define packet_friendchat_setrank_rev240_in packet_friendchat_setrank_v2_in
-#define packet_friendchat_setrank_rev241_in packet_friendchat_setrank_v7_in
+/* Per-revision entry points: `packet_friendchat_setrank_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for FRIENDCHAT_SETRANK" without reading a table. */
+#define packet_friendchat_setrank_osrs221_in packet_friendchat_setrank_v1_in
+#define packet_friendchat_setrank_osrs222_in packet_friendchat_setrank_v2_in
+#define packet_friendchat_setrank_osrs223_in packet_friendchat_setrank_v3_in
+#define packet_friendchat_setrank_osrs224_in packet_friendchat_setrank_v4_in
+#define packet_friendchat_setrank_osrs225_in packet_friendchat_setrank_v1_in
+#define packet_friendchat_setrank_osrs226_in packet_friendchat_setrank_v4_in
+#define packet_friendchat_setrank_osrs227_in packet_friendchat_setrank_v5_in
+#define packet_friendchat_setrank_osrs228_in packet_friendchat_setrank_v5_in
+#define packet_friendchat_setrank_osrs229_in packet_friendchat_setrank_v3_in
+#define packet_friendchat_setrank_osrs230_in packet_friendchat_setrank_v3_in
+#define packet_friendchat_setrank_osrs231_in packet_friendchat_setrank_v1_in
+#define packet_friendchat_setrank_osrs232_in packet_friendchat_setrank_v6_in
+#define packet_friendchat_setrank_osrs233_in packet_friendchat_setrank_v1_in
+#define packet_friendchat_setrank_osrs234_in packet_friendchat_setrank_v6_in
+#define packet_friendchat_setrank_osrs235_in packet_friendchat_setrank_v4_in
+#define packet_friendchat_setrank_osrs236_in packet_friendchat_setrank_v5_in
+#define packet_friendchat_setrank_osrs237_in packet_friendchat_setrank_v3_in
+#define packet_friendchat_setrank_osrs238_in packet_friendchat_setrank_v7_in
+#define packet_friendchat_setrank_osrs239_in packet_friendchat_setrank_v4_in
+#define packet_friendchat_setrank_osrs240_in packet_friendchat_setrank_v2_in
+#define packet_friendchat_setrank_osrs241_in packet_friendchat_setrank_v7_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendchat_setrank_in[];

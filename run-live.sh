@@ -4,7 +4,7 @@
 #   ./run-live.sh [--skip-checks]       <manifest.ini> [user] [pass] [client args...]
 #   ./run-live.sh [--skip-checks] web   <manifest.ini> [user] [pass] [client args...]
 #
-# The manifest (manifests/manifest_rs254lc.ini, manifests/manifest_osrs230.ini, manifests/manifest_osrs233xrsps.ini, …)
+# The manifest (manifests/manifest_rs254lc.ini, manifests/manifest_osrs230.ini, …)
 # specifies cache, rev, transport, host/port and RSA keys. user/pass default to
 # asdf/a. Anything after them is passed straight through to the client, so
 # `./run-live.sh manifests/manifest_rs254lc.ini asdf a --offline` works. Extra behavior via

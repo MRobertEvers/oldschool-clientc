@@ -3396,7 +3396,7 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
 /*
  * HINT_ARROW -- point the player at something.
  *
- * Six fixed bytes at revision 239 (`3rd/rsprot/gen/rev239_prot.h`): a type byte,
+ * Six fixed bytes at revision 239 (`3rd/rsprot/gen/osrs239_prot.h`): a type byte,
  * then `id` and `z` as u16 and a height byte. What the last three MEAN depends
  * on the type, which is why this takes them raw and the four script opcodes
  * above it name the shapes:
@@ -7050,7 +7050,7 @@ put_npc_extended(
          * hit twice.
          *
          * The client reads this block BEFORE the DAMAGE one (0x01 sorts under
-         * 0x10) and each becomes its own `PKT_NPC_INFO_OP_DAMAGE`, so the
+         * 0x10) and each becomes its own `RSPROT_OP_DAMAGE`, so the
          * second-dealt splat takes the first free render slot and the
          * first-dealt takes the next. Slots only nudge a splat a few pixels
          * apart, so the pair renders either way round; keeping DAMAGE on

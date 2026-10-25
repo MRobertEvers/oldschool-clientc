@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetHideEncoder
  * Layouts      : 18 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v18, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetHideEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,66 +35,66 @@ typedef struct MsgIfSetHide {
 	int32_t hidden;
 } MsgIfSetHide;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_sethide_v1_out(RsprotExec *x, MsgIfSetHide *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_if_sethide_v2_out(RsprotExec *x, MsgIfSetHide *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_if_sethide_v3_out(RsprotExec *x, MsgIfSetHide *m);
-/* v4 -- revs 224, 235. */
+/* v4 -- revs 224, 235 (packet_versions.txt 4). */
 void packet_if_sethide_v4_out(RsprotExec *x, MsgIfSetHide *m);
-/* v5 -- revs 225, 240. */
+/* v5 -- revs 225, 240 (packet_versions.txt 5). */
 void packet_if_sethide_v5_out(RsprotExec *x, MsgIfSetHide *m);
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_if_sethide_v6_out(RsprotExec *x, MsgIfSetHide *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_if_sethide_v7_out(RsprotExec *x, MsgIfSetHide *m);
-/* v8 -- revs 228, 233. */
+/* v8 -- revs 228, 233 (packet_versions.txt 8). */
 void packet_if_sethide_v8_out(RsprotExec *x, MsgIfSetHide *m);
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void packet_if_sethide_v9_out(RsprotExec *x, MsgIfSetHide *m);
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void packet_if_sethide_v10_out(RsprotExec *x, MsgIfSetHide *m);
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void packet_if_sethide_v11_out(RsprotExec *x, MsgIfSetHide *m);
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void packet_if_sethide_v12_out(RsprotExec *x, MsgIfSetHide *m);
-/* v13 -- revs 234. */
+/* v13 -- revs 234 (packet_versions.txt 13). */
 void packet_if_sethide_v13_out(RsprotExec *x, MsgIfSetHide *m);
-/* v14 -- revs 236. */
+/* v14 -- revs 236 (packet_versions.txt 14). */
 void packet_if_sethide_v14_out(RsprotExec *x, MsgIfSetHide *m);
-/* v15 -- revs 237. */
+/* v15 -- revs 237 (packet_versions.txt 15). */
 void packet_if_sethide_v15_out(RsprotExec *x, MsgIfSetHide *m);
-/* v16 -- revs 238. */
+/* v16 -- revs 238 (packet_versions.txt 16). */
 void packet_if_sethide_v16_out(RsprotExec *x, MsgIfSetHide *m);
-/* v17 -- revs 239. */
+/* v17 -- revs 239 (packet_versions.txt 17). */
 void packet_if_sethide_v17_out(RsprotExec *x, MsgIfSetHide *m);
-/* v100 -- revs 241. */
-void packet_if_sethide_v100_out(RsprotExec *x, MsgIfSetHide *m);
+/* v18 -- revs 241 (rsprox_versions.txt 100). */
+void packet_if_sethide_v18_out(RsprotExec *x, MsgIfSetHide *m);
 
-/* Per-revision aliases: `packet_if_sethide_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETHIDE" without reading a table. */
-#define packet_if_sethide_rev221_out packet_if_sethide_v1_out
-#define packet_if_sethide_rev222_out packet_if_sethide_v2_out
-#define packet_if_sethide_rev223_out packet_if_sethide_v3_out
-#define packet_if_sethide_rev224_out packet_if_sethide_v4_out
-#define packet_if_sethide_rev225_out packet_if_sethide_v5_out
-#define packet_if_sethide_rev226_out packet_if_sethide_v6_out
-#define packet_if_sethide_rev227_out packet_if_sethide_v7_out
-#define packet_if_sethide_rev228_out packet_if_sethide_v8_out
-#define packet_if_sethide_rev229_out packet_if_sethide_v9_out
-#define packet_if_sethide_rev230_out packet_if_sethide_v10_out
-#define packet_if_sethide_rev231_out packet_if_sethide_v11_out
-#define packet_if_sethide_rev232_out packet_if_sethide_v12_out
-#define packet_if_sethide_rev233_out packet_if_sethide_v8_out
-#define packet_if_sethide_rev234_out packet_if_sethide_v13_out
-#define packet_if_sethide_rev235_out packet_if_sethide_v4_out
-#define packet_if_sethide_rev236_out packet_if_sethide_v14_out
-#define packet_if_sethide_rev237_out packet_if_sethide_v15_out
-#define packet_if_sethide_rev238_out packet_if_sethide_v16_out
-#define packet_if_sethide_rev239_out packet_if_sethide_v17_out
-#define packet_if_sethide_rev240_out packet_if_sethide_v5_out
-#define packet_if_sethide_rev241_out packet_if_sethide_v100_out
+/* Per-revision entry points: `packet_if_sethide_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETHIDE" without reading a table. */
+#define packet_if_sethide_osrs221_out packet_if_sethide_v1_out
+#define packet_if_sethide_osrs222_out packet_if_sethide_v2_out
+#define packet_if_sethide_osrs223_out packet_if_sethide_v3_out
+#define packet_if_sethide_osrs224_out packet_if_sethide_v4_out
+#define packet_if_sethide_osrs225_out packet_if_sethide_v5_out
+#define packet_if_sethide_osrs226_out packet_if_sethide_v6_out
+#define packet_if_sethide_osrs227_out packet_if_sethide_v7_out
+#define packet_if_sethide_osrs228_out packet_if_sethide_v8_out
+#define packet_if_sethide_osrs229_out packet_if_sethide_v9_out
+#define packet_if_sethide_osrs230_out packet_if_sethide_v10_out
+#define packet_if_sethide_osrs231_out packet_if_sethide_v11_out
+#define packet_if_sethide_osrs232_out packet_if_sethide_v12_out
+#define packet_if_sethide_osrs233_out packet_if_sethide_v8_out
+#define packet_if_sethide_osrs234_out packet_if_sethide_v13_out
+#define packet_if_sethide_osrs235_out packet_if_sethide_v4_out
+#define packet_if_sethide_osrs236_out packet_if_sethide_v14_out
+#define packet_if_sethide_osrs237_out packet_if_sethide_v15_out
+#define packet_if_sethide_osrs238_out packet_if_sethide_v16_out
+#define packet_if_sethide_osrs239_out packet_if_sethide_v17_out
+#define packet_if_sethide_osrs240_out packet_if_sethide_v5_out
+#define packet_if_sethide_osrs241_out packet_if_sethide_v18_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_sethide_out[];

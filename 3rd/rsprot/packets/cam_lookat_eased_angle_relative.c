@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void
 packet_cam_lookat_eased_angle_relative_v1_out(RsprotExec *x, MsgCamLookAtEasedAngleRelative *m)
 {

@@ -12,12 +12,13 @@
  *
  * RSProt class : VarpSmallEncoder
  * Layouts      : 15 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v15, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^VarpSmallEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,60 +35,60 @@ typedef struct MsgVarpSmall {
 	int32_t value;
 } MsgVarpSmall;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_varp_small_v1_out(RsprotExec *x, MsgVarpSmall *m);
-/* v2 -- revs 222, 224. */
+/* v2 -- revs 222, 224 (packet_versions.txt 2). */
 void packet_varp_small_v2_out(RsprotExec *x, MsgVarpSmall *m);
-/* v3 -- revs 223, 225, 229. */
+/* v3 -- revs 223, 225, 229 (packet_versions.txt 3). */
 void packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m);
-/* v4 -- revs 226, 231, 241. */
+/* v4 -- revs 226, 231, 241 (packet_versions.txt 4). */
 void packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m);
-/* v5 -- revs 227. */
+/* v5 -- revs 227 (packet_versions.txt 5). */
 void packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m);
-/* v6 -- revs 228, 239. */
+/* v6 -- revs 228, 239 (packet_versions.txt 6). */
 void packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m);
-/* v7 -- revs 230. */
+/* v7 -- revs 230 (packet_versions.txt 7). */
 void packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m);
-/* v8 -- revs 232. */
+/* v8 -- revs 232 (packet_versions.txt 8). */
 void packet_varp_small_v8_out(RsprotExec *x, MsgVarpSmall *m);
-/* v9 -- revs 233. */
+/* v9 -- revs 233 (packet_versions.txt 9). */
 void packet_varp_small_v9_out(RsprotExec *x, MsgVarpSmall *m);
-/* v10 -- revs 234. */
+/* v10 -- revs 234 (packet_versions.txt 10). */
 void packet_varp_small_v10_out(RsprotExec *x, MsgVarpSmall *m);
-/* v11 -- revs 235. */
+/* v11 -- revs 235 (packet_versions.txt 11). */
 void packet_varp_small_v11_out(RsprotExec *x, MsgVarpSmall *m);
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m);
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m);
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m);
-/* v100 -- revs 240. */
-void packet_varp_small_v100_out(RsprotExec *x, MsgVarpSmall *m);
+/* v15 -- revs 240 (rsprox_versions.txt 100). */
+void packet_varp_small_v15_out(RsprotExec *x, MsgVarpSmall *m);
 
-/* Per-revision aliases: `packet_varp_small_rev239_out` is greppable, which is the
- * point -- "what does 239 do for VARP_SMALL" without reading a table. */
-#define packet_varp_small_rev221_out packet_varp_small_v1_out
-#define packet_varp_small_rev222_out packet_varp_small_v2_out
-#define packet_varp_small_rev223_out packet_varp_small_v3_out
-#define packet_varp_small_rev224_out packet_varp_small_v2_out
-#define packet_varp_small_rev225_out packet_varp_small_v3_out
-#define packet_varp_small_rev226_out packet_varp_small_v4_out
-#define packet_varp_small_rev227_out packet_varp_small_v5_out
-#define packet_varp_small_rev228_out packet_varp_small_v6_out
-#define packet_varp_small_rev229_out packet_varp_small_v3_out
-#define packet_varp_small_rev230_out packet_varp_small_v7_out
-#define packet_varp_small_rev231_out packet_varp_small_v4_out
-#define packet_varp_small_rev232_out packet_varp_small_v8_out
-#define packet_varp_small_rev233_out packet_varp_small_v9_out
-#define packet_varp_small_rev234_out packet_varp_small_v10_out
-#define packet_varp_small_rev235_out packet_varp_small_v11_out
-#define packet_varp_small_rev236_out packet_varp_small_v12_out
-#define packet_varp_small_rev237_out packet_varp_small_v13_out
-#define packet_varp_small_rev238_out packet_varp_small_v14_out
-#define packet_varp_small_rev239_out packet_varp_small_v6_out
-#define packet_varp_small_rev240_out packet_varp_small_v100_out
-#define packet_varp_small_rev241_out packet_varp_small_v4_out
+/* Per-revision entry points: `packet_varp_small_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for VARP_SMALL" without reading a table. */
+#define packet_varp_small_osrs221_out packet_varp_small_v1_out
+#define packet_varp_small_osrs222_out packet_varp_small_v2_out
+#define packet_varp_small_osrs223_out packet_varp_small_v3_out
+#define packet_varp_small_osrs224_out packet_varp_small_v2_out
+#define packet_varp_small_osrs225_out packet_varp_small_v3_out
+#define packet_varp_small_osrs226_out packet_varp_small_v4_out
+#define packet_varp_small_osrs227_out packet_varp_small_v5_out
+#define packet_varp_small_osrs228_out packet_varp_small_v6_out
+#define packet_varp_small_osrs229_out packet_varp_small_v3_out
+#define packet_varp_small_osrs230_out packet_varp_small_v7_out
+#define packet_varp_small_osrs231_out packet_varp_small_v4_out
+#define packet_varp_small_osrs232_out packet_varp_small_v8_out
+#define packet_varp_small_osrs233_out packet_varp_small_v9_out
+#define packet_varp_small_osrs234_out packet_varp_small_v10_out
+#define packet_varp_small_osrs235_out packet_varp_small_v11_out
+#define packet_varp_small_osrs236_out packet_varp_small_v12_out
+#define packet_varp_small_osrs237_out packet_varp_small_v13_out
+#define packet_varp_small_osrs238_out packet_varp_small_v14_out
+#define packet_varp_small_osrs239_out packet_varp_small_v6_out
+#define packet_varp_small_osrs240_out packet_varp_small_v15_out
+#define packet_varp_small_osrs241_out packet_varp_small_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_small_out[];

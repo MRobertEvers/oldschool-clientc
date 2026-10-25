@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.CamTargetV2Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.CamTargetV2Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -24,11 +25,11 @@ typedef struct MsgCamTargetV2 {
 	int32_t camera_locked_player_index;
 } MsgCamTargetV2;
 
-/* v100 -- revs 227-228. */
-void packet_cam_target_v2_v100_out(RsprotExec *x, MsgCamTargetV2 *m);
+/* v1 -- revs 227-228 (rsprox_versions.txt 100). */
+void packet_cam_target_v2_v1_out(RsprotExec *x, MsgCamTargetV2 *m);
 
-#define packet_cam_target_v2_rev227_out packet_cam_target_v2_v100_out
-#define packet_cam_target_v2_rev228_out packet_cam_target_v2_v100_out
+#define packet_cam_target_v2_osrs227_out packet_cam_target_v2_v1_out
+#define packet_cam_target_v2_osrs228_out packet_cam_target_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_target_v2_out[];

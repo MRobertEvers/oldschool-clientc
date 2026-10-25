@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 232. */
+/* v1 -- revs 232 (packet_versions.txt 1). */
 void
 packet_obj_count_specific_v1_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -21,7 +21,7 @@ packet_obj_count_specific_v1_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U2_ALT1(x, m->id);
 }
 
-/* v2 -- revs 233. */
+/* v2 -- revs 233 (packet_versions.txt 2). */
 void
 packet_obj_count_specific_v2_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -31,7 +31,7 @@ packet_obj_count_specific_v2_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U4_ALT2(x, m->new_quantity);
 }
 
-/* v3 -- revs 234. */
+/* v3 -- revs 234 (packet_versions.txt 3). */
 void
 packet_obj_count_specific_v3_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -41,7 +41,7 @@ packet_obj_count_specific_v3_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U4_ALT1(x, m->old_quantity);
 }
 
-/* v4 -- revs 235. */
+/* v4 -- revs 235 (packet_versions.txt 4). */
 void
 packet_obj_count_specific_v4_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -51,7 +51,7 @@ packet_obj_count_specific_v4_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U4_ALT3(x, m->new_quantity);
 }
 
-/* v5 -- revs 236. */
+/* v5 -- revs 236 (packet_versions.txt 5). */
 void
 packet_obj_count_specific_v5_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -61,7 +61,7 @@ packet_obj_count_specific_v5_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U4_ALT1(x, m->coord_grid_packed);
 }
 
-/* v6 -- revs 237. */
+/* v6 -- revs 237 (packet_versions.txt 6). */
 void
 packet_obj_count_specific_v6_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -71,7 +71,7 @@ packet_obj_count_specific_v6_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U4_ALT1(x, m->new_quantity);
 }
 
-/* v7 -- revs 238. */
+/* v7 -- revs 238 (packet_versions.txt 7). */
 void
 packet_obj_count_specific_v7_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -81,7 +81,7 @@ packet_obj_count_specific_v7_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v8 -- revs 239. */
+/* v8 -- revs 239 (packet_versions.txt 8). */
 void
 packet_obj_count_specific_v8_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
@@ -91,9 +91,9 @@ packet_obj_count_specific_v8_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v100 -- revs 241. */
+/* v9 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_obj_count_specific_v100_out(RsprotExec *x, MsgObjCountSpecific *m)
+packet_obj_count_specific_v9_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
     RSPROT_U4_ALT1(x, m->new_quantity);
     RSPROT_U4_ALT3(x, m->old_quantity);
@@ -101,9 +101,9 @@ packet_obj_count_specific_v100_out(RsprotExec *x, MsgObjCountSpecific *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v101 -- revs 240. */
+/* v10 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_obj_count_specific_v101_out(RsprotExec *x, MsgObjCountSpecific *m)
+packet_obj_count_specific_v10_out(RsprotExec *x, MsgObjCountSpecific *m)
 {
     RSPROT_U2_ALT1(x, m->id);
     RSPROT_U4_ALT2(x, m->coord_grid_packed);
@@ -130,8 +130,8 @@ const RsprotVersionRange rsprot_obj_count_specific_out[] = {
     { 237, 237, (RsprotCodecFn)packet_obj_count_specific_v6_out },
     { 238, 238, (RsprotCodecFn)packet_obj_count_specific_v7_out },
     { 239, 239, (RsprotCodecFn)packet_obj_count_specific_v8_out },
-    { 240, 240, (RsprotCodecFn)packet_obj_count_specific_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_obj_count_specific_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_obj_count_specific_v10_out },
+    { 241, 241, (RsprotCodecFn)packet_obj_count_specific_v9_out },
 };
 
 const int rsprot_obj_count_specific_out_count =

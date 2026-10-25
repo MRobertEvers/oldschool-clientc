@@ -18,24 +18,24 @@ typedef struct MsgUpdateUid192 {
 	int32_t crc;         /* CRC-32 of `data`; RSProx rejects a mismatch */
 } MsgUpdateUid192;
 
-/* v100 -- revs 227-241. */
-void packet_update_uid192_v100_out(RsprotExec *x, MsgUpdateUid192 *m);
+/* v1 (rsprox_versions.txt 100) -- revs 227-241. */
+void packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m);
 
-#define packet_update_uid192_rev227_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev228_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev229_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev230_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev231_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev232_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev233_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev234_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev235_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev236_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev237_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev238_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev239_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev240_out packet_update_uid192_v100_out
-#define packet_update_uid192_rev241_out packet_update_uid192_v100_out
+#define packet_update_uid192_osrs227_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs228_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs229_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs230_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs231_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs232_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs233_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs234_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs235_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs236_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs237_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs238_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs239_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs240_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrs241_out packet_update_uid192_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_uid192_out[];

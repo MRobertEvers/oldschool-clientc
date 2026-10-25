@@ -108,7 +108,7 @@ RSCache_ProfileDat2Osrs231(void);
 struct RSCache
 RSCache_ProfileDat2Osrs232(void);
 
-/** OSRS 233 (xrsps, manifests/manifest_osrs233xrsps.ini). Format-identical to 230 for every
+/** OSRS 233. Format-identical to 230 for every
  *  datatype this library decodes; declared so revision=233 resolves. */
 struct RSCache
 RSCache_ProfileDat2Osrs233(void);
@@ -145,7 +145,7 @@ RSCache_ProfileDat2Osrs241(void);
 
 /**
  * Profile by name, matching the manifest/CLI vocabulary: "lc254", "lc245_2",
- * "osrs230", "xrsps233", "osrs239", "osrs184", "kronos", "530", "643", "727".
+ * "osrs230", "osrs239", "osrs184", "kronos", "530", "643", "727".
  * Returns false and leaves *out untouched when the name is unknown.
  */
 bool

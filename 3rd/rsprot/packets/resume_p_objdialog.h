@@ -12,12 +12,13 @@
  *
  * RSProt class : ResumePObjDialogDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ResumePObjDialogDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgResumePObjDialog {
 	int32_t obj;
 } MsgResumePObjDialog;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_resume_p_objdialog_v1_in(RsprotExec *x, MsgResumePObjDialog *m);
 
-/* Per-revision aliases: `packet_resume_p_objdialog_rev239_in` is greppable, which is the
- * point -- "what does 239 do for RESUME_P_OBJDIALOG" without reading a table. */
-#define packet_resume_p_objdialog_rev221_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev222_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev223_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev224_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev225_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev226_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev227_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev228_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev229_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev230_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev231_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev232_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev233_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev234_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev235_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev236_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev237_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev238_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev239_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev240_in packet_resume_p_objdialog_v1_in
-#define packet_resume_p_objdialog_rev241_in packet_resume_p_objdialog_v1_in
+/* Per-revision entry points: `packet_resume_p_objdialog_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for RESUME_P_OBJDIALOG" without reading a table. */
+#define packet_resume_p_objdialog_osrs221_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs222_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs223_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs224_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs225_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs226_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs227_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs228_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs229_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs230_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs231_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs232_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs233_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs234_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs235_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs236_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs237_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs238_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs239_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs240_in packet_resume_p_objdialog_v1_in
+#define packet_resume_p_objdialog_osrs241_in packet_resume_p_objdialog_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_objdialog_in[];

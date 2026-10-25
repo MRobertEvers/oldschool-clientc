@@ -12,8 +12,9 @@
  *
  * RSProt class : HeatmapToggleEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^HeatmapToggleEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -30,13 +31,13 @@ typedef struct MsgHeatmapToggle {
 	int32_t enabled;
 } MsgHeatmapToggle;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void packet_heatmap_toggle_v1_out(RsprotExec *x, MsgHeatmapToggle *m);
 
-/* Per-revision aliases: `packet_heatmap_toggle_rev239_out` is greppable, which is the
- * point -- "what does 239 do for HEATMAP_TOGGLE" without reading a table. */
-#define packet_heatmap_toggle_rev221_out packet_heatmap_toggle_v1_out
-#define packet_heatmap_toggle_rev222_out packet_heatmap_toggle_v1_out
+/* Per-revision entry points: `packet_heatmap_toggle_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for HEATMAP_TOGGLE" without reading a table. */
+#define packet_heatmap_toggle_osrs221_out packet_heatmap_toggle_v1_out
+#define packet_heatmap_toggle_osrs222_out packet_heatmap_toggle_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_heatmap_toggle_out[];

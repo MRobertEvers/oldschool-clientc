@@ -7,9 +7,9 @@
  *       decoder/codec/camera/CamTargetV3Decoder.kt
  */
 
-/* v100 -- revs 229-241. */
+/* v1 -- revs 229-241 (rsprox_versions.txt 100). */
 void
-packet_cam_target_v3_v100_out(RsprotExec *x, MsgCamTargetV3 *m)
+packet_cam_target_v3_v1_out(RsprotExec *x, MsgCamTargetV3 *m)
 {
     RSPROT_U1(x, m->type);
     RSPROT_I2(x, m->world_entity_index);
@@ -21,7 +21,7 @@ packet_cam_target_v3_v100_out(RsprotExec *x, MsgCamTargetV3 *m)
  * listed has no CAM_TARGET_V3 and picks NULL.
  */
 const RsprotVersionRange rsprot_cam_target_v3_out[] = {
-    { 229, 241, (RsprotCodecFn)packet_cam_target_v3_v100_out },
+    { 229, 241, (RsprotCodecFn)packet_cam_target_v3_v1_out },
 };
 
 const int rsprot_cam_target_v3_out_count =

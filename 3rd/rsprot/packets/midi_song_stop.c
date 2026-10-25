@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_midi_song_stop_v1_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -19,7 +19,7 @@ packet_midi_song_stop_v1_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT2(x, m->fade_out_speed);
 }
 
-/* v2 -- revs 222, 238. */
+/* v2 -- revs 222, 238 (packet_versions.txt 2). */
 void
 packet_midi_song_stop_v2_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -27,7 +27,7 @@ packet_midi_song_stop_v2_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT2(x, m->fade_out_delay);
 }
 
-/* v3 -- revs 223, 230, 232. */
+/* v3 -- revs 223, 230, 232 (packet_versions.txt 3). */
 void
 packet_midi_song_stop_v3_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -35,7 +35,7 @@ packet_midi_song_stop_v3_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT1(x, m->fade_out_delay);
 }
 
-/* v4 -- revs 224, 227-228. */
+/* v4 -- revs 224, 227-228 (packet_versions.txt 4). */
 void
 packet_midi_song_stop_v4_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -43,7 +43,7 @@ packet_midi_song_stop_v4_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT2(x, m->fade_out_delay);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_midi_song_stop_v5_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -51,7 +51,7 @@ packet_midi_song_stop_v5_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2(x, m->fade_out_delay);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_midi_song_stop_v6_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -59,7 +59,7 @@ packet_midi_song_stop_v6_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2(x, m->fade_out_speed);
 }
 
-/* v7 -- revs 229, 231. */
+/* v7 -- revs 229, 231 (packet_versions.txt 7). */
 void
 packet_midi_song_stop_v7_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -67,7 +67,7 @@ packet_midi_song_stop_v7_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2(x, m->fade_out_speed);
 }
 
-/* v8 -- revs 233. */
+/* v8 -- revs 233 (packet_versions.txt 8). */
 void
 packet_midi_song_stop_v8_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -75,7 +75,7 @@ packet_midi_song_stop_v8_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT1(x, m->fade_out_delay);
 }
 
-/* v9 -- revs 234. */
+/* v9 -- revs 234 (packet_versions.txt 9). */
 void
 packet_midi_song_stop_v9_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -83,7 +83,7 @@ packet_midi_song_stop_v9_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT1(x, m->fade_out_speed);
 }
 
-/* v10 -- revs 235, 237. */
+/* v10 -- revs 235, 237 (packet_versions.txt 10). */
 void
 packet_midi_song_stop_v10_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -91,7 +91,7 @@ packet_midi_song_stop_v10_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT3(x, m->fade_out_delay);
 }
 
-/* v11 -- revs 236. */
+/* v11 -- revs 236 (packet_versions.txt 11). */
 void
 packet_midi_song_stop_v11_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -99,7 +99,7 @@ packet_midi_song_stop_v11_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT3(x, m->fade_out_speed);
 }
 
-/* v12 -- revs 239. */
+/* v12 -- revs 239 (packet_versions.txt 12). */
 void
 packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m)
 {
@@ -107,17 +107,17 @@ packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m)
     RSPROT_U2_ALT3(x, m->fade_out_speed);
 }
 
-/* v100 -- revs 241. */
+/* v13 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_midi_song_stop_v100_out(RsprotExec *x, MsgMidiSongStop *m)
+packet_midi_song_stop_v13_out(RsprotExec *x, MsgMidiSongStop *m)
 {
     RSPROT_U2_ALT3(x, m->fade_out_delay);
     RSPROT_U2_ALT2(x, m->fade_out_speed);
 }
 
-/* v101 -- revs 240. */
+/* v14 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_midi_song_stop_v101_out(RsprotExec *x, MsgMidiSongStop *m)
+packet_midi_song_stop_v14_out(RsprotExec *x, MsgMidiSongStop *m)
 {
     RSPROT_U2_ALT2(x, m->fade_out_delay);
     RSPROT_U2_ALT1(x, m->fade_out_speed);
@@ -152,8 +152,8 @@ const RsprotVersionRange rsprot_midi_song_stop_out[] = {
     { 237, 237, (RsprotCodecFn)packet_midi_song_stop_v10_out },
     { 238, 238, (RsprotCodecFn)packet_midi_song_stop_v2_out },
     { 239, 239, (RsprotCodecFn)packet_midi_song_stop_v12_out },
-    { 240, 240, (RsprotCodecFn)packet_midi_song_stop_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_midi_song_stop_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_midi_song_stop_v14_out },
+    { 241, 241, (RsprotCodecFn)packet_midi_song_stop_v13_out },
 };
 
 const int rsprot_midi_song_stop_out_count =

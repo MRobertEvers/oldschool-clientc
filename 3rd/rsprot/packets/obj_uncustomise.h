@@ -12,12 +12,13 @@
  *
  * RSProt class : ObjUncustomiseEncoder
  * Layouts      : 16 distinct, over 16 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v16, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ObjUncustomiseEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,57 +36,57 @@ typedef struct MsgObjUncustomise {
 	int32_t quantity;
 } MsgObjUncustomise;
 
-/* v1 -- revs 226. */
+/* v1 -- revs 226 (packet_versions.txt 1). */
 void packet_obj_uncustomise_v1_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v2 -- revs 227. */
+/* v2 -- revs 227 (packet_versions.txt 2). */
 void packet_obj_uncustomise_v2_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v3 -- revs 228. */
+/* v3 -- revs 228 (packet_versions.txt 3). */
 void packet_obj_uncustomise_v3_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v4 -- revs 229. */
+/* v4 -- revs 229 (packet_versions.txt 4). */
 void packet_obj_uncustomise_v4_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v5 -- revs 230. */
+/* v5 -- revs 230 (packet_versions.txt 5). */
 void packet_obj_uncustomise_v5_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v6 -- revs 231. */
+/* v6 -- revs 231 (packet_versions.txt 6). */
 void packet_obj_uncustomise_v6_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v7 -- revs 232. */
+/* v7 -- revs 232 (packet_versions.txt 7). */
 void packet_obj_uncustomise_v7_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v8 -- revs 233. */
+/* v8 -- revs 233 (packet_versions.txt 8). */
 void packet_obj_uncustomise_v8_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v9 -- revs 234. */
+/* v9 -- revs 234 (packet_versions.txt 9). */
 void packet_obj_uncustomise_v9_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v10 -- revs 235. */
+/* v10 -- revs 235 (packet_versions.txt 10). */
 void packet_obj_uncustomise_v10_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v11 -- revs 236. */
+/* v11 -- revs 236 (packet_versions.txt 11). */
 void packet_obj_uncustomise_v11_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v12 -- revs 237. */
+/* v12 -- revs 237 (packet_versions.txt 12). */
 void packet_obj_uncustomise_v12_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v13 -- revs 238. */
+/* v13 -- revs 238 (packet_versions.txt 13). */
 void packet_obj_uncustomise_v13_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v14 -- revs 239. */
+/* v14 -- revs 239 (packet_versions.txt 14). */
 void packet_obj_uncustomise_v14_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v100 -- revs 241. */
-void packet_obj_uncustomise_v100_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v101 -- revs 240. */
-void packet_obj_uncustomise_v101_out(RsprotExec *x, MsgObjUncustomise *m);
+/* v15 -- revs 241 (rsprox_versions.txt 100). */
+void packet_obj_uncustomise_v15_out(RsprotExec *x, MsgObjUncustomise *m);
+/* v16 -- revs 240 (rsprox_versions.txt 101). */
+void packet_obj_uncustomise_v16_out(RsprotExec *x, MsgObjUncustomise *m);
 
-/* Per-revision aliases: `packet_obj_uncustomise_rev239_out` is greppable, which is the
- * point -- "what does 239 do for OBJ_UNCUSTOMISE" without reading a table. */
-#define packet_obj_uncustomise_rev226_out packet_obj_uncustomise_v1_out
-#define packet_obj_uncustomise_rev227_out packet_obj_uncustomise_v2_out
-#define packet_obj_uncustomise_rev228_out packet_obj_uncustomise_v3_out
-#define packet_obj_uncustomise_rev229_out packet_obj_uncustomise_v4_out
-#define packet_obj_uncustomise_rev230_out packet_obj_uncustomise_v5_out
-#define packet_obj_uncustomise_rev231_out packet_obj_uncustomise_v6_out
-#define packet_obj_uncustomise_rev232_out packet_obj_uncustomise_v7_out
-#define packet_obj_uncustomise_rev233_out packet_obj_uncustomise_v8_out
-#define packet_obj_uncustomise_rev234_out packet_obj_uncustomise_v9_out
-#define packet_obj_uncustomise_rev235_out packet_obj_uncustomise_v10_out
-#define packet_obj_uncustomise_rev236_out packet_obj_uncustomise_v11_out
-#define packet_obj_uncustomise_rev237_out packet_obj_uncustomise_v12_out
-#define packet_obj_uncustomise_rev238_out packet_obj_uncustomise_v13_out
-#define packet_obj_uncustomise_rev239_out packet_obj_uncustomise_v14_out
-#define packet_obj_uncustomise_rev240_out packet_obj_uncustomise_v101_out
-#define packet_obj_uncustomise_rev241_out packet_obj_uncustomise_v100_out
+/* Per-revision entry points: `packet_obj_uncustomise_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for OBJ_UNCUSTOMISE" without reading a table. */
+#define packet_obj_uncustomise_osrs226_out packet_obj_uncustomise_v1_out
+#define packet_obj_uncustomise_osrs227_out packet_obj_uncustomise_v2_out
+#define packet_obj_uncustomise_osrs228_out packet_obj_uncustomise_v3_out
+#define packet_obj_uncustomise_osrs229_out packet_obj_uncustomise_v4_out
+#define packet_obj_uncustomise_osrs230_out packet_obj_uncustomise_v5_out
+#define packet_obj_uncustomise_osrs231_out packet_obj_uncustomise_v6_out
+#define packet_obj_uncustomise_osrs232_out packet_obj_uncustomise_v7_out
+#define packet_obj_uncustomise_osrs233_out packet_obj_uncustomise_v8_out
+#define packet_obj_uncustomise_osrs234_out packet_obj_uncustomise_v9_out
+#define packet_obj_uncustomise_osrs235_out packet_obj_uncustomise_v10_out
+#define packet_obj_uncustomise_osrs236_out packet_obj_uncustomise_v11_out
+#define packet_obj_uncustomise_osrs237_out packet_obj_uncustomise_v12_out
+#define packet_obj_uncustomise_osrs238_out packet_obj_uncustomise_v13_out
+#define packet_obj_uncustomise_osrs239_out packet_obj_uncustomise_v14_out
+#define packet_obj_uncustomise_osrs240_out packet_obj_uncustomise_v16_out
+#define packet_obj_uncustomise_osrs241_out packet_obj_uncustomise_v15_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_uncustomise_out[];

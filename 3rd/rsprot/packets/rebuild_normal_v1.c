@@ -7,9 +7,9 @@
  *       decoder/codec/map/StaticRebuildV1Decoder.kt
  */
 
-/* v100 -- revs 237. */
+/* v1 -- revs 237 (rsprox_versions.txt 100). */
 void
-packet_rebuild_normal_v1_v100_out(RsprotExec *x, MsgRebuildNormalV1 *m)
+packet_rebuild_normal_v1_v1_out(RsprotExec *x, MsgRebuildNormalV1 *m)
 {
     /* RSProx derives, after the reads:
      *   (caller) the login variant's player-info init block precedes this
@@ -31,7 +31,7 @@ packet_rebuild_normal_v1_v100_out(RsprotExec *x, MsgRebuildNormalV1 *m)
  * listed has no REBUILD_NORMAL_V1 and picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_normal_v1_out[] = {
-    { 237, 237, (RsprotCodecFn)packet_rebuild_normal_v1_v100_out },
+    { 237, 237, (RsprotCodecFn)packet_rebuild_normal_v1_v1_out },
 };
 
 const int rsprot_rebuild_normal_v1_out_count =

@@ -12,8 +12,9 @@
  *
  * RSProt class : MidiSongOldEncoder
  * Layouts      : 4 distinct, over 4 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v4, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^MidiSongOldEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -30,22 +31,22 @@ typedef struct MsgMidiSongOld {
 	int32_t id;
 } MsgMidiSongOld;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void packet_midi_song_old_v1_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v2 -- revs 223. */
+/* v2 -- revs 223 (packet_versions.txt 2). */
 void packet_midi_song_old_v2_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v3 -- revs 224. */
+/* v3 -- revs 224 (packet_versions.txt 3). */
 void packet_midi_song_old_v3_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v4 -- revs 225. */
+/* v4 -- revs 225 (packet_versions.txt 4). */
 void packet_midi_song_old_v4_out(RsprotExec *x, MsgMidiSongOld *m);
 
-/* Per-revision aliases: `packet_midi_song_old_rev239_out` is greppable, which is the
- * point -- "what does 239 do for MIDI_SONG_OLD" without reading a table. */
-#define packet_midi_song_old_rev221_out packet_midi_song_old_v1_out
-#define packet_midi_song_old_rev222_out packet_midi_song_old_v1_out
-#define packet_midi_song_old_rev223_out packet_midi_song_old_v2_out
-#define packet_midi_song_old_rev224_out packet_midi_song_old_v3_out
-#define packet_midi_song_old_rev225_out packet_midi_song_old_v4_out
+/* Per-revision entry points: `packet_midi_song_old_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for MIDI_SONG_OLD" without reading a table. */
+#define packet_midi_song_old_osrs221_out packet_midi_song_old_v1_out
+#define packet_midi_song_old_osrs222_out packet_midi_song_old_v1_out
+#define packet_midi_song_old_osrs223_out packet_midi_song_old_v2_out
+#define packet_midi_song_old_osrs224_out packet_midi_song_old_v3_out
+#define packet_midi_song_old_osrs225_out packet_midi_song_old_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_midi_song_old_out[];

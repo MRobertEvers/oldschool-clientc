@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.CamTargetV4Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v3 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.CamTargetV4Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 3 distinct, over 4 contiguous revision run(s)
@@ -23,17 +24,17 @@ typedef struct MsgCamTargetV4 {
 	int32_t value;
 } MsgCamTargetV4;
 
-/* v100 -- revs 238, 241. */
-void packet_cam_target_v4_v100_out(RsprotExec *x, MsgCamTargetV4 *m);
-/* v101 -- revs 239. */
-void packet_cam_target_v4_v101_out(RsprotExec *x, MsgCamTargetV4 *m);
-/* v102 -- revs 240. */
-void packet_cam_target_v4_v102_out(RsprotExec *x, MsgCamTargetV4 *m);
+/* v1 -- revs 238, 241 (rsprox_versions.txt 100). */
+void packet_cam_target_v4_v1_out(RsprotExec *x, MsgCamTargetV4 *m);
+/* v2 -- revs 239 (rsprox_versions.txt 101). */
+void packet_cam_target_v4_v2_out(RsprotExec *x, MsgCamTargetV4 *m);
+/* v3 -- revs 240 (rsprox_versions.txt 102). */
+void packet_cam_target_v4_v3_out(RsprotExec *x, MsgCamTargetV4 *m);
 
-#define packet_cam_target_v4_rev238_out packet_cam_target_v4_v100_out
-#define packet_cam_target_v4_rev239_out packet_cam_target_v4_v101_out
-#define packet_cam_target_v4_rev240_out packet_cam_target_v4_v102_out
-#define packet_cam_target_v4_rev241_out packet_cam_target_v4_v100_out
+#define packet_cam_target_v4_osrs238_out packet_cam_target_v4_v1_out
+#define packet_cam_target_v4_osrs239_out packet_cam_target_v4_v2_out
+#define packet_cam_target_v4_osrs240_out packet_cam_target_v4_v3_out
+#define packet_cam_target_v4_osrs241_out packet_cam_target_v4_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_target_v4_out[];

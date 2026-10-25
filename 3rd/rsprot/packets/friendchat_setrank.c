@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 225, 231, 233. */
+/* v1 -- revs 221, 225, 231, 233 (packet_versions.txt 1). */
 void
 packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -19,7 +19,7 @@ packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1_ALT1(x, m->rank);
 }
 
-/* v2 -- revs 222, 240. */
+/* v2 -- revs 222, 240 (packet_versions.txt 2). */
 void
 packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -27,7 +27,7 @@ packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v3 -- revs 223, 229-230, 237. */
+/* v3 -- revs 223, 229-230, 237 (packet_versions.txt 3). */
 void
 packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -35,7 +35,7 @@ packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1(x, m->rank);
 }
 
-/* v4 -- revs 224, 226, 235, 239. */
+/* v4 -- revs 224, 226, 235, 239 (packet_versions.txt 4). */
 void
 packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -43,7 +43,7 @@ packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v5 -- revs 227-228, 236. */
+/* v5 -- revs 227-228, 236 (packet_versions.txt 5). */
 void
 packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -51,7 +51,7 @@ packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v6 -- revs 232, 234. */
+/* v6 -- revs 232, 234 (packet_versions.txt 6). */
 void
 packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -59,7 +59,7 @@ packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1_ALT3(x, m->rank);
 }
 
-/* v7 -- revs 238, 241. */
+/* v7 -- revs 238, 241 (packet_versions.txt 7). */
 void
 packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {

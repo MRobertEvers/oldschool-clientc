@@ -12,8 +12,9 @@
  *
  * RSProt class : CamLookAtEasedAngleRelativeEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^CamLookAtEasedAngleRelativeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -33,13 +34,13 @@ typedef struct MsgCamLookAtEasedAngleRelative {
 	int32_t function_id;
 } MsgCamLookAtEasedAngleRelative;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void packet_cam_lookat_eased_angle_relative_v1_out(RsprotExec *x, MsgCamLookAtEasedAngleRelative *m);
 
-/* Per-revision aliases: `packet_cam_lookat_eased_angle_relative_rev239_out` is greppable, which is the
- * point -- "what does 239 do for CAM_LOOKAT_EASED_ANGLE_RELATIVE" without reading a table. */
-#define packet_cam_lookat_eased_angle_relative_rev221_out packet_cam_lookat_eased_angle_relative_v1_out
-#define packet_cam_lookat_eased_angle_relative_rev222_out packet_cam_lookat_eased_angle_relative_v1_out
+/* Per-revision entry points: `packet_cam_lookat_eased_angle_relative_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for CAM_LOOKAT_EASED_ANGLE_RELATIVE" without reading a table. */
+#define packet_cam_lookat_eased_angle_relative_osrs221_out packet_cam_lookat_eased_angle_relative_v1_out
+#define packet_cam_lookat_eased_angle_relative_osrs222_out packet_cam_lookat_eased_angle_relative_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_lookat_eased_angle_relative_out[];

@@ -58,7 +58,7 @@ packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m)
  * (239: count, [g4Alt3], id).
  */
 void
-packet_update_inv_full_v100_out(RsprotExec *x, MsgUpdateInvFull *m)
+packet_update_inv_full_v2_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
     RSPROT_COM(x, m->combined_id);
     RSPROT_U2(x, m->inventory_id);
@@ -92,7 +92,7 @@ packet_update_inv_full_v100_out(RsprotExec *x, MsgUpdateInvFull *m)
  * untransformed.
  */
 void
-packet_update_inv_full_v101_out(RsprotExec *x, MsgUpdateInvFull *m)
+packet_update_inv_full_v3_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
     RSPROT_COM(x, m->combined_id);
     RSPROT_U2(x, m->inventory_id);
@@ -110,8 +110,8 @@ packet_update_inv_full_v101_out(RsprotExec *x, MsgUpdateInvFull *m)
 
 const RsprotVersionRange rsprot_update_inv_full_out[] = {
     { 221, 239, (RsprotCodecFn)packet_update_inv_full_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_update_inv_full_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_update_inv_full_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_update_inv_full_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_update_inv_full_v2_out },
 };
 
 const int rsprot_update_inv_full_out_count =

@@ -37,8 +37,7 @@
 #include "torirsserver/mock239_playerinfo.h"
 #include "torirsserver/torirs_server_wire.h"
 #include "torirsserver/mock239_appearance.h"
-#include "net/rev/packets/pkt_npc_info.h"
-#include "net/rev/packets/pkt_player_info.h"
+#include "streams/rsprot_info.h"
 
 #include <rsareabuf.h>
 
@@ -50,16 +49,31 @@ static int g_failures;
 
 void osrs239_playerinfo_set_local(int local_index);
 void osrs239_playerinfo_init(uint8_t const* data, int len);
-int osrs239_player_info_read(
-    uint8_t const* data,
-    int len,
-    struct PktPlayerInfoOp* ops,
-    int cap);
-int osrs239_npc_info_read(
-    uint8_t const* data,
-    int len,
-    struct PktNpcInfoOp* ops,
-    int cap);
+int osrs239_player_info_read(uint8_t const* data, int len, RsprotInfoList* out);
+int osrs239_npc_info_read(uint8_t const* data, int len, RsprotInfoList* out);
+
+/* The readers write a list; these hand the test its ops, with the strings
+ * in one arena the next read reuses. */
+static uint8_t g_info_bytes[1 << 16];
+
+static int
+osrs239_player_info_read_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    return osrs239_player_info_read(data, len, &list);
+}
+
+static int
+osrs239_npc_info_read_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    return osrs239_npc_info_read(data, len, &list);
+}
+
 
 #define CHECK(cond, ...)                                                                   \
     do                                                                                     \
@@ -316,31 +330,30 @@ check_gpi_tick(struct Mock239PlayerInfoState* server, struct Mock239PlayerUpdate
 {
     uint8_t bytes[8192];
     struct RSAreaBuf buf;
-    struct PktPlayerInfoOp ops[128];
+    struct RsprotInfoOp ops[128];
     int target = -1;
     rsab_wrap(&buf,bytes,sizeof(bytes));
     mock239_playerinfo_write_world(&buf,server,updates,count);
     CHECK(rsab_ok(&buf),"multi-player packet stays within its buffer");
-    int n = osrs239_player_info_read(bytes,(int)rsab_len(&buf),ops,128);
+    int n = osrs239_player_info_read_ops(bytes,(int)rsab_len(&buf),ops,128);
     for( int i=0; i<n; ++i )
     {
-        struct PktPlayerInfoOp* op=&ops[i];
-        if( op->kind==PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER ) target=server->local_index;
-        else if( op->kind==PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID )
-        { target=(int)op->_bitvalue; client->present[target]=1; }
-        else if( op->kind==PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID ) client->present[op->_bitvalue]=0;
-        else if( op->kind==PKT_PLAYER_INFO_OP_ABS_XZLEVEL && target>=0 )
+        struct RsprotInfoOp* op=&ops[i];
+        if( op->kind==RSPROT_OP_SET_LOCAL_PLAYER ) target=server->local_index;
+        else if( op->kind==RSPROT_OP_ADD_NEW )
+        { target=(int)op->value; client->present[target]=1; }
+        else if( op->kind==RSPROT_OP_REMOVE_PID ) client->present[op->value]=0;
+        else if( op->kind==RSPROT_OP_ABS_XZLEVEL && target>=0 )
         {
-            client->x[target]=op->_local_xz_level.x;
-            client->z[target]=op->_local_xz_level.z;
-            client->level[target]=op->_local_xz_level.level;
-            client->speed[target]=op->_local_xz_level.move_speed;
-            client->jump[target]=op->_local_xz_level.jump;
+            client->x[target]=op->xz_level.x;
+            client->z[target]=op->xz_level.z;
+            client->level[target]=op->xz_level.level;
+            client->speed[target]=op->xz_level.move_speed;
+            client->jump[target]=op->xz_level.jump;
         }
-        else if( op->kind==PKT_PLAYER_INFO_OP_APPEARANCE )
+        else if( op->kind==RSPROT_OP_APPEARANCE )
         {
-            if( target>=0 ) client->appearance[target]=op->_appearance.appearance[0];
-            ToriMem_Free(ToriMem_Net(), op->_appearance.appearance);
+            if( target>=0 ) client->appearance[target]=op->appearance.appearance[0];
         }
     }
 }
@@ -456,36 +469,36 @@ main(void)
     rsab_p1(&buf, 0x1);             /* NPC transformation update */
     rsab_p2_alt3(&buf, 25003);      /* unsigned LE/add replacement type */
     {
-        struct PktNpcInfoOp ops[32];
-        struct PktNpcInfoOp const* delta = NULL;
-        struct PktNpcInfoOp const* facing = NULL;
-        struct PktNpcInfoOp const* spawn = NULL;
-        struct PktNpcInfoOp const* add = NULL;
-        struct PktNpcInfoOp const* type = NULL;
-        struct PktNpcInfoOp const* replacement = NULL;
-        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        struct RsprotInfoOp ops[32];
+        struct RsprotInfoOp const* delta = NULL;
+        struct RsprotInfoOp const* facing = NULL;
+        struct RsprotInfoOp const* spawn = NULL;
+        struct RsprotInfoOp const* add = NULL;
+        struct RsprotInfoOp const* type = NULL;
+        struct RsprotInfoOp const* replacement = NULL;
+        int op_count = osrs239_npc_info_read_ops(storage, (int)rsab_len(&buf), ops, 32);
 
         for( int i = 0; i < op_count; i++ )
         {
-            if( ops[i].kind == PKT_NPC_INFO_OP_DELTA_XZ ) delta = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_FACE_ANGLE ) facing = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_SPAWN_CYCLE ) spawn = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID ) add = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE ) type = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_CHANGE_TYPE ) replacement = &ops[i];
+            if( ops[i].kind == RSPROT_OP_DELTA_XZ ) delta = &ops[i];
+            if( ops[i].kind == RSPROT_OP_FACE_ANGLE ) facing = &ops[i];
+            if( ops[i].kind == RSPROT_OP_SPAWN_CYCLE ) spawn = &ops[i];
+            if( ops[i].kind == RSPROT_OP_ADD_NEW ) add = &ops[i];
+            if( ops[i].kind == RSPROT_OP_NPCTYPE ) type = &ops[i];
+            if( ops[i].kind == RSPROT_OP_CHANGE_TYPE ) replacement = &ops[i];
         }
-        CHECK(add && add->_bitvalue == 321,
+        CHECK(add && add->value == 321,
               "npc entering-view slot remains the bounded client-local instance id");
-        CHECK(type && type->_bitvalue == 0,
+        CHECK(type && type->value == 0,
               "npc entering-view type remains a bounded 14-bit placeholder");
-        CHECK(replacement && replacement->_change_type.npc_type == 25003,
+        CHECK(replacement && replacement->change_type.npc_type == 25003,
               "npc transformation installs a same-packet 16-bit config id");
-        CHECK(delta && delta->_delta_xz.dx == -1 && delta->_delta_xz.dz == 2 &&
-                  delta->_delta_xz.jump,
+        CHECK(delta && delta->delta_xz.dx == -1 && delta->delta_xz.dz == 2 &&
+                  delta->delta_xz.jump,
               "npc entering-view delta keeps the jump bit");
-        CHECK(facing && facing->_face_angle.angle == 0 && facing->_face_angle.instant,
+        CHECK(facing && facing->face_angle.angle == 0 && facing->face_angle.instant,
               "npc entering-view direction maps through the 239 yaw table");
-        CHECK(spawn && (uint32_t)spawn->_bitvalue == 0x12345678u,
+        CHECK(spawn && (uint32_t)spawn->value == 0x12345678u,
               "npc entering-view consumes and carries the optional 32-bit spawn cycle");
     }
 
@@ -521,38 +534,36 @@ main(void)
     rsab_p2(&buf, 1003);
     rsab_pjstr(&buf, "Wire name", 0);
     {
-        struct PktNpcInfoOp ops[48];
-        struct PktNpcInfoOp const* exact = NULL;
-        struct PktNpcInfoOp const* visible = NULL;
-        struct PktNpcInfoOp const* level = NULL;
-        struct PktNpcInfoOp const* bas = NULL;
-        struct PktNpcInfoOp const* name = NULL;
-        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 48);
+        struct RsprotInfoOp ops[48];
+        struct RsprotInfoOp const* exact = NULL;
+        struct RsprotInfoOp const* visible = NULL;
+        struct RsprotInfoOp const* level = NULL;
+        struct RsprotInfoOp const* bas = NULL;
+        struct RsprotInfoOp const* name = NULL;
+        int op_count = osrs239_npc_info_read_ops(storage, (int)rsab_len(&buf), ops, 48);
 
         for( int i = 0; i < op_count; i++ )
         {
-            if( ops[i].kind == PKT_NPC_INFO_OP_EXACT_MOVE ) exact = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_VISIBLE_OPS ) visible = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_LEVEL_CHANGE ) level = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_BAS_CHANGE ) bas = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_NAME_CHANGE ) name = &ops[i];
+            if( ops[i].kind == RSPROT_OP_EXACT_MOVE ) exact = &ops[i];
+            if( ops[i].kind == RSPROT_OP_VISIBLE_OPS ) visible = &ops[i];
+            if( ops[i].kind == RSPROT_OP_LEVEL_CHANGE ) level = &ops[i];
+            if( ops[i].kind == RSPROT_OP_BAS_CHANGE ) bas = &ops[i];
+            if( ops[i].kind == RSPROT_OP_NAME_CHANGE ) name = &ops[i];
         }
-        CHECK(level && level->_bitvalue == 91, "npc combat-level override survives");
-        CHECK(visible && visible->_bitvalue == 0x15, "npc visible-op mask survives");
-        CHECK(exact && exact->_exactmove.relative && exact->_exactmove.start_x == -1 &&
-                  exact->_exactmove.start_z == 2 && exact->_exactmove.end_x == 3 &&
-                  exact->_exactmove.end_z == -4 && exact->_exactmove.end_cycle_delta == 4 &&
-                  exact->_exactmove.start_cycle_delta == 10 &&
-                  exact->_exactmove.facing == 768 && exact->_exactmove.facing_is_yaw,
+        CHECK(level && level->value == 91, "npc combat-level override survives");
+        CHECK(visible && visible->value == 0x15, "npc visible-op mask survives");
+        CHECK(exact && exact->exact_move.relative && exact->exact_move.start_x == -1 &&
+                  exact->exact_move.start_z == 2 && exact->exact_move.end_x == 3 &&
+                  exact->exact_move.end_z == -4 && exact->exact_move.end_cycle_delta == 4 &&
+                  exact->exact_move.start_cycle_delta == 10 &&
+                  exact->exact_move.facing == 768 && exact->exact_move.facing_is_yaw,
               "npc relative exact move preserves transforms and yaw");
-        CHECK(bas && bas->_bas_change.walkanim == 1001 &&
-                  bas->_bas_change.runanim == 1002 && bas->_bas_change.readyanim == 1003,
+        CHECK(bas && bas->bas_change.walkanim == 1001 &&
+                  bas->bas_change.runanim == 1002 && bas->bas_change.readyanim == 1003,
               "npc BAS override preserves walk/run/ready sequences");
-        CHECK(name && name->_name_change.name &&
-                  strcmp(name->_name_change.name, "Wire name") == 0,
+        CHECK(name && name->name_change.name &&
+                  strcmp(name->name_change.name, "Wire name") == 0,
               "npc name override remains aligned after preceding masks");
-        if( name )
-            ToriMem_Free(ToriMem_Net(), name->_name_change.name);
     }
 
     /*
@@ -596,21 +607,21 @@ main(void)
     rsab_p1(&buf, 0x9e);         /* start fill 30, p1Alt1 (deob: b - 128) */
     rsab_p1(&buf, 0x74);         /* target fill 12, p1Alt3 (deob: 128 - b) */
     {
-        struct PktNpcInfoOp ops[32];
-        struct PktNpcInfoOp const* hit = NULL;
-        struct PktNpcInfoOp const* bar = NULL;
-        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        struct RsprotInfoOp ops[32];
+        struct RsprotInfoOp const* hit = NULL;
+        struct RsprotInfoOp const* bar = NULL;
+        int op_count = osrs239_npc_info_read_ops(storage, (int)rsab_len(&buf), ops, 32);
 
         for( int i = 0; i < op_count; i++ )
         {
-            if( ops[i].kind == PKT_NPC_INFO_OP_DAMAGE ) hit = &ops[i];
-            if( ops[i].kind == PKT_NPC_INFO_OP_HEADBAR ) bar = &ops[i];
+            if( ops[i].kind == RSPROT_OP_DAMAGE ) hit = &ops[i];
+            if( ops[i].kind == RSPROT_OP_HEADBAR ) bar = &ops[i];
         }
-        CHECK(hit && hit->_damage.damage_type == 28 && hit->_damage.damage == 8,
+        CHECK(hit && hit->damage.damage_type == 28 && hit->damage.damage == 8,
               "npc hitmark type/value survive the literal tail");
-        CHECK(bar && !bar->_headbar.remove && bar->_headbar.type == 0 &&
-                  bar->_headbar.duration == 1 && bar->_headbar.start_fill == 30 &&
-                  bar->_headbar.end_fill == 12,
+        CHECK(bar && !bar->headbar.remove && bar->headbar.type == 0 &&
+                  bar->headbar.duration == 1 && bar->headbar.start_fill == 30 &&
+                  bar->headbar.end_fill == 12,
               "npc headbar count/fills use the npc transforms, not the player's");
     }
 
@@ -729,8 +740,8 @@ main(void)
     rsab_wrap(&buf, storage, sizeof(storage));
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp ops[64];
-        struct PktPlayerInfoOp const* move = NULL;
+        struct RsprotInfoOp ops[64];
+        struct RsprotInfoOp const* move = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -738,13 +749,13 @@ main(void)
         ext.temp_move_speed = 2;
         mock239_playerinfo_write(
             &buf, LOCAL_INDEX, MOCK239_PLAYER_WALK, 2, 0, NULL, 0, &ext);
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 64);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 64);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+            if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
                 move = &ops[i];
-        CHECK(move && move->_local_xz_level.has_move_speed &&
-                  move->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN &&
-                  !move->_local_xz_level.jump,
+        CHECK(move && move->xz_level.has_move_speed &&
+                  move->xz_level.move_speed == RSPROT_TRAVERSAL_RUN &&
+                  !move->xz_level.jump,
               "WALK geometry independently carries RUN traversal for corner repath");
     }
 
@@ -784,8 +795,8 @@ main(void)
     rsab_wrap(&buf, storage, sizeof(storage));
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp ops[64];
-        struct PktPlayerInfoOp const* bar = NULL;
+        struct RsprotInfoOp ops[64];
+        struct RsprotInfoOp const* bar = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -797,13 +808,13 @@ main(void)
         ext.headbar_end_fill = 18;
         mock239_playerinfo_write(
             &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 0, NULL, 0, &ext);
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 64);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 64);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_HEADBAR )
+            if( ops[i].kind == RSPROT_OP_HEADBAR )
                 bar = &ops[i];
-        CHECK(bar && !bar->_headbar.remove && bar->_headbar.type == 0 &&
-                  bar->_headbar.duration == 1 && bar->_headbar.start_fill == 30 &&
-                  bar->_headbar.end_fill == 18,
+        CHECK(bar && !bar->headbar.remove && bar->headbar.type == 0 &&
+                  bar->headbar.duration == 1 && bar->headbar.start_fill == 30 &&
+                  bar->headbar.end_fill == 18,
               "headbar type/duration/fills survive the v239 tail");
         /*
          * And the literal bytes, because the round trip above passes just as
@@ -839,8 +850,8 @@ main(void)
     }
     {
         size_t written = rsab_len(&buf);
-        struct PktPlayerInfoOp ops[64];
-        struct PktPlayerInfoOp const* move = NULL;
+        struct RsprotInfoOp ops[64];
+        struct RsprotInfoOp const* move = NULL;
         int op_count;
 
         rsab_wrap(&buf, storage, written);
@@ -856,14 +867,14 @@ main(void)
         CHECK(got.ext_temp_move_speed == 2,
               "run traversal value is 2 (%d)", got.ext_temp_move_speed);
 
-        op_count = osrs239_player_info_read(storage, (int)written, ops, 64);
+        op_count = osrs239_player_info_read_ops(storage, (int)written, ops, 64);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+            if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
                 move = &ops[i];
         CHECK(move != NULL, "C rev-239 decoder stages the run destination");
-        CHECK(move && move->_local_xz_level.has_move_speed &&
-                  move->_local_xz_level.move_speed == PKT_PLAYER_TRAVERSAL_RUN &&
-                  !move->_local_xz_level.jump,
+        CHECK(move && move->xz_level.has_move_speed &&
+                  move->xz_level.move_speed == RSPROT_TRAVERSAL_RUN &&
+                  !move->xz_level.jump,
               "C rev-239 decoder attaches run traversal to the queued step");
     }
 
@@ -872,14 +883,14 @@ main(void)
     {
         static uint8_t const chat_data[] = { 0x11, 0x22, 0x33 };
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp ops[96];
-        struct PktPlayerInfoOp const* hit = NULL;
-        struct PktPlayerInfoOp const* face = NULL;
-        struct PktPlayerInfoOp const* chat = NULL;
-        struct PktPlayerInfoOp const* spot = NULL;
-        struct PktPlayerInfoOp const* spot2 = NULL;
-        struct PktPlayerInfoOp const* exact = NULL;
-        struct PktPlayerInfoOp const* tint = NULL;
+        struct RsprotInfoOp ops[96];
+        struct RsprotInfoOp const* hit = NULL;
+        struct RsprotInfoOp const* face = NULL;
+        struct RsprotInfoOp const* chat = NULL;
+        struct RsprotInfoOp const* spot = NULL;
+        struct RsprotInfoOp const* spot2 = NULL;
+        struct RsprotInfoOp const* exact = NULL;
+        struct RsprotInfoOp const* tint = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -931,57 +942,55 @@ main(void)
         mock239_playerinfo_write(
             &buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
 
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 96);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 96);
         for( int i = 0; i < op_count; i++ )
         {
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_DAMAGE ) hit = &ops[i];
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_FACE_ANGLE ) face = &ops[i];
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_CHAT ) chat = &ops[i];
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_SPOTANIM )
+            if( ops[i].kind == RSPROT_OP_DAMAGE ) hit = &ops[i];
+            if( ops[i].kind == RSPROT_OP_FACE_ANGLE ) face = &ops[i];
+            if( ops[i].kind == RSPROT_OP_CHAT ) chat = &ops[i];
+            if( ops[i].kind == RSPROT_OP_SPOTANIM )
             {
                 if( spot ) spot2 = &ops[i];
                 else spot = &ops[i];
             }
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_EXACT_MOVE ) exact = &ops[i];
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_TINT ) tint = &ops[i];
+            if( ops[i].kind == RSPROT_OP_EXACT_MOVE ) exact = &ops[i];
+            if( ops[i].kind == RSPROT_OP_TINT ) tint = &ops[i];
         }
-        CHECK(tint && tint->_tint.start_cycle_delta == 0 && tint->_tint.end_cycle_delta == 600 &&
-                  tint->_tint.hue == 0 && tint->_tint.saturation == 6 &&
-                  tint->_tint.lightness == 24 && tint->_tint.weight == 112,
+        CHECK(tint && tint->tint.start_cycle_delta == 0 && tint->tint.end_cycle_delta == 600 &&
+                  tint->tint.hue == 0 && tint->tint.saturation == 6 &&
+                  tint->tint.lightness == 24 && tint->tint.weight == 112,
               "tinting start/end/hue/saturation/lightness/weight survive (%d %d %d %d %d %d)",
-              tint ? tint->_tint.start_cycle_delta : -1, tint ? tint->_tint.end_cycle_delta : -1,
-              tint ? tint->_tint.hue : -99, tint ? tint->_tint.saturation : -99,
-              tint ? tint->_tint.lightness : -99, tint ? tint->_tint.weight : -99);
-        CHECK(hit && hit->_damage.delay == 6 && hit->_damage.slots == 3,
+              tint ? tint->tint.start_cycle_delta : -1, tint ? tint->tint.end_cycle_delta : -1,
+              tint ? tint->tint.hue : -99, tint ? tint->tint.saturation : -99,
+              tint ? tint->tint.lightness : -99, tint ? tint->tint.weight : -99);
+        CHECK(hit && hit->damage.delay == 6 && hit->damage.slots == 3,
               "hitmark delay/slot limit survive (%d/%d)",
-              hit ? hit->_damage.delay : -1,
-              hit ? hit->_damage.slots : -1);
-        CHECK(face && face->_face_angle.angle == 1536 && face->_face_angle.instant &&
-                  face->_face_angle.modern && face->_face_angle.movement_mode == 1,
+              hit ? hit->damage.delay : -1,
+              hit ? hit->damage.slots : -1);
+        CHECK(face && face->face_angle.angle == 1536 && face->face_angle.instant &&
+                  face->face_angle.modern && face->face_angle.movement_mode == 1,
               "direct instant face angle and movement policy survive");
-        CHECK(chat && chat->_chat.length == 3 &&
-                  memcmp(chat->_chat.data, chat_data, sizeof(chat_data)) == 0,
+        CHECK(chat && chat->chat.length == 3 &&
+                  memcmp(chat->chat.data, chat_data, sizeof(chat_data)) == 0,
               "reversed chat payload is restored before wordpack");
-        CHECK(spot && spot->_spotanim.slot == 2 && spot->_spotanim.spotanim_id == 777 &&
-                  spot->_spotanim.height_delay == ((24 << 16) | 9),
+        CHECK(spot && spot->spotanim.slot == 2 && spot->spotanim.spotanim_id == 777 &&
+                  spot->spotanim.height_delay == ((24 << 16) | 9),
               "spotanim slot/id/height/delay survive");
-        CHECK(spot2 && spot2->_spotanim.slot == 0 && spot2->_spotanim.spotanim_id == 2146,
+        CHECK(spot2 && spot2->spotanim.slot == 0 && spot2->spotanim.spotanim_id == 2146,
               "a second graphic in another slot rides the same block");
-        CHECK(exact && exact->_exactmove.relative && exact->_exactmove.start_x == -2 &&
-                  exact->_exactmove.start_z == 3 && exact->_exactmove.end_x == 4 &&
-                  exact->_exactmove.end_z == -5 && exact->_exactmove.end_cycle_delta == 7 &&
-                  exact->_exactmove.start_cycle_delta == 11 && exact->_exactmove.facing == 1280 &&
-                  exact->_exactmove.facing_is_yaw,
+        CHECK(exact && exact->exact_move.relative && exact->exact_move.start_x == -2 &&
+                  exact->exact_move.start_z == 3 && exact->exact_move.end_x == 4 &&
+                  exact->exact_move.end_z == -5 && exact->exact_move.end_cycle_delta == 7 &&
+                  exact->exact_move.start_cycle_delta == 11 && exact->exact_move.facing == 1280 &&
+                  exact->exact_move.facing_is_yaw,
               "relative exact-move deltas/cycles/facing survive");
-        if( chat )
-            ToriMem_Free(ToriMem_Net(), chat->_chat.data);
     }
 
     fprintf(stderr, "mock239-playerinfo: tinting cleared the way Jagex clears it\n");
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp ops[32];
-        struct PktPlayerInfoOp const* tint = NULL;
+        struct RsprotInfoOp ops[32];
+        struct RsprotInfoOp const* tint = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -992,15 +1001,15 @@ main(void)
         ext.tint_weight = 0;
         rsab_wrap(&buf, storage, sizeof(storage));
         mock239_playerinfo_write(&buf, LOCAL_INDEX, MOCK239_PLAYER_NOMOVE, 0, 1, NULL, 0, &ext);
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 32);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_TINT )
+            if( ops[i].kind == RSPROT_OP_TINT )
                 tint = &ops[i];
         /* 255 reads back as the signed byte -1, "leave the channel", and the
          * weight 0 that is "no tint" (class149.method5142). */
-        CHECK(tint && tint->_tint.end_cycle_delta == 0 && tint->_tint.hue == -1 &&
-                  tint->_tint.saturation == -1 && tint->_tint.lightness == -1 &&
-                  tint->_tint.weight == 0,
+        CHECK(tint && tint->tint.end_cycle_delta == 0 && tint->tint.hue == -1 &&
+                  tint->tint.saturation == -1 && tint->tint.lightness == -1 &&
+                  tint->tint.weight == 0,
               "the clear (0, 0, 255, 255, 255, 0) reads as -1 channels and weight 0");
     }
 
@@ -1012,8 +1021,8 @@ main(void)
     fprintf(stderr, "mock239-playerinfo: an exact move cancels the same update's teleport\n");
     {
         struct Mock239PlayerExt ext;
-        struct PktPlayerInfoOp ops[32];
-        struct PktPlayerInfoOp const* move = NULL;
+        struct RsprotInfoOp ops[32];
+        struct RsprotInfoOp const* move = NULL;
         int op_count;
 
         memset(&ext, 0, sizeof(ext));
@@ -1027,22 +1036,22 @@ main(void)
         ext.exact_facing = 1024;
         rsab_wrap(&buf, storage, sizeof(storage));
         mock239_playerinfo_write(&buf, LOCAL_INDEX, MOCK239_PLAYER_TELEPORT, 11, 1, NULL, 0, &ext);
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 32);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+            if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
                 move = &ops[i];
-        CHECK(move && move->_local_xz_level.route_only,
+        CHECK(move && move->xz_level.route_only,
               "a teleport with an exact move only sets route[0]");
 
         move = NULL;
         rsab_wrap(&buf, storage, sizeof(storage));
         mock239_playerinfo_write(
             &buf, LOCAL_INDEX, MOCK239_PLAYER_TELEPORT, (-11) & 0x3fff, 1, NULL, 0, NULL);
-        op_count = osrs239_player_info_read(storage, (int)rsab_len(&buf), ops, 32);
+        op_count = osrs239_player_info_read_ops(storage, (int)rsab_len(&buf), ops, 32);
         for( int i = 0; i < op_count; i++ )
-            if( ops[i].kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL )
+            if( ops[i].kind == RSPROT_OP_ABS_XZLEVEL )
                 move = &ops[i];
-        CHECK(move && !move->_local_xz_level.route_only, "a teleport on its own still moves");
+        CHECK(move && !move->xz_level.route_only, "a teleport on its own still moves");
     }
 
     fprintf(stderr, "mock239-playerinfo: a later tick (crowd moves to section 3)\n");

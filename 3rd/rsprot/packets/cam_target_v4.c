@@ -7,25 +7,25 @@
  *       decoder/codec/camera/CamTargetV4Decoder.kt
  */
 
-/* v100 -- revs 238, 241. */
+/* v1 -- revs 238, 241 (rsprox_versions.txt 100). */
 void
-packet_cam_target_v4_v100_out(RsprotExec *x, MsgCamTargetV4 *m)
+packet_cam_target_v4_v1_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
     RSPROT_U1(x, m->type);
     RSPROT_U4_ALT1(x, m->value);
 }
 
-/* v101 -- revs 239. */
+/* v2 -- revs 239 (rsprox_versions.txt 101). */
 void
-packet_cam_target_v4_v101_out(RsprotExec *x, MsgCamTargetV4 *m)
+packet_cam_target_v4_v2_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
     RSPROT_U4(x, m->value);
     RSPROT_U1_ALT2(x, m->type);
 }
 
-/* v102 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 102). */
 void
-packet_cam_target_v4_v102_out(RsprotExec *x, MsgCamTargetV4 *m)
+packet_cam_target_v4_v3_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
     RSPROT_U1_ALT3(x, m->type);
     RSPROT_U4_ALT3(x, m->value);
@@ -36,10 +36,10 @@ packet_cam_target_v4_v102_out(RsprotExec *x, MsgCamTargetV4 *m)
  * listed has no CAM_TARGET_V4 and picks NULL.
  */
 const RsprotVersionRange rsprot_cam_target_v4_out[] = {
-    { 238, 238, (RsprotCodecFn)packet_cam_target_v4_v100_out },
-    { 239, 239, (RsprotCodecFn)packet_cam_target_v4_v101_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_target_v4_v102_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_target_v4_v100_out },
+    { 238, 238, (RsprotCodecFn)packet_cam_target_v4_v1_out },
+    { 239, 239, (RsprotCodecFn)packet_cam_target_v4_v2_out },
+    { 240, 240, (RsprotCodecFn)packet_cam_target_v4_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_cam_target_v4_v1_out },
 };
 
 const int rsprot_cam_target_v4_out_count =

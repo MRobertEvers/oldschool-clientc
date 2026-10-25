@@ -12,12 +12,13 @@
  *
  * RSProt class : NoTimeoutDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^NoTimeoutDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgNoTimeout {
 	int32_t _unused;
 } MsgNoTimeout;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_no_timeout_v1_in(RsprotExec *x, MsgNoTimeout *m);
 
-/* Per-revision aliases: `packet_no_timeout_rev239_in` is greppable, which is the
- * point -- "what does 239 do for NO_TIMEOUT" without reading a table. */
-#define packet_no_timeout_rev221_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev222_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev223_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev224_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev225_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev226_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev227_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev228_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev229_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev230_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev231_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev232_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev233_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev234_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev235_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev236_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev237_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev238_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev239_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev240_in packet_no_timeout_v1_in
-#define packet_no_timeout_rev241_in packet_no_timeout_v1_in
+/* Per-revision entry points: `packet_no_timeout_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for NO_TIMEOUT" without reading a table. */
+#define packet_no_timeout_osrs221_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs222_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs223_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs224_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs225_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs226_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs227_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs228_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs229_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs230_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs231_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs232_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs233_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs234_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs235_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs236_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs237_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs238_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs239_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs240_in packet_no_timeout_v1_in
+#define packet_no_timeout_osrs241_in packet_no_timeout_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_no_timeout_in[];

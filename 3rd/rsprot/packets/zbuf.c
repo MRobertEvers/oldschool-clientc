@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 234-237. */
+/* v1 -- revs 234-237 (packet_versions.txt 1). */
 void
 packet_zbuf_v1_out(RsprotExec *x, MsgZBuf *m)
 {

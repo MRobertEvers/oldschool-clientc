@@ -325,7 +325,12 @@ RsproxRecording_Index(
         /* An opcode neither table knows reads as 0 bytes (the live framer's
          * resynchronising guess). Here that shifts the rest of the log, and
          * the walk then fails to land on the end of the file: refused below. */
-        size = from_server ? rev->packetin_size(opcode) : rev->packetout_size(opcode);
+        if( from_server && opcode == RSPROX_RECORDING_RECONNECT )
+            size = PKTIN_LENGTH_VARU16;
+        else if( from_server && opcode == RSPROX_RECORDING_PACKET_GROUP_END )
+            size = 0;
+        else
+            size = from_server ? rev->packetin_size(opcode) : rev->packetout_size(opcode);
         if( size == PKTIN_LENGTH_VARU8 )
             size = (int)rd_g1(&r);
         else if( size == PKTIN_LENGTH_VARU16 )
@@ -355,6 +360,7 @@ RsproxRecording_Index(
             f->opcode = opcode;
             f->offset = (uint32_t)r.pos;
             f->length = (uint32_t)size;
+            f->reconnect_index = opcode == RSPROX_RECORDING_RECONNECT ? rec->local_player_index : -1;
             if( rev->packetin_code(opcode) == PKT_NAME_SERVER_TICK_END )
                 tick++;
         }

@@ -35,6 +35,22 @@
 
 struct GameProtoRevTable;
 
+/*
+ * Two server opcodes are RSProx's, not Jagex's: every revision's GameServerProt
+ * ends with them, above any real prot (which stop at 151 through 241).
+ *
+ *   PACKET_GROUP_END  0xFE, no payload: closes a PACKET_GROUP_START group.
+ *   RECONNECT         0xFF, var-short: the session reconnected (a world hop,
+ *                     a dropped link) and this is the reconnect login's body,
+ *                     the GPI init block (ReconnectDecoder). The player table
+ *                     restarts from it, under `reconnect_index`.
+ *
+ * The index frames both; a consumer that plays frames to a client must treat
+ * them as what they are, never as game packets.
+ */
+#define RSPROX_RECORDING_PACKET_GROUP_END 0xFE
+#define RSPROX_RECORDING_RECONNECT 0xFF
+
 /** One server->client packet. */
 struct RsproxRecordingFrame
 {
@@ -46,6 +62,12 @@ struct RsproxRecordingFrame
     /** The payload, as an offset into RsproxRecording.data. */
     uint32_t offset;
     uint32_t length;
+    /** RECONNECT only: the local index the session continues under. The index
+     *  writes RSProx's rule, the index it had; a world hop moves the player to
+     *  a new slot the recording does not log (RSProx records the new world's
+     *  LOGIN_OK as this RECONNECT), and rsprox_recording_resolve_reconnects
+     *  (net/rev/rsprox/) puts that slot here. -1 on every other frame. */
+    int reconnect_index;
 };
 
 struct RsproxRecording
@@ -119,6 +141,18 @@ RsproxRecording_Index(
     struct GameProtoRevTable const* rev,
     char* err,
     int err_cap);
+
+/**
+ * Put the local index each RECONNECT continues under into its frame's
+ * reconnect_index (net/rev/rsprox/rsprox_reconnect.c), with `rev` the
+ * data-driven table for the recording's revision (GameProtoRev_Rsprox).
+ * Returns how many moved the player to a new slot. Leaves the session's
+ * player table as the last trial left it: the caller re-seeds before
+ * decoding.
+ */
+int
+rsprox_recording_resolve_reconnects(
+    struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
 /** The client protocol name ("osrs241") this recording's revision is played
  *  with, or NULL when this client has no table for it. */

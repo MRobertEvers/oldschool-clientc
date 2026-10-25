@@ -53,18 +53,18 @@ typedef struct MsgUpdateInvFull
 
 /* v1 -- revs 221-239. The layout has not moved. */
 void packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m);
-/* v100 -- rev 241 (RSProx; >= 100 is the RSProx numbering, gen/rsprox_versions.txt).
+/* v2 (rsprox_versions.txt 100) -- rev 241 (RSProx).
  * The per-slot id moved in front of the count, and the 4-byte count is Alt2. */
-void packet_update_inv_full_v100_out(RsprotExec *x, MsgUpdateInvFull *m);
-/* v101 -- rev 240 (RSProx). 239's order, with the long count and the id
+void packet_update_inv_full_v2_out(RsprotExec *x, MsgUpdateInvFull *m);
+/* v3 (rsprox_versions.txt 101) -- rev 240 (RSProx). 239's order, with the long count and the id
  * untransformed. */
-void packet_update_inv_full_v101_out(RsprotExec *x, MsgUpdateInvFull *m);
+void packet_update_inv_full_v3_out(RsprotExec *x, MsgUpdateInvFull *m);
 
-#define packet_update_inv_full_rev221_out packet_update_inv_full_v1_out
-#define packet_update_inv_full_rev230_out packet_update_inv_full_v1_out
-#define packet_update_inv_full_rev239_out packet_update_inv_full_v1_out
-#define packet_update_inv_full_rev240_out packet_update_inv_full_v101_out
-#define packet_update_inv_full_rev241_out packet_update_inv_full_v100_out
+#define packet_update_inv_full_osrs221_out packet_update_inv_full_v1_out
+#define packet_update_inv_full_osrs230_out packet_update_inv_full_v1_out
+#define packet_update_inv_full_osrs239_out packet_update_inv_full_v1_out
+#define packet_update_inv_full_osrs240_out packet_update_inv_full_v3_out
+#define packet_update_inv_full_osrs241_out packet_update_inv_full_v2_out
 
 extern const RsprotVersionRange rsprot_update_inv_full_out[];
 extern const int rsprot_update_inv_full_out_count;

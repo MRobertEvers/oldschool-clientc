@@ -12,8 +12,9 @@
  *
  * RSProt class : ObjOpFilterEncoder
  * Layouts      : 2 distinct, over 2 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v2, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ObjOpFilterEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -32,15 +33,15 @@ typedef struct MsgObjOpFilter {
 	int32_t coord_in_zone_packed;
 } MsgObjOpFilter;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_obj_opfilter_v2_out(RsprotExec *x, MsgObjOpFilter *m);
 
-/* Per-revision aliases: `packet_obj_opfilter_rev239_out` is greppable, which is the
- * point -- "what does 239 do for OBJ_OPFILTER" without reading a table. */
-#define packet_obj_opfilter_rev221_out packet_obj_opfilter_v1_out
-#define packet_obj_opfilter_rev222_out packet_obj_opfilter_v2_out
+/* Per-revision entry points: `packet_obj_opfilter_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for OBJ_OPFILTER" without reading a table. */
+#define packet_obj_opfilter_osrs221_out packet_obj_opfilter_v1_out
+#define packet_obj_opfilter_osrs222_out packet_obj_opfilter_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_opfilter_out[];

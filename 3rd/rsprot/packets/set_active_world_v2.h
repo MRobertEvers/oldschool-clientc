@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.SetActiveWorldV2Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.SetActiveWorldV2Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -23,22 +24,22 @@ typedef struct MsgSetActiveWorldV2 {
 	int32_t active_level;
 } MsgSetActiveWorldV2;
 
-/* v100 -- revs 229-241. */
-void packet_set_active_world_v2_v100_out(RsprotExec *x, MsgSetActiveWorldV2 *m);
+/* v1 -- revs 229-241 (rsprox_versions.txt 100). */
+void packet_set_active_world_v2_v1_out(RsprotExec *x, MsgSetActiveWorldV2 *m);
 
-#define packet_set_active_world_v2_rev229_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev230_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev231_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev232_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev233_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev234_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev235_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev236_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev237_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev238_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev239_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev240_out packet_set_active_world_v2_v100_out
-#define packet_set_active_world_v2_rev241_out packet_set_active_world_v2_v100_out
+#define packet_set_active_world_v2_osrs229_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs230_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs231_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs232_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs233_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs234_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs235_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs236_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs237_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs238_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs239_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs240_out packet_set_active_world_v2_v1_out
+#define packet_set_active_world_v2_osrs241_out packet_set_active_world_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_active_world_v2_out[];

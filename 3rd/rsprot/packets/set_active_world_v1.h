@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.SetActiveWorldV1Decoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.SetActiveWorldV1Decoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -24,13 +25,13 @@ typedef struct MsgSetActiveWorldV1 {
 	int32_t active_level;
 } MsgSetActiveWorldV1;
 
-/* v100 -- revs 227-230. */
-void packet_set_active_world_v1_v100_out(RsprotExec *x, MsgSetActiveWorldV1 *m);
+/* v1 -- revs 227-230 (rsprox_versions.txt 100). */
+void packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m);
 
-#define packet_set_active_world_v1_rev227_out packet_set_active_world_v1_v100_out
-#define packet_set_active_world_v1_rev228_out packet_set_active_world_v1_v100_out
-#define packet_set_active_world_v1_rev229_out packet_set_active_world_v1_v100_out
-#define packet_set_active_world_v1_rev230_out packet_set_active_world_v1_v100_out
+#define packet_set_active_world_v1_osrs227_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs228_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs229_out packet_set_active_world_v1_v1_out
+#define packet_set_active_world_v1_osrs230_out packet_set_active_world_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_active_world_v1_out[];

@@ -12,12 +12,13 @@
  *
  * RSProt class : IfSetPlayerModelBodyTypeEncoder
  * Layouts      : 16 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v16, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetPlayerModelBodyTypeEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,62 +35,62 @@ typedef struct MsgIfSetPlayerModelBodyType {
 	int32_t combined_id;
 } MsgIfSetPlayerModelBodyType;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_setplayermodel_bodytype_v1_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v2 -- revs 222, 228. */
+/* v2 -- revs 222, 228 (packet_versions.txt 2). */
 void packet_if_setplayermodel_bodytype_v2_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_if_setplayermodel_bodytype_v3_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v6 -- revs 226, 232. */
+/* v6 -- revs 226, 232 (packet_versions.txt 6). */
 void packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v7 -- revs 227, 240. */
+/* v7 -- revs 227, 240 (packet_versions.txt 7). */
 void packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v9 -- revs 230, 234. */
+/* v9 -- revs 230, 234 (packet_versions.txt 9). */
 void packet_if_setplayermodel_bodytype_v9_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v10 -- revs 231, 233. */
+/* v10 -- revs 231, 233 (packet_versions.txt 10). */
 void packet_if_setplayermodel_bodytype_v10_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v11 -- revs 235. */
+/* v11 -- revs 235 (packet_versions.txt 11). */
 void packet_if_setplayermodel_bodytype_v11_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void packet_if_setplayermodel_bodytype_v12_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void packet_if_setplayermodel_bodytype_v13_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void packet_if_setplayermodel_bodytype_v14_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void packet_if_setplayermodel_bodytype_v15_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v100 -- revs 241. */
-void packet_if_setplayermodel_bodytype_v100_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
+/* v16 -- revs 241 (rsprox_versions.txt 100). */
+void packet_if_setplayermodel_bodytype_v16_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 
-/* Per-revision aliases: `packet_if_setplayermodel_bodytype_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETPLAYERMODEL_BODYTYPE" without reading a table. */
-#define packet_if_setplayermodel_bodytype_rev221_out packet_if_setplayermodel_bodytype_v1_out
-#define packet_if_setplayermodel_bodytype_rev222_out packet_if_setplayermodel_bodytype_v2_out
-#define packet_if_setplayermodel_bodytype_rev223_out packet_if_setplayermodel_bodytype_v3_out
-#define packet_if_setplayermodel_bodytype_rev224_out packet_if_setplayermodel_bodytype_v4_out
-#define packet_if_setplayermodel_bodytype_rev225_out packet_if_setplayermodel_bodytype_v5_out
-#define packet_if_setplayermodel_bodytype_rev226_out packet_if_setplayermodel_bodytype_v6_out
-#define packet_if_setplayermodel_bodytype_rev227_out packet_if_setplayermodel_bodytype_v7_out
-#define packet_if_setplayermodel_bodytype_rev228_out packet_if_setplayermodel_bodytype_v2_out
-#define packet_if_setplayermodel_bodytype_rev229_out packet_if_setplayermodel_bodytype_v8_out
-#define packet_if_setplayermodel_bodytype_rev230_out packet_if_setplayermodel_bodytype_v9_out
-#define packet_if_setplayermodel_bodytype_rev231_out packet_if_setplayermodel_bodytype_v10_out
-#define packet_if_setplayermodel_bodytype_rev232_out packet_if_setplayermodel_bodytype_v6_out
-#define packet_if_setplayermodel_bodytype_rev233_out packet_if_setplayermodel_bodytype_v10_out
-#define packet_if_setplayermodel_bodytype_rev234_out packet_if_setplayermodel_bodytype_v9_out
-#define packet_if_setplayermodel_bodytype_rev235_out packet_if_setplayermodel_bodytype_v11_out
-#define packet_if_setplayermodel_bodytype_rev236_out packet_if_setplayermodel_bodytype_v12_out
-#define packet_if_setplayermodel_bodytype_rev237_out packet_if_setplayermodel_bodytype_v13_out
-#define packet_if_setplayermodel_bodytype_rev238_out packet_if_setplayermodel_bodytype_v14_out
-#define packet_if_setplayermodel_bodytype_rev239_out packet_if_setplayermodel_bodytype_v15_out
-#define packet_if_setplayermodel_bodytype_rev240_out packet_if_setplayermodel_bodytype_v7_out
-#define packet_if_setplayermodel_bodytype_rev241_out packet_if_setplayermodel_bodytype_v100_out
+/* Per-revision entry points: `packet_if_setplayermodel_bodytype_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETPLAYERMODEL_BODYTYPE" without reading a table. */
+#define packet_if_setplayermodel_bodytype_osrs221_out packet_if_setplayermodel_bodytype_v1_out
+#define packet_if_setplayermodel_bodytype_osrs222_out packet_if_setplayermodel_bodytype_v2_out
+#define packet_if_setplayermodel_bodytype_osrs223_out packet_if_setplayermodel_bodytype_v3_out
+#define packet_if_setplayermodel_bodytype_osrs224_out packet_if_setplayermodel_bodytype_v4_out
+#define packet_if_setplayermodel_bodytype_osrs225_out packet_if_setplayermodel_bodytype_v5_out
+#define packet_if_setplayermodel_bodytype_osrs226_out packet_if_setplayermodel_bodytype_v6_out
+#define packet_if_setplayermodel_bodytype_osrs227_out packet_if_setplayermodel_bodytype_v7_out
+#define packet_if_setplayermodel_bodytype_osrs228_out packet_if_setplayermodel_bodytype_v2_out
+#define packet_if_setplayermodel_bodytype_osrs229_out packet_if_setplayermodel_bodytype_v8_out
+#define packet_if_setplayermodel_bodytype_osrs230_out packet_if_setplayermodel_bodytype_v9_out
+#define packet_if_setplayermodel_bodytype_osrs231_out packet_if_setplayermodel_bodytype_v10_out
+#define packet_if_setplayermodel_bodytype_osrs232_out packet_if_setplayermodel_bodytype_v6_out
+#define packet_if_setplayermodel_bodytype_osrs233_out packet_if_setplayermodel_bodytype_v10_out
+#define packet_if_setplayermodel_bodytype_osrs234_out packet_if_setplayermodel_bodytype_v9_out
+#define packet_if_setplayermodel_bodytype_osrs235_out packet_if_setplayermodel_bodytype_v11_out
+#define packet_if_setplayermodel_bodytype_osrs236_out packet_if_setplayermodel_bodytype_v12_out
+#define packet_if_setplayermodel_bodytype_osrs237_out packet_if_setplayermodel_bodytype_v13_out
+#define packet_if_setplayermodel_bodytype_osrs238_out packet_if_setplayermodel_bodytype_v14_out
+#define packet_if_setplayermodel_bodytype_osrs239_out packet_if_setplayermodel_bodytype_v15_out
+#define packet_if_setplayermodel_bodytype_osrs240_out packet_if_setplayermodel_bodytype_v7_out
+#define packet_if_setplayermodel_bodytype_osrs241_out packet_if_setplayermodel_bodytype_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setplayermodel_bodytype_out[];

@@ -3,15 +3,34 @@
  * consecutive stream; recipient_pid keeps packets from the other clients out. */
 #include <rscache.h>
 
-#include "net/rev/packets/pkt_player_info.h"
-#include "net/rev/packets/pkt_npc_info.h"
+#include "streams/rsprot_info.h"
 
 void osrs239_playerinfo_set_local(int local_index);
 void osrs239_playerinfo_init(const uint8_t* data, int len);
-int osrs239_player_info_read(const uint8_t* data, int len,
-                            struct PktPlayerInfoOp* ops, int cap);
+int osrs239_player_info_read(const uint8_t* data, int len, RsprotInfoList* out);
+int osrs239_npc_info_read(const uint8_t* data, int len, RsprotInfoList* out);
 
-int osrs239_npc_info_read(const uint8_t* data, int len, struct PktNpcInfoOp* ops, int cap);
+/* The readers write a list; these hand a check its ops, the strings in one
+ * arena the next read reuses. */
+static uint8_t g_selftest_info_bytes[1 << 16];
+
+static int
+osrs239_player_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
+    return osrs239_player_info_read(data, len, &list);
+}
+
+static int
+osrs239_npc_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
+    return osrs239_npc_info_read(data, len, &list);
+}
 
 struct SailingClientProbe
 {
@@ -32,35 +51,32 @@ sailing_client_decode(struct ToriRSServerCapture* capture,
     {
         const struct ToriRSServerCapturedPacket* packet = &capture->packets[p];
         if( packet->recipient_pid != viewer->pid || packet->name != PKT_NAME_PLAYER_INFO ) continue;
-        struct PktPlayerInfoOp ops[256];
+        struct RsprotInfoOp ops[256];
         int target = -1;
         SELFTEST_CHECK(!packet->truncated, "the production PLAYER_INFO is fully captured");
-        int count = osrs239_player_info_read(packet->data, packet->len, ops, 256);
+        int count = osrs239_player_info_read_ops(packet->data, packet->len, ops, 256);
         SELFTEST_CHECK(count >= 0 && count < 256, "the actual client decodes the production packet (%d operations)", count);
         packets++;
         for( int i = 0; i < count; ++i )
         {
-            struct PktPlayerInfoOp* op = &ops[i];
-            if( op->kind == PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER ) target = client->local_index;
-            else if( op->kind == PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID )
-            { target = (int)op->_bitvalue; client->present[target] = 1; }
-            else if( op->kind == PKT_PLAYER_INFO_OP_REMOVE_PLAYER_PID )
-            { client->present[op->_bitvalue] = 0; client->removals[op->_bitvalue]++; }
-            else if( op->kind == PKT_PLAYER_INFO_OP_ABS_XZLEVEL && target >= 0 )
+            struct RsprotInfoOp* op = &ops[i];
+            if( op->kind == RSPROT_OP_SET_LOCAL_PLAYER ) target = client->local_index;
+            else if( op->kind == RSPROT_OP_ADD_NEW )
+            { target = (int)op->value; client->present[target] = 1; }
+            else if( op->kind == RSPROT_OP_REMOVE_PID )
+            { client->present[op->value] = 0; client->removals[op->value]++; }
+            else if( op->kind == RSPROT_OP_ABS_XZLEVEL && target >= 0 )
             {
-                client->x[target] = op->_local_xz_level.x;
-                client->z[target] = op->_local_xz_level.z;
-                client->level[target] = op->_local_xz_level.level;
-                client->speed[target] = op->_local_xz_level.move_speed;
-                client->jump[target] = op->_local_xz_level.jump;
+                client->x[target] = op->xz_level.x;
+                client->z[target] = op->xz_level.z;
+                client->level[target] = op->xz_level.level;
+                client->speed[target] = op->xz_level.move_speed;
+                client->jump[target] = op->xz_level.jump;
             }
-            else if( op->kind == PKT_PLAYER_INFO_OP_APPEARANCE )
+            else if( op->kind == RSPROT_OP_APPEARANCE )
             {
                 if( target >= 0 ) client->appearances[target]++;
-                ToriMem_Free(ToriMem_Net(), op->_appearance.appearance);
             }
-            else if( op->kind == PKT_PLAYER_INFO_OP_SAY ) ToriMem_Free(ToriMem_Net(), op->_say.text);
-            else if( op->kind == PKT_PLAYER_INFO_OP_CHAT ) ToriMem_Free(ToriMem_Net(), op->_chat.data);
         }
     }
     SELFTEST_CHECK(packets == 1, "one consecutive PLAYER_INFO reaches selected observer %d, got %d", viewer->pid, packets);
@@ -181,9 +197,9 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
     SELFTEST_CHECK(deck_at >= 0 && origin_x >= 0,
                    "the deck's own world carries an origin and an NPC_INFO (observer %d)", viewer->pid);
     if( deck_at < 0 ) return;
-    struct PktNpcInfoOp ops[2048];
+    struct RsprotInfoOp ops[2048];
     const struct ToriRSServerCapturedPacket* packet = &capture.packets[deck_at];
-    int count = osrs239_npc_info_read(packet->data, packet->len, ops, 2048);
+    int count = osrs239_npc_info_read_ops(packet->data, packet->len, ops, 2048);
     int target = -1, present = 0;
     int x = old_feet_x - base_x, z = old_feet_z - base_z;
     static const int dx[8] = {-1,0,1,-1,1,-1,0,1};
@@ -192,23 +208,21 @@ sailing_decode_moving_npc(struct ToriRSServer* srv, struct ToriRSServerPlayer* v
                    "actual client decodes the complete deck NPC_INFO");
     for( int i = 0; i < count; ++i )
     {
-        struct PktNpcInfoOp* op = &ops[i];
-        if( op->kind == PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID )
-            target = ToriRSServer_SlotMapWorld(viewer, (int)op->_bitvalue);
-        else if( op->kind == PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX )
-            target = op->_bitvalue < (unsigned)old_count ? old[op->_bitvalue] : -1;
-        else if( op->kind == PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX ) target = -1;
+        struct RsprotInfoOp* op = &ops[i];
+        if( op->kind == RSPROT_OP_ADD_NEW )
+            target = ToriRSServer_SlotMapWorld(viewer, (int)op->value);
+        else if( op->kind == RSPROT_OP_ADD_OLD )
+            target = op->value < (unsigned)old_count ? old[op->value] : -1;
+        else if( op->kind == RSPROT_OP_SET_EXT ) target = -1;
         if( target == npc_slot )
         {
             present = 1;
-            if( op->kind == PKT_NPC_INFO_OP_DELTA_XZ )
-            { x = origin_x + op->_delta_xz.dx; z = origin_z + op->_delta_xz.dz; }
-            else if( op->kind == PKT_NPC_INFO_OPBITS_WALKDIR || op->kind == PKT_NPC_INFO_OPBITS_RUNDIR ||
-                     op->kind == PKT_NPC_INFO_OPBITS_CRAWLDIR )
-            { x += dx[op->_bitvalue & 7]; z += dz[op->_bitvalue & 7]; }
+            if( op->kind == RSPROT_OP_DELTA_XZ )
+            { x = origin_x + op->delta_xz.dx; z = origin_z + op->delta_xz.dz; }
+            else if( op->kind == RSPROT_OP_WALKDIR || op->kind == RSPROT_OP_RUNDIR ||
+                     op->kind == RSPROT_OP_CRAWLDIR )
+            { x += dx[op->value & 7]; z += dz[op->value & 7]; }
         }
-        if( op->kind == PKT_NPC_INFO_OP_SAY ) ToriMem_Free(ToriMem_Net(), op->_say.text);
-        else if( op->kind == PKT_NPC_INFO_OP_NAME_CHANGE ) ToriMem_Free(ToriMem_Net(), op->_name_change.name);
     }
     SELFTEST_CHECK(present && viewer->npc_tracked[npc_slot] &&
                    x == srv->npcs[npc_slot].x - base_x && z == srv->npcs[npc_slot].z - base_z,
@@ -437,7 +451,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
         SELFTEST_CHECK(client.x[rider_index] == want_x && client.z[rider_index] == want_z,
                        "actual decoder preserves authoritative deck coordinates for observer %d: %d,%d expected %d,%d", pass,
                        client.x[rider_index], client.z[rider_index], want_x, want_z);
-        SELFTEST_CHECK(client.speed[rider_index] == PKT_PLAYER_TRAVERSAL_RUN && !client.jump[rider_index],
+        SELFTEST_CHECK(client.speed[rider_index] == RSPROT_TRAVERSAL_RUN && !client.jump[rider_index],
                        "the real packet preserves RUN traversal without a snap for observer %d", pass);
         SELFTEST_CHECK(client.removals[rider_index] == 0 && client.appearances[rider_index] == 1,
                        "moving aboard keeps the same remote player without remove/re-add (observer %d)", pass);
@@ -521,7 +535,7 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
             SELFTEST_CHECK(rider->x==start_x && rider->z==start_z-2 && rider->obs_z==before_z-3,
                            "two deck RUN tiles plus hull movement compose to three root tiles");
             SELFTEST_CHECK(client.z[rider_index]==rider->z && client.level[rider_index]==rider->level &&
-                           client.speed[rider_index]==PKT_PLAYER_TRAVERSAL_RUN && !client.jump[rider_index],
+                           client.speed[rider_index]==RSPROT_TRAVERSAL_RUN && !client.jump[rider_index],
                            "root visibility moves three tiles while high-resolution staging retains a two-tile RUN");
             ToriRSServer_VesselStop(boat);
         }

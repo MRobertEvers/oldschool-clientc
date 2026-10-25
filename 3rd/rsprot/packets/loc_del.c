@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_loc_del_v1_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -19,7 +19,7 @@ packet_loc_del_v1_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->loc_properties_packed);
 }
 
-/* v2 -- revs 222, 229. */
+/* v2 -- revs 222, 229 (packet_versions.txt 2). */
 void
 packet_loc_del_v2_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -27,7 +27,7 @@ packet_loc_del_v2_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1(x, m->coord_in_zone_packed);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_loc_del_v3_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -35,7 +35,7 @@ packet_loc_del_v3_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT2(x, m->loc_properties_packed);
 }
 
-/* v4 -- revs 224, 240. */
+/* v4 -- revs 224, 240 (packet_versions.txt 4). */
 void
 packet_loc_del_v4_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -43,7 +43,7 @@ packet_loc_del_v4_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->loc_properties_packed);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_loc_del_v5_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -51,7 +51,7 @@ packet_loc_del_v5_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1(x, m->loc_properties_packed);
 }
 
-/* v6 -- revs 226, 235. */
+/* v6 -- revs 226, 235 (packet_versions.txt 6). */
 void
 packet_loc_del_v6_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -59,7 +59,7 @@ packet_loc_del_v6_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v7 -- revs 227, 241. */
+/* v7 -- revs 227, 241 (packet_versions.txt 7). */
 void
 packet_loc_del_v7_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -67,7 +67,7 @@ packet_loc_del_v7_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1(x, m->coord_in_zone_packed);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -75,7 +75,7 @@ packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT1(x, m->loc_properties_packed);
 }
 
-/* v9 -- revs 230, 233. */
+/* v9 -- revs 230, 233 (packet_versions.txt 9). */
 void
 packet_loc_del_v9_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -83,7 +83,7 @@ packet_loc_del_v9_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT2(x, m->loc_properties_packed);
 }
 
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void
 packet_loc_del_v10_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -91,7 +91,7 @@ packet_loc_del_v10_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v11 -- revs 232, 234. */
+/* v11 -- revs 232, 234 (packet_versions.txt 11). */
 void
 packet_loc_del_v11_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -99,7 +99,7 @@ packet_loc_del_v11_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT2(x, m->loc_properties_packed);
 }
 
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void
 packet_loc_del_v12_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -107,7 +107,7 @@ packet_loc_del_v12_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT1(x, m->loc_properties_packed);
 }
 
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void
 packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -115,7 +115,7 @@ packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->loc_properties_packed);
 }
 
-/* v14 -- revs 238. */
+/* v14 -- revs 238 (packet_versions.txt 14). */
 void
 packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m)
 {
@@ -123,7 +123,7 @@ packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
 }
 
-/* v15 -- revs 239. */
+/* v15 -- revs 239 (packet_versions.txt 15). */
 void
 packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m)
 {

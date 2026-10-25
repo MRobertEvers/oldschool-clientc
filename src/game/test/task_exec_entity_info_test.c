@@ -12,7 +12,9 @@
 #include "engine/uitree_scene_bridge.h"
 #include "game/rs_entity_sync.h"
 #include "game/task_exec_entity_info.h"
-#include "net/rev/packets/pkt_npc_info.h"
+#include "net/net.h"
+#include "net/rev/gameproto_revisions.h"
+#include "net/rev/rs/info_rs.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"
@@ -145,6 +147,17 @@ register_local_player(
     RS_EntitySync_RegisterPlayer(&app->esync, server_pid, element_id, idx);
 }
 
+/* The network the exec tasks read their revision's readers from: the lc254
+ * table, whose streams these tests write. */
+static struct ToriRS_Network*
+test_net(void)
+{
+    static struct ToriRS_Network net;
+
+    net.rev = GameProtoRev_LC254();
+    return &net;
+}
+
 static void
 register_other_player(
     struct App* app,
@@ -168,6 +181,7 @@ test_npc_info_count_zero_despawns_all(void)
 
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
 
@@ -199,6 +213,7 @@ test_npc_origin_is_root_for_shore_and_aboard_observers(void)
 {
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
     register_local_player(&app, 100, 7, 4, 4);
@@ -251,6 +266,7 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
 
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
 
@@ -281,6 +297,7 @@ test_npc_info_count_shrink_keeps_prefix(void)
 
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
 
@@ -323,6 +340,7 @@ test_player_info_unresolvable_entry_keeps_list_positions(void)
 
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
 
@@ -353,6 +371,7 @@ test_player_info_count_zero_despawns_others(void)
 
     struct App app;
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     app.world = World_TestMakeReady(104);
     RS_EntitySync_Init(&app.esync);
 
@@ -405,6 +424,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
     struct WorldEntity_NPC* npc;
 
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     memset(&provider, 0, sizeof(provider));
     memset(&vtable, 0, sizeof(vtable));
     vtable.Task_SequenceLoad = trace_sequence_load_resident;
@@ -428,7 +448,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
      * so the byte-aligned extended block starts at byte 4: mask=ANIM, seq 60
      * (g2), delay 0 (g1).
      */
-    uint8_t packet[] = { 0x01, 0x9f, 0xff, 0x80, PKT_NPC_MASK_ANIM, 0x00, 0x3c, 0x00 };
+    uint8_t packet[] = { 0x01, 0x9f, 0xff, 0x80, RS_NPC_MASK_ANIM, 0x00, 0x3c, 0x00 };
     run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet), 0));
 
     TEST_ASSERT(g_seq_load_requests == 1, "the ANIM asked the provider for its sequence");
@@ -560,6 +580,7 @@ test_multinpc_interface_head_loads_selected_child(void)
     struct ToriRS_IOBatch* io;
 
     memset(&app, 0, sizeof(app));
+    app.net = test_net();
     memset(&provider, 0, sizeof(provider));
     memset(&vtable, 0, sizeof(vtable));
     memset(&g_head_load_trace, 0, sizeof(g_head_load_trace));

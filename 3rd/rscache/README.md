@@ -563,7 +563,7 @@ Derived helpers: `RSCache_IsDat1`, `RSCache_IsOsrs`, `RSCache_IsRs2Dat2`.
 |---|---|---|---|
 | `lc254`, `lc245_2` | rs2 | dat1 | 254 / 245 |
 | `osrs184`, `kronos` | oldschool | dat2 | 184 (+ Kronos quirk) |
-| `osrs230`, `osrs233`, `xrsps233`, `osrs239` | oldschool | dat2 | 230 / 233 / 239 |
+| `osrs230`, `osrs233`, `osrs239` | oldschool | dat2 | 230 / 233 / 239 |
 | `643`, `rs643` | rs2 | dat2 | 643 |
 
 ### Identity is stated, never detected

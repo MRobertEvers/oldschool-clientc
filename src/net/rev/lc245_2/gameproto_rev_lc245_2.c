@@ -1,4 +1,5 @@
 #include "net/rev/gameproto_revisions.h"
+#include "net/rev/rs/info_rs.h"
 #include "packetin.h"
 #include "packetout.h"
 
@@ -43,6 +44,8 @@ static struct GameProtoRevTable const k_rev_lc245_2 = {
     /* LostCity re-establishes a session with opcode 18 and an otherwise
      * identical block; the answer is a bare 15 (Client-TS Client.ts). */
     .reconnect_kind = NET_RECONNECT_CREDS,
+    .player_info_read = player_info_rs245,
+    .npc_info_read = npc_info_rs245,
 };
 
 struct GameProtoRevTable const*

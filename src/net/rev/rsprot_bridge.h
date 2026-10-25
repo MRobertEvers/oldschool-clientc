@@ -54,7 +54,7 @@
  * fall through to the hand-written parsers).
  *
  * `rev` supplies the revision NUMBER; a revision this tree speaks that RSProt
- * never vendored (lc254, xrsps233) simply has no codec and returns <0.
+ * never vendored (lc254, lc245_2) simply has no codec and returns <0.
  */
 int
 rsprot_bridge_parse(

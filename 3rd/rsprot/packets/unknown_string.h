@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.UnknownStringDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v1 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.UnknownStringDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
@@ -22,24 +23,24 @@ typedef struct MsgUnknownString {
 	const char *string;
 } MsgUnknownString;
 
-/* v100 -- revs 227-241. */
-void packet_unknown_string_v100_out(RsprotExec *x, MsgUnknownString *m);
+/* v1 -- revs 227-241 (rsprox_versions.txt 100). */
+void packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m);
 
-#define packet_unknown_string_rev227_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev228_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev229_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev230_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev231_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev232_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev233_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev234_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev235_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev236_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev237_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev238_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev239_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev240_out packet_unknown_string_v100_out
-#define packet_unknown_string_rev241_out packet_unknown_string_v100_out
+#define packet_unknown_string_osrs227_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs228_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs229_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs230_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs231_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs232_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs233_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs234_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs235_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs236_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs237_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs238_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs239_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs240_out packet_unknown_string_v1_out
+#define packet_unknown_string_osrs241_out packet_unknown_string_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_unknown_string_out[];

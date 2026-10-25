@@ -12,8 +12,9 @@
  *
  * RSProt class : IfSetModelV1Encoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfSetModelV1Encoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -31,12 +32,12 @@ typedef struct MsgIfSetModelV1 {
 	int32_t combined_id;
 } MsgIfSetModelV1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs 237 (packet_versions.txt 1). */
 void packet_if_setmodel_v1_v1_out(RsprotExec *x, MsgIfSetModelV1 *m);
 
-/* Per-revision aliases: `packet_if_setmodel_v1_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_SETMODEL_V1" without reading a table. */
-#define packet_if_setmodel_v1_rev237_out packet_if_setmodel_v1_v1_out
+/* Per-revision entry points: `packet_if_setmodel_v1_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_SETMODEL_V1" without reading a table. */
+#define packet_if_setmodel_v1_osrs237_out packet_if_setmodel_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setmodel_v1_out[];

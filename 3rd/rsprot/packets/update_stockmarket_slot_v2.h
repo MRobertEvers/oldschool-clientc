@@ -38,10 +38,10 @@ typedef struct MsgUpdateStockmarketSlotV2 {
 	const uint8_t *padding; /* version 1 only: the 14 bytes after it */
 } MsgUpdateStockmarketSlotV2;
 
-/* v100 -- revs 241. */
-void packet_update_stockmarket_slot_v2_v100_out(RsprotExec *x, MsgUpdateStockmarketSlotV2 *m);
+/* v1 (rsprox_versions.txt 100) -- revs 241. */
+void packet_update_stockmarket_slot_v2_v1_out(RsprotExec *x, MsgUpdateStockmarketSlotV2 *m);
 
-#define packet_update_stockmarket_slot_v2_rev241_out packet_update_stockmarket_slot_v2_v100_out
+#define packet_update_stockmarket_slot_v2_osrs241_out packet_update_stockmarket_slot_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_stockmarket_slot_v2_out[];

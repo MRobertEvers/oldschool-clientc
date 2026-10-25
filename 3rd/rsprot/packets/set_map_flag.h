@@ -12,8 +12,9 @@
  *
  * RSProt class : SetMapFlagEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^SetMapFlagEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -31,26 +32,26 @@ typedef struct MsgSetMapFlag {
 	int32_t z_in_build_area;
 } MsgSetMapFlag;
 
-/* v1 -- revs 221-235. */
+/* v1 -- revs 221-235 (packet_versions.txt 1). */
 void packet_set_map_flag_v1_out(RsprotExec *x, MsgSetMapFlag *m);
 
-/* Per-revision aliases: `packet_set_map_flag_rev239_out` is greppable, which is the
- * point -- "what does 239 do for SET_MAP_FLAG" without reading a table. */
-#define packet_set_map_flag_rev221_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev222_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev223_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev224_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev225_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev226_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev227_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev228_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev229_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev230_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev231_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev232_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev233_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev234_out packet_set_map_flag_v1_out
-#define packet_set_map_flag_rev235_out packet_set_map_flag_v1_out
+/* Per-revision entry points: `packet_set_map_flag_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for SET_MAP_FLAG" without reading a table. */
+#define packet_set_map_flag_osrs221_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs222_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs223_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs224_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs225_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs226_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs227_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs228_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs229_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs230_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs231_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs232_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs233_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs234_out packet_set_map_flag_v1_out
+#define packet_set_map_flag_osrs235_out packet_set_map_flag_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_map_flag_out[];

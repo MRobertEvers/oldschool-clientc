@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setcolour_v1_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -19,7 +19,7 @@ packet_if_setcolour_v1_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2(x, m->colour15_bit_packed);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_if_setcolour_v2_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -27,7 +27,7 @@ packet_if_setcolour_v2_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT1(x, m->colour15_bit_packed);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_if_setcolour_v3_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -35,7 +35,7 @@ packet_if_setcolour_v3_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v4 -- revs 224, 227. */
+/* v4 -- revs 224, 227 (packet_versions.txt 4). */
 void
 packet_if_setcolour_v4_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -43,7 +43,7 @@ packet_if_setcolour_v4_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT1(x, m->colour15_bit_packed);
 }
 
-/* v5 -- revs 225, 231. */
+/* v5 -- revs 225, 231 (packet_versions.txt 5). */
 void
 packet_if_setcolour_v5_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -51,7 +51,7 @@ packet_if_setcolour_v5_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v6 -- revs 226, 229, 234. */
+/* v6 -- revs 226, 229, 234 (packet_versions.txt 6). */
 void
 packet_if_setcolour_v6_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -59,7 +59,7 @@ packet_if_setcolour_v6_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT3(x, m->colour15_bit_packed);
 }
 
-/* v7 -- revs 228, 235. */
+/* v7 -- revs 228, 235 (packet_versions.txt 7). */
 void
 packet_if_setcolour_v7_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -67,7 +67,7 @@ packet_if_setcolour_v7_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v8 -- revs 230. */
+/* v8 -- revs 230 (packet_versions.txt 8). */
 void
 packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -75,7 +75,7 @@ packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2(x, m->colour15_bit_packed);
 }
 
-/* v9 -- revs 232, 241. */
+/* v9 -- revs 232, 241 (packet_versions.txt 9). */
 void
 packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -83,7 +83,7 @@ packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT2(x, m->colour15_bit_packed);
 }
 
-/* v10 -- revs 233. */
+/* v10 -- revs 233 (packet_versions.txt 10). */
 void
 packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -91,7 +91,7 @@ packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v11 -- revs 236. */
+/* v11 -- revs 236 (packet_versions.txt 11). */
 void
 packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -99,7 +99,7 @@ packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT3(x, m->colour15_bit_packed);
 }
 
-/* v12 -- revs 237, 239. */
+/* v12 -- revs 237, 239 (packet_versions.txt 12). */
 void
 packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -107,7 +107,7 @@ packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v13 -- revs 238. */
+/* v13 -- revs 238 (packet_versions.txt 13). */
 void
 packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m)
 {
@@ -115,9 +115,9 @@ packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m)
     RSPROT_U2_ALT2(x, m->colour15_bit_packed);
 }
 
-/* v100 -- revs 240. */
+/* v14 -- revs 240 (rsprox_versions.txt 100). */
 void
-packet_if_setcolour_v100_out(RsprotExec *x, MsgIfSetColour *m)
+packet_if_setcolour_v14_out(RsprotExec *x, MsgIfSetColour *m)
 {
     RSPROT_U2_ALT3(x, m->colour15_bit_packed);
     RSPROT_COM_ALT1(x, m->combined_id);
@@ -153,7 +153,7 @@ const RsprotVersionRange rsprot_if_setcolour_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_setcolour_v12_out },
     { 238, 238, (RsprotCodecFn)packet_if_setcolour_v13_out },
     { 239, 239, (RsprotCodecFn)packet_if_setcolour_v12_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setcolour_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_if_setcolour_v14_out },
     { 241, 241, (RsprotCodecFn)packet_if_setcolour_v9_out },
 };
 

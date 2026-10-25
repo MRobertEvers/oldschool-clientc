@@ -125,7 +125,7 @@ roundtrip(
     m.ops = ops;
     RSProt_BufferWrapRead(&c, bytes, written);
     rsprot_exec_decode(&x, &c);
-    packet_loc_add_change_v2_rev239_out(&x, &m);
+    packet_loc_add_change_v2_osrs239_out(&x, &m);
     if( !rsprot_exec_ok(&x) || c.err )
         return 0;
     /* Every byte, and no more: a layout that framed short would leave the next

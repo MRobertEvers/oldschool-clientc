@@ -12,12 +12,13 @@
  *
  * RSProt class : ResetAnimsEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ResetAnimsEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgResetAnims {
 	int32_t _unused;
 } MsgResetAnims;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_reset_anims_v1_out(RsprotExec *x, MsgResetAnims *m);
 
-/* Per-revision aliases: `packet_reset_anims_rev239_out` is greppable, which is the
- * point -- "what does 239 do for RESET_ANIMS" without reading a table. */
-#define packet_reset_anims_rev221_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev222_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev223_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev224_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev225_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev226_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev227_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev228_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev229_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev230_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev231_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev232_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev233_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev234_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev235_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev236_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev237_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev238_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev239_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev240_out packet_reset_anims_v1_out
-#define packet_reset_anims_rev241_out packet_reset_anims_v1_out
+/* Per-revision entry points: `packet_reset_anims_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for RESET_ANIMS" without reading a table. */
+#define packet_reset_anims_osrs221_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs222_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs223_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs224_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs225_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs226_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs227_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs228_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs229_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs230_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs231_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs232_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs233_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs234_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs235_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs236_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs237_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs238_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs239_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs240_out packet_reset_anims_v1_out
+#define packet_reset_anims_osrs241_out packet_reset_anims_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_reset_anims_out[];

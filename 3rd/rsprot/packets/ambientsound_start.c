@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 238-239. */
+/* v1 -- revs 238-239 (packet_versions.txt 1). */
 void
 packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
@@ -19,17 +19,17 @@ packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
     RSPROT_U2(x, m->id);
 }
 
-/* v100 -- revs 241. */
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_ambientsound_start_v100_out(RsprotExec *x, MsgAmbientSoundStart *m)
+packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
     RSPROT_U2(x, m->id);
     RSPROT_U1_ALT1(x, m->fade);
 }
 
-/* v101 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_ambientsound_start_v101_out(RsprotExec *x, MsgAmbientSoundStart *m)
+packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
     RSPROT_U2_ALT2(x, m->id);
     RSPROT_U1_ALT2(x, m->fade);
@@ -47,8 +47,8 @@ packet_ambientsound_start_v101_out(RsprotExec *x, MsgAmbientSoundStart *m)
  */
 const RsprotVersionRange rsprot_ambientsound_start_out[] = {
     { 238, 239, (RsprotCodecFn)packet_ambientsound_start_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_ambientsound_start_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_ambientsound_start_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_ambientsound_start_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_ambientsound_start_v2_out },
 };
 
 const int rsprot_ambientsound_start_out_count =

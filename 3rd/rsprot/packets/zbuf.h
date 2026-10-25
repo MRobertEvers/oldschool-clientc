@@ -12,8 +12,9 @@
  *
  * RSProt class : ZBufEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ZBufEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -30,15 +31,15 @@ typedef struct MsgZBuf {
 	int32_t enabled;
 } MsgZBuf;
 
-/* v1 -- revs 234-237. */
+/* v1 -- revs 234-237 (packet_versions.txt 1). */
 void packet_zbuf_v1_out(RsprotExec *x, MsgZBuf *m);
 
-/* Per-revision aliases: `packet_zbuf_rev239_out` is greppable, which is the
- * point -- "what does 239 do for ZBUF" without reading a table. */
-#define packet_zbuf_rev234_out packet_zbuf_v1_out
-#define packet_zbuf_rev235_out packet_zbuf_v1_out
-#define packet_zbuf_rev236_out packet_zbuf_v1_out
-#define packet_zbuf_rev237_out packet_zbuf_v1_out
+/* Per-revision entry points: `packet_zbuf_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for ZBUF" without reading a table. */
+#define packet_zbuf_osrs234_out packet_zbuf_v1_out
+#define packet_zbuf_osrs235_out packet_zbuf_v1_out
+#define packet_zbuf_osrs236_out packet_zbuf_v1_out
+#define packet_zbuf_osrs237_out packet_zbuf_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_zbuf_out[];

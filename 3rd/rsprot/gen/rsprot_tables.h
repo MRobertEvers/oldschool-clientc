@@ -10,57 +10,57 @@
  * Umbrella table: every vendored revision's {name, code, size} rows, plus a
  * runtime lookup by revision number. This is the ONLY file that needs to
  * change to add a revision RSProt vendors -- re-run
- * tools/rsprot_gen_tables.py, which regenerates every rev<N>_prot.h and
+ * tools/rsprot_gen_tables.py, which regenerates every osrs<N>_prot.h and
  * this dispatch together so they cannot drift.
  */
 
 #include "../src/rsprot_tables_def.h"
 
-#include "rev221_prot.h"
-#include "rev222_prot.h"
-#include "rev223_prot.h"
-#include "rev224_prot.h"
-#include "rev225_prot.h"
-#include "rev226_prot.h"
-#include "rev227_prot.h"
-#include "rev228_prot.h"
-#include "rev229_prot.h"
-#include "rev230_prot.h"
-#include "rev231_prot.h"
-#include "rev232_prot.h"
-#include "rev233_prot.h"
-#include "rev234_prot.h"
-#include "rev235_prot.h"
-#include "rev236_prot.h"
-#include "rev237_prot.h"
-#include "rev238_prot.h"
-#include "rev239_prot.h"
-#include "rev240_prot.h"
-#include "rev241_prot.h"
+#include "osrs221_prot.h"
+#include "osrs222_prot.h"
+#include "osrs223_prot.h"
+#include "osrs224_prot.h"
+#include "osrs225_prot.h"
+#include "osrs226_prot.h"
+#include "osrs227_prot.h"
+#include "osrs228_prot.h"
+#include "osrs229_prot.h"
+#include "osrs230_prot.h"
+#include "osrs231_prot.h"
+#include "osrs232_prot.h"
+#include "osrs233_prot.h"
+#include "osrs234_prot.h"
+#include "osrs235_prot.h"
+#include "osrs236_prot.h"
+#include "osrs237_prot.h"
+#include "osrs238_prot.h"
+#include "osrs239_prot.h"
+#include "osrs240_prot.h"
+#include "osrs241_prot.h"
 
 /* clang-format off */
 static const RsprotRevTable rsprot_all_revisions[] = {
-    { 221, rsprot_rev221_server, RSPROT_REV221_SERVER_COUNT, rsprot_rev221_client, RSPROT_REV221_CLIENT_COUNT, rsprot_rev221_zone_order, RSPROT_REV221_ZONE_COUNT },
-    { 222, rsprot_rev222_server, RSPROT_REV222_SERVER_COUNT, rsprot_rev222_client, RSPROT_REV222_CLIENT_COUNT, rsprot_rev222_zone_order, RSPROT_REV222_ZONE_COUNT },
-    { 223, rsprot_rev223_server, RSPROT_REV223_SERVER_COUNT, rsprot_rev223_client, RSPROT_REV223_CLIENT_COUNT, rsprot_rev223_zone_order, RSPROT_REV223_ZONE_COUNT },
-    { 224, rsprot_rev224_server, RSPROT_REV224_SERVER_COUNT, rsprot_rev224_client, RSPROT_REV224_CLIENT_COUNT, rsprot_rev224_zone_order, RSPROT_REV224_ZONE_COUNT },
-    { 225, rsprot_rev225_server, RSPROT_REV225_SERVER_COUNT, rsprot_rev225_client, RSPROT_REV225_CLIENT_COUNT, rsprot_rev225_zone_order, RSPROT_REV225_ZONE_COUNT },
-    { 226, rsprot_rev226_server, RSPROT_REV226_SERVER_COUNT, rsprot_rev226_client, RSPROT_REV226_CLIENT_COUNT, rsprot_rev226_zone_order, RSPROT_REV226_ZONE_COUNT },
-    { 227, rsprot_rev227_server, RSPROT_REV227_SERVER_COUNT, rsprot_rev227_client, RSPROT_REV227_CLIENT_COUNT, rsprot_rev227_zone_order, RSPROT_REV227_ZONE_COUNT },
-    { 228, rsprot_rev228_server, RSPROT_REV228_SERVER_COUNT, rsprot_rev228_client, RSPROT_REV228_CLIENT_COUNT, rsprot_rev228_zone_order, RSPROT_REV228_ZONE_COUNT },
-    { 229, rsprot_rev229_server, RSPROT_REV229_SERVER_COUNT, rsprot_rev229_client, RSPROT_REV229_CLIENT_COUNT, rsprot_rev229_zone_order, RSPROT_REV229_ZONE_COUNT },
-    { 230, rsprot_rev230_server, RSPROT_REV230_SERVER_COUNT, rsprot_rev230_client, RSPROT_REV230_CLIENT_COUNT, rsprot_rev230_zone_order, RSPROT_REV230_ZONE_COUNT },
-    { 231, rsprot_rev231_server, RSPROT_REV231_SERVER_COUNT, rsprot_rev231_client, RSPROT_REV231_CLIENT_COUNT, rsprot_rev231_zone_order, RSPROT_REV231_ZONE_COUNT },
-    { 232, rsprot_rev232_server, RSPROT_REV232_SERVER_COUNT, rsprot_rev232_client, RSPROT_REV232_CLIENT_COUNT, rsprot_rev232_zone_order, RSPROT_REV232_ZONE_COUNT },
-    { 233, rsprot_rev233_server, RSPROT_REV233_SERVER_COUNT, rsprot_rev233_client, RSPROT_REV233_CLIENT_COUNT, rsprot_rev233_zone_order, RSPROT_REV233_ZONE_COUNT },
-    { 234, rsprot_rev234_server, RSPROT_REV234_SERVER_COUNT, rsprot_rev234_client, RSPROT_REV234_CLIENT_COUNT, rsprot_rev234_zone_order, RSPROT_REV234_ZONE_COUNT },
-    { 235, rsprot_rev235_server, RSPROT_REV235_SERVER_COUNT, rsprot_rev235_client, RSPROT_REV235_CLIENT_COUNT, rsprot_rev235_zone_order, RSPROT_REV235_ZONE_COUNT },
-    { 236, rsprot_rev236_server, RSPROT_REV236_SERVER_COUNT, rsprot_rev236_client, RSPROT_REV236_CLIENT_COUNT, rsprot_rev236_zone_order, RSPROT_REV236_ZONE_COUNT },
-    { 237, rsprot_rev237_server, RSPROT_REV237_SERVER_COUNT, rsprot_rev237_client, RSPROT_REV237_CLIENT_COUNT, rsprot_rev237_zone_order, RSPROT_REV237_ZONE_COUNT },
-    { 238, rsprot_rev238_server, RSPROT_REV238_SERVER_COUNT, rsprot_rev238_client, RSPROT_REV238_CLIENT_COUNT, rsprot_rev238_zone_order, RSPROT_REV238_ZONE_COUNT },
-    { 239, rsprot_rev239_server, RSPROT_REV239_SERVER_COUNT, rsprot_rev239_client, RSPROT_REV239_CLIENT_COUNT, rsprot_rev239_zone_order, RSPROT_REV239_ZONE_COUNT },
-    { 240, rsprot_rev240_server, RSPROT_REV240_SERVER_COUNT, rsprot_rev240_client, RSPROT_REV240_CLIENT_COUNT, rsprot_rev240_zone_order, RSPROT_REV240_ZONE_COUNT },
-    { 241, rsprot_rev241_server, RSPROT_REV241_SERVER_COUNT, rsprot_rev241_client, RSPROT_REV241_CLIENT_COUNT, rsprot_rev241_zone_order, RSPROT_REV241_ZONE_COUNT },
+    { 221, rsprot_osrs221_server, RSPROT_OSRS221_SERVER_COUNT, rsprot_osrs221_client, RSPROT_OSRS221_CLIENT_COUNT, rsprot_osrs221_zone_order, RSPROT_OSRS221_ZONE_COUNT },
+    { 222, rsprot_osrs222_server, RSPROT_OSRS222_SERVER_COUNT, rsprot_osrs222_client, RSPROT_OSRS222_CLIENT_COUNT, rsprot_osrs222_zone_order, RSPROT_OSRS222_ZONE_COUNT },
+    { 223, rsprot_osrs223_server, RSPROT_OSRS223_SERVER_COUNT, rsprot_osrs223_client, RSPROT_OSRS223_CLIENT_COUNT, rsprot_osrs223_zone_order, RSPROT_OSRS223_ZONE_COUNT },
+    { 224, rsprot_osrs224_server, RSPROT_OSRS224_SERVER_COUNT, rsprot_osrs224_client, RSPROT_OSRS224_CLIENT_COUNT, rsprot_osrs224_zone_order, RSPROT_OSRS224_ZONE_COUNT },
+    { 225, rsprot_osrs225_server, RSPROT_OSRS225_SERVER_COUNT, rsprot_osrs225_client, RSPROT_OSRS225_CLIENT_COUNT, rsprot_osrs225_zone_order, RSPROT_OSRS225_ZONE_COUNT },
+    { 226, rsprot_osrs226_server, RSPROT_OSRS226_SERVER_COUNT, rsprot_osrs226_client, RSPROT_OSRS226_CLIENT_COUNT, rsprot_osrs226_zone_order, RSPROT_OSRS226_ZONE_COUNT },
+    { 227, rsprot_osrs227_server, RSPROT_OSRS227_SERVER_COUNT, rsprot_osrs227_client, RSPROT_OSRS227_CLIENT_COUNT, rsprot_osrs227_zone_order, RSPROT_OSRS227_ZONE_COUNT },
+    { 228, rsprot_osrs228_server, RSPROT_OSRS228_SERVER_COUNT, rsprot_osrs228_client, RSPROT_OSRS228_CLIENT_COUNT, rsprot_osrs228_zone_order, RSPROT_OSRS228_ZONE_COUNT },
+    { 229, rsprot_osrs229_server, RSPROT_OSRS229_SERVER_COUNT, rsprot_osrs229_client, RSPROT_OSRS229_CLIENT_COUNT, rsprot_osrs229_zone_order, RSPROT_OSRS229_ZONE_COUNT },
+    { 230, rsprot_osrs230_server, RSPROT_OSRS230_SERVER_COUNT, rsprot_osrs230_client, RSPROT_OSRS230_CLIENT_COUNT, rsprot_osrs230_zone_order, RSPROT_OSRS230_ZONE_COUNT },
+    { 231, rsprot_osrs231_server, RSPROT_OSRS231_SERVER_COUNT, rsprot_osrs231_client, RSPROT_OSRS231_CLIENT_COUNT, rsprot_osrs231_zone_order, RSPROT_OSRS231_ZONE_COUNT },
+    { 232, rsprot_osrs232_server, RSPROT_OSRS232_SERVER_COUNT, rsprot_osrs232_client, RSPROT_OSRS232_CLIENT_COUNT, rsprot_osrs232_zone_order, RSPROT_OSRS232_ZONE_COUNT },
+    { 233, rsprot_osrs233_server, RSPROT_OSRS233_SERVER_COUNT, rsprot_osrs233_client, RSPROT_OSRS233_CLIENT_COUNT, rsprot_osrs233_zone_order, RSPROT_OSRS233_ZONE_COUNT },
+    { 234, rsprot_osrs234_server, RSPROT_OSRS234_SERVER_COUNT, rsprot_osrs234_client, RSPROT_OSRS234_CLIENT_COUNT, rsprot_osrs234_zone_order, RSPROT_OSRS234_ZONE_COUNT },
+    { 235, rsprot_osrs235_server, RSPROT_OSRS235_SERVER_COUNT, rsprot_osrs235_client, RSPROT_OSRS235_CLIENT_COUNT, rsprot_osrs235_zone_order, RSPROT_OSRS235_ZONE_COUNT },
+    { 236, rsprot_osrs236_server, RSPROT_OSRS236_SERVER_COUNT, rsprot_osrs236_client, RSPROT_OSRS236_CLIENT_COUNT, rsprot_osrs236_zone_order, RSPROT_OSRS236_ZONE_COUNT },
+    { 237, rsprot_osrs237_server, RSPROT_OSRS237_SERVER_COUNT, rsprot_osrs237_client, RSPROT_OSRS237_CLIENT_COUNT, rsprot_osrs237_zone_order, RSPROT_OSRS237_ZONE_COUNT },
+    { 238, rsprot_osrs238_server, RSPROT_OSRS238_SERVER_COUNT, rsprot_osrs238_client, RSPROT_OSRS238_CLIENT_COUNT, rsprot_osrs238_zone_order, RSPROT_OSRS238_ZONE_COUNT },
+    { 239, rsprot_osrs239_server, RSPROT_OSRS239_SERVER_COUNT, rsprot_osrs239_client, RSPROT_OSRS239_CLIENT_COUNT, rsprot_osrs239_zone_order, RSPROT_OSRS239_ZONE_COUNT },
+    { 240, rsprot_osrs240_server, RSPROT_OSRS240_SERVER_COUNT, rsprot_osrs240_client, RSPROT_OSRS240_CLIENT_COUNT, rsprot_osrs240_zone_order, RSPROT_OSRS240_ZONE_COUNT },
+    { 241, rsprot_osrs241_server, RSPROT_OSRS241_SERVER_COUNT, rsprot_osrs241_client, RSPROT_OSRS241_CLIENT_COUNT, rsprot_osrs241_zone_order, RSPROT_OSRS241_ZONE_COUNT },
 };
 /* clang-format on */
 

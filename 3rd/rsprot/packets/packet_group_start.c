@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs 227-241 (packet_versions.txt 1). */
 void
 packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m)
 {

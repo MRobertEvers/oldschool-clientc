@@ -12,8 +12,9 @@
  *
  * RSProt class : TimingsDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^TimingsDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -36,13 +37,13 @@ typedef struct MsgTimings {
 	int32_t unused2;
 } MsgTimings;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs 221-222 (packet_versions.txt 1). */
 void packet_timings_v1_in(RsprotExec *x, MsgTimings *m);
 
-/* Per-revision aliases: `packet_timings_rev239_in` is greppable, which is the
- * point -- "what does 239 do for TIMINGS" without reading a table. */
-#define packet_timings_rev221_in packet_timings_v1_in
-#define packet_timings_rev222_in packet_timings_v1_in
+/* Per-revision entry points: `packet_timings_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for TIMINGS" without reading a table. */
+#define packet_timings_osrs221_in packet_timings_v1_in
+#define packet_timings_osrs222_in packet_timings_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_timings_in[];

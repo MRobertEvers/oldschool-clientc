@@ -1186,7 +1186,7 @@ struct RS_CS2Host
      *
      * Nothing in the revision closes that gap:
      *
-     *   - rev239's client prot table (`3rd/rsprot/gen/rev239_prot.h`) carries no
+     *   - rev239's client prot table (`3rd/rsprot/gen/osrs239_prot.h`) carries no
      *     varp, varbit or settings packet. `SET_CHATFILTERSETTINGS` is the only
      *     settings-shaped entry and it is about chat filters.
      *   - the reference client does not transmit either: NXT's

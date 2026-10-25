@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_projanim_specific_v1_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -28,7 +28,7 @@ packet_projanim_specific_v1_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_projanim_specific_v2_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -45,7 +45,7 @@ packet_projanim_specific_v2_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_projanim_specific_v3_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -62,7 +62,7 @@ packet_projanim_specific_v3_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U3(x, m->coord_in_build_area_packed);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_projanim_specific_v4_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -79,7 +79,7 @@ packet_projanim_specific_v4_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U2_ALT2(x, m->start_time);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_projanim_specific_v5_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {

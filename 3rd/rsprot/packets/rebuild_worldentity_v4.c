@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 237-241. */
+/* v1 -- revs 237-241 (packet_versions.txt 1). */
 void
 packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
 {

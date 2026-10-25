@@ -12,12 +12,13 @@
  *
  * RSProt class : SendPingReplyDecoder
  * Layouts      : 21 distinct, over 21 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v21, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^SendPingReplyDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -36,72 +37,72 @@ typedef struct MsgSendPingReply {
 	int32_t value2;
 } MsgSendPingReply;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_send_ping_reply_v1_in(RsprotExec *x, MsgSendPingReply *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_send_ping_reply_v2_in(RsprotExec *x, MsgSendPingReply *m);
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void packet_send_ping_reply_v3_in(RsprotExec *x, MsgSendPingReply *m);
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void packet_send_ping_reply_v4_in(RsprotExec *x, MsgSendPingReply *m);
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void packet_send_ping_reply_v5_in(RsprotExec *x, MsgSendPingReply *m);
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void packet_send_ping_reply_v6_in(RsprotExec *x, MsgSendPingReply *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_send_ping_reply_v7_in(RsprotExec *x, MsgSendPingReply *m);
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void packet_send_ping_reply_v8_in(RsprotExec *x, MsgSendPingReply *m);
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void packet_send_ping_reply_v9_in(RsprotExec *x, MsgSendPingReply *m);
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void packet_send_ping_reply_v10_in(RsprotExec *x, MsgSendPingReply *m);
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void packet_send_ping_reply_v11_in(RsprotExec *x, MsgSendPingReply *m);
-/* v12 -- revs 232. */
+/* v12 -- revs 232 (packet_versions.txt 12). */
 void packet_send_ping_reply_v12_in(RsprotExec *x, MsgSendPingReply *m);
-/* v13 -- revs 233. */
+/* v13 -- revs 233 (packet_versions.txt 13). */
 void packet_send_ping_reply_v13_in(RsprotExec *x, MsgSendPingReply *m);
-/* v14 -- revs 234. */
+/* v14 -- revs 234 (packet_versions.txt 14). */
 void packet_send_ping_reply_v14_in(RsprotExec *x, MsgSendPingReply *m);
-/* v15 -- revs 235. */
+/* v15 -- revs 235 (packet_versions.txt 15). */
 void packet_send_ping_reply_v15_in(RsprotExec *x, MsgSendPingReply *m);
-/* v16 -- revs 236. */
+/* v16 -- revs 236 (packet_versions.txt 16). */
 void packet_send_ping_reply_v16_in(RsprotExec *x, MsgSendPingReply *m);
-/* v17 -- revs 237. */
+/* v17 -- revs 237 (packet_versions.txt 17). */
 void packet_send_ping_reply_v17_in(RsprotExec *x, MsgSendPingReply *m);
-/* v18 -- revs 238. */
+/* v18 -- revs 238 (packet_versions.txt 18). */
 void packet_send_ping_reply_v18_in(RsprotExec *x, MsgSendPingReply *m);
-/* v19 -- revs 239. */
+/* v19 -- revs 239 (packet_versions.txt 19). */
 void packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m);
-/* v100 -- revs 241. */
-void packet_send_ping_reply_v100_in(RsprotExec *x, MsgSendPingReply *m);
-/* v101 -- revs 240. */
-void packet_send_ping_reply_v101_in(RsprotExec *x, MsgSendPingReply *m);
+/* v20 -- revs 241 (rsprox_versions.txt 100). */
+void packet_send_ping_reply_v20_in(RsprotExec *x, MsgSendPingReply *m);
+/* v21 -- revs 240 (rsprox_versions.txt 101). */
+void packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m);
 
-/* Per-revision aliases: `packet_send_ping_reply_rev239_in` is greppable, which is the
- * point -- "what does 239 do for SEND_PING_REPLY" without reading a table. */
-#define packet_send_ping_reply_rev221_in packet_send_ping_reply_v1_in
-#define packet_send_ping_reply_rev222_in packet_send_ping_reply_v2_in
-#define packet_send_ping_reply_rev223_in packet_send_ping_reply_v3_in
-#define packet_send_ping_reply_rev224_in packet_send_ping_reply_v4_in
-#define packet_send_ping_reply_rev225_in packet_send_ping_reply_v5_in
-#define packet_send_ping_reply_rev226_in packet_send_ping_reply_v6_in
-#define packet_send_ping_reply_rev227_in packet_send_ping_reply_v7_in
-#define packet_send_ping_reply_rev228_in packet_send_ping_reply_v8_in
-#define packet_send_ping_reply_rev229_in packet_send_ping_reply_v9_in
-#define packet_send_ping_reply_rev230_in packet_send_ping_reply_v10_in
-#define packet_send_ping_reply_rev231_in packet_send_ping_reply_v11_in
-#define packet_send_ping_reply_rev232_in packet_send_ping_reply_v12_in
-#define packet_send_ping_reply_rev233_in packet_send_ping_reply_v13_in
-#define packet_send_ping_reply_rev234_in packet_send_ping_reply_v14_in
-#define packet_send_ping_reply_rev235_in packet_send_ping_reply_v15_in
-#define packet_send_ping_reply_rev236_in packet_send_ping_reply_v16_in
-#define packet_send_ping_reply_rev237_in packet_send_ping_reply_v17_in
-#define packet_send_ping_reply_rev238_in packet_send_ping_reply_v18_in
-#define packet_send_ping_reply_rev239_in packet_send_ping_reply_v19_in
-#define packet_send_ping_reply_rev240_in packet_send_ping_reply_v101_in
-#define packet_send_ping_reply_rev241_in packet_send_ping_reply_v100_in
+/* Per-revision entry points: `packet_send_ping_reply_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for SEND_PING_REPLY" without reading a table. */
+#define packet_send_ping_reply_osrs221_in packet_send_ping_reply_v1_in
+#define packet_send_ping_reply_osrs222_in packet_send_ping_reply_v2_in
+#define packet_send_ping_reply_osrs223_in packet_send_ping_reply_v3_in
+#define packet_send_ping_reply_osrs224_in packet_send_ping_reply_v4_in
+#define packet_send_ping_reply_osrs225_in packet_send_ping_reply_v5_in
+#define packet_send_ping_reply_osrs226_in packet_send_ping_reply_v6_in
+#define packet_send_ping_reply_osrs227_in packet_send_ping_reply_v7_in
+#define packet_send_ping_reply_osrs228_in packet_send_ping_reply_v8_in
+#define packet_send_ping_reply_osrs229_in packet_send_ping_reply_v9_in
+#define packet_send_ping_reply_osrs230_in packet_send_ping_reply_v10_in
+#define packet_send_ping_reply_osrs231_in packet_send_ping_reply_v11_in
+#define packet_send_ping_reply_osrs232_in packet_send_ping_reply_v12_in
+#define packet_send_ping_reply_osrs233_in packet_send_ping_reply_v13_in
+#define packet_send_ping_reply_osrs234_in packet_send_ping_reply_v14_in
+#define packet_send_ping_reply_osrs235_in packet_send_ping_reply_v15_in
+#define packet_send_ping_reply_osrs236_in packet_send_ping_reply_v16_in
+#define packet_send_ping_reply_osrs237_in packet_send_ping_reply_v17_in
+#define packet_send_ping_reply_osrs238_in packet_send_ping_reply_v18_in
+#define packet_send_ping_reply_osrs239_in packet_send_ping_reply_v19_in
+#define packet_send_ping_reply_osrs240_in packet_send_ping_reply_v21_in
+#define packet_send_ping_reply_osrs241_in packet_send_ping_reply_v20_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_send_ping_reply_in[];

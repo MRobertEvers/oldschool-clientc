@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m)
 {
@@ -20,7 +20,7 @@ packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m)
     RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void
 packet_obj_opfilter_v2_out(RsprotExec *x, MsgObjOpFilter *m)
 {

@@ -7,9 +7,9 @@
  *       decoder/codec/specific/NpcSpotAnimSpecificDecoder.kt
  */
 
-/* v100 -- revs 227. */
+/* v1 -- revs 227 (rsprox_versions.txt 100). */
 void
-packet_npc_spotanim_specific_v100_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v1_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -21,9 +21,9 @@ packet_npc_spotanim_specific_v100_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4(x, m->packed);
 }
 
-/* v101 -- revs 228. */
+/* v2 -- revs 228 (rsprox_versions.txt 101). */
 void
-packet_npc_spotanim_specific_v101_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v2_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -35,9 +35,9 @@ packet_npc_spotanim_specific_v101_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4_ALT2(x, m->packed);
 }
 
-/* v102 -- revs 229. */
+/* v3 -- revs 229 (rsprox_versions.txt 102). */
 void
-packet_npc_spotanim_specific_v102_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v3_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -49,9 +49,9 @@ packet_npc_spotanim_specific_v102_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U2_ALT3(x, m->id);
 }
 
-/* v103 -- revs 230. */
+/* v4 -- revs 230 (rsprox_versions.txt 103). */
 void
-packet_npc_spotanim_specific_v103_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v4_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -63,9 +63,9 @@ packet_npc_spotanim_specific_v103_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4_ALT2(x, m->packed);
 }
 
-/* v104 -- revs 231. */
+/* v5 -- revs 231 (rsprox_versions.txt 104). */
 void
-packet_npc_spotanim_specific_v104_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v5_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -77,9 +77,9 @@ packet_npc_spotanim_specific_v104_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4(x, m->packed);
 }
 
-/* v105 -- revs 232. */
+/* v6 -- revs 232 (rsprox_versions.txt 105). */
 void
-packet_npc_spotanim_specific_v105_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v6_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -91,9 +91,9 @@ packet_npc_spotanim_specific_v105_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U2_ALT2(x, m->index);
 }
 
-/* v106 -- revs 233. */
+/* v7 -- revs 233 (rsprox_versions.txt 106). */
 void
-packet_npc_spotanim_specific_v106_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v7_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -105,9 +105,9 @@ packet_npc_spotanim_specific_v106_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U1(x, m->slot);
 }
 
-/* v107 -- revs 234. */
+/* v8 -- revs 234 (rsprox_versions.txt 107). */
 void
-packet_npc_spotanim_specific_v107_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v8_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -119,9 +119,9 @@ packet_npc_spotanim_specific_v107_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U2_ALT2(x, m->index);
 }
 
-/* v108 -- revs 235. */
+/* v9 -- revs 235 (rsprox_versions.txt 108). */
 void
-packet_npc_spotanim_specific_v108_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v9_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -133,9 +133,9 @@ packet_npc_spotanim_specific_v108_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U2(x, m->index);
 }
 
-/* v109 -- revs 236. */
+/* v10 -- revs 236 (rsprox_versions.txt 109). */
 void
-packet_npc_spotanim_specific_v109_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v10_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -147,9 +147,9 @@ packet_npc_spotanim_specific_v109_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U1(x, m->slot);
 }
 
-/* v110 -- revs 237. */
+/* v11 -- revs 237 (rsprox_versions.txt 110). */
 void
-packet_npc_spotanim_specific_v110_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v11_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -161,9 +161,9 @@ packet_npc_spotanim_specific_v110_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4_ALT1(x, m->packed);
 }
 
-/* v111 -- revs 238. */
+/* v12 -- revs 238 (rsprox_versions.txt 111). */
 void
-packet_npc_spotanim_specific_v111_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v12_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -175,9 +175,9 @@ packet_npc_spotanim_specific_v111_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U2_ALT2(x, m->index);
 }
 
-/* v112 -- revs 239. */
+/* v13 -- revs 239 (rsprox_versions.txt 112). */
 void
-packet_npc_spotanim_specific_v112_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v13_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -189,9 +189,9 @@ packet_npc_spotanim_specific_v112_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U4_ALT2(x, m->packed);
 }
 
-/* v113 -- revs 240. */
+/* v14 -- revs 240 (rsprox_versions.txt 113). */
 void
-packet_npc_spotanim_specific_v113_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v14_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -203,9 +203,9 @@ packet_npc_spotanim_specific_v113_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
     RSPROT_U1_ALT3(x, m->slot);
 }
 
-/* v114 -- revs 241. */
+/* v15 -- revs 241 (rsprox_versions.txt 114). */
 void
-packet_npc_spotanim_specific_v114_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
+packet_npc_spotanim_specific_v15_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
 {
     /* RSProx derives, after the reads:
      *   val height = packed ushr 16
@@ -222,21 +222,21 @@ packet_npc_spotanim_specific_v114_out(RsprotExec *x, MsgNpcSpotanimSpecific *m)
  * listed has no NPC_SPOTANIM_SPECIFIC and picks NULL.
  */
 const RsprotVersionRange rsprot_npc_spotanim_specific_out[] = {
-    { 227, 227, (RsprotCodecFn)packet_npc_spotanim_specific_v100_out },
-    { 228, 228, (RsprotCodecFn)packet_npc_spotanim_specific_v101_out },
-    { 229, 229, (RsprotCodecFn)packet_npc_spotanim_specific_v102_out },
-    { 230, 230, (RsprotCodecFn)packet_npc_spotanim_specific_v103_out },
-    { 231, 231, (RsprotCodecFn)packet_npc_spotanim_specific_v104_out },
-    { 232, 232, (RsprotCodecFn)packet_npc_spotanim_specific_v105_out },
-    { 233, 233, (RsprotCodecFn)packet_npc_spotanim_specific_v106_out },
-    { 234, 234, (RsprotCodecFn)packet_npc_spotanim_specific_v107_out },
-    { 235, 235, (RsprotCodecFn)packet_npc_spotanim_specific_v108_out },
-    { 236, 236, (RsprotCodecFn)packet_npc_spotanim_specific_v109_out },
-    { 237, 237, (RsprotCodecFn)packet_npc_spotanim_specific_v110_out },
-    { 238, 238, (RsprotCodecFn)packet_npc_spotanim_specific_v111_out },
-    { 239, 239, (RsprotCodecFn)packet_npc_spotanim_specific_v112_out },
-    { 240, 240, (RsprotCodecFn)packet_npc_spotanim_specific_v113_out },
-    { 241, 241, (RsprotCodecFn)packet_npc_spotanim_specific_v114_out },
+    { 227, 227, (RsprotCodecFn)packet_npc_spotanim_specific_v1_out },
+    { 228, 228, (RsprotCodecFn)packet_npc_spotanim_specific_v2_out },
+    { 229, 229, (RsprotCodecFn)packet_npc_spotanim_specific_v3_out },
+    { 230, 230, (RsprotCodecFn)packet_npc_spotanim_specific_v4_out },
+    { 231, 231, (RsprotCodecFn)packet_npc_spotanim_specific_v5_out },
+    { 232, 232, (RsprotCodecFn)packet_npc_spotanim_specific_v6_out },
+    { 233, 233, (RsprotCodecFn)packet_npc_spotanim_specific_v7_out },
+    { 234, 234, (RsprotCodecFn)packet_npc_spotanim_specific_v8_out },
+    { 235, 235, (RsprotCodecFn)packet_npc_spotanim_specific_v9_out },
+    { 236, 236, (RsprotCodecFn)packet_npc_spotanim_specific_v10_out },
+    { 237, 237, (RsprotCodecFn)packet_npc_spotanim_specific_v11_out },
+    { 238, 238, (RsprotCodecFn)packet_npc_spotanim_specific_v12_out },
+    { 239, 239, (RsprotCodecFn)packet_npc_spotanim_specific_v13_out },
+    { 240, 240, (RsprotCodecFn)packet_npc_spotanim_specific_v14_out },
+    { 241, 241, (RsprotCodecFn)packet_npc_spotanim_specific_v15_out },
 };
 
 const int rsprot_npc_spotanim_specific_out_count =

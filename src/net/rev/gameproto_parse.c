@@ -891,6 +891,11 @@ gameproto_free(struct RevPacket* p)
         p->_player_info.data = NULL;
         p->_player_info.length = 0;
         break;
+    case PKT_NAME_RECONNECT:
+        ToriMem_Free(ToriMem_Net(), p->_reconnect.data);
+        p->_reconnect.data = NULL;
+        p->_reconnect.length = 0;
+        break;
     case PKT_NAME_REBUILD_NORMAL:
     case PKT_NAME_REBUILD_REGION:
         /* dat2/osrs230 XTEA keys (NULL on the lc254 path), and the instanced

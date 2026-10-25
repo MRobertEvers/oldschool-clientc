@@ -12,12 +12,13 @@
  *
  * RSProt class : SetHeadingDecoder
  * Layouts      : 4 distinct, over 12 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v4, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^SetHeadingDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,33 +34,33 @@ typedef struct MsgSetHeading {
 	int32_t heading;
 } MsgSetHeading;
 
-/* v1 -- revs 226, 229, 238. */
+/* v1 -- revs 226, 229, 238 (packet_versions.txt 1). */
 void packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m);
-/* v2 -- revs 227, 232-233, 235-236, 240-241. */
+/* v2 -- revs 227, 232-233, 235-236, 240-241 (packet_versions.txt 2). */
 void packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m);
-/* v3 -- revs 228, 237. */
+/* v3 -- revs 228, 237 (packet_versions.txt 3). */
 void packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m);
-/* v4 -- revs 230-231, 234, 239. */
+/* v4 -- revs 230-231, 234, 239 (packet_versions.txt 4). */
 void packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m);
 
-/* Per-revision aliases: `packet_set_heading_rev239_in` is greppable, which is the
- * point -- "what does 239 do for SET_HEADING" without reading a table. */
-#define packet_set_heading_rev226_in packet_set_heading_v1_in
-#define packet_set_heading_rev227_in packet_set_heading_v2_in
-#define packet_set_heading_rev228_in packet_set_heading_v3_in
-#define packet_set_heading_rev229_in packet_set_heading_v1_in
-#define packet_set_heading_rev230_in packet_set_heading_v4_in
-#define packet_set_heading_rev231_in packet_set_heading_v4_in
-#define packet_set_heading_rev232_in packet_set_heading_v2_in
-#define packet_set_heading_rev233_in packet_set_heading_v2_in
-#define packet_set_heading_rev234_in packet_set_heading_v4_in
-#define packet_set_heading_rev235_in packet_set_heading_v2_in
-#define packet_set_heading_rev236_in packet_set_heading_v2_in
-#define packet_set_heading_rev237_in packet_set_heading_v3_in
-#define packet_set_heading_rev238_in packet_set_heading_v1_in
-#define packet_set_heading_rev239_in packet_set_heading_v4_in
-#define packet_set_heading_rev240_in packet_set_heading_v2_in
-#define packet_set_heading_rev241_in packet_set_heading_v2_in
+/* Per-revision entry points: `packet_set_heading_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for SET_HEADING" without reading a table. */
+#define packet_set_heading_osrs226_in packet_set_heading_v1_in
+#define packet_set_heading_osrs227_in packet_set_heading_v2_in
+#define packet_set_heading_osrs228_in packet_set_heading_v3_in
+#define packet_set_heading_osrs229_in packet_set_heading_v1_in
+#define packet_set_heading_osrs230_in packet_set_heading_v4_in
+#define packet_set_heading_osrs231_in packet_set_heading_v4_in
+#define packet_set_heading_osrs232_in packet_set_heading_v2_in
+#define packet_set_heading_osrs233_in packet_set_heading_v2_in
+#define packet_set_heading_osrs234_in packet_set_heading_v4_in
+#define packet_set_heading_osrs235_in packet_set_heading_v2_in
+#define packet_set_heading_osrs236_in packet_set_heading_v2_in
+#define packet_set_heading_osrs237_in packet_set_heading_v3_in
+#define packet_set_heading_osrs238_in packet_set_heading_v1_in
+#define packet_set_heading_osrs239_in packet_set_heading_v4_in
+#define packet_set_heading_osrs240_in packet_set_heading_v2_in
+#define packet_set_heading_osrs241_in packet_set_heading_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_heading_in[];

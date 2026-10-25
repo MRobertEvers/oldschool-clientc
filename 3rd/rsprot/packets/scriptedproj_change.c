@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs 239 (packet_versions.txt 1). */
 void
 packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
@@ -25,9 +25,9 @@ packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m)
     RSPROT_U1_ALT1(x, m->delete_on_freeze_end);
 }
 
-/* v100 -- revs 241. */
+/* v2 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_scriptedproj_change_v100_out(RsprotExec *x, MsgScriptedProjChange *m)
+packet_scriptedproj_change_v2_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
     RSPROT_U2_ALT3(x, m->target_offset_x);
     RSPROT_U3_ALT3(x, m->target_index);
@@ -39,9 +39,9 @@ packet_scriptedproj_change_v100_out(RsprotExec *x, MsgScriptedProjChange *m)
     RSPROT_U4_ALT2(x, m->target_coord_packed);
 }
 
-/* v101 -- revs 240. */
+/* v3 -- revs 240 (rsprox_versions.txt 101). */
 void
-packet_scriptedproj_change_v101_out(RsprotExec *x, MsgScriptedProjChange *m)
+packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
     RSPROT_U2_ALT3(x, m->freeze_duration);
     RSPROT_U1_ALT1(x, m->delete_on_freeze_end);
@@ -65,8 +65,8 @@ packet_scriptedproj_change_v101_out(RsprotExec *x, MsgScriptedProjChange *m)
  */
 const RsprotVersionRange rsprot_scriptedproj_change_out[] = {
     { 239, 239, (RsprotCodecFn)packet_scriptedproj_change_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_scriptedproj_change_v101_out },
-    { 241, 241, (RsprotCodecFn)packet_scriptedproj_change_v100_out },
+    { 240, 240, (RsprotCodecFn)packet_scriptedproj_change_v3_out },
+    { 241, 241, (RsprotCodecFn)packet_scriptedproj_change_v2_out },
 };
 
 const int rsprot_scriptedproj_change_out_count =

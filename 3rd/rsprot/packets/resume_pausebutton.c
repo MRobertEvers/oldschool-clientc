@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221, 240. */
+/* v1 -- revs 221, 240 (packet_versions.txt 1). */
 void
 packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -19,7 +19,7 @@ packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_ALT3(x, m->sub);
 }
 
-/* v2 -- revs 222, 238. */
+/* v2 -- revs 222, 238 (packet_versions.txt 2). */
 void
 packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -27,7 +27,7 @@ packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_ALT3(x, m->sub);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_resume_pausebutton_v3_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -35,7 +35,7 @@ packet_resume_pausebutton_v3_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_ALT2(x, m->sub);
 }
 
-/* v4 -- revs 224, 237. */
+/* v4 -- revs 224, 237 (packet_versions.txt 4). */
 void
 packet_resume_pausebutton_v4_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -43,7 +43,7 @@ packet_resume_pausebutton_v4_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v5 -- revs 225, 232. */
+/* v5 -- revs 225, 232 (packet_versions.txt 5). */
 void
 packet_resume_pausebutton_v5_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -51,7 +51,7 @@ packet_resume_pausebutton_v5_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs 226 (packet_versions.txt 6). */
 void
 packet_resume_pausebutton_v6_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -59,7 +59,7 @@ packet_resume_pausebutton_v6_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2(x, m->sub);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void
 packet_resume_pausebutton_v7_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -67,7 +67,7 @@ packet_resume_pausebutton_v7_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs 228 (packet_versions.txt 8). */
 void
 packet_resume_pausebutton_v8_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -75,7 +75,7 @@ packet_resume_pausebutton_v8_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_U2_ALT2(x, m->sub);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs 229 (packet_versions.txt 9). */
 void
 packet_resume_pausebutton_v9_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -83,7 +83,7 @@ packet_resume_pausebutton_v9_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs 230 (packet_versions.txt 10). */
 void
 packet_resume_pausebutton_v10_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -91,7 +91,7 @@ packet_resume_pausebutton_v10_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 231 (packet_versions.txt 11). */
 void
 packet_resume_pausebutton_v11_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -99,7 +99,7 @@ packet_resume_pausebutton_v11_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v12 -- revs 233. */
+/* v12 -- revs 233 (packet_versions.txt 12). */
 void
 packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -107,7 +107,7 @@ packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v13 -- revs 234. */
+/* v13 -- revs 234 (packet_versions.txt 13). */
 void
 packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -115,7 +115,7 @@ packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v14 -- revs 235, 241. */
+/* v14 -- revs 235, 241 (packet_versions.txt 14). */
 void
 packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -123,7 +123,7 @@ packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v15 -- revs 236. */
+/* v15 -- revs 236 (packet_versions.txt 15). */
 void
 packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m)
 {
@@ -131,7 +131,7 @@ packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v16 -- revs 239. */
+/* v16 -- revs 239 (packet_versions.txt 16). */
 void
 packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m)
 {

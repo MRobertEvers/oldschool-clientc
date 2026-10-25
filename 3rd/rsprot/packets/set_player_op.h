@@ -9,7 +9,8 @@
  *
  * RSProt has no codec for this prot, so the layouts come from RSProx's decoders
  * (RSProx.SetPlayerOpDecoder); see the generator's docstring for why and how. Field names are
- * RSProx's variable names. Version numbers are from gen/rsprox_versions.txt:
+ * RSProx's variable names. v1..v14 are this packet's layouts in ledger
+ * order; each names its row in gen/rsprox_versions.txt:
  *                    grep '^RSProx.SetPlayerOpDecoder\tout\t' 3rd/rsprot/gen/rsprox_versions.txt
  *
  * Layouts      : 14 distinct, over 14 contiguous revision run(s)
@@ -24,50 +25,50 @@ typedef struct MsgSetPlayerOp {
 	const char *op;
 } MsgSetPlayerOp;
 
-/* v100 -- revs 227. */
-void packet_set_player_op_v100_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v101 -- revs 228. */
-void packet_set_player_op_v101_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v102 -- revs 229. */
-void packet_set_player_op_v102_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v103 -- revs 230-231. */
-void packet_set_player_op_v103_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v104 -- revs 232. */
-void packet_set_player_op_v104_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v105 -- revs 233. */
-void packet_set_player_op_v105_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v106 -- revs 234. */
-void packet_set_player_op_v106_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v107 -- revs 235. */
-void packet_set_player_op_v107_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v108 -- revs 236. */
-void packet_set_player_op_v108_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v109 -- revs 237. */
-void packet_set_player_op_v109_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v110 -- revs 238. */
-void packet_set_player_op_v110_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v111 -- revs 239. */
-void packet_set_player_op_v111_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v112 -- revs 240. */
-void packet_set_player_op_v112_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v113 -- revs 241. */
-void packet_set_player_op_v113_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v1 -- revs 227 (rsprox_versions.txt 100). */
+void packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v2 -- revs 228 (rsprox_versions.txt 101). */
+void packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v3 -- revs 229 (rsprox_versions.txt 102). */
+void packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v4 -- revs 230-231 (rsprox_versions.txt 103). */
+void packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v5 -- revs 232 (rsprox_versions.txt 104). */
+void packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v6 -- revs 233 (rsprox_versions.txt 105). */
+void packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v7 -- revs 234 (rsprox_versions.txt 106). */
+void packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v8 -- revs 235 (rsprox_versions.txt 107). */
+void packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v9 -- revs 236 (rsprox_versions.txt 108). */
+void packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v10 -- revs 237 (rsprox_versions.txt 109). */
+void packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v11 -- revs 238 (rsprox_versions.txt 110). */
+void packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v12 -- revs 239 (rsprox_versions.txt 111). */
+void packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v13 -- revs 240 (rsprox_versions.txt 112). */
+void packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m);
+/* v14 -- revs 241 (rsprox_versions.txt 113). */
+void packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m);
 
-#define packet_set_player_op_rev227_out packet_set_player_op_v100_out
-#define packet_set_player_op_rev228_out packet_set_player_op_v101_out
-#define packet_set_player_op_rev229_out packet_set_player_op_v102_out
-#define packet_set_player_op_rev230_out packet_set_player_op_v103_out
-#define packet_set_player_op_rev231_out packet_set_player_op_v103_out
-#define packet_set_player_op_rev232_out packet_set_player_op_v104_out
-#define packet_set_player_op_rev233_out packet_set_player_op_v105_out
-#define packet_set_player_op_rev234_out packet_set_player_op_v106_out
-#define packet_set_player_op_rev235_out packet_set_player_op_v107_out
-#define packet_set_player_op_rev236_out packet_set_player_op_v108_out
-#define packet_set_player_op_rev237_out packet_set_player_op_v109_out
-#define packet_set_player_op_rev238_out packet_set_player_op_v110_out
-#define packet_set_player_op_rev239_out packet_set_player_op_v111_out
-#define packet_set_player_op_rev240_out packet_set_player_op_v112_out
-#define packet_set_player_op_rev241_out packet_set_player_op_v113_out
+#define packet_set_player_op_osrs227_out packet_set_player_op_v1_out
+#define packet_set_player_op_osrs228_out packet_set_player_op_v2_out
+#define packet_set_player_op_osrs229_out packet_set_player_op_v3_out
+#define packet_set_player_op_osrs230_out packet_set_player_op_v4_out
+#define packet_set_player_op_osrs231_out packet_set_player_op_v4_out
+#define packet_set_player_op_osrs232_out packet_set_player_op_v5_out
+#define packet_set_player_op_osrs233_out packet_set_player_op_v6_out
+#define packet_set_player_op_osrs234_out packet_set_player_op_v7_out
+#define packet_set_player_op_osrs235_out packet_set_player_op_v8_out
+#define packet_set_player_op_osrs236_out packet_set_player_op_v9_out
+#define packet_set_player_op_osrs237_out packet_set_player_op_v10_out
+#define packet_set_player_op_osrs238_out packet_set_player_op_v11_out
+#define packet_set_player_op_osrs239_out packet_set_player_op_v12_out
+#define packet_set_player_op_osrs240_out packet_set_player_op_v13_out
+#define packet_set_player_op_osrs241_out packet_set_player_op_v14_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_player_op_out[];

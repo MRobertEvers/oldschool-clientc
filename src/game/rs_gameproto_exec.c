@@ -2281,6 +2281,19 @@ RS_GameProto_Exec(
         if( ctx->app )
             ctx->app->esync.local_pid = packet->_update_pid.local_player_index;
         break;
+    case PKT_NAME_RECONNECT:
+        /* What the login does for a new connection (net.c loginproto_drive),
+         * here in packet order: the index, then the table from the block. */
+        if( ctx->app )
+        {
+            struct GameProtoRevTable const* rev = ctx->app->net->rev;
+
+            assert(rev->player_info_set_local);
+            ctx->app->esync.local_pid = packet->_reconnect.local_player_index;
+            rev->player_info_set_local(packet->_reconnect.local_player_index);
+            rev->player_info_init(packet->_reconnect.data, packet->_reconnect.length);
+        }
+        break;
     case PKT_NAME_VARP_SYNC:
         /* Restore the client-visible copy from the server-authoritative set
          * (rev-230 client.java VARP_SYNC / LostCity Client.ts:7390). Distinct

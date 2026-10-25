@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 224-241. */
+/* v1 -- revs 224-241 (packet_versions.txt 1). */
 void
 packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m)
 {

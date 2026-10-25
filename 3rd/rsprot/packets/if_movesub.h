@@ -12,12 +12,13 @@
  *
  * RSProt class : IfMoveSubEncoder
  * Layouts      : 14 distinct, over 20 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v14, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^IfMoveSubEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -34,58 +35,58 @@ typedef struct MsgIfMoveSub {
 	int32_t destination_combined_id;
 } MsgIfMoveSub;
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void packet_if_movesub_v1_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v2 -- revs 222. */
+/* v2 -- revs 222 (packet_versions.txt 2). */
 void packet_if_movesub_v2_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v3 -- revs 223, 230. */
+/* v3 -- revs 223, 230 (packet_versions.txt 3). */
 void packet_if_movesub_v3_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v4 -- revs 224, 241. */
+/* v4 -- revs 224, 241 (packet_versions.txt 4). */
 void packet_if_movesub_v4_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v5 -- revs 225, 238. */
+/* v5 -- revs 225, 238 (packet_versions.txt 5). */
 void packet_if_movesub_v5_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v6 -- revs 226, 232. */
+/* v6 -- revs 226, 232 (packet_versions.txt 6). */
 void packet_if_movesub_v6_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v7 -- revs 227. */
+/* v7 -- revs 227 (packet_versions.txt 7). */
 void packet_if_movesub_v7_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v8 -- revs 228-229, 240. */
+/* v8 -- revs 228-229, 240 (packet_versions.txt 8). */
 void packet_if_movesub_v8_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v9 -- revs 231, 235. */
+/* v9 -- revs 231, 235 (packet_versions.txt 9). */
 void packet_if_movesub_v9_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v10 -- revs 233. */
+/* v10 -- revs 233 (packet_versions.txt 10). */
 void packet_if_movesub_v10_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v11 -- revs 234. */
+/* v11 -- revs 234 (packet_versions.txt 11). */
 void packet_if_movesub_v11_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v12 -- revs 236. */
+/* v12 -- revs 236 (packet_versions.txt 12). */
 void packet_if_movesub_v12_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v13 -- revs 237. */
+/* v13 -- revs 237 (packet_versions.txt 13). */
 void packet_if_movesub_v13_out(RsprotExec *x, MsgIfMoveSub *m);
-/* v14 -- revs 239. */
+/* v14 -- revs 239 (packet_versions.txt 14). */
 void packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m);
 
-/* Per-revision aliases: `packet_if_movesub_rev239_out` is greppable, which is the
- * point -- "what does 239 do for IF_MOVESUB" without reading a table. */
-#define packet_if_movesub_rev221_out packet_if_movesub_v1_out
-#define packet_if_movesub_rev222_out packet_if_movesub_v2_out
-#define packet_if_movesub_rev223_out packet_if_movesub_v3_out
-#define packet_if_movesub_rev224_out packet_if_movesub_v4_out
-#define packet_if_movesub_rev225_out packet_if_movesub_v5_out
-#define packet_if_movesub_rev226_out packet_if_movesub_v6_out
-#define packet_if_movesub_rev227_out packet_if_movesub_v7_out
-#define packet_if_movesub_rev228_out packet_if_movesub_v8_out
-#define packet_if_movesub_rev229_out packet_if_movesub_v8_out
-#define packet_if_movesub_rev230_out packet_if_movesub_v3_out
-#define packet_if_movesub_rev231_out packet_if_movesub_v9_out
-#define packet_if_movesub_rev232_out packet_if_movesub_v6_out
-#define packet_if_movesub_rev233_out packet_if_movesub_v10_out
-#define packet_if_movesub_rev234_out packet_if_movesub_v11_out
-#define packet_if_movesub_rev235_out packet_if_movesub_v9_out
-#define packet_if_movesub_rev236_out packet_if_movesub_v12_out
-#define packet_if_movesub_rev237_out packet_if_movesub_v13_out
-#define packet_if_movesub_rev238_out packet_if_movesub_v5_out
-#define packet_if_movesub_rev239_out packet_if_movesub_v14_out
-#define packet_if_movesub_rev240_out packet_if_movesub_v8_out
-#define packet_if_movesub_rev241_out packet_if_movesub_v4_out
+/* Per-revision entry points: `packet_if_movesub_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for IF_MOVESUB" without reading a table. */
+#define packet_if_movesub_osrs221_out packet_if_movesub_v1_out
+#define packet_if_movesub_osrs222_out packet_if_movesub_v2_out
+#define packet_if_movesub_osrs223_out packet_if_movesub_v3_out
+#define packet_if_movesub_osrs224_out packet_if_movesub_v4_out
+#define packet_if_movesub_osrs225_out packet_if_movesub_v5_out
+#define packet_if_movesub_osrs226_out packet_if_movesub_v6_out
+#define packet_if_movesub_osrs227_out packet_if_movesub_v7_out
+#define packet_if_movesub_osrs228_out packet_if_movesub_v8_out
+#define packet_if_movesub_osrs229_out packet_if_movesub_v8_out
+#define packet_if_movesub_osrs230_out packet_if_movesub_v3_out
+#define packet_if_movesub_osrs231_out packet_if_movesub_v9_out
+#define packet_if_movesub_osrs232_out packet_if_movesub_v6_out
+#define packet_if_movesub_osrs233_out packet_if_movesub_v10_out
+#define packet_if_movesub_osrs234_out packet_if_movesub_v11_out
+#define packet_if_movesub_osrs235_out packet_if_movesub_v9_out
+#define packet_if_movesub_osrs236_out packet_if_movesub_v12_out
+#define packet_if_movesub_osrs237_out packet_if_movesub_v13_out
+#define packet_if_movesub_osrs238_out packet_if_movesub_v5_out
+#define packet_if_movesub_osrs239_out packet_if_movesub_v14_out
+#define packet_if_movesub_osrs240_out packet_if_movesub_v8_out
+#define packet_if_movesub_osrs241_out packet_if_movesub_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_movesub_out[];

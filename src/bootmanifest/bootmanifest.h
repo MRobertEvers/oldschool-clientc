@@ -7,7 +7,7 @@
  * Boot manifest — one INI file collapsing the whole per-generation boot
  * parameterization (cache identity/dir, protocol rev, transport, host:port,
  * login RSA/CRCs/version, revconfig includes, ui logic). See manifests/manifest_rs254lc.ini
- * / manifests/manifest_osrs233xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
+ * at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
  *
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *

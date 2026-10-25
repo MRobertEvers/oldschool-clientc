@@ -8,7 +8,7 @@
  * One entering-view record, hand-packed bit by bit in RSProx's read order,
  * with deltas a 6-bit field cannot hold.
  */
-#include "net/rev/packets/pkt_npc_info.h"
+#include "streams/rsprot_info.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -16,10 +16,31 @@
 #include <stdlib.h>
 #include <string.h>
 
-int
-osrs241_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
-int
-osrs241_npc_info_read_large(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+int osrs241_npc_info_read(uint8_t const* data, int len, RsprotInfoList* out);
+int osrs241_npc_info_read_large(uint8_t const* data, int len, RsprotInfoList* out);
+
+/* The readers write a list; these hand the test its ops, with the strings
+ * in one arena the next read reuses. */
+static uint8_t g_info_bytes[1 << 16];
+
+static int
+osrs241_npc_info_read_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    return osrs241_npc_info_read(data, len, &list);
+}
+
+static int
+osrs241_npc_info_read_large_ops(uint8_t const* data, int len, struct RsprotInfoOp* ops, int cap)
+{
+    RsprotInfoList list;
+
+    rsprot_info_list_init(&list, ops, cap, g_info_bytes, (int)sizeof(g_info_bytes));
+    return osrs241_npc_info_read_large(data, len, &list);
+}
+
 
 #define TEST_CHECK(cond)                                                                           \
     do                                                                                             \
@@ -68,7 +89,7 @@ pack_add(struct Bits* b, int delta_bits, int slot, int type, int dx, int dz)
 }
 
 static void
-expect_add(struct PktNpcInfoOp const* ops, int n, int slot, int type, int dx, int dz)
+expect_add(struct RsprotInfoOp const* ops, int n, int slot, int type, int dx, int dz)
 {
     int found_slot = 0;
     int found_type = 0;
@@ -76,12 +97,12 @@ expect_add(struct PktNpcInfoOp const* ops, int n, int slot, int type, int dx, in
 
     for( int i = 0; i < n; i++ )
     {
-        if( ops[i].kind == PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID )
-            found_slot = (int)ops[i]._bitvalue == slot;
-        else if( ops[i].kind == PKT_NPC_INFO_OPBITS_NPCTYPE )
-            found_type = (int)ops[i]._bitvalue == type;
-        else if( ops[i].kind == PKT_NPC_INFO_OP_DELTA_XZ )
-            found_delta = ops[i]._delta_xz.dx == dx && ops[i]._delta_xz.dz == dz;
+        if( ops[i].kind == RSPROT_OP_ADD_NEW )
+            found_slot = (int)ops[i].value == slot;
+        else if( ops[i].kind == RSPROT_OP_NPCTYPE )
+            found_type = (int)ops[i].value == type;
+        else if( ops[i].kind == RSPROT_OP_DELTA_XZ )
+            found_delta = ops[i].delta_xz.dx == dx && ops[i].delta_xz.dz == dz;
     }
     TEST_CHECK(found_slot);
     TEST_CHECK(found_type);
@@ -92,18 +113,18 @@ int
 main(void)
 {
     struct Bits b;
-    struct PktNpcInfoOp ops[32];
+    struct RsprotInfoOp ops[32];
     int len;
     int n;
 
     /* LARGE: Brutus, index 41628, npc 15626, deltas past +-31. */
     len = pack_add(&b, 8, 41628, 15626, 90, -100);
-    n = osrs241_npc_info_read_large(b.data, len, ops, 32);
+    n = osrs241_npc_info_read_large_ops(b.data, len, ops, 32);
     expect_add(ops, n, 41628, 15626, 90, -100);
 
     /* SMALL is unchanged: 6-bit deltas. */
     len = pack_add(&b, 6, 26476, 15624, -12, 31);
-    n = osrs241_npc_info_read(b.data, len, ops, 32);
+    n = osrs241_npc_info_read_ops(b.data, len, ops, 32);
     expect_add(ops, n, 26476, 15624, -12, 31);
 
     printf("osrs241_npc_info_large_test: ok\n");

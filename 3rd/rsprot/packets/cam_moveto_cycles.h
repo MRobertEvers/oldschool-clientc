@@ -12,8 +12,9 @@
  *
  * RSProt class : CamMoveToCyclesEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^CamMoveToCyclesEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  */
 
@@ -35,24 +36,24 @@ typedef struct MsgCamMoveToCycles {
 	int32_t easing_id;
 } MsgCamMoveToCycles;
 
-/* v1 -- revs 223-235. */
+/* v1 -- revs 223-235 (packet_versions.txt 1). */
 void packet_cam_moveto_cycles_v1_out(RsprotExec *x, MsgCamMoveToCycles *m);
 
-/* Per-revision aliases: `packet_cam_moveto_cycles_rev239_out` is greppable, which is the
- * point -- "what does 239 do for CAM_MOVETO_CYCLES" without reading a table. */
-#define packet_cam_moveto_cycles_rev223_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev224_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev225_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev226_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev227_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev228_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev229_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev230_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev231_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev232_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev233_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev234_out packet_cam_moveto_cycles_v1_out
-#define packet_cam_moveto_cycles_rev235_out packet_cam_moveto_cycles_v1_out
+/* Per-revision entry points: `packet_cam_moveto_cycles_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for CAM_MOVETO_CYCLES" without reading a table. */
+#define packet_cam_moveto_cycles_osrs223_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs224_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs225_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs226_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs227_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs228_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs229_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs230_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs231_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs232_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs233_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs234_out packet_cam_moveto_cycles_v1_out
+#define packet_cam_moveto_cycles_osrs235_out packet_cam_moveto_cycles_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_moveto_cycles_out[];

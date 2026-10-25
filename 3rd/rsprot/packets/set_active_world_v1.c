@@ -7,9 +7,9 @@
  *       decoder/codec/worldentity/SetActiveWorldV1Decoder.kt
  */
 
-/* v100 -- revs 227-230. */
+/* v1 -- revs 227-230 (rsprox_versions.txt 100). */
 void
-packet_set_active_world_v1_v100_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
+packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
 {
     /* RSProx derives, after the reads:
      *   val world = session.getWorld(if (type == 0) -1 else index)
@@ -25,7 +25,7 @@ packet_set_active_world_v1_v100_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
  * listed has no SET_ACTIVE_WORLD_V1 and picks NULL.
  */
 const RsprotVersionRange rsprot_set_active_world_v1_out[] = {
-    { 227, 230, (RsprotCodecFn)packet_set_active_world_v1_v100_out },
+    { 227, 230, (RsprotCodecFn)packet_set_active_world_v1_v1_out },
 };
 
 const int rsprot_set_active_world_v1_out_count =

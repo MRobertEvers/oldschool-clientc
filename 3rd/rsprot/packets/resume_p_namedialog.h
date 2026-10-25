@@ -12,12 +12,13 @@
  *
  * RSProt class : ResumePNameDialogDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^ResumePNameDialogDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,32 +34,32 @@ typedef struct MsgResumePNameDialog {
 	const char *name;
 } MsgResumePNameDialog;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_resume_p_namedialog_v1_in(RsprotExec *x, MsgResumePNameDialog *m);
 
-/* Per-revision aliases: `packet_resume_p_namedialog_rev239_in` is greppable, which is the
- * point -- "what does 239 do for RESUME_P_NAMEDIALOG" without reading a table. */
-#define packet_resume_p_namedialog_rev221_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev222_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev223_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev224_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev225_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev226_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev227_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev228_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev229_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev230_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev231_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev232_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev233_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev234_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev235_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev236_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev237_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev238_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev239_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev240_in packet_resume_p_namedialog_v1_in
-#define packet_resume_p_namedialog_rev241_in packet_resume_p_namedialog_v1_in
+/* Per-revision entry points: `packet_resume_p_namedialog_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for RESUME_P_NAMEDIALOG" without reading a table. */
+#define packet_resume_p_namedialog_osrs221_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs222_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs223_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs224_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs225_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs226_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs227_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs228_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs229_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs230_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs231_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs232_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs233_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs234_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs235_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs236_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs237_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs238_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs239_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs240_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrs241_in packet_resume_p_namedialog_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_namedialog_in[];

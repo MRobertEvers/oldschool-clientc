@@ -25,7 +25,7 @@
  *      players proves nothing about the stream, and every bug this change could
  *      introduce (an extended block attributed to the wrong entity, a missing
  *      terminator, a tracked list written in the wrong order) lives in the
- *      bitstream where only a reader can see it. `pkt_player_info_reader_read`
+ *      bitstream where only a reader can see it. `rev->player_info_read`
  *      is the client's own reader, so a stream it accepts is one the game
  *      accepts.
  *
@@ -50,9 +50,8 @@
 #include "net/net_out.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/packets/pkt_npc_info.h"
+#include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/packets/pkt_player_info.h"
 #include "net/rev/pktnames.h"
 
 /* For the SS_OP_SOUND_SYNTH direct-dispatch check below (WEAPON_FX_PORT_QUEUE.md
@@ -345,8 +344,9 @@ absorb_player_info(
     const uint8_t* data,
     int length)
 {
-    static struct PktPlayerInfoOp ops[512];
-    struct PktPlayerInfoReader reader;
+    static struct RsprotInfoOp ops[512];
+    static uint8_t bytes[1 << 16];
+    RsprotInfoList list;
     /* This packet's list, which becomes `peer->tracked` at the end. */
     int next[64];
     int next_count = 0;
@@ -356,56 +356,55 @@ absorb_player_info(
     int target = -1;
     int n;
 
-    memset(&reader, 0, sizeof(reader));
-    n = pkt_player_info_reader_read(&reader, data, length, ops,
-                                    (int)(sizeof(ops) / sizeof(ops[0])));
+    rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
+    n = peer->net.rev->player_info_read(data, length, &list);
 
     for( int i = 0; i < n; i++ )
     {
-        struct PktPlayerInfoOp* op = &ops[i];
+        struct RsprotInfoOp* op = &ops[i];
 
         switch( op->kind )
         {
-        case PKT_PLAYER_INFO_OP_SET_LOCAL_PLAYER:
+        case RSPROT_OP_SET_LOCAL_PLAYER:
             local = 1;
             target = -1;
             break;
-        case PKT_PLAYER_INFO_OPBITS_COUNT_RESET:
+        case RSPROT_OP_COUNT_RESET:
             next_count = 0;
             break;
-        case PKT_PLAYER_INFO_OP_ADD_PLAYER_OLD_OPBITS_IDX:
+        case RSPROT_OP_ADD_OLD:
             /* An index into *last* packet's list, not a pid. Held rather than
              * appended: the ops that follow say whether this entry stays, and a
              * removed one is not in the order extended blocks index against. */
             local = 0;
-            pending = (int)op->_bitvalue < peer->tracked_count
-                          ? peer->tracked[op->_bitvalue]
+            pending = (int)op->value < peer->tracked_count
+                          ? peer->tracked[op->value]
                           : -1;
             if( pending < 0 )
                 peer->saw_unknown_target = 1;
             target = pending;
             break;
-        case PKT_PLAYER_INFO_OPBITS_INFO:
+        case RSPROT_OP_INFO:
             /* Emitted for the local player too; only an old-section entry is
              * pending. */
             if( pending >= 0 && next_count < (int)(sizeof(next) / sizeof(next[0])) )
                 next[next_count++] = pending;
             pending = -1;
             break;
-        case PKT_PLAYER_INFO_OP_ADD_PLAYER_NEW_OPBITS_PID:
+        case RSPROT_OP_ADD_NEW:
             local = 0;
-            target = (int)op->_bitvalue;
+            target = (int)op->value;
             peer->saw_pid = target;
             if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
                 next[next_count++] = target;
             break;
-        case PKT_PLAYER_INFO_OP_SET_PLAYER_OPBITS_IDX:
+        case RSPROT_OP_SET_EXT:
             local = 0;
-            target = (int)op->_bitvalue < next_count ? next[op->_bitvalue] : -1;
+            target = (int)op->value < next_count ? next[op->value] : -1;
             if( target < 0 )
                 peer->saw_unknown_target = 1;
             break;
-        case PKT_PLAYER_INFO_OP_CLEAR_PLAYER_OPBITS_IDX:
+        case RSPROT_OP_CLEAR_OLD:
             /* A removal. The INFO op just counted this entry into the order, so
              * take it back out. */
             if( next_count > 0 )
@@ -413,20 +412,20 @@ absorb_player_info(
             local = 0;
             target = -1;
             break;
-        case PKT_PLAYER_INFO_OPBITS_WALKDIR:
-        case PKT_PLAYER_INFO_OPBITS_RUNDIR:
+        case RSPROT_OP_WALKDIR:
+        case RSPROT_OP_RUNDIR:
             if( !local && target >= 0 )
                 peer->saw_steps++;
             break;
-        case PKT_PLAYER_INFO_OP_APPEARANCE:
+        case RSPROT_OP_APPEARANCE:
             if( !local && target >= 0 )
             {
                 struct PktPlayerAppearance decoded;
 
                 peer->saw_appearance++;
                 memset(&decoded, 0, sizeof(decoded));
-                if( PktPlayerAppearance_Decode(&decoded, op->_appearance.appearance,
-                                               op->_appearance.len) )
+                if( PktPlayerAppearance_Decode(&decoded, op->appearance.appearance,
+                                               op->appearance.len) )
                     snprintf(peer->saw_name, sizeof(peer->saw_name), "%s", decoded.name);
             }
             break;
@@ -437,8 +436,6 @@ absorb_player_info(
 
     memcpy(peer->tracked, next, sizeof(int) * (size_t)next_count);
     peer->tracked_count = next_count;
-
-    pkt_player_info_ops_free(ops, n);
 }
 
 /*
@@ -465,52 +462,51 @@ absorb_npc_info(
     const uint8_t* data,
     int length)
 {
-    static struct PktNpcInfoOp ops[1024];
-    struct PktNpcInfoReader reader;
+    static struct RsprotInfoOp ops[1024];
+    static uint8_t bytes[1 << 16];
+    RsprotInfoList list;
     int next[256];
     int next_count = 0;
     int slot = -1;
     int n;
 
-    pkt_npc_info_reader_init(&reader, peer->net.rev ? peer->net.rev->npc_slot_bits : 0,
-                             peer->net.rev ? peer->net.rev->npc_type_bits : 0);
-    n = pkt_npc_info_reader_read(&reader, data, length, ops,
-                                 (int)(sizeof(ops) / sizeof(ops[0])));
+    rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
+    n = peer->net.rev->npc_info_read(data, length, &list);
 
     for( int i = 0; i < n; i++ )
     {
-        struct PktNpcInfoOp* op = &ops[i];
+        struct RsprotInfoOp* op = &ops[i];
 
         switch( op->kind )
         {
-        case PKT_NPC_INFO_OPBITS_COUNT_RESET:
+        case RSPROT_OP_COUNT_RESET:
             next_count = 0;
             break;
-        case PKT_NPC_INFO_OP_ADD_NPC_OLD_OPBITS_IDX:
-            slot = (int)op->_bitvalue < peer->npc_tracked_count
-                       ? peer->npc_tracked[op->_bitvalue]
+        case RSPROT_OP_ADD_OLD:
+            slot = (int)op->value < peer->npc_tracked_count
+                       ? peer->npc_tracked[op->value]
                        : -1;
             if( slot < 0 )
                 peer->saw_npc_unknown_target = 1;
             else if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
                 next[next_count++] = slot;
             break;
-        case PKT_NPC_INFO_OP_ADD_NPC_NEW_OPBITS_PID:
-            slot = (int)op->_bitvalue;
+        case RSPROT_OP_ADD_NEW:
+            slot = (int)op->value;
             if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
                 next[next_count++] = slot;
             break;
-        case PKT_NPC_INFO_OP_SET_NPC_OPBITS_IDX:
-            slot = (int)op->_bitvalue < next_count ? next[op->_bitvalue] : -1;
+        case RSPROT_OP_SET_EXT:
+            slot = (int)op->value < next_count ? next[op->value] : -1;
             if( slot < 0 )
                 peer->saw_npc_unknown_target = 1;
             break;
-        case PKT_NPC_INFO_OP_CLEAR_NPC_OPBITS_IDX:
+        case RSPROT_OP_CLEAR_OLD:
             /* A removal out of *last* packet's list; it is not in this
              * packet's order, so nothing to take back out. */
             slot = -1;
             break;
-        case PKT_NPC_INFO_OP_FACE_ENTITY:
+        case RSPROT_OP_FACE_ENTITY:
             if( slot >= 0 )
             {
                 int at = -1;
@@ -524,7 +520,7 @@ absorb_npc_info(
                 if( at >= 0 )
                 {
                     peer->npc_face[at].slot = slot;
-                    peer->npc_face[at].face = (int)op->_face_entity.entity_id;
+                    peer->npc_face[at].face = (int)op->face_entity.entity_id;
                 }
             }
             else
@@ -539,8 +535,6 @@ absorb_npc_info(
 
     memcpy(peer->npc_tracked, next, sizeof(int) * (size_t)next_count);
     peer->npc_tracked_count = next_count;
-
-    pkt_npc_info_ops_free(ops, n);
 }
 
 /*

@@ -11,135 +11,135 @@
  * cannot drift apart.
  */
 
-/* v5 -- revs 225. */
+/* v1 -- revs 225 (packet_versions.txt 5). */
 void
-packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1_ALT2(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->level);
 }
 
-/* v6 -- revs 226. */
+/* v2 -- revs 226 (packet_versions.txt 6). */
 void
-packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_ALT2(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->level);
     RSPROT_U1_ALT1(x, m->zone_x);
 }
 
-/* v7 -- revs 227. */
+/* v3 -- revs 227 (packet_versions.txt 7). */
 void
-packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v3_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1_ALT3(x, m->level);
     RSPROT_U1_ALT2(x, m->zone_x);
 }
 
-/* v8 -- revs 228. */
+/* v4 -- revs 228 (packet_versions.txt 8). */
 void
-packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v4_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->zone_x);
     RSPROT_U1_ALT1(x, m->level);
 }
 
-/* v9 -- revs 229. */
+/* v5 -- revs 229 (packet_versions.txt 9). */
+void
+packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1(x, m->level);
+    RSPROT_U1(x, m->zone_z);
+}
+
+/* v6 -- revs 230, 234 (packet_versions.txt 10). */
+void
+packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1(x, m->level);
+}
+
+/* v7 -- revs 231 (packet_versions.txt 11). */
+void
+packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1(x, m->zone_x);
+    RSPROT_U1_ALT2(x, m->zone_z);
+}
+
+/* v8 -- revs 232 (packet_versions.txt 12). */
+void
+packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1(x, m->zone_z);
+    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_ALT3(x, m->level);
+}
+
+/* v9 -- revs 233 (packet_versions.txt 13). */
 void
 packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1(x, m->level);
-    RSPROT_U1(x, m->zone_z);
+    RSPROT_U1_ALT3(x, m->zone_z);
+    RSPROT_U1_ALT2(x, m->level);
 }
 
-/* v10 -- revs 230, 234. */
+/* v10 -- revs 235 (packet_versions.txt 14). */
 void
 packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
     RSPROT_U1_ALT2(x, m->zone_z);
     RSPROT_U1(x, m->level);
+    RSPROT_U1_ALT3(x, m->zone_x);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs 236 (packet_versions.txt 15). */
 void
 packet_update_zone_partial_enclosed_v11_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1_ALT3(x, m->zone_z);
+    RSPROT_U1_ALT2(x, m->level);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs 237, 240 (packet_versions.txt 16). */
 void
 packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_ALT1(x, m->zone_z);
+    RSPROT_U1_ALT2(x, m->level);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs 238 (packet_versions.txt 17). */
 void
 packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
-}
-
-/* v14 -- revs 235. */
-void
-packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
-{
-    RSPROT_U1_ALT2(x, m->zone_z);
-    RSPROT_U1(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_x);
-}
-
-/* v15 -- revs 236. */
-void
-packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
-{
-    RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
-}
-
-/* v16 -- revs 237, 240. */
-void
-packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
-{
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
-}
-
-/* v17 -- revs 238. */
-void
-packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
-{
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1(x, m->level);
     RSPROT_U1_ALT2(x, m->zone_x);
 }
 
-/* v18 -- revs 239. */
+/* v14 -- revs 239 (packet_versions.txt 18). */
 void
-packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1_ALT2(x, m->level);
     RSPROT_U1_ALT1(x, m->zone_z);
     RSPROT_U1_ALT1(x, m->zone_x);
 }
 
-/* v100 -- revs 241. */
+/* v15 -- revs 241 (rsprox_versions.txt 100). */
 void
-packet_update_zone_partial_enclosed_v100_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
@@ -157,23 +157,23 @@ packet_update_zone_partial_enclosed_v100_out(RsprotExec *x, MsgDesktopUpdateZone
  * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
-    { 225, 225, (RsprotCodecFn)packet_update_zone_partial_enclosed_v5_out },
-    { 226, 226, (RsprotCodecFn)packet_update_zone_partial_enclosed_v6_out },
-    { 227, 227, (RsprotCodecFn)packet_update_zone_partial_enclosed_v7_out },
-    { 228, 228, (RsprotCodecFn)packet_update_zone_partial_enclosed_v8_out },
-    { 229, 229, (RsprotCodecFn)packet_update_zone_partial_enclosed_v9_out },
-    { 230, 230, (RsprotCodecFn)packet_update_zone_partial_enclosed_v10_out },
-    { 231, 231, (RsprotCodecFn)packet_update_zone_partial_enclosed_v11_out },
-    { 232, 232, (RsprotCodecFn)packet_update_zone_partial_enclosed_v12_out },
-    { 233, 233, (RsprotCodecFn)packet_update_zone_partial_enclosed_v13_out },
-    { 234, 234, (RsprotCodecFn)packet_update_zone_partial_enclosed_v10_out },
-    { 235, 235, (RsprotCodecFn)packet_update_zone_partial_enclosed_v14_out },
-    { 236, 236, (RsprotCodecFn)packet_update_zone_partial_enclosed_v15_out },
-    { 237, 237, (RsprotCodecFn)packet_update_zone_partial_enclosed_v16_out },
-    { 238, 238, (RsprotCodecFn)packet_update_zone_partial_enclosed_v17_out },
-    { 239, 239, (RsprotCodecFn)packet_update_zone_partial_enclosed_v18_out },
-    { 240, 240, (RsprotCodecFn)packet_update_zone_partial_enclosed_v16_out },
-    { 241, 241, (RsprotCodecFn)packet_update_zone_partial_enclosed_v100_out },
+    { 225, 225, (RsprotCodecFn)packet_update_zone_partial_enclosed_v1_out },
+    { 226, 226, (RsprotCodecFn)packet_update_zone_partial_enclosed_v2_out },
+    { 227, 227, (RsprotCodecFn)packet_update_zone_partial_enclosed_v3_out },
+    { 228, 228, (RsprotCodecFn)packet_update_zone_partial_enclosed_v4_out },
+    { 229, 229, (RsprotCodecFn)packet_update_zone_partial_enclosed_v5_out },
+    { 230, 230, (RsprotCodecFn)packet_update_zone_partial_enclosed_v6_out },
+    { 231, 231, (RsprotCodecFn)packet_update_zone_partial_enclosed_v7_out },
+    { 232, 232, (RsprotCodecFn)packet_update_zone_partial_enclosed_v8_out },
+    { 233, 233, (RsprotCodecFn)packet_update_zone_partial_enclosed_v9_out },
+    { 234, 234, (RsprotCodecFn)packet_update_zone_partial_enclosed_v6_out },
+    { 235, 235, (RsprotCodecFn)packet_update_zone_partial_enclosed_v10_out },
+    { 236, 236, (RsprotCodecFn)packet_update_zone_partial_enclosed_v11_out },
+    { 237, 237, (RsprotCodecFn)packet_update_zone_partial_enclosed_v12_out },
+    { 238, 238, (RsprotCodecFn)packet_update_zone_partial_enclosed_v13_out },
+    { 239, 239, (RsprotCodecFn)packet_update_zone_partial_enclosed_v14_out },
+    { 240, 240, (RsprotCodecFn)packet_update_zone_partial_enclosed_v12_out },
+    { 241, 241, (RsprotCodecFn)packet_update_zone_partial_enclosed_v15_out },
 };
 
 const int rsprot_update_zone_partial_enclosed_out_count =

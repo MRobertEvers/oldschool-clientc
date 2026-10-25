@@ -91,7 +91,7 @@ Register the tick beside the hpbar's in the world tick, and add the sources to
 rows and it is done. The panel's varbit write is client-local
 (`VarPManager_SetVarbitOptimistic`) and revision 239 has no client packet that
 carries it — verified against the whole prot table in
-`3rd/rsprot/gen/rev239_prot.h`, against NXT's `ClientVarCache::SetVarbit`, and
+`3rd/rsprot/gen/osrs239_prot.h`, against NXT's `ClientVarCache::SetVarbit`, and
 against interface 134's script family. So the client now mirrors settings writes
 over `CLIENT_CHEAT` as `::setting <varbit> <value>`; see `settings_mirror_varbit`
 in `src/game/rs_cs2_host.h` for the full reasoning, including why it is

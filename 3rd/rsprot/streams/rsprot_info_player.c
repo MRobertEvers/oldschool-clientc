@@ -7,9 +7,8 @@
  * library carries (tools/rsprox_gen_info.py would not have to touch this file
  * for a new revision that kept them). The port follows the reader this project
  * verified against recordings at 239 and 241
- * (src/net/rev/osrs241/osrs241_entity_info.c); the extended-info tail after the
- * sections is rsprot_info_blocks.c, driven by the layout's tables -- which
- * player_info.c (generated) passes in, one reader per layout. Both write the op
+ * (src/net/rev/osrs241/osrs241_entity_info.c). The extended-info tail after
+ * the sections is each version's (player_info_v<N>.c), and both write the op
  * list (rsprot_info.h).
  */
 #include "rsprot_info.h"
@@ -33,6 +32,7 @@ rsprot_player_info_reset(RsprotPlayerInfo *pi, int local_index)
     assert(pi);
     memset(pi, 0, sizeof(*pi));
     pi->local_index = local_index;
+    memset(pi->move_speed, RSPROT_TRAVERSAL_WALK, sizeof(pi->move_speed));
 }
 
 /*
@@ -51,6 +51,7 @@ rsprot_player_info_init(RsprotPlayerInfo *pi, const uint8_t *data, int32_t len)
     memset(pi, 0, sizeof(*pi));
     pi->local_index = local;
     pi->seeded = 1;
+    memset(pi->move_speed, RSPROT_TRAVERSAL_WALK, sizeof(pi->move_speed));
     if (local <= 0 || local >= RSPROT_INFO_PLAYER_SLOTS || !data || len <= 0)
         return;
 
@@ -73,9 +74,10 @@ rsprot_player_info_init(RsprotPlayerInfo *pi, const uint8_t *data, int32_t len)
 typedef struct Reader
 {
     RsprotPlayerInfo *pi;
-    RsprotInfoOut out;
+    RsprotPlayerPacket *pp;
+    RsprotInfoList *out;
     uint8_t cycle_high[RSPROT_INFO_PLAYER_SLOTS];
-    int extended[RSPROT_INFO_PLAYER_SLOTS];
+    int *extended;
     int extended_count;
 } Reader;
 
@@ -86,13 +88,34 @@ queue_extended(Reader *r, int idx)
         r->extended[r->extended_count++] = idx;
 }
 
+void
+rsprot_info_player_target(RsprotInfoList *out, const RsprotPlayerInfo *pi, int idx)
+{
+    if (idx == pi->local_index)
+        rsprot_info_emit(out, RSPROT_OP_SET_LOCAL_PLAYER);
+    else
+        rsprot_info_emit_value(out, RSPROT_OP_ADD_NEW, (uint64_t)idx);
+}
+
+/* The slot moved: its target, then its new absolute position. Entering view
+ * (how 0) and teleporting (3) re-place; walking (1) and running (2) step. The
+ * traversal is the slot's persistent one until a MOVE_SPEED / TEMP_MOVE_SPEED
+ * block amends this op (movement_op). */
 static void
 moved(Reader *r, int idx, int how)
 {
-    RsprotInfoOp *op = rsprot_info_emit(&r->out, RSPROT_IO_PLAYER_MOVE, idx);
+    int32_t coord = r->pi->coord[idx];
+    RsprotInfoXZLevel *m;
 
-    op->move.coord = r->pi->coord[idx];
-    op->move.how = how;
+    rsprot_info_player_target(r->out, r->pi, idx);
+    r->pp->movement_op[idx] = (int16_t)r->out->count;
+    m = &rsprot_info_emit(r->out, RSPROT_OP_ABS_XZLEVEL)->xz_level;
+    m->x = (int16_t)((coord >> 14) & 0x3fff);
+    m->z = (int16_t)(coord & 0x3fff);
+    m->level = (uint8_t)((coord >> 28) & 0x3);
+    m->jump = how == 0 || how == 3;
+    m->has_move_speed = true;
+    m->move_speed = r->pi->move_speed[idx];
 }
 
 static int
@@ -183,16 +206,21 @@ high_res(Reader *r, RsprotBuf *b, int idx)
 
     if (opcode == 0) {
         if (extended) {
-            rsprot_info_emit(&r->out, RSPROT_IO_PLAYER_STILL, idx);
+            rsprot_info_player_target(r->out, pi, idx);
             return;
         }
         /* Opcode 0 with nothing to say drops the slot to low resolution --
-         * which the local player cannot do; the reference throws. */
-        if (idx == pi->local_index)
+         * which the local player cannot do; RSProx throws. Reaching it means
+         * the table's local index is not the server's (a world hop the
+         * recording did not log the new index of). */
+        if (idx == pi->local_index) {
+            b->err |= RSPROT_BUF_ERR_RANGE;
             return;
+        }
         pi->low_res_pos[idx] = (int32_t)((level << 28) | (z >> 13) | ((x >> 13) << 14));
         pi->high_res[idx] = 0;
-        rsprot_info_emit(&r->out, RSPROT_IO_PLAYER_REMOVE, idx);
+        pi->move_speed[idx] = RSPROT_TRAVERSAL_WALK;
+        rsprot_info_emit_value(r->out, RSPROT_OP_REMOVE_PID, (uint64_t)idx);
         if (rsprot_gbits(b, 1) != 0)
             low_res(r, b, idx);
         return;
@@ -270,38 +298,34 @@ section(Reader *r, RsprotBuf *b, int want_inactive, int low)
 }
 
 int
-rsprot_info_player_read(
-    const RsprotInfoSide *side, RsprotPlayerInfo *pi, const uint8_t *data, int32_t len,
-    RsprotInfoOp *ops, int cap, int *complete)
+rsprot_info_player_sections(
+    RsprotPlayerPacket *pp, RsprotBuf *b, RsprotInfoList *out,
+    int extended[RSPROT_INFO_PLAYER_SLOTS])
 {
     static Reader r;
-    RsprotBuf b;
-    int ok;
+    RsprotPlayerInfo *pi;
 
-    assert(side);
-    assert(pi);
-    assert(ops);
-    assert(complete);
-    *complete = 0;
-    if (!pi->seeded)
-        return 0;
-
+    assert(pp);
+    assert(pp->pi);
+    assert(b);
+    assert(out);
+    assert(extended);
+    pi = pp->pi;
     memset(&r, 0, sizeof(r));
     r.pi = pi;
-    r.out.ops = ops;
-    r.out.cap = cap;
+    r.pp = pp;
+    for (int i = 0; i < RSPROT_INFO_PLAYER_SLOTS; i++)
+        pp->movement_op[i] = -1;
+    r.out = out;
+    r.extended = extended;
     memcpy(r.cycle_high, pi->high_res, sizeof(r.cycle_high));
 
-    rsprot_buf_wrap_read(&b, data, len);
     /* High-res active, high-res inactive, low-res inactive, low-res active. */
-    section(&r, &b, 0, 0);
-    section(&r, &b, 1, 0);
-    section(&r, &b, 1, 1);
-    section(&r, &b, 0, 1);
+    section(&r, b, 0, 0);
+    section(&r, b, 1, 0);
+    section(&r, b, 1, 1);
+    section(&r, b, 0, 1);
     for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++)
         pi->flags[idx] = (uint8_t)(pi->flags[idx] >> 1);
-    ok = !b.err &&
-         rsprot_info_tail(&b, side, r.extended, r.extended_count, &r.out, NULL, NULL);
-    *complete = ok && !b.err && b.rpos == len && !r.out.overflow;
-    return r.out.count;
+    return r.extended_count;
 }

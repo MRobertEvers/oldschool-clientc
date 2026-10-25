@@ -2,13 +2,13 @@
 #include "hiscore_reply.h"
 
 /*
- * v100 -- revs 227-241.
+ * v1 (rsprox_versions.txt 100) -- revs 227-241.
  * g1 requestId, g1 responseType; 0: g1 version, g1 statCount,
  * [g2 id, g4 rank, g4 result]*, g4 overallRank, g8 overallExperience,
  * g2 activityCount, [g2 id, g4 rank, g4 result]*; 1: gjstr reason.
  */
 void
-packet_hiscore_reply_v100_out(RsprotExec *x, MsgHiscoreReply *m)
+packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m)
 {
     RSPROT_U1(x, m->request_id);
     RSPROT_U1(x, m->response_type);
@@ -36,7 +36,7 @@ packet_hiscore_reply_v100_out(RsprotExec *x, MsgHiscoreReply *m)
 }
 
 const RsprotVersionRange rsprot_hiscore_reply_out[] = {
-    { 227, 241, (RsprotCodecFn)packet_hiscore_reply_v100_out },
+    { 227, 241, (RsprotCodecFn)packet_hiscore_reply_v1_out },
 };
 
 const int rsprot_hiscore_reply_out_count =

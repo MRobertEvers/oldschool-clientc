@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -19,7 +19,7 @@ packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_JSTR(x, m->text);
 }
 
-/* v2 -- revs 222, 227, 231. */
+/* v2 -- revs 222, 227, 231 (packet_versions.txt 2). */
 void
 packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -27,7 +27,7 @@ packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 228. */
+/* v3 -- revs 223, 228 (packet_versions.txt 3). */
 void
 packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -35,7 +35,7 @@ packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_JSTR(x, m->text);
 }
 
-/* v4 -- revs 224, 237-238, 241. */
+/* v4 -- revs 224, 237-238, 241 (packet_versions.txt 4). */
 void
 packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -43,7 +43,7 @@ packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_JSTR(x, m->text);
 }
 
-/* v5 -- revs 225, 229, 234. */
+/* v5 -- revs 225, 229, 234 (packet_versions.txt 5). */
 void
 packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -51,7 +51,7 @@ packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_COM(x, m->combined_id);
 }
 
-/* v6 -- revs 226, 230, 235-236, 239. */
+/* v6 -- revs 226, 230, 235-236, 239 (packet_versions.txt 6). */
 void
 packet_if_settext_v6_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -59,7 +59,7 @@ packet_if_settext_v6_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_COM_ALT2(x, m->combined_id);
 }
 
-/* v7 -- revs 232, 240. */
+/* v7 -- revs 232, 240 (packet_versions.txt 7). */
 void
 packet_if_settext_v7_out(RsprotExec *x, MsgIfSetText *m)
 {
@@ -67,7 +67,7 @@ packet_if_settext_v7_out(RsprotExec *x, MsgIfSetText *m)
     RSPROT_JSTR(x, m->text);
 }
 
-/* v8 -- revs 233. */
+/* v8 -- revs 233 (packet_versions.txt 8). */
 void
 packet_if_settext_v8_out(RsprotExec *x, MsgIfSetText *m)
 {

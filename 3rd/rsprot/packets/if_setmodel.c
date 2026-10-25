@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs 221 (packet_versions.txt 1). */
 void
 packet_if_setmodel_v1_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -19,7 +19,7 @@ packet_if_setmodel_v1_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2_ALT2(x, m->model);
 }
 
-/* v2 -- revs 222, 226. */
+/* v2 -- revs 222, 226 (packet_versions.txt 2). */
 void
 packet_if_setmodel_v2_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -27,7 +27,7 @@ packet_if_setmodel_v2_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs 223 (packet_versions.txt 3). */
 void
 packet_if_setmodel_v3_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -35,7 +35,7 @@ packet_if_setmodel_v3_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2_ALT2(x, m->model);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs 224 (packet_versions.txt 4). */
 void
 packet_if_setmodel_v4_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -43,7 +43,7 @@ packet_if_setmodel_v4_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2(x, m->model);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs 225 (packet_versions.txt 5). */
 void
 packet_if_setmodel_v5_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -51,7 +51,7 @@ packet_if_setmodel_v5_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2_ALT1(x, m->model);
 }
 
-/* v6 -- revs 227. */
+/* v6 -- revs 227 (packet_versions.txt 6). */
 void
 packet_if_setmodel_v6_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -59,7 +59,7 @@ packet_if_setmodel_v6_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2_ALT1(x, m->model);
 }
 
-/* v7 -- revs 228. */
+/* v7 -- revs 228 (packet_versions.txt 7). */
 void
 packet_if_setmodel_v7_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -67,7 +67,7 @@ packet_if_setmodel_v7_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2_ALT3(x, m->model);
 }
 
-/* v8 -- revs 229. */
+/* v8 -- revs 229 (packet_versions.txt 8). */
 void
 packet_if_setmodel_v8_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -75,7 +75,7 @@ packet_if_setmodel_v8_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_U2(x, m->model);
 }
 
-/* v9 -- revs 230, 233. */
+/* v9 -- revs 230, 233 (packet_versions.txt 9). */
 void
 packet_if_setmodel_v9_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -83,7 +83,7 @@ packet_if_setmodel_v9_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v10 -- revs 231. */
+/* v10 -- revs 231 (packet_versions.txt 10). */
 void
 packet_if_setmodel_v10_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -91,7 +91,7 @@ packet_if_setmodel_v10_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v11 -- revs 232. */
+/* v11 -- revs 232 (packet_versions.txt 11). */
 void
 packet_if_setmodel_v11_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -99,7 +99,7 @@ packet_if_setmodel_v11_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_ALT1(x, m->combined_id);
 }
 
-/* v12 -- revs 234, 236. */
+/* v12 -- revs 234, 236 (packet_versions.txt 12). */
 void
 packet_if_setmodel_v12_out(RsprotExec *x, MsgIfSetModel *m)
 {
@@ -107,7 +107,7 @@ packet_if_setmodel_v12_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_ALT3(x, m->combined_id);
 }
 
-/* v13 -- revs 235. */
+/* v13 -- revs 235 (packet_versions.txt 13). */
 void
 packet_if_setmodel_v13_out(RsprotExec *x, MsgIfSetModel *m)
 {

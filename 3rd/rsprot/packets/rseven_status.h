@@ -12,12 +12,13 @@
  *
  * RSProt class : RSevenStatusDecoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^RSevenStatusDecoder\tin\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,26 +34,26 @@ typedef struct MsgRSevenStatus {
 	int32_t packed;
 } MsgRSevenStatus;
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs 227-241 (packet_versions.txt 1). */
 void packet_rseven_status_v1_in(RsprotExec *x, MsgRSevenStatus *m);
 
-/* Per-revision aliases: `packet_rseven_status_rev239_in` is greppable, which is the
- * point -- "what does 239 do for RSEVEN_STATUS" without reading a table. */
-#define packet_rseven_status_rev227_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev228_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev229_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev230_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev231_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev232_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev233_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev234_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev235_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev236_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev237_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev238_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev239_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev240_in packet_rseven_status_v1_in
-#define packet_rseven_status_rev241_in packet_rseven_status_v1_in
+/* Per-revision entry points: `packet_rseven_status_osrs239_in` is greppable, which
+ * is the point -- "what does 239 do for RSEVEN_STATUS" without reading a table. */
+#define packet_rseven_status_osrs227_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs228_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs229_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs230_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs231_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs232_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs233_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs234_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs235_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs236_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs237_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs238_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs239_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs240_in packet_rseven_status_v1_in
+#define packet_rseven_status_osrs241_in packet_rseven_status_v1_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rseven_status_in[];

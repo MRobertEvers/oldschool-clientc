@@ -12,12 +12,13 @@
  *
  * RSProt class : VarpResetEncoder
  * Layouts      : 1 distinct, over 1 contiguous revision run(s)
- * Version nos. : from gen/packet_versions.txt (append-only; never allocated
- *                here). Cross-check with:
+ * Version nos. : v1..v1, this packet's layouts in ledger order; each names
+ *                its row in gen/packet_versions.txt (append-only; never
+ *                allocated here). Cross-check with:
  *                    grep '^VarpResetEncoder\tout\t' 3rd/rsprot/gen/packet_versions.txt
  *                Revision(s) 240, 241 come from RSProx, not RSProt
- *                (tools/rsprox_codec_overlay.py); a number >= 100 is from
- *                gen/rsprox_versions.txt.
+ *                (tools/rsprox_codec_overlay.py); their layouts name
+ *                rows of gen/rsprox_versions.txt.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,32 +36,32 @@ typedef struct MsgVarpReset {
 	int32_t _unused;
 } MsgVarpReset;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs 221-241 (packet_versions.txt 1). */
 void packet_varp_reset_v1_out(RsprotExec *x, MsgVarpReset *m);
 
-/* Per-revision aliases: `packet_varp_reset_rev239_out` is greppable, which is the
- * point -- "what does 239 do for VARP_RESET" without reading a table. */
-#define packet_varp_reset_rev221_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev222_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev223_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev224_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev225_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev226_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev227_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev228_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev229_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev230_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev231_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev232_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev233_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev234_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev235_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev236_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev237_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev238_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev239_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev240_out packet_varp_reset_v1_out
-#define packet_varp_reset_rev241_out packet_varp_reset_v1_out
+/* Per-revision entry points: `packet_varp_reset_osrs239_out` is greppable, which
+ * is the point -- "what does 239 do for VARP_RESET" without reading a table. */
+#define packet_varp_reset_osrs221_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs222_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs223_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs224_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs225_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs226_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs227_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs228_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs229_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs230_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs231_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs232_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs233_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs234_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs235_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs236_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs237_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs238_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs239_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs240_out packet_varp_reset_v1_out
+#define packet_varp_reset_osrs241_out packet_varp_reset_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varp_reset_out[];

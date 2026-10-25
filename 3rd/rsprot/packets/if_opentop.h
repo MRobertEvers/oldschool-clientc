@@ -35,15 +35,13 @@
  * layouts, and "increment the version on every change" would hand the same
  * bytes four different numbers.
  *
- * ## Version numbers are allocated, never derived
+ * ## Version numbers
  *
- * v1..v4 below are this layout's identity, not its ordinal in this file. They
- * are assigned by content hash and recorded append-only in
- * gen/packet_versions.txt, which is the authority — this file transcribes that
- * file's numbers and must never invent its own. 31 packet classes have a layout
- * that disappears and later reappears (IF_OPENTOP is one: v1 is used at 221,
- * 225 and again at 236), so a number that silently renumbers is a number that
- * silently mismatches.
+ * v1..v4 below count this packet's layouts in ledger order, the numbering every
+ * generated packet uses (tools/rsprot_gen_codec.py layout_numbers). A layout's
+ * identity is its ledger row: assigned by content hash and recorded append-only
+ * in gen/packet_versions.txt, so a layout that disappears and later reappears
+ * keeps its number (IF_OPENTOP's v1 is used at 221, 225 and again at 236).
  *
  * To check a row here against the authority:
  *
@@ -51,7 +49,7 @@
  *
  * ## What is deliberately NOT here
  *
- * No opcode and no length. Those are per revision, live in gen/rev<N>_prot.h,
+ * No opcode and no length. Those are per revision, live in gen/osrs<N>_prot.h,
  * and are the framing layer's business. A codec writes a body.
  */
 
@@ -93,7 +91,7 @@ void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
 /*
  * The per-revision aliases.
  *
- * `packet_if_opentop_rev239_out` is greppable, which is the point — "what does
+ * `packet_if_opentop_osrs239_out` is greppable, which is the point — "what does
  * 239 do for IF_OPENTOP" is answerable without reading a table. They are
  * aliases and not wrappers so there is exactly one function per layout.
  *
@@ -101,27 +99,27 @@ void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
  * indistinguishable from a revision this packet does not exist in, and those
  * are different facts.
  */
-#define packet_if_opentop_rev221_out packet_if_opentop_v1_out
-#define packet_if_opentop_rev222_out packet_if_opentop_v2_out
-#define packet_if_opentop_rev223_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev224_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev225_out packet_if_opentop_v1_out
-#define packet_if_opentop_rev226_out packet_if_opentop_v2_out
-#define packet_if_opentop_rev227_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev228_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev229_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev230_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev231_out packet_if_opentop_v4_out
-#define packet_if_opentop_rev232_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev233_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev234_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev235_out packet_if_opentop_v2_out
-#define packet_if_opentop_rev236_out packet_if_opentop_v1_out
-#define packet_if_opentop_rev237_out packet_if_opentop_v3_out
-#define packet_if_opentop_rev238_out packet_if_opentop_v2_out
-#define packet_if_opentop_rev239_out packet_if_opentop_v4_out
-#define packet_if_opentop_rev240_out packet_if_opentop_v2_out
-#define packet_if_opentop_rev241_out packet_if_opentop_v4_out
+#define packet_if_opentop_osrs221_out packet_if_opentop_v1_out
+#define packet_if_opentop_osrs222_out packet_if_opentop_v2_out
+#define packet_if_opentop_osrs223_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs224_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs225_out packet_if_opentop_v1_out
+#define packet_if_opentop_osrs226_out packet_if_opentop_v2_out
+#define packet_if_opentop_osrs227_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs228_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs229_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs230_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs231_out packet_if_opentop_v4_out
+#define packet_if_opentop_osrs232_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs233_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs234_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs235_out packet_if_opentop_v2_out
+#define packet_if_opentop_osrs236_out packet_if_opentop_v1_out
+#define packet_if_opentop_osrs237_out packet_if_opentop_v3_out
+#define packet_if_opentop_osrs238_out packet_if_opentop_v2_out
+#define packet_if_opentop_osrs239_out packet_if_opentop_v4_out
+#define packet_if_opentop_osrs240_out packet_if_opentop_v2_out
+#define packet_if_opentop_osrs241_out packet_if_opentop_v4_out
 
 /** Ranges, because 348 of 423 codec classes have every layout in one
  *  contiguous run — most of these tables are a single row. This packet is the
