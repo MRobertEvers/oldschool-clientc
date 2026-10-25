@@ -928,11 +928,11 @@ ScriptrunCore_NpcResolve(
     return npc_id;
 }
 
-/* The npc's config as the client's cache carries it: name, size, combat
- * level, off the RUNG this client's varps select, gap-filled from the shell
- * (torirs_types.h ToriRS_NpcEntityFacts: a rung is a delta -- verzik_initial's
- * rung states no size, its shell says 5). Read through the server's table of
- * the pack's CLIENT records -- the same bytes the client codec reads. */
+/* The npc's config as the client's cache carries it: name and combat level
+ * off the RUNG this client's varps select, size off the shell the wire named
+ * (torirs_types.h ToriRS_NpcEntityFacts: verzik_initial's rung states no
+ * size, its shell says 5). Read through the server's table of the pack's
+ * CLIENT records -- the same bytes the client codec reads. */
 static void
 npc_type_config(
     struct ScriptrunCore const* core,
@@ -950,9 +950,10 @@ npc_type_config(
     *out_live_id = live >= 0 ? live : wire_id;
     snprintf(name, (size_t)name_cap, "%s", rung && rung->name ? rung->name : "");
     /* ToriRS_NpctypeEntityFacts' rule, word for word. */
-    *size = rung && rung->size > 0 ? rung->size : 1;
-    if( shell && shell != rung && *size <= 1 && shell->size > 1 )
-        *size = shell->size;
+    {
+        const struct ToriRSServerNpcInfo* src = shell ? shell : rung;
+        *size = src && src->size > 0 ? src->size : 1;
+    }
     *combat_level = rung ? rung->combat_level : 0;
 }
 

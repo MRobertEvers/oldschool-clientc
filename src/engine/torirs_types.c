@@ -920,60 +920,28 @@ ToriRS_NpctypeEntityFacts(
     struct ToriRS_Npctype const* shell,
     struct ToriRS_NpcEntityFacts* out)
 {
+    struct ToriRS_Npctype const* src;
+
     assert(drawn);
     assert(out);
 
-    out->size = drawn->size > 0 ? drawn->size : 1;
-    out->readyanim = drawn->readyanim;
-    out->walkanim = drawn->walkanim;
-    out->walkanim_b = drawn->walkanim_b;
-    out->walkanim_l = drawn->walkanim_l;
-    out->walkanim_r = drawn->walkanim_r;
-    out->turnanim = drawn->turnanim_l;
-    out->turnanim_r = drawn->turnanim_r;
-    out->runanim = drawn->runanim;
-    out->runanim_b = drawn->runanim_b;
-    out->runanim_l = drawn->runanim_l;
-    out->runanim_r = drawn->runanim_r;
-    out->crawlanim = drawn->crawlanim;
-    out->crawlanim_b = drawn->crawlanim_b;
-    out->crawlanim_l = drawn->crawlanim_l;
-    out->crawlanim_r = drawn->crawlanim_r;
-
-    /* No shell, or a rung that IS its own shell, has nothing to fill from. */
-    if( !shell || shell == drawn )
-        return;
-
-    if( out->size <= 1 && shell->size > 1 )
-        out->size = shell->size;
-    if( out->readyanim < 0 )
-        out->readyanim = shell->readyanim;
-    if( out->walkanim < 0 )
-        out->walkanim = shell->walkanim;
-    if( out->walkanim_b < 0 )
-        out->walkanim_b = shell->walkanim_b;
-    if( out->walkanim_l < 0 )
-        out->walkanim_l = shell->walkanim_l;
-    if( out->turnanim < 0 )
-        out->turnanim = shell->turnanim_l;
-    if( out->turnanim_r < 0 )
-        out->turnanim_r = shell->turnanim_r;
-    if( out->crawlanim < 0 )
-        out->crawlanim = shell->crawlanim;
-    if( out->crawlanim_b < 0 )
-        out->crawlanim_b = shell->crawlanim_b;
-    if( out->crawlanim_l < 0 )
-        out->crawlanim_l = shell->crawlanim_l;
-    if( out->crawlanim_r < 0 )
-        out->crawlanim_r = shell->crawlanim_r;
-    if( out->runanim < 0 )
-        out->runanim = shell->runanim;
-    if( out->runanim_b < 0 )
-        out->runanim_b = shell->runanim_b;
-    if( out->runanim_l < 0 )
-        out->runanim_l = shell->runanim_l;
-    if( out->runanim_r < 0 )
-        out->runanim_r = shell->runanim_r;
-    if( out->walkanim_r < 0 )
-        out->walkanim_r = shell->walkanim_r;
+    /* The record the wire named, whole; the rung only when there is none. */
+    src = shell ? shell : drawn;
+    out->size = src->size > 0 ? src->size : 1;
+    out->readyanim = src->readyanim;
+    out->walkanim = src->walkanim;
+    out->walkanim_b = src->walkanim_b;
+    out->walkanim_l = src->walkanim_l;
+    out->walkanim_r = src->walkanim_r;
+    out->turnanim = src->turnanim_l;
+    out->turnanim_r = src->turnanim_r;
+    out->runanim = src->runanim;
+    out->runanim_b = src->runanim_b;
+    out->runanim_l = src->runanim_l;
+    out->runanim_r = src->runanim_r;
+    out->crawlanim = src->crawlanim;
+    out->crawlanim_b = src->crawlanim_b;
+    out->crawlanim_l = src->crawlanim_l;
+    out->crawlanim_r = src->crawlanim_r;
+    out->turn_speed = src->turn_speed;
 }

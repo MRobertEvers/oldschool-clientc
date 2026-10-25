@@ -343,11 +343,8 @@ app_npc_type_idle(
         .crawlanim_b = facts->crawlanim_b,
         .crawlanim_r = facts->crawlanim_r,
         .crawlanim_l = facts->crawlanim_l,
-        /* Read off the DRAWN type, and deliberately not gap-filled from the
-         * shell the way size and readyanim are: it is a bare boolean whose
-         * absent value and whose authored-false value are the same bit, so
-         * "the rung did not state it" cannot be expressed. Same reason
-         * `turn_speed` is left out of ToriRS_NpcEntityFacts. */
+        /* Read off the DRAWN type. Not yet checked against the deob, which
+         * takes the stance set itself off the shell (ToriRS_NpcEntityFacts). */
         .idle_anim_restart = npctype->idle_anim_restart ? 1 : 0,
     };
 }
@@ -388,8 +385,8 @@ App_WorldApplyNpcType(
     npctype = CacheProvider_NpctypeGet(app->provider, npc_type);
     if( !npctype )
         return;
-    /* Same gap-fill as the spawn path: the rung draws the body and names the
-     * ops, the shell supplies the size and idle animation it does not state.
+    /* Same rule as the spawn path: the rung draws the body and names the
+     * ops, the shell supplies the size, turn speed and stance set.
      * See app_npc_entity_facts. */
     app_npc_entity_facts(app, base_npc_type, npctype, &facts);
     if( getenv("TORIRS_ANIM_DEBUG") )
@@ -436,7 +433,7 @@ App_WorldApplyNpcType(
             npc->alwaysontop = npctype->alwaysontop;
             npc->minimap_visible = npctype->minimap_visible;
             npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = npctype->turn_speed;
+            npc->facing.turn_speed = facts.turn_speed;
             npc->facing.no_rotation_flag = npctype->no_rotation_flag;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

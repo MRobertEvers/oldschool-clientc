@@ -135,7 +135,7 @@ app_spawn_task_new(
  * against a shrunken model -- which is what threw Xarpus into the air above his
  * own arena.
  *
- * What has left: the multinpc rung/shell gap-fill is
+ * What has left: the multinpc rung/shell rule (the shell moves it) is
  * ToriRS_NpctypeEntityFacts', and the placement op menu is
  * WorldEntity_SceneryApplyPlacementOps'. Both are rules about cache records
  * and neither needed an App.
@@ -598,7 +598,7 @@ app_warn_once_npc(int npc_id)
     return 0;
 }
 
-/* The rung/shell gap-fill is ToriRS_NpctypeEntityFacts'. This is the spelling
+/* The rung/shell rule is ToriRS_NpctypeEntityFacts'. This is the spelling
  * that resolves the shell: the wire sends the multinpc's own id, and the cache
  * is where the record for it lives. */
 void
@@ -801,7 +801,7 @@ app_world_spawn_npc_now(
             npc->alwaysontop = npctype->alwaysontop;
             npc->minimap_visible = npctype->minimap_visible;
             npc->interactable = npctype->interactable;
-            npc->facing.turn_speed = npctype->turn_speed;
+            npc->facing.turn_speed = facts.turn_speed;
             npc->facing.no_rotation_flag = npctype->no_rotation_flag;
             snprintf(npc->name, sizeof(npc->name), "%s", npctype->name);
             for( int i = 0; i < 5; i++ )

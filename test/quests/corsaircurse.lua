@@ -501,7 +501,12 @@ return {
         -- ---- the driftwood under his hut ----
         local burn_mark = t.cutscene.mark()
         t.exec("lightDriftwood", t.player.use_on, "tinderbox", t.player.by_symbol("loc", "corscurs_driftwood_multi"))
-        t.ticks(32)
+        -- photographed through the scene, not only either side of it: the burning driftwood
+        -- (stage 49) is on screen only inside it ([1521]..[1542])
+        for i = 1, 8 do
+            t.ticks(4)
+            t.shot(string.format("lightDriftwood.burn-%d", i))
+        end
         t.exec("lightDriftwood-after", t.chat.play, { "player:Well, I guess that proves he's well enough to get up!" })
         t.exec("lightDriftwood.cutscene", t.cutscene.await, "lightDriftwood", { since = burn_mark, quiet = 60, expect = {
             { op = "moveto", height = 200 },

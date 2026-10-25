@@ -573,41 +573,32 @@ struct ToriRS_Npctype
 };
 
 /*
- * The entity's own facts, for a multinpc, are the RUNG's where it states them
- * and the SHELL's where it does not.
+ * The entity's own facts -- size, the whole stance set, turn speed -- for a
+ * multinpc are the SHELL's: the record the wire named, never the rung its
+ * varbit selects. The rung draws the body and names the npc and its ops;
+ * it does not move it.
  *
- * A multinpc is one shell record plus a rung per state, and this client
- * resolves the rung BEFORE it spawns anything (Task_AppSpawn,
- * Task_ExecNpcInfo) -- so without this the whole entity was built out of the
- * rung, defaults and all. Rungs are not authored to stand alone: they are
- * deltas. `verzik_initial_base` states a name, a model, a chathead, two ops and
- * nothing else, while its shell `verzik_initial` carries `size=5` and
- * `readyanim=verzik_phase1_idle`. Read straight off the rung, Verzik was size
- * 1 -- which puts her draw origin at `tile * 128 + 64` instead of
- * `tile * 128 + 5 * 64`, two tiles south-west of her own dais -- and readyanim
- * -1, so no sequence ever bound to the element and she sat in the model's bind
- * pose for the whole of phase one. One record's absent fields, two bugs that
- * looked unrelated.
+ * Deob (rev 239, src_osrs239_rl1_12_33): Statics.method4320 copies size
+ * (op 12), turn speed, readyanim (op 13), the walk set (14/17), the idle
+ * turns (15/16) and the run and crawl sets into the actor from
+ * `class86.field1237` -- the type decoded off the npc-info add and the
+ * changetype mask, never transformed -- and nothing in the type's decode
+ * fills an absent field from a transform. `transform()` (class405.method9174)
+ * is called only where the model, the name and the ops are read.
  *
- * Across this cache the gap is 102 rungs silently size 1 under a shell that
- * states a size, and 526 silently animation-less under a shell that states a
- * readyanim. NOTHING here changes a rung that states the field itself: the 49
- * records whose readyanim genuinely disagrees with their shell keep the rung's,
- * and no rung anywhere disagrees about size.
+ * The cache only makes sense this way. The Corsair Curse's sick crew are
+ * shells stating `dream_cyrisus_sitting_up` / `_barely_conscious`, size 2 and
+ * turnspeed 0 over rungs that are the crew standing in `human_ready`: taking
+ * the rung stood all four up beside their beds (RSProx index 4352 sends the
+ * shells with no [bas] at all). The 55 rungs whose shell states no readyanim
+ * are the Recipe for Disaster council frozen in place (`hundred_*_frozen`)
+ * and the fossil herbiboars: frozen BECAUSE the shell's idle is -1.
+ * Verzik's `verzik_initial_base` (no size, no readyanim) under
+ * `verzik_initial` (size 5, `verzik_phase1_idle`) is the same rule.
  *
- * That last point is a deliberate deviation, flagged rather than hidden. The
- * reference reads these off ONE record -- `npc.type`, the id the WIRE sent,
- * i.e. the shell -- at both the NPC add and the CHANGETYPE mask (Client.ts
- * 8344-8353, 8455-8464), and `transform()` is called later and only where the
- * MODEL, the name and the ops are chosen. By that rule the shell would win
- * outright and those 49 rungs' readyanims would be dead data. There is no
- * revision-239 client in this tree to confirm it against, and taking the shell
- * outright would silently restyle the 674 rungs whose shell states nothing, so
- * this fills gaps and never overrides. Revisit with a rev-239 deob in hand.
- *
- * `turn_speed` is deliberately absent: its default is 32 rather than a
- * sentinel, so "absent" and "authored 32" are the same value and gap-filling
- * cannot be expressed for it.
+ * Before 2026-10-25 this filled the rung's gaps from the shell and let a
+ * rung that stated a field keep it -- the 52 records that disagree, the
+ * sick crew among them, showed the wrong stance.
  */
 struct ToriRS_NpcEntityFacts
 {
@@ -627,16 +618,15 @@ struct ToriRS_NpcEntityFacts
     int crawlanim_b;
     int crawlanim_l;
     int crawlanim_r;
+    int turn_speed;
 };
 
 /**
- * Fill `out` from the rung, then from the shell wherever the rung said
- * nothing.
+ * Fill `out` from the shell -- the record the wire named.
  *
- * `shell` may be NULL: an ordinary npc has no shell, and there is nothing to
- * fill from. It may also BE `drawn`, which every non-multinpc is once the
- * caller has looked the wire's id up -- that is a short circuit rather than a
- * rule, since a record can only ever agree with itself.
+ * `shell` may be NULL (a caller with no wire id, the hotkey spawn): then the
+ * drawn record is the only one there is. It may also BE `drawn`, which every
+ * non-multinpc is once the caller has looked the wire's id up.
  */
 void
 ToriRS_NpctypeEntityFacts(

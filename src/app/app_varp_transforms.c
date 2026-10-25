@@ -197,9 +197,14 @@ Task_NpcMultiLoad_Run(
             }
             if( npctype )
             {
+                /* The movement set the npc will play is the SHELL's
+                 * (ToriRS_NpcEntityFacts): the wire's record, which the walk
+                 * above loaded first. */
+                struct ToriRS_NpcEntityFacts facts;
+                app_npc_entity_facts(app, self->base_npc_id, npctype, &facts);
                 int const seqs[5] = {
-                    npctype->readyanim,  npctype->walkanim,   npctype->walkanim_b,
-                    npctype->walkanim_r, npctype->walkanim_l,
+                    facts.readyanim,  facts.walkanim,   facts.walkanim_b,
+                    facts.walkanim_r, facts.walkanim_l,
                 };
                 for( self->seq_i = 0; self->seq_i < 5; self->seq_i++ )
                 {

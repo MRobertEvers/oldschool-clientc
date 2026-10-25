@@ -51,6 +51,17 @@ the script command that emits it. Keep it open.
    every value only one side has is a defect or a named reason (the raiders' kit: a
    `windsurge_impact` on a sword is a raider's spell).
 
+   **Then every MULTINPC's stance, which rides in no packet:**
+   `python3 tools/rsprox/multinpc_stance_audit.py <txt>... [--match '<regex>']`. A multinpc
+   goes out as its shell (`id=`) and is drawn as the rung its varbit picks (`multinpc=`).
+   Size, turn speed and the whole stance set are the SHELL's, and only the model, name and ops
+   are the rung's (deob `Statics.method4320`; ours `ToriRS_NpcEntityFacts`). A shell that sits
+   up in bed over a rung standing in `human_ready` sends no `[bas]`, so the block inventory
+   above correctly shows nothing. The Corsair Curse's sick crew passed every block audit that
+   way while our client stood all four up beside their beds (2026-10-25). For every DIFFERS
+   row, read the client's pose (`t.npc.pose(sym)` -> `set ready N` must be the shell's) and
+   photograph the npc where the player meets it.
+
    **Then the movement of EVERY npc type the content spawns -- not only the monsters.** The
    generated blocks give every npc `defaultmode=wander, wanderrange=5`, so a type the content
    never overrides wanders on top of whatever its script does with it. Hazards, modifier
@@ -167,6 +178,14 @@ fight, cutscene, interaction), before reporting it finished:
      oc_stream.py` is the template for this diff. Our tick log's `npc_face` rows: a coord row
      from `npc_facesquare`, and `x = -1, z = target` for an entity face or its reset (`-1`),
      written at the end of the tick the block goes out.
+   - **WHAT THE CACHE DRAWS, on our client.** A multinpc/multiloc the content leaves "to the
+     cache" (a stage varbit picks the sick crew, the burning driftwood, a hidden bed) is a
+     claim about OUR client, not about Jagex's data. For each one: a client read
+     (`t.npc.pose`, the loc's id) and a photograph in EVERY state the content passes
+     through, INSIDE the scenes as well. A quest test that photographs a scene only before
+     and after it has not seen what the scene shows. The Corsair Curse doc said "the cache
+     does the rest" and no shot was ever taken of a sick crew member from inside a hut or of
+     the burning driftwood (2026-10-25).
 4. **Write it down**: one table per section in the analysis doc (`R`, ours, verdict), citing the
    recording ticks, and the counts behind each rule ("6/6"). A section without a table is not
    audited.
@@ -398,6 +417,14 @@ index reuse):
   - Note **when** it re-faces (every attack? only on target change?).
   - Several bosses swing with the facing **held** into the swing (Tekton).
   - `playerface` drops past the npc's `maxrange` from spawn (default 7).
+- **A multinpc's stance is its SHELL's, with no packet at all.** The client takes size, turn
+  speed and the stance set off the type the wire named (`id=` in the transcript), never off
+  the rung (`multinpc=`): deob `Statics.method4320` reads `class86.field1237`, the
+  untransformed type, and `transform()` is used only for the model, name and ops. A shell
+  stating no readyanim FREEZES the npc (the Recipe for Disaster council's
+  `hundred_*_frozen`). Run `tools/rsprox/multinpc_stance_audit.py` and check each DIFFERS
+  row on the client (loop step 3). A multiloc is the same: its anim is the placed loc's
+  (`Statics.method8559` reads `field4946` off the untransformed id).
 - **Stances (`[bas]`) and models (`[body_customisation]`) -- read them on EVERY add and form:**
   - `[bas] ready=.., walk=.., turnleft=.., turnright=..` replaces the type's stance set (an
     empty `[bas]` is the reset to the type's): `npc_basready`, `npc_baswalk`, `npc_basturn`,
@@ -811,6 +838,10 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 - **A LostCity port is 2004 content.** It passes its quest gate with every OSRS page, scene
   and per-player state missing. Run §16 (start with `content_asset_inventory.py`) before
   auditing any single interaction (Romeo & Juliet, 2026-10-24).
+- **No packet is not no stance.** The wire carries a stance only when the server overrides it
+  (`[bas]`); a multinpc's comes from its shell in the cache, and only the client shows it.
+  "The cache does the rest" in an analysis doc is an unverified claim until `t.npc.pose` and
+  a photograph say so (the Corsair Curse's sick crew, 2026-10-25).
 - **"Matched" on counts per window is not matched per life:** a value the recording varies per
   copy (models, stances, drop variants) needs the per-life table.
 - **Never mutate shared source to test** (CLAUDE.md). Build private (`PLATFORM_OBJ_BASE=build_<x>`). If another session broke the shared pack, use the private packs recipe from memory.

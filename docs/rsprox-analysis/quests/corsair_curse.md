@@ -64,6 +64,24 @@ driftwood (dry, burning at 49, damp at 50), the doll (cook 2 only), the sand by 
 in his bed (hidden at 52) and Yusuf's booth and bank ops (60) are all multinpc/multiloc on
 these varbits.
 
+"The cache does the rest" was taken on trust, and for the sick crew it was wrong on our client
+(fixed 2026-10-25). Each crew member is sent as the SHELL, `corscurs_*_sick` (size 2,
+turnspeed 0, readyanim `dream_cyrisus_sitting_up` for Ithoi, `dream_cyrisus_barely_conscious`
+for the other three), which multinpcs to the standing crew member (`human_ready`, size 1) at
+every stage the recording reaches. No `[bas]` or `[sequence]` goes out for them, 0 in 4352, so
+the stance rides in no packet. The client takes size, turn speed and the whole stance set off the
+shell, and only the model, name and ops off the rung (deob `Statics.method4320` copies them off
+`class86.field1237`, the untransformed type). Ours let a rung that stated a stance keep it, so all
+four stood upright beside their beds (watched run `corsairc1`, shot 043). Ours now follows the
+deob (`ToriRS_NpctypeEntityFacts`, `src/engine/torirs_types.h`); `t.npc.pose` reads `set ready
+6284` (Ithoi) and `6282` (the others). `tools/rsprox/multinpc_stance_audit.py` lists every pair a
+transcript shows whose shell and rung differ: 16 of 24 in 4352.
+
+The same crew types also ran the generated `defaultmode=wander`. Arsen walked his bed tile
+(4.1 steps a life); the recording has 0 steps in 9, 9, 9 and 7 lives
+(`npc_movement_audit.py paths`). `corsaircurse.npc` now states `defaultmode=none,
+wanderrange=0` for the cook, the cabin boy and the thief; Ithoi's block already said `none`.
+
 ## The scenes
 
 Four play in a **private copy of the cove square** (m39_44): the `--raw` transcript moves the
@@ -178,6 +196,20 @@ Fixed on the way, outside the quest:
 
 ## Open
 
+- The driftwood fire (owner, 2026-10-25: "the sticks themselves never light on fire"). It is not
+  reproduced here. Against 4352 the wire matches tick for tick (stage 49 at op+2 and 50 at op+23
+  in the watched run's tick log too), and the burning rung (`corscurs_driftwood_burning`: model
+  34312 + fire 26584, seq `dragon_slayer_qip_fire1x1`) draws as the cache defines it: flames in
+  the middle of the pile with embers, in the copy from the light to the bolt (quest shots
+  `lightDriftwood.burn-*`, and `tools/entity_viewer/ev_sheet --loc 31722 --seq 6646`). Waiting on
+  the owner for what they expect to see.
+- A multiloc's anim: the deob always takes the PLACED (shell) loc's seq (`Statics.method8559`
+  reads `field4946` off the untransformed id); ours takes the rung's when the rung states one
+  (`world_builder_resolve_loc_for_place`, the loc-change task). The driftwood's rungs share the
+  shell's seq, so it is not the fire's cause; the other multilocs are unaudited.
+- The sick crew turn to face the player on two late pages (Arsen [1456], Ithoi [1496]: `[facing]
+  player=`); ours sends neither (turnspeed 0 means neither turns visibly). Madame Caldarium's
+  face and its reset ([631], [652]) are missing too.
 - `option_acceptaid` (4180) is set back to 1 at every unlock rather than restored (the recorder's
   was 1).
 - The shared npc caster (`~npc_cast_spell`) still treats Protect from Magic as a splash; the
