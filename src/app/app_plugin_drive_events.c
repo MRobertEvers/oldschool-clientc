@@ -397,13 +397,22 @@ App_DriveEventsRead(
     first = ring->write_index - ring->count;
     if( first < 0 )
         first += APP_DRIVE_RING_CAPACITY;
-    for( int i = 0; i < ring->count && written < cap; i++ )
+    /* Serials are consecutive (App_DriveEvent), so the entries at or
+     * below the cursor are a prefix whose length is arithmetic: start past
+     * it rather than walk the whole ring every pump to skip it. */
     {
-        struct App_DriveEvent const* entry =
-            &ring->entries[(first + i) % APP_DRIVE_RING_CAPACITY];
-        if( entry->serial <= after_serial )
-            continue;
-        out[written++] = *entry;
+        uint32_t const first_serial = ring->newest_serial - (uint32_t)ring->count + 1u;
+        int skip = 0;
+
+        if( after_serial >= first_serial )
+            skip = (int)(after_serial - first_serial) + 1;
+        for( int i = skip; i < ring->count && written < cap; i++ )
+        {
+            struct App_DriveEvent const* entry =
+                &ring->entries[(first + i) % APP_DRIVE_RING_CAPACITY];
+            assert(entry->serial > after_serial);
+            out[written++] = *entry;
+        }
     }
     *out_count = written;
     /* Deliberately the batch's last serial and not the ring's newest: a

@@ -300,6 +300,21 @@ drive_ui_strip_tags(char const* in, char* out, size_t out_cap)
  * approach, not line-of-sight), and it is cheap to filter and to reason
  * about from a test. radius <= 0 is "the whole pool", per this group's own
  * header banner. */
+/* How many ids one loc read may match (DriveLocQuery): a multiloc family's
+ * slots, a symbol and its variants. */
+#define DRIVE_UI_LOC_QUERY_IDS 256
+
+/* TORIRS_DRIVE_DEBUG, read once: the walks below ask it per pool entry, and a
+ * getenv is a linear scan of the environment under a lock. */
+static int
+drive_ui_debug(void)
+{
+    static int on = -1;
+    if( on < 0 )
+        on = getenv("TORIRS_DRIVE_DEBUG") != NULL;
+    return on;
+}
+
 static int
 drive_ui_within_radius(int ax, int az, int bx, int bz, int radius)
 {
@@ -652,7 +667,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
     base_z = app->world->_base_tile_z;
 
     pool = &app->world->entities.npc;
-    if( getenv("TORIRS_DRIVE_DEBUG") )
+    if( drive_ui_debug() )
         fprintf(stderr,
             "drive_npcs: world=%p npc_pool=%d head=%d player_pool=%d scenery_pool=%d "
             "load_complete=%d have_player=%d at %d,%d%s base=%d,%d radius=%d\n",
@@ -669,7 +684,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
 
         if( !npc || npc->server_slot < 0 )
         {
-            if( getenv("TORIRS_DRIVE_DEBUG") )
+            if( drive_ui_debug() )
                 fprintf(stderr,
                     "drive_npcs: index %d dropped (npc=%p slot=%d)\n",
                     i, (void const*)npc, npc ? npc->server_slot : -1);
@@ -698,7 +713,7 @@ DriveUi_Npcs(struct App* app, int radius, struct DriveNpcRow* out, int cap, int*
         }
         if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
         {
-            if( getenv("TORIRS_DRIVE_DEBUG") )
+            if( drive_ui_debug() )
                 fprintf(stderr,
                     "drive_npcs: slot %d id %d at %d,%d outside radius %d of %d,%d\n",
                     npc->server_slot, npc->npc_id, tile_x, tile_z, radius, px, pz);
@@ -935,40 +950,6 @@ drive_ui_locs_attach_ambient(struct App* app, struct DriveLocRow* rows, int coun
     ToriMem_Free(ToriMem_Plugins(), head);
 }
 
-/* Insert one loc row into `out`, nearest the player first, keeping the
- * nearest `cap`. */
-static void
-drive_ui_locs_insert(
-    struct DriveLocRow* out,
-    int* count,
-    int cap,
-    int have_player,
-    int px,
-    int pz,
-    struct DriveLocRow const* row)
-{
-    long distance = have_player ? drive_ui_distance2(row->tile_x, row->tile_z, px, pz) : 0;
-    int insert_at = *count < cap ? *count : cap - 1;
-    int j;
-
-    if( *count >= cap )
-    {
-        long worst = have_player ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz) : 0;
-        if( have_player && distance >= worst )
-            return;
-    }
-    for( j = insert_at; j > 0; j-- )
-    {
-        long prev_distance = have_player ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz) : 0;
-        if( !have_player || prev_distance <= distance )
-            break;
-        out[j] = out[j - 1];
-    }
-    out[j] = *row;
-    if( *count < cap )
-        (*count)++;
-}
-
 /* The pending loc change (App_DriveLocChangeNote) for this scenery's tile and
  * layer, or NULL. */
 static struct App_DriveLocChange const*
@@ -1110,87 +1091,619 @@ drive_ui_collision_maps(struct App* app)
     return g_drive_ui_collision.maps;
 }
 
-enum DriveResult
-DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count)
+/* ------------------------------------------------------------- THE LOC INDEX
+ *
+ * The root world's scenery, kept as a table the driver can ASK rather than
+ * walk: every placed copy of a loc id, every loc on a scene tile, and every
+ * multiloc wrapper, each a linked list over the pool's own slots.
+ *
+ * It is never rebuilt by scanning. The world calls drive_loc_index_listener
+ * in the same call that places, re-places or removes a scenery entity, or
+ * resets the pool (World_SetSceneryListener), and the index relinks that one
+ * slot. The only walk is the seed, once, when the index first meets a world
+ * (or a new one replaces it); after that a door opening costs one unlink and
+ * one link. Every read checks the index's live count against the pool's, so a
+ * mutation path that bypassed the listener aborts at the first read after it
+ * instead of answering from a stale table.
+ *
+ * What a row says that the pool does not store -- the multiloc child the
+ * varbits pick, the seq an element is playing, its area sound -- is read when
+ * the row is asked for, so it is as current as the frame. A loc change still
+ * waiting on its models (App_DriveLocChangeNote) overlays the index exactly as
+ * it overlaid the old pool walk: the tile and layer it covers answer from the
+ * packet.
+ *
+ * ORDER. Rows come nearest the player first, and equal distances in the
+ * pool's walk order -- the order the old nearest-first insertion produced,
+ * kept because a test's "nearest copy" must not change with the data
+ * structure. The pool appends a slot to its walk when it ACTIVATES it and a
+ * re-registration keeps its place, so the index stamps a serial at activation
+ * and keeps it across a re-place; pending changes rank after every pool row,
+ * in ring order, as they were inserted after the walk before. */
+
+enum
 {
-    int px = 0, pz = 0, plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
-    int have_player;
-    int base_x, base_z;
-    int count = 0;
+    DRIVE_LOC_NIL = -1,
+    /* A loc row's identity order for a pending change: after every pool row. */
+    DRIVE_LOC_RING_ORDER_BASE = 0x7fffffff
+};
+
+struct DriveLocSlot
+{
+    int loc_id; /* placed id; -1 while the slot is not live */
+    int next_id, prev_id;
+    int next_tile, prev_tile;
+    int next_wrap, prev_wrap;
+    int tile; /* bucket: z * size + x, or `tiles` for a tile off the grid */
+    int wrapper;
+    unsigned int serial;
+};
+
+static struct
+{
+    struct World* world;
+    struct App* app;
+    struct DriveLocSlot* slots;
+    int slot_cap;
+    int* id_head; /* placed loc id -> first slot */
+    int id_cap;
+    int* tile_head; /* tile bucket -> first slot; [tiles] holds off-grid locs */
+    int tiles;
+    int scene_size;
+    int wrap_head;
+    int live;
+    unsigned int serial;
+} g_drive_loc_index;
+
+static void
+drive_loc_index_grow_slots(int idx)
+{
+    int old_cap = g_drive_loc_index.slot_cap;
+    int cap = old_cap ? old_cap : 4096;
+    int i;
+
+    if( idx < old_cap )
+        return;
+    while( cap <= idx )
+        cap *= 2;
+    g_drive_loc_index.slots = ToriMem_Realloc(
+        ToriMem_Plugins(), g_drive_loc_index.slots, (size_t)cap * sizeof(struct DriveLocSlot));
+    assert(g_drive_loc_index.slots);
+    for( i = old_cap; i < cap; i++ )
+        g_drive_loc_index.slots[i].loc_id = -1;
+    g_drive_loc_index.slot_cap = cap;
+}
+
+static void
+drive_loc_index_grow_ids(int loc_id)
+{
+    int old_cap = g_drive_loc_index.id_cap;
+    int cap = old_cap ? old_cap : 65536;
+    int i;
+
+    if( loc_id < old_cap )
+        return;
+    while( cap <= loc_id )
+        cap *= 2;
+    g_drive_loc_index.id_head =
+        ToriMem_Realloc(ToriMem_Plugins(), g_drive_loc_index.id_head, (size_t)cap * sizeof(int));
+    assert(g_drive_loc_index.id_head);
+    for( i = old_cap; i < cap; i++ )
+        g_drive_loc_index.id_head[i] = DRIVE_LOC_NIL;
+    g_drive_loc_index.id_cap = cap;
+}
+
+static int
+drive_loc_index_tile_of(struct WorldEntity_Scenery const* sc)
+{
+    int size = g_drive_loc_index.scene_size;
+    int x = sc->grid_position.x;
+    int z = sc->grid_position.z;
+    if( x < 0 || z < 0 || x >= size || z >= size )
+        return g_drive_loc_index.tiles;
+    return z * size + x;
+}
+
+/* A def with a transform table, or one not resident to say: either may draw
+ * as another id, so a resolved-id read has to look at it. Over-including a
+ * plain loc only costs that read one resolve. */
+static int
+drive_loc_index_is_wrapper(struct App* app, int loc_id)
+{
+    struct ToriRS_Location* cfg;
+
+    if( !app->provider )
+        return 1;
+    cfg = CacheProvider_LocationGet(app->provider, loc_id);
+    return !cfg || (cfg->transform_count > 0 && cfg->transforms);
+}
+
+static void
+drive_loc_index_unlink(int idx)
+{
+    struct DriveLocSlot* s = &g_drive_loc_index.slots[idx];
+
+    assert(s->loc_id >= 0);
+    if( s->prev_id != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[s->prev_id].next_id = s->next_id;
+    else
+        g_drive_loc_index.id_head[s->loc_id] = s->next_id;
+    if( s->next_id != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[s->next_id].prev_id = s->prev_id;
+
+    if( s->prev_tile != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[s->prev_tile].next_tile = s->next_tile;
+    else
+        g_drive_loc_index.tile_head[s->tile] = s->next_tile;
+    if( s->next_tile != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[s->next_tile].prev_tile = s->prev_tile;
+
+    if( s->wrapper )
+    {
+        if( s->prev_wrap != DRIVE_LOC_NIL )
+            g_drive_loc_index.slots[s->prev_wrap].next_wrap = s->next_wrap;
+        else
+            g_drive_loc_index.wrap_head = s->next_wrap;
+        if( s->next_wrap != DRIVE_LOC_NIL )
+            g_drive_loc_index.slots[s->next_wrap].prev_wrap = s->prev_wrap;
+    }
+    s->loc_id = -1;
+    g_drive_loc_index.live--;
+}
+
+static void
+drive_loc_index_link(int idx, struct WorldEntity_Scenery const* sc, unsigned int serial)
+{
+    struct DriveLocSlot* s;
+    int head;
+
+    assert(sc->loc_id >= 0);
+    drive_loc_index_grow_slots(idx);
+    drive_loc_index_grow_ids(sc->loc_id);
+    s = &g_drive_loc_index.slots[idx];
+    assert(s->loc_id < 0);
+    s->loc_id = sc->loc_id;
+    s->serial = serial;
+
+    head = g_drive_loc_index.id_head[sc->loc_id];
+    s->prev_id = DRIVE_LOC_NIL;
+    s->next_id = head;
+    if( head != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[head].prev_id = idx;
+    g_drive_loc_index.id_head[sc->loc_id] = idx;
+
+    s->tile = drive_loc_index_tile_of(sc);
+    head = g_drive_loc_index.tile_head[s->tile];
+    s->prev_tile = DRIVE_LOC_NIL;
+    s->next_tile = head;
+    if( head != DRIVE_LOC_NIL )
+        g_drive_loc_index.slots[head].prev_tile = idx;
+    g_drive_loc_index.tile_head[s->tile] = idx;
+
+    s->wrapper = drive_loc_index_is_wrapper(g_drive_loc_index.app, sc->loc_id);
+    s->prev_wrap = DRIVE_LOC_NIL;
+    s->next_wrap = DRIVE_LOC_NIL;
+    if( s->wrapper )
+    {
+        head = g_drive_loc_index.wrap_head;
+        s->next_wrap = head;
+        if( head != DRIVE_LOC_NIL )
+            g_drive_loc_index.slots[head].prev_wrap = idx;
+        g_drive_loc_index.wrap_head = idx;
+    }
+    g_drive_loc_index.live++;
+}
+
+/* Empty every list, sized for `world`'s scene. */
+static void
+drive_loc_index_clear(struct World* world)
+{
+    int i;
+
+    for( i = 0; i < g_drive_loc_index.slot_cap; i++ )
+        g_drive_loc_index.slots[i].loc_id = -1;
+    for( i = 0; i < g_drive_loc_index.id_cap; i++ )
+        g_drive_loc_index.id_head[i] = DRIVE_LOC_NIL;
+    if( world->_scene_size != g_drive_loc_index.scene_size || !g_drive_loc_index.tile_head )
+    {
+        g_drive_loc_index.scene_size = world->_scene_size > 0 ? world->_scene_size : 0;
+        g_drive_loc_index.tiles = g_drive_loc_index.scene_size * g_drive_loc_index.scene_size;
+        g_drive_loc_index.tile_head = ToriMem_Realloc(ToriMem_Plugins(),
+            g_drive_loc_index.tile_head, (size_t)(g_drive_loc_index.tiles + 1) * sizeof(int));
+        assert(g_drive_loc_index.tile_head);
+    }
+    for( i = 0; i <= g_drive_loc_index.tiles; i++ )
+        g_drive_loc_index.tile_head[i] = DRIVE_LOC_NIL;
+    g_drive_loc_index.wrap_head = DRIVE_LOC_NIL;
+    g_drive_loc_index.live = 0;
+}
+
+/* A rebuild may resize the scene between its reset and its first placement:
+ * re-bucket what is live (nothing, after a reset) to the new grid. */
+static void
+drive_loc_index_fit_scene(struct World* world)
+{
+    int i;
+
+    if( world->_scene_size == g_drive_loc_index.scene_size )
+        return;
+    g_drive_loc_index.scene_size = world->_scene_size > 0 ? world->_scene_size : 0;
+    g_drive_loc_index.tiles = g_drive_loc_index.scene_size * g_drive_loc_index.scene_size;
+    g_drive_loc_index.tile_head = ToriMem_Realloc(ToriMem_Plugins(), g_drive_loc_index.tile_head,
+        (size_t)(g_drive_loc_index.tiles + 1) * sizeof(int));
+    assert(g_drive_loc_index.tile_head);
+    for( i = 0; i <= g_drive_loc_index.tiles; i++ )
+        g_drive_loc_index.tile_head[i] = DRIVE_LOC_NIL;
+    for( i = 0; i < g_drive_loc_index.slot_cap; i++ )
+    {
+        struct DriveLocSlot* s = &g_drive_loc_index.slots[i];
+        struct WorldEntity_Scenery const* sc;
+        int head;
+
+        if( s->loc_id < 0 )
+            continue;
+        sc = World_EntityPoolGet(&world->entities.scenery, i);
+        assert(sc);
+        s->tile = drive_loc_index_tile_of(sc);
+        head = g_drive_loc_index.tile_head[s->tile];
+        s->prev_tile = DRIVE_LOC_NIL;
+        s->next_tile = head;
+        if( head != DRIVE_LOC_NIL )
+            g_drive_loc_index.slots[head].prev_tile = i;
+        g_drive_loc_index.tile_head[s->tile] = i;
+    }
+}
+
+static void
+drive_loc_index_listener(void* userdata, struct World* world, enum World_SceneryEvent event, int idx)
+{
+    struct WorldEntity_Scenery const* sc;
+    unsigned int serial;
+
+    assert(userdata == &g_drive_loc_index);
+    (void)userdata;
+    /* A world this index has since left (the app moved to another): its
+     * events describe nothing the index holds. */
+    if( world != g_drive_loc_index.world )
+        return;
+    if( event == WORLD_SCENERY_RESET )
+    {
+        drive_loc_index_clear(world);
+        return;
+    }
+    assert(idx >= 0);
+    if( event == WORLD_SCENERY_REMOVED )
+    {
+        if( idx < g_drive_loc_index.slot_cap && g_drive_loc_index.slots[idx].loc_id >= 0 )
+            drive_loc_index_unlink(idx);
+        return;
+    }
+    drive_loc_index_fit_scene(world);
+    sc = World_EntityPoolGet(&world->entities.scenery, idx);
+    assert(sc);
+    if( idx < g_drive_loc_index.slot_cap && g_drive_loc_index.slots[idx].loc_id >= 0 )
+    {
+        /* Re-placed while live: the pool kept its walk position. */
+        serial = g_drive_loc_index.slots[idx].serial;
+        drive_loc_index_unlink(idx);
+    }
+    else
+        serial = ++g_drive_loc_index.serial;
+    drive_loc_index_link(idx, sc, serial);
+}
+
+/* TORIRS_DRIVE_LOC_INDEX_AUDIT=1: at every read, check the index against a
+ * walk of the pool -- every live slot indexed under its own id and tile, and
+ * nothing else -- and abort naming the first disagreement. The proof that
+ * the listener sees every mutation; a full walk per read, so off by
+ * default. Not an assert: it has to work in the optimized builds the quest
+ * runs use. */
+static void
+drive_loc_index_audit(struct World* world)
+{
+    static int on = -1;
+    struct World_EntityPool* pool = &world->entities.scenery;
+    int walked = 0;
+    int i;
+
+    if( on < 0 )
+    {
+        char const* e = getenv("TORIRS_DRIVE_LOC_INDEX_AUDIT");
+        on = e && e[0] && e[0] != '0';
+    }
+    if( !on )
+        return;
+    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+        struct DriveLocSlot const* slot;
+        int found = 0;
+
+        walked++;
+        if( i >= g_drive_loc_index.slot_cap || g_drive_loc_index.slots[i].loc_id != sc->loc_id ||
+            g_drive_loc_index.slots[i].tile != drive_loc_index_tile_of(sc) )
+        {
+            fprintf(stderr, "drive: loc index audit: slot %d (loc %d at %d,%d) is %s\n", i,
+                sc->loc_id, sc->grid_position.x, sc->grid_position.z,
+                i >= g_drive_loc_index.slot_cap || g_drive_loc_index.slots[i].loc_id < 0
+                    ? "not indexed"
+                    : "indexed stale");
+            abort();
+        }
+        slot = &g_drive_loc_index.slots[i];
+        for( int j = g_drive_loc_index.id_head[sc->loc_id]; j != DRIVE_LOC_NIL;
+             j = g_drive_loc_index.slots[j].next_id )
+            if( j == i )
+                found = 1;
+        if( !found )
+        {
+            fprintf(stderr, "drive: loc index audit: slot %d is off loc %d's list\n", i,
+                sc->loc_id);
+            abort();
+        }
+        (void)slot;
+    }
+    if( walked != g_drive_loc_index.live )
+    {
+        fprintf(stderr, "drive: loc index audit: pool has %d live scenery, index %d\n", walked,
+            g_drive_loc_index.live);
+        abort();
+    }
+}
+
+/* The index for app->world, seeded by one walk the first time it meets that
+ * world; afterwards the listener alone keeps it. */
+static void
+drive_loc_index_sync(struct App* app)
+{
+    struct World* world = app->world;
     struct World_EntityPool* pool;
+    int i;
+
+    assert(world);
+    g_drive_loc_index.app = app;
+    if( g_drive_loc_index.world != world || world->scenery_listener != drive_loc_index_listener ||
+        world->scenery_listener_userdata != &g_drive_loc_index )
+    {
+        g_drive_loc_index.world = world;
+        drive_loc_index_clear(world);
+        World_SetSceneryListener(world, drive_loc_index_listener, &g_drive_loc_index);
+        pool = &world->entities.scenery;
+        for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(pool, i) )
+        {
+            struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
+            assert(sc);
+            drive_loc_index_link(i, sc, ++g_drive_loc_index.serial);
+        }
+    }
+    assert(g_drive_loc_index.live == world->entities.scenery.active_count);
+    drive_loc_index_audit(world);
+}
+
+/* One loc read: which candidates, and what each must match. */
+struct DriveLocQuery
+{
+    int ids[DRIVE_UI_LOC_QUERY_IDS];
+    int n_ids;     /* 0: no id test */
+    int either;    /* match the resolved (multiloc child) id too */
+    int radius;    /* around the player; 0 = the whole scene */
+    int level;     /* -1 = any */
+    int at_tile;   /* only tile_x,tile_z (absolute) */
+    int tile_x, tile_z;
+};
+
+struct DriveLocKey
+{
+    long distance;
+    long long order;
+    int gathered;
+};
+
+static struct DriveLocRow* g_drive_loc_gather;
+static struct DriveLocKey* g_drive_loc_keys;
+static int g_drive_loc_gather_cap;
+
+static void
+drive_loc_gather(int* count, struct DriveLocRow const* row, long distance, long long order)
+{
+    if( *count == g_drive_loc_gather_cap )
+    {
+        int cap = g_drive_loc_gather_cap ? g_drive_loc_gather_cap * 2 : 1024;
+        g_drive_loc_gather = ToriMem_Realloc(
+            ToriMem_Plugins(), g_drive_loc_gather, (size_t)cap * sizeof(*g_drive_loc_gather));
+        assert(g_drive_loc_gather);
+        g_drive_loc_keys = ToriMem_Realloc(
+            ToriMem_Plugins(), g_drive_loc_keys, (size_t)cap * sizeof(*g_drive_loc_keys));
+        assert(g_drive_loc_keys);
+        g_drive_loc_gather_cap = cap;
+    }
+    g_drive_loc_gather[*count] = *row;
+    g_drive_loc_keys[*count].distance = distance;
+    g_drive_loc_keys[*count].order = order;
+    g_drive_loc_keys[*count].gathered = *count;
+    (*count)++;
+}
+
+static int
+drive_loc_key_compare(void const* a, void const* b)
+{
+    struct DriveLocKey const* ka = a;
+    struct DriveLocKey const* kb = b;
+    if( ka->distance != kb->distance )
+        return ka->distance < kb->distance ? -1 : 1;
+    return ka->order < kb->order ? -1 : (ka->order > kb->order ? 1 : 0);
+}
+
+static int
+drive_loc_query_id_listed(struct DriveLocQuery const* q, int id)
+{
+    for( int i = 0; i < q->n_ids; i++ )
+        if( q->ids[i] == id )
+            return 1;
+    return 0;
+}
+
+/* Everything a candidate shares, slot or pending change: the radius, the
+ * tile, the level, and the id test. `resolved` is computed by the caller. */
+static int
+drive_loc_query_keeps(struct DriveLocQuery const* q, int have_player, int px, int pz,
+    struct DriveLocRow const* row)
+{
+    if( have_player && !drive_ui_within_radius(row->tile_x, row->tile_z, px, pz, q->radius) )
+        return 0;
+    if( q->at_tile && (row->tile_x != q->tile_x || row->tile_z != q->tile_z) )
+        return 0;
+    if( q->level >= 0 && row->level != q->level )
+        return 0;
+    if( q->n_ids > 0 && !drive_loc_query_id_listed(q, row->loc_id) &&
+        !(q->either && drive_loc_query_id_listed(q, row->resolved_loc_id)) )
+        return 0;
+    return 1;
+}
+
+struct DriveLocRead
+{
+    struct App* app;
     struct App_DriveRing const* ring;
+    struct DriveLocQuery const* q;
+    int have_player, px, pz, base_x, base_z;
+    int count;
+};
+
+static void
+drive_loc_read_slot(struct DriveLocRead* r, int idx)
+{
+    struct WorldEntity_Scenery const* sc =
+        World_EntityPoolGet(&r->app->world->entities.scenery, idx);
+    struct DriveLocRow row;
+
+    assert(sc);
+    memset(&row, 0, sizeof(row));
+    row.loc_id = sc->loc_id;
+    row.tile_x = r->base_x + sc->grid_position.x;
+    row.tile_z = r->base_z + sc->grid_position.z;
+    row.level = sc->grid_position.level;
+    row.element_id = sc->element_id;
+    row.shape = sc->shape;
+    /* The cheap tests before the resolve; the id test needs it. */
+    if( r->have_player && !drive_ui_within_radius(row.tile_x, row.tile_z, r->px, r->pz,
+                              r->q->radius) )
+        return;
+    /* A change still waiting on its models replaces this loc. */
+    if( drive_ui_loc_pending(r->ring, row.tile_x, row.tile_z, row.level,
+            World_LocShapeToLayer(sc->shape)) )
+        return;
+    row.resolved_loc_id = drive_ui_loc_resolved(r->app, sc->loc_id);
+    if( !drive_loc_query_keeps(r->q, r->have_player, r->px, r->pz, &row) )
+        return;
+    drive_ui_element_seq(r->app, sc->element_id, &row.seq, &row.seq_frame);
+    drive_loc_gather(&r->count, &row,
+        r->have_player ? drive_ui_distance2(row.tile_x, row.tile_z, r->px, r->pz) : 0,
+        (long long)g_drive_loc_index.slots[idx].serial);
+}
+
+static void
+drive_loc_read_tile_bucket(struct DriveLocRead* r, int tile)
+{
+    for( int i = g_drive_loc_index.tile_head[tile]; i != DRIVE_LOC_NIL;
+         i = g_drive_loc_index.slots[i].next_tile )
+        drive_loc_read_slot(r, i);
+}
+
+/*
+ * The query every loc reader answers through: candidates from the narrowest
+ * list that can hold every match (an id's copies and the wrappers that may
+ * draw as it; a tile's bucket; the buckets inside the radius; else every live
+ * slot), the pending overlay, sorted into the order above. Writes the first
+ * `cap` rows to `out` and answers how many matched in all.
+ */
+static int
+drive_loc_query(struct App* app, struct DriveLocQuery const* q, struct DriveLocRow* out, int cap,
+    int* out_count)
+{
+    struct DriveLocRead r;
+    int plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
+    int kept;
     int i;
 
     assert(app);
+    assert(q);
     assert(out);
     assert(cap > 0);
     assert(out_count);
     *out_count = 0;
     if( !app->world )
-        return DRIVE_OK;
-    have_player = App_LocalPlayerTiles(
-        app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
-    base_x = app->world->_base_tile_x;
-    base_z = app->world->_base_tile_z;
-    /* Root worldview only (content_test.c's own scenery_json walks every
-     * live worldview; this group has not settled U12 -- non-root worldviews
-     * -- so this matches npc_json's narrower, root-only scope instead of
-     * guessing at the aboard-view base tile math). */
-    pool = &app->world->entities.scenery;
+        return 0;
+    drive_loc_index_sync(app);
+
+    memset(&r, 0, sizeof(r));
+    r.app = app;
+    r.q = q;
+    r.have_player = App_LocalPlayerTiles(
+        app, &r.px, &r.pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
+    r.base_x = app->world->_base_tile_x;
+    r.base_z = app->world->_base_tile_z;
     /* FROM THE PACKETS where the scene lags them: a loc change waits on its
      * models before the scenery shows it, so the tiles it touches answer
      * from the change itself (App_DriveLocChangeNote), as scriptrun's
      * packet-built loc list does, until the scenery catches up. */
     App_DriveLocChangesRetire(app);
-    ring = &app->drive_events;
-    if( getenv("TORIRS_DRIVE_DEBUG") )
+    r.ring = &app->drive_events;
+    if( drive_ui_debug() )
         fprintf(stderr,
-            "drive_locs: world=%p scenery_pool=%d head=%d have_player=%d at %d,%d base=%d,%d "
-            "radius=%d pending=%d\n",
-            (void*)app->world, pool->count, World_EntityPoolHead(pool), have_player, px, pz,
-            base_x, base_z, radius, ring->loc_change_count);
-    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
-        struct DriveLocRow row;
-        int tile_x, tile_z;
+            "drive_locs: index live=%d ids=%d either=%d radius=%d level=%d at_tile=%d "
+            "have_player=%d at %d,%d pending=%d\n",
+            g_drive_loc_index.live, q->n_ids, q->either, q->radius, q->level, q->at_tile,
+            r.have_player, r.px, r.pz, r.ring->loc_change_count);
 
-        if( !sc )
-            continue;
-        tile_x = base_x + sc->grid_position.x;
-        tile_z = base_z + sc->grid_position.z;
-        if( getenv("TORIRS_DRIVE_DEBUG") )
-        {
-            char sym[128] = "?";
-            DriveSymbol_Name(DRIVE_SYMBOL_LOC, sc->loc_id, sym, (int)sizeof(sym));
-            fprintf(stderr, "drive_locs: index %d loc_id=%d(%s) at %d,%d\n", i, sc->loc_id, sym,
-                tile_x, tile_z);
-        }
-        if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
-            continue;
-        /* A change still waiting on its models replaces this loc. */
-        if( drive_ui_loc_pending(ring, tile_x, tile_z, sc->grid_position.level,
-                World_LocShapeToLayer(sc->shape)) )
-            continue;
-        memset(&row, 0, sizeof(row));
-        row.loc_id = sc->loc_id;
-        row.resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
-        row.tile_x = tile_x;
-        row.tile_z = tile_z;
-        row.level = sc->grid_position.level;
-        row.element_id = sc->element_id;
-        row.shape = sc->shape;
-        drive_ui_element_seq(app, sc->element_id, &row.seq, &row.seq_frame);
-        drive_ui_locs_insert(out, &count, cap, have_player, px, pz, &row);
-    }
-    for( i = 0; i < ring->loc_change_count; i++ )
+    if( q->n_ids > 0 )
     {
-        struct App_DriveLocChange const* c = &ring->loc_changes[i];
+        for( int k = 0; k < q->n_ids; k++ )
+        {
+            int id = q->ids[k];
+            if( id < 0 || id >= g_drive_loc_index.id_cap )
+                continue;
+            for( i = g_drive_loc_index.id_head[id]; i != DRIVE_LOC_NIL;
+                 i = g_drive_loc_index.slots[i].next_id )
+                drive_loc_read_slot(&r, i);
+        }
+        /* A wrapper drawing as a listed id; one whose own id is listed was
+         * read with that id's copies. */
+        if( q->either )
+            for( i = g_drive_loc_index.wrap_head; i != DRIVE_LOC_NIL;
+                 i = g_drive_loc_index.slots[i].next_wrap )
+                if( !drive_loc_query_id_listed(q, g_drive_loc_index.slots[i].loc_id) )
+                    drive_loc_read_slot(&r, i);
+    }
+    else if( q->at_tile || (r.have_player && q->radius > 0) )
+    {
+        int size = g_drive_loc_index.scene_size;
+        int cx = (q->at_tile ? q->tile_x : r.px) - r.base_x;
+        int cz = (q->at_tile ? q->tile_z : r.pz) - r.base_z;
+        int reach = q->at_tile ? 0 : q->radius;
+        int x0 = cx - reach < 0 ? 0 : cx - reach;
+        int z0 = cz - reach < 0 ? 0 : cz - reach;
+        int x1 = cx + reach >= size ? size - 1 : cx + reach;
+        int z1 = cz + reach >= size ? size - 1 : cz + reach;
+        for( int z = z0; z <= z1; z++ )
+            for( int x = x0; x <= x1; x++ )
+                drive_loc_read_tile_bucket(&r, z * size + x);
+        drive_loc_read_tile_bucket(&r, g_drive_loc_index.tiles);
+    }
+    else
+    {
+        for( i = 0; i < g_drive_loc_index.slot_cap; i++ )
+            if( g_drive_loc_index.slots[i].loc_id >= 0 )
+                drive_loc_read_slot(&r, i);
+    }
+
+    for( i = 0; i < r.ring->loc_change_count; i++ )
+    {
+        struct App_DriveLocChange const* c = &r.ring->loc_changes[i];
         struct DriveLocRow row;
 
         if( c->loc_id < 0 )
-            continue;
-        if( have_player && !drive_ui_within_radius(c->x, c->z, px, pz, radius) )
             continue;
         /* The packet's facts: no element (nothing drawn yet), no seq. */
         memset(&row, 0, sizeof(row));
@@ -1203,49 +1716,39 @@ DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int*
         row.shape = c->shape;
         row.seq = -1;
         row.seq_frame = 0;
-        drive_ui_locs_insert(out, &count, cap, have_player, px, pz, &row);
+        if( !drive_loc_query_keeps(q, r.have_player, r.px, r.pz, &row) )
+            continue;
+        drive_loc_gather(&r.count, &row,
+            r.have_player ? drive_ui_distance2(row.tile_x, row.tile_z, r.px, r.pz) : 0,
+            (long long)DRIVE_LOC_RING_ORDER_BASE + 1 + i);
     }
-    drive_ui_locs_attach_ambient(app, out, count);
-    *out_count = count;
-    return DRIVE_OK;
+
+    if( r.count > 1 )
+        qsort(g_drive_loc_keys, (size_t)r.count, sizeof(*g_drive_loc_keys), drive_loc_key_compare);
+    kept = r.count < cap ? r.count : cap;
+    for( i = 0; i < kept; i++ )
+        out[i] = g_drive_loc_gather[g_drive_loc_keys[i].gathered];
+    drive_ui_locs_attach_ambient(app, out, kept);
+    *out_count = kept;
+    return r.count;
 }
 
-/* Rank one copy into `out`, nearest the player first, keeping the nearest
- * `cap`; with no player a full window keeps the first `cap` found. */
 static void
-drive_ui_loc_copies_insert(
-    struct DriveLocRow* out,
-    int* count,
-    int cap,
-    int have_player,
-    int px,
-    int pz,
-    struct DriveLocRow const* row)
+drive_loc_query_init(struct DriveLocQuery* q)
 {
-    long distance = have_player ? drive_ui_distance2(row->tile_x, row->tile_z, px, pz) : 0;
-    int insert_at = *count < cap ? *count : cap - 1;
-    int j;
+    memset(q, 0, sizeof(*q));
+    q->level = -1;
+}
 
-    if( *count >= cap )
-    {
-        long worst = have_player
-            ? drive_ui_distance2(out[cap - 1].tile_x, out[cap - 1].tile_z, px, pz)
-            : 0;
-        if( !have_player || distance >= worst )
-            return;
-    }
-    for( j = insert_at; j > 0; j-- )
-    {
-        long prev_distance = have_player
-            ? drive_ui_distance2(out[j - 1].tile_x, out[j - 1].tile_z, px, pz)
-            : 0;
-        if( !have_player || prev_distance <= distance )
-            break;
-        out[j] = out[j - 1];
-    }
-    out[j] = *row;
-    if( *count < cap )
-        (*count)++;
+enum DriveResult
+DriveUi_Locs(struct App* app, int radius, struct DriveLocRow* out, int cap, int* out_count)
+{
+    struct DriveLocQuery q;
+
+    drive_loc_query_init(&q);
+    q.radius = radius;
+    drive_loc_query(app, &q, out, cap, out_count);
+    return DRIVE_OK;
 }
 
 enum DriveResult
@@ -1258,99 +1761,57 @@ DriveUi_LocCopies(
     int* out_count,
     int* out_total)
 {
-    int px = 0, pz = 0, plevel, dest_x, dest_z, flag_x, flag_z, draw_x, draw_z;
-    int have_player;
-    int base_x, base_z;
-    int count = 0;
-    int total = 0;
-    struct World_EntityPool* pool;
+    struct DriveLocQuery q;
+
+    assert(out_total);
+    drive_loc_query_init(&q);
+    q.ids[0] = loc_id;
+    q.n_ids = 1;
+    q.radius = radius;
+    *out_total = drive_loc_query(app, &q, out, cap, out_count);
+    return DRIVE_OK;
+}
+
+/* The live copy that is scene element `element_id`, as a row: one slot read,
+ * no walk. 0 when no such copy is placed, or a loc change waiting on its
+ * models covers its tile (the pool walk hid it the same way). */
+static int
+drive_loc_element_row(struct App* app, int element_id, struct DriveLocRow* out)
+{
     struct App_DriveRing const* ring;
-    int i;
+    struct WorldEntity_Scenery const* sc;
+    int idx;
 
     assert(app);
     assert(out);
-    assert(cap > 0);
-    assert(out_count);
-    assert(out_total);
-
-    *out_count = 0;
-    *out_total = 0;
-    if( !app->world )
-        return DRIVE_OK;
-
-    have_player = App_LocalPlayerTiles(
-        app, &px, &pz, &plevel, &dest_x, &dest_z, &flag_x, &flag_z, &draw_x, &draw_z);
-    base_x = app->world->_base_tile_x;
-    base_z = app->world->_base_tile_z;
-
-    /* FROM THE PACKETS where the scene lags them, exactly as DriveUi_Locs: a
-     * tile and layer with a loc change still waiting on its models answers
-     * from the change (App_DriveLocChangeNote), not from the scenery it will
-     * replace -- scriptrun's loc list is the packets', so a copy the server
-     * placed (or removed) this tick is counted on its tick on both lanes. */
+    if( !app->world || element_id < 0 )
+        return 0;
+    drive_loc_index_sync(app);
+    idx = ToriDraw_ElementIndexOfRaw(element_id);
+    if( idx < 0 || idx >= g_drive_loc_index.slot_cap || g_drive_loc_index.slots[idx].loc_id < 0 )
+        return 0;
+    sc = World_EntityPoolGet(&app->world->entities.scenery, idx);
+    assert(sc);
+    if( sc->element_id != element_id )
+        return 0;
     App_DriveLocChangesRetire(app);
     ring = &app->drive_events;
-
-    /* Root worldview only, as DriveUi_Locs (its note says why). One pass over
-     * the pool; the id test comes first, so the 8,000 rows of other scenery
-     * cost one compare each and only the copies are ranked. */
-    pool = &app->world->entities.scenery;
-    for( i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = World_EntityPoolNext(pool, i) )
-    {
-        struct WorldEntity_Scenery const* sc = World_EntityPoolGet(pool, i);
-        struct DriveLocRow row;
-        int tile_x, tile_z;
-
-        if( !sc || sc->loc_id != loc_id )
-            continue;
-        tile_x = base_x + sc->grid_position.x;
-        tile_z = base_z + sc->grid_position.z;
-        if( have_player && !drive_ui_within_radius(tile_x, tile_z, px, pz, radius) )
-            continue;
-        /* A change still waiting on its models replaces this copy. */
-        if( drive_ui_loc_pending(ring, tile_x, tile_z, sc->grid_position.level,
-                World_LocShapeToLayer(sc->shape)) )
-            continue;
-        total++;
-        memset(&row, 0, sizeof(row));
-        row.loc_id = sc->loc_id;
-        row.resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
-        row.tile_x = tile_x;
-        row.tile_z = tile_z;
-        row.level = sc->grid_position.level;
-        row.element_id = sc->element_id;
-        row.shape = sc->shape;
-        drive_ui_element_seq(app, sc->element_id, &row.seq, &row.seq_frame);
-        drive_ui_loc_copies_insert(out, &count, cap, have_player, px, pz, &row);
-    }
-    for( i = 0; i < ring->loc_change_count; i++ )
-    {
-        struct App_DriveLocChange const* c = &ring->loc_changes[i];
-        struct DriveLocRow row;
-
-        if( c->loc_id != loc_id )
-            continue;
-        if( have_player && !drive_ui_within_radius(c->x, c->z, px, pz, radius) )
-            continue;
-        total++;
-        /* The packet's facts: no element (nothing drawn yet), no seq. */
-        memset(&row, 0, sizeof(row));
-        row.loc_id = c->loc_id;
-        row.resolved_loc_id = drive_ui_loc_resolved(app, c->loc_id);
-        row.tile_x = c->x;
-        row.tile_z = c->z;
-        row.level = c->level;
-        row.element_id = 0;
-        row.shape = c->shape;
-        row.seq = -1;
-        row.seq_frame = 0;
-        drive_ui_loc_copies_insert(out, &count, cap, have_player, px, pz, &row);
-    }
-    drive_ui_locs_attach_ambient(app, out, count);
-    *out_count = count;
-    *out_total = total;
-    return DRIVE_OK;
+    memset(out, 0, sizeof(*out));
+    out->loc_id = sc->loc_id;
+    out->tile_x = app->world->_base_tile_x + sc->grid_position.x;
+    out->tile_z = app->world->_base_tile_z + sc->grid_position.z;
+    out->level = sc->grid_position.level;
+    out->element_id = sc->element_id;
+    out->shape = sc->shape;
+    if( drive_ui_loc_pending(ring, out->tile_x, out->tile_z, out->level,
+            World_LocShapeToLayer(sc->shape)) )
+        return 0;
+    out->resolved_loc_id = drive_ui_loc_resolved(app, sc->loc_id);
+    drive_ui_element_seq(app, sc->element_id, &out->seq, &out->seq_frame);
+    drive_ui_locs_attach_ambient(app, out, 1);
+    return 1;
 }
+
 
 /* The one loc def DriveUi_LocVariants is currently fetching, and how many
  * times it has been asked since -- see the retry note in the body. */
@@ -1477,7 +1938,7 @@ DriveUi_Objs(struct App* app, int radius, struct DriveObjRow* out, int cap, int*
     base_z = app->world->_base_tile_z;
 
     pool = &app->world->entities.obj_stack;
-    if( getenv("TORIRS_DRIVE_DEBUG") )
+    if( drive_ui_debug() )
         fprintf(stderr,
             "drive_objs: obj_pool=%d have_player=%d at %d,%d%s base=%d,%d radius=%d\n",
             pool->count, have_player, px, pz, aboard ? " (aboard, via hull)" : "", base_x,
@@ -2740,6 +3201,123 @@ lua_drive_loc_copies(struct lua_State* L)
     return 2;
 }
 
+/* api_drive.loc_find(ids, [opts]) -> "ok", {row, ..., total = N}.
+ *
+ * The loc index's own question, so a verb never has to read the whole scene
+ * to find one thing in it. `ids` is nil (no id test), one id, or a list of up
+ * to DRIVE_UI_LOC_QUERY_IDS; opts:
+ *   rule   "either" (default): loc_id OR resolved_loc_id is listed -- the pair
+ *          _target_tile and _live_loc_id match on; "placed": loc_id only
+ *   radius around the player, 0 (default) the whole scene
+ *   level  only this level (default any)
+ *   x, z   only this absolute tile
+ *   limit  rows returned (default 1: the nearest); `total` counts every match
+ * Rows and their order are api_drive.locs's. */
+static int
+lua_drive_loc_find(struct lua_State* L)
+{
+    enum
+    {
+        DRIVE_UI_FIND_CAP = 8192
+    };
+    struct App* app = PluginDrive_App();
+    static struct DriveLocRow rows[DRIVE_UI_FIND_CAP];
+    struct DriveLocQuery q;
+    int limit = 1;
+    int count = 0;
+    int total;
+    int i;
+
+    assert(app);
+    drive_loc_query_init(&q);
+    q.either = 1;
+    if( lua_isinteger(L, 1) )
+    {
+        q.ids[0] = (int)lua_tointeger(L, 1);
+        q.n_ids = 1;
+    }
+    else if( lua_istable(L, 1) )
+    {
+        int n = (int)lua_rawlen(L, 1);
+        luaL_argcheck(L, n >= 1 && n <= DRIVE_UI_LOC_QUERY_IDS, 1, "loc_find: 1..256 ids");
+        for( i = 0; i < n; i++ )
+        {
+            int id;
+            lua_rawgeti(L, 1, i + 1);
+            id = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+            if( !drive_loc_query_id_listed(&q, id) )
+                q.ids[q.n_ids++] = id;
+        }
+    }
+    else
+        luaL_argcheck(L, lua_isnoneornil(L, 1), 1, "loc_find: an id, a list of ids, or nil");
+    if( lua_istable(L, 2) )
+    {
+        lua_getfield(L, 2, "rule");
+        if( !lua_isnil(L, -1) )
+        {
+            char const* rule = luaL_checkstring(L, -1);
+            luaL_argcheck(L, !strcmp(rule, "either") || !strcmp(rule, "placed"), 2,
+                "loc_find: rule is \"either\" or \"placed\"");
+            q.either = !strcmp(rule, "either");
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "radius");
+        q.radius = (int)luaL_optinteger(L, -1, 0);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "level");
+        q.level = (int)luaL_optinteger(L, -1, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "limit");
+        limit = (int)luaL_optinteger(L, -1, 1);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "x");
+        lua_getfield(L, 2, "z");
+        if( !lua_isnil(L, -2) || !lua_isnil(L, -1) )
+        {
+            q.at_tile = 1;
+            q.tile_x = (int)luaL_checkinteger(L, -2);
+            q.tile_z = (int)luaL_checkinteger(L, -1);
+        }
+        lua_pop(L, 2);
+    }
+    luaL_argcheck(L, limit >= 1, 2, "loc_find: limit >= 1");
+    if( limit > DRIVE_UI_FIND_CAP )
+        limit = DRIVE_UI_FIND_CAP;
+    total = drive_loc_query(app, &q, rows, limit, &count);
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( i = 0; i < count; i++ )
+    {
+        drive_ui_push_loc_row(L, &rows[i]);
+        lua_rawseti(L, -2, i + 1);
+    }
+    lua_pushinteger(L, total);
+    lua_setfield(L, -2, "total");
+    return 2;
+}
+
+/* api_drive.loc_element(element_id) -> "ok", row | "not_found", nil: the copy
+ * that is that scene element, read off its slot. */
+static int
+lua_drive_loc_element(struct lua_State* L)
+{
+    struct App* app = PluginDrive_App();
+    struct DriveLocRow row;
+
+    assert(app);
+    if( !drive_loc_element_row(app, PluginDrive_ArgInt(L, 1), &row) )
+    {
+        lua_pushstring(L, "not_found");
+        lua_pushnil(L);
+        return 2;
+    }
+    lua_pushstring(L, "ok");
+    drive_ui_push_loc_row(L, &row);
+    return 2;
+}
+
 /* (result, {resolved = <id>, slots = {<id>, ...}}).  `timeout` means the def
  * is being fetched -- poll again next frame; the second return is nil, the way
  * every non-ok read in this module answers. */
@@ -3159,7 +3737,8 @@ lua_drive_npc_sees(struct lua_State* L)
 
 /* api_drive.locs_of(radius, ids) -> api_drive.locs(radius)'s rows, in its
  * order, kept only where loc_id or resolved_loc_id is one of `ids` (the
- * filter the room loops did over every row in Lua). */
+ * filter the room loops did over every row in Lua). Answered from the loc
+ * index: the ids' copies and the wrappers that may draw as them. */
 static int
 lua_drive_locs_of(struct lua_State* L)
 {
@@ -3169,34 +3748,33 @@ lua_drive_locs_of(struct lua_State* L)
         DRIVE_UI_IDS_MAX = 16
     };
     struct App* app = PluginDrive_App();
-    int radius = PluginDrive_ArgOptInt(L, 1, 0);
     static struct DriveLocRow rows[DRIVE_UI_POOL_CAP];
-    int ids[DRIVE_UI_IDS_MAX];
-    int n_ids, count = 0, i, j, n = 0;
-    enum DriveResult result;
+    struct DriveLocQuery q;
+    int n_ids, count = 0, i;
 
     assert(app);
+    drive_loc_query_init(&q);
+    q.radius = PluginDrive_ArgOptInt(L, 1, 0);
+    q.either = 1;
     luaL_checktype(L, 2, LUA_TTABLE);
     n_ids = (int)lua_rawlen(L, 2);
     luaL_argcheck(L, n_ids >= 1 && n_ids <= DRIVE_UI_IDS_MAX, 2, "locs_of: 1..16 ids");
     for( i = 0; i < n_ids; i++ )
     {
+        int id;
         lua_rawgeti(L, 2, i + 1);
-        ids[i] = (int)luaL_checkinteger(L, -1);
+        id = (int)luaL_checkinteger(L, -1);
         lua_pop(L, 1);
+        if( !drive_loc_query_id_listed(&q, id) )
+            q.ids[q.n_ids++] = id;
     }
-    result = DriveUi_Locs(app, radius, rows, DRIVE_UI_POOL_CAP, &count);
-    lua_pushstring(L, DriveResultName(result));
+    drive_loc_query(app, &q, rows, DRIVE_UI_POOL_CAP, &count);
+    lua_pushstring(L, "ok");
     lua_newtable(L);
     for( i = 0; i < count; i++ )
     {
-        for( j = 0; j < n_ids; j++ )
-            if( rows[i].loc_id == ids[j] || rows[i].resolved_loc_id == ids[j] )
-                break;
-        if( j == n_ids )
-            continue;
         drive_ui_push_loc_row(L, &rows[i]);
-        lua_rawseti(L, -2, ++n);
+        lua_rawseti(L, -2, i + 1);
     }
     return 2;
 }
@@ -3560,6 +4138,8 @@ static struct LuaFn const LUA_DRIVE_UI_FNS[] = {
     {"npcs", lua_drive_npcs},
     {"locs", lua_drive_locs},
     {"loc_copies", lua_drive_loc_copies},
+    {"loc_find", lua_drive_loc_find},
+    {"loc_element", lua_drive_loc_element},
     {"loc_variants", lua_drive_loc_variants},
     {"objs", lua_drive_objs},
     {"spotanims", lua_drive_spotanims},

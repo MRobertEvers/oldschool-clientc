@@ -480,38 +480,22 @@ end
 -- (placed id, rule) for a loc symbol's id -- see the banner above.  `rule` is
 -- the word a detail string quotes, never nil.
 function QD.player._live_loc_id(id)
-    -- Charged through the scan meter (seam15 banner above): a miss walks
-    -- every row here and again in the multiloc pass below.
-    QD.drive._scan_why = "a loc resolve"
-    local result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_resolve)
-    if result ~= "ok" or type(rows) ~= "table" then
-        return id, nil
+    -- Asked of the loc index (api_drive.loc_find): the id's own copies, then
+    -- the wrappers that draw as it, then the family's slots -- each a lookup,
+    -- never a walk of the scene.  "Exact" wherever a copy sits; "base" and
+    -- "multiloc" are the NEAREST such copy, as the nearest-first walk found
+    -- them.
+    local exact_result, exact = api_drive.loc_find(id, { rule = "placed" })
+    if exact_result == "ok" and #exact > 0 then
+        return id, "exact"
     end
-    -- exact, else base: a placement whose live multiloc child IS this symbol.
-    -- Read off the row (DriveLocRow.resolved_loc_id) rather than asked per
-    -- row.  ONE pass for both rules -- exact still wins wherever it sits in
-    -- the list, the first base row is still the base answer -- because a
-    -- symbol with no copy in the scene walks every row, and on the Temple of
-    -- Light's eight thousand locs two passes (plus the multiloc one below)
-    -- twice in one resume ran a click out of the 400k instruction budget
-    -- (build/quest_gate/s11_route_after, p3.chest.search.retry).
-    local base = nil
-    for i = 1, #rows do
-        local row = rows[i]
-        if row.loc_id == id then
-            QD.drive._scan_spend(i, QD.drive._scan_cost_resolve)
-            return id, "exact"
-        end
-        if base == nil and row.resolved_loc_id == id and row.loc_id ~= nil then
-            base = row.loc_id
-        end
-    end
-    QD.drive._scan_spend(#rows, QD.drive._scan_cost_resolve)
-    if base ~= nil then
-        return base, "base"
+    -- With no copy of the id itself, any row the either-rule finds is a
+    -- placement whose live multiloc child IS this symbol.
+    local base_result, base = api_drive.loc_find(id, { rule = "either" })
+    if base_result == "ok" and #base > 0 then
+        return base[1].loc_id, "base"
     end
     -- multiloc: a placement that is one of this symbol's own slots.
-    local epoch = QD.drive._scan_epoch()
     local info, pending = QD.player._loc_variants(id)
     if pending then
         -- Inside an await predicate with the def still loading (see
@@ -519,27 +503,10 @@ function QD.player._live_loc_id(id)
         return id, nil, true
     end
     if info and type(info.slots) == "table" and #info.slots > 0 then
-        local wanted = {}
-        for j = 1, #info.slots do
-            wanted[info.slots[j]] = true
+        local slot_result, slot = api_drive.loc_find(info.slots, { rule = "placed" })
+        if slot_result == "ok" and #slot > 0 then
+            return slot[1].loc_id, "multiloc"
         end
-        -- The second walk is metered too.  One that had to yield, or a
-        -- _loc_variants that waited for the def, leaves `rows` a frame or
-        -- more old: read them again rather than walk a stale pool.
-        if QD.drive._scan_ensure(#rows, QD.drive._scan_cost_slots)
-            or QD.drive._scan_epoch() ~= epoch then
-            result, rows = api_drive.locs(0)
-            if result ~= "ok" or type(rows) ~= "table" then
-                return id, nil
-            end
-        end
-        for i = 1, #rows do
-            if wanted[rows[i].loc_id] then
-                QD.drive._scan_spend(i, QD.drive._scan_cost_slots)
-                return rows[i].loc_id, "multiloc"
-            end
-        end
-        QD.drive._scan_spend(#rows, QD.drive._scan_cost_slots)
     end
     -- Nothing in the scene under any rule: the symbol keeps its own id and
     -- the rule is nil, not "exact".  A miss that claimed an exact match would
@@ -617,15 +584,16 @@ QD.drive._yaw_units = 2048
 -- way out) -- reading the C spelling gives nil, which is what world.loc_near
 -- was quietly doing with its tile fields.
 function QD.drive._target_tile(target)
+    if target.kind == "loc" then
+        return QD.drive._loc_target_tile(target)
+    end
     -- Whole-pool reads, charged through the scan meter (seam15 banner above
-    -- QD.player._live_loc_id): a target absent from an 8,000-row scene walks
-    -- every row of it.
+    -- QD.player._live_loc_id): a target absent from the pool walks every row
+    -- of it.
     QD.drive._scan_why = "a target tile"
     local rows_result, rows
     if target.kind == "npc" then
         rows_result, rows = QD.drive._pool_read("npcs", 0, QD.drive._scan_cost_target)
-    elseif target.kind == "loc" then
-        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
     elseif target.kind == "obj" then
         rows_result, rows = QD.drive._pool_read("objs", 0, QD.drive._scan_cost_target)
     else
@@ -693,7 +661,7 @@ function QD.drive._target_tile(target)
     -- times a resume, ran a click out of its instruction budget (s11_exp2).
     -- With no copy on this plane inside that reach, the nearest copy still
     -- answers, as before.
-    if target.kind ~= "loc" and target.kind ~= "obj" then
+    if target.kind ~= "obj" then
         return "ok", first.x, first.z
     end
     local player_result, player = api_drive.player_tile()
@@ -703,21 +671,50 @@ function QD.drive._target_tile(target)
     end
     local reach = QD.player._tile_distance(player.x, player.z, first.x, first.z)
         + QD.drive._same_level_reach
-    local near_result, near
-    if target.kind == "loc" then
-        near_result, near = api_drive.locs(reach)
-    else
-        near_result, near = api_drive.objs(reach)
-    end
+    local near_result, near = api_drive.objs(reach)
     if near_result == "ok" and type(near) == "table" then
         for i = 1, #near do
             local row = near[i]
-            local id = row.loc_id or row.obj_id
-            if (id == target.id or row.resolved_loc_id == target.id)
-                and row.level == player.level then
+            if row.obj_id == target.id and row.level == player.level then
                 return "ok", row.x, row.z
             end
         end
+    end
+    return "ok", first.x, first.z
+end
+
+-- _target_tile for a loc: the same answers, asked of the loc index.  A NAMED
+-- copy (reach_named, seam26) is that element or `not_found`; otherwise the
+-- nearest copy whose loc_id or resolved_loc_id is the target's, and a copy on
+-- the player's own floor within _same_level_reach beyond it wins over a
+-- nearer one on another floor (seam11, the banner in _target_tile).
+function QD.drive._loc_target_tile(target)
+    if target.reach_element ~= nil and target.reach_named ~= nil then
+        local named_result, named = api_drive.loc_element(target.reach_element)
+        if named_result ~= "ok" then
+            return "not_found", nil
+        end
+        return "ok", named.x, named.z
+    end
+    local first_result, rows = api_drive.loc_find(target.id, { rule = "either" })
+    if first_result ~= "ok" then
+        return first_result, nil
+    end
+    local first = rows[1]
+    if first == nil then
+        return "not_found", nil
+    end
+    local player_result, player = api_drive.player_tile()
+    if player_result ~= "ok" or type(player) ~= "table" or first.level == nil
+        or first.level == player.level then
+        return "ok", first.x, first.z
+    end
+    local reach = QD.player._tile_distance(player.x, player.z, first.x, first.z)
+        + QD.drive._same_level_reach
+    local near_result, near = api_drive.loc_find(target.id,
+        { rule = "either", radius = reach, level = player.level })
+    if near_result == "ok" and near[1] ~= nil then
+        return "ok", near[1].x, near[1].z
     end
     return "ok", first.x, first.z
 end
@@ -727,6 +724,11 @@ end
 -- within a room or two of each other; the Temple of Light's two circle
 -- staircases on level 1 are 3-15 tiles from the level-2 ones above them.
 QD.drive._same_level_reach = 32
+
+-- How many copies of one loc a verb reads back from api_drive.loc_find when it
+-- needs more than the nearest (a selector's listing, the reach retry, the
+-- other-floor check): a symbol's copies, never a scene's worth of rows.
+QD.player._loc_copies_read = 1024
 
 -- The player's plane, or nil when there is no reading (every caller then
 -- keeps its level-blind behaviour).
@@ -3443,7 +3445,8 @@ function QD.player.goto_tile(x, z, level, ticks, attempts)
             -- verdict is advisory.
             QD.await({
                 level = function()
-                    local loc_result, rows = api_drive.locs(QD.player._goto_scene_radius)
+                    local loc_result, rows = api_drive.loc_find(nil,
+                        { radius = QD.player._goto_scene_radius })
                     return loc_result == "ok" and #rows > 0
                         and api_drive.settled()
                 end,
@@ -3597,9 +3600,53 @@ end
 --
 -- `extra` (optional, seam34): a function the caller supplies for an edge only
 -- it can name -- inv_op's "the item is now WORN" (SEAM
--- upass_wield_and_rock_bridges, the banner over QD.player._inv_worn_edge).
+-- upass_wield_and_rock_bridges, the banner over QD.player._inv_worn_edge),
+-- click_loc's "the loc it pressed changed" (QD.player._click_loc_edge).
 -- It is polled inside the level predicate, answers nil while nothing
--- happened and a detail string once it did; the arm word is `worn`.
+-- happened and a detail string once it did, plus optionally the arm word
+-- (default `worn`).
+-- click_loc's settle arm (the banner at its call): nil while the pressed loc
+-- stands as it stood before the press, else (detail, "loc").  A NAMED copy
+-- (seam26) answers by that element leaving the pool; any other press by the
+-- nearest copy within 3 tiles going away or becoming another element -- and
+-- only while the player stands on the tile that reading was taken from,
+-- because from another tile the nearest copy can differ with nothing having
+-- changed.  Synchronous: it runs inside a level predicate.
+function QD.player._click_loc_edge(loc, target, before_result, before_row,
+    before_tile_result, before_tile)
+    if target.reach_named ~= nil then
+        if QD.drive._target_tile(target) ~= "ok" then
+            return tostring(loc) .. " element " .. tostring(target.reach_named)
+                .. " left the pool (no event; the named copy changed)", "loc"
+        end
+        return nil
+    end
+    if before_result ~= "ok" or before_tile_result ~= "ok" then
+        return nil
+    end
+    local tile_result, tile = QD.world.tile()
+    if tile_result ~= "ok" or tile.x ~= before_tile.x or tile.z ~= before_tile.z
+        or tile.level ~= before_tile.level then
+        return nil
+    end
+    local after_result, after_row = QD.world.loc_near(loc, 3)
+    if after_result == "timeout" then
+        -- the family's def is still loading: no reading yet
+        return nil
+    end
+    local where = string.format("%d,%d,%d",
+        before_row.tile_x, before_row.tile_z, before_row.level)
+    if after_result ~= "ok" then
+        return loc .. " left " .. where .. " (no event; the loc changed)", "loc"
+    end
+    if after_row.tile_x ~= before_row.tile_x
+        or after_row.tile_z ~= before_row.tile_z
+        or after_row.element_id ~= before_row.element_id then
+        return loc .. " changed at " .. where .. " (no event; the loc changed)", "loc"
+    end
+    return nil
+end
+
 function QD.player._settle_after_click(ticks, before_kind, before_text, extra)
     local serial_result, since = api_drive.message_serial()
     local chat_result, chat_interface_id = api_drive.symbol("interface", "chat")
@@ -3661,9 +3708,9 @@ function QD.player._settle_after_click(ticks, before_kind, before_text, extra)
         end,
         level = function()
             if extra ~= nil then
-                local extra_detail = extra()
+                local extra_detail, extra_arm = extra()
                 if extra_detail ~= nil then
-                    resolved_by = "worn"
+                    resolved_by = extra_arm or "worn"
                     resolved_detail = extra_detail
                     return true
                 end
@@ -4241,35 +4288,39 @@ function QD.player._loc_other_floor(target, loc)
     if player_result ~= "ok" or type(player) ~= "table" or player.level == nil then
         return nil
     end
-    QD.drive._scan_why = "click_loc other-floor check " .. tostring(loc)
-    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_near)
+    -- The target's copies, nearest first, from the loc index.
+    local rows_result, rows = api_drive.loc_find(target.id,
+        { rule = "either", limit = QD.player._loc_copies_read })
     if rows_result ~= "ok" or type(rows) ~= "table" then
         return nil
     end
-    QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
     local nearest = nil
     for i = 1, #rows do
         local row = rows[i]
-        if row.loc_id == target.id or row.resolved_loc_id == target.id then
-            local level = row.level
-            if level == player.level or level == player.level + 1
-                or (level == 0 and player.level == 3) then
-                return nil
-            end
-            if nearest == nil then
-                nearest = row
-            end
+        local level = row.level
+        if level == player.level or level == player.level + 1
+            or (level == 0 and player.level == 3) then
+            return nil
+        end
+        if nearest == nil then
+            nearest = row
         end
     end
     if nearest == nil then
         return nil
     end
+    -- Whatever stands on the nearest copy's tile on THIS floor: the tile's
+    -- bucket, not the scene.
+    local tile_result, tile_rows = api_drive.loc_find(nil,
+        { x = nearest.x, z = nearest.z, level = player.level, limit = QD.player._loc_copies_read })
+    if tile_result ~= "ok" or type(tile_rows) ~= "table" then
+        tile_rows = {}
+    end
     local here = {}
     local seen = {}
-    for i = 1, #rows do
-        local row = rows[i]
-        if row.x == nearest.x and row.z == nearest.z and row.level == player.level
-            and not seen[row.loc_id] then
+    for i = 1, #tile_rows do
+        local row = tile_rows[i]
+        if not seen[row.loc_id] then
             seen[row.loc_id] = true
             local name_result, name = api_drive.symbol_name("loc", row.loc_id)
             here[#here + 1] = name_result == "ok" and name or ("loc " .. tostring(row.loc_id))
@@ -4339,10 +4390,12 @@ function QD.player.click_loc(loc, op, opts)
     -- So the loc itself is the evidence, read BEFORE the click and again if
     -- the settle runs out: the closed door is no longer the nearest copy of
     -- its own symbol, because it is now the OPENED loc with a different id.
-    -- This is deliberately a check AFTER the timeout and not a fifth arm of
-    -- the settle -- it cannot resolve anything earlier than the code without
-    -- it did, so no verb's timing changes; it only stops a click that
-    -- demonstrably landed from being reported as one that did not.
+    -- It was first written as a check AFTER the timeout, so that no verb's
+    -- timing changed -- and every door press then stood still for the whole
+    -- 20-tick settle.  It is now also an arm of the settle
+    -- (QD.player._click_loc_edge, passed below), answering on the frame the
+    -- loc swaps; the check after the timeout stays for a press that arm
+    -- cannot judge.
     --
     -- Both reads are of the NEAREST copy (DriveUi_Locs inserts by distance,
     -- torirs_plugin_drive_ui.c:359-384) and so are only comparable from the
@@ -4401,8 +4454,28 @@ function QD.player.click_loc(loc, op, opts)
     if type(opts) == "table" and opts.from_here then
         return "ok", "click_loc " .. tostring(loc) .. ": pressed from here"
     end
+    -- The loc's own answer, as an arm of the settle rather than a reading
+    -- after its timeout: a door pressed from beside it mounts nothing, prints
+    -- nothing and routes nowhere, so the settle used to run its whole 20
+    -- ticks on every door and gate -- ~11% of every published quest's ticks,
+    -- 57% of Ernest the Chicken's -- and only then notice the loc had
+    -- swapped on the first.  The evidence is the same as the post-timeout
+    -- check below (which still runs when this arm never fires), read every
+    -- frame from the loc index; a caller with an edge of its own
+    -- (cross_gate's landing, opts.settle_edge) adds it.
+    local caller_edge = type(opts) == "table" and opts.settle_edge or nil
+    local function loc_edge()
+        if caller_edge ~= nil then
+            local edge_detail = caller_edge()
+            if edge_detail ~= nil then
+                return edge_detail, "edge"
+            end
+        end
+        return QD.player._click_loc_edge(loc, target, before_result, before_row,
+            before_tile_result, before_tile)
+    end
     local result, detail, settle_arm = QD.player._settle_after_click(
-        20, before_kind, before_text)
+        20, before_kind, before_text, loc_edge)
     -- SEAM loc_approach_reach: an `ok` this verb answers is held to the
     -- refusal that lands a tick behind it -- on the `map_flag` arm, and only
     -- there.  See _reach_verify for why that one arm and not the others.
@@ -6698,7 +6771,8 @@ QD.player._reach_stands = 4
 -- -- it is only the cheapest order to find out in.
 function QD.player._reach_candidates(target)
     local candidates = {}
-    local result, rows = api_drive.locs(QD.player._reach_scan_radius)
+    local result, rows = api_drive.loc_find(target.id, { rule = "either",
+        radius = QD.player._reach_scan_radius, limit = QD.player._loc_copies_read })
     if result ~= "ok" or type(rows) ~= "table" then
         return candidates
     end
@@ -6943,9 +7017,19 @@ function QD.drive._named_npc_estimate(target, pos)
     local fallback = { x = pos.x, y = pos.y, element_id = target.reach_element }
     local rows_result, rows
     if target.kind == "loc" then
-        -- A named loc copy (seam26): the scenery pool, metered.
-        QD.drive._scan_why = "a named loc copy's estimate"
-        rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+        -- A named loc copy (seam26): its element, and the ranked copy's, each
+        -- read off its own slot in the loc index.
+        rows_result, rows = "ok", {}
+        local named_result, named_row = api_drive.loc_element(target.reach_element)
+        if named_result == "ok" then
+            rows[#rows + 1] = named_row
+        end
+        if pos.element_id ~= nil and pos.element_id ~= target.reach_element then
+            local ranked_result, ranked_row = api_drive.loc_element(pos.element_id)
+            if ranked_result == "ok" then
+                rows[#rows + 1] = ranked_row
+            end
+        end
     else
         rows_result, rows = api_drive.npcs(0)
     end
@@ -8050,12 +8134,11 @@ function QD.player._loc_copy(target, opts)
     if want_level ~= nil then
         want = want .. "," .. tostring(want_level)
     end
-    QD.drive._scan_why = "a named loc copy"
-    local rows_result, rows = QD.drive._pool_read("locs", 0, QD.drive._scan_cost_target)
+    local rows_result, rows = api_drive.loc_find(target.id,
+        { rule = "either", limit = QD.player._loc_copies_read })
     if rows_result ~= "ok" or type(rows) ~= "table" then
         return rows_result, "the loc pool did not answer"
     end
-    QD.drive._scan_spend(#rows, QD.drive._scan_cost_target)
     local chosen = nil
     local seen = {}
     for i = 1, #rows do

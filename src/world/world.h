@@ -362,6 +362,26 @@ struct World_SceneryInfoTable
     int memo_capacity;
 };
 
+
+/*
+ * What happened to one scenery pool slot, for World::scenery_listener.
+ *
+ * PLACED: World_SceneryRegister filled `idx` -- a slot just activated, or a
+ * live one re-registered as something else (a loc that morphs, a region
+ * reload writing over the same element index). REMOVED: World_SceneryRemove
+ * is about to release `idx`; the entity is still readable. RESET: the whole
+ * pool was cleared (`idx` is -1); the rebuild's PLACED events follow.
+ */
+enum World_SceneryEvent
+{
+    WORLD_SCENERY_PLACED = 0,
+    WORLD_SCENERY_REMOVED = 1,
+    WORLD_SCENERY_RESET = 2
+};
+
+typedef void (*World_SceneryListenerFn)(
+    void* userdata, struct World* world, enum World_SceneryEvent event, int idx);
+
 struct World
 {
     int _base_tile_x;
@@ -448,6 +468,13 @@ struct World
     int scenery_changed[WORLD_SCENERY_CHANGED_MAX];
     int scenery_changed_count;
     bool scenery_changed_overflow;
+    /* The one observer told about every scenery slot as it changes, in the
+     * same call that changes it (World_SetSceneryListener). Where
+     * scenery_changed is a list someone drains once a frame, this keeps a
+     * table that mirrors the pool -- the quest driver's loc index -- exact
+     * between frames too, with no drain to share. NULL: nobody is listening. */
+    World_SceneryListenerFn scenery_listener;
+    void* scenery_listener_userdata;
     /* Declared here so the field block above reads with its writer. */
 
     World_HeightFn height_fn;
@@ -1794,6 +1821,14 @@ World_SceneryFindByLocId(
     int scene_z,
     int level,
     int loc_id);
+
+/** Install (or, with fn NULL, remove) the scenery listener. One per world:
+ *  installing over a different listener is a caller bug. */
+void
+World_SetSceneryListener(
+    struct World* world,
+    World_SceneryListenerFn fn,
+    void* userdata);
 
 /** LOC_DEL: remove the scenery entity + its scene element (event emitted). */
 void

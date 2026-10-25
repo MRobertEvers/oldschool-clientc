@@ -327,9 +327,18 @@ PluginDrive_QuestScriptPath(void)
 {
     char const* path;
 
+    static int path_read = 0;
+    static char const* path_env = NULL;
+
     if( PluginDrive_OnDemand() )
         return NULL;
-    path = getenv("TORIRS_QUEST_SCRIPT");
+    /* Asked several times a frame; the environment is fixed at launch. */
+    if( !path_read )
+    {
+        path_env = getenv("TORIRS_QUEST_SCRIPT");
+        path_read = 1;
+    }
+    path = path_env;
     return path && *path ? path : NULL;
 }
 
@@ -348,9 +357,17 @@ DriveCore_SessionDir(void)
 {
     char const* dir;
 
+    static int dir_read = 0;
+    static char const* dir_env = NULL;
+
     if( PluginDrive_OnDemand() )
         return g_demand_session[0] ? g_demand_session : NULL;
-    dir = getenv("TORIRS_CONTENT_TEST");
+    if( !dir_read )
+    {
+        dir_env = getenv("TORIRS_CONTENT_TEST");
+        dir_read = 1;
+    }
+    dir = dir_env;
     return dir && *dir ? dir : NULL;
 }
 
@@ -395,8 +412,13 @@ drive_embed_world_as_leader(void)
 static int
 drive_party_member(void)
 {
-    char const* join = getenv("TORIRS_EMBED_PARTY_JOIN");
-    return join && *join;
+    static int member = -1;
+    if( member < 0 )
+    {
+        char const* join = getenv("TORIRS_EMBED_PARTY_JOIN");
+        member = join && *join;
+    }
+    return member;
 }
 
 /* A member's NAMES. Every symbol a test spells -- a component
@@ -3719,11 +3741,19 @@ drive_launch_member_pump(struct lua_State* L)
 {
     char command[TORIRSSERVER_EMBED_LINK_MAIL_MAX];
     char status[1024];
-    char const* autoplay = getenv("TORIRS_DRIVE_AUTOPLAY");
-    char const* launched = getenv("TORIRS_LAUNCH_SESSION");
+    /* Every frame; the launch environment is fixed for the process. */
+    static int env_read = 0;
+    static char const* autoplay = NULL;
+    static char const* launched = NULL;
     struct DriveSkillSnapshot hitpoints;
     int have_hitpoints;
 
+    if( !env_read )
+    {
+        autoplay = getenv("TORIRS_DRIVE_AUTOPLAY");
+        launched = getenv("TORIRS_LAUNCH_SESSION");
+        env_read = 1;
+    }
     if( !g_autoplay_done && autoplay && autoplay[0] && PluginDrive_OnDemand() && drive_world_ready() &&
         g_demand_state != DRIVE_DEMAND_RUNNING && !g_demand_release_pending )
     {

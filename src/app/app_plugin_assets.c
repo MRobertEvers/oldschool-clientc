@@ -420,7 +420,12 @@ app_plugin_screenshots_write(
         rgb[i * 3 + 2] = (unsigned char)(pixels[i] & 0xFF);
     }
 
-    png = tdefl_write_image_to_png_file_in_memory_ex(rgb, width, height, 3, &png_size, 6, MZ_FALSE);
+    /* Level 1 (fastest): this encode runs on the frame that asked for the
+     * shot, and a quest run takes one per interaction -- at level 6 it was
+     * ~15 ms of main thread each, for files about a fifth smaller. Still
+     * deterministic, so equal frames stay equal files (the quest driver's
+     * unchanged-frame rule, gate.py's duplicate-MD5 rule). */
+    png = tdefl_write_image_to_png_file_in_memory_ex(rgb, width, height, 3, &png_size, 1, MZ_FALSE);
     ToriMem_Free(ToriMem_Process(), rgb);
     assert(png);
 

@@ -16,10 +16,26 @@
 #include <string.h>
 #include <sys/stat.h>
 
+/* Asked several times a frame by the main loop and the drive plugin; the
+ * environment is fixed before the first frame, so it is read once. */
 int ContentTest_Enabled(void)
 {
-    const char* dir = getenv("TORIRS_CONTENT_TEST");
-    return dir && *dir;
+    static int enabled = -1;
+    if( enabled < 0 )
+    {
+        const char* dir = getenv("TORIRS_CONTENT_TEST");
+        enabled = dir && *dir;
+    }
+    return enabled;
+}
+
+/* TORIRS_CONTENT_TEST_TICK_ONLY, read once (asked every frame of a test run). */
+static int content_test_tick_only(void)
+{
+    static int on = -1;
+    if( on < 0 )
+        on = getenv("TORIRS_CONTENT_TEST_TICK_ONLY") != NULL;
+    return on;
 }
 
 #if defined(TORIRS_EMBED_SERVER) && TORIRS_EMBED_SERVER
@@ -142,7 +158,10 @@ int ContentTest_DrawRequested(struct App* app)
          * precedent (torirs_plugin_drive_ui.c): confirms the fix above by
          * showing the pickset actually staying current instead of freezing.
          * Remove once B1-B3 are green and this stops earning its keep. */
-        if( getenv("TORIRS_QD_PICKSET_TRACE") )
+        static int pickset_trace = -1;
+        if( pickset_trace < 0 )
+            pickset_trace = getenv("TORIRS_QD_PICKSET_TRACE") != NULL;
+        if( pickset_trace )
             fprintf(
                 stderr,
                 "pickset_trace: now=%llu forced=%d active=%d running=%d pickset_count=%d\n",
@@ -812,7 +831,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
      * ticks. A paused clock cannot reach the next tick's fence by itself.
      * Seal only those already-sent bytes; do not publish player/NPC masks or
      * advance scripts, since that would change the animation start timing. */
-    if( !remaining && getenv("TORIRS_CONTENT_TEST_TICK_ONLY") && app->server_tick_open )
+    if( !remaining && content_test_tick_only() && app->server_tick_open )
     {
         struct ToriRSServerEmbed* pending_embed = NetTransport_TestClock(transport, test_now);
         struct ToriRSServerPlayer* pending_player = pending_embed ? ToriRSServer_EmbedPlayer(pending_embed, 0) : NULL;
@@ -827,7 +846,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     if( !observation && finishing++ < 2 ) return;
     struct ToriRSServerEmbed* embed = NetTransport_TestClock(transport, test_now);
     struct ToriRSServerPlayer* server = embed ? ToriRSServer_EmbedPlayer(embed, 0) : NULL;
-    if( getenv("TORIRS_CONTENT_TEST_TICK_ONLY") ) publish_pending = 0;
+    if( content_test_tick_only() ) publish_pending = 0;
     if( publish_pending && server )
     {
         ToriRSServer_WorldPublish(ToriRSServer_EmbedWorld(embed));

@@ -683,6 +683,9 @@ World_ResetSceneAlloc(
     /* "What changed" is "all of it"; no list can say that usefully. */
     world->scenery_changed_count = 0;
     world->scenery_changed_overflow = true;
+    if( world->scenery_listener )
+        world->scenery_listener(
+            world->scenery_listener_userdata, world, WORLD_SCENERY_RESET, -1);
     /* Pending EntityRemoved must be drained (SceneElementRemove) before a
      * scene reset — wiping the queue here would orphan DYNAMIC elements. Every
      * caller drains first: the root rebuild and each boat view's deck rebuild
@@ -1878,6 +1881,9 @@ World_SceneryRegister(
     scenery->painter_wall_ab = -1;
     scenery->painter_ground_decor = 0;
     scenery->painter_wall_side = 0;
+    if( world->scenery_listener )
+        world->scenery_listener(
+            world->scenery_listener_userdata, world, WORLD_SCENERY_PLACED, idx);
     return idx;
 }
 
@@ -3743,6 +3749,19 @@ World_SceneryFindByLocId(
 }
 
 void
+World_SetSceneryListener(
+    struct World* world,
+    World_SceneryListenerFn fn,
+    void* userdata)
+{
+    assert(world);
+    assert(!fn || !world->scenery_listener ||
+           (world->scenery_listener == fn && world->scenery_listener_userdata == userdata));
+    world->scenery_listener = fn;
+    world->scenery_listener_userdata = fn ? userdata : NULL;
+}
+
+void
 World_SceneryRemove(
     struct World* world,
     int idx)
@@ -3756,6 +3775,9 @@ World_SceneryRemove(
         return;
     scenery = World_EntityPoolGet(pool, idx);
     World_SceneryNoteChanged(world, scenery->element_id);
+    if( world->scenery_listener )
+        world->scenery_listener(
+            world->scenery_listener_userdata, world, WORLD_SCENERY_REMOVED, idx);
     World_EmitEntityRemoved(world, scenery->element_id);
     if( scenery->runtime_spawn )
     {

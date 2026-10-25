@@ -4256,19 +4256,24 @@ frame_loop_step(void)
             {
                 static int yaw_done = 0;
                 static long yaw_frame = -1;
+                static char const* yaw_env = NULL;
                 if( yaw_frame < 0 )
                 {
                     char const* at = getenv("TORIRS_SIM_CAMERA_YAW_FRAME");
                     yaw_frame = at ? strtol(at, NULL, 0) : 1;
                     if( yaw_frame < 1 )
                         yaw_frame = 1;
+                    yaw_env = getenv("TORIRS_SIM_CAMERA_YAW");
+                    /* Both knobs or neither: without them there is nothing
+                     * to do on any frame. */
+                    if( !yaw_env || !at )
+                        yaw_done = 1;
                 }
-                if( !yaw_done && getenv("TORIRS_SIM_CAMERA_YAW") &&
-                    getenv("TORIRS_SIM_CAMERA_YAW_FRAME") && frame_count >= yaw_frame )
+                if( !yaw_done && frame_count >= yaw_frame )
                 {
                     yaw_done = 1;
                     app.frame_view->orbit.yaw = ToriDraw_NormalizeAngle(
-                        (int)strtol(getenv("TORIRS_SIM_CAMERA_YAW"), NULL, 0));
+                        (int)strtol(yaw_env, NULL, 0));
                     app.frame_view->orbit.yaw_velocity = 0;
                     /*
                      * Yaw only, and the pitch is deliberately NOT a second
@@ -4780,7 +4785,10 @@ frame_loop_step(void)
         app_redraw = App_RunOnce(&app, logic_now, input);
         app_committed = app_redraw;
         /* Acceptance sessions rasterize explicit checkpoints; logic still runs at 50 Hz. */
-        if( ContentTest_Enabled() && getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") )
+        static int checkpoints = -1;
+        if( checkpoints < 0 )
+            checkpoints = getenv("TORIRS_CONTENT_TEST_CHECKPOINTS") != NULL;
+        if( ContentTest_Enabled() && checkpoints )
         {
             int capture_pending = 0;
             for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )

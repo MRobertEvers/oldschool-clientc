@@ -157,10 +157,9 @@ function QD.world.loc_near(sym, radius, opts)
         return "timeout", "loc_near " .. tostring(sym) .. ": loc " .. tostring(symbol_id)
             .. "'s def is still loading (asked from an await predicate, which cannot wait for it)"
     end
-    -- Charged through pointer.lua's scan meter (seam15): at radius 0 this is
-    -- the whole scenery pool, and a symbol absent from it walks every row.
-    QD.drive._scan_why = "loc_near " .. tostring(sym)
-    local result, rows = QD.drive._pool_read("locs", radius or 0, QD.drive._scan_cost_near)
+    -- The id's copies only, nearest first, from the loc index: every row
+    -- the loop below could match, and nothing else.
+    local result, rows = api_drive.loc_copies(id, radius or 0)
     if result ~= "ok" then
         return result, nil
     end
@@ -188,7 +187,6 @@ function QD.world.loc_near(sym, radius, opts)
                 one_up = row.x .. "," .. row.z .. "," .. row.level
             end
             if keep then
-                QD.drive._scan_spend(i, QD.drive._scan_cost_near)
                 return "ok", {
                     kind = "loc",
                     id = id,
@@ -205,7 +203,6 @@ function QD.world.loc_near(sym, radius, opts)
             end
         end
     end
-    QD.drive._scan_spend(#rows, QD.drive._scan_cost_near)
     -- `not_found` names the symbol AND the id that went unmatched, because
     -- after the three rules above those differ, and the difference is the
     -- whole diagnosis: the family is absent, or it resolved to something
@@ -1109,11 +1106,20 @@ function QD.player.cross_gate(spec)
     -- 3. The press, graded on the tiles before and after it -- with
     --    spec.chat, the page(s) it opens played between the two.
     local since = QD.player._message_serial()
-    local press_result, press_detail = QD.player.click_loc(loc, op, { at = gate_at })
     local function landed()
         local tile_result, tile = QD.world.tile()
         return tile_result == "ok" and is_far(tile)
     end
+    -- The landing is this press's answer too: a gate the server walks the
+    -- player through changes no loc he still stands beside, and without it
+    -- the press waited out click_loc's whole settle after he had arrived.
+    local press_result, press_detail = QD.player.click_loc(loc, op, { at = gate_at,
+        settle_edge = function()
+            if landed() then
+                return "landed " .. far_desc
+            end
+            return nil
+        end })
     local chat_result, chat_text = nil, nil
     if spec.chat == nil then
         QD.await({ level = landed, note = "cross_gate: the press lands " .. far_desc },
@@ -2109,7 +2115,8 @@ function QD.world.hazard_at(x, z, level)
     if here_result == "ok" and type(here) == "table" then
         reach = math.max(math.abs(here.x - x), math.abs(here.z - z)) + 1
     end
-    local loc_result, locs = QD.drive._pool_read("locs", reach, QD.drive._scan_cost_near)
+    -- The tile's own bucket in the loc index.
+    local loc_result, locs = api_drive.loc_find(nil, { x = x, z = z, level = level, limit = 256 })
     if loc_result == "ok" then
         for i = 1, #locs do
             if on_tile(locs[i].x, locs[i].z, locs[i].level) then
@@ -2117,7 +2124,6 @@ function QD.world.hazard_at(x, z, level)
                 parts[#parts + 1] = "loc " .. tostring(locs[i].loc_id)
             end
         end
-        QD.drive._scan_spend(#locs, QD.drive._scan_cost_near)
     end
     local obj_result, objs = api_drive.objs(reach)
     if obj_result == "ok" then

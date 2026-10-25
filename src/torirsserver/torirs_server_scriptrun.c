@@ -71,6 +71,10 @@
 enum
 {
     SCRIPTRUN_BOTS_MAX = 8,
+    /* api_drive.loc_find's id list and loc_copies' rows: the client's caps
+     * (DRIVE_UI_LOC_QUERY_IDS, lua_drive_loc_copies). */
+    SCRIPTRUN_LOC_QUERY_IDS = 256,
+    SCRIPTRUN_LOC_COPIES_CAP = 1024,
 };
 
 enum ScriptBotState
@@ -1639,6 +1643,34 @@ loc_pick_origin(
     int* oz,
     int* olevel);
 
+/* One loc row as api_drive.locs answers it. */
+static void
+push_loc_row(lua_State* L, struct ScriptrunCore* c, int i)
+{
+    struct ScriptrunLoc const* l = &c->locs[i];
+
+    lua_newtable(L);
+    lua_pushinteger(L, l->loc_id);
+    lua_setfield(L, -2, "loc_id");
+    lua_pushinteger(L, ScriptrunCore_LocResolvedId(c, l->loc_id));
+    lua_setfield(L, -2, "resolved_loc_id");
+    lua_pushinteger(L, l->x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, l->z);
+    lua_setfield(L, -2, "z");
+    lua_pushinteger(L, l->level);
+    lua_setfield(L, -2, "level");
+    lua_pushinteger(L, l->shape);
+    lua_setfield(L, -2, "shape");
+    lua_pushinteger(L, l->angle);
+    lua_setfield(L, -2, "angle");
+    /* The copy's name for world_op's pin: its slot in the core's loc
+     * list, + 1 (stable for the session; 0 is no copy). The client names
+     * a copy by its scene element; this lane has none. */
+    lua_pushinteger(L, i + 1);
+    lua_setfield(L, -2, "element_id");
+}
+
 static int
 d_locs(lua_State* L)
 {
@@ -1673,31 +1705,181 @@ d_locs(lua_State* L)
     lua_newtable(L);
     for( int k = 0; k < kept; k++ )
     {
-        int i = order[k].idx;
-        struct ScriptrunLoc const* l = &c->locs[i];
-        lua_newtable(L);
-        lua_pushinteger(L, l->loc_id);
-        lua_setfield(L, -2, "loc_id");
-        lua_pushinteger(L, ScriptrunCore_LocResolvedId(c, l->loc_id));
-        lua_setfield(L, -2, "resolved_loc_id");
-        lua_pushinteger(L, l->x);
-        lua_setfield(L, -2, "x");
-        lua_pushinteger(L, l->z);
-        lua_setfield(L, -2, "z");
-        lua_pushinteger(L, l->level);
-        lua_setfield(L, -2, "level");
-        lua_pushinteger(L, l->shape);
-        lua_setfield(L, -2, "shape");
-        lua_pushinteger(L, l->angle);
-        lua_setfield(L, -2, "angle");
-        /* The copy's name for world_op's pin: its slot in the core's loc
-         * list, + 1 (stable for the session; 0 is no copy). The client names
-         * a copy by its scene element; this lane has none. */
-        lua_pushinteger(L, i + 1);
-        lua_setfield(L, -2, "element_id");
+        push_loc_row(L, c, order[k].idx);
         lua_rawseti(L, -2, ++n);
     }
     ToriMem_Free(ToriMem_ServerPlayers(), order);
+    return 2;
+}
+
+/* What one api_drive.loc_find / loc_copies read keeps: the client's
+ * DriveLocQuery (plugin/torirs_plugin_drive_ui.c), over this lane's loc list. */
+struct ScriptrunLocQuery
+{
+    int ids[SCRIPTRUN_LOC_QUERY_IDS];
+    int n_ids;  /* 0: no id test */
+    int either; /* the resolved multiloc child matches too */
+    int radius; /* <= 0: all */
+    int level;  /* -1: any */
+    int at_tile;
+    int tile_x, tile_z;
+};
+
+static int
+loc_query_listed(struct ScriptrunLocQuery const* q, int id)
+{
+    for( int k = 0; k < q->n_ids; k++ )
+        if( q->ids[k] == id )
+            return 1;
+    return 0;
+}
+
+/* d_locs's rows, in its order, kept where `q` matches; pushes "ok" and the
+ * first `limit` of them, with `total` every match. */
+static int
+loc_query_push(lua_State* L, struct ScriptrunCore* c, struct ScriptrunLocQuery const* q, int limit)
+{
+    int px = 0, pz = 0, plevel = 0;
+    int have = ScriptrunCore_LocalTile(c, &px, &pz, &plevel);
+    struct PoolOrder* order = ToriMem_Alloc(
+        ToriMem_ServerPlayers(), sizeof(*order) * (size_t)(c->loc_count > 0 ? c->loc_count : 1));
+    int kept = 0;
+    int n = 0;
+
+    assert(order);
+    for( int i = 0; i < c->loc_count; i++ )
+    {
+        struct ScriptrunLoc const* l = &c->locs[i];
+        int ox = px, oz = pz, olevel = plevel;
+        if( l->loc_id < 0 )
+            continue;
+        if( q->n_ids > 0 && !loc_query_listed(q, l->loc_id) &&
+            !(q->either && loc_query_listed(q, ScriptrunCore_LocResolvedId(c, l->loc_id))) )
+            continue;
+        if( q->at_tile && (l->x != q->tile_x || l->z != q->tile_z) )
+            continue;
+        if( q->level >= 0 && l->level != q->level )
+            continue;
+        if( have )
+            loc_pick_origin(c, l, px, pz, plevel, &ox, &oz, &olevel);
+        if( have && q->radius > 0 && cheb(ox, oz, l->x, l->z) > q->radius )
+            continue;
+        order[kept].idx = i;
+        order[kept].dist = have ? dist2(l->x, l->z, ox, oz) : 0;
+        kept++;
+    }
+    qsort(order, (size_t)kept, sizeof(order[0]), pool_order_cmp);
+    lua_pushstring(L, "ok");
+    lua_newtable(L);
+    for( int k = 0; k < kept && k < limit; k++ )
+    {
+        push_loc_row(L, c, order[k].idx);
+        lua_rawseti(L, -2, ++n);
+    }
+    lua_pushinteger(L, kept);
+    lua_setfield(L, -2, "total");
+    ToriMem_Free(ToriMem_ServerPlayers(), order);
+    return 2;
+}
+
+/* api_drive.loc_copies(loc_id, [radius]): every copy of the PLACED id,
+ * nearest first, as the client's lua_drive_loc_copies. */
+static int
+d_loc_copies(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunLocQuery q;
+
+    memset(&q, 0, sizeof(q));
+    q.ids[0] = (int)luaL_checkinteger(L, 1);
+    q.n_ids = 1;
+    q.radius = (int)luaL_optinteger(L, 2, 0);
+    q.level = -1;
+    return loc_query_push(L, bot->core, &q, SCRIPTRUN_LOC_COPIES_CAP);
+}
+
+/* api_drive.loc_find(ids, [opts]): the client's lua_drive_loc_find. `ids` is
+ * nil, an id, or a list; opts {rule = "either"|"placed", radius, level, x, z,
+ * limit}. */
+static int
+d_loc_find(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunLocQuery q;
+    int limit = 1;
+
+    memset(&q, 0, sizeof(q));
+    q.level = -1;
+    q.either = 1;
+    if( lua_isinteger(L, 1) )
+    {
+        q.ids[0] = (int)lua_tointeger(L, 1);
+        q.n_ids = 1;
+    }
+    else if( lua_istable(L, 1) )
+    {
+        int n = (int)lua_rawlen(L, 1);
+        luaL_argcheck(L, n >= 1 && n <= SCRIPTRUN_LOC_QUERY_IDS, 1, "loc_find: 1..256 ids");
+        for( int k = 0; k < n; k++ )
+        {
+            int id;
+            lua_rawgeti(L, 1, k + 1);
+            id = (int)luaL_checkinteger(L, -1);
+            lua_pop(L, 1);
+            if( !loc_query_listed(&q, id) )
+                q.ids[q.n_ids++] = id;
+        }
+    }
+    else
+        luaL_argcheck(L, lua_isnoneornil(L, 1), 1, "loc_find: an id, a list of ids, or nil");
+    if( lua_istable(L, 2) )
+    {
+        lua_getfield(L, 2, "rule");
+        if( !lua_isnil(L, -1) )
+        {
+            char const* rule = luaL_checkstring(L, -1);
+            luaL_argcheck(L, !strcmp(rule, "either") || !strcmp(rule, "placed"), 2,
+                "loc_find: rule is \"either\" or \"placed\"");
+            q.either = !strcmp(rule, "either");
+        }
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "radius");
+        q.radius = (int)luaL_optinteger(L, -1, 0);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "level");
+        q.level = (int)luaL_optinteger(L, -1, -1);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "limit");
+        limit = (int)luaL_optinteger(L, -1, 1);
+        lua_pop(L, 1);
+        lua_getfield(L, 2, "x");
+        lua_getfield(L, 2, "z");
+        if( !lua_isnil(L, -2) || !lua_isnil(L, -1) )
+        {
+            q.at_tile = 1;
+            q.tile_x = (int)luaL_checkinteger(L, -2);
+            q.tile_z = (int)luaL_checkinteger(L, -1);
+        }
+        lua_pop(L, 2);
+    }
+    luaL_argcheck(L, limit >= 1, 2, "loc_find: limit >= 1");
+    return loc_query_push(L, bot->core, &q, limit);
+}
+
+/* api_drive.loc_element(element_id): the copy this lane names `element_id`
+ * (its list slot + 1, d_locs's note), or not_found. */
+static int
+d_loc_element(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    struct ScriptrunCore* c = bot->core;
+    int element_id = (int)luaL_checkinteger(L, 1);
+    int i = element_id - 1;
+
+    if( i < 0 || i >= c->loc_count || c->locs[i].loc_id < 0 )
+        return push_result(L, "not_found", NULL);
+    lua_pushstring(L, "ok");
+    push_loc_row(L, c, i);
     return 2;
 }
 
@@ -1775,14 +1957,6 @@ d_locs_of(lua_State* L)
         lua_rawseti(L, -2, ++n);
     }
     ToriMem_Free(ToriMem_ServerPlayers(), order);
-    return 2;
-}
-
-static int
-d_empty_list(lua_State* L)
-{
-    lua_pushstring(L, "ok");
-    lua_newtable(L);
     return 2;
 }
 
@@ -4405,7 +4579,9 @@ push_drive_table(
     bind(L, bot, "objs", d_objs);
     bind(L, bot, "locs", d_locs);
     bind(L, bot, "loc_anims", d_loc_anims);
-    bind(L, bot, "loc_copies", d_empty_list);
+    bind(L, bot, "loc_copies", d_loc_copies);
+    bind(L, bot, "loc_find", d_loc_find);
+    bind(L, bot, "loc_element", d_loc_element);
     bind(L, bot, "messages", d_messages);
     bind(L, bot, "message_serial", d_message_serial);
     bind(L, bot, "move_to", d_move_to);
