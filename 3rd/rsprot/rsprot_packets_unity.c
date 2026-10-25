@@ -21,6 +21,7 @@
 // clang-format off
 #include "packets/account_flags.c"
 #include "packets/affinedclansettings_addbanned_fromchannel.c"
+#include "packets/affinedclansettings_setmuted_fromchannel.c"
 #include "packets/ambientsound_start.c"
 #include "packets/ambientsound_stop.c"
 #include "packets/anim_specific.c"
@@ -68,6 +69,7 @@
 #include "packets/close_modal.c"
 #include "packets/connection_telemetry.c"
 #include "packets/detect_modified_client.c"
+#include "packets/event_applet_focus.c"
 #include "packets/event_camera_position.c"
 #include "packets/event_mouse_click.c"
 #include "packets/event_mouse_click_v1.c"
@@ -92,6 +94,7 @@
 #include "packets/hiscore_reply.c"
 #include "packets/hiscore_request.c"
 #include "packets/idle.c"
+#include "packets/if3_button.c"
 #include "packets/if_button.c"
 #include "packets/if_buttond.c"
 #include "packets/if_buttont.c"
@@ -181,10 +184,73 @@
 #include "packets/objunlock_reset.c"
 #include "packets/objunlock_update.c"
 #include "packets/oculus_sync.c"
+#include "packets/oploc1.c"
+#include "packets/oploc1_v1.c"
+#include "packets/oploc1_v2.c"
+#include "packets/oploc2.c"
+#include "packets/oploc2_v1.c"
+#include "packets/oploc2_v2.c"
+#include "packets/oploc3.c"
+#include "packets/oploc3_v1.c"
+#include "packets/oploc3_v2.c"
+#include "packets/oploc4.c"
+#include "packets/oploc4_v1.c"
+#include "packets/oploc4_v2.c"
+#include "packets/oploc5.c"
+#include "packets/oploc5_v1.c"
+#include "packets/oploc5_v2.c"
 #include "packets/oploc6.c"
+#include "packets/oploct.c"
+#include "packets/opnpc1.c"
+#include "packets/opnpc1_v1.c"
+#include "packets/opnpc1_v2.c"
+#include "packets/opnpc2.c"
+#include "packets/opnpc2_v1.c"
+#include "packets/opnpc2_v2.c"
+#include "packets/opnpc3.c"
+#include "packets/opnpc3_v1.c"
+#include "packets/opnpc3_v2.c"
+#include "packets/opnpc4.c"
+#include "packets/opnpc4_v1.c"
+#include "packets/opnpc4_v2.c"
+#include "packets/opnpc5.c"
+#include "packets/opnpc5_v1.c"
+#include "packets/opnpc5_v2.c"
 #include "packets/opnpc6.c"
+#include "packets/opnpct.c"
+#include "packets/opobj1.c"
+#include "packets/opobj1_v1.c"
+#include "packets/opobj1_v2.c"
+#include "packets/opobj2.c"
+#include "packets/opobj2_v1.c"
+#include "packets/opobj2_v2.c"
+#include "packets/opobj3.c"
+#include "packets/opobj3_v1.c"
+#include "packets/opobj3_v2.c"
+#include "packets/opobj4.c"
+#include "packets/opobj4_v1.c"
+#include "packets/opobj4_v2.c"
+#include "packets/opobj5.c"
+#include "packets/opobj5_v1.c"
+#include "packets/opobj5_v2.c"
 #include "packets/opobj6.c"
+#include "packets/opobjt.c"
+#include "packets/opplayer1.c"
+#include "packets/opplayer2.c"
+#include "packets/opplayer3.c"
+#include "packets/opplayer4.c"
+#include "packets/opplayer5.c"
+#include "packets/opplayer6.c"
+#include "packets/opplayer7.c"
+#include "packets/opplayer8.c"
+#include "packets/opplayert.c"
+#include "packets/opworldentity1.c"
+#include "packets/opworldentity2.c"
+#include "packets/opworldentity3.c"
+#include "packets/opworldentity4.c"
+#include "packets/opworldentity5.c"
 #include "packets/opworldentity6.c"
+#include "packets/opworldentityt.c"
 #include "packets/packet_group_start.c"
 #include "packets/player_spotanim_specific.c"
 #include "packets/projanim_specific.c"
@@ -214,6 +280,7 @@
 #include "packets/scriptedproj_change.c"
 #include "packets/send_ping.c"
 #include "packets/send_ping_reply.c"
+#include "packets/send_snapshot.c"
 #include "packets/server_tick_end.c"
 #include "packets/set_active_world_v1.c"
 #include "packets/set_active_world_v2.c"
@@ -347,6 +414,7 @@
 const RsprotRegistryEntry rsprot_registry[] = {
     { "ACCOUNT_FLAGS", RSPROT_REG_OUT, rsprot_account_flags_out, &rsprot_account_flags_out_count },
     { "AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL", RSPROT_REG_IN, rsprot_affinedclansettings_addbanned_fromchannel_in, &rsprot_affinedclansettings_addbanned_fromchannel_in_count },
+    { "AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL", RSPROT_REG_IN, rsprot_affinedclansettings_setmuted_fromchannel_in, &rsprot_affinedclansettings_setmuted_fromchannel_in_count },
     { "AMBIENTSOUND_START", RSPROT_REG_OUT, rsprot_ambientsound_start_out, &rsprot_ambientsound_start_out_count },
     { "AMBIENTSOUND_STOP", RSPROT_REG_OUT, rsprot_ambientsound_stop_out, &rsprot_ambientsound_stop_out_count },
     { "ANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_anim_specific_out, &rsprot_anim_specific_out_count },
@@ -394,6 +462,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "CLOSE_MODAL", RSPROT_REG_IN, rsprot_close_modal_in, &rsprot_close_modal_in_count },
     { "CONNECTION_TELEMETRY", RSPROT_REG_IN, rsprot_connection_telemetry_in, &rsprot_connection_telemetry_in_count },
     { "DETECT_MODIFIED_CLIENT", RSPROT_REG_IN, rsprot_detect_modified_client_in, &rsprot_detect_modified_client_in_count },
+    { "EVENT_APPLET_FOCUS", RSPROT_REG_IN, rsprot_event_applet_focus_in, &rsprot_event_applet_focus_in_count },
     { "EVENT_CAMERA_POSITION", RSPROT_REG_IN, rsprot_event_camera_position_in, &rsprot_event_camera_position_in_count },
     { "EVENT_MOUSE_CLICK", RSPROT_REG_IN, rsprot_event_mouse_click_in, &rsprot_event_mouse_click_in_count },
     { "EVENT_MOUSE_CLICK_V1", RSPROT_REG_IN, rsprot_event_mouse_click_v1_in, &rsprot_event_mouse_click_v1_in_count },
@@ -418,6 +487,16 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "HISCORE_REPLY", RSPROT_REG_OUT, rsprot_hiscore_reply_out, &rsprot_hiscore_reply_out_count },
     { "HISCORE_REQUEST", RSPROT_REG_IN, rsprot_hiscore_request_in, &rsprot_hiscore_request_in_count },
     { "IDLE", RSPROT_REG_IN, rsprot_idle_in, &rsprot_idle_in_count },
+    { "IF_BUTTON1", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON2", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON3", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON4", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON5", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON6", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON7", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON8", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON9", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
+    { "IF_BUTTON10", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
     { "IF_BUTTON", RSPROT_REG_IN, rsprot_if_button_in, &rsprot_if_button_in_count },
     { "IF_BUTTOND", RSPROT_REG_IN, rsprot_if_buttond_in, &rsprot_if_buttond_in_count },
     { "IF_BUTTONT", RSPROT_REG_IN, rsprot_if_buttont_in, &rsprot_if_buttont_in_count },
@@ -507,10 +586,73 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OBJUNLOCK_RESET", RSPROT_REG_OUT, rsprot_objunlock_reset_out, &rsprot_objunlock_reset_out_count },
     { "OBJUNLOCK_UPDATE", RSPROT_REG_OUT, rsprot_objunlock_update_out, &rsprot_objunlock_update_out_count },
     { "OCULUS_SYNC", RSPROT_REG_OUT, rsprot_oculus_sync_out, &rsprot_oculus_sync_out_count },
+    { "OPLOC1", RSPROT_REG_IN, rsprot_oploc1_in, &rsprot_oploc1_in_count },
+    { "OPLOC1_V1", RSPROT_REG_IN, rsprot_oploc1_v1_in, &rsprot_oploc1_v1_in_count },
+    { "OPLOC1_V2", RSPROT_REG_IN, rsprot_oploc1_v2_in, &rsprot_oploc1_v2_in_count },
+    { "OPLOC2", RSPROT_REG_IN, rsprot_oploc2_in, &rsprot_oploc2_in_count },
+    { "OPLOC2_V1", RSPROT_REG_IN, rsprot_oploc2_v1_in, &rsprot_oploc2_v1_in_count },
+    { "OPLOC2_V2", RSPROT_REG_IN, rsprot_oploc2_v2_in, &rsprot_oploc2_v2_in_count },
+    { "OPLOC3", RSPROT_REG_IN, rsprot_oploc3_in, &rsprot_oploc3_in_count },
+    { "OPLOC3_V1", RSPROT_REG_IN, rsprot_oploc3_v1_in, &rsprot_oploc3_v1_in_count },
+    { "OPLOC3_V2", RSPROT_REG_IN, rsprot_oploc3_v2_in, &rsprot_oploc3_v2_in_count },
+    { "OPLOC4", RSPROT_REG_IN, rsprot_oploc4_in, &rsprot_oploc4_in_count },
+    { "OPLOC4_V1", RSPROT_REG_IN, rsprot_oploc4_v1_in, &rsprot_oploc4_v1_in_count },
+    { "OPLOC4_V2", RSPROT_REG_IN, rsprot_oploc4_v2_in, &rsprot_oploc4_v2_in_count },
+    { "OPLOC5", RSPROT_REG_IN, rsprot_oploc5_in, &rsprot_oploc5_in_count },
+    { "OPLOC5_V1", RSPROT_REG_IN, rsprot_oploc5_v1_in, &rsprot_oploc5_v1_in_count },
+    { "OPLOC5_V2", RSPROT_REG_IN, rsprot_oploc5_v2_in, &rsprot_oploc5_v2_in_count },
     { "OPLOC6", RSPROT_REG_IN, rsprot_oploc6_in, &rsprot_oploc6_in_count },
+    { "OPLOCT", RSPROT_REG_IN, rsprot_oploct_in, &rsprot_oploct_in_count },
+    { "OPNPC1", RSPROT_REG_IN, rsprot_opnpc1_in, &rsprot_opnpc1_in_count },
+    { "OPNPC1_V1", RSPROT_REG_IN, rsprot_opnpc1_v1_in, &rsprot_opnpc1_v1_in_count },
+    { "OPNPC1_V2", RSPROT_REG_IN, rsprot_opnpc1_v2_in, &rsprot_opnpc1_v2_in_count },
+    { "OPNPC2", RSPROT_REG_IN, rsprot_opnpc2_in, &rsprot_opnpc2_in_count },
+    { "OPNPC2_V1", RSPROT_REG_IN, rsprot_opnpc2_v1_in, &rsprot_opnpc2_v1_in_count },
+    { "OPNPC2_V2", RSPROT_REG_IN, rsprot_opnpc2_v2_in, &rsprot_opnpc2_v2_in_count },
+    { "OPNPC3", RSPROT_REG_IN, rsprot_opnpc3_in, &rsprot_opnpc3_in_count },
+    { "OPNPC3_V1", RSPROT_REG_IN, rsprot_opnpc3_v1_in, &rsprot_opnpc3_v1_in_count },
+    { "OPNPC3_V2", RSPROT_REG_IN, rsprot_opnpc3_v2_in, &rsprot_opnpc3_v2_in_count },
+    { "OPNPC4", RSPROT_REG_IN, rsprot_opnpc4_in, &rsprot_opnpc4_in_count },
+    { "OPNPC4_V1", RSPROT_REG_IN, rsprot_opnpc4_v1_in, &rsprot_opnpc4_v1_in_count },
+    { "OPNPC4_V2", RSPROT_REG_IN, rsprot_opnpc4_v2_in, &rsprot_opnpc4_v2_in_count },
+    { "OPNPC5", RSPROT_REG_IN, rsprot_opnpc5_in, &rsprot_opnpc5_in_count },
+    { "OPNPC5_V1", RSPROT_REG_IN, rsprot_opnpc5_v1_in, &rsprot_opnpc5_v1_in_count },
+    { "OPNPC5_V2", RSPROT_REG_IN, rsprot_opnpc5_v2_in, &rsprot_opnpc5_v2_in_count },
     { "OPNPC6", RSPROT_REG_IN, rsprot_opnpc6_in, &rsprot_opnpc6_in_count },
+    { "OPNPCT", RSPROT_REG_IN, rsprot_opnpct_in, &rsprot_opnpct_in_count },
+    { "OPOBJ1", RSPROT_REG_IN, rsprot_opobj1_in, &rsprot_opobj1_in_count },
+    { "OPOBJ1_V1", RSPROT_REG_IN, rsprot_opobj1_v1_in, &rsprot_opobj1_v1_in_count },
+    { "OPOBJ1_V2", RSPROT_REG_IN, rsprot_opobj1_v2_in, &rsprot_opobj1_v2_in_count },
+    { "OPOBJ2", RSPROT_REG_IN, rsprot_opobj2_in, &rsprot_opobj2_in_count },
+    { "OPOBJ2_V1", RSPROT_REG_IN, rsprot_opobj2_v1_in, &rsprot_opobj2_v1_in_count },
+    { "OPOBJ2_V2", RSPROT_REG_IN, rsprot_opobj2_v2_in, &rsprot_opobj2_v2_in_count },
+    { "OPOBJ3", RSPROT_REG_IN, rsprot_opobj3_in, &rsprot_opobj3_in_count },
+    { "OPOBJ3_V1", RSPROT_REG_IN, rsprot_opobj3_v1_in, &rsprot_opobj3_v1_in_count },
+    { "OPOBJ3_V2", RSPROT_REG_IN, rsprot_opobj3_v2_in, &rsprot_opobj3_v2_in_count },
+    { "OPOBJ4", RSPROT_REG_IN, rsprot_opobj4_in, &rsprot_opobj4_in_count },
+    { "OPOBJ4_V1", RSPROT_REG_IN, rsprot_opobj4_v1_in, &rsprot_opobj4_v1_in_count },
+    { "OPOBJ4_V2", RSPROT_REG_IN, rsprot_opobj4_v2_in, &rsprot_opobj4_v2_in_count },
+    { "OPOBJ5", RSPROT_REG_IN, rsprot_opobj5_in, &rsprot_opobj5_in_count },
+    { "OPOBJ5_V1", RSPROT_REG_IN, rsprot_opobj5_v1_in, &rsprot_opobj5_v1_in_count },
+    { "OPOBJ5_V2", RSPROT_REG_IN, rsprot_opobj5_v2_in, &rsprot_opobj5_v2_in_count },
     { "OPOBJ6", RSPROT_REG_IN, rsprot_opobj6_in, &rsprot_opobj6_in_count },
+    { "OPOBJT", RSPROT_REG_IN, rsprot_opobjt_in, &rsprot_opobjt_in_count },
+    { "OPPLAYER1", RSPROT_REG_IN, rsprot_opplayer1_in, &rsprot_opplayer1_in_count },
+    { "OPPLAYER2", RSPROT_REG_IN, rsprot_opplayer2_in, &rsprot_opplayer2_in_count },
+    { "OPPLAYER3", RSPROT_REG_IN, rsprot_opplayer3_in, &rsprot_opplayer3_in_count },
+    { "OPPLAYER4", RSPROT_REG_IN, rsprot_opplayer4_in, &rsprot_opplayer4_in_count },
+    { "OPPLAYER5", RSPROT_REG_IN, rsprot_opplayer5_in, &rsprot_opplayer5_in_count },
+    { "OPPLAYER6", RSPROT_REG_IN, rsprot_opplayer6_in, &rsprot_opplayer6_in_count },
+    { "OPPLAYER7", RSPROT_REG_IN, rsprot_opplayer7_in, &rsprot_opplayer7_in_count },
+    { "OPPLAYER8", RSPROT_REG_IN, rsprot_opplayer8_in, &rsprot_opplayer8_in_count },
+    { "OPPLAYERT", RSPROT_REG_IN, rsprot_opplayert_in, &rsprot_opplayert_in_count },
+    { "OPWORLDENTITY1", RSPROT_REG_IN, rsprot_opworldentity1_in, &rsprot_opworldentity1_in_count },
+    { "OPWORLDENTITY2", RSPROT_REG_IN, rsprot_opworldentity2_in, &rsprot_opworldentity2_in_count },
+    { "OPWORLDENTITY3", RSPROT_REG_IN, rsprot_opworldentity3_in, &rsprot_opworldentity3_in_count },
+    { "OPWORLDENTITY4", RSPROT_REG_IN, rsprot_opworldentity4_in, &rsprot_opworldentity4_in_count },
+    { "OPWORLDENTITY5", RSPROT_REG_IN, rsprot_opworldentity5_in, &rsprot_opworldentity5_in_count },
     { "OPWORLDENTITY6", RSPROT_REG_IN, rsprot_opworldentity6_in, &rsprot_opworldentity6_in_count },
+    { "OPWORLDENTITYT", RSPROT_REG_IN, rsprot_opworldentityt_in, &rsprot_opworldentityt_in_count },
     { "PACKET_GROUP_START", RSPROT_REG_OUT, rsprot_packet_group_start_out, &rsprot_packet_group_start_out_count },
     { "PLAYER_SPOTANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_player_spotanim_specific_out, &rsprot_player_spotanim_specific_out_count },
     { "PROJANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_projanim_specific_out, &rsprot_projanim_specific_out_count },
@@ -540,6 +682,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "SCRIPTEDPROJ_CHANGE", RSPROT_REG_OUT, rsprot_scriptedproj_change_out, &rsprot_scriptedproj_change_out_count },
     { "SEND_PING", RSPROT_REG_OUT, rsprot_send_ping_out, &rsprot_send_ping_out_count },
     { "SEND_PING_REPLY", RSPROT_REG_IN, rsprot_send_ping_reply_in, &rsprot_send_ping_reply_in_count },
+    { "SEND_SNAPSHOT", RSPROT_REG_IN, rsprot_send_snapshot_in, &rsprot_send_snapshot_in_count },
     { "SERVER_TICK_END", RSPROT_REG_OUT, rsprot_server_tick_end_out, &rsprot_server_tick_end_out_count },
     { "SET_ACTIVE_WORLD_V1", RSPROT_REG_OUT, rsprot_set_active_world_v1_out, &rsprot_set_active_world_v1_out_count },
     { "SET_ACTIVE_WORLD_V2", RSPROT_REG_OUT, rsprot_set_active_world_v2_out, &rsprot_set_active_world_v2_out_count },

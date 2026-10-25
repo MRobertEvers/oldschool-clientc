@@ -1,9 +1,10 @@
 rsprot packet-codec generation status
-revisions 221-239; 215 packets emitted, 3 refused
+revisions 221-239; 282 packets emitted, 3 refused
 
 --- emitted (prot, file, dir, layouts, revisions covered) ---
   OK   ACCOUNT_FLAGS                    account_flags.c out   1 layout(s)  9 rev(s)
   OK   AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL affinedclansettings_addbanned_fromchannel.c in    1 layout(s) 21 rev(s)
+  OK   AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL affinedclansettings_setmuted_fromchannel.c in    1 layout(s) 21 rev(s)
   OK   AMBIENTSOUND_START               ambientsound_start.c out   3 layout(s)  4 rev(s)
   OK   AMBIENTSOUND_STOP                ambientsound_stop.c out   3 layout(s)  4 rev(s)
   OK   ANIM_SPECIFIC                    anim_specific.c out  16 layout(s) 21 rev(s)
@@ -47,6 +48,7 @@ revisions 221-239; 215 packets emitted, 3 refused
   OK   CLOSE_MODAL                      close_modal.c in    1 layout(s) 21 rev(s)
   OK   CONNECTION_TELEMETRY             connection_telemetry.c in    1 layout(s) 19 rev(s)
   OK   DETECT_MODIFIED_CLIENT           detect_modified_client.c in    1 layout(s) 21 rev(s)
+  OK   EVENT_APPLET_FOCUS               event_applet_focus.c in    1 layout(s) 21 rev(s)
   OK   EVENT_CAMERA_POSITION            event_camera_position.c in   13 layout(s) 21 rev(s)
   OK   EVENT_MOUSE_CLICK                event_mouse_click.c in    1 layout(s) 11 rev(s)
   OK   EVENT_MOUSE_CLICK_V1             event_mouse_click_v1.c in    1 layout(s) 15 rev(s)
@@ -67,6 +69,7 @@ revisions 221-239; 215 packets emitted, 3 refused
   OK   HIDEOBJOPS                       hideobjops.c out   1 layout(s) 19 rev(s)
   OK   HISCORE_REQUEST                  hiscore_request.c in    1 layout(s) 21 rev(s)
   OK   IDLE                             idle.c in    1 layout(s) 21 rev(s)
+  OK   IF3_BUTTON                       if3_button.c in    1 layout(s) 11 rev(s)
   OK   IF_BUTTON                        if_button.c in    1 layout(s) 21 rev(s)
   OK   IF_BUTTOND                       if_buttond.c in   21 layout(s) 21 rev(s)
   OK   IF_BUTTONT                       if_buttont.c in   21 layout(s) 21 rev(s)
@@ -151,10 +154,73 @@ revisions 221-239; 215 packets emitted, 3 refused
   OK   OBJ_UNCUSTOMISE                  obj_uncustomise.c out  16 layout(s) 16 rev(s)
   OK   OBJ_UNCUSTOMISE_SPECIFIC         obj_uncustomise_specific.c out  10 layout(s) 10 rev(s)
   OK   OCULUS_SYNC                      oculus_sync.c out   1 layout(s) 21 rev(s)
+  OK   OPLOC1                           oploc1.c in   16 layout(s) 16 rev(s)
+  OK   OPLOC1_V1                        oploc1_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPLOC1_V2                        oploc1_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPLOC2                           oploc2.c in   16 layout(s) 16 rev(s)
+  OK   OPLOC2_V1                        oploc2_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPLOC2_V2                        oploc2_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPLOC3                           oploc3.c in   16 layout(s) 16 rev(s)
+  OK   OPLOC3_V1                        oploc3_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPLOC3_V2                        oploc3_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPLOC4                           oploc4.c in   16 layout(s) 16 rev(s)
+  OK   OPLOC4_V1                        oploc4_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPLOC4_V2                        oploc4_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPLOC5                           oploc5.c in   16 layout(s) 16 rev(s)
+  OK   OPLOC5_V1                        oploc5_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPLOC5_V2                        oploc5_v2.c in    5 layout(s)  5 rev(s)
   OK   OPLOC6                           oploc6.c in    4 layout(s) 21 rev(s)
+  OK   OPLOCT                           oploct.c in   21 layout(s) 21 rev(s)
+  OK   OPNPC1                           opnpc1.c in   15 layout(s) 16 rev(s)
+  OK   OPNPC1_V1                        opnpc1_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPNPC1_V2                        opnpc1_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPNPC2                           opnpc2.c in   10 layout(s) 16 rev(s)
+  OK   OPNPC2_V1                        opnpc2_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPNPC2_V2                        opnpc2_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPNPC3                           opnpc3.c in   13 layout(s) 16 rev(s)
+  OK   OPNPC3_V1                        opnpc3_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPNPC3_V2                        opnpc3_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPNPC4                           opnpc4.c in   13 layout(s) 16 rev(s)
+  OK   OPNPC4_V1                        opnpc4_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPNPC4_V2                        opnpc4_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPNPC5                           opnpc5.c in   12 layout(s) 16 rev(s)
+  OK   OPNPC5_V1                        opnpc5_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPNPC5_V2                        opnpc5_v2.c in    5 layout(s)  5 rev(s)
   OK   OPNPC6                           opnpc6.c in    4 layout(s) 21 rev(s)
+  OK   OPNPCT                           opnpct.c in   21 layout(s) 21 rev(s)
+  OK   OPOBJ1                           opobj1.c in   16 layout(s) 16 rev(s)
+  OK   OPOBJ1_V1                        opobj1_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPOBJ1_V2                        opobj1_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPOBJ2                           opobj2.c in   16 layout(s) 16 rev(s)
+  OK   OPOBJ2_V1                        opobj2_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPOBJ2_V2                        opobj2_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPOBJ3                           opobj3.c in   16 layout(s) 16 rev(s)
+  OK   OPOBJ3_V1                        opobj3_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPOBJ3_V2                        opobj3_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPOBJ4                           opobj4.c in   16 layout(s) 16 rev(s)
+  OK   OPOBJ4_V1                        opobj4_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPOBJ4_V2                        opobj4_v2.c in    5 layout(s)  5 rev(s)
+  OK   OPOBJ5                           opobj5.c in   16 layout(s) 16 rev(s)
+  OK   OPOBJ5_V1                        opobj5_v1.c in    1 layout(s)  1 rev(s)
+  OK   OPOBJ5_V2                        opobj5_v2.c in    5 layout(s)  5 rev(s)
   OK   OPOBJ6                           opobj6.c in   20 layout(s) 21 rev(s)
+  OK   OPOBJT                           opobjt.c in   21 layout(s) 21 rev(s)
+  OK   OPPLAYER1                        opplayer1.c in   15 layout(s) 21 rev(s)
+  OK   OPPLAYER2                        opplayer2.c in   13 layout(s) 21 rev(s)
+  OK   OPPLAYER3                        opplayer3.c in   15 layout(s) 21 rev(s)
+  OK   OPPLAYER4                        opplayer4.c in   16 layout(s) 21 rev(s)
+  OK   OPPLAYER5                        opplayer5.c in   16 layout(s) 21 rev(s)
+  OK   OPPLAYER6                        opplayer6.c in   19 layout(s) 21 rev(s)
+  OK   OPPLAYER7                        opplayer7.c in   17 layout(s) 21 rev(s)
+  OK   OPPLAYER8                        opplayer8.c in   17 layout(s) 21 rev(s)
+  OK   OPPLAYERT                        opplayert.c in   21 layout(s) 21 rev(s)
+  OK   OPWORLDENTITY1                   opworldentity1.c in    7 layout(s)  9 rev(s)
+  OK   OPWORLDENTITY2                   opworldentity2.c in    9 layout(s)  9 rev(s)
+  OK   OPWORLDENTITY3                   opworldentity3.c in    8 layout(s)  9 rev(s)
+  OK   OPWORLDENTITY4                   opworldentity4.c in    8 layout(s)  9 rev(s)
+  OK   OPWORLDENTITY5                   opworldentity5.c in    8 layout(s)  9 rev(s)
   OK   OPWORLDENTITY6                   opworldentity6.c in    4 layout(s)  9 rev(s)
+  OK   OPWORLDENTITYT                   opworldentityt.c in    9 layout(s)  9 rev(s)
   OK   PACKET_GROUP_START               packet_group_start.c out   1 layout(s) 15 rev(s)
   OK   PROJANIM_SPECIFIC                projanim_specific.c out   5 layout(s)  5 rev(s)
   OK   PROJANIM_SPECIFIC_V3             projanim_specific_v3.c out   6 layout(s)  6 rev(s)
@@ -179,6 +245,7 @@ revisions 221-239; 215 packets emitted, 3 refused
   OK   SCRIPTEDPROJ_CHANGE              scriptedproj_change.c out   3 layout(s)  3 rev(s)
   OK   SEND_PING                        send_ping.c out   1 layout(s) 21 rev(s)
   OK   SEND_PING_REPLY                  send_ping_reply.c in   21 layout(s) 21 rev(s)
+  OK   SEND_SNAPSHOT                    send_snapshot.c in    1 layout(s) 21 rev(s)
   OK   SERVER_TICK_END                  server_tick_end.c out   1 layout(s) 21 rev(s)
   OK   SET_CHATFILTERSETTINGS           set_chatfiltersettings.c in    1 layout(s) 21 rev(s)
   OK   SET_HEADING                      set_heading.c in    4 layout(s) 16 rev(s)
@@ -228,6 +295,8 @@ revisions 221-239; 215 packets emitted, 3 refused
   IDENTICAL ACCOUNT_FLAGS                            out  241 v1
   IDENTICAL AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL in   240 v1
   IDENTICAL AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL in   241 v1
+  IDENTICAL AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL in   240 v1
+  IDENTICAL AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL in   241 v1
   RESPELLED AMBIENTSOUND_START                       out  240 v101
   RESPELLED AMBIENTSOUND_START                       out  241 v100
   RESPELLED AMBIENTSOUND_STOP                        out  240 v1
@@ -359,6 +428,8 @@ revisions 221-239; 215 packets emitted, 3 refused
   IDENTICAL CONNECTION_TELEMETRY                     in   241 v1
   IDENTICAL DETECT_MODIFIED_CLIENT                   in   240 v1
   IDENTICAL DETECT_MODIFIED_CLIENT                   in   241 v1
+  IDENTICAL EVENT_APPLET_FOCUS                       in   240 v1
+  IDENTICAL EVENT_APPLET_FOCUS                       in   241 v1
   RESPELLED EVENT_CAMERA_POSITION                    in   240 v100
   IDENTICAL EVENT_CAMERA_POSITION                    in   241 v11
   NOT239    EVENT_MOUSE_CLICK                        in   240 no 239 layout (prot predates 239)
@@ -404,6 +475,8 @@ revisions 221-239; 215 packets emitted, 3 refused
   IDENTICAL HISCORE_REQUEST                          in   241 v1
   IDENTICAL IDLE                                     in   240 v1
   IDENTICAL IDLE                                     in   241 v1
+  NOT239    IF3_BUTTON                               in   240 no 239 layout (prot predates 239)
+  NOT239    IF3_BUTTON                               in   241 no 239 layout (prot predates 239)
   IDENTICAL IF_BUTTON                                in   240 v1
   IDENTICAL IF_BUTTON                                in   241 v1
   RESPELLED IF_BUTTOND                               in   240 v101
@@ -576,14 +649,140 @@ revisions 221-239; 215 packets emitted, 3 refused
   RESPELLED OBJ_UNCUSTOMISE_SPECIFIC                 out  241 v100
   IDENTICAL OCULUS_SYNC                              out  240 v1
   IDENTICAL OCULUS_SYNC                              out  241 v1
+  NOT239    OPLOC1                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC1                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPLOC1_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC1_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPLOC1_V2                                in   240 v100
+  RESPELLED OPLOC1_V2                                in   241 v101
+  NOT239    OPLOC2                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC2                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPLOC2_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC2_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPLOC2_V2                                in   240 v100
+  RESPELLED OPLOC2_V2                                in   241 v101
+  NOT239    OPLOC3                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC3                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPLOC3_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC3_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPLOC3_V2                                in   240 v100
+  RESPELLED OPLOC3_V2                                in   241 v101
+  NOT239    OPLOC4                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC4                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPLOC4_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC4_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPLOC4_V2                                in   240 v100
+  RESPELLED OPLOC4_V2                                in   241 v101
+  NOT239    OPLOC5                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC5                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPLOC5_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPLOC5_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPLOC5_V2                                in   240 v100
+  RESPELLED OPLOC5_V2                                in   241 v101
   IDENTICAL OPLOC6                                   in   240 v2
   RESPELLED OPLOC6                                   in   241 v3
+  RESPELLED OPLOCT                                   in   240 v100
+  RESPELLED OPLOCT                                   in   241 v101
+  NOT239    OPNPC1                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC1                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPNPC1_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC1_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPNPC1_V2                                in   240 v100
+  RESPELLED OPNPC1_V2                                in   241 v101
+  NOT239    OPNPC2                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC2                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPNPC2_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC2_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPNPC2_V2                                in   240 v100
+  RESPELLED OPNPC2_V2                                in   241 v101
+  NOT239    OPNPC3                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC3                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPNPC3_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC3_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPNPC3_V2                                in   240 v100
+  RESPELLED OPNPC3_V2                                in   241 v101
+  NOT239    OPNPC4                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC4                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPNPC4_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC4_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPNPC4_V2                                in   240 v100
+  RESPELLED OPNPC4_V2                                in   241 v101
+  NOT239    OPNPC5                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC5                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPNPC5_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPNPC5_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPNPC5_V2                                in   240 v100
+  RESPELLED OPNPC5_V2                                in   241 v101
   RESPELLED OPNPC6                                   in   240 v1
   IDENTICAL OPNPC6                                   in   241 v4
+  RESPELLED OPNPCT                                   in   240 v100
+  RESPELLED OPNPCT                                   in   241 v101
+  NOT239    OPOBJ1                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ1                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPOBJ1_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ1_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPOBJ1_V2                                in   240 v100
+  RESPELLED OPOBJ1_V2                                in   241 v101
+  NOT239    OPOBJ2                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ2                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPOBJ2_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ2_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPOBJ2_V2                                in   240 v100
+  RESPELLED OPOBJ2_V2                                in   241 v101
+  NOT239    OPOBJ3                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ3                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPOBJ3_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ3_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPOBJ3_V2                                in   240 v100
+  RESPELLED OPOBJ3_V2                                in   241 v101
+  NOT239    OPOBJ4                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ4                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPOBJ4_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ4_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPOBJ4_V2                                in   240 v100
+  RESPELLED OPOBJ4_V2                                in   241 v101
+  NOT239    OPOBJ5                                   in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ5                                   in   241 no 239 layout (prot predates 239)
+  NOT239    OPOBJ5_V1                                in   240 no 239 layout (prot predates 239)
+  NOT239    OPOBJ5_V1                                in   241 no 239 layout (prot predates 239)
+  RESPELLED OPOBJ5_V2                                in   240 v100
+  RESPELLED OPOBJ5_V2                                in   241 v101
   RESPELLED OPOBJ6                                   in   240 v101
   RESPELLED OPOBJ6                                   in   241 v100
+  RESPELLED OPOBJT                                   in   240 v100
+  RESPELLED OPOBJT                                   in   241 v101
+  RESPELLED OPPLAYER1                                in   240 v100
+  RESPELLED OPPLAYER1                                in   241 v8
+  RESPELLED OPPLAYER2                                in   240 v100
+  IDENTICAL OPPLAYER2                                in   241 v2
+  RESPELLED OPPLAYER3                                in   240 v100
+  RESPELLED OPPLAYER3                                in   241 v3
+  RESPELLED OPPLAYER4                                in   240 v3
+  RESPELLED OPPLAYER4                                in   241 v100
+  RESPELLED OPPLAYER5                                in   240 v100
+  RESPELLED OPPLAYER5                                in   241 v7
+  RESPELLED OPPLAYER6                                in   240 v100
+  RESPELLED OPPLAYER6                                in   241 v101
+  RESPELLED OPPLAYER7                                in   240 v100
+  RESPELLED OPPLAYER7                                in   241 v13
+  RESPELLED OPPLAYER8                                in   240 v100
+  RESPELLED OPPLAYER8                                in   241 v2
+  RESPELLED OPPLAYERT                                in   240 v100
+  RESPELLED OPPLAYERT                                in   241 v101
+  RESPELLED OPWORLDENTITY1                           in   240 v100
+  IDENTICAL OPWORLDENTITY1                           in   241 v6
+  RESPELLED OPWORLDENTITY2                           in   240 v100
+  RESPELLED OPWORLDENTITY2                           in   241 v101
+  RESPELLED OPWORLDENTITY3                           in   240 v100
+  RESPELLED OPWORLDENTITY3                           in   241 v101
+  RESPELLED OPWORLDENTITY4                           in   240 v100
+  RESPELLED OPWORLDENTITY4                           in   241 v101
+  RESPELLED OPWORLDENTITY5                           in   240 v100
+  RESPELLED OPWORLDENTITY5                           in   241 v5
   RESPELLED OPWORLDENTITY6                           in   240 v4
   RESPELLED OPWORLDENTITY6                           in   241 v4
+  RESPELLED OPWORLDENTITYT                           in   240 v100
+  RESPELLED OPWORLDENTITYT                           in   241 v101
   IDENTICAL PACKET_GROUP_START                       out  240 v1
   IDENTICAL PACKET_GROUP_START                       out  241 v1
   NOT239    PROJANIM_SPECIFIC                        out  240 no 239 layout (prot predates 239)
@@ -632,6 +831,8 @@ revisions 221-239; 215 packets emitted, 3 refused
   IDENTICAL SEND_PING                                out  241 v1
   RESPELLED SEND_PING_REPLY                          in   240 v101
   RESPELLED SEND_PING_REPLY                          in   241 v100
+  IDENTICAL SEND_SNAPSHOT                            in   240 v1
+  IDENTICAL SEND_SNAPSHOT                            in   241 v1
   IDENTICAL SERVER_TICK_END                          out  240 v1
   IDENTICAL SERVER_TICK_END                          out  241 v1
   IDENTICAL SET_CHATFILTERSETTINGS                   in   240 v1
@@ -731,46 +932,15 @@ revisions 221-239; 215 packets emitted, 3 refused
   NOT239    ZBUF                                     out  241 no 239 layout (prot predates 239)
 
 --- per-file parse skips ---
-  rev221 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev221 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev221 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev221 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev221 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev221 in   locs/OpLoc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   locs/OpLoc2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   locs/OpLoc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   locs/OpLoc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   locs/OpLoc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   locs/OpLocTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev221 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev221 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev221 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev221 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev221 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev221 in   misc/user/UpdatePlayerModelDecoder.kt                        buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev221 in   npcs/OpNpc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   npcs/OpNpc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   npcs/OpNpc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   npcs/OpNpcTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObj1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObj2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObj4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObj5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer1Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer2Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer3Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer4Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer6Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer7Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev221 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev221 out  camera/CamMoveToEasedCircularEncoder.kt                      pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev221 out  camera/CamMoveToEasedEncoder.kt                              pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev221 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.ClanChannelDeltaAddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -808,48 +978,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev221 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev222 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev222 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev222 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev222 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev222 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev222 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev222 in   locs/OpLoc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   locs/OpLoc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   locs/OpLoc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   locs/OpLoc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   locs/OpLoc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev222 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev222 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev222 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev222 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev222 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev222 in   misc/user/UpdatePlayerModelDecoder.kt                        buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev222 in   npcs/OpNpc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   npcs/OpNpc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   npcs/OpNpc4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   npcs/OpNpc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObj1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObj2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObj4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObj5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   objs/OpObjTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer2Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer4Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer6Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer7Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayer8Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev222 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev222 out  camera/CamMoveToEasedCircularEncoder.kt                      pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev222 out  camera/CamMoveToEasedEncoder.kt                              pboolean writes a computed expression `(!m->maintain_fixed_altitude)`, which has no field to decode back into
   rev222 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
@@ -891,48 +1030,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev222 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev223 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev223 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev223 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev223 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev223 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev223 in   locs/OpLoc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   locs/OpLoc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   locs/OpLoc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   locs/OpLoc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   locs/OpLoc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   locs/OpLocTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev223 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev223 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev223 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev223 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 in   misc/user/UpdatePlayerModelDecoder.kt                        buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev223 in   npcs/OpNpc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   npcs/OpNpc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   npcs/OpNpc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObj1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObj2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObj4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObj5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer2Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer3Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer4Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev223 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev223 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev223 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -972,48 +1080,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev223 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev224 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev224 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev224 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev224 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev224 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev224 in   locs/OpLoc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   locs/OpLoc2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   locs/OpLoc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   locs/OpLoc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev224 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev224 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev224 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev224 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 in   misc/user/UpdatePlayerModelDecoderOld.kt                     buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev224 in   npcs/OpNpc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   npcs/OpNpc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   npcs/OpNpc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   npcs/OpNpc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   npcs/OpNpcTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObj1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObj2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObj5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer1Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer2Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer4Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer6Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayer8Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev224 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev224 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev224 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1053,48 +1130,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev224 out  zone/header/DesktopUpdateZonePartialEnclosedEncoder.kt       unrecognized buffer call: buffer.buffer.writeBytes(
             message.payload,
      
-  rev225 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev225 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev225 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev225 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev225 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev225 in   locs/OpLoc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   locs/OpLoc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   locs/OpLoc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   locs/OpLoc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   locs/OpLocTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev225 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev225 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev225 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev225 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 in   misc/user/UpdatePlayerModelDecoderOld.kt                     buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev225 in   npcs/OpNpc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   npcs/OpNpc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   npcs/OpNpc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObj1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObj2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObj4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObj5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer1Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer3Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer4Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer5Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev225 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev225 out  camera/CamTargetEncoder.kt                                   when over a sealed type (is CamTarget.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  camera/CamTargetOldEncoder.kt                                when over a sealed type (is CamTargetOld.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1128,48 +1174,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev225 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev225 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev225 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev226 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev226 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev226 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev226 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev226 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev226 in   locs/OpLoc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   locs/OpLoc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   locs/OpLoc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   locs/OpLoc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   locs/OpLocTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev226 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev226 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev226 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev226 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 in   misc/user/UpdatePlayerModelDecoderV1.kt                      buffer expression not understood: identKit[i] = buffer.g1().toByte()
-  rev226 in   npcs/OpNpc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   npcs/OpNpc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   npcs/OpNpc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObj1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObj2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObj4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObj5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   objs/OpObjTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer3Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer4Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev226 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev226 out  camera/CamTargetV1Encoder.kt                                 when over a sealed type (is CamTargetV1.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1203,47 +1218,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev226 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev226 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev226 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev227 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev227 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev227 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev227 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev227 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev227 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev227 in   locs/OpLoc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   locs/OpLoc2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   locs/OpLoc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   locs/OpLocTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev227 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev227 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev227 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev227 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev227 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObj1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObj2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObj5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   objs/OpObjTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer1Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer2Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer3Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer5Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer6Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev227 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev227 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1275,47 +1259,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev227 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev227 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev227 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev228 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev228 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev228 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev228 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev228 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev228 in   locs/OpLoc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   locs/OpLoc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   locs/OpLoc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   locs/OpLoc4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   locs/OpLoc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   locs/OpLocTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev228 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev228 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev228 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev228 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   npcs/OpNpcTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObj1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObj2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObj3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObj5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer1Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer4Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer6Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev228 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev228 out  camera/CamTargetV2Encoder.kt                                 when over a sealed type (is CamTargetV2.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1347,47 +1300,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev228 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev228 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev228 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev229 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev229 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev229 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev229 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev229 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev229 in   locs/OpLoc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   locs/OpLoc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   locs/OpLoc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   locs/OpLoc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   locs/OpLoc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   locs/OpLocTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev229 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev229 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev229 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev229 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   npcs/OpNpcTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObj1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObj2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObj4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObj5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer3Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer4Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer5Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer6Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer7Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev229 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev229 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1419,47 +1341,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev229 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev229 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev229 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev230 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
-  rev230 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev230 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev230 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev230 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev230 in   locs/OpLoc1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   locs/OpLoc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   locs/OpLoc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   locs/OpLoc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev230 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev230 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev230 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev230 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpc2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObj1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObj2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObj4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObj5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer1Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer2Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer3Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer4Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev230 in   players/OpPlayerTDecoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev230 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1491,48 +1382,17 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev230 out  social/UpdateIgnoreListEncoder.kt                            when over a sealed type (is UpdateIgnoreList.AddedIgnoredEntry): no discriminator field on the wire, so decoding would have to infer the arm
   rev230 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev230 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
-  rev231 in   buttons/If3ButtonDecoder.kt                                  unresolved identifier: op
   rev231 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev231 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev231 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev231 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev231 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev231 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev231 in   locs/OpLoc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   locs/OpLoc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   locs/OpLoc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev231 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev231 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev231 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev231 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev231 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpc2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpc4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   npcs/OpNpcTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObj1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObj2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObj3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObj5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   objs/OpObjTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer1Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer2Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer3Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer6Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev231 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev231 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev231 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1566,46 +1426,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev231 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev231 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev232 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev232 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev232 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev232 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev232 in   locs/OpLoc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   locs/OpLoc2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   locs/OpLoc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   locs/OpLoc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   locs/OpLocTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev232 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev232 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev232 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev232 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpc4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObj1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObj2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObj3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObj4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObj5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer1Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer3Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer5Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer6Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev232 in   players/OpPlayerTDecoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev232 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev232 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1639,52 +1469,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev232 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev232 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev233 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev233 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev233 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev233 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev233 in   locs/OpLoc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   locs/OpLoc2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   locs/OpLoc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   locs/OpLoc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev233 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev233 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev233 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev233 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpc1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpc4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObj1Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObj2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObj3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObj4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObj5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer1Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer2Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer3Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer6Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   players/OpPlayerTDecoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntity1Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntity3Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev233 in   worldentities/OpWorldEntityTDecoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev233 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev233 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1718,52 +1512,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev233 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev233 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt2 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev234 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev234 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev234 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev234 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev234 in   locs/OpLoc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   locs/OpLoc2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   locs/OpLoc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   locs/OpLoc4Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   locs/OpLoc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   locs/OpLocTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev234 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev234 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev234 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev234 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   npcs/OpNpcTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObj1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObj2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObj3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObj4Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObj5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   objs/OpObjTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer1Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer2Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer5Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer7Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayer8Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   players/OpPlayerTDecoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntity1Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntity3Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev234 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev234 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev234 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1797,52 +1555,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev234 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev234 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev235 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev235 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev235 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev235 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev235 in   locs/OpLoc1Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   locs/OpLoc2Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   locs/OpLoc3Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   locs/OpLoc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   locs/OpLoc5Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   locs/OpLocTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev235 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev235 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev235 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev235 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpc3Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpc5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   npcs/OpNpcTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObj1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObj2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObj5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer2Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer3Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer4Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer6Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayer8Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntity1Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntity2Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntity3Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev235 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev235 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev235 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1875,52 +1597,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev235 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev235 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev236 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev236 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev236 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev236 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev236 in   locs/OpLoc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   locs/OpLoc2Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   locs/OpLoc3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   locs/OpLoc4Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   locs/OpLoc5Decoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   locs/OpLocTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev236 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev236 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev236 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev236 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpc1Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpc2Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpc3Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpc4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpc5Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObj1Decoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObj2Decoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObj3Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObj4Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObj5Decoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer1Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer2Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer4Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer6Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   players/OpPlayerTDecoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntity1Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntity3Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntity4Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev236 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev236 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev236 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -1954,67 +1640,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev236 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev236 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev237 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev237 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev237 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev237 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev237 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev237 in   locs/OpLoc1V1Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc1V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc2V1Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc2V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc3V1Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc3V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc4V1Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc4V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc5V1Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLoc5V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   locs/OpLocTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev237 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev237 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev237 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev237 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc1V1Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc1V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc2V1Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc2V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc3V1Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc3V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc4V1Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc5V1Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpc5V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   npcs/OpNpcTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj1V1Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj1V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj2V1Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj2V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj3V1Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj3V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj4V1Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj5V1Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObj5V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   objs/OpObjTDecoder.kt                                        g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer1Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer2Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer3Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer5Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer6Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayer8Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   players/OpPlayerTDecoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntity1Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntity3Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev237 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev237 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
   rev237 out  clan/ClanChannelFullEncoder.kt                               when over a sealed type (is ClanChannelFull.JoinUpdate): no discriminator field on the wire, so decoding would have to infer the arm
@@ -2048,52 +1683,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev237 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev237 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4Alt1 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev238 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev238 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev238 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev238 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev238 in   locs/OpLoc1V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   locs/OpLoc2V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   locs/OpLoc3V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   locs/OpLoc4V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   locs/OpLoc5V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   locs/OpLocTDecoder.kt                                        g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev238 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev238 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev238 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev238 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpc1V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpc2V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpc3V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpc4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpc5V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObj1V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObj2V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObj3V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObj4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObj5V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   objs/OpObjTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer1Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer2Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer3Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer5Decoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer6Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer7Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   players/OpPlayerTDecoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntity1Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntity3Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev238 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev238 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  camera/CamTargetV4Encoder.kt                                 when over a sealed type (is CamTargetV4.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev238 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm
@@ -2127,52 +1726,16 @@ revisions 221-239; 215 packets emitted, 3 refused
   rev238 out  specific/NpcSpotAnimSpecificEncoder.kt                       p4Alt3 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev238 out  specific/PlayerSpotAnimSpecificEncoder.kt                    p4 writes a computed expression `((m->height << 16) | m->delay)`, which has no field to decode back into
   rev239 in   buttons/IfScriptTriggerDecoder.kt                            unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
-  rev239 in   clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   events/EventAppletFocusDecoder.kt                            g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   events/EventKeyboardDecoder.kt                               unmodeled call: readableBytes(...)
   rev239 in   events/EventMouseMoveDecoder.kt                              buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev239 in   events/EventNativeMouseMoveDecoder.kt                        buffer expression not understood: while (buffer.isReadable) {
             var packed = buffer.
   rev239 in   friendchat/FriendChatJoinLeaveDecoder.kt                     unparseable val name: unexpected token None
-  rev239 in   locs/OpLoc1V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   locs/OpLoc2V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   locs/OpLoc3V2Decoder.kt                                      g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   locs/OpLoc4V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   locs/OpLoc5V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   locs/OpLocTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 in   messaging/MessagePrivateDecoder.kt                           unmodeled call: provide(...)
   rev239 in   messaging/MessagePublicDecoder.kt                            unparseable val patternArray: unexpected token None
   rev239 in   misc/client/ReflectionCheckReplyDecoder.kt                   unrecognized buffer call: buffer.buffer.readerIndex(buffer.buffer.writerIndex())
   rev239 in   misc/user/ClickWorldMapDecoder.kt                            unmodeled call: CoordGrid(...)
-  rev239 in   misc/user/SendSnapshotDecoder.kt                             g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpc1V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpc2V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpc3V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpc4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpc5V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   npcs/OpNpcTDecoder.kt                                        g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObj1V2Decoder.kt                                      g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObj2V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObj3V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObj4V2Decoder.kt                                      g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObj5V2Decoder.kt                                      g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   objs/OpObjTDecoder.kt                                        g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer1Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer2Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer3Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer4Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer5Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer6Decoder.kt                                  g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer7Decoder.kt                                  g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayer8Decoder.kt                                  g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   players/OpPlayerTDecoder.kt                                  g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntity1Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntity2Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntity3Decoder.kt                       g1Alt3 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntity4Decoder.kt                       g1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntity5Decoder.kt                       g1Alt1 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
-  rev239 in   worldentities/OpWorldEntityTDecoder.kt                       g1Alt2 compared to 1 on read: the encode direction cannot reconstruct the original value from a bool
   rev239 out  camera/CamTargetV3Encoder.kt                                 when over a sealed type (is CamTargetV3.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  camera/CamTargetV4Encoder.kt                                 when over a sealed type (is CamTargetV4.PlayerCamTarget): no discriminator field on the wire, so decoding would have to infer the arm
   rev239 out  clan/ClanChannelDeltaEncoder.kt                              when over a sealed type (is ClanChannelDelta.AddUserEvent): no discriminator field on the wire, so decoding would have to infer the arm

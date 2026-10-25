@@ -400,9 +400,25 @@ def strip_comments(src):
 # --- Kotlin class extraction --------------------------------------------------
 
 CLASS_RE = re.compile(
-    r"public\s+class\s+(\w+)(?:\([^)]*\))?\s*:\s*"
+    r"public\s+class\s+(\w+)(?:\(([^)]*)\))?\s*:\s*"
     r"(MessageEncoder|MessageDecoder|ZoneProtEncoder|NoOpMessageEncoder)\s*<\s*([\w.]+)\s*>",
 )
+
+# A class constructed per prot rather than naming one:
+#
+#     public class If3ButtonDecoder(override val prot: GameClientProt, private val op: Int)
+#     bind(If3ButtonDecoder(GameClientProt.IF_BUTTON1, 1))      (the revision's repository)
+#
+# One layout serves every prot it is bound to, and its other parameters are the
+# PROT's, not the wire's (`op` is which of IF_BUTTON1..10 arrived). So the codec
+# leaves them out of the message -- the caller knows the prot it decoded -- and
+# the registry gets one row per bound prot (BIND_RE, write_packets_unity).
+CTOR_PARAM_RE = re.compile(r"(?:override\s+|private\s+|public\s+)?va[lr]\s+(\w+)\s*:")
+REPOSITORY_FILES = {
+    True: os.path.join("incoming", "prot", "DesktopGameMessageDecoderRepository.kt"),
+    False: os.path.join("outgoing", "prot", "DesktopGameMessageEncoderRepository.kt"),
+}
+BIND_CALL_RE = r"bind\(\s*{cls}\(\s*Game(?:Client|Server)Prot\.(\w+)"
 
 # Kotlin spells this two ways and both appear in the vendored tree:
 #
@@ -460,15 +476,30 @@ def find_method_body(src, method_name, has_buffer_first_param):
     return src[k + 1 : p]
 
 
+def find_binds(path, cls_name, is_decoder):
+    """The prots `cls_name` is bound to in its revision's repository, in bind
+    order. The class file sits under .../game/<incoming|outgoing>/codec/."""
+    game = path[: path.index(os.sep + "codec" + os.sep)]
+    game = os.path.dirname(game)
+    repo = os.path.join(game, REPOSITORY_FILES[is_decoder])
+    if not os.path.exists(repo):
+        return []
+    return re.findall(BIND_CALL_RE.format(cls=re.escape(cls_name)), open(repo).read())
+
+
 def parse_file(path):
     src = open(path).read()
     src = strip_comments(src)
     m = CLASS_RE.search(src)
     if not m:
         return None
-    cls_name, base, msg_type = m.groups()
+    cls_name, ctor, base, msg_type = m.groups()
     pm = PROT_RE.search(src)
     prot = pm.group(1).split(".")[-1] if pm else None
+    params = CTOR_PARAM_RE.findall(ctor or "")
+    binds = []
+    if prot is None and "prot" in params:
+        binds = find_binds(path, cls_name, base == "MessageDecoder")
 
     is_decoder = base == "MessageDecoder"
     if base == "NoOpMessageEncoder":
@@ -477,6 +508,8 @@ def parse_file(path):
             "base": base,
             "msg_type": msg_type.split(".")[-1],
             "prot": prot,
+            "params": [q for q in params if q != "prot"],
+            "binds": binds,
             "is_decoder": False,
             "no_body": True,
             "fields": [],
@@ -497,6 +530,8 @@ def parse_file(path):
                 "base": base,
                 "msg_type": msg_type.split(".")[-1],
                 "prot": prot,
+                "params": [q for q in params if q != "prot"],
+                "binds": binds,
                 "is_decoder": is_decoder,
                 "no_body": True,
             }
@@ -506,6 +541,8 @@ def parse_file(path):
         "base": base,
         "msg_type": msg_type.split(".")[-1],
         "prot": prot,
+        "params": [q for q in params if q != "prot"],
+        "binds": binds,
         "is_decoder": is_decoder,
         "no_body": False,
         "body": body,
@@ -1492,12 +1529,18 @@ def gen_op(op, scope, em, indent, ctx):
 
     if kind == "readbool":
         # `gX(buf) == N` -- a read whose value is compared to a constant. The
-        # comparison is not a wire operation, so the field stores the raw value
-        # and the predicate belongs to the caller. Refused rather than emitted:
-        # writing back a bool would encode 0/1 where the wire carries N.
-        raise Unsupported(
-            f"{op['fn']} compared to {op['true_val']} on read: the encode "
-            f"direction cannot reconstruct the original value from a bool")
+        # comparison is not a wire operation, so the field stores the RAW value
+        # and the predicate belongs to the caller (`m->control_key == 1`). That
+        # is what keeps it invertible: a bool would encode 0/1 where the wire
+        # carried N, the raw byte encodes back to itself. The same line as a
+        # plain read, then, under the Kotlin val's name.
+        macro, ctype = wire_c_fn(op["fn"])
+        name = c_escape_ident(op["name"])
+        scope.add_field(name, ctype)
+        scope.locals[op["name"]] = ("field", struct_ptr_expr(scope, ctx), name)
+        em.emit(f"{macro}(x, {struct_ptr_expr(scope, ctx)}->{name});", indent)
+        em.mark_transferred(f"{struct_ptr_expr(scope, ctx)}->{name}")
+        return
 
     if kind == "local":
         # Restrict to the patterns declared safe in the module docstring:
@@ -1739,6 +1782,8 @@ def gen_op(op, scope, em, indent, ctx):
         # already where it belongs.
         if kind == "return":
             for a in op["args"]:
+                if a["kind"] == "ident" and scope.locals.get(a["name"], ("",))[0] == "ctor_param":
+                    continue
                 _ = emit_expr(a, scope, ctx)  # validates every arg resolves
                 if a["kind"] != "ident":
                     continue
@@ -2027,6 +2072,11 @@ def build_message(info, msg_type, fn_suffix):
         )
         return struct_text, "", scope
 
+    # A bound class's constructor parameters are the prot's (CTOR_PARAM_RE):
+    # nothing on the wire carries them, so they are no field.
+    for param in info.get("params", []):
+        scope.locals[param] = ("ctor_param",)
+
     chunks = split_top_level(info["body"])
     ops = parse_statements(chunks, info["is_decoder"])
     gen_ops(ops, scope, em, 1, ctx)
@@ -2078,7 +2128,6 @@ def class_fn_suffix(class_name):
 def process_dir(base_dir, label):
     generated = []
     skipped = []
-    seen_structs = {}  # msg_type -> (field_name_set, struct_text, rel) of the first occurrence
     for path in iter_kt_files(base_dir):
         rel = os.path.relpath(path, base_dir)
         try:
@@ -2105,26 +2154,11 @@ def process_dir(base_dir, label):
             skipped.append((rel, f"internal error: {type(e).__name__}: {e}"))
             continue
 
-        # Several classes can share one message TYPE -- e.g. OpLoc1V2Decoder
-        # .. OpLoc5V2Decoder all decode `OpLocV2`, but a diff against RSProt's
-        # own sources shows each op-slot reads the same FIELDS in a DIFFERENT
-        # wire order/Alt-mode. So: one struct per message type (its field set
-        # only, not the read order, has to agree across siblings), but every
-        # class still gets its own function. A field-set mismatch is a real
-        # conflict -- two classes claiming the same type but disagreeing on
-        # what it holds -- and is reported rather than silently resolved.
-        emit_struct = True
-        field_set = frozenset(scope.fields.keys())
-        if msg_type in seen_structs:
-            prev_fields, prev_struct, prev_rel = seen_structs[msg_type]
-            if prev_fields != field_set:
-                skipped.append(
-                    (rel, f"message type {msg_type!r} field set disagrees with {prev_rel}")
-                )
-                continue
-            emit_struct = False
-        else:
-            seen_structs[msg_type] = (field_set, struct_text, rel)
+        # Several classes can share one message TYPE -- OpLoc1V2Decoder ..
+        # OpLoc5V2Decoder all decode `OpLocV2`, each op slot reading the same
+        # fields in its own wire order. That sharing is RSProt's, not this
+        # library's: every class here becomes its own packet file with its own
+        # `Msg<Class>` struct (main), so siblings never have to agree on one.
 
         generated.append(
             {
@@ -2133,8 +2167,9 @@ def process_dir(base_dir, label):
                 "msg_type": msg_type,
                 "fn_suffix": fn_suffix,
                 "prot": info["prot"],
+                "binds": info.get("binds", []),
                 "is_decoder": info["is_decoder"],
-                "struct": struct_text if emit_struct else None,
+                "struct": struct_text,
                 "fn": fn_text,
                 "scope": scope,
                 "flat": len(scope.array_fields) == 0,
@@ -2467,7 +2502,7 @@ PACKET_H = '''#ifndef RSPROT_PACKET_{guard}_H
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_{snake}_{dir}[];
 extern const int rsprot_{snake}_{dir}_count;
-
+{binds}
 #endif
 '''
 
@@ -2498,6 +2533,20 @@ const RsprotVersionRange rsprot_{snake}_{dir}[] = {{
 const int rsprot_{snake}_{dir}_count =
     (int)(sizeof(rsprot_{snake}_{dir}) / sizeof(rsprot_{snake}_{dir}[0]));
 '''
+
+
+BIND_RE = re.compile(r"^/\* rsprot-bind: (\w+) \*/$", re.M)
+
+
+def bind_text(binds):
+    """A bound class's prots, one marker line each: write_packets_unity gives
+    every one a registry row onto this file's table."""
+    if not binds:
+        return ""
+    lines = ["", "/* One layout for every prot RSProt binds this class to (its repository's",
+             " * bind(...) calls); the registry gives each a row onto the table above. */"]
+    lines += [f"/* rsprot-bind: {b} */" for b in binds]
+    return "\n".join(lines) + "\n"
 
 
 def emit_packet_files(pkt, out_dir):
@@ -2571,6 +2620,7 @@ def emit_packet_files(pkt, out_dir):
         aliases="\n".join(aliases),
         snake=snake,
         dir=direction,
+        binds=bind_text(pkt.get("binds", [])),
     )
     c = PACKET_C.format(
         overlay_c=overlay_c,
@@ -2690,10 +2740,12 @@ def write_packets_unity(pkt_dir):
     for n in names:
         with open(os.path.join(pkt_dir, n + ".h")) as fh:
             hdr = fh.read()
+        binds = BIND_RE.findall(hdr)
         for m in re.finditer(r"extern const RsprotVersionRange rsprot_(\w+)_(out|in)\[\];", hdr):
             snake, d = m.group(1), m.group(2)
-            rows.append(f'    {{ "{snake.upper()}", RSPROT_REG_{d.upper()}, '
-                        f'rsprot_{snake}_{d}, &rsprot_{snake}_{d}_count }},')
+            for prot in binds or [snake.upper()]:
+                rows.append(f'    {{ "{prot}", RSPROT_REG_{d.upper()}, '
+                            f'rsprot_{snake}_{d}, &rsprot_{snake}_{d}_count }},')
     path = os.path.join(os.path.dirname(pkt_dir.rstrip("/")), "rsprot_packets_unity.c")
     with open(path, "w") as fh:
         fh.write(UNITY_HEADER + body + "// clang-format on\n" + REGISTRY_HEADER
@@ -2762,6 +2814,12 @@ def main():
 
     for (cls, direction), by_rev in sorted(classes.items()):
         prot = next((g["prot"] for g in by_rev.values() if g["prot"]), None)
+        binds = []
+        for g in by_rev.values():
+            binds += [b for b in g.get("binds", []) if b not in binds]
+        if not prot and binds:
+            # Named for the class's message, since no one prot names it.
+            prot = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", class_fn_suffix(cls)).upper()
         if not prot:
             refused.append((cls, direction, "no prot name in any revision"))
             continue
@@ -2929,7 +2987,7 @@ def main():
             "snake": snake, "prot": prot, "cls": cls, "dir": direction,
             "rel": by_rev[max(r for r in rev_to_ver if r in by_rev)]["rel"],
             "msg_struct": msg_struct, "struct": struct_text,
-            "versions": versions, "rev_to_ver": rev_to_ver,
+            "versions": versions, "rev_to_ver": rev_to_ver, "binds": binds,
         }, args.out)
         emitted.append((prot, snake, direction, len(versions), len(rev_to_ver)))
 
