@@ -268,10 +268,20 @@ return {
                 -- inv.await(name, 0, ticks) never actually waits (total >= 0 is
                 -- always true -- section 8) -- poll the consumption with a real
                 -- level predicate instead.
+                --
+                -- The grain leaves BEFORE the fill's p_delay(0) and the line
+                -- lands after it (windmills.rs2 [label,hopper_put_grain]), so
+                -- grain == 0 alone let the lever click go out mid-delay. On the
+                -- live client that click only latched; its settle then resolved
+                -- on this trailing hopper line, the ladder click replaced the
+                -- latched lever op, and the hopper was never ground (watch
+                -- cooksass1 2026-10-25: operate_levers PASS "chat_message",
+                -- have_flour FAIL). Wait for the line itself.
                 local hopper_settle_result, hopper_settle_detail = t.await({
                     level = function()
                         local r, v = t.inv.count("grain")
                         return r == "ok" and v == 0
+                            and t.msg.expect("You put the grain in the hopper.") == "ok"
                     end,
                     note = "cooksassistant.hopper_settle",
                 }, 10)
@@ -283,6 +293,22 @@ return {
                         .. " grain=" .. tostring(grain_after) .. "(" .. tostring(grain_after_read) .. ")")
 
                 t.exec("cooksassistant.operate_levers", t.player.click_loc, "hopperlevers1", 1) -- op1=Operate, grinds the hopper's grain
+                -- The press's settle takes any new chat line or the walk's flag
+                -- clear as its answer; neither proves the grind. Hold the ladder
+                -- click until the levers' own line is in the ring (msg.expect
+                -- scans the whole ring, so a line that landed during the settle
+                -- still counts -- this is the run's only grind).
+                local GRIND_LINE = "The grain slides down the chute and is ground into flour."
+                local grind_result, grind_detail = t.await({
+                    level = function()
+                        return t.msg.expect(GRIND_LINE) == "ok"
+                    end,
+                    note = "cooksassistant.grind_settle",
+                }, 10)
+                t.step("cooksassistant.grain_ground",
+                    grind_result == "ok" and "PASS" or "FAIL",
+                    "'" .. GRIND_LINE .. "' within 10 tick(s) of the lever press (" .. tostring(grind_result)
+                        .. ") " .. tostring(grind_detail))
 
                 climb(t, "cooksassistant.climbLadderThree", "qip_cook_ladder_top", 1, 1)     -- op1=Climb-down, 2 -> 1
                 climb(t, "cooksassistant.climbLadderTwoDown", "qip_cook_ladder_middle", 3, 0) -- op3=Climb-down, 1 -> 0
