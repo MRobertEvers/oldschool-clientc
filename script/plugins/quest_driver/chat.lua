@@ -451,9 +451,12 @@ function QD.chat._continue_unarmed()
     if sym_res ~= "ok" then
         return false
     end
-    -- Only the plain messagebox (229): an objectbox's continue row is
-    -- cc_create'd by a clientscript (objbox_setbuttons) and reads no text.
-    if sym ~= "messagebox" then
+    -- The plain messagebox (229), and an objectbox (193) the server left
+    -- unarmed: Thurgo's pie box holds with no continue row while he eats
+    -- (objbox_setbuttons "" and no events, RSProx index 4370 [552], [555]).
+    -- An objectbox's row is cc_create'd and reads no text, so only its
+    -- armed bit answers.
+    if sym ~= "messagebox" and sym ~= "objectbox" then
         return false
     end
     local continue_symbol = QD.chat._continue_symbol_by_iface[sym]
@@ -469,9 +472,11 @@ function QD.chat._continue_unarmed()
     end
     -- An empty continue label is the server's own "nothing to click here"
     -- (the armed bit can outlive the page that set it).
-    local text_res, text = api_drive.widget_text(com_id)
-    if text_res == "ok" and text == "" then
-        return true
+    if sym == "messagebox" then
+        local text_res, text = api_drive.widget_text(com_id)
+        if text_res == "ok" and text == "" then
+            return true
+        end
     end
     local armed_res, armed = api_drive.click_armed(com_id)
     return armed_res == "ok" and not armed

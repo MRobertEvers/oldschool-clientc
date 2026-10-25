@@ -1780,6 +1780,71 @@ ToriRSServer_CombatNpcDie(
     npc_death_arrive(srv, npc);
 }
 
+/*
+ * Does zero hitpoints leave this npc's death to its script?
+ * `param=death_script,yes` (combat.param): the engine queues `[ai_queue3]` and
+ * starts no death of its own (`npc_queue_death_script`). A param rather than a
+ * record field so a server built before it reads the same pack.
+ */
+static int
+npc_death_scripted(struct ToriRSServerNpc const* npc)
+{
+    static int s_param = -2;
+    int32_t value = 0;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(npc);
+    if( s_param == -2 )
+        s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "death_script");
+    if( s_param < 0 )
+        return 0;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return value != 0;
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
+
+        return row && !row->sval && row->ival != 0;
+    }
+}
+
+/*
+ * A `param=death_script,yes` npc at zero hitpoints: `npc_queue(3, 0, 0)` and nothing
+ * else, run as the player who landed the blow -- the reference's line at the
+ * end of `[proc,npc_default_damage]` without the engine death that follows it
+ * for every other npc. Once: a second hit before the queue runs finds it
+ * armed. Jagex's Count Draynor sends no menu, face or seq on the zero tick
+ * and answers a tick later (RSProx index 4373 [496]/[497], [674]/[675]).
+ */
+static void
+npc_queue_death_script(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    struct ToriRSServerNpc* npc = &srv->npcs[slot];
+    struct ToriRSServerPlayer* const hero = srv->active_player;
+
+    for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
+    {
+        if( npc->queue[i].active && npc->queue[i].queue == 3 )
+            return;
+    }
+    for( int i = 0; i < TORIRSSERVER_NPC_QUEUE_MAX; i++ )
+    {
+        if( npc->queue[i].active )
+            continue;
+        npc->queue[i].active = 1;
+        npc->queue[i].queue = 3;
+        npc->queue[i].delay = 0;
+        npc->queue[i].arg = 0;
+        npc->queue[i].hero_pid = hero && hero->active ? hero->pid : -1;
+        npc->queue[i].hero_gen = hero && hero->active ? hero->login_generation : 0;
+        npc->queue[i].splat_land_cycle = 0;
+        return;
+    }
+    assert(!"death_script npc's queue is full");
+}
+
 void
 ToriRSServer_CombatHitNpc(
     struct ToriRSServer* srv,
@@ -2019,6 +2084,11 @@ ToriRSServer_CombatHitNpc(
                                   TORIRSSERVER_NPC_SOUND_TILES, slot);
     }
 
+    if( npc->hitpoints == 0 && npc_death_scripted(npc) )
+    {
+        npc_queue_death_script(srv, slot);
+        return;
+    }
     if( npc->hitpoints == 0 )
     {
         /*

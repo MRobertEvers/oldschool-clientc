@@ -86,6 +86,9 @@ return {
             display = "The Knight's Sword",
             points = 1,
         })
+        -- the wire audit against RSProx index 4369/4370 reads this
+        -- (build/quest_gate/<run>/ticklog.tsv; docs/rsprox-analysis/quests/knights_sword.md)
+        t.ticklog.start()
         t.ticks(3)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
@@ -109,26 +112,37 @@ return {
                     .. "; at " .. tile_text(tr, tt) .. " (want " .. x .. "," .. z .. "," .. level .. ")")
         end
 
+        -- One talk, the menu rows chosen in order, drained to the end.
+        local function talk_path(name, npc, choices)
+            t.exec(name .. ".talk", t.player.talk_to, npc, 1)
+            for i, choice in ipairs(choices) do
+                local r, d = t.chat.drain({ stop_at = "options" })
+                t.expect(name .. ".menu" .. i, r, d)
+                t.exec(name .. ".choose" .. i, t.chat.choose, choice)
+            end
+            local r, d = t.chat.drain({ stop_at = "none" })
+            t.expect(name .. ".done", r, d)
+        end
+
         -- ------------------------------------------- Squire: accept the quest
+        -- The recorder's own talks and choices, so every page of RSProx index
+        -- 4369 [77..113] has ours to compare against: a menu walked away
+        -- from, the "squire for me" refusal, then the start.
         t.exec("goto.squire", t.player.goto_tile, 2977, 3342, 0)
-        t.exec("squire.talk", t.player.talk_to, "squire", 1)
-
-        local d1r, d1d = t.chat.drain({ stop_at = "options" })
-        t.expect("squire.menu1", d1r, d1d)
-        t.exec("squire.choose1", t.chat.choose, "And how is life as a squire?")
-
-        local d2r, d2d = t.chat.drain({ stop_at = "options" })
-        t.expect("squire.menu2", d2r, d2d)
-        t.exec("squire.choose2", t.chat.choose, "I can make a new sword if you like...")
-
-        local d3r, d3d = t.chat.drain({ stop_at = "options" })
-        t.expect("squire.menu3", d3r, d3d)
-        t.exec("squire.choose3", t.chat.choose, "So would these dwarves make another one?")
-
-        local d4r, d4d = t.chat.drain({ stop_at = "options" })
-        t.expect("squire.menu4", d4r, d4d)
-        t.exec("squire.accept", t.chat.choose, "Ok, I'll give it a go.")
+        t.exec("squire.talk0", t.player.talk_to, "squire", 1)
+        local d0r, d0d = t.chat.drain({ stop_at = "options" })
+        t.expect("squire.menu0", d0r, d0d)
         t.chat.close()
+        talk_path("squire.loyal", "squire", { "Wouldn't you prefer to be a squire for me?" })
+        talk_path("squire", "squire", {
+            "And how is life as a squire?",
+            "Do you know where you lost it?",
+            "Well, do you know the VAGUE AREA you lost it?",
+            "Well, the kingdom is fairly abundant with swords...",
+            "So would these dwarves make another one?",
+            -- The cache's start menu, not the player's line (index 4369 [110]).
+            "Yes.",
+        })
 
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
@@ -142,15 +156,11 @@ return {
             at = { 3214, 3486, 0 }, near = { 3214, 3486 }, far = { 3214, 3487 } })
         t.exec("talkToReldo.libraryDoorIn", t.player.pass_door, { closed = VARROCK_DOOR, open = VARROCK_DOOR_OPEN,
             at = { 3210, 3490, 0 }, near = { 3210, 3489 }, far = { 3210, 3491 } })
-        t.exec("reldo.talk", t.player.talk_to, "reldo_normal", 1)
-
-        local rdr, rdd = t.chat.drain({ stop_at = "options" })
-        t.expect("reldo.menu", rdr, rdd)
-        t.exec("reldo.choose", t.chat.choose, "What do you know about the Imcando dwarves?")
-
-        local rd2r, rd2d = t.chat.drain({ stop_at = "none" })
-        t.expect("reldo.done", rd2r, rd2d)
+        -- The first talk ever (the introduction, index 4369 [164..179]),
+        -- then the second, as index 4370 [10..51] started Shield of Arrav.
+        talk_path("reldo", "reldo_normal", { "What do you know about the Imcando dwarves?" })
         t.expect("quest.stage.spoken_reldo", t.quest.expect_stage("spoken_reldo"))
+        talk_path("reldo.arrav", "reldo_normal", { "I'm in search of a quest.", "Yes." })
 
         -- Out of the palace the way in, door by door, to the street.
         t.exec("talkToReldo.libraryDoorOut", t.player.pass_door, { closed = VARROCK_DOOR, open = VARROCK_DOOR_OPEN,
@@ -163,22 +173,28 @@ return {
 
         -- ------------------------------- Thurgo (south of Port Sarim)
         t.exec("goto.thurgo1", t.player.goto_tile, 3001, 3144, 0)
+        -- index 4370 [508..545]: the Imcando question turned away, then the
+        -- cape, then the pie.
+        talk_path("thurgo.imcando", "thurgo", { "Are you an Imcando dwarf? I need a special sword.", "I'll come back another time." })
+        talk_path("thurgo.cape", "thurgo", { "What is that cape you're wearing?" })
         t.exec("thurgo.talk1", t.player.talk_to, "thurgo", 1)
 
         local tdr, tdd = t.chat.drain({ stop_at = "options" })
         t.expect("thurgo.menu1", tdr, tdd)
         t.exec("thurgo.pie", t.chat.choose, "Would you like a redberry pie?")
 
-        local td2r, td2d = t.chat.drain({ stop_at = "none" })
+        -- The pie box holds for nine ticks, then the talk starts over as a
+        -- new op and opens Thurgo's menu (RSProx index 4370 [552..563]).
+        local td2r, td2d = t.chat.drain({ stop_at = "options" })
         t.expect("thurgo.pie.done", td2r, td2d)
         t.expect("quest.stage.given_pie", t.quest.expect_stage("given_pie"))
         local pie_r, pie_d = t.inv.expect_absent("redberry_pie")
         t.step("thurgo.pie.handed_over", pie_r == "ok" and "PASS" or "FAIL",
             "redberry_pie after giving it to Thurgo -> " .. tostring(pie_r) .. " " .. tostring(pie_d))
 
-        -- Thurgo, second talk: he agrees to try, but wants a picture of
-        -- the sword's design first.
-        t.exec("thurgo.talk2", t.player.talk_to, "thurgo", 1)
+        -- Same talk: he agrees to try, but wants a picture of the sword's
+        -- design first.
+        t.exec("thurgo.sword", t.chat.choose, "Can you make a special sword for me?")
         local td3r, td3d = t.chat.drain({ stop_at = "none" })
         t.expect("thurgo.sword.done", td3r, td3d)
         t.expect("quest.stage.spoken_thurgo", t.quest.expect_stage("spoken_thurgo"))
@@ -189,6 +205,8 @@ return {
         local sq2r, sq2d = t.chat.drain({ stop_at = "none" })
         t.expect("squire.status1.done", sq2r, sq2d)
         t.expect("quest.stage.looking_portrait", t.quest.expect_stage("looking_portrait"))
+        -- index 4370 [699..702]: asked again before the portrait.
+        talk_path("squire.noportrait", "squire", {})
 
         -- ------------------- Sir Vyvin's cupboard (Falador castle, level 2)
         -- Into the east wing on foot, up the east ladder (goUpCastle1) and
@@ -211,10 +229,14 @@ return {
         -- The cupboard is a shut/open PAIR (trap 20), not a multiloc, so
         -- the open half needs its own symbol and click, and each mesbox is
         -- drained before the next click.
+        -- Sir Vyvin, all three rows (index 4370 [750..788]).
+        talk_path("vyvin.knights", "sir_vyvin", { "Why are there so many knights in this city?" })
+        talk_path("vyvin.trade", "sir_vyvin", { "Do you have anything to trade?" })
+        talk_path("vyvin.distract", "sir_vyvin", { "Can I just distract you for a minute?" })
         walk_check("searchCupboard.stand", 2985, 3335, 2, "south of the cupboard, its only approach side")
         t.exec("cupboard.open", t.player.click_loc, "vyvincupboardshut", 1)
-        local cor, cod = t.chat.drain({ stop_at = "none" })
-        t.expect("cupboard.open.msg", cor, cod)
+        -- No line: the anim and synth, then the loc a tick later (RSProx
+        -- index 4370 [799..802]).
         t.ticks(3)  -- let the loc_change (shut -> open) reach the client's entity pool
 
         -- quest_squire.rs2 [proc,vyvin_distracted]: npc_find(coord,
@@ -288,6 +310,9 @@ return {
         -- smithing materials.
         t.exec("goto.thurgo2", t.player.goto_tile, 3001, 3144, 0)
         t.exec("thurgo.portrait", t.player.talk_to, "thurgo", 1)
+        local tmr, tmd = t.chat.drain({ stop_at = "options" })
+        t.expect("thurgo.portrait.menu", tmr, tmd)
+        t.exec("thurgo.portrait.choose", t.chat.choose, "About that sword...")
         local td4r, td4d = t.chat.drain({ stop_at = "none" })
         t.expect("thurgo.portrait.done", td4r, td4d)
         t.expect("quest.stage.looking_blurite", t.quest.expect_stage("looking_blurite"))
@@ -337,6 +362,9 @@ return {
         -- and the two iron bars; he forges the sword.
         walk_check("thurgo3.walk", 3001, 3144, 0, "Thurgo's open ground south of Port Sarim", 40)
         t.exec("thurgo.ore", t.player.talk_to, "thurgo", 1)
+        local tm2r, tm2d = t.chat.drain({ stop_at = "options" })
+        t.expect("thurgo.ore.menu", tm2r, tm2d)
+        t.exec("thurgo.ore.choose", t.chat.choose, "Can you make that replacement sword now?")
         local td5r, td5d = t.chat.drain({ stop_at = "none" })
         t.expect("thurgo.ore.done", td5r, td5d)
         t.ticks(2)  -- let the inv_add(faladian_sword) reach the client's own container read
@@ -361,9 +389,9 @@ return {
         local sq3r, sq3d = t.chat.drain({ stop_at = "none" })
         t.expect("squire.final.done", sq3r, sq3d)
 
-        t.ticks(3)  -- completion is queued ([queue,squire_complete]), not immediate
+        t.ticks(3)  -- let the completion's writes reach the client's reads
 
-        -- The literal reward of quest_squire.rs2 [queue,squire_complete]:
+        -- The literal reward of quest_squire.rs2 [proc,squire_complete]:
         -- stat_advance(smithing, 127250) -> 12725 Smithing XP; 1 quest point
         -- (expect_complete's quest.points row, delta 1).
         t.quest.expect_complete()
@@ -371,6 +399,9 @@ return {
         local sword2_r, sword2_d = t.inv.expect_absent("faladian_sword")
         t.step("reward.sword_handed_over", sword2_r == "ok" and "PASS" or "FAIL",
             "faladian_sword after the hand-in -> " .. tostring(sword2_r) .. " " .. tostring(sword2_d))
+        -- The Smithing level-up follows the scroll's close (index 4370 [1449..1450]):
+        -- a few ticks so the tick log and wirelog carry it for the audit.
+        t.ticks(4)
 
         t.finish(0)
     end,

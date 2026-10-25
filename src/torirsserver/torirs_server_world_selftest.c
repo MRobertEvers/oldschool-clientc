@@ -58674,9 +58674,11 @@ ToriRSServer_WorldSelftest(void)
                                        "Count Draynor should actually die with "
                                        "stake and hammer, active=%d hp=%d",
                                        npc->active, npc->hitpoints);
-                        SELFTEST_CHECK(player->inv[stake_slot].obj_id != obj_stake,
-                                       "and the stake should be consumed on the "
-                                       "successful kill");
+                        /* The stake leaves the pack with the queued completion,
+                         * not on the kill (RSProx index 4373 [679], the scroll's
+                         * tick): this harness never drains that queue (below),
+                         * so test/quests/vampire.lua's draynor.stakeUsed is
+                         * where it is asserted. */
                         /*
                          * NOT asserted here, disclosed rather than guessed:
                          * `%vampire == vampire_complete`, the qp award and

@@ -3780,15 +3780,32 @@ d_meslayer_mode(lua_State* L)
 }
 
 /* The continue seams are pause buttons of the mounted page: armed while the
- * page is up. */
+ * page is up AND the server armed it -- the same test d_resume refuses on, so
+ * a page the server opened with no continue (Thurgo's pie box, objbox_setbuttons
+ * "" and no events, RSProx index 4370 [552]) reads as one to wait out. */
 static int
 d_click_armed(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     int component = (int)luaL_checkinteger(L, 1);
+    int sub = -1;
+    int armed;
 
     lua_pushstring(L, "ok");
-    lua_pushboolean(L, ScriptrunCore_InterfaceOpen(bot->core, (component >> 16) & 0xffff));
+    if( !ScriptrunCore_InterfaceOpen(bot->core, (component >> 16) & 0xffff) )
+    {
+        lua_pushboolean(L, 0);
+        return 2;
+    }
+    if( component == ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "objectbox:universe") )
+        sub = 0;
+    armed = (effective_events(bot, component, sub) & 1u) != 0;
+    if( !armed && sub < 0 )
+    {
+        struct RSCache_Dat2Component const* comp = cache_component(bot, component);
+        armed = comp && !comp->if3 && comp->buttonType == IF1_BUTTON_CONTINUE;
+    }
+    lua_pushboolean(L, armed);
     return 2;
 }
 

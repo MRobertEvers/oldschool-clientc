@@ -83,7 +83,7 @@ them today: `furnace`→`furnace_loop_3`, `fai_varrock_range`→`cooking_loop_2`
 scripted sounds — the ambience layer is done, and doubling it is the most likely
 way to make this work sound *worse*.
 
-## 3. How to read the tables — three source layers
+## 3. How to read the tables — four source layers
 
 Same vocabulary as `INFERNO_SOUNDS.md` §1. A row's layer is not a quality score;
 it is **what kind of thing would have to be wrong** for the row to be wrong.
@@ -93,6 +93,7 @@ it is **what kind of thing would have to be wrong** for the row to be wrong.
 | **L** | **LostCity calls it at a named trigger.** A running server, cited file:line. Both the *sound* and the *moment* are stated. | LostCity's authors mis-observed the 2004 game |
 | **W** | **The wiki's named-id table states the name**, and the name plus its position in the id block says what it is for. The *sound* is stated; the *moment* is mine. | I attached a real sound to the wrong action |
 | **d** | **Derived** — no source names it; picked by analogy with an L or W row. | the analogy |
+| **R** | **An RSProx recording sends it.** Jagex's own packet, on the cited tick; outranks L, W and d. | the recording is a seasonal world or an old revision |
 
 Every name in every table below was checked against
 `OSRS-Content/osrs-content/pack/4_soundeffects.pack`. Ids are that pack's,
@@ -125,8 +126,8 @@ something else.
 
 | sound | id | when | layer | source |
 |---|---|---|---|---|
-| `mine_quick` | 2659 | **every swing** of the pickaxe | L | `mining.rs2:95` |
-| `mine` | 2656 | on **success** — the ore is granted, rock depletes | L | `mining.rs2:134,178` |
+| `mine_ore` | 3600 | on **success** — the ore is granted, rock depletes; nothing on a swing | R | RSProx index 3122 (33/33 successes, 0/33 swings), index 4370 [1308] |
+| ~~`mine_quick`~~ / ~~`mine`~~ | 2659/2656 | LostCity's swing/success pair: on no recording (rev 232+), removed 2026-10-25 | L | — |
 | `found_gem` | 2655 | success on a **gem rock** | L | `mining.rs2:224` |
 | `prospect` | 2661 | Prospect op, both the start and the standalone script | L | `mining.rs2:23`, `prospect.rs2:10` |
 | `mine_3` / `mine_5` / `mining_3` | 2657/2658/2660 | swing variants — pick one at random per swing for texture, or leave out | W | block position |

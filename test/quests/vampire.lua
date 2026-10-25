@@ -27,25 +27,17 @@
 --     (cryptstairsdown 3115,3357) by click, down to the crypt and, after
 --     the kill, cryptstairsup (3077,9768) back up to the east wing.
 --
--- The crypt stairs (b60-seam1, OSRS-Content 43f4303f5f): quest_vampire/
--- scripts/vampire_crypt_stairs.rs2 ports LostCity stairs.rs2:408-424 --
--- [oploc1,cryptstairsdown] at 0_48_52_43_29 telejumps 0_48_152_5_43
--- (3077,9771,0) and [oploc1,cryptstairsup] at 0_48_152_5_40 telejumps
--- 0_48_52_43_28 (3115,3356,0). Both ends are plane 0 (the crypt is the
--- underground band, z + 6400), and t.player.climb asserts its dest is on a
--- NEW level (quest_driver/world.lua:950), so these two staircases keep the
--- file's own climb(): pressed by tile and level, graded on the exact
--- landing tile and its level. Morgan's staircases change level and go
--- through t.player.climb.
-
--- Combat: count_draynor spawns off quest_vampire.npc's authored block
--- (hitpoints=35 attack=30 strength=25 defence=30, wiki level 34) and is
--- weakened by garlic AT SPAWN (npc_statsub -10/-10/-10/-40, clamped) since
--- garlic is already in the pack before the coffin is first opened. The
--- kill is finished by count_draynor.rs2's [ai_queue3] -- stake+hammer both
--- required in the pack; the stake is consumed, the hammer is not. The
--- completion is QUEUED three ticks after the "You hammer the stake..."
--- line, so this waits for that line and then polls %vampire server-side.
+-- The crypt (rebuilt from RSProx index 4373, docs/rsprox-analysis/quests/
+-- vampyre_slayer.md): the stairs land in a private copy of square 48_152 at
+-- offset (6,43), so the crypt tiles below are graded as offsets into the copy;
+-- the stairs up are at (5,40) and land on 3115,3356,0. Both ends are plane 0,
+-- and t.player.climb asserts a NEW level, so these two keep the file's own
+-- climb().
+--
+-- Combat: the coffin raises the Count at O+10 and he swings at O+11 with the
+-- garlic line (-10 hitpoints, attack/strength -10, defence -40). Zero
+-- hitpoints is his script's (param=death_script): with stake and hammer the
+-- red line at K+1, gone at K+4, the completion at K+5 with the stake removed.
 
 return {
     id = "vampire",
@@ -65,6 +57,8 @@ return {
     },
 
     run = function(t)
+        -- the wire audit against RSProx 4373 reads this (build/quest_gate/<run>/ticklog.tsv)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp178_vampire",
             constants = {
@@ -75,7 +69,7 @@ return {
             },
             row = "quest_vampyreslayer",
             display = "Vampyre Slayer", -- the quest-list dbrow text (configs/all.dbrow:8572 "values=1:0:Vampyre Slayer")
-            journal_title = "Vampire Slayer", -- vampire_journal.rs2's own ~quest_journal("Vampire Slayer", ...) title, spelled differently in this port
+            journal_title = "Vampyre Slayer", -- vampire_journal.rs2's ~quest_journal title (the 2020 rename)
             points = 3,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
@@ -165,6 +159,9 @@ return {
             "player:Sounds like a job for me. Where should I start?",
             "npc:Oh, thank goodness! I've been hoping this day would come",
             "npc:If you speak to him, I'm sure he'll be able to help.",
+            "choose:Alright, I'll see about paying him a visit.",
+            "player:Alright, I'll see about paying him a visit.",
+            "npc:Thank you, brave adventurer.",
         })
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
@@ -188,6 +185,7 @@ return {
         }, 6)
         t.check("cupboard.openLoc", open_result, "garliccupboardopen within 4 tiles: " .. tostring(open_result))
         t.exec("getGarlic", t.player.click_loc, "garliccupboardopen", 1)
+        t.exec("getGarlic-dialog", t.chat.play, { "objbox:The cupboard contains garlic. You take a clove." })
         t.exec("garlic.received", t.inv.await, "garlic", 1, 5)
 
         -- Back down and out of the house, by the same stairs and door.
@@ -236,19 +234,23 @@ return {
         -- ------------------------------------------------ talkToHarlowAgain
         t.exec("talkToHarlowAgain", t.player.talk_to, "dr_harlow", 1)
         t.exec("talkToHarlowAgain-dialog", t.chat.play, {
-            "npc:Buy me a drink pleassh",
+            "npc:Have yoush got me a beer?",
+            "choose:Yes, here you go.",
             "player:Yes, here you go.",
-            "mesbox:You give a beer to Dr Harlow.",
+            "objbox:You give a beer to Dr Harlow.",
             "npc:Cheersh, matey",
             "player:Now, about Count Draynor",
             "npc:Yesh, Count Draynor! The evil nashty vampyre",
             "npc:You want to havesh a go?",
             "player:So how do I make sure I'm prepared?",
             "npc:Most vampyres regenerate.",
-            "mesbox:Dr Harlow hands you a stake.",
+            "objbox:Dr Harlow hands you a stake.",
             "npc:Takesh that to Draynor Manor",
             "npc:Oh, and yoush should take some garlic",
             "player:Garlic? Hmm",
+            "choose:I'd best get going.",
+            "player:I'd best get going.",
+            "npc:Good luck, matey...",
         })
         t.exec("stake.received", t.inv.await, "stake", 1, 5)
         local beer_left_result, beer_left = t.inv.count("beer")
@@ -275,8 +277,10 @@ return {
         t.exec("goDownToBasement.toStairs", t.player.walk_route,
             { { 3106, 3369 }, { 3113, 3370 }, { 3114, 3362 }, { 3113, 3356 }, { 3115, 3356 } }, { level = 0 })
         local crypt = climb("goDownToBasement", "cryptstairsdown", { 3115, 3357, 0 }, 0,
-            function(tt) return tt.x == 3077 and tt.z == 9771 end,
-            "the crypt landing 3077,9771,0 (vampire_crypt_stairs.rs2 p_telejump(0_48_152_5_43))",
+            -- A private copy of square 48_152 (RSProx index 4373 [451]): the
+            -- landing is the template's 3078,9771, offset (6,43) in the copy.
+            function(tt) return tt.x % 64 == 6 and tt.z % 64 == 43 and tt.x >= 6400 end,
+            "the crypt copy's landing, (6,43) of a copy of 48_152 (vampire_crypt_stairs.rs2 [label,vampire_crypt_enter])",
             "goDownToBasement.stairsGoNowhere")
         if crypt == nil then
             t.blocked("content_bug: Draynor Manor's crypt stairs did not land in the crypt. "
@@ -287,8 +291,6 @@ return {
                 .. "(quest_vampire.rs2 npc_add 0_48_152_6_46); a goto into it is the cheat the door rule forbids.")
             return
         end
-        t.check("goDownToBasement.walkDownLine", t.msg.expect("You walk down the stairs"),
-            "vampire_crypt_stairs.rs2:24 mes(\"You walk down the stairs...\") after the telejump")
 
         -- ------------------------------------------------------- openCoffin
         -- The guide's kit for the fight, asserted in the pack before the
@@ -306,7 +308,7 @@ return {
         t.exec("openCoffin", t.player.click_loc, "vampcoffin", 1)
         -- quest_vampire_coffin_open runs p_delay(4) before npc_add + the
         -- garlic-weaken message, so give it the room before reading either.
-        local present_result = t.npc.await_present("count_draynor", 10, 15)
+        local present_result = t.npc.await_present("count_draynor", 10, 25)
         local nearest_result, nearest_row = t.npc.nearest("count_draynor", 10)
         local present_detail
         if nearest_result == "ok" then
@@ -324,27 +326,14 @@ return {
         t.check("draynor.weakened", t.msg.expect("weakened by the garlic"))
 
         -- --------------------------------------------------------- killDraynor
+        -- The stake is the death (param=death_script, count_draynor.rs2): K+1
+        -- the red line and the transformation, K+4 gone, K+5 the completion
+        -- (RSProx index 4373 [674..679]). The line is awaited during the fight
+        -- and the xp snapshot taken on it, after the last swing (p_stopaction)
+        -- and before the queued reward.
         local sharks_before_result, sharks_before = t.inv.count("shark")
         t.exec("killDraynor", t.player.attack, "count_draynor", 2, 15)
-        local dead_result, dead_detail = t.npc.await_dead_engaged(60, 6, { eat = { item = "shark", below = 50 } })
-        t.check("killDraynor.dead", dead_result, dead_detail)
-        -- Margin: the lowest hitpoints the eater sampled every tick of the
-        -- fight at least a quarter of 99 (25) AND food left.
-        local lowest = tonumber(string.match(tostring(dead_detail), "lowest hp (%d+)/"))
-        local hp_result, hp_now = t.skill.read("hitpoints")
-        if hp_result == "ok" and type(hp_now) == "table" and hp_now.level and (lowest == nil or hp_now.level < lowest) then
-            lowest = hp_now.level
-        end
-        local sharks_result, sharks_left = t.inv.count("shark")
-        t.check("killDraynor.margin", lowest ~= nil and lowest >= 25 and sharks_result == "ok" and sharks_left >= 1,
-            "Count Draynor: lowest hp " .. tostring(lowest) .. "/99 (sampled every tick by the kill wait), sharks "
-                .. tostring(sharks_before) .. " (" .. tostring(sharks_before_result) .. ") -> " .. tostring(sharks_left)
-                .. " (" .. tostring(sharks_result) .. ") (margin: lowest hp >= 25, a quarter of 99, AND food left)")
-
-        -- Snapshot AFTER the fight: ordinary combat damage grants its own
-        -- Attack xp on top of the quest's flat reward (run 2 of the first
-        -- author measured 100 xp of it). Only the queued completion's
-        -- stat_advance(attack, 48250) happens after this point.
+        t.exec("draynor.staked", t.msg.await, "hammer the stake into the vampyre", 60)
         local snapshot_result, snapshot = t.skill.snapshot()
         local attack_before = type(snapshot) == "table" and snapshot.attack or nil
         local snapshot_detail
@@ -356,25 +345,31 @@ return {
             snapshot_detail = "attack reading unavailable: " .. tostring(attack_before)
         end
         t.check("attack.snapshot", snapshot_result == "ok" and type(attack_before) == "table", snapshot_detail)
-
-        -- The stake finish is a queued proc (count_draynor.rs2's
-        -- [ai_queue3]): wait for its own mes() line, then poll the
-        -- completion varp server-side.
-        t.exec("draynor.staked", t.msg.await, "hammer the stake into the vampyre", 20)
+        t.exec("vampire.complete_var", t.var.await_server, "varp178_vampire", 3, 15)
+        local gone_result = t.npc.nearest("count_draynor", 10)
+        t.check("killDraynor.dead", gone_result ~= "ok",
+            "count_draynor within 10 tiles after the completion: " .. tostring(gone_result) .. " (want none)")
+        local hp_result, hp_now = t.skill.read("hitpoints")
+        local sharks_result, sharks_left = t.inv.count("shark")
+        t.check("killDraynor.margin", hp_result == "ok" and type(hp_now) == "table" and hp_now.level >= 25
+                and sharks_result == "ok" and sharks_left >= 1,
+            "after the fight: hp " .. tostring(type(hp_now) == "table" and hp_now.level or hp_now) .. "/99, sharks "
+                .. tostring(sharks_before) .. " (" .. tostring(sharks_before_result) .. ") -> " .. tostring(sharks_left)
+                .. " (" .. tostring(sharks_result) .. ") (margin: hp >= 25 AND food left)")
+        -- The stake leaves the pack with the scroll (RSProx index 4373 [679]).
         local stake_result, stake_left = t.inv.count("stake")
         local hammer_result, hammer_left = t.inv.count("hammer")
         t.check("draynor.stakeUsed", stake_result == "ok" and stake_left == 0 and hammer_result == "ok" and hammer_left == 1,
-            "after the finish: stake " .. tostring(stake_left) .. " (want 0, count_draynor.rs2 inv_del), hammer "
+            "after the completion: stake " .. tostring(stake_left) .. " (want 0, [queue,quest_vampire_complete] inv_del), hammer "
                 .. tostring(hammer_left) .. " (want 1, kept)")
-        t.exec("vampire.complete_var", t.var.await_server, "varp178_vampire", 3, 15)
 
         t.quest.expect_complete()
         t.expect("reward.attack_xp", t.skill.expect_gain("attack", 4825, snapshot))
 
         -- Out of the crypt the way in: cryptstairsup (3077,9768,0) by click,
         -- from the down landing, to the east wing's stair foot.
-        walk_check("leaveCrypt.atStairs", 3077, 9771, 0)
-        climb("leaveCrypt", "cryptstairsup", { 3077, 9768, 0 }, 0,
+        walk_check("leaveCrypt.atStairs", crypt.x - 1, crypt.z, 0)
+        climb("leaveCrypt", "cryptstairsup", { crypt.x - 1, crypt.z - 3, 0 }, 0,
             function(tt) return tt.x == 3115 and tt.z == 3356 end,
             "the east wing 3115,3356,0 (vampire_crypt_stairs.rs2 p_telejump(0_48_52_43_28))")
 

@@ -142,6 +142,8 @@ XP_PATTERNS = (
 KNOWN_FREE_HELPERS = {
     "agility_exactmove",
     "agility_delay_fail",
+    "agility_helper_highlight",
+    "agility_helper_touch",
     "agility_lap_advance",
     "agility_lap_complete",
     "agility_lap_reset",
