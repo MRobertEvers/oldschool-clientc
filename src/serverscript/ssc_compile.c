@@ -1617,10 +1617,15 @@ parse_command(struct SSC_Compiler* compiler, const char* name, int* is_string)
  *                   <lowercase(oc_name($ingredient))>
  *   markup          <br>  <col=ff0000>  <p,happy>  <lt>
  *
- * A leading sigil settles it immediately. Otherwise the leading identifier has
- * to name a command *and* be followed by `(` or nothing else — that second half
- * matters: `<p,happy>` would slip through on the name test alone if a command
- * were ever called `p`, and the corpus has 6,577 of those.
+ * A leading sigil settles it immediately. So does an identifier followed by
+ * `(`: no client tag has a parenthesis, so `<name(...)>` is a call, and a name
+ * that is no command is a compile error rather than markup. It was markup, and
+ * the Colosseum's chest sent `Total Value: <tostring_spacer(%varp9464..., ",")>`
+ * to the client as text (there is no such command), as the Hunter guild's fur
+ * shop did `<oc_examine($product)>` (2026-10-24). Otherwise the bare identifier
+ * has to name a command that takes nothing -- `<p,happy>` would slip through on
+ * the name test alone if a command were ever called `p`, and the corpus has
+ * 6,577 of those.
  *
  * `~` is a sigil for the same reason `$` is, and it was missing: a proc call
  * inside a literal is an ordinary expression to `compile_interpolation`, but
@@ -1657,6 +1662,8 @@ is_interpolation(const char* inner, size_t length)
         i++;
     if( i < length && inner[i] != '(' )
         return 0;
+    if( i < length ) /* followed by '(' — a call, whether or not the name is one */
+        return 1;
 
     {
         int opcode = SSVM_OpcodeFromName(name);
@@ -1664,8 +1671,6 @@ is_interpolation(const char* inner, size_t length)
 
         if( opcode < 0 )
             return 0;
-        if( i < length ) /* followed by '(' — an ordinary call, always a call */
-            return 1;
 
         /*
          * A bare command name with no `(` is an interpolation only if the

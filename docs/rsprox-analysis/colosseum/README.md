@@ -607,6 +607,27 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
 | login HUD | one IF_OPENSUB of 303, one `hpbar_hud_npc -1` | two of each | the frame's enum mount is the one |
 | a new best | "Colosseum duration: T (new personal best)" [unverified: no recording; every other activity's form] | "... Personal best: B (new personal best)" | the activities' form |
 
+## 12d. Fourth pass (2026-10-24): the wire itself
+
+The first three passes compared what the server WROTE (the tick log). This one compared
+what reached the client: every VARP, every clientscript, every interface packet against the
+60 sessions (`build/colosseum_private/q_transmit.py`, `q_kinds.py`; the scriptrun wirelog now
+names every packet, `pkt`).
+
+| what | recorded | was | now |
+|---|---|---|---|
+| the client's Colosseum vars | varp4127..4139 and 4187 on the wire in 49..57 of 60 sessions: the card selection and modifier ranks, the glory, the wave clock and damage taken (4133/4134, once per hit, up to 4 a tick), the seen-flags and highest wave (4138), kill times, Sol kills | written on the recorded ticks, never SENT (the generated blocks said `transmit=no`); the seen-flags and records were `scope=temp` | `colosseum.varp` blocks, `transmit=yes`; 4130/4131/4138/4139/4187 `scope=perm`. `q_transmit.py` lists any recorded varp we do not send |
+| the music tab | a track: `music_current_track` (varp 3883) to its row when it moves, the song, clientscript 3932 (every track send; rev 237/238 -- rev 234 sent IF_SETTEXT instead) | none of the three; region music sent the rev-234 IF_SETTEXT | engine `ToriRSServer_MusicPlay`: every song through it |
+| a track ends | duration + 1 ticks after the varp moved (782 549 -> 550, 98/98; 787 436, 91/91; 811 399, 90/90; every region track checked): varp -1, song 147 fade 20; +2 the track again, no fade, varp, 3932 (334/335) | never | engine music clock (`ToriRSServer_MusicClockTick`) |
+| the stop | varp -1, 147 fade 50, 3932 (162/162); the death's raw 147 then `you_are_dead` then 3932 (12/12); Sol's win V-1, 147, jingle, 147 fade 50, 3932 (14/14) | 147 alone | `~colo_music_stop`, the death and win sequences |
+| Sol's first meeting | index 3268 [13013..13038]: the cutscene (messagebox, fade, lock, camera, three pages), then the opening chain from the jump | never played | `[queue,colo_sol_intro]` when `colosseum_boss_cutscene_seen` = 0; `colo_sol_intro.lua`; every tick matches through Sol's add (S+1 line, S+2 minimap, S+4 hop to level 2, S+5 unlock, S+6 add) |
+| the player's bar on a respawn / a cutscene lock | `[headbar] id=0, removed=true` beside `[sequence] id=-1` (12/12 deaths, 3268 [13015]) | no way to send it | engine `p_headbar_clear(healthbar)`; `death.rs2`, the intro |
+| `busy` (varbit 12393) | LostCity's busy(): delayed or a modal up (18,363/18,388 modal ticks busy, 189,895/190,285 without); sampled after the queues and timers, before the interaction: an op's modal shows it next tick (bank 84/84, chest 66/66), a queue's or an input's the same tick | hand-written in 13 places, a tick early on an op | engine `ToriRSServer_BusyUpdate`; a content write is a hold (Sol's opening, the entry and leave chains) |
+| the chest total | "Total Value: 174,360" | the literal text `Total Value: <tostring_spacer(%varp9464..., ",")>` (no such command; the compiler called it markup) | `~colo_spaced`; the compiler: `<name(` is always a call, an unknown name an error (it caught the Hunter guild shop's `<oc_examine(..)>` too) |
+| Leave between waves | index 4102 [4625..4630]: O the page, O+1 busy, Yes: the line, the stop, Minimus beside the chest (ops 0b00100, an instant coord face), the valiant page; its click the chest; +1 the page off, busy 0 | the chest with the page, an IF_CLOSESUB of nothing, no busy | `colo_leave_early.lua` (Yes and No) matches tick for tick |
+| an npc in a dialogue | `[facing] player=` one tick after the first page (19/22: Tutorial Island 4289, Minimus) and never a coord face on the page's tick | `npc_facesquare(coord)` on the page's tick (chat.rs2's own "phase-ordering patch") | removed: the `playerfaceclose` mode turns it a tick later |
+| the player lets go of a face | rev 241: `[facing] coord=` of the npc's tile the tick after (28/35); reset only for a target that is gone | a reset | engine `player_face_release` (rev 237/238 sent `angle=`; ours is a rev 241 server) |
+
 ## 13. Open gaps
 
 - **Shaman and jaguar damage** sits high in the recordings (see §6); ours is uniform.
@@ -652,9 +673,24 @@ regression (30 `colo_full`, 10 `colo_mods`, 6 `colo_die`, 2 Sol, `colo_doom`, `c
   ticks send `hp_hud_fade_in` (255) instead -- 4-tick runs after Sol's phase lines and his
   removal -- by a rule neither the player's target nor his last attack separates.
 - **Player-wide clientscripts.** Fixed: 4517/4518 every 25 ticks (the stat-restore
-  countdown) and 4716 every 100 (the regen timer), 2498 on every side-tab press. Open: 3932
-  (music now-playing: 56 % of song changes, not decided by a new song or the track varp) and
-  5224 (`pvp_icons_comlevelrange`); the regen and restore timers' relative phase differs per
-  session (ours: together, as 20 of 62 sessions).
+  countdown), 4716 every 100 (the regen timer), 2498 on every side-tab press, 3932 with every
+  track (§12d). Open: 5224 (`pvp_icons_comlevelrange`); the regen and restore timers'
+  relative phase differs per session (ours: together, as 20 of 62 sessions).
+- **The death is the game's, not the Colosseum's, and ours is short of it** (12/12 recorded
+  deaths, index 4117 [484..491]): the death tick also sends `gravestone_creation_death_coord`
+  (varp 3916, `transmit=no` here), `gravestone_visible` 157, `com_stance` 2, the weapon
+  category and divine-potion bases cleared, `set_player_op` 5 and 2 null, 4721, the pvp-icon
+  clientscripts (385, 390, 5224 x4, 828), every side panel re-opened, and the HUD's
+  `cc_deleteall`; +1 "Some of your dropped items are being held in a gravestone, near where
+  you died."; +3 a `gravestone_default` npc in the lobby (multinpc by `gravestone_visible`)
+  with a hint arrow, re-pointed (`current_hint_arrow` 9 -> 0 -> 9, `[transformation]`) every
+  3 ticks as the duration drops by 3. Ours keeps an abstract gravestone (no npc, no arrow).
+- **Engine-wide per-tick varps**: `map_clock` (varp 3079) every tick (13,604/13,604 in index
+  1223) and the date varbits in varp 3077 (milliseconds and seconds past the minute) every
+  tick; ours sends neither per tick. The `tracking_*` counters (4510..4528: damage dealt and
+  taken, food, potions, kills) and the xp tracker's multipliers (3181..3183) change on every
+  hit in the recordings and never in ours.
+- **Region music** keeps its 0,30,0,30 envelope; recorded region songs are 0,60,60,0, often
+  sent twice. Outside the Colosseum (its own songs are scripted and match).
 - Sol's holy fire landing on a permanent pool replaces it in ours (same layer); no recording
   shows either way.

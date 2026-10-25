@@ -309,10 +309,13 @@ write_player_extended(struct RSAreaBuf* buf, const uint8_t* appearance,
             rsab_p1_alt1(buf, 1 + ext->headbar_extra_count);
             ext_psmart1or2(buf, ext->headbar_type);
             ext_psmart1or2(buf, ext->headbar_duration);
-            ext_psmart1or2(buf, ext->headbar_start_delay);
-            rsab_p1_alt1(buf, ext->headbar_start_fill);
-            if( ext->headbar_duration > 0 )
-                rsab_p1_alt2(buf, ext->headbar_end_fill);
+            if( ext->headbar_duration != MOCK239_HEADBAR_REMOVE )
+            {
+                ext_psmart1or2(buf, ext->headbar_start_delay);
+                rsab_p1_alt1(buf, ext->headbar_start_fill);
+                if( ext->headbar_duration > 0 )
+                    rsab_p1_alt2(buf, ext->headbar_end_fill);
+            }
             /* A bar per further splat, at the hitpoints after it (RSProx). */
             for( int i = 0; i < ext->headbar_extra_count; i++ )
             {

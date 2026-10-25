@@ -5001,6 +5001,8 @@ relog_tick(
         bot->core->cache_disk = run->cache_disk;
         bot->core->skillmulti_script =
             ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
+        bot->core->menu_script =
+            ToriRSServer_ContentConstantInt("clientscript_chatbox_multi_init", -1);
         player = ToriRSServer_WorldAddPlayer(srv, NULL);
         assert(player);
         bot->player = player;
@@ -5436,6 +5438,8 @@ ToriRSServer_ScriptRun(
         bot->core->cache_disk = run.cache_disk;
         bot->core->skillmulti_script =
             ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
+        bot->core->menu_script =
+            ToriRSServer_ContentConstantInt("clientscript_chatbox_multi_init", -1);
         run.count = i + 1;
         player = ToriRSServer_WorldAddPlayer(srv, NULL);
         assert(player);

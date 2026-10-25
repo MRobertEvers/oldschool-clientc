@@ -13668,6 +13668,10 @@ static const struct IfScriptTriggerRoute IF_SCRIPT_TRIGGER_ROUTES[] = {
     { "settings_side:music_slider_bobble", INT32_C(406545006), "i" },
     { "settings_side:sound_slider_bobble", INT32_C(-1069744872), "i" },
     { "settings_side:areasounds_slider_bobble", INT32_C(-1801605717), "i" },
+    /* NPC Contact (interface 75): a click on one of the contact cells clientscript 2094 builds
+     * runs script 9732 (lunar_contact_npc_op), which reports the contact id and the
+     * contract-op flag. */
+    { "lunar_contact_npc:scrolllayer", INT32_C(1563533850), "ii" },
 };
 
 /* Returns 1 when the trigger was one of IF_SCRIPT_TRIGGER_ROUTES (consumed,
@@ -16504,6 +16508,10 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->last_map_x = -1;
     player->music_track = -1;
     player->music_hold_until = -1;
+    player->music_end_tick = -1;
+    player->music_end_row = -1;
+    player->music_replay_tick = -1;
+    player->music_replay_row = -1;
     player->ambient_scape = -1;
     player->ambient_script_map_x = -1;
     player->ambient_script_map_z = -1;
@@ -17894,6 +17902,95 @@ player_reorient(struct ToriRSServerPlayer* player)
     player->face_target_z = -1;
 }
 
+/*
+ * The player lets go of an entity it faced: an npc or player that is still
+ * there is faced as its square (FACE_COORD), not reset. Rev 241 sends
+ * `[facing] coord=` of the npc's tile the tick after a dialogue's first page
+ * (28/35 Tutorial Island talks, index 4289; the 7 others walk away); a reset
+ * only follows a target that is gone (after a kill, 559/559 in the Colosseum's
+ * sessions). Rev 237/238 sent the same release as `angle=`.
+ */
+static void
+player_face_release(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int was)
+{
+    int x;
+    int z;
+    int size = 1;
+
+    if( was < TORIRSSERVER_FACE_PLAYER_BASE )
+    {
+        const struct ToriRSServerNpc* npc;
+
+        if( was >= TORIRSSERVER_NPC_MAX )
+            return;
+        npc = &srv->npcs[was];
+        if( !npc->active || npc->death_tick >= 0 || npc->level != player->level )
+            return;
+        x = npc->x;
+        z = npc->z;
+        size = npc->size > 0 ? npc->size : 1;
+    }
+    else
+    {
+        int const pid = was - TORIRSSERVER_FACE_PLAYER_BASE;
+        const struct ToriRSServerPlayer* other;
+
+        if( pid >= srv->player_count )
+            return;
+        other = &srv->players[pid];
+        if( !other->active || other->level != player->level )
+            return;
+        x = other->x;
+        z = other->z;
+    }
+    player->face_x = ToriRSServer_CoordFine(x, size);
+    player->face_z = ToriRSServer_CoordFine(z, size);
+    player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
+    player->masks &= ~(uint32_t)TORIRSSERVER_PMASK_FACE_ENTITY;
+}
+
+/*
+ * The clock vars, first thing in a player's turn, as Jagex sends them: `map_clock`
+ * (varp 3079) on every tick (13,604/13,604 ticks of index 1223), the milliseconds
+ * and seconds past the minute (varp 3077 bits 0..9 and 10..15, beside `busy` at 16)
+ * whenever they move -- every tick, 600 ms a tick -- and `date_minutes` (varp 3078)
+ * on the minute itself. Written before anything else of the tick, the order the
+ * recordings print them in. The world's realtime clock, so a seeded run reads its
+ * ticks (ToriRSServer_WorldRealtimeMs) and every lane sends the same values.
+ */
+static void
+player_clock_vars(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    static int map_clock = -2;
+    static int date_vars = -2;
+    static int date_minutes = -2;
+    long long const now = ToriRSServer_WorldRealtimeMs(srv);
+
+    if( map_clock == -2 )
+    {
+        map_clock = ToriRSServer_WorldVarp("varp3079_map_clock");
+        date_vars = ToriRSServer_WorldVarp("varp3077_date_vars");
+        date_minutes = ToriRSServer_WorldVarp("varp3078_date_minutes");
+    }
+    if( date_vars >= 0 )
+    {
+        int const ms = (int)(now % 1000LL);
+        int const seconds = (int)((now / 1000LL) % 60LL);
+        int const value = (player->varps[date_vars] & ~0xffff) | ms | (seconds << 10);
+
+        ToriRSServer_WorldSetVarpOn(srv, player, date_vars, value);
+    }
+    if( map_clock >= 0 )
+        ToriRSServer_WorldSetVarpOn(srv, player, map_clock, srv->tick);
+    if( date_minutes >= 0 )
+        ToriRSServer_WorldSetVarpOn(srv, player, date_minutes, (int)(now / 60000LL));
+}
+
 /** 5. The player: delays, resumes, queues, timers, then interaction. */
 static void
 phase_player(struct ToriRSServerPlayer* player)
@@ -17906,6 +18003,7 @@ phase_player(struct ToriRSServerPlayer* player)
     int temp_run;
 
     ToriRSServer_WorldSetActive(srv, player);
+    player_clock_vars(srv, player);
 
     /* Order matches the reference exactly, and it matters: a script resumed
      * here must not have a queue entry started on top of it in the same tick. */
@@ -17918,6 +18016,7 @@ phase_player(struct ToriRSServerPlayer* player)
      * one tick after the crossing, before this tick's movement rather than
      * after it. */
     ToriRSServer_ScriptsProcessEngineQueue(srv);
+    ToriRSServer_BusyUpdate(srv, player);
     PP_MARK(bd_on, bd_t, PP_SCRIPTS);
 
     /*
@@ -17938,7 +18037,13 @@ phase_player(struct ToriRSServerPlayer* player)
      * is already gone, and releasing here would ship only the release.
      */
     if( !player->face_entity_held || ToriRSServer_PlayerFaceEntityWanted(player) >= 0 )
+    {
+        int const was = player->face_entity;
+
         ToriRSServer_PlayerSetFaceEntity(player);
+        if( was >= 0 && player->face_entity == -1 )
+            player_face_release(srv, player, was);
+    }
     player->face_entity_held = 0;
     PP_MARK(bd_on, bd_t, PP_FACE);
 
@@ -18058,6 +18163,64 @@ phase_player(struct ToriRSServerPlayer* player)
      * player is doing, so it reads the tick's outcome rather than its input. */
     ToriRSServer_HelperTick(srv, player);
     PP_MARK(bd_on, bd_t, PP_TAIL);
+}
+
+/*
+ * `busy` (varbit 12393, rev 237+): what the server's own busy test says --
+ * LostCity's Player.busy(), delayed OR a modal open -- sent whenever it moves
+ * (RSProx, the Colosseum's rev 237/238 sessions: busy=1 on 18,363 of 18,388
+ * ticks a main, side or chat modal was up, 0 on 189,895 of 190,285 without).
+ *
+ * It is sampled once a turn, after the resumed scripts, queues and timers and
+ * before the interaction: a modal an input or a queue opened (the cards at a
+ * wave's end, 384/384) or closed (a button, 526) shows the same tick, one an op
+ * opened the next (Minimus 180/186, the chest 66/66, a bank 84/84).
+ *
+ * Content can hold it too (`busy_hold`): a chain of queues the recordings show
+ * as one delayed script (Sol's opening) writes `%varb12393_busy` itself.
+ */
+int
+ToriRSServer_BusyVarbit(void)
+{
+    static int id = -2;
+
+    if( id == -2 )
+        id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb12393_busy");
+    return id;
+}
+
+static int
+busy_now(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    return player->busy_hold || player_delayed(srv, player) || player->mainmodal_group > 0 ||
+           player->sidemodal_group > 0 || player->chatmodal_group > 0;
+}
+
+void
+ToriRSServer_BusyUpdate(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    int const id = ToriRSServer_BusyVarbit();
+    int const busy = busy_now(srv, player);
+
+    if( id >= 0 && ToriRSServer_VarbitGet(player, id) != busy )
+        ToriRSServer_VarbitSetOn(srv, player, id, busy);
+}
+
+int
+ToriRSServer_BusyHold(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int value)
+{
+    int const id = ToriRSServer_BusyVarbit();
+
+    assert(id >= 0);
+    player->busy_hold = value != 0;
+    return ToriRSServer_VarbitSetOn(srv, player, id, busy_now(srv, player));
 }
 
 static void
@@ -19326,13 +19489,152 @@ ToriRSServer_MusicVariableVarp(int variable)
     return k_music_variable_varps[variable];
 }
 
+/*
+ * The music clock and the tab's label, as Jagex sends them (RSProx, rev 237
+ * and 238: every song send over 60 Colosseum sessions; README §15 of
+ * docs/rsprox-analysis/colosseum).
+ *
+ * A song with a row in the cache's music table is a track. Starting one writes
+ * `music_current_track` (varp 3883) to its row -- sent only when it moves --
+ * and every send of a track is followed by clientscript 3932, which draws the
+ * music tab's label from that varp. Rev 234 sent an IF_SETTEXT of the name
+ * instead; 237 and 238 never do.
+ *
+ * The server times the track: `duration` + 1 ticks after the varp moved to its
+ * row (98/98 for song 782's 549, 91/91 for 787's 435, 90/90 for 811's 398, and
+ * every region track checked; a re-send of the same track does not restart
+ * it), it writes the varp -1 and sends song 147 with fade-out speed 20, and
+ * two ticks later the track again with no fades, the varp back and 3932
+ * (334/335). Whatever moves the varp in between -- another track, content's
+ * stop writing -1 -- owns the music, and the clock lets go.
+ */
+enum
+{
+    MUSIC_TABLE = 44,
+    MUSIC_COL_DURATION = 3,
+    MUSIC_COL_MIDI = 4,
+    MUSIC_SILENCE_SONG = 147,
+    MUSIC_NOW_PLAYING_SCRIPT = 3932,
+};
+
+static int
+music_current_track_varp(void)
+{
+    static int varp = -2;
+
+    if( varp == -2 )
+        varp = ToriRSServer_WorldVarp("varp3883_music_current_track");
+    return varp;
+}
+
+static int
+music_cell(
+    const struct ToriRSServerDbRow* row,
+    int col)
+{
+    const struct ToriRSServerDbRowColumn* cell = ToriRSServer_DbRowColumn(row, col);
+
+    return cell && cell->count > 0 ? cell->values[0].value : -1;
+}
+
+/* The music row that plays `song`, or -1 for a song that is not a track (147,
+ * the silence); its duration in ticks to `duration_out`. */
+static int
+music_row_for_song(
+    int song,
+    int* duration_out)
+{
+    int const count = ToriRSServer_DbRowCount(MUSIC_TABLE);
+
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(MUSIC_TABLE, i);
+
+        if( row && music_cell(row, MUSIC_COL_MIDI) == song )
+        {
+            *duration_out = music_cell(row, MUSIC_COL_DURATION);
+            return row->row_id;
+        }
+    }
+    *duration_out = -1;
+    return -1;
+}
+
+void
+ToriRSServer_MusicPlay(
+    struct ToriRSServerPlayer* player,
+    int song,
+    const int* envelope,
+    int source)
+{
+    struct ToriRSServer* srv = player->world;
+    int const varp = music_current_track_varp();
+    int duration = -1;
+    int const row = music_row_for_song(song, &duration);
+
+    assert(srv);
+    assert(song >= 0);
+    player->music_track = song;
+    player->music_replay_tick = -1;
+    if( row >= 0 && varp >= 0 && player->varps[varp] != row )
+    {
+        ToriRSServer_WorldSetVarpOn(srv, player, varp, row);
+        player->music_end_tick = duration >= 0 ? srv->tick + duration + 1 : -1;
+        player->music_end_row = row;
+    }
+    if( envelope )
+        ToriRSServer_SendMidiSongEnvelope(player, song, envelope[0], envelope[1], envelope[2],
+                                          envelope[3]);
+    else
+        ToriRSServer_SendMidiSong(player, song);
+    ToriRSServer_TicklogMusic(srv, player, song, source);
+    if( row >= 0 )
+        ToriRSServer_SendRunClientscript(player, MUSIC_NOW_PLAYING_SCRIPT, NULL, 0);
+}
+
+void
+ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
+{
+    struct ToriRSServer* srv = player->world;
+    int const varp = music_current_track_varp();
+
+    if( varp < 0 )
+        return;
+    if( player->music_end_tick >= 0 && srv->tick >= player->music_end_tick )
+    {
+        int const row = player->music_end_row;
+
+        player->music_end_tick = -1;
+        if( player->varps[varp] == row )
+        {
+            ToriRSServer_WorldSetVarpOn(srv, player, varp, -1);
+            player->music_track = MUSIC_SILENCE_SONG;
+            ToriRSServer_SendMidiSongEnvelope(player, MUSIC_SILENCE_SONG, 0, 20, 0, 0);
+            ToriRSServer_TicklogMusic(srv, player, MUSIC_SILENCE_SONG,
+                                      TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+            player->music_replay_tick = srv->tick + 2;
+            player->music_replay_row = row;
+        }
+    }
+    if( player->music_replay_tick >= 0 && srv->tick >= player->music_replay_tick )
+    {
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRow(player->music_replay_row);
+        static const int k_no_fades[4] = { 0, 0, 0, 0 };
+
+        player->music_replay_tick = -1;
+        assert(row);
+        if( player->varps[varp] == -1 )
+            ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_no_fades,
+                                   TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+    }
+}
+
 void
 ToriRSServer_MusicEnterRegion(
     struct ToriRSServerPlayer* player,
     int map_x,
     int map_z)
 {
-    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     const struct ToriRSServerMusicRegion* track =
         ToriRSServer_MusicForRegion((map_x << 8) | map_z);
 
@@ -19391,17 +19693,15 @@ ToriRSServer_MusicEnterRegion(
         return;
     if( player->music_track != track->song )
     {
-        player->music_track = track->song;
-        /* Match the jukebox path: the UI learns the display name separately
-         * from the audio packet, which only identifies the cache archive. */
-        if( ids->com_music_now_playing_text > 0 )
-            ToriRSServer_SendIfSettext(player, ids->com_music_now_playing_text, track->name);
         /* script9628 uses this proven reference profile for musical state
          * changes: 30 client cycles (600 ms) down and up. The backend has one
-         * synthesizer, so it serializes rather than overlaps the two ramps. */
-        ToriRSServer_SendMidiSongEnvelope(player, track->song, 0, 30, 0, 30);
-        ToriRSServer_TicklogMusic(player->world, player, track->song,
-                                  TORIRSSERVER_TICKLOG_MUSIC_REGION);
+         * synthesizer, so it serializes rather than overlaps the two ramps.
+         * The tab's label is `music_current_track` and clientscript 3932,
+         * which ToriRSServer_MusicPlay sends (rev 237+; no IF_SETTEXT). */
+        static const int k_region_fades[4] = { 0, 30, 0, 30 };
+
+        ToriRSServer_MusicPlay(player, track->song, k_region_fades,
+                               TORIRSSERVER_TICKLOG_MUSIC_REGION);
     }
 }
 
@@ -19541,6 +19841,7 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * player and the first thing done here. It only enqueues, so it is ahead of
      * every encoder below rather than entangled with them. */
     ToriRSServer_WorldUpdateMap(player);
+    ToriRSServer_MusicClockTick(player);
 
     /*
      * The instance under this player is not the one its scene was copied from.

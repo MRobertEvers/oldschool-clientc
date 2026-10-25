@@ -2442,6 +2442,31 @@ selftest_capture_has_textalign(
     return 0;
 }
 
+/* The packet index of the first RUNCLIENTSCRIPT of `script_id`, or -1. */
+static int
+selftest_capture_find_script(
+    struct ToriRSServer* srv,
+    struct ToriRSServerCapture* capture,
+    int script_id)
+{
+    for( int p = 0; p < capture->count; p++ )
+    {
+        char types[8];
+        int argc = 0;
+        int argv[4] = { 0, 0, 0, 0 };
+        int id;
+
+        if( capture->packets[p].name != PKT_NAME_RUNCLIENTSCRIPT )
+            continue;
+        ToriRSServer_WireReadRunClientscript(
+            srv->wire, capture->packets[p].data, capture->packets[p].len, types,
+            (int)sizeof(types), argv, (int)(sizeof(argv) / sizeof(argv[0])), &argc, &id);
+        if( id == script_id )
+            return p;
+    }
+    return -1;
+}
+
 /*
  * Did the capture carry script 948's fade IN — `(0, 0, 0, 255, cycles)`, clear
  * to the overlay's full alpha reversed, as the Inferno sends it at M+4 — rather
@@ -14670,7 +14695,7 @@ ToriRSServer_WorldSelftest(void)
         int unlock_varp = track->varp;
         int old_song = player->music_track;
         int old_unlock;
-        int text_at;
+        int label_at;
         int midi_at;
 
         /* Keep this a pure output test: the selected first row has a real
@@ -14683,26 +14708,36 @@ ToriRSServer_WorldSelftest(void)
             unlock_varp = 0;
         old_unlock = player->varps[unlock_varp];
         player->varps[unlock_varp] |= (int)(1u << track->bit);
+        int const track_varp = ToriRSServer_WorldVarp("varp3883_music_current_track");
+        int const old_track_row = track_varp >= 0 ? player->varps[track_varp] : 0;
+
         player->music_track = -1;
         ToriRSServer_CaptureBegin(srv, &capture);
         ToriRSServer_MusicEnterRegion(player, track->region >> 8, track->region & 0xff);
         ToriRSServer_CaptureEnd(srv);
         player->music_track = old_song;
         player->varps[unlock_varp] = old_unlock;
+        if( track_varp >= 0 )
+            player->varps[track_varp] = old_track_row;
+        player->music_end_tick = -1;
+        player->music_replay_tick = -1;
 
-        text_at = ToriRSServer_CaptureFind(
-            &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_IF_SETTEXT), 0);
+        /* The label is varp 3883 and clientscript 3932 after the song, as rev
+         * 237+ sends it (ToriRSServer_MusicPlay); never an IF_SETTEXT of the
+         * name, which only rev 234 sent. */
+        label_at = selftest_capture_find_script(srv, &capture, 3932);
         midi_at =
             ToriRSServer_CaptureFind(&capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_MIDI_SONG), 0);
         SELFTEST_CHECK(!capture.overflow, "the region-music capture must not overflow");
-        SELFTEST_CHECK(text_at >= 0 && midi_at >= 0 && text_at < midi_at,
-                       "a region track should name itself before MIDI_SONG (text=%d midi=%d)",
-                       text_at, midi_at);
-        SELFTEST_CHECK(selftest_capture_has_if_settext(&capture, srv->wire,
-                                                        ids->com_music_now_playing_text,
-                                                        track->name),
-                       "the region track should update music:now_playing_text to %s",
-                       track->name);
+        SELFTEST_CHECK(!selftest_capture_has_if_settext(&capture, srv->wire,
+                                                         ids->com_music_now_playing_text,
+                                                         track->name),
+                       "the region track should not IF_SETTEXT music:now_playing_text");
+        if( ToriRSServer_DbRowCount(44) > 0 )
+            SELFTEST_CHECK(midi_at >= 0 && label_at > midi_at,
+                           "a region track's MIDI_SONG should be followed by clientscript 3932 "
+                           "(midi=%d label=%d)",
+                           midi_at, label_at);
         if( strcmp(srv->wire->name, "osrs239") == 0 )
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
                                &capture, srv->wire, track->song, 0, 30, 0, 30),

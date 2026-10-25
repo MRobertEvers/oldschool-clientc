@@ -64,6 +64,7 @@ EXTRA_DECLARATIONS = [
     "[command,spotanim_map_specific](spotanim $spotanim, coord $coord, int $height, int $delay)",
     "[command,p_tint](int $start_cycle, int $end_cycle, int $hue, int $saturation, int $lightness, int $weight)",
     "[command,p_faceangle](int $angle, boolean $instant)",
+    "[command,p_headbar_clear](healthbar $bar)",
     "[command,p_transparency](int $start_cycle, int $end_cycle, int $from, int $to, boolean $usestart)",
     "[command,loc_add_revert](coord $coord, loc $loc, int $angle, locshape $shape, int $duration, loc $revert, int $revert_angle)",
     "[command,loc_add_opflags](coord $coord, loc $loc, int $angle, locshape $shape, int $duration, int $opflags)",

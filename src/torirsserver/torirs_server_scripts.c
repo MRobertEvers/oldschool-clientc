@@ -10220,6 +10220,35 @@ script_command(
     }
 
     /*
+     * `p_headbar_clear(healthbar $bar)` -- the active player's bar removed:
+     * a HEADBARS entry with end time 0x7FFF and nothing after it, RSProx
+     * `[headbar] id=0, removed=true`. Jagex sends it with every death
+     * respawn's teleport (12/12 Colosseum deaths) and a cutscene's lock
+     * (Sol's, index 3268 [13015]).
+     */
+    case SS_OP_P_HEADBAR_CLEAR:
+    {
+        int32_t bar;
+
+        if( !SSVM_PopInt(state, &bar) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "p_headbar_clear with no active player");
+            return 1;
+        }
+        if( bar < 0 )
+        {
+            SSVM_Abort(state, "p_headbar_clear %d: needs a healthbar", (int)bar);
+            return 1;
+        }
+        player->headbar_clear_type = (int)bar;
+        player->masks |= TORIRSSERVER_PMASK_HEADBAR_CLEAR;
+        ToriRSServer_TicklogPlayerHeadbarClear(srv, player, player->headbar_clear_type);
+        return 1;
+    }
+
+    /*
      * `p_transparency(int $start_cycle, int $end_cycle, int $from, int $to,
      * boolean $usestart)` -- the active player's body fades from `$from` to
      * `$to` (0 opaque .. 255 gone) between two client cycles after arrival:
@@ -15251,11 +15280,12 @@ script_command(
              * are the same length rather than two different-feeling ramps.
              */
             if( id < 0 )
+            {
                 ToriRSServer_SendMidiSongStop(player, 0, 30);
+                ToriRSServer_TicklogMusic(srv, player, -1, TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
+            }
             else
-                ToriRSServer_SendMidiSong(player, id);
-            ToriRSServer_TicklogMusic(srv, player, id < 0 ? -1 : id,
-                                      TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
+                ToriRSServer_MusicPlay(player, id, NULL, TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         }
         return 1;
     }
@@ -15279,9 +15309,7 @@ script_command(
             SSVM_Abort(state, "midi_song_envelope(%d): a song id; silence is midi_song(-1)", v[0]);
             return 1;
         }
-        player->music_track = v[0];
-        ToriRSServer_SendMidiSongEnvelope(player, v[0], v[1], v[2], v[3], v[4]);
-        ToriRSServer_TicklogMusic(srv, player, v[0], TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
+        ToriRSServer_MusicPlay(player, v[0], &v[1], TORIRSSERVER_TICKLOG_MUSIC_SCRIPT);
         return 1;
     }
 
@@ -15887,6 +15915,13 @@ script_command(
 
         if( var_player_missing(state, target, "%varbit", varbit_id) )
             return 1;
+        /* `busy` is the engine's (ToriRSServer_BusyUpdate); a script's write
+         * is a hold on top of the delay and modal test, not the value. */
+        if( varbit_id == ToriRSServer_BusyVarbit() )
+        {
+            ToriRSServer_BusyHold(srv, target, (int)value);
+            return 1;
+        }
         if( ToriRSServer_VarbitSetOn(srv, target, varbit_id, (int)value) < 0 )
             SSVM_Abort(state, "varbit %d is not in the cache", varbit_id);
         return 1;

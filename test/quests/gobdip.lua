@@ -3,6 +3,8 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = { "::clearinv", "::give bluedye 1", "::give orangedye 1" },
     run = function(t)
+        -- the wire audit against RSProx 4366 reads this (build/quest_gate/<run>/ticklog.tsv)
+        t.ticklog.start()
         local br, bd = t.quest.bind({
             varp = "varb2378_gobdip_main",
             constants = { not_started = 0, waiting_orange = 3, waiting_blue = 4, waiting_brown = 5, complete = 6 },
@@ -40,59 +42,61 @@ return {
         t.exec("goto-village", t.player.goto_tile, 2957, 3507, 0)
         hall_in("g1.hallDoorIn")
         t.ticks(2)
-        -- stage 0: every menu branch, decline, then accept
-        t.exec("s0a.talk", t.player.talk_to, "general_bentnoze_red", 1)
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("s0a.opener", r, d)
-        t.exec("why", t.chat.choose, "Why are you arguing about the colour of your armour?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("why.next", r, d)
-        t.exec("peace", t.chat.choose, "Wouldn't you prefer peace?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("peace.next", r, d)
-        t.exec("pick1", t.chat.choose, "Do you want me to pick an armour colour for you?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("pick1.next", r, d)
-        t.exec("red", t.chat.choose, "You should wear red.")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("red.next", r, d)
-        t.exec("pick2", t.chat.choose, "Do you want me to pick an armour colour for you?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("pick2.next", r, d)
-        t.exec("green", t.chat.choose, "You should wear green.")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("green.next", r, d)
-        t.exec("pick3", t.chat.choose, "Do you want me to pick an armour colour for you?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("pick3.next", r, d)
-        t.exec("diff", t.chat.choose, "What about a different colour?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("diff.next", r, d)
-        t.exec("decline", t.chat.choose, "No.")
-        r, d = t.chat.drain({ stop_at = "none" })
-        t.expect("decline.close", r, d)
+        -- The hall's north half (z 3512+) is in the Wilderness warning strip
+        -- (area_wilderness/wilderness_warning.rs2, ^wilderness_warning_z): a
+        -- fresh character's first step there shows three warning boxes, which
+        -- would cut a general's argument short. Take them first.
+        t.exec("warn.walk", t.player.walk_to, 2957, 3512)
+        t.ticks(3)
+        t.exec("warn.pages", t.chat.play, { "mesbox:WARNING! Proceed with caution.", "mesbox:The further north", "mesbox:In the wilderness" })
+        -- Every talk before the end opens with one of five arguments (RSProx
+        -- index 4366 [420], [492]); the first ends in its own "fat" menu.
+        local function talk_to_menu(name)
+            t.exec(name .. ".talk", t.player.talk_to, "general_bentnoze_red", 1)
+            r, d = t.chat.drain({ stop_at = "options" })
+            t.expect(name .. ".opener", r, d)
+            local _, rows = t.chat.options()
+            for _, row in ipairs(rows or {}) do
+                if tostring(row):find("doesn't look fat", 1, true) then
+                    t.exec(name .. ".fat", t.chat.choose, "No, he doesn't look fat.")
+                    r, d = t.chat.drain({ stop_at = "options" })
+                    t.expect(name .. ".fat.next", r, d)
+                    break
+                end
+            end
+        end
+        local function choose(name, text)
+            t.exec(name, t.chat.choose, text)
+            r, d = t.chat.drain({ stop_at = "options" })
+            t.expect(name .. ".next", r, d)
+        end
+        local function choose_last(name, text)
+            t.exec(name, t.chat.choose, text)
+            r, d = t.chat.drain({ stop_at = "none" })
+            t.expect(name .. ".close", r, d)
+        end
+        -- stage 0: every menu, as 4366 walked them (peace, why, pick, red), the
+        -- century and green branches, a decline, then the start
+        talk_to_menu("s0a")
+        choose("peace", "Wouldn't you prefer peace?")
+        choose("why", "Why are you arguing about the colour of your armour?")
+        choose("century", "What is the goblin new century?")
+        choose("pick1", "Do you want me to pick an armour colour for you?")
+        choose("red", "You should wear red.")
+        choose_last("red.leave", "I'll leave you to it.")
+        talk_to_menu("s0b")
+        choose("pick2", "Do you want me to pick an armour colour for you?")
+        choose("green", "You should wear green.")
+        choose("diff", "What about a different colour?")
+        choose_last("decline", "No.")
         t.expect("decline.stage0", t.quest.expect_stage("not_started"))
-        t.exec("s0b.talk", t.player.talk_to, "general_bentnoze_red", 1)
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("s0b.opener", r, d)
-        t.exec("pick4", t.chat.choose, "Do you want me to pick an armour colour for you?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("pick4.next", r, d)
-        t.exec("diff2", t.chat.choose, "What about a different colour?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("diff2.next", r, d)
-        t.exec("accept", t.chat.choose, "Yes.")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("accept.help", r, d)
-        t.exec("help.armour", t.chat.choose, "Where do I get goblin armour?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("help.armour.next", r, d)
-        t.exec("help.dye", t.chat.choose, "Where do I get dye?")
-        r, d = t.chat.drain({ stop_at = "options" })
-        t.expect("help.dye.next", r, d)
-        t.exec("help.leave", t.chat.choose, "Okay, I'll be back soon.")
-        r, d = t.chat.drain({ stop_at = "none" })
-        t.expect("help.close", r, d)
+        talk_to_menu("s0c")
+        choose("pick3", "Do you want me to pick an armour colour for you?")
+        choose("diff2", "What about a different colour?")
+        choose("accept", "Yes.")
+        choose("help.armour", "Where do I get goblin armour?")
+        choose("help.dye", "Where do I get dye?")
+        choose_last("help.leave", "Okay, I'll be back soon.")
         t.expect("stage.waiting_orange", t.quest.expect_stage("waiting_orange"))
         for i = 1, 2 do
             res, det = t.player.talk_to("catwalk_goblin", 1)
@@ -106,13 +110,10 @@ return {
             "npc:Why they not make up their minds?",
             "npc:Shut up Grubfoot!",
         })
-        -- nothing to show yet
-        t.exec("noarmour.talk", t.player.talk_to, "general_bentnoze_red", 1)
-        t.exec("noarmour.chat", t.chat.play, {
-            "npc:Have you got some orange goblin armour yet?",
-            "player:Err no.",
-            "npc:Come back when you have some.",
-        })
+        -- a talk once started is the argument and the menu again (4366 [492])
+        talk_to_menu("s3")
+        choose_last("s3.leave", "I'll leave you to it.")
+        t.expect("s3.still_orange", t.quest.expect_stage("waiting_orange"))
         -- the crates
         -- crate1 (2959,3514) stands OUTSIDE the hall, north of its wall:
         -- out by the double door, then round the east side on foot
@@ -163,20 +164,29 @@ return {
         })
         t.expect("rebuke.still_orange", t.quest.expect_stage("waiting_orange"))
         -- fit orange by use-on
-        t.exec("orange.use", t.player.use_on, "goblin_armour_orange", t.player.by_symbol("npc", "general_bentnoze_red"))
-        t.exec("orange.chat", t.chat.play, {
-            "player:I have some orange armour here.",
-            "mesbox:You give some goblin armour to the goblins.",
-            "npc:Grubfoot!",
-            "npc:Yes General Wartface?",
-            "npc:Put on this armour!",
-            "npc:What do you think?",
-            "npc:No I don't like that much.",
-            "npc:It clashes with skin colour.",
-            "npc:We need darker colour, like blue.",
-            "npc:Yeah blue might be good.",
-            "npc:Human! Get us blue armour!",
-        })
+        -- the fitting is a cutscene in a private copy (4367 [458..481]); orange
+        -- by use-on, blue and brown from the talk's menu as 4367 hands them in
+        -- ([503], [591])
+        local function fitting(name, mail, colour)
+            local mark = t.cutscene.mark()
+            if colour then
+                talk_to_menu(name)
+                t.exec(name .. ".handin", t.chat.choose, "I have some " .. colour .. " armour here.")
+            else
+                t.exec(name .. ".use", t.player.use_on, mail, t.player.by_symbol("npc", "general_bentnoze_red"))
+            end
+            t.exec(name .. ".chat", t.chat.drain, { max_pages = 20 })
+            -- the camera ring is the client's: scriptrun has none (mark is nil)
+            if mark ~= nil then
+                t.exec(name .. ".cutscene", t.cutscene.await, name, { since = mark, quiet = 60, expect = {
+                    { op = "moveto", height = 450 },
+                    { op = "lookat", height = 150 },
+                    { op = "reset" },
+                } })
+            end
+            t.ticks(3)
+        end
+        fitting("orange", "goblin_armour_orange")
         t.expect("stage.waiting_blue", t.quest.expect_stage("waiting_blue"))
         local _, orange_n = t.inv.count("goblin_armour_orange")
         t.check("orange.consumed", orange_n == 0, "goblin_armour_orange left " .. tostring(orange_n) .. " (want 0)")
@@ -197,22 +207,7 @@ return {
             "npc:That right. This armour make me look same colour",
             "npc:Shut up Grubfoot!",
         })
-        -- fit blue by Talk-to
-        t.exec("blue.talk", t.player.talk_to, "general_bentnoze_red", 1)
-        t.exec("blue.chat", t.chat.play, {
-            "player:I have some blue armour here.",
-            "mesbox:You give some goblin armour to the goblins.",
-            "npc:Grubfoot!",
-            "npc:Yes General Wartface?",
-            "npc:Put on this armour!",
-            "npc:What do you think?",
-            "npc:That not right. Not goblin colour at all.",
-            "npc:Goblins wear dark earthy colours like brown.",
-            "npc:Yeah brown might be good.",
-            "npc:Human! Get us brown armour!",
-            "player:But I thought brown was the armour",
-            "player:Never mind, anything is worth a try.",
-        })
+        fitting("blue", "goblin_armour_darkblue", "blue")
         t.expect("stage.waiting_brown", t.quest.expect_stage("waiting_brown"))
         t.expect("grub.vis.blue", t.var.expect("varb13594_gobdip_grubfoot_vis", 2))
         for i = 1, 2 do
@@ -231,20 +226,7 @@ return {
             "npc:Shut up Grubfoot!",
         })
         local gold_before_r, gold_before = t.inv.count("gold_bar")
-        t.exec("brown.use", t.player.use_on, "goblin_armour", t.player.by_symbol("npc", "general_bentnoze_red"))
-        t.exec("brown.chat", t.chat.play, {
-            "player:I have some brown armour here.",
-            "mesbox:You give some goblin armour to the goblins.",
-            "npc:Grubfoot!",
-            "npc:Yes General Wartface?",
-            "npc:Put on this armour!",
-            "npc:What do you think?",
-            "npc:That colour quite nice.",
-            "npc:It a deal then. Brown armour it is.",
-            "npc:Thank you for sorting out argument, human.",
-            "player:Thanks... I think...",
-        })
-        t.ticks(3)
+        fitting("brown", "goblin_armour", "brown")
         t.quest.expect_complete()
         t.exec("reward.crafting", t.skill.expect_gain, "crafting", 200, snap)
         local _, gold_after = t.inv.count("gold_bar")

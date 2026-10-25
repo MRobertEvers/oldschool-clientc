@@ -7,6 +7,7 @@ return {
     fixture = "fresh_lumbridge.ini",
     max_frames = 900000,
     setup = {
+        "::setvar varb9809_colosseum_boss_cutscene_seen 1",
         "::clearinv",
         "::setlevel attack 99", "::setlevel strength 99", "::setlevel defence 99",
         "::setlevel hitpoints 99", "::setlevel ranged 99", "::setlevel magic 99", "::setlevel prayer 99",

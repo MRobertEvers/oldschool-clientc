@@ -137,6 +137,15 @@ fight, cutscene, interaction), before reporting it finished:
      heal on either side may go unexplained. Matching each attack's values is not this: the
      Ezekiel audit matched every attack's range and never asked what hit on the other ticks
      (a second star beat, the melee under him: 2026-10-22).
+   - **WHAT REACHED THE CLIENT, not what the server wrote.** The tick log records every
+     varp write whether or not it is sent; the generated varp blocks say `transmit=no`. The
+     Colosseum wrote its wave clock, glory and modifier ranks on the recorded ticks for three
+     audits and sent none of them (2026-10-24). Run `tools/rsprox/varp_transmit_audit.py
+     <transcripts>`: every row is a recorded var we never send. Then diff the scriptrun
+     wirelog (`TORIRS_SCRIPTRUN_WIRELOG`; its `pkt` lines name every packet) against the
+     transcript per packet kind: VARPs, clientscripts (3932 after every song), interface
+     packets, `busy` (varbit 12393, the engine's), and every interpolated string's TEXT (a
+     `<name(..)>` the compiler did not know went out as literal text).
    - **NPC INFO, EVERY BLOCK, EVERY TICK -- never skipped.** Start from the per-type, per-life
      summary (`tools/rsprox/rsprox_npcinfo.py --match <regex>`, step 3 of the loop: movement kind
      and tiles per tick, wander vs standing, headicon frames per form, hitsplat and headbar ids,
@@ -431,6 +440,7 @@ if_setevents continue -1..-1 [PAUSEBUTTON], if_settext continue "Click here to c
   - Copy every page's text verbatim (strip the `<br>`, which our layout re-inserts) and its mood from the anim name.
   - `tools/rsprox/rsprox_pages.py` lists every page.
   - Where the recording has no line, write none.
+  - **"Verbatim" never includes the recorder's name.** Every page that names the player ("Welcome back, Blurite Rock.", "Blurite Rock's doing", an `npc_say` overhead) is written `<displayname>` (`<displayname>'s`). OSRS writes the space in a display name as a non-breaking space (U+00A0), so a copied name is invisible to a plain grep for it; `lint_quest.py` flags any NBSP in the quest's own `.rs2` (While Guthix Sleeps, 2026-10-24: 28 lines greeted every player as the recorder).
 - **Facing:**
   - The player gets `[facing] coord=` the npc's tile on each page.
   - The npc turns to the player (`[facing] player=`) when it is not walking. A wandering npc may keep walking for a page or two (Lara, 4286 [466..471]).

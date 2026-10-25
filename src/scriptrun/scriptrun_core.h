@@ -312,8 +312,13 @@ struct ScriptrunCore
      * included), everything cleared on IF_OPENTOP. A press the client would
      * not send for want of an armed bit is refused here too. */
     struct UIIfEventTable if_events;
+    /* The last RUNCLIENTSCRIPT of `menu_script` (chatbox_multi_init, 58: the
+     * chatmenu's title and rows), kept whatever runs after it -- a stat-boost
+     * timer (4517, 4518) sent on the menu's tick used to replace it and empty
+     * the rows. menu_script -1: every script is kept. */
     struct ScriptrunScriptCall last_script;
     int script_serial;
+    int menu_script;
     /* The last RUNCLIENTSCRIPT of `skillmulti_script` (the make-menu's
      * skillmulti_setup, 2046), kept whatever runs after it: a cell press is
      * answered from its mode, max and default quantity (args 0, 1, 20), as the

@@ -1276,6 +1276,13 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "PROJANIM_PL_RAW": (11288, 9, 0, 0, 0),
     "PROJANIM_NPC_RAW": (11289, 9, 0, 0, 0),
 
+    # p_headbar_clear(healthbar $bar)
+    #
+    # The active player's bar removed: PLAYER_INFO's HEADBARS entry with end
+    # time 0x7FFF (RSProx `[headbar] id=0, removed=true`). Jagex sends it with
+    # every death respawn and a cutscene's lock (Sol, index 3268 [13015]).
+    "P_HEADBAR_CLEAR": (11290, 1, 0, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -1910,6 +1917,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "SPOTANIM_MAP_SPECIFIC": (1 << POINTER_BITS["active_player"], 0),
     "P_TINT": (1 << POINTER_BITS["active_player"], 0),
     "P_FACEANGLE": (1 << POINTER_BITS["active_player"], 0),
+    "P_HEADBAR_CLEAR": (1 << POINTER_BITS["active_player"], 0),
     "P_TRANSPARENCY": (1 << POINTER_BITS["active_player"], 0),
     "NPC_TINT": (1 << POINTER_BITS["active_npc"], 0),
     "HITMARK_BAR": (0, 0),

@@ -21,7 +21,11 @@ import argparse, os, re
 from collections import Counter, defaultdict
 
 TICK = re.compile(r"^\[(\d+)\]$")
-ENTRY = re.compile(r"^(\s+)\[(add|del|idle|walk|run|teleport|telejump|crawl)\] npc=\(index=(\d+), id=([a-z0-9_]+) \((\d+)\), coord=\((\d+), (\d+), (\d+)\)\)(.*)$")
+# A multinpc's line names its base type and then the form it shows,
+# `id=nasty_tree (4418), multinpc=nasty_tree_unchoppable (4416), coord=...`;
+# without the optional group every multinpc was invisible to this tool (the
+# Draynor Manor trees, 2026-10-24). --match is tested against the base name.
+ENTRY = re.compile(r"^(\s+)\[(add|del|idle|walk|run|teleport|telejump|crawl)\] npc=\(index=(\d+), id=([a-z0-9_]+) \((\d+)\), (?:multinpc=[a-z0-9_]+ \(-?\d+\), )?coord=\((\d+), (\d+), (\d+)\)\)(.*)$")
 NEW = re.compile(r"newcoord=\((\d+), (\d+), \d+\)")
 OTHER_ENTRY = re.compile(r"^\s+\[(add|del|idle|walk|run|teleport|telejump|crawl)\] (npc|player)=")
 EXT = re.compile(r"^(\s+)\[([a-z_]+)\](.*)$")

@@ -626,10 +626,11 @@
 #define SS_OP_PROJANIM_MAP_RAW 11287
 #define SS_OP_PROJANIM_PL_RAW 11288
 #define SS_OP_PROJANIM_NPC_RAW 11289
+#define SS_OP_P_HEADBAR_CLEAR 11290
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11290
+#define SS_OPCODE_MAX 11291
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 604
+#define SS_OPCODE_COUNT 605
 
 #endif

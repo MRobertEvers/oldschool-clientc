@@ -1319,12 +1319,43 @@ def lint_text(text, allow_check=False, packs=None, test_id=None):
     return findings
 
 
+QUESTS_DIR = os.path.join(REPO_ROOT, "OSRS-Content", "osrs-content", "server", "scripts", "quests")
+
+
+def check_content_player_names(test_id):
+    """A line of the quest's own scripts holding a non-breaking space is a recorded
+    player's display name copied from an RSProx transcript (OSRS writes the space in
+    a display name as U+00A0): "Welcome back, Blurite\u00a0Rock." must be
+    "Welcome back, <displayname>." -- every other player would be greeted by the
+    recorder's name. A one-word name carries no NBSP and is not caught here."""
+    findings = []
+    content = os.path.join(QUESTS_DIR, "quest_" + test_id)
+    if not os.path.isdir(content):
+        return findings
+    for folder, _, names in os.walk(content):
+        for name in sorted(names):
+            if not name.endswith(".rs2"):
+                continue
+            path = os.path.join(folder, name)
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                for number, line in enumerate(handle, 1):
+                    if "\u00a0" in line:
+                        findings.append((1, "%s:%d holds a non-breaking space -- a recorded player's "
+                                            "display name (\"%s\"); write <displayname> instead" % (
+                                                os.path.relpath(path, REPO_ROOT), number,
+                                                line.strip().replace("\u00a0", " ")[:80])))
+    return findings
+
+
 def lint_file(path, allow_check=False, packs=None):
     assert path
     with open(path, "r", encoding="utf-8", errors="replace") as handle:
         text = handle.read()
     test_id = os.path.splitext(os.path.basename(path))[0]
-    return lint_text(text, allow_check=allow_check, packs=packs, test_id=test_id)
+    findings = lint_text(text, allow_check=allow_check, packs=packs, test_id=test_id)
+    if not test_id.startswith("_"):
+        findings += check_content_player_names(test_id)
+    return findings
 
 
 def main():

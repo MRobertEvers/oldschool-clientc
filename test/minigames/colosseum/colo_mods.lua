@@ -51,6 +51,7 @@ return {
         "::god 1",
         "::setvar varb9807_colosseum_master_intro 1",
         "::setvar varb9993_colosseum_entry_warning 1",
+        "::setvar varb9809_colosseum_boss_cutscene_seen 1",
         "::goto 1808 9506 0",
     },
     run = function(t)

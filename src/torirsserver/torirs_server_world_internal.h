@@ -202,6 +202,37 @@ ToriRSServer_MusicEnterRegion(
     int map_x,
     int map_z);
 
+/* Every song sent to a player: `envelope` the MIDI_SONG_V2 fades (fade-out
+ * delay, fade-out speed, fade-in delay, fade-in speed), or NULL for a bare
+ * MIDI_SONG; `source` a TORIRSSERVER_TICKLOG_MUSIC_* for the tick log. */
+void
+ToriRSServer_MusicPlay(
+    struct ToriRSServerPlayer* player,
+    int song,
+    const int* envelope,
+    int source);
+
+/* `busy` (varbit 12393) recomputed: content's hold, a delay or a modal. */
+void
+ToriRSServer_BusyUpdate(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
+
+/* Content wrote `%varb12393_busy`: hold it, and send what busy now is. */
+int
+ToriRSServer_BusyHold(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int value);
+
+/* The busy varbit's id, or -1 when the cache has none. */
+int
+ToriRSServer_BusyVarbit(void);
+
+/* Once a tick per player: a running track's end and its replay. */
+void
+ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player);
+
 void
 ToriRSServer_AmbientEnterRegion(
     struct ToriRSServerPlayer* player,

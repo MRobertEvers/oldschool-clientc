@@ -907,6 +907,14 @@ enum
      * flag 0x10000). Rev 241's writer only; older revisions send nothing.
      */
     TORIRSSERVER_PMASK_TRANSPARENCY = 0x2000,
+    /*
+     * `p_headbar_clear`: a HEADBARS entry that removes the bar (end time
+     * 0x7FFF, nothing after it; RSProx `[headbar] id=0, removed=true`).
+     * Jagex sends it on every death respawn and a cutscene's lock. A tick
+     * the player is also hit sends the hit's bar instead. Rev 239/241's
+     * writers only.
+     */
+    TORIRSSERVER_PMASK_HEADBAR_CLEAR = 0x4000,
 };
 
 /** The masks the classic (rev-230) PLAYER_INFO writer can express. */
@@ -4353,6 +4361,8 @@ struct ToriRSServerPlayer
     int bar_override_type;
     int bar_override_fill;
     int bar_override_tick_plus1;
+    /** The healthbar `p_headbar_clear` removes, while PMASK_HEADBAR_CLEAR is set. */
+    int headbar_clear_type;
     /** This player's damage rolls that hit their own maximum and have not
      *  landed yet; oldest first. See struct ToriRSServerMaxRoll. */
     struct ToriRSServerMaxRoll maxrolls[TORIRSSERVER_MAXROLL_MAX];
@@ -4510,6 +4520,17 @@ struct ToriRSServerPlayer
      *  from the landing until its own `midi_song` -- keeps the region's track
      *  from starting under it. -1 when nothing holds it. */
     int music_hold_until;
+    /** The music clock (`ToriRSServer_MusicPlay`): the tick the running track
+     *  runs out -- its music-table `duration` + 1 after the row moved to it --
+     *  and that row; -1 with no clock. */
+    int music_end_tick;
+    int music_end_row;
+    /** Two ticks after a track ran out: the same row again from the top. */
+    int music_replay_tick;
+    int music_replay_row;
+    /** Content's own `%varb12393_busy` write, held: `busy` on the wire is this
+     *  OR delayed OR a modal open (ToriRSServer_BusyUpdate). */
+    int busy_hold;
 
     /** The ambient soundscape this client is currently running, or -1 for
      *  none. Same latch discipline as `music_track`: the bed is re-sent only
@@ -6347,6 +6368,9 @@ enum ToriRSServerTicklogKind
      * nothing summing hit_player damage counts it (the rsprox-content skill's
      * every-splat audit, tools/rsprox/rsprox_hit_causes.py). */
     TORIRSSERVER_TICKLOG_HEAL_PLAYER,
+    /* a=pid b=healthbar: `p_headbar_clear`, a PLAYER_INFO headbar removal
+     * (RSProx `[headbar] id=.., removed=true` on the player). */
+    TORIRSSERVER_TICKLOG_PLAYER_HEADBAR_CLEAR,
     TORIRSSERVER_TICKLOG_KIND_COUNT
 };
 
@@ -6379,6 +6403,7 @@ enum ToriRSServerTicklogMusicSource
     TORIRSSERVER_TICKLOG_MUSIC_SCRIPT = 0, /* `midi_song` (SS_OP_MIDI_SONG) */
     TORIRSSERVER_TICKLOG_MUSIC_REGION,     /* ToriRSServer_MusicEnterRegion */
     TORIRSSERVER_TICKLOG_MUSIC_LOGIN,      /* the login burst's track */
+    TORIRSSERVER_TICKLOG_MUSIC_CLOCK,      /* a track's end and replay (ToriRSServer_MusicClockTick) */
     TORIRSSERVER_TICKLOG_MUSIC_SOURCE_COUNT
 };
 
@@ -6532,6 +6557,8 @@ void ToriRSServer_TicklogPlayerTint(const struct ToriRSServer* srv,
                                     const struct ToriRSServerPlayer* player, int start_cycle,
                                     int end_cycle, int hue, int saturation, int lightness,
                                     int weight);
+void ToriRSServer_TicklogPlayerHeadbarClear(const struct ToriRSServer* srv,
+                                            const struct ToriRSServerPlayer* player, int healthbar);
 void ToriRSServer_TicklogNpcTint(const struct ToriRSServer* srv, const struct ToriRSServerNpc* npc,
                                  int start_cycle, int end_cycle, int hue, int saturation,
                                  int lightness, int weight);

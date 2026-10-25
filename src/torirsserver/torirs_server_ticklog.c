@@ -42,6 +42,26 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The bits of a varp that are a clock (map_clock, the date fields of varp 3077),
+ * which the varp rows leave out. */
+static uint32_t
+ticklog_varp_clock_bits(int varp)
+{
+    static int map_clock = -2;
+    static int date_vars = -2;
+
+    if( map_clock == -2 )
+    {
+        map_clock = ToriRSServer_WorldVarp("varp3079_map_clock");
+        date_vars = ToriRSServer_WorldVarp("varp3077_date_vars");
+    }
+    if( varp == map_clock )
+        return 0xffffffffu;
+    if( varp == date_vars )
+        return 0xffffu;
+    return 0;
+}
+
 /* A VARP row's label: the varp's content name, so a lane comparison reads
  * `varp7532_tob_damage_dealt` rather than 6857. The pack's reverse map is a
  * linear scan, so each id is looked up once. */
@@ -117,6 +137,7 @@ static char const* const k_kind_names[TORIRSSERVER_TICKLOG_KIND_COUNT] = {
     [TORIRSSERVER_TICKLOG_NPC_FACE] = "npc_face",
     [TORIRSSERVER_TICKLOG_NPC_INFO] = "npc_info",
     [TORIRSSERVER_TICKLOG_HEAL_PLAYER] = "heal_player",
+    [TORIRSSERVER_TICKLOG_PLAYER_HEADBAR_CLEAR] = "player_headbar_clear",
     [TORIRSSERVER_TICKLOG_SOUND] = "sound",
     [TORIRSSERVER_TICKLOG_MUSIC] = "music",
     [TORIRSSERVER_TICKLOG_JINGLE] = "jingle",
@@ -151,6 +172,7 @@ static char const* const k_music_source_names[TORIRSSERVER_TICKLOG_MUSIC_SOURCE_
     [TORIRSSERVER_TICKLOG_MUSIC_SCRIPT] = "script",
     [TORIRSSERVER_TICKLOG_MUSIC_REGION] = "region",
     [TORIRSSERVER_TICKLOG_MUSIC_LOGIN] = "login",
+    [TORIRSSERVER_TICKLOG_MUSIC_CLOCK] = "clock",
 };
 
 char const*
@@ -672,6 +694,19 @@ ToriRSServer_TicklogPlayerTint(
     assert(player);
     ticklog_push_row(TORIRSSERVER_TICKLOG_PLAYER_TINT, player->pid, start_cycle, end_cycle, hue,
                      saturation, lightness, weight, NULL);
+}
+
+void
+ToriRSServer_TicklogPlayerHeadbarClear(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    int healthbar)
+{
+    if( !ticklog_on_for(srv) )
+        return;
+    assert(player);
+    ticklog_push_row(TORIRSSERVER_TICKLOG_PLAYER_HEADBAR_CLEAR, player->pid, healthbar, 0, 0, 0, 0,
+                     0, NULL);
 }
 
 void
@@ -1264,9 +1299,15 @@ ticklog_digest(struct ToriRSServer* srv)
         }
         for( int v = 0; v < TORIRSSERVER_VARP_COUNT; v++ )
         {
+            /* The clock vars move every tick (player_clock_vars): a row only
+             * when something else in the word does (busy, in varp 3077). */
+            uint32_t const clock_bits = ticklog_varp_clock_bits(v);
+
             b = digest_add(b, (uint32_t)p->varps[v]);
-            if( g_varp_shadow_seeded[pid] ? g_varp_shadow[pid][v] != p->varps[v]
-                                          : (p->varps[v] != 0 && ticklog_seed_rows_on()) )
+            if( g_varp_shadow_seeded[pid]
+                    ? ((uint32_t)g_varp_shadow[pid][v] & ~clock_bits) !=
+                          ((uint32_t)p->varps[v] & ~clock_bits)
+                    : (((uint32_t)p->varps[v] & ~clock_bits) != 0 && ticklog_seed_rows_on()) )
                 ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, p->varps[v], 0, 0, 0, 0,
                                  ticklog_varp_name(v));
             g_varp_shadow[pid][v] = p->varps[v];

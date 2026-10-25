@@ -121,6 +121,11 @@ mock239_playerinfo_write_init(
  * `ext` carries the rest of the local player's extended info, or NULL. See
  * the struct.
  */
+
+/* A HEADBARS entry's end time that removes the bar (RSProx decodeHeadbars:
+ * `removed=true`, no start delay or fills after it). */
+#define MOCK239_HEADBAR_REMOVE 0x7fff
+
 struct Mock239PlayerExt
 {
     /** Revision-239 FACE block.  This is the generic entity/loc/reset model,
@@ -148,7 +153,8 @@ struct Mock239PlayerExt
         int delay;
     } hit_extra[3];
     int hit_extra_count;
-    /** The actor HEADBARS block is independent from a hitmark. */
+    /** The actor HEADBARS block is independent from a hitmark. A duration
+     *  of MOCK239_HEADBAR_REMOVE removes the bar: nothing follows it. */
     int has_headbar;
     int headbar_type;
     int headbar_duration;

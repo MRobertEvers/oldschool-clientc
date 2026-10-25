@@ -335,6 +335,20 @@ NPC_SPAWN_ID_CORRECTIONS = {
     (2473, 2855, 3552, 1): "warguild_sloane_npc",
     (6481, 2791, 3539, 0): "mac",
     (1053, 3677, 2978, 0): "patchy_the_pirate",
+    # The Black Knights' Fortress has female knights (11953, name=Black Knight)
+    # among the male ones; the dump predates the type and lists every knight as
+    # 517. RSProx index 4368 (rev 241, 2026-10-24) saw 3 of 8 on the ground
+    # floor, 2 of 4 on the first, 1 of 3 on the second; each row below is the
+    # dump tile nearest one recorded _f knight's first tile (the meeting room's
+    # two at 3020,3518 and 3024,3512; the south yard's at 3032,3499; 3016,3516
+    # and 3023,3511 upstairs; 3023,3516 on the top floor). Which knight stands
+    # on which of its room's dump tiles is fitted to that one session.
+    (517, 3023, 3517, 0): "aggressive_black_knight_f",
+    (517, 3027, 3512, 0): "aggressive_black_knight_f",
+    (517, 3032, 3503, 0): "aggressive_black_knight_f",
+    (517, 3015, 3515, 1): "aggressive_black_knight_f",
+    (517, 3023, 3512, 1): "aggressive_black_knight_f",
+    (517, 3023, 3514, 2): "aggressive_black_knight_f",
 }
 #
 # Getting Ahead, Gordon and Mary's farmhouse upstairs: the dump lays the empty
@@ -349,6 +363,10 @@ OBJ_SPAWN_RELOCATIONS = {
     ("knife", 2564, 9669, 0): (2538, 9696, 0),
     ("bread", 2564, 9670, 0): (2538, 9697, 0),
     ("pot_empty", 1239, 3682, 1): (1239, 3681, 1),
+    # Draynor Manor's fish food: every zone send of it in RSProx index 4363
+    # (rev 241, 3/3) and the pickup at [98] are on 3108,3356,1, a tile
+    # south-west of the dump's.
+    ("fish_food", 3109, 3357, 1): (3108, 3356, 1),
 }
 
 

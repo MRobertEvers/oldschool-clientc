@@ -15,6 +15,7 @@
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "net/rev/rsprot_bridge.h"
+#include "net/rev/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
 #include <stdio.h>
@@ -62,6 +63,7 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     assert(core);
     core->rev = rev;
     core->skillmulti_script = -1;
+    core->menu_script = -1;
     core->world = World_New();
     assert(core->world);
     core->esync = ToriMem_Calloc(ToriMem_ServerPlayers(), 1, sizeof(*core->esync));
@@ -1805,6 +1807,32 @@ core_wirelog_file(void)
     return f;
 }
 
+/* RSProt's name for a decoded packet kind, for the wirelog. */
+static char const*
+core_pkt_name(int pkt_name)
+{
+    for( size_t i = 0; i < sizeof(g_packet_in_definitions_osrs241) / sizeof(g_packet_in_definitions_osrs241[0]);
+         i++ )
+        if( g_packet_in_definitions_osrs241[i].name == pkt_name )
+            return g_packet_in_definitions_osrs241[i].prot;
+    return "?";
+}
+
+/* Every packet the bot receives, named, whether or not it is decoded or acted
+ * on: a wire audit that compares only the kinds someone thought to log cannot
+ * see a kind one side sends and the other never does. */
+static void
+core_wirelog_every(
+    struct ScriptrunCore* core,
+    int pkt_name,
+    int len)
+{
+    FILE* f = core_wirelog_file();
+
+    if( f )
+        fprintf(f, "%d\tpkt\t%s\t%d\n", core->tick, core_pkt_name(pkt_name), len);
+}
+
 static void
 core_wirelog(
     struct ScriptrunCore* core,
@@ -1836,6 +1864,50 @@ core_wirelog(
         break;
     case PKT_NAME_IF_SETHIDE:
         fprintf(f, "%d\tif_sethide\t%u:%u\t%d\n", t, COMP(p->_if_sethide.component_id), p->_if_sethide.hide);
+        break;
+    case PKT_NAME_IF_SETCOLOUR:
+        fprintf(f, "%d\tif_setcolour\t%u:%u\t%d\n", t, COMP(p->_if_setcolour.component_id),
+                p->_if_setcolour.colour);
+        break;
+    case PKT_NAME_IF_SETOBJECT:
+        fprintf(f, "%d\tif_setobject\t%u:%u\t%d\t%d\n", t, COMP(p->_if_setobject.component_id),
+                p->_if_setobject.obj_id, p->_if_setobject.zoom);
+        break;
+    case PKT_NAME_IF_SETMODEL:
+        fprintf(f, "%d\tif_setmodel\t%u:%u\t%d\n", t, COMP(p->_if_setmodel.component_id),
+                p->_if_setmodel.model_id);
+        break;
+    case PKT_NAME_IF_SETPOSITION:
+        fprintf(f, "%d\tif_setposition\t%u:%u\t%d\t%d\n", t, COMP(p->_if_setposition.component_id),
+                p->_if_setposition.x, p->_if_setposition.z);
+        break;
+    case PKT_NAME_UPDATE_STAT:
+        fprintf(f, "%d\tupdate_stat\t%d\t%d\t%d\n", t, p->_update_stat.stat, p->_update_stat.level,
+                p->_update_stat.xp);
+        break;
+    case PKT_NAME_HINT_ARROW:
+        fprintf(f, "%d\thint_arrow\t%d\t%d\t%d\t%d\n", t, p->_hint_arrow.type, p->_hint_arrow.id,
+                p->_hint_arrow.z, p->_hint_arrow.height);
+        break;
+    case PKT_NAME_MIDI_JINGLE:
+        fprintf(f, "%d\tmidi_jingle\t%d\t%d\n", t, p->_midi_jingle.id, p->_midi_jingle.delay);
+        break;
+    case PKT_NAME_UPDATE_INV_FULL:
+        fprintf(f, "%d\tupdate_inv_full\t%u:%u\t%d\t%d", t, COMP(p->_update_inv_full.component_id),
+                p->_update_inv_full.inv_id, p->_update_inv_full.size);
+        for( int i = 0; i < p->_update_inv_full.size && p->_update_inv_full.obj_ids; i++ )
+            if( p->_update_inv_full.obj_ids[i] > 0 )
+                fprintf(f, "\t%d:%dx%d", i, p->_update_inv_full.obj_ids[i] - 1,
+                        p->_update_inv_full.obj_counts ? p->_update_inv_full.obj_counts[i] : 0);
+        fputc('\n', f);
+        break;
+    case PKT_NAME_UPDATE_INV_PARTIAL:
+        fprintf(f, "%d\tupdate_inv_partial\t%u:%u\t%d", t, COMP(p->_update_inv_partial.component_id),
+                p->_update_inv_partial.inv_id);
+        for( int i = 0; i < p->_update_inv_partial.count && p->_update_inv_partial.entries; i++ )
+            fprintf(f, "\t%d:%dx%d", p->_update_inv_partial.entries[i].slot,
+                    p->_update_inv_partial.entries[i].obj_id - 1, p->_update_inv_partial.entries[i].count);
+        fputc('\n', f);
         break;
     case PKT_NAME_IF_SETANIM:
         fprintf(f, "%d\tif_setanim\t%u:%u\t%d\n", t, COMP(p->_if_setanim.component_id), p->_if_setanim.anim_id);
@@ -1966,6 +2038,7 @@ core_packet(
     uint8_t* data;
     int parsed;
 
+    core_wirelog_every(core, pkt_name, len);
     /* PLAYER_INFO / NPC_INFO: the client decodes the raw stream itself. */
     if( pkt_name == PKT_NAME_PLAYER_INFO )
     {
@@ -2311,21 +2384,24 @@ core_packet(
         {
             struct PktRunClientScript const* rcs = packet._runclientscript;
             int strs = 0;
-            memset(&core->last_script, 0, sizeof(core->last_script));
-            core->last_script.script_id = rcs->script_id;
-            core->last_script.argc = rcs->argc < SCRIPTRUN_SCRIPT_ARGS ? rcs->argc
-                                                                        : SCRIPTRUN_SCRIPT_ARGS;
-            for( int a = 0; a < core->last_script.argc; a++ )
+            if( core->menu_script < 0 || rcs->script_id == core->menu_script )
             {
-                core->last_script.int_args[a] = rcs->intv[a];
-                if( (rcs->str_mask >> a) & 1u )
+                memset(&core->last_script, 0, sizeof(core->last_script));
+                core->last_script.script_id = rcs->script_id;
+                core->last_script.argc = rcs->argc < SCRIPTRUN_SCRIPT_ARGS ? rcs->argc
+                                                                            : SCRIPTRUN_SCRIPT_ARGS;
+                for( int a = 0; a < core->last_script.argc; a++ )
                 {
-                    if( strs < 4 )
-                        snprintf(core->last_script.str_args[strs++], SCRIPTRUN_TEXT, "%s",
-                                 pkt_runclientscript_str(rcs, a));
+                    core->last_script.int_args[a] = rcs->intv[a];
+                    if( (rcs->str_mask >> a) & 1u )
+                    {
+                        if( strs < 4 )
+                            snprintf(core->last_script.str_args[strs++], SCRIPTRUN_TEXT, "%s",
+                                     pkt_runclientscript_str(rcs, a));
+                    }
                 }
+                core->last_script.serial = ++core->script_serial;
             }
-            core->last_script.serial = ++core->script_serial;
             if( rcs->script_id == core->skillmulti_script && rcs->argc > 20 )
             {
                 core->skillmulti_mode = rcs->intv[0];

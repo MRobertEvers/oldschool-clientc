@@ -1,23 +1,12 @@
--- Romeo & Juliet, end to end through the real client.
+-- Romeo & Juliet, end to end through the real client, as OSRS plays it:
+-- RSProx index 4361 (2026-10-24, rev 241, a normal world) for every page the
+-- lists below name, the stage ticks, the berry bush and both scenes. The quest
+-- was first ported from LostCity's 2004 scripts, and this file then followed
+-- that text; OSRS rewrote all of it (docs/rsprox-analysis/quests/
+-- romeo_and_juliet.md), so the lists are the recording's now.
 --
--- Regenerated from tools/quest_gate/new_quest.py's scaffold (Quest Helper's
--- helpers/quests/romeoandjuliet/), then corrected against this content
--- pack's own scripts -- OSRS-Content/osrs-content/server/scripts/quests/
--- quest_romeojuliet/scripts/quest_romeojuliet.rs2 (state machine + the
--- selftest debugproc's own state-transition order) and areas/varrock/
--- scripts/{romeo,juliet,father_lawrence,apothecary}.rs2 (the real
--- `[opnpc1,...]` handlers, chat text and branch guards). Six corrections
--- the scaffold got wrong or left unresolved, each checked line-for-line
--- against the .rs2 above:
+-- Travel notes kept from the first version (each checked against the map):
 --
---   1. talkToRomeo's dialog is missing a SECOND options page. Choosing
---      "Yes, I have seen her." (p_choice3 option 1) plays two more player
---      lines and an npc line, then romeo.rs2 opens a second
---      `~p_choice2("Yes, I will tell her.", 1, ...)` before falling into
---      `[label,romeo_tell_her]` -- the scaffold's list jumped straight from
---      the npc line to `romeo_tell_her`'s own player line with no
---      `choose:` in between, which dies with "expected kind=player, got
---      options" on a live run.
 --   2. Every closed space is entered and left on foot (docs/
 --      QUEST_ORCHESTRATOR.md standing rule, 2026-10-03; start-and-travel.md
 --      "The grader now catches the goto inside"). A goto departs only from
@@ -53,32 +42,12 @@
 --      .../areas/world/configs/m49_53.spawn -> 3158,3425,1), one tile off
 --      the scaffold's guessed 3158,3427 -- the wrapper's multinpc1/3 both
 --      resolve to the `juliet` symbol this file still targets.
---   4. The scaffold skips a whole quest step. quest_romeojuliet.rs2's own
---      selftest ("cadava potion brewed from berries, rjquest stays
---      romeojuliet_spoken_apothecary") and apothecary.rs2's own
---      `[label,apothecary_make_cadava]` both show the player must talk to
---      the Apothecary a SECOND time, with the cadava berries in the
---      backpack, before there is any Cadava potion to give Juliet -- the
---      scaffold went straight from "he told me to bring berries" to
---      "give the potion to Juliet" with no potion ever brewed. Driven for
---      real here (bringBerriesToApothecary), not cheated: the berries are
---      a Quest-Helper-listed prerequisite (`::give` in setup), the potion
---      itself is the quest's own deliverable and is earned by the click.
---   5. Every op-number/branch-guard marker the scaffold left unresolved is
---      resolved by reading the same .rs2 files: `[opnpc1,...]` is always
---      op 1; the %dov (Defender of Varrock) and the Apothecary's five
---      other-quest guards (twocats_quest, onesmallfavour x2, my2arm_status,
---      fossilquest_progress, ratcatch_var) all default unset/0 on a fresh
---      character, so every one of those branches is false and never
---      entered.
---   6. quest.bind's `display` ("Romeo & Juliet") and the dbrow's
---      questpoints (5) are confirmed against
---      OSRS-Content/osrs-content/configs/all.dbrow's own
---      `[quest_romeoandjuliet]` block; `~quest_complete_rewards(
---      quest_romeoandjuliet, "", coins)` passes an EMPTY rewards string and
---      "coins" only as the scroll's icon obj, not a coin amount -- this
---      quest has no XP or item reward, only quest points, which
---      quest.expect_complete()'s own `quest.points` row already covers.
+--
+-- The cadava berries are picked, not given: the south-western bush by the
+-- south-east Varrock mine is the quest's own (one berry per player while
+-- %varb6530_cadavabush is 0; 4361 [385..391]), and the Apothecary takes them
+-- straight away when they are already in the pack ("Conveniently, I have some
+-- here.", 4361 [752]).
 --
 -- Fixture start: fresh_lumbridge.ini stands the player at 3206,3233,0
 -- (Lumbridge, beside Hans), in the open. Romeo's goto lands on his
@@ -92,7 +61,6 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::give cadavaberries 1", -- Quest-Helper prerequisite; the quest's own deliverable (the cadava POTION) is earned from the Apothecary by a real click below, never given
     },
 
     run = function(t)
@@ -210,62 +178,131 @@ return {
                 "the street east of the house, x >= 3165, level 0")
         end
 
+        -- Click through a scene's pages as they come, including the ones that open by
+        -- themselves after a closed chatbox (corsaircurse.lua's play_scene).
+        local function play_scene(name, max_ticks)
+            local clicks, idle, waited = 0, 0, 0
+            while waited < max_ticks do
+                if t.chat.kind() ~= "none" then
+                    idle = 0
+                    local r = t.chat.continue_()
+                    if r == "ok" then
+                        clicks = clicks + 1
+                    end
+                else
+                    idle = idle + 1
+                    if clicks > 0 and idle >= 8 then
+                        break
+                    end
+                end
+                t.ticks(1)
+                waited = waited + 1
+            end
+            t.step(name, (clicks > 0 and t.chat.kind() == "none") and "PASS" or "FAIL",
+                clicks .. " page(s) clicked over " .. waited .. " tick(s)")
+        end
+        local function page_has(note, want, ticks)
+            t.await({ level = function()
+                local r, text = t.chat.text()
+                return r == "ok" and text ~= nil and string.find(text, want, 1, true) ~= nil
+            end, note = note }, ticks or 15)
+        end
+
         -- ---------------------------------------------------- talk to Romeo
+        -- RSProx 4361 [168]: Romeo walks up to a player who has not started and
+        -- opens his opener himself ("Romeo approaches you..."). If he has done so
+        -- by the time the goto lands, the talk is already up; otherwise talk.
         t.exec("goto-talkToRomeo", t.player.goto_tile, 3211, 3425, 0) -- romeo.spawn: 3211 3425 0
-        t.exec("talkToRomeo", t.player.talk_to, "romeo", 1)
-        -- [opnpc1,romeo]'s %dov guard defaults false on a fresh character --
-        -- falls straight to `if (%rjquest = ^romeojuliet_not_started) @romeojuliet_start`.
-        -- Option 1 ("Yes, I have seen her.") -> a second options page
-        -- (p_choice2) -> option 1 ("Yes, I will tell her.") -> [label,romeo_tell_her].
+        if t.chat.kind() == "none" then
+            t.exec("talkToRomeo", t.player.talk_to, "romeo", 1)
+        end
+        -- The opener is one of six rolls; the rest is 4361 [302..340].
         t.exec("talkToRomeo-dialog", t.chat.play, {
-            "npc:Juliet, Juliet, Juliet!  Where",
-            "npc:Kind friend, have you seen Jul",
-            "npc:She's disappeared and I can't ",
-            "choose:Yes, I have seen her.",
-            "player:Yes, I have seen her.",
-            "player:I think it was her... Blonde? ",
-            "npc:Yes, that sounds like her. Ple",
-            "choose:Yes, I will tell her.",
-            "player:Yes, I will tell her how you f",
-            "npc:You are the saviour of my hear",
-            "player:Err, yes. Ok. Thats.... Nice.",
+            "npc:*",
+            "choose:Yes, I have seen her actually!",
+            "player:Yes, I have seen her actually!",
+            "player:At least, I think it was her...",
+            "npc:Golly...yes, yes",
+            "npc:And I'll bet she's a bit of a fox!",
+            "player:Well, I guess she could be",
+            "npc:I'll bet she is!",
+            "npc:Sorry, all that jubilation",
+            "player:You were asking me about Juliet?",
+            "npc:Oh yes, Juliet!",
+            "npc:The fox...could you tell her",
+            "player:What?",
+            "npc:Oh yeah...what you said",
+            "choose:Yes.",
+            "player:Yes, okay. I'll let her know.",
+            "npc:Oh great! And tell her",
+            "player:You mean you want to give her a kiss!",
+            "npc:Oh you're good",
+            "npc:I see I've picked a true professional",
+            "choose:Ok, thanks.",
+            "player:Ok, thanks.",
         })
         t.expect("quest.stage.spoken_romeo", t.quest.expect_stage("spoken_romeo"))
 
         -- ---------------------------------------------------- talk to Juliet
-        -- juliet_multi_visible's own spawn row: 3158 3425 1 (west of
-        -- Varrock, upper floor). The goto lands on the street outside the
-        -- house's east door; the rest is on foot (note 2).
         t.exec("goto-talkToJuliet", t.player.goto_tile, 3167, 3433, 0)
         up_to_juliet("juliet1", "goUpToJuliet")
         t.exec("talkToJuliet", t.player.talk_to, "juliet", 1)
-        -- %rjquest = spoken_romeo -> @juliet_from_romeo -> falls into
-        -- @juliet_agree_message (no options page in this branch).
+        -- 4361 [489..495]: the letter comes with the box.
         t.exec("talkToJuliet-dialog", t.chat.play, {
             "player:Juliet, I come from Romeo.",
-            "player:He begs I tell you he cares st",
-            "npc:Please, take this message to h",
-            "player:Certainly, I will deliver your",
-            "npc:It may be our only hope.",
-            "mesbox:Juliet gives you a message.",
+            "npc:Oh how my heart soars",
+            "player:Well, I hope it's good news",
+            "npc:He's quite often upset",
+            "npc:Everything is explained in the letter",
+            "player:Certainly, I'll do so straight away.",
+            "npc:Many thanks! Oh, I'm so very grateful.",
+            "*",
         })
         t.expect("quest.stage.spoken_juliet", t.quest.expect_stage("spoken_juliet"))
+        t.exec("talkToJuliet.letter", t.inv.await, "julietmessage", 1, 5)
 
         -- ------------------------------------------ deliver the letter
         down_from_juliet("juliet1", "goDownstairsToGiveLetterToRomeo")
         t.exec("goto-giveLetterToRomeo", t.player.goto_tile, 3211, 3425, 0)
         t.exec("giveLetterToRomeo", t.player.talk_to, "romeo", 1)
-        -- %rjquest = spoken_juliet -> @romeo_messagefrom (no options page).
+        -- 4361 [508..561]: the letter goes on the "Father Lawrence?" page.
         t.exec("giveLetterToRomeo-dialog", t.chat.play, {
-            "player:Romeo, I have a message from J",
-            "mesbox:You pass Juliet's message to R",
-            "npc:Tragic news. Her father is opp",
-            "npc:If her father sees me, he will",
-            "npc:I dare not go near his lands.",
-            "npc:She says Father Lawrence can h",
-            "npc:Please find him for me. Tell h",
+            "player:Romeo...great news...I've been in touch with Juliet!",
+            "*",
+            "npc:Oh, a message! A message!",
+            "player:Really?",
+            "npc:No, no, not one!",
+            "npc:Oh, well, except for the occasional court summons.",
+            "npc:But they're not really 'nice' messages.",
+            "player:Well are you going to open it or not?",
+            "npc:Oh yes, yes, of course!",
+            "player:'Affection?'",
+            "npc:Ahh yes...'still hold affection",
+            "player:Oh dear...that doesn't sound too good.",
+            "npc:What? '...great affection",
+            "npc:'...marriage and will...",
+            "npc:...will kill you if he sees you again!'",
+            "player:I have to be honest",
+            "npc:'Our only hope is that Father Lawrence",
+            "*",
+            "npc:Well, that's it then",
+            "player:What about Father Lawrence?",
+            "npc:...our love is over",
+            "player:...or you could speak to Father Lawrence!",
+            "npc:Oh, my aching, breaking, heart",
+            "player:FATHER LAWRENCE!",
+            "npc:Father Lawrence?",
+            "npc:Oh yes, Father Lawrence...he's our long time confidant",
+            "player:Where can I find Father Lawrence?",
+            "npc:Lather Fawrence! Oh he's...",
+            "npc:You know he's not my 'real' Father",
+            "player:I think I suspected that he wasn't.",
+            "npc:Well anyway...he tells these song",
+            "choose:Ok, thanks.",
+            "player:Ok, thanks.",
         })
         t.expect("quest.stage.passed_message", t.quest.expect_stage("passed_message"))
+        t.exec("giveLetterToRomeo.letterGone", t.inv.expect_absent, "julietmessage")
 
         -- ---------------------------------------------- Father Lawrence
         -- father_lawrence.spawn: 3254 3484 0, inside the church; the goto
@@ -291,75 +328,78 @@ return {
             function(tt) return tt.level == 0 and tt.x >= 3252 and tt.x <= 3259 and tt.z >= 3471 and tt.z <= 3488 end,
             "inside the church, x 3252-3259 z 3471-3488")
         t.exec("talkToLawrence", t.player.talk_to, "father_lawrence", 1)
-        -- %rjquest = passed_message -> @father_lawrence_help (no options page).
+        local sermon_mark = t.cutscene.mark()
+        -- 4361 [602..639]. The congregation's page stands five ticks with no
+        -- continue and the player's answer opens by itself, so the list stops
+        -- at the click before it and resumes once the answer is up.
         t.exec("talkToLawrence-dialog", t.chat.play, {
-            "player:Romeo sent me. He says you can",
-            "npc:Ah Romeo, yes. A fine lad, but",
-            "player:Juliet must be rescued from he",
-            "npc:I know just the thing. A potio",
-            "npc:Then Romeo can collect her fro",
-            "npc:Go to the Apothecary, tell him",
-            "npc:You will need a Cadava potion.",
+            "npc:''...and let Saradomin light the way for you...",
+            "npc:Can't you see that I'm in the middle of a sermon?!",
+            "player:But Romeo sent me!",
+            "npc:But I'm busy delivering a sermon",
         })
+        page_has("talkToLawrence.congregation", "captive audience", 15)
+        t.exec("talkToLawrence-dialog2", t.chat.play, {
+            "player:Yes, well, it certainly seems like you have a captive audience!",
+            "npc:Ok, okay... what do you want",
+            "player:Romeo sent me. He says you may be able to help.",
+            "npc:Ah Romeo, yes. A fine lad",
+            "player:Yes, very confused....",
+            "npc:I agree, and I think I have an idea!",
+            "player:Dead! Sounds a bit creepy to me...",
+            "npc:The potion will only make Juliet 'appear' dead...",
+            "player:Crypt! Again... very creepy!",
+            "npc:Then Romeo can collect her from the crypt!",
+            "player:Apart from the strong overtones of death",
+        })
+        t.exec("talkToLawrence.cutscene", t.cutscene.await, "talkToLawrence", { since = sermon_mark, quiet = 60, expect = {
+            { op = "moveto", coord = "0_50_54_54_30", height = 325 },
+            { op = "lookat", coord = "0_50_54_56_20", height = 25 },
+            { op = "reset" },
+        } })
         t.expect("quest.stage.spoken_father", t.quest.expect_stage("spoken_father"))
         church_doorway("lawrence.churchOut", 3255, 3472, 3255, 3468,
             function(tt) return tt.level == 0 and tt.z <= 3470 end,
             "the street south of the church, z <= 3470")
+
+        -- ---------------------------------------------- the cadava berries
+        -- The south-western bush is the quest's own (cadava_bush.rs2): one berry
+        -- per player while %varb6530 is 0. RSProx 4361 [385..391].
+        t.exec("goto-pickCadavaBerries", t.player.goto_tile, 3262, 3367, 0)
+        t.exec("pickCadavaBerries", t.player.click_loc, "fai_varrock_cadavabush_tailored", 1, { at = { 3264, 3366, 0 } })
+        t.exec("pickCadavaBerries.berry", t.inv.await, "cadavaberries", 1, 8)
+        t.check("pickCadavaBerries.bushVar", t.var.expect("varb6530_cadavabush", 1))
 
         -- ------------------------------------------------ the Apothecary
         -- apothecary.spawn: 3195 3404 0, inside his shop; the goto lands on
         -- the street west of its door (note 2).
         t.exec("goto-talkToApothecary", t.player.goto_tile, 3190, 3403, 0)
         pass_door("apothecary.shopDoorIn", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3191, 3403, 3193, 3403,
-            function(tt) return tt.level == 0 and tt.x >= 3192 and tt.x <= 3198 and tt.z >= 3403 and tt.z <= 3406 end,
-            "inside the shop, x 3192-3198 z 3403-3406")
+            function(tt) return tt.level == 0 and tt.x >= 3192 and tt.x <= 3198 and tt.z >= 3402 and tt.z <= 3406 end,
+            "inside the shop, x 3192-3198 z 3402-3406")
         t.exec("talkToApothecary", t.player.talk_to, "apothecary", 1)
-        -- [opnpc1,apothecary]'s five other-quest guards (twocats_quest,
-        -- onesmallfavour x2, my2arm_status, fossilquest_progress,
-        -- ratcatch_var) all default unset/0 -- none matches, falls to
-        -- %rjquest = spoken_father -> @apothecary_lawrence_sent.
+        -- 4361 [740..759]: the stage on "I have all that", the berries handed
+        -- straight over, a blank chatbox while he brews, then "Phew!".
         t.exec("talkToApothecary-dialog", t.chat.play, {
-            "player:Apothecary. Father Lawrence se",
-            "player:I need a Cadava potion to help",
-            "npc:Cadava potion. It's pretty nas",
-            "npc:Wing of rat, tail of frog. Ear",
-            "npc:I have all of that, but I need",
-            "npc:You will have to find them whi",
-            "npc:Bring them here when you have ",
+            "npc:I am the Apothecary. I brew potions.",
+            "choose:Talk about something else.",
+            "choose:Talk about Romeo & Juliet.",
+            "player:Apothecary, Father Lawrence sent me.",
+            "npc:Cadava potion. It's pretty nasty.",
+            "npc:Wing of rat, tail of frog.",
+            "npc:I have all that, but I need some Cadava berries.",
+            "npc:You will have to find them while I get the rest ready.",
+            "player:Conveniently, I have some here.",
+            "*",
+        })
+        page_has("talkToApothecary.brewed", "Phew!", 10)
+        t.exec("talkToApothecary-dialog2", t.chat.play, {
+            "npc:Phew! Here is what you need.",
+            "*",
         })
         t.expect("quest.stage.spoken_apothecary", t.quest.expect_stage("spoken_apothecary"))
-
-        -- The quest's own missing step (note 4 above): hand in the berries
-        -- for real, a second click on the same npc -- @apothecary_make_cadava
-        -- (cadava=0, cadavaberries=1 from setup) brews the potion. %rjquest
-        -- stays spoken_apothecary; the deliverable is the inventory swap.
-        t.exec("bringBerriesToApothecary", t.player.talk_to, "apothecary", 1)
-        t.exec("bringBerriesToApothecary-dialog", t.chat.play, {
-            "npc:Well done. You have the berrie",
-            "mesbox:You hand over the berries, whi",
-            "npc:Here is what you need.",
-            "mesbox:The Apothecary gives you a Ca",
-        })
-        -- The berries-for-potion swap is a server-side inv_del/inv_add inside
-        -- the dialog's own mesbox line; the client-visible backpack reaches
-        -- it a few ticks after the chat page closes (the same class of race
-        -- cooks_assistant.lua's own commit_settle/ingredients_settle await
-        -- for), so this is an honest bounded await rather than an instant read.
-        local brewed_result, brewed_detail = t.await({
-            level = function()
-                local cr, cc = t.inv.count("cadava")
-                local br, bc = t.inv.count("cadavaberries")
-                return cr == "ok" and cc == 1 and br == "ok" and bc == 0
-            end,
-            note = "bringBerriesToApothecary.brewed_settle",
-        }, 20)
-        local cadava_read, cadava_count = t.inv.count("cadava")
-        local berries_read, berries_count = t.inv.count("cadavaberries")
-        t.check("bringBerriesToApothecary-brewed",
-            brewed_result == "ok" and cadava_count == 1 and berries_count == 0,
-            "brewed within 20 ticks (" .. tostring(brewed_result) .. ") " .. tostring(brewed_detail)
-                .. " cadava=" .. tostring(cadava_count) .. "(" .. tostring(cadava_read) .. ")"
-                .. " cadavaberries=" .. tostring(berries_count) .. "(" .. tostring(berries_read) .. ")")
+        t.exec("talkToApothecary.potion", t.inv.await_all, { cadava = 1, cadavaberries = 0 }, 10)
+        t.check("talkToApothecary.bushVar", t.var.expect("varb6530_cadavabush", 0))
 
         pass_door("apothecary.shopDoorOut", "fai_varrock_door", "fai_varrock_door_open", 3192, 3403, 3193, 3403, 3190, 3403,
             function(tt) return tt.level == 0 and tt.x <= 3191 end,
@@ -369,45 +409,68 @@ return {
         t.exec("goto-givePotionToJuliet", t.player.goto_tile, 3167, 3433, 0)
         up_to_juliet("juliet2", "goUpToJuliet2")
         t.exec("givePotionToJuliet", t.player.talk_to, "juliet", 1)
-        -- %rjquest = spoken_apothecary -> @juliet_potion_made; cadava=1 now
-        -- so `if (inv_total(inv, cadava) = 0)` is false, falls into the
-        -- hand-in body.
+        local potion_mark = t.cutscene.mark()
+        -- 4361 [794..806], then the scene in a copy of the house ([806]..[837]).
         t.exec("givePotionToJuliet-dialog", t.chat.play, {
-            "player:I have a Cadava potion from Fa",
-            "player:It should make you seem dead, ",
-            "mesbox:You pass the potion to Juliet.",
-            "npc:Wonderful. I just hope Romeo c",
-            "npc:Many thanks kind friend.",
-            "npc:Please go to Romeo, make sure ",
-            "npc:He can be a bit dense sometime",
+            "player:Hi Juliet! I have an interesting proposition",
+            "npc:Go on....",
+            "player:I have a Cadava potion here",
+            "npc:Yes...",
+            "player:And when you appear dead",
+            "npc:Oooooh, a cold dark creepy crypt...",
+            "npc:...sounds just peachy!",
+            "player:Then...Romeo can steal into the crypt",
+            "npc:...and this is the great idea",
+            "player:To be fair, I can't take all the credit",
+            "npc:Ok...if this is the best we can do",
+            "*",
+            "npc:Wonderful! I just hope Romeo can remember",
+            "npc:Please go to Romeo and make sure he understands.",
         })
+        page_has("givePotionToJuliet.scene", "Oh, here's Phillipa", 15)
+        play_scene("givePotionToJuliet-scene", 120)
+        t.exec("givePotionToJuliet.cutscene", t.cutscene.await, "givePotionToJuliet", { since = potion_mark, quiet = 60, expect = {
+            { op = "moveto", height = 375 },
+            { op = "lookat", height = 175 },
+            { op = "moveto", height = 425 },
+            { op = "lookat", height = 125 },
+            { op = "reset" },
+        } })
         t.expect("quest.stage.juliet_crypt", t.quest.expect_stage("juliet_crypt"))
+        t.exec("givePotionToJuliet.potionGone", t.inv.expect_absent, "cadava")
+        t.check("givePotionToJuliet.julietInCrypt", t.var.expect("varb1838_romjul_juliet_visible", 1))
 
         -- --------------------------------------------------- finish the quest
         down_from_juliet("juliet2", "goDownstairsToFinishQuest")
         t.exec("goto-finishQuest", t.player.goto_tile, 3211, 3425, 0)
         t.exec("finishQuest", t.player.talk_to, "romeo", 1)
-        -- %rjquest = juliet_crypt -> @romeo_allset (no options page); ends
-        -- with `queue(romeo_and_juliet_complete, 0, 0)`.
+        local crypt_mark = t.cutscene.mark()
+        -- 4361 [847..853], then the crypt scene in a copy ([853]..[920]); the
+        -- quest completes two ticks after the copy is left.
         t.exec("finishQuest-dialog", t.chat.play, {
-            "player:Romeo, it's all set. Juliet ha",
+            "player:Romeo, it's all set.",
             "npc:Ah right, the potion! Great...",
-            "player:The Cadava potion, the one whi",
-            "npc:But I'm scared... will you com",
-            "player:Oh, ok... come on!",
-            "mesbox:You accompany Romeo down into ",
-            "npc:This is pretty scary...",
-            "player:We're here. Look, Juliet is ov",
-            "npc:Hey... Juliet...? Juliet....? ",
-            "mesbox:Phillipa, Juliet's cousin, ste",
-            "npc:Wow! You're a fox!",
-            "npc:Who's Juliet?",
+            "npc:What potion would that be then?",
+            "player:The Cadava potion...you know",
+            "npc:But I'm scared...will you come with me?",
+            "player:Oh, ok...come on!",
         })
+        page_has("finishQuest.scene", "This is pretty scary", 15)
+        play_scene("finishQuest-scene", 160)
+        t.exec("finishQuest.cutscene", t.cutscene.await, "finishQuest", { since = crypt_mark, quiet = 60, expect = {
+            { op = "moveto", height = 400 },
+            { op = "lookat", height = 25 },
+            { op = "moveto", height = 375 },
+            { op = "lookat", height = 250 },
+            { op = "moveto", height = 250 },
+            { op = "lookat", height = 200 },
+            { op = "moveto", height = 300 },
+            { op = "lookat", height = 25 },
+            { op = "reset" },
+        } })
 
-        -- The completion queue(...) is asynchronous -- not visible client-side
-        -- the instant the dialog closes (docs/QUEST_AUTHORING.md section 8).
-        t.ticks(3)
-
+        t.ticks(4)
+        t.check("finishQuest.julietBack", t.var.expect("varb1838_romjul_juliet_visible", 2))
         t.quest.expect_complete() -- quest.varp_complete, quest.scroll_title, quest.points, quest.journal
         t.finish(0)
     end,

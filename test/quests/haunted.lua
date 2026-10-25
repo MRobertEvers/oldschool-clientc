@@ -38,7 +38,7 @@
 --   first   corridor (stairs landing 3108,3366; spiral up 3104,3362) | fish
 --           food room via D7 3116,3361.
 --   second  landing 3105,3364 | Oddenstein's room via D8 3108,3364.
--- The front doors only open from the south (quest_haunted.rs2:36-38 "The
+-- The front doors only open from the south (quest_haunted.rs2 "The
 -- doors won't open."), so the manor is LEFT through the kitchen and its back
 -- door, and re-entered through the front doors (the guide's enterManorWithKey).
 -- Stairs land on their maplink rows (ladders_stairs/configs/maplink.dbrow:
@@ -60,6 +60,7 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start() -- the wire audit (docs/rsprox-analysis/quests/ernest_the_chicken.md)
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp32_haunted",
             constants = {
@@ -169,7 +170,7 @@ return {
         end
 
         -- A basement lever: click it and read its own line back ("You pull
-        -- lever <L> <dir>.", quest_haunted.rs2:313) -- every pull in the
+        -- lever <L> <dir>.", quest_haunted.rs2) -- every pull in the
         -- solved order prints a distinct line, so the line proves THIS pull.
         -- click_loc can answer on the walk's map flag before the pull: read
         -- the ring first, then wait for the line if it has not printed yet.
@@ -247,11 +248,11 @@ return {
         t.exec("goto-veronica", t.player.goto_tile, 3110, 3330, 0) -- first goto: the setup teleport's own tile, open grounds
         t.exec("talkToVeronica", t.player.talk_to, "veronica", 1)
         -- veronica.rs2 [opnpc1,veronica] @haunted_start: opens with the
-        -- NPC's own line (chatnpc_anim), then a two-row choice menu, spelled
-        -- verbatim from the .rs2.
+        -- NPC's own line (chatnpc_anim), then the quest-start menu "Start the
+        -- Ernest the Chicken quest?" Yes./No. (RSProx index 4362 [90]).
         t.exec("veronica-accept", t.chat.play, {
             "npc:Can you please help me? I'm in",
-            "choose:Aha, sounds like a quest. I'll help.",
+            "choose:Yes.",
             "player:Aha, sounds like a quest. I'll",
             "npc:Yes yes, I suppose it is a que",
             "npc:Seeing as we were a little los",
@@ -263,8 +264,8 @@ return {
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
         -- --------------------------------------------------- into the manor
-        -- open_manor_entrance (quest_haunted.rs2:35-57) only opens from the
-        -- south and p_teleports the player one tile north, into the hall.
+        -- open_manor_entrance only opens from the south: the player stands on
+        -- the leaf's own tile and steps one tile north, into the hall.
         t.exec("goto-manor-gate", t.player.goto_tile, 3108, 3349, 0)
         hop("enterManor", "haunteddoorl", 3108, 3353, 0, 3108, 3352, 3108, 3354, 0)
         hall_door_in("hallDoorIn")
@@ -275,11 +276,12 @@ return {
         lab_in("labDoorIn")
         t.exec("talkToOddenstein", t.player.talk_to, "professor_oddenstein", 1)
         -- professor_oddenstein.rs2 [label,oddenstein_looking] (reached at
-        -- %haunted == ^haunted_started) opens directly on a THREE-row choice
-        -- menu -- no npc line before it -- spelled verbatim through to
-        -- @oddenstein_change_back / @oddenstein_not_easy, which is the page
-        -- that writes %haunted = ^haunted_spoken_to_oddenstein.
+        -- %haunted == ^haunted_started) opens on his warning, then a
+        -- THREE-row choice menu (RSProx index 4363 [40..41]), spelled verbatim
+        -- through to @oddenstein_change_back / @oddenstein_not_easy, which is
+        -- the page that writes %haunted = ^haunted_spoken_to_oddenstein.
         t.exec("oddenstein-looking", t.chat.play, {
+            "npc:Be careful in here, there's",
             "choose:I'm looking for a guy called Ernest.",
             "player:I'm looking for a guy called E",
             "npc:Ah Ernest, top notch bloke. He",
@@ -326,7 +328,7 @@ return {
                 tostring(poison_result), tostring(poison_detail), tostring(poison_have)))
 
         -- [opheldu,poison]/[opheldu,fish_food] both trigger @poison_fish_food
-        -- (quest_haunted.rs2:118-132): both inputs leave, poisoned_fish_food
+        -- (quest_haunted.rs2): both inputs leave, poisoned_fish_food
         -- arrives.
         t.exec("usePoisonOnFishFood", t.player.use_item_on_item, "poison", "fish_food")
         local pff_await_result, pff_await_detail = t.inv.await("poisoned_fish_food", 1, 5)
@@ -347,17 +349,16 @@ return {
         t.check("pickupSpade", spade_result == "ok" and spade_have == 1,
             string.format("click_obj(spade) -> %s (%s); inv spade=%s (want 1)",
                 tostring(spade_result), tostring(spade_detail), tostring(spade_have)))
-        -- hauntedbackdoor is a door_selfstage door: open, it is the SAME
-        -- symbol one tile south (doors_selfstage.rs2:76-89).
+        -- hauntedbackdoor is a walk-through (RSProx index 4363 [200]): pressed
+        -- from the kitchen, it steps the player onto its own tile.
         pass_door("backDoorOut", "hauntedbackdoor", "hauntedbackdoor", 3123, 3361, 3123, 3360, 3123, 3362,
             function(tt) return tt.level == 0 and tt.z >= 3361 end, "the grounds north of the kitchen, z >= 3361, level 0")
 
         -- ------------------------------------------------------ the compost
-        -- [oplocu,hauntedcompostheap] (quest_haunted.rs2:62-74) grants the
-        -- key two ticks behind its first mes(): poll (trap 24/25).
+        -- Search with the spade in the pack digs (RSProx index 4363 [227..232]):
+        -- the key three ticks behind its first mes(): poll.
         t.exec("goto-compost", t.player.goto_tile, 3087, 3361, 0)
-        local compostheap = t.player.by_symbol("loc", "hauntedcompostheap")
-        t.exec("searchCompost", t.player.use_on, "spade", compostheap)
+        t.exec("searchCompost", t.player.click_loc, "hauntedcompostheap", 1)
         local key_await_result, key_await_detail = t.inv.await("closet_key", 1, 5)
         t.check("have.closet_key", key_await_result == "ok",
             string.format("inv.await(closet_key,1,5) -> %s (%s) after digging the compost with the spade",
@@ -367,7 +368,7 @@ return {
         t.exec("goto-fountain", t.player.goto_tile, 3089, 3335, 0)
         local fountain = t.player.by_symbol("loc", "hauntedfountain")
         t.exec("useFishFoodOnFountain", t.player.use_on, "poisoned_fish_food", fountain)
-        -- [oplocu,hauntedfountain] (quest_haunted.rs2:134-145): plain mes()
+        -- [oplocu,hauntedfountain] (quest_haunted.rs2): plain mes()
         -- lines, then %haunted_manor_fountain_poisoned = 1 as the LAST
         -- statement after "...then die and float to the surface."
         local poison_wait_result, poison_wait_detail = t.msg.await("then die and float to the surface", 10)
@@ -393,7 +394,7 @@ return {
         t.exec("goto-manor-reentry", t.player.goto_tile, 3108, 3349, 0)
         hop("enterManorWithKey", "haunteddoorl", 3108, 3353, 0, 3108, 3352, 3108, 3354, 0)
         hall_door_in("hallDoorIn2")
-        -- closet_door (quest_haunted.rs2:77-93) opens only with closet_key
+        -- closet_door (quest_haunted.rs2) opens only with closet_key
         -- held and walks the player through (~ernest_walk_through_door): in
         -- from 3107,3367 to 3108,3367, and back out the same way.
         hop("openClosetDoor", "closet_door", 3107, 3367, 0, 3107, 3367, 3108, 3367, 0)
@@ -405,26 +406,25 @@ return {
         hop("leaveCloset", "closet_door", 3107, 3367, 0, 3108, 3367, 3107, 3367, 0)
 
         -- ----------------------------------------------------- the oil can
-        -- The bookcase (quest_haunted.rs2:172-177) only answers from the EAST
+        -- The bookcase (quest_haunted.rs2) only answers from the EAST
         -- and its manor_bookcase_door proc puts the player in the secret room
         -- at 0_48_52_24_30 = 3096,3358.
         n_to_f("corridorDoorOut2")
         f_to_t("bookcaseRoomIn")
         hop("searchBookcase", "hauntedbookcasel", 3097, 3358, 0, 3098, 3358, 3096, 3358, 0)
-        -- puzzle_ladder_top (quest_haunted.rs2:211-214) resets every lever and
-        -- door bit and lands at 0_48_152_44_26 = 3116,9754 in the basement.
-        hop("goDownLadder", "puzzle_ladder_top", 3092, 3362, 0, nil, nil, 3116, 9754, 0)
+        -- puzzle_ladder_top resets every lever and lands at 3117,9753 in the
+        -- basement (RSProx index 4363 [339], 3192 [60841]).
+        hop("goDownLadder", "puzzle_ladder_top", 3092, 3362, 0, nil, nil, 3117, 9753, 0)
 
         -- Nine lever pulls in Quest Helper's solved order: A down, B down,
         -- D down, B up, A up, F down, E down, C down, E up. Between them the
         -- maze gates are walked through as each pull opens them
-        -- (update_ernest_doors, quest_haunted.rs2:325-372; lever bits A..F =
-        -- 1..6): 4to7 = A&B&!C&!D&!E&!F; 4to5 = A&B&D; 5to8 = !C&D, or
-        -- !A&!B&C&D&!E&F; 5to6 = D; 3to6 = !B&D&!F; 2to3 = !B&D&F; 1to2 =
-        -- !A&!B&D&E&F; 2to5 = !A&!B&C&D&!E&F; 8to9 = !E&F. A gate is a s10
-        -- scenery tile crossed by a 2-tile teleport to the mirror of the
-        -- player's own orthogonal tile (quest_haunted.rs2:438-451), so each
-        -- crossing stands on the exact side tile first.
+        -- (update_ernest_doors, fitted to RSProx index 4363's lever states;
+        -- lever bits A..F = 1..6): 4to5 = A; 4to7 = A&B; 5to6 = D&!E&!F;
+        -- 5to8 = D&!E; 3to6 = !B&D&!F; 2to3 = !B&D&F; 1to2 = !A&!B&D&E&F;
+        -- 2to5 = !A&!B&C&D&!E&F; 8to9 = C&F. A gate is a s10 scenery tile:
+        -- the player steps onto it and off the far side (two steps, either
+        -- way), so each crossing stands on the exact side tile first.
         -- Rooms (static collision): ladder room (levers A, B) x3100-3118
         -- z9745-9757; east room (C, D) x3105-3112 z9758-9767; room 2
         -- x3100-3104 z9763-9767; room 5 x3101-3104 z9758-9762; room 6
@@ -467,8 +467,8 @@ return {
                 tostring(oil_result), tostring(oil_detail), tostring(oil_have)))
 
         -- ------------------------------------------------------- hand-in
-        -- Out the way the player came: back through 8to9 (still open: !E&F),
-        -- up puzzle_ladder (quest_haunted.rs2:216-220: lands 0_48_52_20_33 =
+        -- Out the way the player came: back through 8to9 (still open: C&F),
+        -- up puzzle_ladder (quest_haunted.rs2: lands 0_48_52_20_33 =
         -- 3092,3361 in the secret room), out by the lever (hauntedleverup,
         -- :186-194: a tile north, then two east through the bookcase, to
         -- 3098,3358), and up both staircases to Oddenstein.
@@ -501,6 +501,15 @@ return {
             "player:I have everything!",
             "npc:Give 'em here then.",
             "npc:Let's get this fixed then.",
+        })
+        -- The machine scene (quest_haunted.rs2 ~haunted_machine_scene) runs
+        -- nine ticks with no page up (RSProx index 4363 [605..614]); Ernest's
+        -- first page ends it.
+        t.check("machine-scene", t.await({
+            level = function() return t.chat.kind() ~= "none" end,
+            note = "the machine scene: waiting for Ernest's first page",
+        }, 20) == "ok", "Ernest's page after the machine scene")
+        t.exec("ernest-thanks", t.chat.play, {
             "npc:It was dreadfully irritating being a chicken. How can I ever thank you?",
             "player:Well a cash reward is always nice...",
             "npc:Of course, of course.",

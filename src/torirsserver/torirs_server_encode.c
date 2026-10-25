@@ -5068,6 +5068,14 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     }
                 }
             }
+            /* `p_headbar_clear`: the removal entry, unless a hit this tick
+             * already sent a bar. */
+            if( (subject->masks & TORIRSSERVER_PMASK_HEADBAR_CLEAR) && !ext.has_headbar )
+            {
+                ext.has_headbar = 1;
+                ext.headbar_type = subject->headbar_clear_type;
+                ext.headbar_duration = MOCK239_HEADBAR_REMOVE;
+            }
             if( (subject->masks & TORIRSSERVER_PMASK_SEQUENCE) || (entering && subject->anim_id >= 0) )
             {
                 ext.has_seq = 1;
