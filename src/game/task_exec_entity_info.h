@@ -24,11 +24,13 @@ CreateTask_ExecPlayerInfo(
     uint8_t const* data,
     int length);
 
+/** `large`: NPC_INFO_LARGE, decoded by the revision's npc_info_read_large. */
 struct ToriRS_Task*
 CreateTask_ExecNpcInfo(
     struct App* app,
     uint8_t const* data,
-    int length);
+    int length,
+    int large);
 
 /*
  * Releases the op-array scratch both decoders borrow from App. Call once at

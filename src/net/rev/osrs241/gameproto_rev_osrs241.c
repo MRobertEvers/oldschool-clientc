@@ -16,6 +16,8 @@ osrs241_player_info_read(uint8_t const* data, int len, struct PktPlayerInfoOp* o
 
 int
 osrs241_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+int
+osrs241_npc_info_read_large(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
 
 void
 osrs241_playerinfo_set_local(int local_index);
@@ -133,6 +135,7 @@ static struct GameProtoRevTable k_rev_osrs241 = {
      */
     .player_info_read = osrs241_player_info_read,
     .npc_info_read = osrs241_npc_info_read,
+    .npc_info_read_large = osrs241_npc_info_read_large,
     /* This module's own GPI table, not osrs239's. */
     .player_info_set_local = osrs241_playerinfo_set_local,
     .player_info_init = osrs241_playerinfo_init,

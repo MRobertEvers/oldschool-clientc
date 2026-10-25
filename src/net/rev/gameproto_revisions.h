@@ -203,6 +203,10 @@ struct GameProtoRevTable
      * bitcodec (pkt_player_info.c / pkt_npc_info.c). Wired in Phase 3. */
     int (*player_info_read)(uint8_t const* data, int len, struct PktPlayerInfoOp* ops, int cap);
     int (*npc_info_read)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
+    /** NPC_INFO in extended view (PKT_NAME_NPC_INFO_LARGE), where the
+     *  revision names one: npc_info_read's stream with 8-bit low-resolution
+     *  deltas. NULL where the table routes no large packet. */
+    int (*npc_info_read_large)(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
     /**
      * The modern player stream's session state lives inside its reader's
      * module (a 2048-slot high-resolution table), and the host has to seed,

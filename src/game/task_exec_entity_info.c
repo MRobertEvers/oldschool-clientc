@@ -1052,6 +1052,8 @@ struct Task_ExecNpcInfo
     struct App* app;
     uint8_t const* data;
     int length;
+    /** NPC_INFO_LARGE: rev->npc_info_read_large decodes it. */
+    int large;
 
     struct PktNpcInfoReader reader;
     struct PktNpcInfoOp* ops;
@@ -1754,11 +1756,20 @@ Task_ExecNpcInfo_Run(
         struct GameProtoRevTable const* rev = app->net ? app->net->rev : NULL;
         uint64_t t0 = BD_T0();
 
-        self->op_count =
-            rev && rev->npc_info_read
-                ? rev->npc_info_read(self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX)
-                : pkt_npc_info_reader_read(
-                      &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+        if( self->large )
+        {
+            /* Only a table that names NPC_INFO_LARGE routes one here. */
+            assert(rev);
+            assert(rev->npc_info_read_large);
+            self->op_count =
+                rev->npc_info_read_large(self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
+        }
+        else
+            self->op_count =
+                rev && rev->npc_info_read
+                    ? rev->npc_info_read(self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX)
+                    : pkt_npc_info_reader_read(
+                          &self->reader, self->data, self->length, self->ops, ENTITY_INFO_OPS_MAX);
         BD_ADD(g_bd_decode, t0);
     }
 
@@ -1958,7 +1969,8 @@ struct ToriRS_Task*
 CreateTask_ExecNpcInfo(
     struct App* app,
     uint8_t const* data,
-    int length)
+    int length,
+    int large)
 {
     struct Task_ExecNpcInfo* task;
 
@@ -1973,6 +1985,7 @@ CreateTask_ExecNpcInfo(
     task->app = app;
     task->data = data;
     task->length = length;
+    task->large = large;
     task->view = app->active_world;
     PT_INIT(&task->pt);
     return &task->task;

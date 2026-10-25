@@ -180,7 +180,7 @@ test_npc_info_count_zero_despawns_all(void)
 
     /* 8-bit count=0; new section skipped when packet is too short for a slot. */
     uint8_t packet[] = { 0x00 };
-    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet), 0));
 
     TEST_ASSERT(app.esync.active_npc_count == 0, "active list empty after count=0");
     TEST_ASSERT(
@@ -260,7 +260,7 @@ test_npc_info_unresolvable_entry_keeps_list_positions(void)
 
     /* count=2 (0x02), then info=0 for both entries (two clear bits). */
     uint8_t packet[] = { 0x02, 0x00 };
-    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet), 0));
 
     TEST_ASSERT(
         app.esync.active_npc_count == 2,
@@ -290,7 +290,7 @@ test_npc_info_count_shrink_keeps_prefix(void)
 
     /* count=1 (0x01), then info=0 for that entry (next bit clear). */
     uint8_t packet[] = { 0x01, 0x00 };
-    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet), 0));
 
     TEST_ASSERT(app.esync.active_npc_count == 1, "one NPC kept");
     TEST_ASSERT(app.esync.active_npcs[0] == 20, "kept slot is the first");
@@ -429,7 +429,7 @@ test_npc_info_resident_sequence_queues_nothing(void)
      * (g2), delay 0 (g1).
      */
     uint8_t packet[] = { 0x01, 0x9f, 0xff, 0x80, PKT_NPC_MASK_ANIM, 0x00, 0x3c, 0x00 };
-    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet)));
+    run_task_to_done(CreateTask_ExecNpcInfo(&app, packet, (int)sizeof(packet), 0));
 
     TEST_ASSERT(g_seq_load_requests == 1, "the ANIM asked the provider for its sequence");
     TEST_ASSERT(g_seq_load_last_id == 60, "it asked for the sequence the wire named");

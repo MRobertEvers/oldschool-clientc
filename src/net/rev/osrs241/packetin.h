@@ -109,7 +109,7 @@ static const struct Osrs241PacketInDef g_packet_in_definitions_osrs241[] = {
     {  146, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "OBJ_CUSTOMISE_SPECIFIC_V2" },
     {   27, PKTIN_LENGTH_VARU16,   PKT_NAME_PLAYER_INFO,                "PLAYER_INFO" },
     {  150, PKTIN_LENGTH_VARU16,   PKT_NAME_NPC_INFO,                   "NPC_INFO_SMALL_V6" },
-    {  131, PKTIN_LENGTH_VARU16,   PKT_NAME_NONE,                       "NPC_INFO_LARGE_V6" },
+    {  131, PKTIN_LENGTH_VARU16,   PKT_NAME_NPC_INFO_LARGE,             "NPC_INFO_LARGE_V6" },
     {   23, 2,                     PKT_NAME_SET_NPC_UPDATE_ORIGIN,      "SET_NPC_UPDATE_ORIGIN" },
     {  103, 3,                     PKT_NAME_SET_ACTIVE_WORLD,           "SET_ACTIVE_WORLD_V2" },
     {  141, PKTIN_LENGTH_VARU16,   PKT_NAME_WORLDENTITY_INFO,           "WORLDENTITY_INFO_V7" },

@@ -1865,6 +1865,7 @@ RS_GameProto_Exec(
         break;
     case PKT_NAME_PLAYER_INFO:
     case PKT_NAME_NPC_INFO:
+    case PKT_NAME_NPC_INFO_LARGE:
         /* Normally consumed by Task_GameProtoExec's awaited entity-info
          * tasks; reaching here means no world is active (packet dropped). */
         if( torirs_env_net_debug() )

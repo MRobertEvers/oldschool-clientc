@@ -468,10 +468,13 @@ Task_GameProtoExec_Run(
                 PluginHost_ServerTick(app->plugins, app->world ? app->world->cycle : 0);
         }
     }
-    else if( self->packet.packet_type == PKT_NAME_NPC_INFO && app->world_active )
+    else if( (self->packet.packet_type == PKT_NAME_NPC_INFO ||
+              self->packet.packet_type == PKT_NAME_NPC_INFO_LARGE) &&
+             app->world_active )
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ExecNpcInfo(
-            app, self->packet._npc_info.data, self->packet._npc_info.length));
+            app, self->packet._npc_info.data, self->packet._npc_info.length,
+            self->packet._npc_info.large));
     }
     else
     {

@@ -1873,12 +1873,31 @@ npc_extended(
     }
 }
 
-int
-osrs241_npc_info_read(
+/*
+ * NPC_INFO_SMALL_V6 and NPC_INFO_LARGE_V6 are one stream; LARGE (extended view
+ * distance) widens the entering-view record's dx and dz from 6 bits to 8
+ * (RSProx NpcInfoClient.decodeDelta). Nothing else differs.
+ */
+static int
+npc_low_res_delta(
+    struct Net_BitBuffer* buf,
+    int large)
+{
+    int bits = large ? 8 : 6;
+    int delta = Net_BitBufferGbits(buf, bits);
+
+    if( delta >= 1 << (bits - 1) )
+        delta -= 1 << bits;
+    return delta;
+}
+
+static int
+npc_info_read(
     uint8_t const* data,
     int len,
     struct PktNpcInfoOp* ops,
-    int cap)
+    int cap,
+    int large)
 {
 /*
  * The list index below is a CONTRACT with the consumer, not a local counter.
@@ -2027,9 +2046,7 @@ osrs241_npc_info_read(
         if( op )
             op->_bitvalue = (uint64_t)slot;
 
-        dz = Net_BitBufferGbits(&buf, 6);
-        if( dz > 31 )
-            dz -= 64;
+        dz = npc_low_res_delta(&buf, large);
         jump = Net_BitBufferGbits(&buf, 1);
         facing = Net_BitBufferGbits(&buf, 3);
         has_spawn_cycle = Net_BitBufferGbits(&buf, 1);
@@ -2037,9 +2054,7 @@ osrs241_npc_info_read(
             spawn_cycle = Net_BitBufferGbits(&buf, k_spawn_clock_bits[Net_BitBufferGbits(&buf, 2)]);
         extended = Net_BitBufferGbits(&buf, 1);
         npc_type = Net_BitBufferGbits(&buf, k_type_bits[Net_BitBufferGbits(&buf, 2)]);
-        dx = Net_BitBufferGbits(&buf, 6);
-        if( dx > 31 )
-            dx -= 64;
+        dx = npc_low_res_delta(&buf, large);
 
         op = npc_op(&r, PKT_NPC_INFO_OPBITS_NPCTYPE);
         if( op )
@@ -2071,4 +2086,24 @@ osrs241_npc_info_read(
 
     npc_extended(&r, data, len, Net_BitBufferBytePos(&buf));
     return r.count;
+}
+
+int
+osrs241_npc_info_read(
+    uint8_t const* data,
+    int len,
+    struct PktNpcInfoOp* ops,
+    int cap)
+{
+    return npc_info_read(data, len, ops, cap, 0);
+}
+
+int
+osrs241_npc_info_read_large(
+    uint8_t const* data,
+    int len,
+    struct PktNpcInfoOp* ops,
+    int cap)
+{
+    return npc_info_read(data, len, ops, cap, 1);
 }

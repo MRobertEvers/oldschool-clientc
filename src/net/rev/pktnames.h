@@ -289,6 +289,11 @@ enum GameProtoPktName
      * PktCamUnlock). Appended likewise. */
     PKT_NAME_CAM_UNLOCK,
 
+    /* NPC_INFO in extended view (rev 241 NPC_INFO_LARGE_V6): the same stream
+     * as PKT_NAME_NPC_INFO, its low-resolution deltas 8 bits wide instead of
+     * 6 (struct PktNpcInfo.large). Appended likewise. */
+    PKT_NAME_NPC_INFO_LARGE,
+
     PKT_NAME_COUNT
 };
 

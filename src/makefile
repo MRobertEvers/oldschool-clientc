@@ -3597,6 +3597,15 @@ test-mock239-playerinfo: $(OBJ_DIR)
 		$(RSAREABUF_DIR)/rsareabuf.c -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
 
+# NPC_INFO_LARGE_V6: the 241 reader's 8-bit low-resolution deltas, against a
+# record hand-packed in RSProx's read order (Brutus, index 4381 [640]).
+.PHONY: test-osrs241-npcinfo-large
+test-osrs241-npcinfo-large: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_npc_info_large_test $(TORIMEM_SRCS) \
+		net/rev/test/osrs241_npc_info_large_test.c net/rev/osrs241/osrs241_entity_info.c \
+		net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c -lm
+	./$(OBJ_DIR)/osrs241_npc_info_large_test
+
 # PLAYER_INFO's rev-241 tail: the server's writer against the client's 241
 # reader, block by block (the face angle and TRANSPARENCY above all).
 test-mock241-playerinfo: $(OBJ_DIR)

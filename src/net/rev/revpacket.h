@@ -64,6 +64,8 @@ struct PktNpcInfo
 {
     int length;
     uint8_t* data;
+    /** NPC_INFO_LARGE: extended view, 8-bit low-resolution deltas. */
+    int large;
 };
 
 struct PktPlayerInfo

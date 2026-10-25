@@ -222,11 +222,14 @@ gameproto_parse(
         return 1;
     }
     case PKT_NAME_NPC_INFO:
+    case PKT_NAME_NPC_INFO_LARGE:
     {
         uint8_t* commandstream = ToriMem_Alloc(ToriMem_Net(), (size_t)data_size);
+        assert(commandstream);
         memcpy(commandstream, data, data_size);
         packet->_npc_info.length = data_size;
         packet->_npc_info.data = commandstream;
+        packet->_npc_info.large = pkt_name == PKT_NAME_NPC_INFO_LARGE;
         return 1;
     }
     case PKT_NAME_PLAYER_INFO:
@@ -878,6 +881,7 @@ gameproto_free(struct RevPacket* p)
         p->_runclientscript = NULL;
         break;
     case PKT_NAME_NPC_INFO:
+    case PKT_NAME_NPC_INFO_LARGE:
         ToriMem_Free(ToriMem_Net(), p->_npc_info.data);
         p->_npc_info.data = NULL;
         p->_npc_info.length = 0;

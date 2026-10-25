@@ -106,6 +106,9 @@ CANON_IN = {
     "MAP_PROJANIM_V2": "MAP_PROJANIM",
     "PLAYER_INFO": "PLAYER_INFO",
     "NPC_INFO_SMALL_V5": "NPC_INFO",
+    # The camera's pitch limits widened or put back (struct PktCamUnlock).
+    # Named in both osrs239/ and osrs241/packetin.h by hand before this row.
+    "CAM_UNLOCK": "CAM_UNLOCK",
     "SET_NPC_UPDATE_ORIGIN": "SET_NPC_UPDATE_ORIGIN",
     "SET_ACTIVE_WORLD_V2": "SET_ACTIVE_WORLD",
     "REBUILD_NORMAL_V2": "REBUILD_NORMAL",
@@ -173,6 +176,16 @@ CANON_IN_RSPROX = {
     # id g2). 241 moved the Grand Exchange's offer price into one (varp 5753,
     # read by CS2 opcode 64).
     "VARP_LONG": "VARP_LONG",
+    # NPC_INFO in extended view (RSProx NpcInfoClient: `large` -> 8-bit low-
+    # resolution deltas instead of 6). Jagex switches to it whenever the npc
+    # view distance grows -- Brutus's arena (index 4381 [640]), Count
+    # Draynor's crypt (index 4373 [465]) -- and a client that drops it misses
+    # every npc added there and addresses a stale list after. Named for 241.
+    "NPC_INFO_LARGE_V6": "NPC_INFO_LARGE",
+    # A projectile flown by three curve clientscripts (a zone sub-packet, no
+    # top-level opcode; struct PktScriptedProjAdd). It was named in
+    # osrs241/packetin.h by hand; stated here so a regeneration keeps it.
+    "SCRIPTEDPROJ_ADD": "SCRIPTEDPROJ_ADD",
 }
 CANON_IN_RSPROX_IF_ABSENT = {
     # survivor              (deleted prot it replaces, canonical name)
