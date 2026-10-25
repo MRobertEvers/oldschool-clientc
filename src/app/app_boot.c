@@ -1053,6 +1053,15 @@ App_OpenRootInterface(
     int interface_id)
 {
     assert(app);
+    /* The mounts go with the tree, but not out of the game: the IF_MOVESUBs
+     * after an IF_OPENTOP move them into the new top (detached_parents). */
+    app->detached_parent_count = 0;
+    if( app->screen == APP_SCREEN_GAME && app->tree )
+    {
+        app->detached_parent_count = app->tree->interface_parent_count;
+        memcpy(app->detached_parents, app->tree->interface_parents,
+               (size_t)app->detached_parent_count * sizeof(app->detached_parents[0]));
+    }
     app->screen = APP_SCREEN_GAME;
     /* Half a megabyte of simulation buffers that only the title screen wants,
      * and the tree that drew them is about to be cleared. */
@@ -1079,6 +1088,7 @@ App_OpenTitleScreen(struct App* app)
      * background, and the gameframe the server will re-root to does not exist
      * until a login succeeds. */
     app->screen = APP_SCREEN_TITLE;
+    app->detached_parent_count = 0;
     app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL);
 }
 
@@ -1411,6 +1421,53 @@ App_CloseSubInterface(
     app_close_sub(app, target_uid);
 }
 
+/* Take the kept mount at `container_uid` out of detached_parents: its record,
+ * or a group of 0 when none is kept there. */
+static struct UITreeInterfaceParent
+app_take_detached(
+    struct App* app,
+    int container_uid)
+{
+    struct UITreeInterfaceParent taken = { container_uid, 0, 0 };
+
+    for( int i = 0; i < app->detached_parent_count; i++ )
+    {
+        if( app->detached_parents[i].container_uid != container_uid )
+            continue;
+        taken = app->detached_parents[i];
+        app->detached_parents[i] = app->detached_parents[--app->detached_parent_count];
+        break;
+    }
+    return taken;
+}
+
+/* A kept group moved into the new top brings what was open inside it: the
+ * quest list in the journal's tab_container, the chat channel in its side
+ * panel. Their slots are the group's own components, so their uids do not
+ * change; each reopens where it was, after the group it lives in. */
+static void
+app_reopen_detached_inside(
+    struct App* app,
+    int group_id)
+{
+    int i = 0;
+
+    while( i < app->detached_parent_count )
+    {
+        struct UITreeInterfaceParent inner = app->detached_parents[i];
+
+        if( (inner.container_uid >> 16) != group_id )
+        {
+            i++;
+            continue;
+        }
+        app_take_detached(app, inner.container_uid);
+        app_open_sub(app, inner.container_uid, inner.group_id, inner.type);
+        app_reopen_detached_inside(app, inner.group_id);
+        i = 0;
+    }
+}
+
 void
 App_MoveSubInterface(
     struct App* app,
@@ -1426,7 +1483,26 @@ App_MoveSubInterface(
         return;
     idx = UITree_InterfaceParentFind(app->tree, source_uid);
     if( idx < 0 )
+    {
+        /*
+         * Not in this tree: either a sub of the top an IF_OPENTOP just
+         * replaced (relinked, as the deob does, by reopening it in the new top
+         * with everything that was open inside it), or an empty slot, whose
+         * move still closes what it lands on (class415.method9481 closes the
+         * destination before it looks at the source).
+         */
+        struct UITreeInterfaceParent kept = app_take_detached(app, source_uid);
+
+        app_disarm_slot(app, dest_uid);
+        if( kept.group_id > 0 )
+        {
+            app_open_sub(app, dest_uid, kept.group_id, kept.type);
+            app_reopen_detached_inside(app, kept.group_id);
+        }
+        else if( app_queued_slot_group(app, dest_uid) > 0 )
+            app_close_sub(app, dest_uid);
         return;
+    }
     group_id = app->tree->interface_parents[idx].group_id;
     type = app->tree->interface_parents[idx].type;
     if( torirs_env_net_debug() )

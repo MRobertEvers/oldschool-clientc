@@ -2592,6 +2592,18 @@ struct App
      */
     int async_pending;
     int boot_interface_id;
+    /**
+     * The outgoing root's mounts, kept across a re-root (App_OpenRootInterface).
+     *
+     * The deob keeps its InterfaceParent table when IF_OPENTOP changes the top:
+     * the subs stay open, keyed by their old slots, and the IF_MOVESUBs that
+     * follow relink each one into the new top (class415.method9481). The tree
+     * here is rebuilt instead, so these records are what App_MoveSubInterface
+     * finds a moved sub by. Replaced at every re-root; a record never moved is
+     * simply never shown again, as in the deob.
+     */
+    struct UITreeInterfaceParent detached_parents[UITREE_INTERFACE_PARENT_MAX];
+    int detached_parent_count;
     /** Invalid TORIRS_PREVIEW_STATE packet; the headless caller turns this into
      * a non-zero process exit after the async boot task returns. */
     int preview_state_failed;

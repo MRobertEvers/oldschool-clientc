@@ -62,6 +62,23 @@ test_pbits(uint8_t* data, int* bit_pos, int count, uint32_t value)
     }
 }
 
+/* A mount of `group` into `target` was queued: its SUB_OPENED stamp. */
+static int
+queued_open(
+    struct App const* app,
+    int target,
+    int group)
+{
+    for( uint32_t i = 0; i < app->drive_events.count; i++ )
+    {
+        struct App_DriveEvent const* e = &app->drive_events.entries[i];
+
+        if( e->kind == DRIVE_EVENT_SUB_OPENED && e->a == target && e->b == group )
+            return 1;
+    }
+    return 0;
+}
+
 int
 main(void)
 {
@@ -194,6 +211,58 @@ main(void)
         UIIfEventTable_Free(&app->if_events);
         free(app);
         printf("ok - closing a group out of a slot drops its IF_SETEVENTS in wire order\n");
+    }
+
+    /*
+     * IF_OPENTOP, then IF_MOVESUB from the old top's slots. The deob keeps its
+     * open subs across a top change and the move relinks each into the new
+     * top (class415.method9481); App_OpenRootInterface keeps the outgoing
+     * tree's mounts in detached_parents for it. RSProx index 4377: 165 -> 164
+     * moved the chatbox, the journal and the rest, and this client found none
+     * of them -- every dialogue after it had no slot to open into.
+     */
+    {
+        struct App* app = calloc(1, sizeof(*app));
+        int const chat_src = (165 << 16) | 2;
+        int const chat_dest = (164 << 16) | 93;
+        int const journal_src = (165 << 16) | 19;
+        int const journal_dest = (164 << 16) | 75;
+        int const quest_slot = (629 << 16) | 43; /* side_journal:tab_container */
+        int const modal_src = (165 << 16) | 14;
+        int const modal_dest = (164 << 16) | 16;
+        int const welcome = (378 << 16) | 5;
+
+        assert(app);
+        app->exec_runner.queue = ToriRS_TaskQueue_New();
+        app->tree = UITree_New(2);
+        app->detached_parents[0] = (struct UITreeInterfaceParent){ chat_src, 162, 1 };
+        app->detached_parents[1] = (struct UITreeInterfaceParent){ journal_src, 629, 1 };
+        app->detached_parents[2] = (struct UITreeInterfaceParent){ quest_slot, 399, 1 };
+        app->detached_parent_count = 3;
+
+        App_MoveSubInterface(app, chat_src, chat_dest);
+        App_MoveSubInterface(app, journal_src, journal_dest);
+        TEST_EXEC_ASSERT(queued_open(app, chat_dest, 162),
+                         "IF_MOVESUB after IF_OPENTOP must reopen the chatbox in the new top");
+        TEST_EXEC_ASSERT(queued_open(app, journal_dest, 629),
+                         "IF_MOVESUB after IF_OPENTOP must reopen the journal in the new top");
+        TEST_EXEC_ASSERT(queued_open(app, quest_slot, 399),
+                         "what was open inside a moved group must reopen with it");
+        TEST_EXEC_ASSERT(app->detached_parent_count == 0,
+                         "a moved mount must leave the kept records");
+
+        /* A move out of an empty slot still closes what it lands on. */
+        UITree_InterfaceParentSet(app->tree, modal_dest, 378, 0);
+        App_IfEventsSet(app, welcome, 0, 0, 2);
+        App_MoveSubInterface(app, modal_src, modal_dest);
+        TEST_EXEC_ASSERT(App_IfEventsGetAt(app, welcome, 0) == 0,
+                         "IF_MOVESUB from an empty slot must close (disarm) its destination");
+
+        ToriRS_TaskQueue_Free(app->exec_runner.queue);
+        UITree_Free(app->tree);
+        UIIfEventTable_Free(&app->if_events);
+        free(app);
+        printf("ok - IF_MOVESUB relinks the subs of a top IF_OPENTOP replaced\n");
     }
 
     /* A TEXT node to receive IF_SETTEXT. */
