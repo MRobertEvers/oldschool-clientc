@@ -116,7 +116,7 @@ def rsprox_dump(rev):
 def row_line(r):
     """One RsprotProtDef row: name, opcode, size, and -- for a prot renamed by
     rsprox_names -- the RSProt name its codec is filed under."""
-    codec = ', "%s"' % r["codec"] if r.get("codec") else ""
+    codec = ', "%s"' % r["codec"] if r.get("codec") else ", NULL"
     note = "  /* RSProx only */" if r.get("rsprox_only") else (
         "  /* RSProt: %s */" % r["codec"] if r.get("codec") else "")
     return '    { "%s", %d, %s%s },%s' % (r["name"], r["code"], size_literal(r["size"]), codec, note)
