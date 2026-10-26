@@ -170,7 +170,8 @@ struct Mock239PlayerExt
         int start_fill;
     } headbar_extra[3];
     int headbar_extra_count;
-    /** Public-chat bytes are already wordpacked; the v5 wire reverses them. */
+    /** Public-chat bytes are already Huffman-coded (net/chat_huffman.h); the v5
+     *  wire reverses them. */
     int has_chat;
     int chat_colour_effect;
     int chat_type;

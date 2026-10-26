@@ -884,7 +884,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	varc/varc_manager.c \
 	inv/inv_manager.c \
 	cmd/cmdring.c cmd/cmdbus.c \
-	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
+	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c net/chat_huffman.c \
 	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c \
 	net/net_link_watch.c \
 	game/rs_clientscript_queue.c \
@@ -2772,6 +2772,16 @@ test-rsprot:
 RSPROT_TEST_DEPS = $(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_buf.o \
 	$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o
 
+# Chat text: the compiled-in OldSchool Huffman table against cache.osrs241's
+# file, round trips, the deob's "Cabbage", and LostCity's wordpack wrappers.
+test-chat-huffman: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/chat_huffman_test $(TORIMEM_SRCS) \
+		net/test/chat_huffman_test.c net/chat_huffman.c net/wordpack.c \
+		$(RSPROT_TEST_DEPS) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
+	./$(OBJ_DIR)/chat_huffman_test
+
 test-pktexec: $(OBJ_DIR) $(RSPROT_TEST_DEPS)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/pkt_exec_test \
 		net/exec/test/pkt_exec_test.c $(RSPROT_TEST_DEPS) -lm
@@ -3562,7 +3572,7 @@ test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
 NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
-	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/login_lc.o \
+	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/chat_huffman.o $(OBJ_DIR)/login_lc.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_params.o \
 	$(OBJ_DIR)/proto_info.o $(OBJ_DIR)/pkt_player_appearance.o \
 	$(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
@@ -4927,12 +4937,12 @@ test-revconfig: $(OBJ_DIR)
 # Everything but main(). Split out so the same server can be linked into a host
 # that has its own entry point â the in-process build (test-torirsserver-embed) is
 # the first, and src/platform/net_transport_embed.c is the second.
-# jbase37 and wordpack are here rather than in TORIRSSERVER_CORE_SRCS because the
+# jbase37 and chat_huffman are here rather than in TORIRSSERVER_CORE_SRCS because the
 # embed test already links both as objects out of NET_CORE_OBJS, and the client
 # under EMBED_SERVER=1 already has both in SRCS â listing them in both places is
 # a duplicate symbol. The appearance encoder needs jbase37: a player's name goes
-# on the wire base-37 packed. MESSAGE_PRIVATE needs wordpack in *both*
-# directions: the client's outbound builder wordpacks, so the server unpacks to
+# on the wire base-37 packed. MESSAGE_PRIVATE needs the chat Huffman in *both*
+# directions: the client's outbound builder packs it, so the server unpacks to
 # read the message and packs again to relay it (docs/FRIENDS_PRIVATE_CHAT.md
 # Â§3.4 â a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/torirsserver disagree).
@@ -4941,7 +4951,7 @@ test-revconfig: $(OBJ_DIR)
 # list is also what EMBED_SERVER=1 links into the client, which has no listener
 # and drives ToriRSServer_EmbedPump itself.
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
-	net/jbase37.c net/wordpack.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
+	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -6216,12 +6226,12 @@ test-torirsserver-coverage:
 #
 # It needs the real cache and the real content tree, and it is exhaustive over
 # both param groups, so it is a second-long test rather than an instant one.
-# `net/wordpack.c` for the same reason TORIRSSERVER_SRCS carries it: MESSAGE_PRIVATE
-# put wordpack calls into torirs_server_encode.c and torirs_server_world.c, both of which are
+# `net/chat_huffman.c` for the same reason TORIRSSERVER_SRCS carries it: MESSAGE_PRIVATE
+# put chat text calls into torirs_server_encode.c and torirs_server_world.c, both of which are
 # in TORIRSSERVER_CORE_SRCS, so every consumer of CORE needs it. These three targets
 # were authored on a branch where that was not yet true, which is why the merge
 # was textually clean and then failed at `_wordpack_pack, referenced from`.
-PARAM_TEST_SRCS = $(TORIRSSERVER_CORE_SRCS) net/jbase37.c net/wordpack.c \
+PARAM_TEST_SRCS = $(TORIRSSERVER_CORE_SRCS) net/jbase37.c net/wordpack.c net/chat_huffman.c \
 	serverscript/ssc_lex.c serverscript/ssc_symbols.c serverscript/ssc_compile.c
 .PHONY: test-torirsserver-param
 test-torirsserver-param: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \

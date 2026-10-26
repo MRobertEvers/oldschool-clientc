@@ -4,6 +4,7 @@
 #include <rsbuffer.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 /**
  * WordPack: RuneScape chat text compression.
@@ -44,5 +45,19 @@ wordpack_message_public_body(
  */
 int
 wordpack_says(const char* str);
+
+/** wordpack_unpack over `length` bytes at `data`: the LostCity revisions'
+ *  GameProtoRevTable.chat_unpack (chat_huffman_unpack's twin). */
+char*
+wordpack_unpack_bytes(
+    uint8_t const* data,
+    int length);
+
+/** wordpack_pack into `out`; returns the bytes written. */
+int
+wordpack_pack_bytes(
+    uint8_t* out,
+    int cap,
+    const char* str);
 
 #endif

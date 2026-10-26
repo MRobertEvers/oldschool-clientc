@@ -4519,6 +4519,9 @@ static struct GameProtoRevTable k_rev = {
     .player_info_state_size = proto_info_state_size,
     .player_info_state_save = proto_info_state_save,
     .player_info_state_load = proto_info_state_load,
+    .chat_unpack = chat_huffman_unpack,
+    .chat_pack = chat_huffman_pack,
+    .chat_says = chat_huffman_says,
 };
 
 struct GameProtoRevTable const*

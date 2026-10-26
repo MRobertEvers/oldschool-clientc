@@ -42,7 +42,6 @@
 #include "net/jbase37.h"
 #include "net/rev/pktnames.h"
 #include "net/rev/revpacket.h"
-#include "net/wordpack.h"
 
 #include <rsareabuf.h>
 

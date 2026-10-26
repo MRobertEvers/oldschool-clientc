@@ -7,6 +7,7 @@
  * info streams' entry points, and the one rule every arm applies.
  */
 
+#include "net/chat_huffman.h"
 #include "net/login/login_osrs.h"
 #include "net/proto/proto_adapt.h"
 #include "net/proto/proto_info.h"
@@ -15,6 +16,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/rev_list.h"
+#include "net/wordpack.h"
 #include "streams/info_rs.h"
 
 #include "rsprot_exec.h"

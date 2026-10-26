@@ -2,7 +2,6 @@
 #include <assert.h>
 
 #include "jbase37.h"
-#include "wordpack.h"
 #include "net/proto/proto_out.h"
 
 #include <rsbuffer.h>
@@ -22,35 +21,15 @@ net_out_opcode(
     return 1;
 }
 
-/* Write the opcode and arm `b` over the payload region. Returns 0 on
- * success, -1 when the rev lacks the packet or cap is too small. */
-static int
-out_begin(
-    struct GameProtoRevTable const* rev,
-    struct Isaac* random_out,
-    uint8_t* buf,
-    int cap,
-    int out_name,
-    int min_payload,
-    struct RSCache_Buffer* b)
-{
-    if( cap < 1 + min_payload )
-        return -1;
-    if( net_out_opcode(rev, random_out, buf, out_name) < 0 )
-        return -1;
-    RSCache_BufferInit(b, buf + 1, (uint32_t)(cap - 1));
-    return 0;
-}
-
 /*
  * Every revision writes through RSProt (net/proto/proto_out.h): each writer
  * below says what its packet means -- fills a struct ProtoOutArgs -- and
  * proto_encode lays it out the way the revision does, version, field order
  * and byte transforms included. Where the families mean different things by
  * one click (a use-on, a walk), the writer states every meaning and each
- * revision's layout takes the fields it carries. The one hand-framed body
- * left is OSRS chat (net_out_message_public / _private): its text is this
- * project's wordpack until OSRS's Huffman moves both ends at once.
+ * revision's layout takes the fields it carries. Chat text is the
+ * revision's own (GameProtoRevTable.chat_pack): OldSchool's Huffman,
+ * LostCity's wordpack.
  */
 
 /*
@@ -1291,33 +1270,36 @@ net_out_message_public(
     char const* text,
     int colour_effect)
 {
-    /* The body is this project's wordpack (colour, effect, packed text), the
-     * one writer shared with scriptrun's api_drive.say. The OSRS revisions
-     * frame it by hand until their chat text moves to Huffman, both ends at
-     * once; the LostCity ones carry it as their layout's `copy`. */
-    struct RSCache_Buffer b;
-    int len_pos;
-    int start;
-    assert(text);
-    if( rev->revision != GAMEPROTO_REVISION_OSRS )
-    {
-        static uint8_t body[256];
-        struct ProtoOutArgs a = { 0 };
+    uint8_t packed[256];
+    struct ProtoOutArgs a = { 0 };
+    int packed_len;
 
-        RSCache_BufferInit(&b, body, (uint32_t)sizeof(body));
-        wordpack_message_public_body(&b, text, colour_effect);
-        a.copy = body;
-        a.copy_length = (int32_t)b.position;
+    assert(text);
+    assert(rev->chat_pack);
+    packed_len = rev->chat_pack(packed, (int)sizeof(packed), text);
+    if( rev->revision == GAMEPROTO_REVISION_OSRS )
+    {
+        /* MessagePublic: type 0 (a plain line; the deob's CHAT_SENDPUBLIC
+         * pops it), colour, effect, the text. No pattern (colours 13-20) and
+         * no clan type (type 3) are sent from here. */
+        a.type = 0;
+        a.colour = (colour_effect >> 8) & 0xff;
+        a.effect = colour_effect & 0xff;
+        a.huffman = packed;
+        a.huffman_length = packed_len;
         return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PUBLIC, &a);
     }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PUBLIC, 7, &b) < 0 )
-        return -1;
-    p1(&b, 0); /* length placeholder */
-    len_pos = (int)b.position - 1;
-    start = (int)b.position;
-    wordpack_message_public_body(&b, text, colour_effect);
-    buf[1 + len_pos] = (uint8_t)((int)b.position - start);
-    return 1 + (int)b.position;
+    {
+        /* LostCity: colour, effect and the text as the layout's `copy`. */
+        uint8_t body[2 + sizeof(packed)];
+
+        body[0] = (uint8_t)((colour_effect >> 8) & 0xff);
+        body[1] = (uint8_t)(colour_effect & 0xff);
+        memcpy(body + 2, packed, (size_t)packed_len);
+        a.copy = body;
+        a.copy_length = 2 + packed_len;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PUBLIC, &a);
+    }
 }
 
 int
@@ -1329,43 +1311,28 @@ net_out_message_private(
     int64_t to_name37,
     char const* text)
 {
-    /* The text is this project's wordpack. The OSRS revisions frame it by
-     * hand in their layout (MessagePrivateDecoder: var-u16, NUL recipient)
-     * until their chat text moves to Huffman, both ends at once; the LostCity
-     * ones carry it as their layout's `copy` after the recipient's name37. */
-    struct RSCache_Buffer b;
-    int len_pos;
-    int start;
+    uint8_t packed[256];
+    struct ProtoOutArgs a = { 0 };
+    int packed_len;
+
     assert(text);
+    assert(rev->chat_pack);
+    packed_len = rev->chat_pack(packed, (int)sizeof(packed), text);
     if( rev->revision == GAMEPROTO_REVISION_OSRS )
     {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, 12, &b) < 0 )
-            return -1;
+        /* MessagePrivate: the recipient's display name, then the text. */
         char name[16];
-        p2(&b, 0);
-        len_pos = (int)b.position - 2;
-        start = (int)b.position;
-        base37tostr((uint64_t)to_name37, name, (int)sizeof(name));
-        pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
-        wordpack_pack(&b, text);
-        {
-            int payload_len = (int)b.position - start;
-            buf[1 + len_pos] = (uint8_t)(payload_len >> 8);
-            buf[1 + len_pos + 1] = (uint8_t)payload_len;
-        }
-        return 1 + (int)b.position;
-    }
-    {
-        static uint8_t body[256];
-        struct ProtoOutArgs a = { 0 };
 
-        RSCache_BufferInit(&b, body, (uint32_t)sizeof(body));
-        wordpack_pack(&b, text);
-        a.name37 = to_name37;
-        a.copy = body;
-        a.copy_length = (int32_t)b.position;
+        base37tostr((uint64_t)to_name37, name, (int)sizeof(name));
+        a.name = name;
+        a.huffman = packed;
+        a.huffman_length = packed_len;
         return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, &a);
     }
+    a.name37 = to_name37;
+    a.copy = packed;
+    a.copy_length = packed_len;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, &a);
 }
 
 int

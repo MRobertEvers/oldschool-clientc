@@ -221,6 +221,17 @@ struct GameProtoRevTable
     /** Per-rev appearance-block decode. NULL = 254-era PktPlayerAppearance_Decode. */
     int (*appearance_decode)(uint8_t const* data, int len, struct PktPlayerAppearance* out);
 
+    /**
+     * Chat text as this revision's packets carry it -- MESSAGE_PUBLIC and
+     * MESSAGE_PRIVATE both ways, the player-info chat block: OldSchool's
+     * Huffman (net/chat_huffman.h) or LostCity's wordpack (net/wordpack.h).
+     * `chat_unpack` returns a ToriMem_Net string; `chat_pack` the bytes it
+     * wrote; `chat_says` 1 when a line would arrive as typed.
+     */
+    char* (*chat_unpack)(uint8_t const* data, int len);
+    int (*chat_pack)(uint8_t* out, int cap, char const* text);
+    int (*chat_says)(char const* text);
+
     /** Resolve the scene base from a REBUILD packet. NULL = the (zone-6)*8
      * old-gen local-origin rule. Wired in Phase 2. */
     int (*scene_base)(struct RevPacket const* pkt, int* base_x, int* base_z);

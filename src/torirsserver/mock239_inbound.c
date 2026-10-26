@@ -688,6 +688,29 @@ mock239_inbound_translate(
         return name;
     }
 
+    /* MESSAGE_PUBLIC is RSProt's MessagePublic: g1 type, g1 colour, g1
+     * effect, a pattern byte per colour past 12 (13-20), the Huffman text,
+     * and a clan type after it when the type is 3. handle_message_public
+     * reads colour, effect, text. A patterned colour is dropped: the
+     * player-info chat block this server writes carries no pattern, so the
+     * line could not be passed on as it was said. */
+    case PKTOUT_NAME_MESSAGE_PUBLIC:
+    {
+        int text_end;
+
+        if( in_len < 4 || in[1] >= 13 )
+            return PKTOUT_NAME_NONE;
+        text_end = in[0] == 3 ? in_len - 1 : in_len;
+        if( text_end <= 3 || 2 + (text_end - 3) > out_cap )
+            return PKTOUT_NAME_NONE;
+        rsab_p1(&w, in[1]);
+        rsab_p1(&w, in[2]);
+        for( int i = 3; i < text_end; i++ )
+            rsab_p1(&w, in[i]);
+        *out_len = (int)rsab_len(&w);
+        return name;
+    }
+
     /*
      * Verified identical at both revisions, one decoder at a time, and listed
      * rather than left to fall through so that "unchanged" is a claim someone
@@ -701,12 +724,7 @@ mock239_inbound_translate(
      *   CLOSE_MODAL         empty
      *   WINDOW_STATUS       g1, g2, g2
      *   CHAT_SETMODE        three bytes
-     *   MESSAGE_PUBLIC      g1 colour, g1 effect, Huffman tail -- the client
-     *                       writes one body for both revisions
-     *                       (net_out_message_public has no 239 branch, unlike
-     *                       its private twin, whose recipient changed form)
      */
-    case PKTOUT_NAME_MESSAGE_PUBLIC:
     case PKTOUT_NAME_IF_BUTTON:
     case PKTOUT_NAME_INV_BUTTOND:
     case PKTOUT_NAME_RESUME_P_COUNTDIALOG:

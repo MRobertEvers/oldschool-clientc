@@ -28,7 +28,6 @@
 #include "game/rs_chat.h"
 #include "game/rs_cs2_host.h"
 #include "net/net.h"
-#include "net/wordpack.h"
 #include "game/rs_player_stats.h"
 #include "inv/inv_manager.h"
 #include "torirsserver/torirs_server.h"
@@ -665,8 +664,8 @@ lua_drive_messages(struct lua_State* L)
  * chat through the chatbox's own send path -- the RS_CS2SocialSend
  * CS2_OP_CHAT_SENDPUBLIC queues (game/rs_cs2_host.c), which the App's flush
  * turns into MESSAGE_PUBLIC (net_out_message_public ->
- * wordpack_message_public_body), colour/effect 0. Refused as scriptrun's
- * d_say refuses (wordpack_says; a "::" line is a command). No local echo:
+ * the revision's chat_pack), colour/effect 0. Refused as scriptrun's d_say
+ * refuses (the revision's chat_says; a "::" line is a command). No local echo:
  * the line comes back in the speaker's own player-info chat block. */
 static int
 lua_drive_say(struct lua_State* L)
@@ -676,12 +675,6 @@ lua_drive_say(struct lua_State* L)
     struct RS_CS2SocialSend send;
 
     assert(app);
-    if( !wordpack_says(text) )
-    {
-        lua_pushstring(L, "refused");
-        lua_pushstring(L, "say: empty, over 80 characters, or a character chat cannot carry");
-        return 2;
-    }
     if( text[0] == ':' && text[1] == ':' )
     {
         lua_pushstring(L, "refused");
@@ -692,6 +685,12 @@ lua_drive_say(struct lua_State* L)
     {
         lua_pushstring(L, "not_visible");
         lua_pushstring(L, "say: not in game");
+        return 2;
+    }
+    if( !app->net->rev->chat_says(text) )
+    {
+        lua_pushstring(L, "refused");
+        lua_pushstring(L, "say: empty, over 80 characters, or a character chat cannot carry");
         return 2;
     }
     memset(&send, 0, sizeof(send));

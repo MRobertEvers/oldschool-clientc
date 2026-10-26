@@ -450,6 +450,15 @@ check_protocol_adapters(void)
     static const uint8_t private_classic[] = {
         0x00, 0x00, 0x00, 0x00, 0x6c, 0x1a, 0x00, 0xcc, 0xaa, 0xbb, 0xcc,
     };
+    /* MessagePublic: type, colour, effect, the Huffman text (count, codes),
+     * and a clan type after it when the type is 3. The classic body is
+     * colour, effect, text. */
+    static const uint8_t public_plain[] = { 0x00, 0x02, 0x01, 0x02, 0xaa, 0xbb };
+    static const uint8_t public_plain_classic[] = { 0x02, 0x01, 0x02, 0xaa, 0xbb };
+    static const uint8_t public_clan[] = { 0x03, 0x00, 0x00, 0x02, 0xaa, 0xbb, 0x01 };
+    static const uint8_t public_clan_classic[] = { 0x00, 0x00, 0x02, 0xaa, 0xbb };
+    /* Colour 13 carries one pattern byte this server could not pass on. */
+    static const uint8_t public_pattern[] = { 0x00, 0x0d, 0x00, 0x07, 0x02, 0xaa, 0xbb };
     /* OpLocT: ctrl, selectedSub, id, selectedCombinedId, z, x, selectedObj. */
     static const uint8_t oploct[] = {
         0x00, 0x00, 0x85, 0x34, 0x12, 0x44, 0x33, 0x22,
@@ -488,7 +497,18 @@ check_protocol_adapters(void)
     CHECK_ADAPTER(
         "OPLOCT exact field sequence", 62, PKTOUT_NAME_OPLOCT, oploct,
         PKTOUT_NAME_OPLOCU, oplocu_classic);
+    CHECK_ADAPTER(
+        "MESSAGE_PUBLIC plain line", 0, PKTOUT_NAME_MESSAGE_PUBLIC, public_plain,
+        PKTOUT_NAME_MESSAGE_PUBLIC, public_plain_classic);
+    CHECK_ADAPTER(
+        "MESSAGE_PUBLIC clan line, its clan type dropped", 0, PKTOUT_NAME_MESSAGE_PUBLIC,
+        public_clan, PKTOUT_NAME_MESSAGE_PUBLIC, public_clan_classic);
 #undef CHECK_ADAPTER
+    CHECK(
+        mock239_inbound_translate(
+            0, PKTOUT_NAME_MESSAGE_PUBLIC, public_pattern, sizeof(public_pattern), translated,
+            sizeof(translated), &translated_len) == PKTOUT_NAME_NONE,
+        "MESSAGE_PUBLIC in a patterned colour is dropped");
 }
 
 int

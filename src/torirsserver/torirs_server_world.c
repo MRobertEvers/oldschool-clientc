@@ -48,7 +48,7 @@
 
 #include "net/jbase37.h"
 #include "net/rev/pktnames.h"
-#include "net/wordpack.h"
+#include "net/chat_huffman.h"
 
 #include <rsareabuf.h>
 
@@ -14753,8 +14753,8 @@ handle_window_status(
 }
 
 /*
- * MESSAGE_PRIVATE: p8 to37, then the wordpacked text over the rest of the
- * var-u8 frame.
+ * MESSAGE_PRIVATE: p8 to37, then the Huffman text (net/chat_huffman.h) over
+ * the rest of the var-u8 frame.
  *
  * The text is unpacked here and packed again by the outbound encoder rather
  * than relayed as bytes, which is what the reference does
@@ -14778,7 +14778,6 @@ handle_message_private(
 {
     struct ToriRSServerPlayer* player = srv->active_player;
     struct ToriRSServerPlayer* target_player;
-    struct RSCache_Buffer packed;
     int64_t me;
     int64_t target;
     char* text;
@@ -14803,10 +14802,7 @@ handle_message_private(
     if( !ToriRSServer_FriendsSocialGate(player) )
         return;
 
-    RSCache_BufferInit(&packed, (uint8_t*)payload + 8, (uint32_t)packed_len);
-    text = wordpack_unpack(&packed, packed_len);
-    if( !text )
-        return;
+    text = chat_huffman_unpack(payload + 8, packed_len);
 
     target_player = social_player_by_name37(srv, target);
     if( target_player )
@@ -14821,11 +14817,12 @@ handle_message_private(
         fprintf(stderr, "torirsserver: <- MESSAGE_PRIVATE to=%s%s \"%s\"\n", who,
                 target_player ? "" : " (offline; dropped)", text);
     }
-    ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
+    ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
 }
 
 /*
- * MESSAGE_PUBLIC: p1 colour, p1 effect, then the wordpacked text.
+ * MESSAGE_PUBLIC: p1 colour, p1 effect, then the Huffman text -- the body a
+ * wire's translator makes of OldSchool's MessagePublic (mock239_inbound.c).
  *
  * The opposite decision to MESSAGE_PRIVATE above: the packed bytes are stored
  * and re-emitted verbatim rather than unpacked and re-packed. A public line is
@@ -14896,18 +14893,15 @@ handle_message_public(
 
     if( srv->verbose )
     {
-        struct RSCache_Buffer packed;
-        char* text;
+        char* text = chat_huffman_unpack(payload + 2, packed_len);
 
-        RSCache_BufferInit(&packed, (uint8_t*)payload + 2, (uint32_t)packed_len);
-        text = wordpack_unpack(&packed, packed_len);
         fprintf(
             stderr,
             "torirsserver: <- MESSAGE_PUBLIC colour=%d effect=%d \"%s\"\n",
             payload[0],
             payload[1],
-            text ? text : "");
-        ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
+            text);
+        ToriMem_Free(ToriMem_Net(), text); /* chat_huffman_unpack's */
     }
 }
 

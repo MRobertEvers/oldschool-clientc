@@ -232,8 +232,7 @@ struct ToriRSServerWirePayload
      * MESSAGE_PRIVATE. RSProt's MessagePrivate (223-241) names the sender by
      * display name and splits the message's identity into the sender's world
      * and a 24-bit per-world counter; the 2004 form is p8 name37 + p4 id. The
-     * text is the packed text either way (this server's wordpack, until both
-     * ends move to OSRS's Huffman).
+     * text is OldSchool's Huffman either way (net/chat_huffman.h).
      */
     void (*message_private)(struct RSAreaBuf* buf, const char* from, int world, int counter,
                             int crown, uint8_t const* text, int text_len);

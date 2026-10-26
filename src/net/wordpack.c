@@ -163,3 +163,32 @@ wordpack_unpack(
     out[pos] = '\0';
     return out;
 }
+
+char*
+wordpack_unpack_bytes(
+    uint8_t const* data,
+    int length)
+{
+    struct RSCache_Buffer buffer;
+
+    assert(data);
+    RSCache_BufferInit(&buffer, (uint8_t*)data, (uint32_t)length);
+    return wordpack_unpack(&buffer, length);
+}
+
+int
+wordpack_pack_bytes(
+    uint8_t* out,
+    int cap,
+    const char* str)
+{
+    struct RSCache_Buffer buffer;
+
+    assert(out);
+    assert(str);
+    /* Two characters to a byte at worst, plus a trailing nibble. */
+    assert(cap > WORDPACK_TEXT_MAX);
+    RSCache_BufferInit(&buffer, out, (uint32_t)cap);
+    wordpack_pack(&buffer, str);
+    return (int)buffer.position;
+}

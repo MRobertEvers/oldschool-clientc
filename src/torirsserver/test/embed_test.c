@@ -2230,18 +2230,12 @@ main(void)
         peers[0].saw_pm_count = 0;
         peers[1].saw_pm_count = 0;
         /*
-         * "hi there" is eight characters, all of them in the wordpack table's
-         * low-13 single-nibble set. That is deliberate: an odd nibble count
-         * pads the last byte with a zero nibble, which decodes as a trailing
-         * space, and a message chosen without noticing that would look like a
-         * round-trip bug. The capitalisation below is the same kind of thing —
-         * `wordpack_unpack` sentence-cases, exactly as the reference's
-         * WordPack.unpack does, so the text alice typed is not the text bob is
-         * shown, and that is correct.
+         * The text is OldSchool's Huffman both ways (net/chat_huffman.h), which
+         * keeps case: bob is shown exactly what alice typed.
          *
-         * The text is unpacked twice on the way: once by the server (which is
-         * what the reference does too, so it has read what it forwards) and
-         * once by bob's client.
+         * It is unpacked twice on the way: once by the server (which is what
+         * the reference does too, so it has read what it forwards) and once by
+         * bob's client.
          */
         peer_pm(&peers[0], "bob", "hi there");
         for( int round = 0; round < 6; round++ )
@@ -2251,8 +2245,8 @@ main(void)
         check(peers[1].saw_pm_from == alice37, "from alice");
         check(peers[1].saw_pm_id != 0,
               "with a non-zero message id, which the client's dedupe ring requires");
-        check(strcmp(peers[1].saw_pm_text, "Hi there") == 0,
-              "and the text survived two wordpack round trips");
+        check(strcmp(peers[1].saw_pm_text, "hi there") == 0,
+              "and the text survived two Huffman round trips");
         check(peers[0].saw_pm_count == 0, "and it did not also come back to alice");
 
         /* ── bob adds alice, so alice has a follower to broadcast to ── */

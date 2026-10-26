@@ -13,6 +13,7 @@
 #include "mem/torirs_mem.h"
 #include "net/jbase37.h"
 #include "net/proto/proto_info.h"
+#include "net/chat_huffman.h"
 #include "net/wordpack.h"
 
 #include <assert.h>
@@ -39,16 +40,6 @@ static int
 sign24(int v)
 {
     return (v & 0x800000) ? v - 0x1000000 : v;
-}
-
-/* The huffman text a chat message ends with. */
-static char*
-unpack_text(uint8_t const* huffman, int32_t length)
-{
-    struct RSCache_Buffer text;
-
-    RSCache_BufferInit(&text, (uint8_t*)huffman, (uint32_t)length);
-    return wordpack_unpack(&text, length);
 }
 
 /* A packet the store decodes against client state, carried as its bytes. */
@@ -966,7 +957,7 @@ adapt_message_private(MsgMessagePrivate const* m, struct RevPacket* out)
     p->from = (int64_t)strtobase37(m->sender);
     p->message_id = m->world_message_counter;
     p->staff_mod = m->chat_crown_type;
-    p->text = unpack_text(m->huffman, m->huffman_length);
+    p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
     return p->text != NULL;
 }
 
@@ -987,7 +978,7 @@ adapt_message_clanchannel(MsgMessageClanchannel const* m, struct RevPacket* out)
     p->world = m->world_id;
     p->counter = m->world_message_counter;
     p->crown = m->chat_crown_type;
-    p->text = unpack_text(m->huffman, m->huffman_length);
+    p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
     return p->text != NULL;
 }
 
@@ -1001,7 +992,7 @@ adapt_message_clanchannel_system(MsgMessageClanchannelSystem const* m, struct Re
     p->clan_type = (int8_t)m->clan_type;
     p->world = m->world_id;
     p->counter = m->world_message_counter;
-    p->text = unpack_text(m->huffman, m->huffman_length);
+    p->text = chat_huffman_unpack(m->huffman, m->huffman_length);
     return p->text != NULL;
 }
 
@@ -2650,7 +2641,7 @@ adapt_message_private_rs(MsgMessagePrivateRs const* m, struct RevPacket* out)
     out->_message_private.from = m->from37;
     out->_message_private.message_id = m->message_id;
     out->_message_private.staff_mod = m->staff_mod;
-    out->_message_private.text = unpack_text(m->text, m->text_length);
+    out->_message_private.text = wordpack_unpack_bytes(m->text, m->text_length);
     return out->_message_private.text != NULL;
 }
 

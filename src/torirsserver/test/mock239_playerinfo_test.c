@@ -996,7 +996,7 @@ main(void)
               "direct instant face angle and movement policy survive");
         CHECK(chat && chat->chat.length == 3 &&
                   memcmp(chat->chat.data, chat_data, sizeof(chat_data)) == 0,
-              "reversed chat payload is restored before wordpack");
+              "reversed chat payload is restored before the text is decoded");
         CHECK(spot && spot->spotanim.slot == 2 && spot->spotanim.spotanim_id == 777 &&
                   spot->spotanim.height_delay == ((24 << 16) | 9),
               "spotanim slot/id/height/delay survive");

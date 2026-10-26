@@ -3562,6 +3562,9 @@ static struct GameProtoRevTable k_rev = {
     .reconnect_kind = NET_RECONNECT_CREDS,
     .player_info_read = player_info_rs289,
     .npc_info_read = npc_info_rs289,
+    .chat_unpack = wordpack_unpack_bytes,
+    .chat_pack = wordpack_pack_bytes,
+    .chat_says = wordpack_says,
 };
 
 struct GameProtoRevTable const*

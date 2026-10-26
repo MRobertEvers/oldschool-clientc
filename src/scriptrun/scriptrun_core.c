@@ -3,7 +3,6 @@
 
 #include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
 #include "game/rs_entity_sync.h"
-#include "net/wordpack.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -684,10 +683,9 @@ player_apply_op(
          * type RS_CHAT_TYPE_PUBLIC under the speaker's name, the overhead. */
         if( op->chat.data && op->chat.length > 0 )
         {
-            struct RSCache_Buffer chatbuf;
             char* text;
-            RSCache_BufferInit(&chatbuf, (uint8_t*)op->chat.data, op->chat.length);
-            text = wordpack_unpack(&chatbuf, op->chat.length);
+            assert(core->rev->chat_unpack);
+            text = core->rev->chat_unpack(op->chat.data, op->chat.length);
             if( text )
             {
                 struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
@@ -695,7 +693,7 @@ player_apply_op(
                 ScriptrunCore_Event(core, SCRIPTRUN_EV_CHAT_MESSAGE, RS_CHAT_TYPE_PUBLIC, core->message_serial, 0,
                                     0);
                 World_PlayerSetChat(world, idx, text, op->chat.colour_effect >> 8, op->chat.colour_effect & 0xff);
-                ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
+                ToriMem_Free(ToriMem_Net(), text); /* chat_unpack's */
             }
         }
         break;

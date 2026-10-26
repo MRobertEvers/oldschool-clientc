@@ -70,8 +70,8 @@ gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type)
  * Every parser's heap payload is ToriMem_Net()'s, except four still on libc
  * because code outside src/net frees them too: _map_rebuild.zones and
  * _update_zone_enclosed.entries (rs_gameproto_exec_test frees them directly),
- * and the wordpack_unpack text of MESSAGE_PRIVATE / MESSAGE_CLANCHANNEL
- * (wordpack_unpack's other callers free its result with ToriMem_Free(ToriMem_Net(), )).
+ * and the chat text of MESSAGE_PRIVATE / MESSAGE_CLANCHANNEL (the revision's
+ * chat_unpack; its other callers free the result with ToriMem_Free(ToriMem_Net(), )).
  */
 void
 gameproto_free(struct RevPacket* p)

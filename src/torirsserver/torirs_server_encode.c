@@ -30,7 +30,7 @@
 #include "net/login/login_osrs_block.h"
 #include "net/jbase37.h"
 #include "torirs_server_friends.h"
-#include "net/wordpack.h"
+#include "net/chat_huffman.h"
 
 /* The client's framing table, for the length check in ToriRSServer_Send. */
 #include "torirsserver/torirs_server_scene.h"
@@ -3298,9 +3298,10 @@ ToriRSServer_SendMessagePrivate(
     const char* text)
 {
     /*
-     * p8 from, p4 messageId, p1 staffModLevel, then wordpack over the rest.
-     * The client reads `data_size - 13` bytes of wordpack, so the length has to
-     * be the var-u16 frame's, not a field.
+     * The sender, the message's identity and the crown, then the Huffman
+     * text over the rest (net/chat_huffman.h) -- every wire this server
+     * writes is OldSchool's chat. The text runs to the var-u16 frame's end,
+     * so the length is the frame's, not a field.
      *
      * `message_id` must be non-zero: the client dedupes private messages
      * against a zero-filled ring, so a 0 id is a message it silently drops.
@@ -3309,12 +3310,12 @@ ToriRSServer_SendMessagePrivate(
      */
     struct RSAreaBuf buf;
     uint8_t packed[512];
-    struct RSCache_Buffer text_buf;
+    int packed_len;
 
-    RSCache_BufferInit(&text_buf, packed, (uint32_t)sizeof(packed));
-    wordpack_pack(&text_buf, text ? text : "");
+    assert(text);
+    packed_len = chat_huffman_pack(packed, (int)sizeof(packed), text);
 
-    open_packet(&buf, 16 + 13 + text_buf.position);
+    open_packet(&buf, 16 + 13 + packed_len);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
 
@@ -3324,14 +3325,14 @@ ToriRSServer_SendMessagePrivate(
 
             base37tostr((uint64_t)from37, from, (int)sizeof(from));
             pl->message_private(&buf, from, ToriRSServer_FriendsWorld(from37), message_id,
-                                staff_mod > 3 ? 3 : staff_mod, packed, (int)text_buf.position);
+                                staff_mod > 3 ? 3 : staff_mod, packed, packed_len);
         }
         else
         {
             rsab_p8(&buf, from37);
             rsab_p4(&buf, (int32_t)message_id);
             rsab_p1(&buf, staff_mod > 3 ? 3 : staff_mod); /* MessagePrivateEncoder's clamp */
-            rsab_pdata(&buf, packed, (size_t)text_buf.position);
+            rsab_pdata(&buf, packed, (size_t)packed_len);
         }
     }
     flush(player, &buf, OP_MESSAGE_PRIVATE, 2);

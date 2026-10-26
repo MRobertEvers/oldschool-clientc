@@ -440,7 +440,10 @@ class Gen:
                       "    .player_info_init = proto_info_init,",
                       "    .player_info_state_size = proto_info_state_size,",
                       "    .player_info_state_save = proto_info_state_save,",
-                      "    .player_info_state_load = proto_info_state_load,"]
+                      "    .player_info_state_load = proto_info_state_load,",
+                      "    .chat_unpack = chat_huffman_unpack,",
+                      "    .chat_pack = chat_huffman_pack,",
+                      "    .chat_says = chat_huffman_says,"]
         else:
             family = ["    .revision = GAMEPROTO_REVISION_RS,",
                       "    /* One opcode byte, a 2-byte component id, and LostCity's re-login on",
@@ -449,7 +452,10 @@ class Gen:
                       "    .component_id_bytes = 0,",
                       "    .reconnect_kind = NET_RECONNECT_CREDS,",
                       "    .player_info_read = %s," % self.conf["player_stream"],
-                      "    .npc_info_read = %s," % self.conf["npc_stream"]]
+                      "    .npc_info_read = %s," % self.conf["npc_stream"],
+                      "    .chat_unpack = wordpack_unpack_bytes,",
+                      "    .chat_pack = wordpack_pack_bytes,",
+                      "    .chat_says = wordpack_says,"]
         jag = self.conf.get("jag_checksum")
         o += ["static struct GameProtoRevTable k_rev = {",
               '    .name = "%s",' % rev,

@@ -3,7 +3,7 @@
 -- the channel the relay's supply board talks over. Not a room test (the
 -- leading `_`). Seat 1 speaks; both seats must read the line, under seat 1's
 -- name, as chatbox type 2 (public), and say on which server tick they first
--- did. The refusals (empty, "::", over 80, a character chat cannot carry) are
+-- did. The refusals (empty, "::", over 80) are
 -- checked on seat 2.
 --
 --   ./src/build_tob2w_opt/torirsserver --scriptrun test/raids/_chat_say.lua --bots 2 \
@@ -49,7 +49,7 @@ local function run(t)
             role == 1 and string.format(" at tick %d", said_tick) or ""))
     if role == 2 then
         local cases = { { "", "empty" }, { "::tele 3200 3200", "a command" },
-                        { string.rep("a", 81), "81 characters" }, { "caf\u{e9}", "a non-table character" } }
+                        { string.rep("a", 81), "81 characters" } }
         for _, c in ipairs(cases) do
             local r = t.chat.say(c[1])
             t.check("chat.refuses." .. c[2]:gsub("[^%w]", "_"), r == "refused", c[2] .. ": " .. tostring(r))

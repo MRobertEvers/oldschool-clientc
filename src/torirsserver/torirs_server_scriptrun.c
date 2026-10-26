@@ -55,7 +55,7 @@
 #include "3rd/lua/lualib.h"
 #include "plugin/torirs_drive_plan_lua.h"
 #include "plugin/torirs_drive_cox_lua.h"
-#include "net/wordpack.h"
+#include "net/chat_huffman.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -2001,11 +2001,11 @@ d_message_serial(lua_State* L)
 /* ----------------------------------------------------------- inputs */
 
 /* api_drive.say(text) -> "ok" | "refused": a line of PUBLIC chat, as the
- * client's chatbox sends it -- MESSAGE_PUBLIC, colour/effect 0, the body from
- * wordpack_message_public_body (the client's net_out_message_public writes it
- * through the same function), queued like every bot input for the next tick
- * boundary. Refused: a line wordpack would not carry as typed (empty, over 80,
- * a character outside its table: wordpack_says) and a "::" line (the chatbox
+ * client's chatbox sends it -- MESSAGE_PUBLIC, colour/effect 0, the Huffman
+ * text (net/chat_huffman.h), in the body handle_message_public reads once a
+ * wire's translator has run -- queued like every bot input for the next tick
+ * boundary. Refused: a line the chatbox would not send (empty or over 80:
+ * chat_huffman_says) and a "::" line (the chatbox
  * sends that as a command, not as chat). The line comes back to every player
  * in view, the speaker included, in the player-info chat block
  * (scriptrun_core.c player_apply_op), as it does to a client. */
@@ -2014,16 +2014,17 @@ d_say(lua_State* L)
 {
     struct ScriptBot* bot = bot_of(L);
     char const* text = luaL_checkstring(L, 1);
-    uint8_t payload[2 + WORDPACK_TEXT_MAX];
-    struct RSCache_Buffer b;
+    uint8_t payload[2 + 256];
+    int packed_len;
 
-    if( !wordpack_says(text) )
+    if( !chat_huffman_says(text) )
         return push_result(L, "refused", "say: empty, over 80 characters, or a character chat cannot carry");
     if( text[0] == ':' && text[1] == ':' )
         return push_result(L, "refused", "say: a :: line is a command, not chat");
-    RSCache_BufferInit(&b, payload, (uint32_t)sizeof(payload));
-    wordpack_message_public_body(&b, text, 0);
-    handle(bot, PKTOUT_NAME_MESSAGE_PUBLIC, payload, (int)b.position);
+    payload[0] = 0; /* colour */
+    payload[1] = 0; /* effect */
+    packed_len = chat_huffman_pack(payload + 2, (int)sizeof(payload) - 2, text);
+    handle(bot, PKTOUT_NAME_MESSAGE_PUBLIC, payload, 2 + packed_len);
     return push_result(L, "ok", "said");
 }
 

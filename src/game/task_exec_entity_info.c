@@ -13,7 +13,6 @@
 #include "net/net.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/wordpack.h"
 #include "toridraw_animation.h"
 #include "toridraw_scene.h"
 #include "world/entity_pathing.h"
@@ -710,10 +709,11 @@ player_apply_op(
     case RSPROT_OP_CHAT:
         if( op->chat.data && op->chat.length > 0 )
         {
-            struct RSCache_Buffer chatbuf;
             char* text;
-            RSCache_BufferInit(&chatbuf, (uint8_t*)op->chat.data, op->chat.length);
-            text = wordpack_unpack(&chatbuf, op->chat.length);
+            /* The revision's chat text: OldSchool's Huffman, LostCity's
+             * wordpack. */
+            assert(app->net->rev->chat_unpack);
+            text = app->net->rev->chat_unpack(op->chat.data, op->chat.length);
             if( text )
             {
                 struct WorldEntity_Player* player =
@@ -741,7 +741,7 @@ player_apply_op(
                 World_PlayerSetChat(
                     world, idx, text, op->chat.colour_effect >> 8,
                     op->chat.colour_effect & 0xff);
-                ToriMem_Free(ToriMem_Net(), text); /* wordpack_unpack's */
+                ToriMem_Free(ToriMem_Net(), text); /* chat_unpack's */
             }
         }
         break;
