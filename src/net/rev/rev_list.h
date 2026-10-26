@@ -8,6 +8,14 @@
 struct GameProtoRevTable;
 
 struct GameProtoRevTable const*
+GameProtoRev_OSRS223(void);
+struct GameProtoRevTable const*
+GameProtoRev_OSRS224(void);
+struct GameProtoRevTable const*
+GameProtoRev_OSRS225(void);
+struct GameProtoRevTable const*
+GameProtoRev_OSRS226(void);
+struct GameProtoRevTable const*
 GameProtoRev_OSRS227(void);
 struct GameProtoRevTable const*
 GameProtoRev_OSRS228(void);
@@ -46,6 +54,10 @@ GameProtoRev_RS289(void);
 
 /* X(ID, number) for every supported revision: GameProtoRev_##ID. */
 #define REV_LIST(X) \
+    X(OSRS223, 223) \
+    X(OSRS224, 224) \
+    X(OSRS225, 225) \
+    X(OSRS226, 226) \
     X(OSRS227, 227) \
     X(OSRS228, 228) \
     X(OSRS229, 229) \

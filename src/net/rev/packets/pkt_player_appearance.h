@@ -171,7 +171,13 @@ enum AppearanceEncoding
      * except the obj customisation's worn and head model overrides, which are
      * TWO bytes each where 237 widened them to four.
      */
-    APPEARANCE_ENC_V4 = 4
+    APPEARANCE_ENC_V4 = 4,
+    /*
+     * osrs223-225 (RSProx PlayerInfoClient.decodeAppearance): v4 without the
+     * obj customisation's worn and head model overrides -- the slot flag has
+     * only 0x1 recolour and 0x2 retexture, and nothing follows a 0x4 or 0x8.
+     */
+    APPEARANCE_ENC_V3 = 5
 };
 
 /* Wire tags, stated together so a mismatch is one line apart rather than one
@@ -186,8 +192,8 @@ enum AppearanceEncoding
 static inline int
 Appearance_WireObjTag(enum AppearanceEncoding encoding)
 {
-    return (encoding == APPEARANCE_ENC_V4 || encoding == APPEARANCE_ENC_V5 ||
-            encoding == APPEARANCE_ENC_V6)
+    return (encoding == APPEARANCE_ENC_V3 || encoding == APPEARANCE_ENC_V4 ||
+            encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6)
                ? APPEARANCE_WIRE_OBJ_TAG_V5
                : APPEARANCE_WIRE_OBJ_TAG_CLASSIC;
 }

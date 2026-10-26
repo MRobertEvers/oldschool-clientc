@@ -376,7 +376,7 @@ RsproxRecording_Index(
 char const*
 RsproxRecording_RevName(struct RsproxRecording const* rec)
 {
-    static char names[RSPROX_RECORDING_REV_LAST - RSPROX_RECORDING_REV_FIRST + 1][16];
+    struct GameProtoRevTable const* rev;
 
     assert(rec);
     /* Every revision plays on its generated executor (src/net/rev/osrs<N>/),
@@ -385,14 +385,8 @@ RsproxRecording_RevName(struct RsproxRecording const* rec)
      * different things than they did when it was recorded (seq 579 is an axe
      * special here): the packets decode exactly, the content they point at may
      * not. */
-    if( rec->revision < RSPROX_RECORDING_REV_FIRST || rec->revision > RSPROX_RECORDING_REV_LAST )
-        return NULL;
-    {
-        char* name = names[rec->revision - RSPROX_RECORDING_REV_FIRST];
-
-        snprintf(name, sizeof(names[0]), "osrs%d", rec->revision);
-        return name;
-    }
+    rev = GameProtoRev_Osrs(rec->revision);
+    return rev ? rev->name : NULL;
 }
 
 void

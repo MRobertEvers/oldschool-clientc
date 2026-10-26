@@ -2292,6 +2292,11 @@ RS_GameProto_Exec(
             ctx->app->esync.local_pid = packet->_reconnect.local_player_index;
             rev->player_info_set_local(packet->_reconnect.local_player_index);
             rev->player_info_init(packet->_reconnect.data, packet->_reconnect.length);
+            /* A re-established session, as App_NetSessionReset marks one: the
+             * REBUILD behind it is the world arriving again, usually naming the
+             * zone the player left, and its MAP_BUILD_COMPLETE is what the
+             * server (or a replay's map-build barrier) waits for. */
+            ctx->app->net_force_rebuild = 1;
         }
         break;
     case PKT_NAME_VARP_SYNC:

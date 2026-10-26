@@ -448,7 +448,16 @@ test_replay_refuses_what_it_cannot_frame(void)
     {
         struct Rec r = build_recording(rev);
 
-        r.data[7] = 226;
+        r.data[7] = 223;
+        TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+        TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrs223") == 0);
+        RsproxRecording_Free(&rec);
+    }
+    {
+        struct Rec r = build_recording(rev);
+
+        /* No executor below 223 (src/net/rev/revisions.ini). */
+        r.data[7] = 222;
         TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
         TEST_CHECK(RsproxRecording_RevName(&rec) == NULL);
         RsproxRecording_Free(&rec);

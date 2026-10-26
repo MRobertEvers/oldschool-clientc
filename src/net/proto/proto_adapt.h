@@ -161,6 +161,7 @@
 #include "packets/update_reboot_timer_v2.h"
 #include "packets/update_runenergy.h"
 #include "packets/update_runweight.h"
+#include "packets/update_stat.h"
 #include "packets/update_stat_v2.h"
 #include "packets/update_stockmarket_slot_v1.h"
 #include "packets/update_tradingpost_v1.h"
@@ -315,6 +316,8 @@ int
 adapt_update_inv_partial(MsgUpdateInvPartial const* m, struct RevPacket* out);
 int
 adapt_update_inv_stoptransmit(MsgUpdateInvStopTransmit const* m, struct RevPacket* out);
+int
+adapt_update_stat(MsgUpdateStat const* m, struct RevPacket* out);
 int
 adapt_update_stat_v2(MsgUpdateStatV2 const* m, struct RevPacket* out);
 int

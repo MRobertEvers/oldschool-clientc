@@ -154,13 +154,9 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
-/** Revisions a recording can be replayed at: the supported OSRS revisions
- *  (src/net/rev/revisions.ini). */
-#define RSPROX_RECORDING_REV_FIRST 227
-#define RSPROX_RECORDING_REV_LAST 241
-
-/** The client protocol name this recording's revision is played with
- *  ("rsprox<N>"), or NULL outside that range. */
+/** The client protocol this recording's revision is played with ("osrs<N>"):
+ *  any OSRS revision with a generated executor (src/net/rev/revisions.ini),
+ *  or NULL for one without. */
 char const*
 RsproxRecording_RevName(struct RsproxRecording const* rec);
 

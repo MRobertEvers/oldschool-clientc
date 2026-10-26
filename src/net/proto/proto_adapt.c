@@ -1843,6 +1843,16 @@ adapt_update_zone_partial_follows(MsgUpdateZonePartialFollows const* m, struct R
  * is being thrown away at both revisions, which is worth someone deciding
  * rather than inheriting.
  */
+/* 221-225's layout of the same message (UPDATE_STAT before RSProt's _V2). */
+int
+adapt_update_stat(MsgUpdateStat const* m, struct RevPacket* out)
+{
+    out->_update_stat.stat = m->stat;
+    out->_update_stat.level = m->current_level;
+    out->_update_stat.xp = m->experience;
+    return 1;
+}
+
 int
 adapt_update_stat_v2(MsgUpdateStatV2 const* m, struct RevPacket* out)
 {

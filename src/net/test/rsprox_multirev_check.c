@@ -37,6 +37,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/proto/proto_info.h"
 #include "net/rev/revpacket.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "rsprot_tables.h"
 #include "streams/worldentity_info.h"
 #include "net/rsprox_recording.h"
@@ -316,6 +317,31 @@ check_one(char const* path, int verbose)
                                           &g_list);
 
             ok = rsprot_info_list_complete(&g_list);
+            /* Every appearance block, through the revision's own decoder: a
+             * shape the table names wrongly reads as a stream that completes
+             * and a player who never changes clothes. */
+            for( int k = 0; k < n; k++ )
+            {
+                static struct PktPlayerAppearance app;
+                struct Tally* a;
+
+                if( g_ops[k].kind != RSPROT_OP_APPEARANCE )
+                    continue;
+                a = tally("PLAYER_INFO appearance");
+                a->count++;
+                if( rev->appearance_decode(g_ops[k].appearance.appearance, g_ops[k].appearance.len, &app) )
+                {
+                    a->decoded++;
+                    continue;
+                }
+                a->failed++;
+                failures++;
+                if( a->first_fail_frame < 0 )
+                {
+                    a->first_fail_frame = f;
+                    a->first_fail_tick = fr->tick;
+                }
+            }
             if( g_dump )
             {
                 fprintf(g_dump, "P %d %d\n", f, ok);

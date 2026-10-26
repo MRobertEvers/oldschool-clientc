@@ -55,7 +55,7 @@ FIELD_RE = re.compile(r"^\s*(?:const\s+)?[\w ]+?\s*\**\s*(\w+)(?:\[\w+\])*;", re
 DECL_RE = re.compile(r"^(?:int|void)\n((?:adapt|prep)_\w+)\((.*?)\);", re.M | re.S)
 WRITER_RE = re.compile(r"^static (?:inline )?void\n(w_\w+)\(", re.M)
 
-APPEARANCE = {"v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6",
+APPEARANCE = {"v3": "APPEARANCE_ENC_V3", "v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6",
               "classic": "APPEARANCE_ENC_CLASSIC", "classic_lc289": "APPEARANCE_ENC_CLASSIC_LC289"}
 # A login driver's vtable; `lc` is the classic handshake net.c drives itself
 # (net/login/login_lc.c), which a table states with no vtable.
@@ -132,11 +132,13 @@ def read_adapters():
 
 
 def stream_entries(rev):
+    """Every stream entry point `rev` has, from the headers that declare them:
+    generated per-revision files and hand-written readers alike."""
     text = ""
-    for name in os.listdir(STREAMS):
-        if name.endswith("_%s.c" % rev):
+    for name in sorted(os.listdir(STREAMS)):
+        if name.endswith(".h"):
             text += open(os.path.join(STREAMS, name)).read()
-    return set(re.findall(r"^(\w+_%s)\(" % rev, text, re.M))
+    return set(re.findall(r"\b(\w+_%s)\(" % rev, text))
 
 
 # --- one revision -----------------------------------------------------------
@@ -201,7 +203,9 @@ class Gen:
         prot, code, size = row[0], row[1], row[2]
         version = row[3] if len(row) > 3 else None
         key = version or prot
-        canon = self.names["server"].get(prot)
+        # A row names the prot, and where its message is filed under another
+        # name, the version: 223's NPC_INFO_SMALL is NPC_INFO_SMALL_V4.
+        canon = self.names["server"].get(prot) or (version and self.names["server"].get(version))
         if canon is None:
             return None, None
         info = self.info_arm(prot, key, canon)

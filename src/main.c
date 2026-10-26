@@ -7035,10 +7035,9 @@ main_rsprox_replay_open(void)
     rev_name = RsproxRecording_RevName(&rsprox_replay_rec);
     if( !rev_name )
     {
-        TORIRS_ERR("replay: %s is a revision %d recording; this client replays revisions "
-                   "%d-%d\n",
-                   rsprox_replay_path, rsprox_replay_rec.revision, RSPROX_RECORDING_REV_FIRST,
-                   RSPROX_RECORDING_REV_LAST);
+        TORIRS_ERR("replay: %s is a revision %d recording; this client has no executor for "
+                   "it (src/net/rev/revisions.ini)\n",
+                   rsprox_replay_path, rsprox_replay_rec.revision);
         return 0;
     }
     if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )

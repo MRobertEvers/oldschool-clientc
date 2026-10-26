@@ -371,12 +371,21 @@ skip_obj_customisation_v6(struct RSCache_Buffer* rsbuf)
 }
 
 /*
- * One worn slot's obj customisation at 227-240 (RSProx decodeAppearance): a
+ * One worn slot's obj customisation at 223-240 (RSProx decodeAppearance): a
  * slot flag byte; 0x1 recolours and 0x2 retextures, each a byte of two 4-bit
  * indices with a g2 replacement behind each index that is not 15; then 0x4 two
- * worn and 0x8 two head model ids, `model_bytes` wide (2 below 237, 4 from it).
- * Read and dropped, like v6's.
+ * worn and 0x8 two head model ids, `model_bytes` wide (none below 226, 2 below
+ * 237, 4 from it). Read and dropped, like v6's.
  */
+/* The width of a worn or head model override: 223-225 have none. */
+static int
+model_override_bytes(enum AppearanceEncoding encoding)
+{
+    if( encoding == APPEARANCE_ENC_V3 )
+        return 0;
+    return encoding == APPEARANCE_ENC_V4 ? 2 : 4;
+}
+
 static int
 skip_obj_customisation_v5(
     struct RSCache_Buffer* rsbuf,
@@ -519,8 +528,7 @@ read_v5(
                 if( !((flag >> (12 - i)) & 1) )
                     continue;
                 ok = v6 ? skip_obj_customisation_v6(rsbuf)
-                        : skip_obj_customisation_v5(rsbuf,
-                                                    encoding == APPEARANCE_ENC_V4 ? 2 : 4);
+                        : skip_obj_customisation_v5(rsbuf, model_override_bytes(encoding));
                 if( !ok )
                     return 0;
             }
@@ -567,8 +575,8 @@ pkt_appearance_read(
     w.capacity = ops_capacity;
     RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)len);
 
-    if( encoding == APPEARANCE_ENC_V4 || encoding == APPEARANCE_ENC_V5 ||
-        encoding == APPEARANCE_ENC_V6 )
+    if( encoding == APPEARANCE_ENC_V3 || encoding == APPEARANCE_ENC_V4 ||
+        encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6 )
         ok = read_v5(&w, &rsbuf, encoding);
     else if( encoding == APPEARANCE_ENC_CLASSIC_LC289 )
         ok = read_classic_lc289(&w, &rsbuf);
