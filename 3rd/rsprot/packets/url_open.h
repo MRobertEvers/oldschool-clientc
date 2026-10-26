@@ -34,11 +34,15 @@ typedef struct MsgUrlOpen {
 	const char *url;
 } MsgUrlOpen;
 
-/* v1 -- revs 227-241 (packet_versions.txt 2). */
+/* v1 -- revs 223-241 (packet_versions.txt 2). */
 void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
 
 /* Per-revision entry points: `packet_url_open_osrs239_out` is greppable, which
  * is the point -- "what does 239 do for URL_OPEN" without reading a table. */
+#define packet_url_open_osrs223_out packet_url_open_v1_out
+#define packet_url_open_osrs224_out packet_url_open_v1_out
+#define packet_url_open_osrs225_out packet_url_open_v1_out
+#define packet_url_open_osrs226_out packet_url_open_v1_out
 #define packet_url_open_osrs227_out packet_url_open_v1_out
 #define packet_url_open_osrs228_out packet_url_open_v1_out
 #define packet_url_open_osrs229_out packet_url_open_v1_out

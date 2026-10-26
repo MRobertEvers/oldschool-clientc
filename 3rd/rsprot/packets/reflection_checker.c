@@ -2,7 +2,7 @@
 #include "reflection_checker.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 227-241.
+ * v1 (rsprox_versions.txt 100) -- revs 223-241.
  * g1 checksCount, g4 id, then per check g1 opcode and its arm.
  */
 void
@@ -40,7 +40,7 @@ packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m)
 }
 
 const RsprotVersionRange rsprot_reflection_checker_out[] = {
-    { 227, 241, (RsprotCodecFn)packet_reflection_checker_v1_out },
+    { 223, 241, (RsprotCodecFn)packet_reflection_checker_v1_out },
 };
 
 const int rsprot_reflection_checker_out_count =

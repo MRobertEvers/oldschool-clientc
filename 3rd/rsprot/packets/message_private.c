@@ -1,0 +1,32 @@
+/* MESSAGE_PRIVATE. Hand-written; see message_private.h. */
+#include "message_private.h"
+
+/* v1 -- revs 223-241. */
+void
+packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m)
+{
+    RSPROT_JSTR(x, m->name);
+    RSPROT_REST(x, m->huffman, m->huffman_length);
+}
+
+const RsprotVersionRange rsprot_message_private_out[] = {
+    { 223, 241, (RsprotCodecFn)packet_message_private_v1_out },
+};
+
+const int rsprot_message_private_out_count =
+    (int)(sizeof(rsprot_message_private_out) / sizeof(rsprot_message_private_out[0]));
+
+/* v1 -- revs 223-241. */
+void
+packet_message_private_v1_in(RsprotExec *x, MsgMessagePrivateClient *m)
+{
+    RSPROT_JSTR(x, m->name);
+    RSPROT_REST(x, m->huffman, m->huffman_length);
+}
+
+const RsprotVersionRange rsprot_message_private_in[] = {
+    { 223, 241, (RsprotCodecFn)packet_message_private_v1_in },
+};
+
+const int rsprot_message_private_in_count =
+    (int)(sizeof(rsprot_message_private_in) / sizeof(rsprot_message_private_in[0]));

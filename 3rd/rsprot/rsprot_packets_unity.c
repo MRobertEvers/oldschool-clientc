@@ -62,22 +62,31 @@
 #include "packets/cam_unlock.c"
 #include "packets/chat_filter_settings.c"
 #include "packets/chat_filter_settings_privatechat.c"
+#include "packets/clanchannel_delta.c"
+#include "packets/clanchannel_full.c"
 #include "packets/clanchannel_full_request.c"
 #include "packets/clanchannel_kickuser.c"
+#include "packets/clansettings_delta.c"
+#include "packets/clansettings_full.c"
 #include "packets/clansettings_full_request.c"
 #include "packets/clear_entities.c"
+#include "packets/clickworldmap.c"
 #include "packets/client_cheat.c"
 #include "packets/close_modal.c"
 #include "packets/connection_telemetry.c"
 #include "packets/detect_modified_client.c"
 #include "packets/event_applet_focus.c"
 #include "packets/event_camera_position.c"
+#include "packets/event_keyboard.c"
 #include "packets/event_mouse_click.c"
 #include "packets/event_mouse_click_v1.c"
 #include "packets/event_mouse_click_v2.c"
+#include "packets/event_mouse_move.c"
 #include "packets/event_mouse_scroll.c"
 #include "packets/event_native_mouse_click.c"
+#include "packets/event_native_mouse_move.c"
 #include "packets/exit_freecam.c"
+#include "packets/friendchat_join_leave.c"
 #include "packets/friendchat_kick.c"
 #include "packets/friendchat_setrank.c"
 #include "packets/friendlist_add.c"
@@ -153,7 +162,13 @@
 #include "packets/map_projanim_v1.c"
 #include "packets/map_projanim_v2.c"
 #include "packets/membership_promotion_eligibility.c"
+#include "packets/message_clanchannel.c"
+#include "packets/message_clanchannel_system.c"
+#include "packets/message_friendchannel.c"
 #include "packets/message_game.c"
+#include "packets/message_private.c"
+#include "packets/message_private_echo.c"
+#include "packets/message_public.c"
 #include "packets/midi_jingle.c"
 #include "packets/midi_song.c"
 #include "packets/midi_song_old.c"
@@ -306,6 +321,9 @@
 #include "packets/timings.c"
 #include "packets/trigger_ondialogabort.c"
 #include "packets/unknown_string.c"
+#include "packets/update_friendchat_channel_full_v1.c"
+#include "packets/update_friendchat_channel_full_v2.c"
+#include "packets/update_friendchat_channel_singleuser.c"
 #include "packets/update_friendlist.c"
 #include "packets/update_ignorelist.c"
 #include "packets/update_inv_full.c"
@@ -321,13 +339,16 @@
 #include "packets/update_stat_old.c"
 #include "packets/update_stat_v1.c"
 #include "packets/update_stat_v2.c"
+#include "packets/update_stockmarket_slot_v1.c"
 #include "packets/update_stockmarket_slot_v2.c"
+#include "packets/update_tradingpost_v1.c"
 #include "packets/update_tradingpost_v2.c"
 #include "packets/update_uid192.c"
 #include "packets/update_zone_full_follows.c"
 #include "packets/update_zone_partial_enclosed.c"
 #include "packets/update_zone_partial_follows.c"
 #include "packets/url_open.c"
+#include "packets/varclan.c"
 #include "packets/varclan_disable.c"
 #include "packets/varclan_enable.c"
 #include "packets/varp_large.c"
@@ -473,22 +494,31 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "CAM_UNLOCK", RSPROT_REG_OUT, rsprot_cam_unlock_out, &rsprot_cam_unlock_out_count },
     { "CHAT_FILTER_SETTINGS", RSPROT_REG_OUT, rsprot_chat_filter_settings_out, &rsprot_chat_filter_settings_out_count },
     { "CHAT_FILTER_SETTINGS_PRIVATECHAT", RSPROT_REG_OUT, rsprot_chat_filter_settings_privatechat_out, &rsprot_chat_filter_settings_privatechat_out_count },
+    { "CLANCHANNEL_DELTA", RSPROT_REG_OUT, rsprot_clanchannel_delta_out, &rsprot_clanchannel_delta_out_count },
+    { "CLANCHANNEL_FULL", RSPROT_REG_OUT, rsprot_clanchannel_full_out, &rsprot_clanchannel_full_out_count },
     { "CLANCHANNEL_FULL_REQUEST", RSPROT_REG_IN, rsprot_clanchannel_full_request_in, &rsprot_clanchannel_full_request_in_count },
     { "CLANCHANNEL_KICKUSER", RSPROT_REG_IN, rsprot_clanchannel_kickuser_in, &rsprot_clanchannel_kickuser_in_count },
+    { "CLANSETTINGS_DELTA", RSPROT_REG_OUT, rsprot_clansettings_delta_out, &rsprot_clansettings_delta_out_count },
+    { "CLANSETTINGS_FULL", RSPROT_REG_OUT, rsprot_clansettings_full_out, &rsprot_clansettings_full_out_count },
     { "CLANSETTINGS_FULL_REQUEST", RSPROT_REG_IN, rsprot_clansettings_full_request_in, &rsprot_clansettings_full_request_in_count },
     { "CLEAR_ENTITIES", RSPROT_REG_OUT, rsprot_clear_entities_out, &rsprot_clear_entities_out_count },
+    { "CLICKWORLDMAP", RSPROT_REG_IN, rsprot_clickworldmap_in, &rsprot_clickworldmap_in_count },
     { "CLIENT_CHEAT", RSPROT_REG_IN, rsprot_client_cheat_in, &rsprot_client_cheat_in_count },
     { "CLOSE_MODAL", RSPROT_REG_IN, rsprot_close_modal_in, &rsprot_close_modal_in_count },
     { "CONNECTION_TELEMETRY", RSPROT_REG_IN, rsprot_connection_telemetry_in, &rsprot_connection_telemetry_in_count },
     { "DETECT_MODIFIED_CLIENT", RSPROT_REG_IN, rsprot_detect_modified_client_in, &rsprot_detect_modified_client_in_count },
     { "EVENT_APPLET_FOCUS", RSPROT_REG_IN, rsprot_event_applet_focus_in, &rsprot_event_applet_focus_in_count },
     { "EVENT_CAMERA_POSITION", RSPROT_REG_IN, rsprot_event_camera_position_in, &rsprot_event_camera_position_in_count },
+    { "EVENT_KEYBOARD", RSPROT_REG_IN, rsprot_event_keyboard_in, &rsprot_event_keyboard_in_count },
     { "EVENT_MOUSE_CLICK", RSPROT_REG_IN, rsprot_event_mouse_click_in, &rsprot_event_mouse_click_in_count },
     { "EVENT_MOUSE_CLICK_V1", RSPROT_REG_IN, rsprot_event_mouse_click_v1_in, &rsprot_event_mouse_click_v1_in_count },
     { "EVENT_MOUSE_CLICK_V2", RSPROT_REG_IN, rsprot_event_mouse_click_v2_in, &rsprot_event_mouse_click_v2_in_count },
+    { "EVENT_MOUSE_MOVE", RSPROT_REG_IN, rsprot_event_mouse_move_in, &rsprot_event_mouse_move_in_count },
     { "EVENT_MOUSE_SCROLL", RSPROT_REG_IN, rsprot_event_mouse_scroll_in, &rsprot_event_mouse_scroll_in_count },
     { "EVENT_NATIVE_MOUSE_CLICK", RSPROT_REG_IN, rsprot_event_native_mouse_click_in, &rsprot_event_native_mouse_click_in_count },
+    { "EVENT_NATIVE_MOUSE_MOVE", RSPROT_REG_IN, rsprot_event_native_mouse_move_in, &rsprot_event_native_mouse_move_in_count },
     { "EXIT_FREECAM", RSPROT_REG_IN, rsprot_exit_freecam_in, &rsprot_exit_freecam_in_count },
+    { "FRIENDCHAT_JOIN_LEAVE", RSPROT_REG_IN, rsprot_friendchat_join_leave_in, &rsprot_friendchat_join_leave_in_count },
     { "FRIENDCHAT_KICK", RSPROT_REG_IN, rsprot_friendchat_kick_in, &rsprot_friendchat_kick_in_count },
     { "FRIENDCHAT_SETRANK", RSPROT_REG_IN, rsprot_friendchat_setrank_in, &rsprot_friendchat_setrank_in_count },
     { "FRIENDLIST_ADD", RSPROT_REG_IN, rsprot_friendlist_add_in, &rsprot_friendlist_add_in_count },
@@ -573,7 +603,14 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "MAP_PROJANIM_V1", RSPROT_REG_OUT, rsprot_map_projanim_v1_out, &rsprot_map_projanim_v1_out_count },
     { "MAP_PROJANIM_V2", RSPROT_REG_OUT, rsprot_map_projanim_v2_out, &rsprot_map_projanim_v2_out_count },
     { "MEMBERSHIP_PROMOTION_ELIGIBILITY", RSPROT_REG_IN, rsprot_membership_promotion_eligibility_in, &rsprot_membership_promotion_eligibility_in_count },
+    { "MESSAGE_CLANCHANNEL", RSPROT_REG_OUT, rsprot_message_clanchannel_out, &rsprot_message_clanchannel_out_count },
+    { "MESSAGE_CLANCHANNEL_SYSTEM", RSPROT_REG_OUT, rsprot_message_clanchannel_system_out, &rsprot_message_clanchannel_system_out_count },
+    { "MESSAGE_FRIENDCHANNEL", RSPROT_REG_OUT, rsprot_message_friendchannel_out, &rsprot_message_friendchannel_out_count },
     { "MESSAGE_GAME", RSPROT_REG_OUT, rsprot_message_game_out, &rsprot_message_game_out_count },
+    { "MESSAGE_PRIVATE", RSPROT_REG_OUT, rsprot_message_private_out, &rsprot_message_private_out_count },
+    { "MESSAGE_PRIVATE", RSPROT_REG_IN, rsprot_message_private_in, &rsprot_message_private_in_count },
+    { "MESSAGE_PRIVATE_ECHO", RSPROT_REG_OUT, rsprot_message_private_echo_out, &rsprot_message_private_echo_out_count },
+    { "MESSAGE_PUBLIC", RSPROT_REG_IN, rsprot_message_public_in, &rsprot_message_public_in_count },
     { "MIDI_JINGLE", RSPROT_REG_OUT, rsprot_midi_jingle_out, &rsprot_midi_jingle_out_count },
     { "MIDI_SONG", RSPROT_REG_OUT, rsprot_midi_song_out, &rsprot_midi_song_out_count },
     { "MIDI_SONG_OLD", RSPROT_REG_OUT, rsprot_midi_song_old_out, &rsprot_midi_song_old_out_count },
@@ -726,6 +763,9 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "TIMINGS", RSPROT_REG_IN, rsprot_timings_in, &rsprot_timings_in_count },
     { "TRIGGER_ONDIALOGABORT", RSPROT_REG_OUT, rsprot_trigger_ondialogabort_out, &rsprot_trigger_ondialogabort_out_count },
     { "UNKNOWN_STRING", RSPROT_REG_OUT, rsprot_unknown_string_out, &rsprot_unknown_string_out_count },
+    { "UPDATE_FRIENDCHAT_CHANNEL_FULL_V1", RSPROT_REG_OUT, rsprot_update_friendchat_channel_full_v1_out, &rsprot_update_friendchat_channel_full_v1_out_count },
+    { "UPDATE_FRIENDCHAT_CHANNEL_FULL_V2", RSPROT_REG_OUT, rsprot_update_friendchat_channel_full_v2_out, &rsprot_update_friendchat_channel_full_v2_out_count },
+    { "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER", RSPROT_REG_OUT, rsprot_update_friendchat_channel_singleuser_out, &rsprot_update_friendchat_channel_singleuser_out_count },
     { "UPDATE_FRIENDLIST", RSPROT_REG_OUT, rsprot_update_friendlist_out, &rsprot_update_friendlist_out_count },
     { "UPDATE_IGNORELIST", RSPROT_REG_OUT, rsprot_update_ignorelist_out, &rsprot_update_ignorelist_out_count },
     { "UPDATE_INV_FULL", RSPROT_REG_OUT, rsprot_update_inv_full_out, &rsprot_update_inv_full_out_count },
@@ -741,13 +781,16 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "UPDATE_STAT_OLD", RSPROT_REG_OUT, rsprot_update_stat_old_out, &rsprot_update_stat_old_out_count },
     { "UPDATE_STAT_V1", RSPROT_REG_OUT, rsprot_update_stat_v1_out, &rsprot_update_stat_v1_out_count },
     { "UPDATE_STAT_V2", RSPROT_REG_OUT, rsprot_update_stat_v2_out, &rsprot_update_stat_v2_out_count },
+    { "UPDATE_STOCKMARKET_SLOT_V1", RSPROT_REG_OUT, rsprot_update_stockmarket_slot_v1_out, &rsprot_update_stockmarket_slot_v1_out_count },
     { "UPDATE_STOCKMARKET_SLOT_V2", RSPROT_REG_OUT, rsprot_update_stockmarket_slot_v2_out, &rsprot_update_stockmarket_slot_v2_out_count },
+    { "UPDATE_TRADINGPOST_V1", RSPROT_REG_OUT, rsprot_update_tradingpost_v1_out, &rsprot_update_tradingpost_v1_out_count },
     { "UPDATE_TRADINGPOST_V2", RSPROT_REG_OUT, rsprot_update_tradingpost_v2_out, &rsprot_update_tradingpost_v2_out_count },
     { "UPDATE_UID192", RSPROT_REG_OUT, rsprot_update_uid192_out, &rsprot_update_uid192_out_count },
     { "UPDATE_ZONE_FULL_FOLLOWS", RSPROT_REG_OUT, rsprot_update_zone_full_follows_out, &rsprot_update_zone_full_follows_out_count },
     { "UPDATE_ZONE_PARTIAL_ENCLOSED", RSPROT_REG_OUT, rsprot_update_zone_partial_enclosed_out, &rsprot_update_zone_partial_enclosed_out_count },
     { "UPDATE_ZONE_PARTIAL_FOLLOWS", RSPROT_REG_OUT, rsprot_update_zone_partial_follows_out, &rsprot_update_zone_partial_follows_out_count },
     { "URL_OPEN", RSPROT_REG_OUT, rsprot_url_open_out, &rsprot_url_open_out_count },
+    { "VARCLAN", RSPROT_REG_OUT, rsprot_varclan_out, &rsprot_varclan_out_count },
     { "VARCLAN_DISABLE", RSPROT_REG_OUT, rsprot_varclan_disable_out, &rsprot_varclan_disable_out_count },
     { "VARCLAN_ENABLE", RSPROT_REG_OUT, rsprot_varclan_enable_out, &rsprot_varclan_enable_out_count },
     { "VARP_LARGE", RSPROT_REG_OUT, rsprot_varp_large_out, &rsprot_varp_large_out_count },

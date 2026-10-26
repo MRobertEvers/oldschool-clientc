@@ -37,9 +37,13 @@ typedef struct MsgHiscoreReply {
 	const char *reason;
 } MsgHiscoreReply;
 
-/* v1 (rsprox_versions.txt 100) -- revs 227-241. */
+/* v1 (rsprox_versions.txt 100) -- revs 223-241. */
 void packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m);
 
+#define packet_hiscore_reply_osrs223_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs224_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs225_out packet_hiscore_reply_v1_out
+#define packet_hiscore_reply_osrs226_out packet_hiscore_reply_v1_out
 #define packet_hiscore_reply_osrs227_out packet_hiscore_reply_v1_out
 #define packet_hiscore_reply_osrs228_out packet_hiscore_reply_v1_out
 #define packet_hiscore_reply_osrs229_out packet_hiscore_reply_v1_out

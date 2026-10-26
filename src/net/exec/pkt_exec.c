@@ -620,6 +620,13 @@ rsprot_xdata(
 void
 rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name)
 {
+    rsprot_xrest_but(x, value, length, 0, name);
+}
+
+void
+rsprot_xrest_but(
+    RsprotExec *x, const uint8_t **value, int32_t *length, int32_t keep, const char *name)
+{
     switch (x->dir) {
     case RSPROT_ENCODE:
         if (*length < 0) {
@@ -629,7 +636,12 @@ rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *
         rsprot_pdata(x->buf, *value, *length);
         break;
     case RSPROT_DECODE:
-        *length = rsprot_remaining(x);
+        *length = rsprot_remaining(x) - keep;
+        if (*length < 0) {
+            rsprot_exec_fail(x, "payload shorter than its trailing fields");
+            *length = 0;
+            return;
+        }
         *value = x->buf->data + x->buf->rpos;
         x->buf->rpos += *length;
         break;

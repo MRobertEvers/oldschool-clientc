@@ -421,6 +421,14 @@ int32_t rsprot_xcount(
  */
 void rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name);
 
+/**
+ * rsprot_xrest, leaving the last `keep` bytes for the fields after it:
+ * MESSAGE_PUBLIC's huffman text runs to one byte before the end when a clan
+ * type follows it. DECODE fails when fewer than `keep` bytes remain.
+ */
+void rsprot_xrest_but(
+    RsprotExec *x, const uint8_t **value, int32_t *length, int32_t keep, const char *name);
+
 /* Bit mode, for packed property bytes. Whole bit *streams* are not codecs —
  * see 3rd/rsprot/streams/ — but a packed byte inside a flat packet is. */
 void rsprot_xbits_begin(RsprotExec *x);
@@ -514,6 +522,7 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #define RSPROT_COUNT_AS(x, prim, f, max) rsprot_xcount((x), RSPROT_PRIM_##prim, &(f), (max), #f)
 /* The rest of the payload, borrowed. See rsprot_xrest(). */
 #define RSPROT_REST(x, f, len) rsprot_xrest((x), &(f), &(len), #f)
+#define RSPROT_REST_BUT(x, f, len, keep) rsprot_xrest_but((x), &(f), &(len), (keep), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)
 #define RSPROT_BRANCH(x, f) rsprot_branch((x), &(f))
 

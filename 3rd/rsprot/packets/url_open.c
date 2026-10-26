@@ -11,7 +11,7 @@
  * cannot drift apart.
  */
 
-/* v1 -- revs 227-241 (packet_versions.txt 2). */
+/* v1 -- revs 223-241 (packet_versions.txt 2). */
 void
 packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m)
 {
@@ -29,7 +29,7 @@ packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m)
  * that is not listed has no layout here and picks NULL.
  */
 const RsprotVersionRange rsprot_url_open_out[] = {
-    { 227, 241, (RsprotCodecFn)packet_url_open_v1_out },
+    { 223, 241, (RsprotCodecFn)packet_url_open_v1_out },
 };
 
 const int rsprot_url_open_out_count =

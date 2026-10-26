@@ -2367,6 +2367,30 @@ def apply_tail(prot, struct_text, versions):
 
 HAND_WRITTEN_PROTS = {
     "IF_OPENTOP",
+    # The long tail, hand-written from RSProx's decoders (2026-10-25): the
+    # social, clan and chat payloads and the input events. The C is the source.
+    "MESSAGE_CLANCHANNEL",
+    "MESSAGE_CLANCHANNEL_SYSTEM",
+    "MESSAGE_FRIENDCHANNEL",
+    "MESSAGE_PRIVATE",
+    "MESSAGE_PRIVATE_ECHO",
+    "VARCLAN",
+    "UPDATE_STOCKMARKET_SLOT_V1",
+    "UPDATE_TRADINGPOST_V1",
+    "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER",
+    "UPDATE_FRIENDCHAT_CHANNEL_FULL_V1",
+    "UPDATE_FRIENDCHAT_CHANNEL_FULL_V2",
+    "CLANCHANNEL_FULL",
+    "CLANCHANNEL_DELTA",
+    "CLANSETTINGS_FULL",
+    "CLANSETTINGS_DELTA",
+    "MESSAGE_PUBLIC",
+    "FRIENDCHAT_JOIN_LEAVE",
+    "EVENT_MOUSE_MOVE",
+    "EVENT_NATIVE_MOUSE_MOVE",
+    "CLICKWORLDMAP",
+    "EVENT_KEYBOARD",
+
     # The five this generator cannot model, hand-written into packets/ instead.
     # Each file's header states which construct defeated the generator AND what
     # the decode rule is -- which is the point of writing them out rather than
