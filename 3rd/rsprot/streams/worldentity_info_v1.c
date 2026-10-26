@@ -66,23 +66,23 @@ WORLDENTITY_INFO_V1_ENTRY(v2, 225)
 WORLDENTITY_INFO_V1_ENTRY(v2, 226)
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v1_osrs(int revision)
+worldentity_info_v1_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 223: return worldentity_info_v1_osrs223;
-    case 224: return worldentity_info_v1_osrs224;
-    case 225: return worldentity_info_v1_osrs225;
-    case 226: return worldentity_info_v1_osrs226;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(223): return worldentity_info_v1_osrs223;
+    case RSPROT_OSRS_ID(224): return worldentity_info_v1_osrs224;
+    case RSPROT_OSRS_ID(225): return worldentity_info_v1_osrs225;
+    case RSPROT_OSRS_ID(226): return worldentity_info_v1_osrs226;
     default: return NULL;
     }
 }
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v2_osrs(int revision)
+worldentity_info_v2_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 225: return worldentity_info_v2_osrs225;
-    case 226: return worldentity_info_v2_osrs226;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(225): return worldentity_info_v2_osrs225;
+    case RSPROT_OSRS_ID(226): return worldentity_info_v2_osrs226;
     default: return NULL;
     }
 }

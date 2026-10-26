@@ -17,10 +17,10 @@ typedef struct MsgUnknownString {
 	const char *string;
 } MsgUnknownString;
 
-/* v1 -- revs 224-241. */
+/* v1 -- revs osrs224-241. */
 void packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m);
 
-/* Per-revision entry points: what revision N calls is packet_unknown_string_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_unknown_string_<R>_out. */
 #define packet_unknown_string_osrs224_out packet_unknown_string_v1_out
 #define packet_unknown_string_osrs225_out packet_unknown_string_v1_out
 #define packet_unknown_string_osrs226_out packet_unknown_string_v1_out

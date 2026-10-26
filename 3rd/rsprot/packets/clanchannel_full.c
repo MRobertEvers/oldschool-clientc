@@ -40,7 +40,7 @@ packet_clanchannel_full_v1_out(RsprotExec *x, MsgClanchannelFull *m)
 }
 
 const RsprotVersionRange rsprot_clanchannel_full_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_clanchannel_full_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_full_v1_out },
 };
 
 const int rsprot_clanchannel_full_out_count =

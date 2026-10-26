@@ -18,10 +18,10 @@ typedef struct MsgIfSetModelV1 {
 	int32_t combined_id;
 } MsgIfSetModelV1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_if_setmodel_v1_v1_out(RsprotExec *x, MsgIfSetModelV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setmodel_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setmodel_v1_<R>_out. */
 #define packet_if_setmodel_v1_osrs237_out packet_if_setmodel_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

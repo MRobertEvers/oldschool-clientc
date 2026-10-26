@@ -17,16 +17,16 @@ typedef struct MsgUpdateRebootTimer {
 	int32_t game_cycles;
 } MsgUpdateRebootTimer;
 
-/* v1 -- revs 221, 228, 234. */
+/* v1 -- revs osrs221, osrs228, osrs234. */
 void packet_update_reboot_timer_v1_out(RsprotExec *x, MsgUpdateRebootTimer *m);
-/* v2 -- revs 222-223, 226, 229, 231-232, 235. */
+/* v2 -- revs osrs222-223, osrs226, osrs229, osrs231-232, osrs235. */
 void packet_update_reboot_timer_v2_out(RsprotExec *x, MsgUpdateRebootTimer *m);
-/* v3 -- revs 224, 227, 233. */
+/* v3 -- revs osrs224, osrs227, osrs233. */
 void packet_update_reboot_timer_v3_out(RsprotExec *x, MsgUpdateRebootTimer *m);
-/* v4 -- revs 225, 230. */
+/* v4 -- revs osrs225, osrs230. */
 void packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_reboot_timer_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_reboot_timer_<R>_out. */
 #define packet_update_reboot_timer_osrs221_out packet_update_reboot_timer_v1_out
 #define packet_update_reboot_timer_osrs222_out packet_update_reboot_timer_v2_out
 #define packet_update_reboot_timer_osrs223_out packet_update_reboot_timer_v2_out

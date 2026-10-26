@@ -19,10 +19,10 @@ typedef struct MsgServerTickEnd {
 	int32_t _unused;
 } MsgServerTickEnd;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_server_tick_end_v1_out(RsprotExec *x, MsgServerTickEnd *m);
 
-/* Per-revision entry points: what revision N calls is packet_server_tick_end_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_server_tick_end_<R>_out. */
 #define packet_server_tick_end_osrs221_out packet_server_tick_end_v1_out
 #define packet_server_tick_end_osrs222_out packet_server_tick_end_v1_out
 #define packet_server_tick_end_osrs223_out packet_server_tick_end_v1_out

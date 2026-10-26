@@ -129,7 +129,7 @@ encode_at_239(const RsprotVersionRange* ranges, int count, void* msg, uint32_t s
 {
     RsprotExec x;
     RsprotBuf buf;
-    RsprotCodecFn fn = rsprot_version_pick(ranges, count, 239);
+    RsprotCodecFn fn = rsprot_version_pick(ranges, count, rsprot_osrs(239));
 
     if( !fn )
         return -1;
@@ -372,7 +372,7 @@ test_message_game(uint32_t seed, int with_name)
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn =
-        rsprot_version_pick(rsprot_message_game_out, rsprot_message_game_out_count, 239);
+        rsprot_version_pick(rsprot_message_game_out, rsprot_message_game_out_count, rsprot_osrs(239));
     int len;
 
     g_case = with_name ? "MESSAGE_GAME (with name)" : "MESSAGE_GAME (no name)";

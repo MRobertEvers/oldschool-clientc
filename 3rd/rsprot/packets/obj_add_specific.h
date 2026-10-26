@@ -24,28 +24,28 @@ typedef struct MsgObjAddSpecific {
 	int32_t coord_grid_packed;
 } MsgObjAddSpecific;
 
-/* v1 -- revs 232. */
+/* v1 -- revs osrs232. */
 void packet_obj_add_specific_v1_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v2 -- revs 233. */
+/* v2 -- revs osrs233. */
 void packet_obj_add_specific_v2_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v3 -- revs 234. */
+/* v3 -- revs osrs234. */
 void packet_obj_add_specific_v3_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v4 -- revs 235. */
+/* v4 -- revs osrs235. */
 void packet_obj_add_specific_v4_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v5 -- revs 236. */
+/* v5 -- revs osrs236. */
 void packet_obj_add_specific_v5_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v6 -- revs 237. */
+/* v6 -- revs osrs237. */
 void packet_obj_add_specific_v6_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v7 -- revs 238. */
+/* v7 -- revs osrs238. */
 void packet_obj_add_specific_v7_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v8 -- revs 239. */
+/* v8 -- revs osrs239. */
 void packet_obj_add_specific_v8_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v9 -- revs 240. */
+/* v9 -- revs osrs240. */
 void packet_obj_add_specific_v9_out(RsprotExec *x, MsgObjAddSpecific *m);
-/* v10 -- revs 241. */
+/* v10 -- revs osrs241. */
 void packet_obj_add_specific_v10_out(RsprotExec *x, MsgObjAddSpecific *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_add_specific_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_add_specific_<R>_out. */
 #define packet_obj_add_specific_osrs232_out packet_obj_add_specific_v1_out
 #define packet_obj_add_specific_osrs233_out packet_obj_add_specific_v2_out
 #define packet_obj_add_specific_osrs234_out packet_obj_add_specific_v3_out

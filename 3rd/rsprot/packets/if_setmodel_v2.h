@@ -18,18 +18,18 @@ typedef struct MsgIfSetModelV2 {
 	int32_t combined_id;
 } MsgIfSetModelV2;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_if_setmodel_v2_v1_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v2 -- revs 238. */
+/* v2 -- revs osrs238. */
 void packet_if_setmodel_v2_v2_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v3 -- revs 239. */
+/* v3 -- revs osrs239. */
 void packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v4 -- revs 240. */
+/* v4 -- revs osrs240. */
 void packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m);
-/* v5 -- revs 241. */
+/* v5 -- revs osrs241. */
 void packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setmodel_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setmodel_v2_<R>_out. */
 #define packet_if_setmodel_v2_osrs237_out packet_if_setmodel_v2_v1_out
 #define packet_if_setmodel_v2_osrs238_out packet_if_setmodel_v2_v2_out
 #define packet_if_setmodel_v2_osrs239_out packet_if_setmodel_v2_v3_out

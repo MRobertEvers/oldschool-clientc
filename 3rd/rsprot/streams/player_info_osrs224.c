@@ -1,5 +1,5 @@
 /*
- * PLAYER_INFO at revision 224: the constants of the version(s) it carries (v1),
+ * PLAYER_INFO at revision osrs224: the constants of the version(s) it carries (v1),
  * and their entry points. The flag bits, the dispatch's block order, each field's
  * byte transform and each record's field order are this revision's; the shapes
  * are rsprot_info_blocks.c and rsprot_info_worldentity.c.

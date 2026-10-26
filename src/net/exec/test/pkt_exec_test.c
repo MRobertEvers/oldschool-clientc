@@ -552,18 +552,18 @@ static void
 test_version_pick(void)
 {
     static const RsprotVersionRange ranges[] = {
-        { 227, 230, codec_v6 },
-        { 239, 239, codec_v13 },
+        { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(230), codec_v6 },
+        { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), codec_v13 },
     };
     const int n = (int)(sizeof(ranges) / sizeof(ranges[0]));
 
-    CHECK(rsprot_version_pick(ranges, n, 227) == codec_v6);
-    CHECK(rsprot_version_pick(ranges, n, 230) == codec_v6);
-    CHECK(rsprot_version_pick(ranges, n, 239) == codec_v13);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(227)) == codec_v6);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(230)) == codec_v6);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(239)) == codec_v13);
     /* Inside the gap and outside both ends: no such packet here. */
-    CHECK(rsprot_version_pick(ranges, n, 235) == NULL);
-    CHECK(rsprot_version_pick(ranges, n, 221) == NULL);
-    CHECK(rsprot_version_pick(ranges, n, 240) == NULL);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(235)) == NULL);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(221)) == NULL);
+    CHECK(rsprot_version_pick(ranges, n, rsprot_osrs(240)) == NULL);
 }
 
 int

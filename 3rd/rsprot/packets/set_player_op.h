@@ -19,40 +19,40 @@ typedef struct MsgSetPlayerOp {
 	const char *op;
 } MsgSetPlayerOp;
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v2 -- revs 224-225, 235. */
+/* v2 -- revs osrs224-225, osrs235. */
 void packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v3 -- revs 226. */
+/* v3 -- revs osrs226. */
 void packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v4 -- revs 227. */
+/* v4 -- revs osrs227. */
 void packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v5 -- revs 228. */
+/* v5 -- revs osrs228. */
 void packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v6 -- revs 229. */
+/* v6 -- revs osrs229. */
 void packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v7 -- revs 230-231. */
+/* v7 -- revs osrs230-231. */
 void packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v8 -- revs 232. */
+/* v8 -- revs osrs232. */
 void packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v9 -- revs 233. */
+/* v9 -- revs osrs233. */
 void packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v10 -- revs 234. */
+/* v10 -- revs osrs234. */
 void packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v12 -- revs 237. */
+/* v12 -- revs osrs237. */
 void packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v14 -- revs 239. */
+/* v14 -- revs osrs239. */
 void packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_player_op_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_player_op_<R>_out. */
 #define packet_set_player_op_osrs223_out packet_set_player_op_v1_out
 #define packet_set_player_op_osrs224_out packet_set_player_op_v2_out
 #define packet_set_player_op_osrs225_out packet_set_player_op_v2_out

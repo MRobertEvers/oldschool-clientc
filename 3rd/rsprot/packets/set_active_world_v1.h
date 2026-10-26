@@ -19,10 +19,10 @@ typedef struct MsgSetActiveWorldV1 {
 	int32_t active_level;
 } MsgSetActiveWorldV1;
 
-/* v1 -- revs 223-230. */
+/* v1 -- revs osrs223-230. */
 void packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_active_world_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_active_world_v1_<R>_out. */
 #define packet_set_active_world_v1_osrs223_out packet_set_active_world_v1_v1_out
 #define packet_set_active_world_v1_osrs224_out packet_set_active_world_v1_v1_out
 #define packet_set_active_world_v1_osrs225_out packet_set_active_world_v1_v1_out

@@ -20,10 +20,10 @@ typedef struct MsgCamRotateTo {
 	int32_t easing_id;
 } MsgCamRotateTo;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_cam_rotateto_v1_out(RsprotExec *x, MsgCamRotateTo *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_rotateto_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_rotateto_<R>_out. */
 #define packet_cam_rotateto_osrs223_out packet_cam_rotateto_v1_out
 #define packet_cam_rotateto_osrs224_out packet_cam_rotateto_v1_out
 #define packet_cam_rotateto_osrs225_out packet_cam_rotateto_v1_out

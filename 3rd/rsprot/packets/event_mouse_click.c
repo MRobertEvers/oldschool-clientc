@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-231. */
+/* v1 -- revs osrs221-231. */
 void
 packet_event_mouse_click_v1_in(RsprotExec *x, MsgEventMouseClick *m)
 {
@@ -28,7 +28,7 @@ packet_event_mouse_click_v1_in(RsprotExec *x, MsgEventMouseClick *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_mouse_click_in[] = {
-    { 221, 231, (RsprotCodecFn)packet_event_mouse_click_v1_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_event_mouse_click_v1_in },
 };
 
 const int rsprot_event_mouse_click_in_count =

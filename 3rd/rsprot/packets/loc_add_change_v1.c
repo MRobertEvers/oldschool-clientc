@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 228. */
+/* v1 -- revs osrs228. */
 void
 packet_loc_add_change_v1_v1_out(RsprotExec *x, MsgLocAddChangeV1 *m)
 {
@@ -25,7 +25,7 @@ packet_loc_add_change_v1_v1_out(RsprotExec *x, MsgLocAddChangeV1 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_add_change_v1_out[] = {
-    { 228, 228, (RsprotCodecFn)packet_loc_add_change_v1_v1_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_loc_add_change_v1_v1_out },
 };
 
 const int rsprot_loc_add_change_v1_out_count =

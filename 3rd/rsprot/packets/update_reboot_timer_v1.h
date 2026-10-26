@@ -17,10 +17,10 @@ typedef struct MsgUpdateRebootTimerV1 {
 	int32_t game_cycles;
 } MsgUpdateRebootTimerV1;
 
-/* v1 -- revs 229, 231-232, 235-236. */
+/* v1 -- revs osrs229, osrs231-232, osrs235-236. */
 void packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_reboot_timer_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_reboot_timer_v1_<R>_out. */
 #define packet_update_reboot_timer_v1_osrs229_out packet_update_reboot_timer_v1_v1_out
 #define packet_update_reboot_timer_v1_osrs231_out packet_update_reboot_timer_v1_v1_out
 #define packet_update_reboot_timer_v1_osrs232_out packet_update_reboot_timer_v1_v1_out

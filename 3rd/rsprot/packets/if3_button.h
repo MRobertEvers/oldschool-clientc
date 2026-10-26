@@ -19,10 +19,10 @@ typedef struct MsgIf3Button {
 	int32_t obj;
 } MsgIf3Button;
 
-/* v1 -- revs 221-231. */
+/* v1 -- revs osrs221-231. */
 void packet_if3_button_v1_in(RsprotExec *x, MsgIf3Button *m);
 
-/* Per-revision entry points: what revision N calls is packet_if3_button_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_if3_button_<R>_in. */
 #define packet_if3_button_osrs221_in packet_if3_button_v1_in
 #define packet_if3_button_osrs222_in packet_if3_button_v1_in
 #define packet_if3_button_osrs223_in packet_if3_button_v1_in

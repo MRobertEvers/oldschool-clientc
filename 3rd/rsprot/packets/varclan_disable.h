@@ -19,10 +19,10 @@ typedef struct MsgVarClanDisable {
 	int32_t _unused;
 } MsgVarClanDisable;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_varclan_disable_v1_out(RsprotExec *x, MsgVarClanDisable *m);
 
-/* Per-revision entry points: what revision N calls is packet_varclan_disable_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varclan_disable_<R>_out. */
 #define packet_varclan_disable_osrs221_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrs222_out packet_varclan_disable_v1_out
 #define packet_varclan_disable_osrs223_out packet_varclan_disable_v1_out

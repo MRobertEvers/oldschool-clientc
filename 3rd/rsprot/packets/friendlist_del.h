@@ -17,10 +17,10 @@ typedef struct MsgFriendListDel {
 	const char *name;
 } MsgFriendListDel;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_friendlist_del_v1_in(RsprotExec *x, MsgFriendListDel *m);
 
-/* Per-revision entry points: what revision N calls is packet_friendlist_del_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_friendlist_del_<R>_in. */
 #define packet_friendlist_del_osrs221_in packet_friendlist_del_v1_in
 #define packet_friendlist_del_osrs222_in packet_friendlist_del_v1_in
 #define packet_friendlist_del_osrs223_in packet_friendlist_del_v1_in

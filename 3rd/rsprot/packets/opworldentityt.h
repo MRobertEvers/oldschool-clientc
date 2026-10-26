@@ -21,26 +21,26 @@ typedef struct MsgOpWorldEntityT {
 	int32_t selected_obj;
 } MsgOpWorldEntityT;
 
-/* v1 -- revs 233. */
+/* v1 -- revs osrs233. */
 void packet_opworldentityt_v1_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v2 -- revs 234. */
+/* v2 -- revs osrs234. */
 void packet_opworldentityt_v2_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v3 -- revs 235. */
+/* v3 -- revs osrs235. */
 void packet_opworldentityt_v3_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v4 -- revs 236. */
+/* v4 -- revs osrs236. */
 void packet_opworldentityt_v4_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v5 -- revs 237. */
+/* v5 -- revs osrs237. */
 void packet_opworldentityt_v5_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v6 -- revs 238. */
+/* v6 -- revs osrs238. */
 void packet_opworldentityt_v6_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v7 -- revs 239. */
+/* v7 -- revs osrs239. */
 void packet_opworldentityt_v7_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v8 -- revs 240. */
+/* v8 -- revs osrs240. */
 void packet_opworldentityt_v8_in(RsprotExec *x, MsgOpWorldEntityT *m);
-/* v9 -- revs 241. */
+/* v9 -- revs osrs241. */
 void packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m);
 
-/* Per-revision entry points: what revision N calls is packet_opworldentityt_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opworldentityt_<R>_in. */
 #define packet_opworldentityt_osrs233_in packet_opworldentityt_v1_in
 #define packet_opworldentityt_osrs234_in packet_opworldentityt_v2_in
 #define packet_opworldentityt_osrs235_in packet_opworldentityt_v3_in

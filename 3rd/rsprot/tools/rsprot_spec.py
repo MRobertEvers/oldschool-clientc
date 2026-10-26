@@ -22,7 +22,7 @@ family's file the shape tools/rsprot_gen.py builds from:
                             line the reads cannot say (indented under the
                             function's four spaces)
 
-    spec/tables/osrs<N>.ini
+    spec/tables/<revision>.ini   (osrs239.ini, rs245_2.ini)
         [table]             source
         [server] [client]   <NAME> = <opcode> <size> [<version it calls>]
         [zone_order]        <NAME> = <ordinal>
@@ -30,13 +30,70 @@ family's file the shape tools/rsprot_gen.py builds from:
     spec/streams/<stream>.ini
         [version:<K>]                  revs, small_delta_bits | extended
         [version:<K>:fields]           <field> = <encoding type>
-        [osrs<N>:bits]                 <NAME> = <flag bit>
-        [osrs<N>:v<K>:function:<name>] params, clang_off?, code*
-        [osrs<N>:v<K>:blocks]          <BIT> = <reader> [<constants field>]
-        [osrs<N>:v<K>:constants]       <field>[.<field>...] = <C initializer>
+        [<rev>:bits]                   <NAME> = <flag bit>
+        [<rev>:v<K>:function:<name>]   params, clang_off?, code*
+        [<rev>:v<K>:blocks]            <BIT> = <reader> [<constants field>]
+        [<rev>:v<K>:constants]         <field>[.<field>...] = <C initializer>
+
+A revision is written with its family: osrs239, rs254, rs245.2 (Rev below). A
+`revs =` value is a list of runs, each naming its family: `osrs223-228,
+osrs230`, `rs245.2, rs254-289`. A run covers the revisions between its ends
+that have a spec/tables file -- never a number nothing was built for.
 """
+import collections
 import os
 import re
+
+FAMILY_ORDER = {"osrs": 1, "rs": 2}
+
+
+class Rev(collections.namedtuple("Rev", "family major minor")):
+    """A revision: "osrs239" is Rev("osrs", 239, 0), "rs245.2" Rev("rs", 245, 2).
+    Orders by family, then number, as RsprotRev ids do."""
+
+    def key(self):
+        return (FAMILY_ORDER[self.family], self.major, self.minor)
+
+    def __lt__(self, other):
+        return self.key() < other.key()
+
+    def __le__(self, other):
+        return self.key() <= other.key()
+
+    def __gt__(self, other):
+        return self.key() > other.key()
+
+    def __ge__(self, other):
+        return self.key() >= other.key()
+
+    @property
+    def text(self):
+        """As the spec writes it: osrs239, rs245.2."""
+        return "%s%d%s" % (self.family, self.major, ".%d" % self.minor if self.minor else "")
+
+    @property
+    def ident(self):
+        """As a C identifier or file name carries it: osrs239, rs245_2."""
+        return "%s%d%s" % (self.family, self.major, "_%d" % self.minor if self.minor else "")
+
+    @property
+    def c_id(self):
+        """The RsprotRev id as a constant expression."""
+        if self.family == "osrs":
+            return "RSPROT_OSRS_ID(%d)" % self.major
+        return "RSPROT_RS_ID(%d, %d)" % (self.major, self.minor)
+
+
+REV_RE = re.compile(r"^(osrs|rs)(\d+)(?:[._](\d+))?$")
+
+
+def parse_rev(text):
+    """"osrs239" / "rs245.2" (or the identifier form rs245_2) -> Rev."""
+    m = REV_RE.match(text.strip())
+    if not m:
+        raise ValueError("not a revision (osrs<N> or rs<N>[.<M>]): %r" % text)
+    return Rev(m.group(1), int(m.group(2)), int(m.group(3) or 0))
+
 
 SECTION_RE = re.compile(r"^\[([^\]]+)\]$")
 
@@ -63,11 +120,16 @@ def read_ini(path):
 
 
 def parse_runs(text):
-    """"223-228, 230" -> [[223, 228], [230, 230]]."""
+    """"osrs223-228, osrs230" -> [(Rev osrs223, Rev osrs228), (osrs230, osrs230)].
+    Every run names its family; its upper end is a number in that family."""
     out = []
     for part in text.split(","):
         lo, _, hi = part.strip().partition("-")
-        out.append([int(lo), int(hi or lo)])
+        lo = parse_rev(lo)
+        hi = parse_rev(lo.family + hi) if hi else lo
+        if hi < lo:
+            raise ValueError("revision run runs backwards: %r" % part)
+        out.append((lo, hi))
     return out
 
 
@@ -171,10 +233,11 @@ def table_value(text):
 
 
 def load_table(path):
-    m = re.match(r"^osrs(\d+)$", stem(path))
-    if not m:
-        raise ValueError("%s: a table is spec/tables/osrs<N>.ini" % path)
-    t = {"revision": int(m.group(1)), "server": [], "client": [], "zone_order": []}
+    try:
+        rev = parse_rev(stem(path))
+    except ValueError:
+        raise ValueError("%s: a table is spec/tables/<revision>.ini (osrs239, rs245_2)" % path)
+    t = {"revision": rev, "server": [], "client": [], "zone_order": []}
     zones = []
     for name, rows in read_ini(path):
         if name == "table":
@@ -204,7 +267,7 @@ def load_table(path):
 
 # --- spec/streams -----------------------------------------------------------
 
-CARRY_RE = re.compile(r"^osrs(\d+):v(\d+):(blocks|constants|function:(\w+))$")
+CARRY_RE = re.compile(r"^((?:osrs|rs)\d+(?:\.\d+)?):v(\d+):(blocks|constants|function:(\w+))$")
 
 
 def load_stream(path):
@@ -247,14 +310,14 @@ def load_stream(path):
             versions[k] = v
             spec["versions"].append(v)
             continue
-        m = re.match(r"^osrs(\d+):bits$", name)
+        m = re.match(r"^((?:osrs|rs)\d+(?:\.\d+)?):bits$", name)
         if m:
-            revision(int(m.group(1)))["bits"] = [[key, value] for key, value in rows]
+            revision(parse_rev(m.group(1)))["bits"] = [[key, value] for key, value in rows]
             continue
         m = CARRY_RE.match(name)
         if not m:
             fail(path, name, "unknown section")
-        c = carry(int(m.group(1)), int(m.group(2)))
+        c = carry(parse_rev(m.group(1)), int(m.group(2)))
         if m.group(3) == "blocks":
             c["blocks"] = []
             for key, value in rows:
@@ -285,5 +348,5 @@ def load_stream(path):
     for r in spec["revisions"]:
         for c in r["carries"]:
             if "constants" not in c:
-                fail(path, "osrs%d:v%d:constants" % (r["revision"], c["version"]), "missing")
+                fail(path, "%s:v%d:constants" % (r["revision"].text, c["version"]), "missing")
     return spec

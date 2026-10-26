@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 229, 231-232, 235-236. */
+/* v1 -- revs osrs229, osrs231-232, osrs235-236. */
 void
 packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m)
 {
@@ -22,9 +22,9 @@ packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v1_out[] = {
-    { 229, 229, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
-    { 231, 232, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
-    { 235, 236, (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_update_reboot_timer_v1_v1_out },
 };
 
 const int rsprot_update_reboot_timer_v1_out_count =

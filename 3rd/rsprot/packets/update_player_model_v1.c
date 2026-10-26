@@ -13,7 +13,7 @@ packet_update_player_model_v1_v1_in(RsprotExec *x, MsgUpdatePlayerModelV1 *m)
 }
 
 const RsprotVersionRange rsprot_update_player_model_v1_in[] = {
-    { 223, 225, (RsprotCodecFn)packet_update_player_model_v1_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_update_player_model_v1_v1_in },
 };
 
 const int rsprot_update_player_model_v1_in_count =

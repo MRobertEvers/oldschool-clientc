@@ -19,10 +19,10 @@ typedef struct MsgSetChatFilterSettings {
 	int32_t trade_chat_filter;
 } MsgSetChatFilterSettings;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_set_chatfiltersettings_v1_in(RsprotExec *x, MsgSetChatFilterSettings *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_chatfiltersettings_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_set_chatfiltersettings_<R>_in. */
 #define packet_set_chatfiltersettings_osrs221_in packet_set_chatfiltersettings_v1_in
 #define packet_set_chatfiltersettings_osrs222_in packet_set_chatfiltersettings_v1_in
 #define packet_set_chatfiltersettings_osrs223_in packet_set_chatfiltersettings_v1_in

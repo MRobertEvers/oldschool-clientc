@@ -72,6 +72,7 @@
  */
 
 #include "../src/rsprot_buf.h"
+#include "rsprot_rev.h"
 
 #include <stdint.h>
 
@@ -604,13 +605,15 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
  */
 typedef struct RsprotVersionRange
 {
-    int rev_lo;
-    int rev_hi;
+    /* RsprotRev ids (RSPROT_OSRS_ID / RSPROT_RS_ID): a range never spans two
+     * families, since the family is the id's high byte. */
+    uint32_t rev_lo;
+    uint32_t rev_hi;
     RsprotCodecFn fn;
 } RsprotVersionRange;
 
-/** The codec for `revision`, or NULL when this revision has no such packet —
- *  a real answer, not an error. */
-RsprotCodecFn rsprot_version_pick(const RsprotVersionRange *ranges, int count, int revision);
+/** The codec for `rev`, or NULL when this revision has no such packet — a real
+ *  answer, not an error. */
+RsprotCodecFn rsprot_version_pick(const RsprotVersionRange *ranges, int count, RsprotRev rev);
 
 #endif

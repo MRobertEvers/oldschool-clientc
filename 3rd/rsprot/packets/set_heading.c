@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 226, 229, 238. */
+/* v1 -- revs osrs226, osrs229, osrs238. */
 void
 packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_NEG(x, m->heading);
 }
 
-/* v2 -- revs 227, 232-233, 235-236, 240-241. */
+/* v2 -- revs osrs227, osrs232-233, osrs235-236, osrs240-241. */
 void
 packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_ADD128(x, m->heading);
 }
 
-/* v3 -- revs 228, 237. */
+/* v3 -- revs osrs228, osrs237. */
 void
 packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m)
 {
     RSPROT_U1_SUB128(x, m->heading);
 }
 
-/* v4 -- revs 230-231, 234, 239. */
+/* v4 -- revs osrs230-231, osrs234, osrs239. */
 void
 packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m)
 {
@@ -43,18 +43,18 @@ packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_heading_in[] = {
-    { 226, 226, (RsprotCodecFn)packet_set_heading_v1_in },
-    { 227, 227, (RsprotCodecFn)packet_set_heading_v2_in },
-    { 228, 228, (RsprotCodecFn)packet_set_heading_v3_in },
-    { 229, 229, (RsprotCodecFn)packet_set_heading_v1_in },
-    { 230, 231, (RsprotCodecFn)packet_set_heading_v4_in },
-    { 232, 233, (RsprotCodecFn)packet_set_heading_v2_in },
-    { 234, 234, (RsprotCodecFn)packet_set_heading_v4_in },
-    { 235, 236, (RsprotCodecFn)packet_set_heading_v2_in },
-    { 237, 237, (RsprotCodecFn)packet_set_heading_v3_in },
-    { 238, 238, (RsprotCodecFn)packet_set_heading_v1_in },
-    { 239, 239, (RsprotCodecFn)packet_set_heading_v4_in },
-    { 240, 241, (RsprotCodecFn)packet_set_heading_v2_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_set_heading_v1_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_set_heading_v2_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_set_heading_v3_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_set_heading_v1_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_set_heading_v4_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_set_heading_v2_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_set_heading_v4_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_set_heading_v2_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_set_heading_v3_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_set_heading_v1_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_set_heading_v4_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_heading_v2_in },
 };
 
 const int rsprot_set_heading_in_count =

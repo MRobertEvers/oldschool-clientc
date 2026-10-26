@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 236, 240-241. */
+/* v1 -- revs osrs236, osrs240-241. */
 void
 packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
@@ -18,7 +18,7 @@ packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
     RSPROT_U2_12_ADD128(x, m->game_cycles);
 }
 
-/* v2 -- revs 237. */
+/* v2 -- revs osrs237. */
 void
 packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
@@ -26,7 +26,7 @@ packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
     RSPROT_U2_21_ADD128(x, m->game_cycles);
 }
 
-/* v3 -- revs 238. */
+/* v3 -- revs osrs238. */
 void
 packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
@@ -34,7 +34,7 @@ packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
     RSPROT_JSTR(x, m->message);
 }
 
-/* v4 -- revs 239. */
+/* v4 -- revs osrs239. */
 void
 packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
@@ -47,11 +47,11 @@ packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_v2_out[] = {
-    { 236, 236, (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
-    { 237, 237, (RsprotCodecFn)packet_update_reboot_timer_v2_v2_out },
-    { 238, 238, (RsprotCodecFn)packet_update_reboot_timer_v2_v3_out },
-    { 239, 239, (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
-    { 240, 241, (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_update_reboot_timer_v2_v2_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_update_reboot_timer_v2_v3_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_reboot_timer_v2_v4_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_reboot_timer_v2_v1_out },
 };
 
 const int rsprot_update_reboot_timer_v2_out_count =

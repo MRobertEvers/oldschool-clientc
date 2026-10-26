@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void
 packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m)
 {
@@ -22,7 +22,7 @@ packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_sound_jingleend_in[] = {
-    { 221, 241, (RsprotCodecFn)packet_sound_jingleend_v1_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_sound_jingleend_v1_in },
 };
 
 const int rsprot_sound_jingleend_in_count =

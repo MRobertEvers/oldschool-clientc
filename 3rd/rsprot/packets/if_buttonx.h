@@ -20,10 +20,10 @@ typedef struct MsgIfButtonX {
 	int32_t op;
 } MsgIfButtonX;
 
-/* v1 -- revs 231-241. */
+/* v1 -- revs osrs231-241. */
 void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_buttonx_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_if_buttonx_<R>_in. */
 #define packet_if_buttonx_osrs231_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs232_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs233_in packet_if_buttonx_v1_in

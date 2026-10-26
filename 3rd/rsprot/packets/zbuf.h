@@ -17,10 +17,10 @@ typedef struct MsgZBuf {
 	int32_t enabled;
 } MsgZBuf;
 
-/* v1 -- revs 234-237. */
+/* v1 -- revs osrs234-237. */
 void packet_zbuf_v1_out(RsprotExec *x, MsgZBuf *m);
 
-/* Per-revision entry points: what revision N calls is packet_zbuf_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_zbuf_<R>_out. */
 #define packet_zbuf_osrs234_out packet_zbuf_v1_out
 #define packet_zbuf_osrs235_out packet_zbuf_v1_out
 #define packet_zbuf_osrs236_out packet_zbuf_v1_out

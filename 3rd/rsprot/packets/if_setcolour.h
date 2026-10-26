@@ -18,36 +18,36 @@ typedef struct MsgIfSetColour {
 	int32_t colour15_bit_packed;
 } MsgIfSetColour;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setcolour_v1_out(RsprotExec *x, MsgIfSetColour *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_setcolour_v2_out(RsprotExec *x, MsgIfSetColour *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setcolour_v3_out(RsprotExec *x, MsgIfSetColour *m);
-/* v4 -- revs 224, 227. */
+/* v4 -- revs osrs224, osrs227. */
 void packet_if_setcolour_v4_out(RsprotExec *x, MsgIfSetColour *m);
-/* v5 -- revs 225, 231. */
+/* v5 -- revs osrs225, osrs231. */
 void packet_if_setcolour_v5_out(RsprotExec *x, MsgIfSetColour *m);
-/* v6 -- revs 226, 229, 234. */
+/* v6 -- revs osrs226, osrs229, osrs234. */
 void packet_if_setcolour_v6_out(RsprotExec *x, MsgIfSetColour *m);
-/* v7 -- revs 228, 235. */
+/* v7 -- revs osrs228, osrs235. */
 void packet_if_setcolour_v7_out(RsprotExec *x, MsgIfSetColour *m);
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m);
-/* v9 -- revs 232, 241. */
+/* v9 -- revs osrs232, osrs241. */
 void packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m);
-/* v10 -- revs 233. */
+/* v10 -- revs osrs233. */
 void packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m);
-/* v12 -- revs 237, 239. */
+/* v12 -- revs osrs237, osrs239. */
 void packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m);
-/* v14 -- revs 240. */
+/* v14 -- revs osrs240. */
 void packet_if_setcolour_v14_out(RsprotExec *x, MsgIfSetColour *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setcolour_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setcolour_<R>_out. */
 #define packet_if_setcolour_osrs221_out packet_if_setcolour_v1_out
 #define packet_if_setcolour_osrs222_out packet_if_setcolour_v2_out
 #define packet_if_setcolour_osrs223_out packet_if_setcolour_v3_out

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m)
 {
@@ -19,7 +19,7 @@ packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m)
     RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_obj_opfilter_v2_out(RsprotExec *x, MsgObjOpFilter *m)
 {
@@ -33,8 +33,8 @@ packet_obj_opfilter_v2_out(RsprotExec *x, MsgObjOpFilter *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_opfilter_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_obj_opfilter_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_obj_opfilter_v2_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_obj_opfilter_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_obj_opfilter_v2_out },
 };
 
 const int rsprot_obj_opfilter_out_count =

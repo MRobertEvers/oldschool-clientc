@@ -19,28 +19,28 @@ typedef struct MsgEventNativeMouseClick {
 	int32_t code;
 } MsgEventNativeMouseClick;
 
-/* v1 -- revs 222. */
+/* v1 -- revs osrs222. */
 void packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v2 -- revs 223. */
+/* v2 -- revs osrs223. */
 void packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v3 -- revs 224. */
+/* v3 -- revs osrs224. */
 void packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v4 -- revs 225. */
+/* v4 -- revs osrs225. */
 void packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v5 -- revs 226. */
+/* v5 -- revs osrs226. */
 void packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v6 -- revs 227. */
+/* v6 -- revs osrs227. */
 void packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v7 -- revs 228. */
+/* v7 -- revs osrs228. */
 void packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v9 -- revs 230. */
+/* v9 -- revs osrs230. */
 void packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_event_native_mouse_click_v10_in(RsprotExec *x, MsgEventNativeMouseClick *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_native_mouse_click_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_native_mouse_click_<R>_in. */
 #define packet_event_native_mouse_click_osrs222_in packet_event_native_mouse_click_v1_in
 #define packet_event_native_mouse_click_osrs223_in packet_event_native_mouse_click_v2_in
 #define packet_event_native_mouse_click_osrs224_in packet_event_native_mouse_click_v3_in

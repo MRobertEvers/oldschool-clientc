@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 232. */
+/* v1 -- revs osrs232. */
 void
 packet_obj_enabled_ops_specific_v1_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -19,7 +19,7 @@ packet_obj_enabled_ops_specific_v1_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U1_ADD128(x, m->op_flags);
 }
 
-/* v2 -- revs 233. */
+/* v2 -- revs osrs233. */
 void
 packet_obj_enabled_ops_specific_v2_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -28,7 +28,7 @@ packet_obj_enabled_ops_specific_v2_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U4_3412(x, m->coord_grid_packed);
 }
 
-/* v3 -- revs 234. */
+/* v3 -- revs osrs234. */
 void
 packet_obj_enabled_ops_specific_v3_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -37,7 +37,7 @@ packet_obj_enabled_ops_specific_v3_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v4 -- revs 235. */
+/* v4 -- revs osrs235. */
 void
 packet_obj_enabled_ops_specific_v4_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -46,7 +46,7 @@ packet_obj_enabled_ops_specific_v4_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U2_21(x, m->id);
 }
 
-/* v5 -- revs 236. */
+/* v5 -- revs osrs236. */
 void
 packet_obj_enabled_ops_specific_v5_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -55,7 +55,7 @@ packet_obj_enabled_ops_specific_v5_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U4_2143(x, m->coord_grid_packed);
 }
 
-/* v6 -- revs 237. */
+/* v6 -- revs osrs237. */
 void
 packet_obj_enabled_ops_specific_v6_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -64,7 +64,7 @@ packet_obj_enabled_ops_specific_v6_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v7 -- revs 238. */
+/* v7 -- revs osrs238. */
 void
 packet_obj_enabled_ops_specific_v7_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -73,7 +73,7 @@ packet_obj_enabled_ops_specific_v7_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U4_1234(x, m->coord_grid_packed);
 }
 
-/* v8 -- revs 239. */
+/* v8 -- revs osrs239. */
 void
 packet_obj_enabled_ops_specific_v8_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -82,7 +82,7 @@ packet_obj_enabled_ops_specific_v8_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U4_3412(x, m->coord_grid_packed);
 }
 
-/* v9 -- revs 240. */
+/* v9 -- revs osrs240. */
 void
 packet_obj_enabled_ops_specific_v9_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -91,7 +91,7 @@ packet_obj_enabled_ops_specific_v9_out(RsprotExec *x, MsgObjEnabledOpsSpecific *
     RSPROT_U1_SUB128(x, m->op_flags);
 }
 
-/* v10 -- revs 241. */
+/* v10 -- revs osrs241. */
 void
 packet_obj_enabled_ops_specific_v10_out(RsprotExec *x, MsgObjEnabledOpsSpecific *m)
 {
@@ -105,16 +105,16 @@ packet_obj_enabled_ops_specific_v10_out(RsprotExec *x, MsgObjEnabledOpsSpecific 
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_enabled_ops_specific_out[] = {
-    { 232, 232, (RsprotCodecFn)packet_obj_enabled_ops_specific_v1_out },
-    { 233, 233, (RsprotCodecFn)packet_obj_enabled_ops_specific_v2_out },
-    { 234, 234, (RsprotCodecFn)packet_obj_enabled_ops_specific_v3_out },
-    { 235, 235, (RsprotCodecFn)packet_obj_enabled_ops_specific_v4_out },
-    { 236, 236, (RsprotCodecFn)packet_obj_enabled_ops_specific_v5_out },
-    { 237, 237, (RsprotCodecFn)packet_obj_enabled_ops_specific_v6_out },
-    { 238, 238, (RsprotCodecFn)packet_obj_enabled_ops_specific_v7_out },
-    { 239, 239, (RsprotCodecFn)packet_obj_enabled_ops_specific_v8_out },
-    { 240, 240, (RsprotCodecFn)packet_obj_enabled_ops_specific_v9_out },
-    { 241, 241, (RsprotCodecFn)packet_obj_enabled_ops_specific_v10_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_obj_enabled_ops_specific_v1_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_obj_enabled_ops_specific_v2_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_obj_enabled_ops_specific_v3_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_obj_enabled_ops_specific_v4_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_obj_enabled_ops_specific_v5_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_obj_enabled_ops_specific_v6_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_obj_enabled_ops_specific_v7_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_enabled_ops_specific_v8_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_enabled_ops_specific_v9_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_enabled_ops_specific_v10_out },
 };
 
 const int rsprot_obj_enabled_ops_specific_out_count =

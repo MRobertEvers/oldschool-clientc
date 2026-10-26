@@ -17,10 +17,10 @@ typedef struct MsgRSevenStatus {
 	int32_t packed;
 } MsgRSevenStatus;
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs osrs227-241. */
 void packet_rseven_status_v1_in(RsprotExec *x, MsgRSevenStatus *m);
 
-/* Per-revision entry points: what revision N calls is packet_rseven_status_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_rseven_status_<R>_in. */
 #define packet_rseven_status_osrs227_in packet_rseven_status_v1_in
 #define packet_rseven_status_osrs228_in packet_rseven_status_v1_in
 #define packet_rseven_status_osrs229_in packet_rseven_status_v1_in

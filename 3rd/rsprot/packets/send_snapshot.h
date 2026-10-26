@@ -19,10 +19,10 @@ typedef struct MsgSendSnapshot {
 	int32_t mute;
 } MsgSendSnapshot;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_send_snapshot_v1_in(RsprotExec *x, MsgSendSnapshot *m);
 
-/* Per-revision entry points: what revision N calls is packet_send_snapshot_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_send_snapshot_<R>_in. */
 #define packet_send_snapshot_osrs221_in packet_send_snapshot_v1_in
 #define packet_send_snapshot_osrs222_in packet_send_snapshot_v1_in
 #define packet_send_snapshot_osrs223_in packet_send_snapshot_v1_in

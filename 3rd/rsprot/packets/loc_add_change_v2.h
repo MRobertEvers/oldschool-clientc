@@ -27,36 +27,36 @@ typedef struct MsgLocAddChangeV2 {
 	int32_t ops_count;
 } MsgLocAddChangeV2;
 
-/* v1 -- revs 228. */
+/* v1 -- revs osrs228. */
 void packet_loc_add_change_v2_v1_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v2 -- revs 229. */
+/* v2 -- revs osrs229. */
 void packet_loc_add_change_v2_v2_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v3 -- revs 230. */
+/* v3 -- revs osrs230. */
 void packet_loc_add_change_v2_v3_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v4 -- revs 231. */
+/* v4 -- revs osrs231. */
 void packet_loc_add_change_v2_v4_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v5 -- revs 232. */
+/* v5 -- revs osrs232. */
 void packet_loc_add_change_v2_v5_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v6 -- revs 233. */
+/* v6 -- revs osrs233. */
 void packet_loc_add_change_v2_v6_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v7 -- revs 234. */
+/* v7 -- revs osrs234. */
 void packet_loc_add_change_v2_v7_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v8 -- revs 235. */
+/* v8 -- revs osrs235. */
 void packet_loc_add_change_v2_v8_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v9 -- revs 236. */
+/* v9 -- revs osrs236. */
 void packet_loc_add_change_v2_v9_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v10 -- revs 237. */
+/* v10 -- revs osrs237. */
 void packet_loc_add_change_v2_v10_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v11 -- revs 238. */
+/* v11 -- revs osrs238. */
 void packet_loc_add_change_v2_v11_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v12 -- revs 239. */
+/* v12 -- revs osrs239. */
 void packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v13 -- revs 240. */
+/* v13 -- revs osrs240. */
 void packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m);
-/* v14 -- revs 241. */
+/* v14 -- revs osrs241. */
 void packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_loc_add_change_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_loc_add_change_v2_<R>_out. */
 #define packet_loc_add_change_v2_osrs228_out packet_loc_add_change_v2_v1_out
 #define packet_loc_add_change_v2_osrs229_out packet_loc_add_change_v2_v2_out
 #define packet_loc_add_change_v2_osrs230_out packet_loc_add_change_v2_v3_out

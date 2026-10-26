@@ -14,7 +14,7 @@ packet_rebuild_worldentity_v1_v1_out(RsprotExec *x, MsgRebuildWorldEntityV1 *m)
 }
 
 const RsprotVersionRange rsprot_rebuild_worldentity_v1_out[] = {
-    { 223, 224, (RsprotCodecFn)packet_rebuild_worldentity_v1_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_rebuild_worldentity_v1_v1_out },
 };
 
 const int rsprot_rebuild_worldentity_v1_out_count =

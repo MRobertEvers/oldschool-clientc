@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -20,7 +20,7 @@ packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_SUB128(x, m->op_flags);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -30,7 +30,7 @@ packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void
 packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -40,7 +40,7 @@ packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -50,7 +50,7 @@ packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -60,7 +60,7 @@ packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void
 packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -70,7 +70,7 @@ packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m)
     RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void
 packet_loc_add_change_v7_out(RsprotExec *x, MsgLocAddChange *m)
 {
@@ -85,13 +85,13 @@ packet_loc_add_change_v7_out(RsprotExec *x, MsgLocAddChange *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_add_change_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_loc_add_change_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_loc_add_change_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_loc_add_change_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_loc_add_change_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_loc_add_change_v5_out },
-    { 226, 226, (RsprotCodecFn)packet_loc_add_change_v6_out },
-    { 227, 227, (RsprotCodecFn)packet_loc_add_change_v7_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_loc_add_change_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_loc_add_change_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_loc_add_change_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_loc_add_change_v4_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_loc_add_change_v5_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_loc_add_change_v6_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_loc_add_change_v7_out },
 };
 
 const int rsprot_loc_add_change_out_count =

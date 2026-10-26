@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void
 packet_if_setmodel_v2_v1_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
@@ -18,7 +18,7 @@ packet_if_setmodel_v2_v1_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_COM_2143(x, m->combined_id);
 }
 
-/* v2 -- revs 238. */
+/* v2 -- revs osrs238. */
 void
 packet_if_setmodel_v2_v2_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
@@ -26,7 +26,7 @@ packet_if_setmodel_v2_v2_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_U4_3412(x, m->model);
 }
 
-/* v3 -- revs 239. */
+/* v3 -- revs osrs239. */
 void
 packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
@@ -34,7 +34,7 @@ packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v4 -- revs 240. */
+/* v4 -- revs osrs240. */
 void
 packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
@@ -42,7 +42,7 @@ packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v5 -- revs 241. */
+/* v5 -- revs osrs241. */
 void
 packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
@@ -55,11 +55,11 @@ packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setmodel_v2_out[] = {
-    { 237, 237, (RsprotCodecFn)packet_if_setmodel_v2_v1_out },
-    { 238, 238, (RsprotCodecFn)packet_if_setmodel_v2_v2_out },
-    { 239, 239, (RsprotCodecFn)packet_if_setmodel_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setmodel_v2_v4_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setmodel_v2_v5_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_if_setmodel_v2_v1_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_if_setmodel_v2_v2_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setmodel_v2_v3_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setmodel_v2_v4_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setmodel_v2_v5_out },
 };
 
 const int rsprot_if_setmodel_v2_out_count =

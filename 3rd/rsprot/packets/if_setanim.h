@@ -18,38 +18,38 @@ typedef struct MsgIfSetAnim {
 	int32_t combined_id;
 } MsgIfSetAnim;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setanim_v1_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v2 -- revs 222, 230. */
+/* v2 -- revs osrs222, osrs230. */
 void packet_if_setanim_v2_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v3 -- revs 223, 228, 235. */
+/* v3 -- revs osrs223, osrs228, osrs235. */
 void packet_if_setanim_v3_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setanim_v4_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setanim_v5_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v6 -- revs 226, 238. */
+/* v6 -- revs osrs226, osrs238. */
 void packet_if_setanim_v6_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_if_setanim_v7_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void packet_if_setanim_v8_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_if_setanim_v9_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_if_setanim_v10_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v11 -- revs 233, 239. */
+/* v11 -- revs osrs233, osrs239. */
 void packet_if_setanim_v11_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void packet_if_setanim_v12_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v13 -- revs 236. */
+/* v13 -- revs osrs236. */
 void packet_if_setanim_v13_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v14 -- revs 237, 240. */
+/* v14 -- revs osrs237, osrs240. */
 void packet_if_setanim_v14_out(RsprotExec *x, MsgIfSetAnim *m);
-/* v15 -- revs 241. */
+/* v15 -- revs osrs241. */
 void packet_if_setanim_v15_out(RsprotExec *x, MsgIfSetAnim *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setanim_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setanim_<R>_out. */
 #define packet_if_setanim_osrs221_out packet_if_setanim_v1_out
 #define packet_if_setanim_osrs222_out packet_if_setanim_v2_out
 #define packet_if_setanim_osrs223_out packet_if_setanim_v3_out

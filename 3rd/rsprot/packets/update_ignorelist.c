@@ -43,9 +43,9 @@ packet_update_ignorelist_v1_out(RsprotExec *x, MsgUpdateIgnoreList *m)
 }
 
 const RsprotVersionRange rsprot_update_ignorelist_out[] = {
-    { 221, 239, (RsprotCodecFn)packet_update_ignorelist_v1_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_ignorelist_v1_out },
     /* 240-241 (RSProx osrs-240 and osrs-241, UpdateIgnoreListDecoder): decode body unchanged from 239. */
-    { 240, 241, (RsprotCodecFn)packet_update_ignorelist_v1_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_ignorelist_v1_out },
 };
 
 const int rsprot_update_ignorelist_out_count =

@@ -17,12 +17,12 @@ typedef struct MsgIfCloseSub {
 	int32_t combined_id;
 } MsgIfCloseSub;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m);
-/* v2 -- revs 222-241. */
+/* v2 -- revs osrs222-241. */
 void packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_closesub_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_closesub_<R>_out. */
 #define packet_if_closesub_osrs221_out packet_if_closesub_v1_out
 #define packet_if_closesub_osrs222_out packet_if_closesub_v2_out
 #define packet_if_closesub_osrs223_out packet_if_closesub_v2_out

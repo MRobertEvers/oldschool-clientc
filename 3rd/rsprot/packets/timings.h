@@ -23,10 +23,10 @@ typedef struct MsgTimings {
 	int32_t unused2;
 } MsgTimings;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_timings_v1_in(RsprotExec *x, MsgTimings *m);
 
-/* Per-revision entry points: what revision N calls is packet_timings_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_timings_<R>_in. */
 #define packet_timings_osrs221_in packet_timings_v1_in
 #define packet_timings_osrs222_in packet_timings_v1_in
 

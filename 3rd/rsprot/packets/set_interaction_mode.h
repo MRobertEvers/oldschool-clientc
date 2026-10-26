@@ -19,10 +19,10 @@ typedef struct MsgSetInteractionMode {
 	int32_t entity_interaction_mode;
 } MsgSetInteractionMode;
 
-/* v1 -- revs 226-241. */
+/* v1 -- revs osrs226-241. */
 void packet_set_interaction_mode_v1_out(RsprotExec *x, MsgSetInteractionMode *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_interaction_mode_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_interaction_mode_<R>_out. */
 #define packet_set_interaction_mode_osrs226_out packet_set_interaction_mode_v1_out
 #define packet_set_interaction_mode_osrs227_out packet_set_interaction_mode_v1_out
 #define packet_set_interaction_mode_osrs228_out packet_set_interaction_mode_v1_out

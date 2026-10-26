@@ -21,18 +21,18 @@ typedef struct MsgMidiSong {
 	int32_t fade_in_speed;
 } MsgMidiSong;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_midi_song_v1_out(RsprotExec *x, MsgMidiSong *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_midi_song_v2_out(RsprotExec *x, MsgMidiSong *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_midi_song_v3_out(RsprotExec *x, MsgMidiSong *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_midi_song_v4_out(RsprotExec *x, MsgMidiSong *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_midi_song_v5_out(RsprotExec *x, MsgMidiSong *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_song_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_song_<R>_out. */
 #define packet_midi_song_osrs221_out packet_midi_song_v1_out
 #define packet_midi_song_osrs222_out packet_midi_song_v2_out
 #define packet_midi_song_osrs223_out packet_midi_song_v3_out

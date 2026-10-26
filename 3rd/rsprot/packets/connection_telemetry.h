@@ -23,10 +23,10 @@ typedef struct MsgConnectionTelemetry {
 	int32_t unused2;
 } MsgConnectionTelemetry;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_connection_telemetry_v1_in(RsprotExec *x, MsgConnectionTelemetry *m);
 
-/* Per-revision entry points: what revision N calls is packet_connection_telemetry_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_connection_telemetry_<R>_in. */
 #define packet_connection_telemetry_osrs223_in packet_connection_telemetry_v1_in
 #define packet_connection_telemetry_osrs224_in packet_connection_telemetry_v1_in
 #define packet_connection_telemetry_osrs225_in packet_connection_telemetry_v1_in

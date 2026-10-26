@@ -18,24 +18,24 @@ typedef struct MsgIfSetText {
 	const char *text;
 } MsgIfSetText;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m);
-/* v2 -- revs 222, 227, 231. */
+/* v2 -- revs osrs222, osrs227, osrs231. */
 void packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m);
-/* v3 -- revs 223, 228. */
+/* v3 -- revs osrs223, osrs228. */
 void packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m);
-/* v4 -- revs 224, 237-238, 241. */
+/* v4 -- revs osrs224, osrs237-238, osrs241. */
 void packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m);
-/* v5 -- revs 225, 229, 234. */
+/* v5 -- revs osrs225, osrs229, osrs234. */
 void packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m);
-/* v6 -- revs 226, 230, 235-236, 239. */
+/* v6 -- revs osrs226, osrs230, osrs235-236, osrs239. */
 void packet_if_settext_v6_out(RsprotExec *x, MsgIfSetText *m);
-/* v7 -- revs 232, 240. */
+/* v7 -- revs osrs232, osrs240. */
 void packet_if_settext_v7_out(RsprotExec *x, MsgIfSetText *m);
-/* v8 -- revs 233. */
+/* v8 -- revs osrs233. */
 void packet_if_settext_v8_out(RsprotExec *x, MsgIfSetText *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_settext_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_settext_<R>_out. */
 #define packet_if_settext_osrs221_out packet_if_settext_v1_out
 #define packet_if_settext_osrs222_out packet_if_settext_v2_out
 #define packet_if_settext_osrs223_out packet_if_settext_v3_out

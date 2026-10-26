@@ -22,30 +22,30 @@ typedef struct MsgIfScriptTrigger {
 	int32_t copy_length;
 } MsgIfScriptTrigger;
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void packet_if_script_trigger_v1_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v2 -- revs 232. */
+/* v2 -- revs osrs232. */
 void packet_if_script_trigger_v2_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v3 -- revs 233. */
+/* v3 -- revs osrs233. */
 void packet_if_script_trigger_v3_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v4 -- revs 234. */
+/* v4 -- revs osrs234. */
 void packet_if_script_trigger_v4_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v5 -- revs 235. */
+/* v5 -- revs osrs235. */
 void packet_if_script_trigger_v5_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v6 -- revs 236. */
+/* v6 -- revs osrs236. */
 void packet_if_script_trigger_v6_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v7 -- revs 237. */
+/* v7 -- revs osrs237. */
 void packet_if_script_trigger_v7_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v8 -- revs 238. */
+/* v8 -- revs osrs238. */
 void packet_if_script_trigger_v8_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v9 -- revs 239. */
+/* v9 -- revs osrs239. */
 void packet_if_script_trigger_v9_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v10 -- revs 240. */
+/* v10 -- revs osrs240. */
 void packet_if_script_trigger_v10_in(RsprotExec *x, MsgIfScriptTrigger *m);
-/* v11 -- revs 241. */
+/* v11 -- revs osrs241. */
 void packet_if_script_trigger_v11_in(RsprotExec *x, MsgIfScriptTrigger *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_script_trigger_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_if_script_trigger_<R>_in. */
 #define packet_if_script_trigger_osrs231_in packet_if_script_trigger_v1_in
 #define packet_if_script_trigger_osrs232_in packet_if_script_trigger_v2_in
 #define packet_if_script_trigger_osrs233_in packet_if_script_trigger_v3_in

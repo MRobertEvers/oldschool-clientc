@@ -19,10 +19,10 @@ typedef struct MsgMapBuildComplete {
 	int32_t _unused;
 } MsgMapBuildComplete;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_map_build_complete_v1_in(RsprotExec *x, MsgMapBuildComplete *m);
 
-/* Per-revision entry points: what revision N calls is packet_map_build_complete_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_map_build_complete_<R>_in. */
 #define packet_map_build_complete_osrs221_in packet_map_build_complete_v1_in
 #define packet_map_build_complete_osrs222_in packet_map_build_complete_v1_in
 #define packet_map_build_complete_osrs223_in packet_map_build_complete_v1_in

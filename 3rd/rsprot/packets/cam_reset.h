@@ -19,10 +19,10 @@ typedef struct MsgCamReset {
 	int32_t _unused;
 } MsgCamReset;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_cam_reset_v1_out(RsprotExec *x, MsgCamReset *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_reset_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_reset_<R>_out. */
 #define packet_cam_reset_osrs221_out packet_cam_reset_v1_out
 #define packet_cam_reset_osrs222_out packet_cam_reset_v1_out
 #define packet_cam_reset_osrs223_out packet_cam_reset_v1_out

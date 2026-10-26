@@ -20,28 +20,28 @@ typedef struct MsgIfSetEvents {
 	int32_t events;
 } MsgIfSetEvents;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setevents_v1_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_setevents_v2_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setevents_v3_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setevents_v4_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setevents_v5_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_if_setevents_v6_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_if_setevents_v7_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_if_setevents_v8_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_if_setevents_v9_out(RsprotExec *x, MsgIfSetEvents *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_if_setevents_v10_out(RsprotExec *x, MsgIfSetEvents *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setevents_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setevents_<R>_out. */
 #define packet_if_setevents_osrs221_out packet_if_setevents_v1_out
 #define packet_if_setevents_osrs222_out packet_if_setevents_v2_out
 #define packet_if_setevents_osrs223_out packet_if_setevents_v3_out

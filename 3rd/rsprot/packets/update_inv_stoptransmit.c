@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221, 226, 229, 231, 233-234. */
+/* v1 -- revs osrs221, osrs226, osrs229, osrs231, osrs233-234. */
 void
 packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2_21_ADD128(x, m->inventory_id);
 }
 
-/* v2 -- revs 222-223, 225, 228, 238-239, 241. */
+/* v2 -- revs osrs222-223, osrs225, osrs228, osrs238-239, osrs241. */
 void
 packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2_12_ADD128(x, m->inventory_id);
 }
 
-/* v3 -- revs 224, 227, 230, 232, 236. */
+/* v3 -- revs osrs224, osrs227, osrs230, osrs232, osrs236. */
 void
 packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
     RSPROT_U2_12(x, m->inventory_id);
 }
 
-/* v4 -- revs 235, 237, 240. */
+/* v4 -- revs osrs235, osrs237, osrs240. */
 void
 packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
@@ -43,24 +43,24 @@ packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_inv_stoptransmit_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
-    { 222, 223, (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
-    { 224, 224, (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
-    { 225, 225, (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
-    { 226, 226, (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
-    { 227, 227, (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
-    { 228, 228, (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
-    { 229, 229, (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
-    { 230, 230, (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
-    { 231, 231, (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
-    { 232, 232, (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
-    { 233, 234, (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
-    { 235, 235, (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
-    { 236, 236, (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
-    { 237, 237, (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
-    { 238, 239, (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
-    { 240, 240, (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
-    { 241, 241, (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_update_inv_stoptransmit_v1_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_update_inv_stoptransmit_v3_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
 };
 
 const int rsprot_update_inv_stoptransmit_out_count =

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_cam_moveto_v1_out(RsprotExec *x, MsgCamMoveTo *m)
 {
@@ -21,7 +21,7 @@ packet_cam_moveto_v1_out(RsprotExec *x, MsgCamMoveTo *m)
     RSPROT_U1(x, m->acceleration);
 }
 
-/* v2 -- revs 223-235. */
+/* v2 -- revs osrs223-235. */
 void
 packet_cam_moveto_v2_out(RsprotExec *x, MsgCamMoveTo *m)
 {
@@ -37,8 +37,8 @@ packet_cam_moveto_v2_out(RsprotExec *x, MsgCamMoveTo *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_moveto_out[] = {
-    { 221, 222, (RsprotCodecFn)packet_cam_moveto_v1_out },
-    { 223, 235, (RsprotCodecFn)packet_cam_moveto_v2_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_cam_moveto_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_cam_moveto_v2_out },
 };
 
 const int rsprot_cam_moveto_out_count =

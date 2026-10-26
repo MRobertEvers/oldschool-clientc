@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void
 packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -21,7 +21,7 @@ packet_rebuild_region_v2_v1_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v2 -- revs 238. */
+/* v2 -- revs osrs238. */
 void
 packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -32,7 +32,7 @@ packet_rebuild_region_v2_v2_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v3 -- revs 239. */
+/* v3 -- revs osrs239. */
 void
 packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -43,7 +43,7 @@ packet_rebuild_region_v2_v3_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v4 -- revs 240. */
+/* v4 -- revs osrs240. */
 void
 packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -54,7 +54,7 @@ packet_rebuild_region_v2_v4_out(RsprotExec *x, MsgRebuildRegionV2 *m)
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);
 }
 
-/* v5 -- revs 241. */
+/* v5 -- revs osrs241. */
 void
 packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
 {
@@ -70,11 +70,11 @@ packet_rebuild_region_v2_v5_out(RsprotExec *x, MsgRebuildRegionV2 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_region_v2_out[] = {
-    { 237, 237, (RsprotCodecFn)packet_rebuild_region_v2_v1_out },
-    { 238, 238, (RsprotCodecFn)packet_rebuild_region_v2_v2_out },
-    { 239, 239, (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
-    { 240, 240, (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
-    { 241, 241, (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_rebuild_region_v2_v1_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_rebuild_region_v2_v2_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_rebuild_region_v2_v3_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_rebuild_region_v2_v4_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rebuild_region_v2_v5_out },
 };
 
 const int rsprot_rebuild_region_v2_out_count =

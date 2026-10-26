@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_opobj5_v1_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -20,7 +20,7 @@ packet_opobj5_v1_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_opobj5_v2_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -30,7 +30,7 @@ packet_opobj5_v2_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_12_ADD128(x, m->z);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void
 packet_opobj5_v3_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -40,7 +40,7 @@ packet_opobj5_v3_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_21(x, m->x);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_opobj5_v4_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -50,7 +50,7 @@ packet_opobj5_v4_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_12_ADD128(x, m->z);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_opobj5_v5_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -60,7 +60,7 @@ packet_opobj5_v5_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void
 packet_opobj5_v6_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -70,7 +70,7 @@ packet_opobj5_v6_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void
 packet_opobj5_v7_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -80,7 +80,7 @@ packet_opobj5_v7_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void
 packet_opobj5_v8_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -90,7 +90,7 @@ packet_opobj5_v8_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void
 packet_opobj5_v9_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -100,7 +100,7 @@ packet_opobj5_v9_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void
 packet_opobj5_v10_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -110,7 +110,7 @@ packet_opobj5_v10_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void
 packet_opobj5_v11_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -120,7 +120,7 @@ packet_opobj5_v11_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void
 packet_opobj5_v12_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -130,7 +130,7 @@ packet_opobj5_v12_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_NEG(x, m->control_key);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void
 packet_opobj5_v13_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -140,7 +140,7 @@ packet_opobj5_v13_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_12_ADD128(x, m->x);
 }
 
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void
 packet_opobj5_v14_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -150,7 +150,7 @@ packet_opobj5_v14_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U2_21_ADD128(x, m->z);
 }
 
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void
 packet_opobj5_v15_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -160,7 +160,7 @@ packet_opobj5_v15_in(RsprotExec *x, MsgOpObj5 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void
 packet_opobj5_v16_in(RsprotExec *x, MsgOpObj5 *m)
 {
@@ -175,22 +175,22 @@ packet_opobj5_v16_in(RsprotExec *x, MsgOpObj5 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opobj5_in[] = {
-    { 221, 221, (RsprotCodecFn)packet_opobj5_v1_in },
-    { 222, 222, (RsprotCodecFn)packet_opobj5_v2_in },
-    { 223, 223, (RsprotCodecFn)packet_opobj5_v3_in },
-    { 224, 224, (RsprotCodecFn)packet_opobj5_v4_in },
-    { 225, 225, (RsprotCodecFn)packet_opobj5_v5_in },
-    { 226, 226, (RsprotCodecFn)packet_opobj5_v6_in },
-    { 227, 227, (RsprotCodecFn)packet_opobj5_v7_in },
-    { 228, 228, (RsprotCodecFn)packet_opobj5_v8_in },
-    { 229, 229, (RsprotCodecFn)packet_opobj5_v9_in },
-    { 230, 230, (RsprotCodecFn)packet_opobj5_v10_in },
-    { 231, 231, (RsprotCodecFn)packet_opobj5_v11_in },
-    { 232, 232, (RsprotCodecFn)packet_opobj5_v12_in },
-    { 233, 233, (RsprotCodecFn)packet_opobj5_v13_in },
-    { 234, 234, (RsprotCodecFn)packet_opobj5_v14_in },
-    { 235, 235, (RsprotCodecFn)packet_opobj5_v15_in },
-    { 236, 236, (RsprotCodecFn)packet_opobj5_v16_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_opobj5_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_opobj5_v2_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_opobj5_v3_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_opobj5_v4_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_opobj5_v5_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_opobj5_v6_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_opobj5_v7_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_opobj5_v8_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_opobj5_v9_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_opobj5_v10_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_opobj5_v11_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_opobj5_v12_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opobj5_v13_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opobj5_v14_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_opobj5_v15_in },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opobj5_v16_in },
 };
 
 const int rsprot_opobj5_in_count =

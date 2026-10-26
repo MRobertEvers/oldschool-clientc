@@ -18,40 +18,40 @@ typedef struct MsgResumePauseButton {
 	int32_t sub;
 } MsgResumePauseButton;
 
-/* v1 -- revs 221, 240. */
+/* v1 -- revs osrs221, osrs240. */
 void packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v2 -- revs 222, 238. */
+/* v2 -- revs osrs222, osrs238. */
 void packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_resume_pausebutton_v3_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v4 -- revs 224, 237. */
+/* v4 -- revs osrs224, osrs237. */
 void packet_resume_pausebutton_v4_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v5 -- revs 225, 232. */
+/* v5 -- revs osrs225, osrs232. */
 void packet_resume_pausebutton_v5_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_resume_pausebutton_v6_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_resume_pausebutton_v7_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_resume_pausebutton_v8_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_resume_pausebutton_v9_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_resume_pausebutton_v10_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_resume_pausebutton_v11_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v13 -- revs 234. */
+/* v13 -- revs osrs234. */
 void packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v14 -- revs 235, 241. */
+/* v14 -- revs osrs235, osrs241. */
 void packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v15 -- revs 236. */
+/* v15 -- revs osrs236. */
 void packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m);
-/* v16 -- revs 239. */
+/* v16 -- revs osrs239. */
 void packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m);
 
-/* Per-revision entry points: what revision N calls is packet_resume_pausebutton_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_resume_pausebutton_<R>_in. */
 #define packet_resume_pausebutton_osrs221_in packet_resume_pausebutton_v1_in
 #define packet_resume_pausebutton_osrs222_in packet_resume_pausebutton_v2_in
 #define packet_resume_pausebutton_osrs223_in packet_resume_pausebutton_v3_in

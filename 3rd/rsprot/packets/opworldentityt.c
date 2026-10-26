@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 233. */
+/* v1 -- revs osrs233. */
 void
 packet_opworldentityt_v1_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -21,7 +21,7 @@ packet_opworldentityt_v1_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U2_21_ADD128(x, m->selected_obj);
 }
 
-/* v2 -- revs 234. */
+/* v2 -- revs osrs234. */
 void
 packet_opworldentityt_v2_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -32,7 +32,7 @@ packet_opworldentityt_v2_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_COM_4321(x, m->selected_combined_id);
 }
 
-/* v3 -- revs 235. */
+/* v3 -- revs osrs235. */
 void
 packet_opworldentityt_v3_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -43,7 +43,7 @@ packet_opworldentityt_v3_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U2_12_ADD128(x, m->selected_sub);
 }
 
-/* v4 -- revs 236. */
+/* v4 -- revs osrs236. */
 void
 packet_opworldentityt_v4_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -54,7 +54,7 @@ packet_opworldentityt_v4_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v5 -- revs 237. */
+/* v5 -- revs osrs237. */
 void
 packet_opworldentityt_v5_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -65,7 +65,7 @@ packet_opworldentityt_v5_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_COM_2143(x, m->selected_combined_id);
 }
 
-/* v6 -- revs 238. */
+/* v6 -- revs osrs238. */
 void
 packet_opworldentityt_v6_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -76,7 +76,7 @@ packet_opworldentityt_v6_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U2_21(x, m->selected_sub);
 }
 
-/* v7 -- revs 239. */
+/* v7 -- revs osrs239. */
 void
 packet_opworldentityt_v7_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -87,7 +87,7 @@ packet_opworldentityt_v7_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U1_NEG(x, m->control_key);
 }
 
-/* v8 -- revs 240. */
+/* v8 -- revs osrs240. */
 void
 packet_opworldentityt_v8_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -98,7 +98,7 @@ packet_opworldentityt_v8_in(RsprotExec *x, MsgOpWorldEntityT *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v9 -- revs 241. */
+/* v9 -- revs osrs241. */
 void
 packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m)
 {
@@ -114,15 +114,15 @@ packet_opworldentityt_v9_in(RsprotExec *x, MsgOpWorldEntityT *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opworldentityt_in[] = {
-    { 233, 233, (RsprotCodecFn)packet_opworldentityt_v1_in },
-    { 234, 234, (RsprotCodecFn)packet_opworldentityt_v2_in },
-    { 235, 235, (RsprotCodecFn)packet_opworldentityt_v3_in },
-    { 236, 236, (RsprotCodecFn)packet_opworldentityt_v4_in },
-    { 237, 237, (RsprotCodecFn)packet_opworldentityt_v5_in },
-    { 238, 238, (RsprotCodecFn)packet_opworldentityt_v6_in },
-    { 239, 239, (RsprotCodecFn)packet_opworldentityt_v7_in },
-    { 240, 240, (RsprotCodecFn)packet_opworldentityt_v8_in },
-    { 241, 241, (RsprotCodecFn)packet_opworldentityt_v9_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opworldentityt_v1_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opworldentityt_v2_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_opworldentityt_v3_in },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opworldentityt_v4_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_opworldentityt_v5_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_opworldentityt_v6_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opworldentityt_v7_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opworldentityt_v8_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opworldentityt_v9_in },
 };
 
 const int rsprot_opworldentityt_in_count =

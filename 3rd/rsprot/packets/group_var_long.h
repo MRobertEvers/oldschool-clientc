@@ -19,10 +19,10 @@ typedef struct MsgGroupVarLong {
 	int64_t update_variable_value;
 } MsgGroupVarLong;
 
-/* v1 -- revs 239-241. */
+/* v1 -- revs osrs239-241. */
 void packet_group_var_long_v1_out(RsprotExec *x, MsgGroupVarLong *m);
 
-/* Per-revision entry points: what revision N calls is packet_group_var_long_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_group_var_long_<R>_out. */
 #define packet_group_var_long_osrs239_out packet_group_var_long_v1_out
 #define packet_group_var_long_osrs240_out packet_group_var_long_v1_out
 #define packet_group_var_long_osrs241_out packet_group_var_long_v1_out

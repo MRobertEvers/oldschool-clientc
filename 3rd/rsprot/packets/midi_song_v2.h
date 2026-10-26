@@ -21,40 +21,40 @@ typedef struct MsgMidiSongV2 {
 	int32_t fade_out_speed;
 } MsgMidiSongV2;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_midi_song_v2_v1_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v2 -- revs 227. */
+/* v2 -- revs osrs227. */
 void packet_midi_song_v2_v2_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v3 -- revs 228. */
+/* v3 -- revs osrs228. */
 void packet_midi_song_v2_v3_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v4 -- revs 229. */
+/* v4 -- revs osrs229. */
 void packet_midi_song_v2_v4_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v5 -- revs 230. */
+/* v5 -- revs osrs230. */
 void packet_midi_song_v2_v5_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v6 -- revs 231. */
+/* v6 -- revs osrs231. */
 void packet_midi_song_v2_v6_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v7 -- revs 232. */
+/* v7 -- revs osrs232. */
 void packet_midi_song_v2_v7_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v8 -- revs 233. */
+/* v8 -- revs osrs233. */
 void packet_midi_song_v2_v8_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v9 -- revs 234. */
+/* v9 -- revs osrs234. */
 void packet_midi_song_v2_v9_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v10 -- revs 235. */
+/* v10 -- revs osrs235. */
 void packet_midi_song_v2_v10_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_midi_song_v2_v11_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v12 -- revs 237. */
+/* v12 -- revs osrs237. */
 void packet_midi_song_v2_v12_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_midi_song_v2_v13_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v14 -- revs 239. */
+/* v14 -- revs osrs239. */
 void packet_midi_song_v2_v14_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void packet_midi_song_v2_v15_out(RsprotExec *x, MsgMidiSongV2 *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_midi_song_v2_v16_out(RsprotExec *x, MsgMidiSongV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_song_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_song_v2_<R>_out. */
 #define packet_midi_song_v2_osrs226_out packet_midi_song_v2_v1_out
 #define packet_midi_song_v2_osrs227_out packet_midi_song_v2_v2_out
 #define packet_midi_song_v2_osrs228_out packet_midi_song_v2_v3_out

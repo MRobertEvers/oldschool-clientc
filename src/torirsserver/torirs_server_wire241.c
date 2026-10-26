@@ -105,7 +105,7 @@ w241_run(struct RSAreaBuf* buf, RsprotVersionRange const* ranges, int count, voi
     uint8_t tmp[1024];
     RsprotBuf b;
     RsprotExec x;
-    RsprotCodecFn fn = rsprot_version_pick(ranges, count, 241);
+    RsprotCodecFn fn = rsprot_version_pick(ranges, count, rsprot_osrs(241));
 
     /* Every table this file names has a 241 row (the overlay's report lists
      * them); a NULL here is a generator regression, not a runtime case. */

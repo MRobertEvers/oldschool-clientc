@@ -29,10 +29,10 @@ typedef struct MsgRebuildWorldEntityV4 {
 	int32_t grid_raw_length;
 } MsgRebuildWorldEntityV4;
 
-/* v1 -- revs 237-241. */
+/* v1 -- revs osrs237-241. */
 void packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m);
 
-/* Per-revision entry points: what revision N calls is packet_rebuild_worldentity_v4_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_rebuild_worldentity_v4_<R>_out. */
 #define packet_rebuild_worldentity_v4_osrs237_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_osrs238_out packet_rebuild_worldentity_v4_v1_out
 #define packet_rebuild_worldentity_v4_osrs239_out packet_rebuild_worldentity_v4_v1_out

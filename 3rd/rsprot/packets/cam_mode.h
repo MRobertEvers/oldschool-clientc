@@ -17,10 +17,10 @@ typedef struct MsgCamMode {
 	int32_t mode;
 } MsgCamMode;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_cam_mode_v1_out(RsprotExec *x, MsgCamMode *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_mode_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_mode_<R>_out. */
 #define packet_cam_mode_osrs221_out packet_cam_mode_v1_out
 #define packet_cam_mode_osrs222_out packet_cam_mode_v1_out
 #define packet_cam_mode_osrs223_out packet_cam_mode_v1_out

@@ -19,10 +19,10 @@ typedef struct MsgWindowStatus {
 	int32_t frame_height;
 } MsgWindowStatus;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_window_status_v1_in(RsprotExec *x, MsgWindowStatus *m);
 
-/* Per-revision entry points: what revision N calls is packet_window_status_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_window_status_<R>_in. */
 #define packet_window_status_osrs221_in packet_window_status_v1_in
 #define packet_window_status_osrs222_in packet_window_status_v1_in
 #define packet_window_status_osrs223_in packet_window_status_v1_in

@@ -25,7 +25,7 @@ packet_update_friendchat_channel_full_v1_v1_out(RsprotExec *x, MsgUpdateFriendch
 }
 
 const RsprotVersionRange rsprot_update_friendchat_channel_full_v1_out[] = {
-    { 223, 226, (RsprotCodecFn)packet_update_friendchat_channel_full_v1_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_update_friendchat_channel_full_v1_v1_out },
 };
 
 const int rsprot_update_friendchat_channel_full_v1_out_count =

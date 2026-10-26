@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void
 packet_server_tick_end_v1_out(RsprotExec *x, MsgServerTickEnd *m)
 {
@@ -23,7 +23,7 @@ packet_server_tick_end_v1_out(RsprotExec *x, MsgServerTickEnd *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_server_tick_end_out[] = {
-    { 221, 241, (RsprotCodecFn)packet_server_tick_end_v1_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_server_tick_end_v1_out },
 };
 
 const int rsprot_server_tick_end_out_count =

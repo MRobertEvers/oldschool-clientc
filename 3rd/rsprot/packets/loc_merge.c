@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_loc_merge_v1_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -26,7 +26,7 @@ packet_loc_merge_v1_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->max_z);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_loc_merge_v2_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -42,7 +42,7 @@ packet_loc_merge_v2_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_ADD128(x, m->max_z);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void
 packet_loc_merge_v3_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -58,7 +58,7 @@ packet_loc_merge_v3_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_loc_merge_v4_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -74,7 +74,7 @@ packet_loc_merge_v4_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_12_ADD128(x, m->start);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_loc_merge_v5_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -90,7 +90,7 @@ packet_loc_merge_v5_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void
 packet_loc_merge_v6_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -106,7 +106,7 @@ packet_loc_merge_v6_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_21(x, m->index);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void
 packet_loc_merge_v7_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -122,7 +122,7 @@ packet_loc_merge_v7_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->min_x);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void
 packet_loc_merge_v8_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -138,7 +138,7 @@ packet_loc_merge_v8_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1(x, m->loc_properties_packed);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void
 packet_loc_merge_v9_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -154,7 +154,7 @@ packet_loc_merge_v9_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_12(x, m->end);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void
 packet_loc_merge_v10_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -170,7 +170,7 @@ packet_loc_merge_v10_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_12(x, m->end);
 }
 
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void
 packet_loc_merge_v11_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -186,7 +186,7 @@ packet_loc_merge_v11_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_SUB128(x, m->max_z);
 }
 
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void
 packet_loc_merge_v12_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -202,7 +202,7 @@ packet_loc_merge_v12_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void
 packet_loc_merge_v13_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -218,7 +218,7 @@ packet_loc_merge_v13_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U2_21_ADD128(x, m->end);
 }
 
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void
 packet_loc_merge_v14_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -234,7 +234,7 @@ packet_loc_merge_v14_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->max_x);
 }
 
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void
 packet_loc_merge_v15_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -250,7 +250,7 @@ packet_loc_merge_v15_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->max_x);
 }
 
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void
 packet_loc_merge_v16_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -266,7 +266,7 @@ packet_loc_merge_v16_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
-/* v17 -- revs 237. */
+/* v17 -- revs osrs237. */
 void
 packet_loc_merge_v17_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -282,7 +282,7 @@ packet_loc_merge_v17_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_ADD128(x, m->max_x);
 }
 
-/* v18 -- revs 238. */
+/* v18 -- revs osrs238. */
 void
 packet_loc_merge_v18_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -298,7 +298,7 @@ packet_loc_merge_v18_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->min_x);
 }
 
-/* v19 -- revs 239. */
+/* v19 -- revs osrs239. */
 void
 packet_loc_merge_v19_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -314,7 +314,7 @@ packet_loc_merge_v19_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_SUB128(x, m->max_z);
 }
 
-/* v20 -- revs 240. */
+/* v20 -- revs osrs240. */
 void
 packet_loc_merge_v20_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -330,7 +330,7 @@ packet_loc_merge_v20_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
-/* v21 -- revs 241. */
+/* v21 -- revs osrs241. */
 void
 packet_loc_merge_v21_out(RsprotExec *x, MsgLocMerge *m)
 {
@@ -351,27 +351,27 @@ packet_loc_merge_v21_out(RsprotExec *x, MsgLocMerge *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_merge_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_loc_merge_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_loc_merge_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_loc_merge_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_loc_merge_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_loc_merge_v5_out },
-    { 226, 226, (RsprotCodecFn)packet_loc_merge_v6_out },
-    { 227, 227, (RsprotCodecFn)packet_loc_merge_v7_out },
-    { 228, 228, (RsprotCodecFn)packet_loc_merge_v8_out },
-    { 229, 229, (RsprotCodecFn)packet_loc_merge_v9_out },
-    { 230, 230, (RsprotCodecFn)packet_loc_merge_v10_out },
-    { 231, 231, (RsprotCodecFn)packet_loc_merge_v11_out },
-    { 232, 232, (RsprotCodecFn)packet_loc_merge_v12_out },
-    { 233, 233, (RsprotCodecFn)packet_loc_merge_v13_out },
-    { 234, 234, (RsprotCodecFn)packet_loc_merge_v14_out },
-    { 235, 235, (RsprotCodecFn)packet_loc_merge_v15_out },
-    { 236, 236, (RsprotCodecFn)packet_loc_merge_v16_out },
-    { 237, 237, (RsprotCodecFn)packet_loc_merge_v17_out },
-    { 238, 238, (RsprotCodecFn)packet_loc_merge_v18_out },
-    { 239, 239, (RsprotCodecFn)packet_loc_merge_v19_out },
-    { 240, 240, (RsprotCodecFn)packet_loc_merge_v20_out },
-    { 241, 241, (RsprotCodecFn)packet_loc_merge_v21_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_loc_merge_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_loc_merge_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_loc_merge_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_loc_merge_v4_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_loc_merge_v5_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_loc_merge_v6_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_loc_merge_v7_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_loc_merge_v8_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_loc_merge_v9_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_loc_merge_v10_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_loc_merge_v11_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_loc_merge_v12_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_loc_merge_v13_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_loc_merge_v14_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_loc_merge_v15_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_loc_merge_v16_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_loc_merge_v17_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_loc_merge_v18_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_loc_merge_v19_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_loc_merge_v20_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_loc_merge_v21_out },
 };
 
 const int rsprot_loc_merge_out_count =

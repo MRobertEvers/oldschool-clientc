@@ -17,10 +17,10 @@ typedef struct MsgHeatmapToggle {
 	int32_t enabled;
 } MsgHeatmapToggle;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_heatmap_toggle_v1_out(RsprotExec *x, MsgHeatmapToggle *m);
 
-/* Per-revision entry points: what revision N calls is packet_heatmap_toggle_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_heatmap_toggle_<R>_out. */
 #define packet_heatmap_toggle_osrs221_out packet_heatmap_toggle_v1_out
 #define packet_heatmap_toggle_osrs222_out packet_heatmap_toggle_v1_out
 

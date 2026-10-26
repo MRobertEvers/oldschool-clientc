@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 241. */
+/* v1 -- revs osrs241. */
 void
 packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m)
 {
@@ -24,7 +24,7 @@ packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_long_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_varp_long_v1_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_long_v1_out },
 };
 
 const int rsprot_varp_long_out_count =

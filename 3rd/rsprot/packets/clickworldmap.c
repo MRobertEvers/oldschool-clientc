@@ -30,21 +30,21 @@ packet_clickworldmap_v4_in(RsprotExec *x, MsgClickworldmap *m)
 }
 
 const RsprotVersionRange rsprot_clickworldmap_in[] = {
-    { 223, 223, (RsprotCodecFn)packet_clickworldmap_v1_in },
-    { 224, 224, (RsprotCodecFn)packet_clickworldmap_v2_in },
-    { 225, 225, (RsprotCodecFn)packet_clickworldmap_v3_in },
-    { 226, 226, (RsprotCodecFn)packet_clickworldmap_v2_in },
-    { 227, 229, (RsprotCodecFn)packet_clickworldmap_v1_in },
-    { 230, 230, (RsprotCodecFn)packet_clickworldmap_v2_in },
-    { 231, 231, (RsprotCodecFn)packet_clickworldmap_v1_in },
-    { 232, 232, (RsprotCodecFn)packet_clickworldmap_v4_in },
-    { 233, 233, (RsprotCodecFn)packet_clickworldmap_v3_in },
-    { 234, 234, (RsprotCodecFn)packet_clickworldmap_v4_in },
-    { 235, 235, (RsprotCodecFn)packet_clickworldmap_v2_in },
-    { 236, 237, (RsprotCodecFn)packet_clickworldmap_v3_in },
-    { 238, 238, (RsprotCodecFn)packet_clickworldmap_v2_in },
-    { 239, 240, (RsprotCodecFn)packet_clickworldmap_v4_in },
-    { 241, 241, (RsprotCodecFn)packet_clickworldmap_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_clickworldmap_v1_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_clickworldmap_v2_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_clickworldmap_v3_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_clickworldmap_v2_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_clickworldmap_v1_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_clickworldmap_v2_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_clickworldmap_v1_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_clickworldmap_v4_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_clickworldmap_v3_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_clickworldmap_v4_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_clickworldmap_v2_in },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_clickworldmap_v3_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_clickworldmap_v2_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_clickworldmap_v4_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clickworldmap_v1_in },
 };
 
 const int rsprot_clickworldmap_in_count =

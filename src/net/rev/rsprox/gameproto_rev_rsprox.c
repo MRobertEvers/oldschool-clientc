@@ -176,7 +176,7 @@ static struct Hooks const k_hooks[RSPROX_REV_COUNT] = {
 static struct
 {
     int version;
-    RsprotWorldEntityInfoReadFn (*osrs)(int revision);
+    RsprotWorldEntityInfoReadFn (*osrs)(RsprotRev rev);
 } const k_worldentity_streams[] = {
     { 3, worldentity_info_v3_osrs }, { 4, worldentity_info_v4_osrs },
     { 5, worldentity_info_v5_osrs }, { 6, worldentity_info_v6_osrs },
@@ -193,7 +193,7 @@ build(int revision)
 
     memset(r, 0, sizeof(*r));
     r->revision = revision;
-    r->prots = rsprot_rev_table(revision);
+    r->prots = rsprot_rev_table(rsprot_osrs(revision));
     /* Generated for exactly this span (3rd/rsprot/gen/rsprot_tables.h). */
     assert(r->prots);
 
@@ -244,7 +244,7 @@ build(int revision)
 
     for( size_t i = 0; i < sizeof(k_worldentity_streams) / sizeof(k_worldentity_streams[0]); i++ )
         r->worldentity_read[k_worldentity_streams[i].version] =
-            k_worldentity_streams[i].osrs(revision);
+            k_worldentity_streams[i].osrs(rsprot_osrs(revision));
 
     snprintf(r->name, sizeof(r->name), "rsprox%d", revision);
     t->revision = GAMEPROTO_REVISION_RSPROX;

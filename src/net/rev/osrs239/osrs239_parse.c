@@ -263,7 +263,7 @@ static int
 zone_run(RsprotBuf* c, RsprotVersionRange const* ranges, int count, void* msg)
 {
     RsprotExec x;
-    RsprotCodecFn fn = rsprot_version_pick(ranges, count, 239);
+    RsprotCodecFn fn = rsprot_version_pick(ranges, count, rsprot_osrs(239));
 
     if( !fn )
         return 0;

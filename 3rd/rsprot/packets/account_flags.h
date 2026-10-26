@@ -17,10 +17,10 @@ typedef struct MsgAccountFlags {
 	int64_t flags;
 } MsgAccountFlags;
 
-/* v1 -- revs 233-241. */
+/* v1 -- revs osrs233-241. */
 void packet_account_flags_v1_out(RsprotExec *x, MsgAccountFlags *m);
 
-/* Per-revision entry points: what revision N calls is packet_account_flags_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_account_flags_<R>_out. */
 #define packet_account_flags_osrs233_out packet_account_flags_v1_out
 #define packet_account_flags_osrs234_out packet_account_flags_v1_out
 #define packet_account_flags_osrs235_out packet_account_flags_v1_out

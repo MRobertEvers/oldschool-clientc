@@ -19,10 +19,10 @@ typedef struct MsgVarpLong {
 	int32_t id;
 } MsgVarpLong;
 
-/* v1 -- revs 241. */
+/* v1 -- revs osrs241. */
 void packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m);
 
-/* Per-revision entry points: what revision N calls is packet_varp_long_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varp_long_<R>_out. */
 #define packet_varp_long_osrs241_out packet_varp_long_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

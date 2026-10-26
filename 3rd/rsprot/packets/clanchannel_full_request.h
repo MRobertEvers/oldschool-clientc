@@ -17,10 +17,10 @@ typedef struct MsgClanChannelFullRequest {
 	int32_t clan_id;
 } MsgClanChannelFullRequest;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_clanchannel_full_request_v1_in(RsprotExec *x, MsgClanChannelFullRequest *m);
 
-/* Per-revision entry points: what revision N calls is packet_clanchannel_full_request_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_clanchannel_full_request_<R>_in. */
 #define packet_clanchannel_full_request_osrs221_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_osrs222_in packet_clanchannel_full_request_v1_in
 #define packet_clanchannel_full_request_osrs223_in packet_clanchannel_full_request_v1_in

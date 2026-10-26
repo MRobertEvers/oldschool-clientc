@@ -28,7 +28,7 @@ packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
 }
 
 const RsprotVersionRange rsprot_group_var_out[] = {
-    { 239, 241, (RsprotCodecFn)packet_group_var_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_group_var_v1_out },
 };
 
 const int rsprot_group_var_out_count =

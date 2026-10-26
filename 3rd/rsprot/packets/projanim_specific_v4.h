@@ -27,30 +27,30 @@ typedef struct MsgProjAnimSpecificV4 {
 	int32_t progress;
 } MsgProjAnimSpecificV4;
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void packet_projanim_specific_v4_v1_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v2 -- revs 232. */
+/* v2 -- revs osrs232. */
 void packet_projanim_specific_v4_v2_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v3 -- revs 233. */
+/* v3 -- revs osrs233. */
 void packet_projanim_specific_v4_v3_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v4 -- revs 234. */
+/* v4 -- revs osrs234. */
 void packet_projanim_specific_v4_v4_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v5 -- revs 235. */
+/* v5 -- revs osrs235. */
 void packet_projanim_specific_v4_v5_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v6 -- revs 236. */
+/* v6 -- revs osrs236. */
 void packet_projanim_specific_v4_v6_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v7 -- revs 237. */
+/* v7 -- revs osrs237. */
 void packet_projanim_specific_v4_v7_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v8 -- revs 238. */
+/* v8 -- revs osrs238. */
 void packet_projanim_specific_v4_v8_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v9 -- revs 239. */
+/* v9 -- revs osrs239. */
 void packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v10 -- revs 240. */
+/* v10 -- revs osrs240. */
 void packet_projanim_specific_v4_v10_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
-/* v11 -- revs 241. */
+/* v11 -- revs osrs241. */
 void packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
 
-/* Per-revision entry points: what revision N calls is packet_projanim_specific_v4_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_projanim_specific_v4_<R>_out. */
 #define packet_projanim_specific_v4_osrs231_out packet_projanim_specific_v4_v1_out
 #define packet_projanim_specific_v4_osrs232_out packet_projanim_specific_v4_v2_out
 #define packet_projanim_specific_v4_osrs233_out packet_projanim_specific_v4_v3_out

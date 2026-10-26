@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221, 224, 230, 238. */
+/* v1 -- revs osrs221, osrs224, osrs230, osrs238. */
 void
 packet_oploc6_v1_in(RsprotExec *x, MsgOpLoc6 *m)
 {
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v2 -- revs 222, 226-227, 229, 231, 233-234, 239-240. */
+/* v2 -- revs osrs222, osrs226-227, osrs229, osrs231, osrs233-234, osrs239-240. */
 void
 packet_oploc6_v2_in(RsprotExec *x, MsgOpLoc6 *m)
 {
     RSPROT_U2_21(x, m->id);
 }
 
-/* v3 -- revs 223, 228, 235-236, 241. */
+/* v3 -- revs osrs223, osrs228, osrs235-236, osrs241. */
 void
 packet_oploc6_v3_in(RsprotExec *x, MsgOpLoc6 *m)
 {
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v4 -- revs 225, 232, 237. */
+/* v4 -- revs osrs225, osrs232, osrs237. */
 void
 packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m)
 {
@@ -43,23 +43,23 @@ packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploc6_in[] = {
-    { 221, 221, (RsprotCodecFn)packet_oploc6_v1_in },
-    { 222, 222, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 223, 223, (RsprotCodecFn)packet_oploc6_v3_in },
-    { 224, 224, (RsprotCodecFn)packet_oploc6_v1_in },
-    { 225, 225, (RsprotCodecFn)packet_oploc6_v4_in },
-    { 226, 227, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 228, 228, (RsprotCodecFn)packet_oploc6_v3_in },
-    { 229, 229, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 230, 230, (RsprotCodecFn)packet_oploc6_v1_in },
-    { 231, 231, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 232, 232, (RsprotCodecFn)packet_oploc6_v4_in },
-    { 233, 234, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 235, 236, (RsprotCodecFn)packet_oploc6_v3_in },
-    { 237, 237, (RsprotCodecFn)packet_oploc6_v4_in },
-    { 238, 238, (RsprotCodecFn)packet_oploc6_v1_in },
-    { 239, 240, (RsprotCodecFn)packet_oploc6_v2_in },
-    { 241, 241, (RsprotCodecFn)packet_oploc6_v3_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_oploc6_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_oploc6_v3_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_oploc6_v1_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_oploc6_v4_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_oploc6_v3_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_oploc6_v1_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_oploc6_v4_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_oploc6_v3_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_oploc6_v4_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_oploc6_v1_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_oploc6_v2_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_oploc6_v3_in },
 };
 
 const int rsprot_oploc6_in_count =

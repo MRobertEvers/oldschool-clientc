@@ -52,6 +52,7 @@
  * list's last op is a STOP when the read was not complete.
  */
 
+#include "../include/rsprot_rev.h"
 #include "../src/rsprot_buf.h"
 
 #include <stdbool.h>
@@ -847,8 +848,8 @@ int rsprot_appearance_v2(const uint8_t* data, int32_t len, RsprotAppearance* out
 int rsprot_appearance_v3(const uint8_t* data, int32_t len, RsprotAppearance* out);
 int rsprot_appearance_v4(const uint8_t* data, int32_t len, RsprotAppearance* out);
 
-/** The version `revision` sends; NULL outside 223-241. */
-RsprotAppearanceReadFn rsprot_appearance_reader(int revision);
+/** The version `rev` sends; NULL outside osrs223-241. */
+RsprotAppearanceReadFn rsprot_appearance_reader(RsprotRev rev);
 
 /* ------------------------------------------------------------------ */
 /* Readers                                                             */

@@ -30,7 +30,7 @@ packet_obj_customise_specific_v2_v1_out(RsprotExec *x, MsgObjCustomiseSpecificV2
 }
 
 const RsprotVersionRange rsprot_obj_customise_specific_v2_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_obj_customise_specific_v2_v1_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_customise_specific_v2_v1_out },
 };
 
 const int rsprot_obj_customise_specific_v2_out_count =

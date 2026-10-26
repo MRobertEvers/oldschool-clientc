@@ -28,10 +28,10 @@ typedef struct MsgMapProjAnimV1 {
 	int32_t source_index;
 } MsgMapProjAnimV1;
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void packet_map_projanim_v1_v1_out(RsprotExec *x, MsgMapProjAnimV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_map_projanim_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_map_projanim_v1_<R>_out. */
 #define packet_map_projanim_v1_osrs231_out packet_map_projanim_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

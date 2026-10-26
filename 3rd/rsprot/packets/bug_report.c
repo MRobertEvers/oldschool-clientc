@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -19,7 +19,7 @@ packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v2 -- revs 222-239. */
+/* v2 -- revs osrs222-239. */
 void
 packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -28,7 +28,7 @@ packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_JSTR(x, m->instructions);
 }
 
-/* v3 -- revs 240. */
+/* v3 -- revs osrs240. */
 void
 packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -37,7 +37,7 @@ packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m)
     RSPROT_U1_SUB128(x, m->type);
 }
 
-/* v4 -- revs 241. */
+/* v4 -- revs osrs241. */
 void
 packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m)
 {
@@ -51,10 +51,10 @@ packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_bug_report_in[] = {
-    { 221, 221, (RsprotCodecFn)packet_bug_report_v1_in },
-    { 222, 239, (RsprotCodecFn)packet_bug_report_v2_in },
-    { 240, 240, (RsprotCodecFn)packet_bug_report_v3_in },
-    { 241, 241, (RsprotCodecFn)packet_bug_report_v4_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_bug_report_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_bug_report_v2_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_bug_report_v3_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_bug_report_v4_in },
 };
 
 const int rsprot_bug_report_in_count =

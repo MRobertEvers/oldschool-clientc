@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void
 packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m)
 {
@@ -24,7 +24,7 @@ packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_clanchannel_kickuser_in[] = {
-    { 221, 241, (RsprotCodecFn)packet_clanchannel_kickuser_v1_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_kickuser_v1_in },
 };
 
 const int rsprot_clanchannel_kickuser_in_count =

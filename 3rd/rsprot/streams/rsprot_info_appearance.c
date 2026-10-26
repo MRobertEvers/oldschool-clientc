@@ -192,9 +192,11 @@ rsprot_appearance_v4(const uint8_t *data, int32_t len, RsprotAppearance *out)
 }
 
 RsprotAppearanceReadFn
-rsprot_appearance_reader(int revision)
+rsprot_appearance_reader(RsprotRev rev)
 {
-    if (revision < 223 || revision > 241)
+    int revision = rsprot_rev_number(rev);
+
+    if (rsprot_rev_family(rev) != RSPROT_FAMILY_OSRS || revision < 223 || revision > 241)
         return NULL;
     if (revision <= 225)
         return rsprot_appearance_v1;

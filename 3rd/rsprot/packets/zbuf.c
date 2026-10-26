@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 234-237. */
+/* v1 -- revs osrs234-237. */
 void
 packet_zbuf_v1_out(RsprotExec *x, MsgZBuf *m)
 {
@@ -22,7 +22,7 @@ packet_zbuf_v1_out(RsprotExec *x, MsgZBuf *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_zbuf_out[] = {
-    { 234, 237, (RsprotCodecFn)packet_zbuf_v1_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_zbuf_v1_out },
 };
 
 const int rsprot_zbuf_out_count =

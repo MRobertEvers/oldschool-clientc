@@ -22,10 +22,10 @@ typedef struct MsgCamMoveToCycles {
 	int32_t easing_id;
 } MsgCamMoveToCycles;
 
-/* v1 -- revs 223-235. */
+/* v1 -- revs osrs223-235. */
 void packet_cam_moveto_cycles_v1_out(RsprotExec *x, MsgCamMoveToCycles *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_moveto_cycles_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_moveto_cycles_<R>_out. */
 #define packet_cam_moveto_cycles_osrs223_out packet_cam_moveto_cycles_v1_out
 #define packet_cam_moveto_cycles_osrs224_out packet_cam_moveto_cycles_v1_out
 #define packet_cam_moveto_cycles_osrs225_out packet_cam_moveto_cycles_v1_out

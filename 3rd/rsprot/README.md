@@ -21,7 +21,7 @@ python3 3rd/rsprot/tools/rsprot_gen.py --check   # exit 1 if anything is stale
 spec/                  the protocol as data, in INI -- the generator's only input
   packets/<file>.ini     a codec: message structs; per version, its reads in
                          wire order and the revisions it covers
-  tables/osrs<N>.ini     revision N's prots: name, opcode, size, the version
+  tables/<rev>.ini       revision <rev>'s prots: name, opcode, size, the version
                          each row calls where that is not its name
   streams/<stream>.ini   PLAYER_INFO / NPC_INFO / WORLDENTITY_INFO: each
                          version's constants shape, each revision's flag bits,
@@ -42,6 +42,15 @@ gen/                   the prot tables (generated)
 ffi/                   a C ABI over all of it, for a foreign host
 ```
 
+## Revisions
+
+A revision is a family and a number: `osrs239` (Old School) or `rs254`,
+`rs245.2` (the 2004-era RS2 builds LostCity serves). The two families' numbers
+overlap, so nothing takes a bare number: the C type is `RsprotRev`
+(`include/rsprot_rev.h`, `rsprot_osrs(239)`, `rsprot_rev_parse("rs245.2")`), and
+a spec range names its family (`revs = osrs223-228, osrs230`). A range covers
+the revisions between its ends that have a `spec/tables` file.
+
 ## How a revision reads a packet
 
 Every revision calls a version of each packet: `gen/osrs<N>_prot.h` names the
@@ -58,7 +67,7 @@ it.
 ## Changing the protocol
 
 Edit the spec and run the generator; never hand-edit a file that says
-GENERATED. A new revision is a new `spec/tables/osrs<N>.ini`, its versions'
+GENERATED. A new revision is a new `spec/tables/<rev>.ini`, its versions'
 `revs` in the packet specs, and its entry in each stream spec.
 
 A packet spec is one `[layout]` per version, its reads in wire order:
@@ -75,7 +84,7 @@ field = int32_t camera_locked_player_index
 
 ; v1
 [layout]
-revs = 223-228
+revs = osrs223-228
 U1 = type
 U2_12 = index
 U2_12 = camera_locked_player_index

@@ -8,28 +8,28 @@
 #include <stddef.h>
 
 RsprotPlayerInfoReadFn
-player_info_osrs(int revision)
+player_info_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 223: return player_info_osrs223;
-    case 224: return player_info_osrs224;
-    case 225: return player_info_osrs225;
-    case 226: return player_info_osrs226;
-    case 227: return player_info_osrs227;
-    case 228: return player_info_osrs228;
-    case 229: return player_info_osrs229;
-    case 230: return player_info_osrs230;
-    case 231: return player_info_osrs231;
-    case 232: return player_info_osrs232;
-    case 233: return player_info_osrs233;
-    case 234: return player_info_osrs234;
-    case 235: return player_info_osrs235;
-    case 236: return player_info_osrs236;
-    case 237: return player_info_osrs237;
-    case 238: return player_info_osrs238;
-    case 239: return player_info_osrs239;
-    case 240: return player_info_osrs240;
-    case 241: return player_info_osrs241;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(223): return player_info_osrs223;
+    case RSPROT_OSRS_ID(224): return player_info_osrs224;
+    case RSPROT_OSRS_ID(225): return player_info_osrs225;
+    case RSPROT_OSRS_ID(226): return player_info_osrs226;
+    case RSPROT_OSRS_ID(227): return player_info_osrs227;
+    case RSPROT_OSRS_ID(228): return player_info_osrs228;
+    case RSPROT_OSRS_ID(229): return player_info_osrs229;
+    case RSPROT_OSRS_ID(230): return player_info_osrs230;
+    case RSPROT_OSRS_ID(231): return player_info_osrs231;
+    case RSPROT_OSRS_ID(232): return player_info_osrs232;
+    case RSPROT_OSRS_ID(233): return player_info_osrs233;
+    case RSPROT_OSRS_ID(234): return player_info_osrs234;
+    case RSPROT_OSRS_ID(235): return player_info_osrs235;
+    case RSPROT_OSRS_ID(236): return player_info_osrs236;
+    case RSPROT_OSRS_ID(237): return player_info_osrs237;
+    case RSPROT_OSRS_ID(238): return player_info_osrs238;
+    case RSPROT_OSRS_ID(239): return player_info_osrs239;
+    case RSPROT_OSRS_ID(240): return player_info_osrs240;
+    case RSPROT_OSRS_ID(241): return player_info_osrs241;
     default: return NULL;
     }
 }

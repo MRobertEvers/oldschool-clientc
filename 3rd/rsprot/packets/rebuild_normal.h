@@ -25,34 +25,34 @@ typedef struct MsgRebuildNormal {
 	int32_t gpi_init_length;
 } MsgRebuildNormal;
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v2 -- revs 224. */
+/* v2 -- revs osrs224. */
 void packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v3 -- revs 225. */
+/* v3 -- revs osrs225. */
 void packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v8 -- revs 230, 233. */
+/* v8 -- revs osrs230, osrs233. */
 void packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_rebuild_normal_v10_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v11 -- revs 234. */
+/* v11 -- revs osrs234. */
 void packet_rebuild_normal_v11_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v12 -- revs 235. */
+/* v12 -- revs osrs235. */
 void packet_rebuild_normal_v12_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v13 -- revs 236. */
+/* v13 -- revs osrs236. */
 void packet_rebuild_normal_v13_out(RsprotExec *x, MsgRebuildNormal *m);
 
-/* Per-revision entry points: what revision N calls is packet_rebuild_normal_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_rebuild_normal_<R>_out. */
 #define packet_rebuild_normal_osrs223_out packet_rebuild_normal_v1_out
 #define packet_rebuild_normal_osrs224_out packet_rebuild_normal_v2_out
 #define packet_rebuild_normal_osrs225_out packet_rebuild_normal_v3_out

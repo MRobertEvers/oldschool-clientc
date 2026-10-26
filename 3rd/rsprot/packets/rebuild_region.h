@@ -24,36 +24,36 @@ typedef struct MsgRebuildRegion {
 	int32_t keys[RSPROT_REGION_KEYS_MAX * 4];
 } MsgRebuildRegion;
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void packet_rebuild_region_v1_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v2 -- revs 224. */
+/* v2 -- revs osrs224. */
 void packet_rebuild_region_v2_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v3 -- revs 225. */
+/* v3 -- revs osrs225. */
 void packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v11 -- revs 233. */
+/* v11 -- revs osrs233. */
 void packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m);
-/* v14 -- revs 236. */
+/* v14 -- revs osrs236. */
 void packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m);
 
-/* Per-revision entry points: what revision N calls is packet_rebuild_region_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_rebuild_region_<R>_out. */
 #define packet_rebuild_region_osrs223_out packet_rebuild_region_v1_out
 #define packet_rebuild_region_osrs224_out packet_rebuild_region_v2_out
 #define packet_rebuild_region_osrs225_out packet_rebuild_region_v3_out

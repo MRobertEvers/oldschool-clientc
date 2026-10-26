@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 224-241. */
+/* v1 -- revs osrs224-241. */
 void
 packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
 {
@@ -22,7 +22,7 @@ packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_unknown_string_out[] = {
-    { 224, 241, (RsprotCodecFn)packet_unknown_string_v1_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_unknown_string_v1_out },
 };
 
 const int rsprot_unknown_string_out_count =

@@ -8,89 +8,89 @@
 #include <stddef.h>
 
 RsprotNpcInfoReadFn
-npc_info_large_v4_osrs(int revision)
+npc_info_large_v4_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 223: return npc_info_large_v4_osrs223;
-    case 224: return npc_info_large_v4_osrs224;
-    case 225: return npc_info_large_v4_osrs225;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(223): return npc_info_large_v4_osrs223;
+    case RSPROT_OSRS_ID(224): return npc_info_large_v4_osrs224;
+    case RSPROT_OSRS_ID(225): return npc_info_large_v4_osrs225;
     default: return NULL;
     }
 }
 
 RsprotNpcInfoReadFn
-npc_info_large_v5_osrs(int revision)
+npc_info_large_v5_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 226: return npc_info_large_v5_osrs226;
-    case 227: return npc_info_large_v5_osrs227;
-    case 228: return npc_info_large_v5_osrs228;
-    case 229: return npc_info_large_v5_osrs229;
-    case 230: return npc_info_large_v5_osrs230;
-    case 231: return npc_info_large_v5_osrs231;
-    case 232: return npc_info_large_v5_osrs232;
-    case 233: return npc_info_large_v5_osrs233;
-    case 234: return npc_info_large_v5_osrs234;
-    case 235: return npc_info_large_v5_osrs235;
-    case 236: return npc_info_large_v5_osrs236;
-    case 237: return npc_info_large_v5_osrs237;
-    case 238: return npc_info_large_v5_osrs238;
-    case 239: return npc_info_large_v5_osrs239;
-    case 240: return npc_info_large_v5_osrs240;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(226): return npc_info_large_v5_osrs226;
+    case RSPROT_OSRS_ID(227): return npc_info_large_v5_osrs227;
+    case RSPROT_OSRS_ID(228): return npc_info_large_v5_osrs228;
+    case RSPROT_OSRS_ID(229): return npc_info_large_v5_osrs229;
+    case RSPROT_OSRS_ID(230): return npc_info_large_v5_osrs230;
+    case RSPROT_OSRS_ID(231): return npc_info_large_v5_osrs231;
+    case RSPROT_OSRS_ID(232): return npc_info_large_v5_osrs232;
+    case RSPROT_OSRS_ID(233): return npc_info_large_v5_osrs233;
+    case RSPROT_OSRS_ID(234): return npc_info_large_v5_osrs234;
+    case RSPROT_OSRS_ID(235): return npc_info_large_v5_osrs235;
+    case RSPROT_OSRS_ID(236): return npc_info_large_v5_osrs236;
+    case RSPROT_OSRS_ID(237): return npc_info_large_v5_osrs237;
+    case RSPROT_OSRS_ID(238): return npc_info_large_v5_osrs238;
+    case RSPROT_OSRS_ID(239): return npc_info_large_v5_osrs239;
+    case RSPROT_OSRS_ID(240): return npc_info_large_v5_osrs240;
     default: return NULL;
     }
 }
 
 RsprotNpcInfoReadFn
-npc_info_large_v6_osrs(int revision)
+npc_info_large_v6_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 240: return npc_info_large_v6_osrs240;
-    case 241: return npc_info_large_v6_osrs241;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(240): return npc_info_large_v6_osrs240;
+    case RSPROT_OSRS_ID(241): return npc_info_large_v6_osrs241;
     default: return NULL;
     }
 }
 
 RsprotNpcInfoReadFn
-npc_info_small_v4_osrs(int revision)
+npc_info_small_v4_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 223: return npc_info_small_v4_osrs223;
-    case 224: return npc_info_small_v4_osrs224;
-    case 225: return npc_info_small_v4_osrs225;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(223): return npc_info_small_v4_osrs223;
+    case RSPROT_OSRS_ID(224): return npc_info_small_v4_osrs224;
+    case RSPROT_OSRS_ID(225): return npc_info_small_v4_osrs225;
     default: return NULL;
     }
 }
 
 RsprotNpcInfoReadFn
-npc_info_small_v5_osrs(int revision)
+npc_info_small_v5_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 226: return npc_info_small_v5_osrs226;
-    case 227: return npc_info_small_v5_osrs227;
-    case 228: return npc_info_small_v5_osrs228;
-    case 229: return npc_info_small_v5_osrs229;
-    case 230: return npc_info_small_v5_osrs230;
-    case 231: return npc_info_small_v5_osrs231;
-    case 232: return npc_info_small_v5_osrs232;
-    case 233: return npc_info_small_v5_osrs233;
-    case 234: return npc_info_small_v5_osrs234;
-    case 235: return npc_info_small_v5_osrs235;
-    case 236: return npc_info_small_v5_osrs236;
-    case 237: return npc_info_small_v5_osrs237;
-    case 238: return npc_info_small_v5_osrs238;
-    case 239: return npc_info_small_v5_osrs239;
-    case 240: return npc_info_small_v5_osrs240;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(226): return npc_info_small_v5_osrs226;
+    case RSPROT_OSRS_ID(227): return npc_info_small_v5_osrs227;
+    case RSPROT_OSRS_ID(228): return npc_info_small_v5_osrs228;
+    case RSPROT_OSRS_ID(229): return npc_info_small_v5_osrs229;
+    case RSPROT_OSRS_ID(230): return npc_info_small_v5_osrs230;
+    case RSPROT_OSRS_ID(231): return npc_info_small_v5_osrs231;
+    case RSPROT_OSRS_ID(232): return npc_info_small_v5_osrs232;
+    case RSPROT_OSRS_ID(233): return npc_info_small_v5_osrs233;
+    case RSPROT_OSRS_ID(234): return npc_info_small_v5_osrs234;
+    case RSPROT_OSRS_ID(235): return npc_info_small_v5_osrs235;
+    case RSPROT_OSRS_ID(236): return npc_info_small_v5_osrs236;
+    case RSPROT_OSRS_ID(237): return npc_info_small_v5_osrs237;
+    case RSPROT_OSRS_ID(238): return npc_info_small_v5_osrs238;
+    case RSPROT_OSRS_ID(239): return npc_info_small_v5_osrs239;
+    case RSPROT_OSRS_ID(240): return npc_info_small_v5_osrs240;
     default: return NULL;
     }
 }
 
 RsprotNpcInfoReadFn
-npc_info_small_v6_osrs(int revision)
+npc_info_small_v6_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 240: return npc_info_small_v6_osrs240;
-    case 241: return npc_info_small_v6_osrs241;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(240): return npc_info_small_v6_osrs240;
+    case RSPROT_OSRS_ID(241): return npc_info_small_v6_osrs241;
     default: return NULL;
     }
 }

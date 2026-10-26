@@ -10,35 +10,35 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_U4_3412(x, m->combined_id);
 }
 
-/* v2 -- revs 222, 224-225, 228, 236, 239. */
+/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239. */
 void
 packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM_3412(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 227, 229, 232, 241. */
+/* v3 -- revs osrs223, osrs227, osrs229, osrs232, osrs241. */
 void
 packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
 }
 
-/* v4 -- revs 226, 230, 233-235, 237, 240. */
+/* v4 -- revs osrs226, osrs230, osrs233-235, osrs237, osrs240. */
 void
 packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v5 -- revs 231, 238. */
+/* v5 -- revs osrs231, osrs238. */
 void
 packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
@@ -50,24 +50,24 @@ packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_if_setplayerhead_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_if_setplayerhead_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_if_setplayerhead_v3_out },
-    { 224, 225, (RsprotCodecFn)packet_if_setplayerhead_v2_out },
-    { 226, 226, (RsprotCodecFn)packet_if_setplayerhead_v4_out },
-    { 227, 227, (RsprotCodecFn)packet_if_setplayerhead_v3_out },
-    { 228, 228, (RsprotCodecFn)packet_if_setplayerhead_v2_out },
-    { 229, 229, (RsprotCodecFn)packet_if_setplayerhead_v3_out },
-    { 230, 230, (RsprotCodecFn)packet_if_setplayerhead_v4_out },
-    { 231, 231, (RsprotCodecFn)packet_if_setplayerhead_v5_out },
-    { 232, 232, (RsprotCodecFn)packet_if_setplayerhead_v3_out },
-    { 233, 235, (RsprotCodecFn)packet_if_setplayerhead_v4_out },
-    { 236, 236, (RsprotCodecFn)packet_if_setplayerhead_v2_out },
-    { 237, 237, (RsprotCodecFn)packet_if_setplayerhead_v4_out },
-    { 238, 238, (RsprotCodecFn)packet_if_setplayerhead_v5_out },
-    { 239, 239, (RsprotCodecFn)packet_if_setplayerhead_v2_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setplayerhead_v4_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_setplayerhead_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_if_setplayerhead_v5_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_if_setplayerhead_v5_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
 };
 
 const int rsprot_if_setplayerhead_out_count =

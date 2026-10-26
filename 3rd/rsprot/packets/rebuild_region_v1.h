@@ -24,10 +24,10 @@ typedef struct MsgRebuildRegionV1 {
 	int32_t keys[RSPROT_REGION_KEYS_MAX * 4];
 } MsgRebuildRegionV1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_rebuild_region_v1_v1_out(RsprotExec *x, MsgRebuildRegionV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_rebuild_region_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_rebuild_region_v1_<R>_out. */
 #define packet_rebuild_region_v1_osrs237_out packet_rebuild_region_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

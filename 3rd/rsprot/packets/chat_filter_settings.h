@@ -18,40 +18,40 @@ typedef struct MsgChatFilterSettings {
 	int32_t trade_chat_filter;
 } MsgChatFilterSettings;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_chat_filter_settings_v1_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_chat_filter_settings_v2_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_chat_filter_settings_v3_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_chat_filter_settings_v4_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v5 -- revs 225, 237. */
+/* v5 -- revs osrs225, osrs237. */
 void packet_chat_filter_settings_v5_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_chat_filter_settings_v6_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v7 -- revs 227, 234. */
+/* v7 -- revs osrs227, osrs234. */
 void packet_chat_filter_settings_v7_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v8 -- revs 228, 238. */
+/* v8 -- revs osrs228, osrs238. */
 void packet_chat_filter_settings_v8_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v9 -- revs 229, 232. */
+/* v9 -- revs osrs229, osrs232. */
 void packet_chat_filter_settings_v9_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_chat_filter_settings_v10_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_chat_filter_settings_v11_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_chat_filter_settings_v12_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_chat_filter_settings_v13_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v14 -- revs 236, 240. */
+/* v14 -- revs osrs236, osrs240. */
 void packet_chat_filter_settings_v14_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v15 -- revs 239. */
+/* v15 -- revs osrs239. */
 void packet_chat_filter_settings_v15_out(RsprotExec *x, MsgChatFilterSettings *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_chat_filter_settings_v16_out(RsprotExec *x, MsgChatFilterSettings *m);
 
-/* Per-revision entry points: what revision N calls is packet_chat_filter_settings_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_chat_filter_settings_<R>_out. */
 #define packet_chat_filter_settings_osrs221_out packet_chat_filter_settings_v1_out
 #define packet_chat_filter_settings_osrs222_out packet_chat_filter_settings_v2_out
 #define packet_chat_filter_settings_osrs223_out packet_chat_filter_settings_v3_out

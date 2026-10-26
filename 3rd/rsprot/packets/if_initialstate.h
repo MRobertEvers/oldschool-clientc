@@ -34,12 +34,12 @@ typedef struct MsgIfInitialState {
 	int32_t events_count;
 } MsgIfInitialState;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_initialstate_v1_out(RsprotExec *x, MsgIfInitialState *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_initialstate_v2_out(RsprotExec *x, MsgIfInitialState *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_initialstate_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_initialstate_<R>_out. */
 #define packet_if_initialstate_osrs221_out packet_if_initialstate_v1_out
 #define packet_if_initialstate_osrs222_out packet_if_initialstate_v2_out
 

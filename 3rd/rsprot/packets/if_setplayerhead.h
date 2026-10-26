@@ -17,18 +17,18 @@ typedef struct MsgIfSetPlayerHead {
 	int32_t combined_id;
 } MsgIfSetPlayerHead;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v2 -- revs 222, 224-225, 228, 236, 239. */
+/* v2 -- revs osrs222, osrs224-225, osrs228, osrs236, osrs239. */
 void packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v3 -- revs 223, 227, 229, 232, 241. */
+/* v3 -- revs osrs223, osrs227, osrs229, osrs232, osrs241. */
 void packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v4 -- revs 226, 230, 233-235, 237, 240. */
+/* v4 -- revs osrs226, osrs230, osrs233-235, osrs237, osrs240. */
 void packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m);
-/* v5 -- revs 231, 238. */
+/* v5 -- revs osrs231, osrs238. */
 void packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setplayerhead_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setplayerhead_<R>_out. */
 #define packet_if_setplayerhead_osrs221_out packet_if_setplayerhead_v1_out
 #define packet_if_setplayerhead_osrs222_out packet_if_setplayerhead_v2_out
 #define packet_if_setplayerhead_osrs223_out packet_if_setplayerhead_v3_out

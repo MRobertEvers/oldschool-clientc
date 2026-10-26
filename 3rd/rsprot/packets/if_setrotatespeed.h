@@ -19,48 +19,48 @@ typedef struct MsgIfSetRotateSpeed {
 	int32_t combined_id;
 } MsgIfSetRotateSpeed;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setrotatespeed_v1_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_setrotatespeed_v2_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setrotatespeed_v3_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setrotatespeed_v4_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setrotatespeed_v5_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_if_setrotatespeed_v6_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_if_setrotatespeed_v7_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_if_setrotatespeed_v8_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_if_setrotatespeed_v9_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_if_setrotatespeed_v10_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v11 -- revs 231, 237. */
+/* v11 -- revs osrs231, osrs237. */
 void packet_if_setrotatespeed_v11_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_if_setrotatespeed_v12_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_if_setrotatespeed_v13_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void packet_if_setrotatespeed_v14_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void packet_if_setrotatespeed_v15_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void packet_if_setrotatespeed_v16_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v17 -- revs 238. */
+/* v17 -- revs osrs238. */
 void packet_if_setrotatespeed_v17_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v18 -- revs 239. */
+/* v18 -- revs osrs239. */
 void packet_if_setrotatespeed_v18_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v19 -- revs 240. */
+/* v19 -- revs osrs240. */
 void packet_if_setrotatespeed_v19_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
-/* v20 -- revs 241. */
+/* v20 -- revs osrs241. */
 void packet_if_setrotatespeed_v20_out(RsprotExec *x, MsgIfSetRotateSpeed *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setrotatespeed_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setrotatespeed_<R>_out. */
 #define packet_if_setrotatespeed_osrs221_out packet_if_setrotatespeed_v1_out
 #define packet_if_setrotatespeed_osrs222_out packet_if_setrotatespeed_v2_out
 #define packet_if_setrotatespeed_osrs223_out packet_if_setrotatespeed_v3_out

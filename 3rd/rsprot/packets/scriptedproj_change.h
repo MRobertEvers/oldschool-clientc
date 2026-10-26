@@ -24,14 +24,14 @@ typedef struct MsgScriptedProjChange {
 	int32_t delete_on_freeze_end;
 } MsgScriptedProjChange;
 
-/* v1 -- revs 239. */
+/* v1 -- revs osrs239. */
 void packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m);
-/* v2 -- revs 240. */
+/* v2 -- revs osrs240. */
 void packet_scriptedproj_change_v2_out(RsprotExec *x, MsgScriptedProjChange *m);
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m);
 
-/* Per-revision entry points: what revision N calls is packet_scriptedproj_change_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_scriptedproj_change_<R>_out. */
 #define packet_scriptedproj_change_osrs239_out packet_scriptedproj_change_v1_out
 #define packet_scriptedproj_change_osrs240_out packet_scriptedproj_change_v2_out
 #define packet_scriptedproj_change_osrs241_out packet_scriptedproj_change_v3_out

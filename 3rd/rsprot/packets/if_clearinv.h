@@ -17,18 +17,18 @@ typedef struct MsgIfClearInv {
 	int32_t combined_id;
 } MsgIfClearInv;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m);
-/* v2 -- revs 222, 227, 230, 235-236. */
+/* v2 -- revs osrs222, osrs227, osrs230, osrs235-236. */
 void packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m);
-/* v3 -- revs 223, 237, 240. */
+/* v3 -- revs osrs223, osrs237, osrs240. */
 void packet_if_clearinv_v3_out(RsprotExec *x, MsgIfClearInv *m);
-/* v4 -- revs 224-226, 228, 231, 233, 238, 241. */
+/* v4 -- revs osrs224-226, osrs228, osrs231, osrs233, osrs238, osrs241. */
 void packet_if_clearinv_v4_out(RsprotExec *x, MsgIfClearInv *m);
-/* v5 -- revs 229, 232, 234, 239. */
+/* v5 -- revs osrs229, osrs232, osrs234, osrs239. */
 void packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_clearinv_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_clearinv_<R>_out. */
 #define packet_if_clearinv_osrs221_out packet_if_clearinv_v1_out
 #define packet_if_clearinv_osrs222_out packet_if_clearinv_v2_out
 #define packet_if_clearinv_osrs223_out packet_if_clearinv_v3_out

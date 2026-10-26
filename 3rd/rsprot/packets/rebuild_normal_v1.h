@@ -25,10 +25,10 @@ typedef struct MsgRebuildNormalV1 {
 	int32_t gpi_init_length;
 } MsgRebuildNormalV1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_rebuild_normal_v1_v1_out(RsprotExec *x, MsgRebuildNormalV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_rebuild_normal_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_rebuild_normal_v1_<R>_out. */
 #define packet_rebuild_normal_v1_osrs237_out packet_rebuild_normal_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

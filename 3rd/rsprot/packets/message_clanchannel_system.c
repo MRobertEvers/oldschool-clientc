@@ -12,7 +12,7 @@ packet_message_clanchannel_system_v1_out(RsprotExec *x, MsgMessageClanchannelSys
 }
 
 const RsprotVersionRange rsprot_message_clanchannel_system_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_message_clanchannel_system_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_clanchannel_system_v1_out },
 };
 
 const int rsprot_message_clanchannel_system_out_count =

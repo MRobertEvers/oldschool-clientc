@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_varp_small_v1_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -18,7 +18,7 @@ packet_varp_small_v1_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_SUB128(x, m->value);
 }
 
-/* v2 -- revs 222, 224. */
+/* v2 -- revs osrs222, osrs224. */
 void
 packet_varp_small_v2_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -26,7 +26,7 @@ packet_varp_small_v2_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_12(x, m->id);
 }
 
-/* v3 -- revs 223, 225, 229. */
+/* v3 -- revs osrs223, osrs225, osrs229. */
 void
 packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -34,7 +34,7 @@ packet_varp_small_v3_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v4 -- revs 226, 231, 241. */
+/* v4 -- revs osrs226, osrs231, osrs241. */
 void
 packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -42,7 +42,7 @@ packet_varp_small_v4_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void
 packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -50,7 +50,7 @@ packet_varp_small_v5_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1(x, m->value);
 }
 
-/* v6 -- revs 228, 239. */
+/* v6 -- revs osrs228, osrs239. */
 void
 packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -58,7 +58,7 @@ packet_varp_small_v6_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v7 -- revs 230. */
+/* v7 -- revs osrs230. */
 void
 packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -66,7 +66,7 @@ packet_varp_small_v7_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v8 -- revs 232. */
+/* v8 -- revs osrs232. */
 void
 packet_varp_small_v8_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -74,7 +74,7 @@ packet_varp_small_v8_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_SUB128(x, m->value);
 }
 
-/* v9 -- revs 233. */
+/* v9 -- revs osrs233. */
 void
 packet_varp_small_v9_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -82,7 +82,7 @@ packet_varp_small_v9_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21(x, m->id);
 }
 
-/* v10 -- revs 234. */
+/* v10 -- revs osrs234. */
 void
 packet_varp_small_v10_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -90,7 +90,7 @@ packet_varp_small_v10_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_NEG(x, m->value);
 }
 
-/* v11 -- revs 235. */
+/* v11 -- revs osrs235. */
 void
 packet_varp_small_v11_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -98,7 +98,7 @@ packet_varp_small_v11_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v12 -- revs 236. */
+/* v12 -- revs osrs236. */
 void
 packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -106,7 +106,7 @@ packet_varp_small_v12_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_NEG(x, m->value);
 }
 
-/* v13 -- revs 237. */
+/* v13 -- revs osrs237. */
 void
 packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -114,7 +114,7 @@ packet_varp_small_v13_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U1_SUB128(x, m->value);
 }
 
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void
 packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -122,7 +122,7 @@ packet_varp_small_v14_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void
 packet_varp_small_v15_out(RsprotExec *x, MsgVarpSmall *m)
 {
@@ -135,27 +135,27 @@ packet_varp_small_v15_out(RsprotExec *x, MsgVarpSmall *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_small_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_varp_small_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_varp_small_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_varp_small_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_varp_small_v2_out },
-    { 225, 225, (RsprotCodecFn)packet_varp_small_v3_out },
-    { 226, 226, (RsprotCodecFn)packet_varp_small_v4_out },
-    { 227, 227, (RsprotCodecFn)packet_varp_small_v5_out },
-    { 228, 228, (RsprotCodecFn)packet_varp_small_v6_out },
-    { 229, 229, (RsprotCodecFn)packet_varp_small_v3_out },
-    { 230, 230, (RsprotCodecFn)packet_varp_small_v7_out },
-    { 231, 231, (RsprotCodecFn)packet_varp_small_v4_out },
-    { 232, 232, (RsprotCodecFn)packet_varp_small_v8_out },
-    { 233, 233, (RsprotCodecFn)packet_varp_small_v9_out },
-    { 234, 234, (RsprotCodecFn)packet_varp_small_v10_out },
-    { 235, 235, (RsprotCodecFn)packet_varp_small_v11_out },
-    { 236, 236, (RsprotCodecFn)packet_varp_small_v12_out },
-    { 237, 237, (RsprotCodecFn)packet_varp_small_v13_out },
-    { 238, 238, (RsprotCodecFn)packet_varp_small_v14_out },
-    { 239, 239, (RsprotCodecFn)packet_varp_small_v6_out },
-    { 240, 240, (RsprotCodecFn)packet_varp_small_v15_out },
-    { 241, 241, (RsprotCodecFn)packet_varp_small_v4_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_varp_small_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_varp_small_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_varp_small_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_varp_small_v2_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_varp_small_v3_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_varp_small_v4_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_varp_small_v5_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_varp_small_v6_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_varp_small_v3_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_varp_small_v7_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_varp_small_v4_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_varp_small_v8_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_varp_small_v9_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_varp_small_v10_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_varp_small_v11_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_varp_small_v12_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_varp_small_v13_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_varp_small_v14_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_varp_small_v6_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_varp_small_v15_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varp_small_v4_out },
 };
 
 const int rsprot_varp_small_out_count =

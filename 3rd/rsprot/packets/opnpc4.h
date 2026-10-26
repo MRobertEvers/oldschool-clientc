@@ -18,34 +18,34 @@ typedef struct MsgOpNpc4 {
 	int32_t index;
 } MsgOpNpc4;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_opnpc4_v1_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v2 -- revs 222, 233. */
+/* v2 -- revs osrs222, osrs233. */
 void packet_opnpc4_v2_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_opnpc4_v3_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_opnpc4_v4_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v5 -- revs 225, 228. */
+/* v5 -- revs osrs225, osrs228. */
 void packet_opnpc4_v5_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_opnpc4_v6_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_opnpc4_v7_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v8 -- revs 229, 234. */
+/* v8 -- revs osrs229, osrs234. */
 void packet_opnpc4_v8_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v9 -- revs 230. */
+/* v9 -- revs osrs230. */
 void packet_opnpc4_v9_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_opnpc4_v10_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void packet_opnpc4_v11_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v12 -- revs 235. */
+/* v12 -- revs osrs235. */
 void packet_opnpc4_v12_in(RsprotExec *x, MsgOpNpc4 *m);
-/* v13 -- revs 236. */
+/* v13 -- revs osrs236. */
 void packet_opnpc4_v13_in(RsprotExec *x, MsgOpNpc4 *m);
 
-/* Per-revision entry points: what revision N calls is packet_opnpc4_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opnpc4_<R>_in. */
 #define packet_opnpc4_osrs221_in packet_opnpc4_v1_in
 #define packet_opnpc4_osrs222_in packet_opnpc4_v2_in
 #define packet_opnpc4_osrs223_in packet_opnpc4_v3_in

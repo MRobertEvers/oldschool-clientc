@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 238-239. */
+/* v1 -- revs osrs238-239. */
 void
 packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
@@ -18,7 +18,7 @@ packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
     RSPROT_U2_12(x, m->id);
 }
 
-/* v2 -- revs 240. */
+/* v2 -- revs osrs240. */
 void
 packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
@@ -26,7 +26,7 @@ packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m)
     RSPROT_U1_NEG(x, m->fade);
 }
 
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void
 packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
@@ -39,9 +39,9 @@ packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_ambientsound_start_out[] = {
-    { 238, 239, (RsprotCodecFn)packet_ambientsound_start_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_ambientsound_start_v2_out },
-    { 241, 241, (RsprotCodecFn)packet_ambientsound_start_v3_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_ambientsound_start_v1_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_ambientsound_start_v2_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_ambientsound_start_v3_out },
 };
 
 const int rsprot_ambientsound_start_out_count =

@@ -36,7 +36,7 @@
 static int
 camera_player(int revision, char const* prot, uint8_t const* data, int len)
 {
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, revision);
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
     union
     {
         MsgCamTargetV2 v2;

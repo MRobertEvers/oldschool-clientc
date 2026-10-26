@@ -17,10 +17,10 @@ typedef struct MsgUpdateSiteSettings {
 	const char *settings;
 } MsgUpdateSiteSettings;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_update_sitesettings_v1_out(RsprotExec *x, MsgUpdateSiteSettings *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_sitesettings_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_sitesettings_<R>_out. */
 #define packet_update_sitesettings_osrs221_out packet_update_sitesettings_v1_out
 #define packet_update_sitesettings_osrs222_out packet_update_sitesettings_v1_out
 

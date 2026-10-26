@@ -19,10 +19,10 @@ typedef struct MsgPacketGroupStart {
 	int32_t length;
 } MsgPacketGroupStart;
 
-/* v1 -- revs 227-241. */
+/* v1 -- revs osrs227-241. */
 void packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m);
 
-/* Per-revision entry points: what revision N calls is packet_packet_group_start_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_packet_group_start_<R>_out. */
 #define packet_packet_group_start_osrs227_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs228_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs229_out packet_packet_group_start_v1_out

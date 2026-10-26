@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_midi_song_old_v1_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_21(x, m->id);
 }
 
-/* v2 -- revs 223. */
+/* v2 -- revs osrs223. */
 void
 packet_midi_song_old_v2_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
-/* v3 -- revs 224. */
+/* v3 -- revs osrs224. */
 void
 packet_midi_song_old_v3_out(RsprotExec *x, MsgMidiSongOld *m)
 {
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v4 -- revs 225. */
+/* v4 -- revs osrs225. */
 void
 packet_midi_song_old_v4_out(RsprotExec *x, MsgMidiSongOld *m)
 {
@@ -43,10 +43,10 @@ packet_midi_song_old_v4_out(RsprotExec *x, MsgMidiSongOld *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_song_old_out[] = {
-    { 221, 222, (RsprotCodecFn)packet_midi_song_old_v1_out },
-    { 223, 223, (RsprotCodecFn)packet_midi_song_old_v2_out },
-    { 224, 224, (RsprotCodecFn)packet_midi_song_old_v3_out },
-    { 225, 225, (RsprotCodecFn)packet_midi_song_old_v4_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_midi_song_old_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_midi_song_old_v2_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_midi_song_old_v3_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_midi_song_old_v4_out },
 };
 
 const int rsprot_midi_song_old_out_count =

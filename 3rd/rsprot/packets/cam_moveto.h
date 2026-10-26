@@ -23,12 +23,12 @@ typedef struct MsgCamMoveTo {
 	int32_t rate2;
 } MsgCamMoveTo;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_cam_moveto_v1_out(RsprotExec *x, MsgCamMoveTo *m);
-/* v2 -- revs 223-235. */
+/* v2 -- revs osrs223-235. */
 void packet_cam_moveto_v2_out(RsprotExec *x, MsgCamMoveTo *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_moveto_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_moveto_<R>_out. */
 #define packet_cam_moveto_osrs221_out packet_cam_moveto_v1_out
 #define packet_cam_moveto_osrs222_out packet_cam_moveto_v1_out
 #define packet_cam_moveto_osrs223_out packet_cam_moveto_v2_out

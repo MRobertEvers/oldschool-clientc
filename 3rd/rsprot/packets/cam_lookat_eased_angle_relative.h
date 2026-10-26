@@ -20,10 +20,10 @@ typedef struct MsgCamLookAtEasedAngleRelative {
 	int32_t function_id;
 } MsgCamLookAtEasedAngleRelative;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_cam_lookat_eased_angle_relative_v1_out(RsprotExec *x, MsgCamLookAtEasedAngleRelative *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_lookat_eased_angle_relative_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_lookat_eased_angle_relative_<R>_out. */
 #define packet_cam_lookat_eased_angle_relative_osrs221_out packet_cam_lookat_eased_angle_relative_v1_out
 #define packet_cam_lookat_eased_angle_relative_osrs222_out packet_cam_lookat_eased_angle_relative_v1_out
 

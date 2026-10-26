@@ -18,40 +18,40 @@ typedef struct MsgIfSetPlayerModelBodyType {
 	int32_t combined_id;
 } MsgIfSetPlayerModelBodyType;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setplayermodel_bodytype_v1_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v2 -- revs 222, 228. */
+/* v2 -- revs osrs222, osrs228. */
 void packet_if_setplayermodel_bodytype_v2_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setplayermodel_bodytype_v3_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v6 -- revs 226, 232. */
+/* v6 -- revs osrs226, osrs232. */
 void packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v7 -- revs 227, 240. */
+/* v7 -- revs osrs227, osrs240. */
 void packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v9 -- revs 230, 234. */
+/* v9 -- revs osrs230, osrs234. */
 void packet_if_setplayermodel_bodytype_v9_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v10 -- revs 231, 233. */
+/* v10 -- revs osrs231, osrs233. */
 void packet_if_setplayermodel_bodytype_v10_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v11 -- revs 235. */
+/* v11 -- revs osrs235. */
 void packet_if_setplayermodel_bodytype_v11_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v12 -- revs 236. */
+/* v12 -- revs osrs236. */
 void packet_if_setplayermodel_bodytype_v12_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v13 -- revs 237. */
+/* v13 -- revs osrs237. */
 void packet_if_setplayermodel_bodytype_v13_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void packet_if_setplayermodel_bodytype_v14_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v15 -- revs 239. */
+/* v15 -- revs osrs239. */
 void packet_if_setplayermodel_bodytype_v15_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_if_setplayermodel_bodytype_v16_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setplayermodel_bodytype_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setplayermodel_bodytype_<R>_out. */
 #define packet_if_setplayermodel_bodytype_osrs221_out packet_if_setplayermodel_bodytype_v1_out
 #define packet_if_setplayermodel_bodytype_osrs222_out packet_if_setplayermodel_bodytype_v2_out
 #define packet_if_setplayermodel_bodytype_osrs223_out packet_if_setplayermodel_bodytype_v3_out

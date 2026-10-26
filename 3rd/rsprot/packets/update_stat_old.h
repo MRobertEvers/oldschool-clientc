@@ -19,18 +19,18 @@ typedef struct MsgUpdateStatOld {
 	int32_t current_level;
 } MsgUpdateStatOld;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_update_stat_old_v1_out(RsprotExec *x, MsgUpdateStatOld *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_update_stat_old_v2_out(RsprotExec *x, MsgUpdateStatOld *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_update_stat_old_v3_out(RsprotExec *x, MsgUpdateStatOld *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_update_stat_old_v4_out(RsprotExec *x, MsgUpdateStatOld *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_update_stat_old_v5_out(RsprotExec *x, MsgUpdateStatOld *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_stat_old_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_stat_old_<R>_out. */
 #define packet_update_stat_old_osrs221_out packet_update_stat_old_v1_out
 #define packet_update_stat_old_osrs222_out packet_update_stat_old_v2_out
 #define packet_update_stat_old_osrs223_out packet_update_stat_old_v3_out

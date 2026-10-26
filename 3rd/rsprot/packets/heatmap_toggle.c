@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_heatmap_toggle_v1_out(RsprotExec *x, MsgHeatmapToggle *m)
 {
@@ -22,7 +22,7 @@ packet_heatmap_toggle_v1_out(RsprotExec *x, MsgHeatmapToggle *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_heatmap_toggle_out[] = {
-    { 221, 222, (RsprotCodecFn)packet_heatmap_toggle_v1_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_heatmap_toggle_v1_out },
 };
 
 const int rsprot_heatmap_toggle_out_count =

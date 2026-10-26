@@ -18,38 +18,38 @@ typedef struct MsgVarpLarge {
 	int32_t value;
 } MsgVarpLarge;
 
-/* v1 -- revs 221, 239. */
+/* v1 -- revs osrs221, osrs239. */
 void packet_varp_large_v1_out(RsprotExec *x, MsgVarpLarge *m);
-/* v2 -- revs 222, 225. */
+/* v2 -- revs osrs222, osrs225. */
 void packet_varp_large_v2_out(RsprotExec *x, MsgVarpLarge *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_varp_large_v3_out(RsprotExec *x, MsgVarpLarge *m);
-/* v4 -- revs 224, 234, 240. */
+/* v4 -- revs osrs224, osrs234, osrs240. */
 void packet_varp_large_v4_out(RsprotExec *x, MsgVarpLarge *m);
-/* v5 -- revs 226, 228. */
+/* v5 -- revs osrs226, osrs228. */
 void packet_varp_large_v5_out(RsprotExec *x, MsgVarpLarge *m);
-/* v6 -- revs 227. */
+/* v6 -- revs osrs227. */
 void packet_varp_large_v6_out(RsprotExec *x, MsgVarpLarge *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_varp_large_v7_out(RsprotExec *x, MsgVarpLarge *m);
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void packet_varp_large_v8_out(RsprotExec *x, MsgVarpLarge *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m);
-/* v11 -- revs 233. */
+/* v11 -- revs osrs233. */
 void packet_varp_large_v11_out(RsprotExec *x, MsgVarpLarge *m);
-/* v12 -- revs 235, 237. */
+/* v12 -- revs osrs235, osrs237. */
 void packet_varp_large_v12_out(RsprotExec *x, MsgVarpLarge *m);
-/* v13 -- revs 236. */
+/* v13 -- revs osrs236. */
 void packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m);
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m);
-/* v15 -- revs 241. */
+/* v15 -- revs osrs241. */
 void packet_varp_large_v15_out(RsprotExec *x, MsgVarpLarge *m);
 
-/* Per-revision entry points: what revision N calls is packet_varp_large_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varp_large_<R>_out. */
 #define packet_varp_large_osrs221_out packet_varp_large_v1_out
 #define packet_varp_large_osrs222_out packet_varp_large_v2_out
 #define packet_varp_large_osrs223_out packet_varp_large_v3_out

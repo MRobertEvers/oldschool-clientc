@@ -18,22 +18,22 @@ typedef struct MsgFriendChatSetRank {
 	int32_t rank;
 } MsgFriendChatSetRank;
 
-/* v1 -- revs 221, 225, 231, 233. */
+/* v1 -- revs osrs221, osrs225, osrs231, osrs233. */
 void packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v2 -- revs 222, 240. */
+/* v2 -- revs osrs222, osrs240. */
 void packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v3 -- revs 223, 229-230, 237. */
+/* v3 -- revs osrs223, osrs229-230, osrs237. */
 void packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v4 -- revs 224, 226, 235, 239. */
+/* v4 -- revs osrs224, osrs226, osrs235, osrs239. */
 void packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v5 -- revs 227-228, 236. */
+/* v5 -- revs osrs227-228, osrs236. */
 void packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v6 -- revs 232, 234. */
+/* v6 -- revs osrs232, osrs234. */
 void packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m);
-/* v7 -- revs 238, 241. */
+/* v7 -- revs osrs238, osrs241. */
 void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
 
-/* Per-revision entry points: what revision N calls is packet_friendchat_setrank_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_friendchat_setrank_<R>_in. */
 #define packet_friendchat_setrank_osrs221_in packet_friendchat_setrank_v1_in
 #define packet_friendchat_setrank_osrs222_in packet_friendchat_setrank_v2_in
 #define packet_friendchat_setrank_osrs223_in packet_friendchat_setrank_v3_in

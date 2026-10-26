@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-231. */
+/* v1 -- revs osrs221-231. */
 void
 packet_if3_button_v1_in(RsprotExec *x, MsgIf3Button *m)
 {
@@ -24,7 +24,7 @@ packet_if3_button_v1_in(RsprotExec *x, MsgIf3Button *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if3_button_in[] = {
-    { 221, 231, (RsprotCodecFn)packet_if3_button_v1_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_if3_button_v1_in },
 };
 
 const int rsprot_if3_button_in_count =

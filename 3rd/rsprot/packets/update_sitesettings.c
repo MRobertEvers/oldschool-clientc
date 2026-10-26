@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_update_sitesettings_v1_out(RsprotExec *x, MsgUpdateSiteSettings *m)
 {
@@ -22,7 +22,7 @@ packet_update_sitesettings_v1_out(RsprotExec *x, MsgUpdateSiteSettings *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_sitesettings_out[] = {
-    { 221, 222, (RsprotCodecFn)packet_update_sitesettings_v1_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_update_sitesettings_v1_out },
 };
 
 const int rsprot_update_sitesettings_out_count =

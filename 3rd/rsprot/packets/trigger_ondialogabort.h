@@ -19,10 +19,10 @@ typedef struct MsgTriggerOnDialogAbort {
 	int32_t _unused;
 } MsgTriggerOnDialogAbort;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort *m);
 
-/* Per-revision entry points: what revision N calls is packet_trigger_ondialogabort_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_trigger_ondialogabort_<R>_out. */
 #define packet_trigger_ondialogabort_osrs221_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_osrs222_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_osrs223_out packet_trigger_ondialogabort_v1_out

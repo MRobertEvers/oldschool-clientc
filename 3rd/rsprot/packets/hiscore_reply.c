@@ -36,7 +36,7 @@ packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m)
 }
 
 const RsprotVersionRange rsprot_hiscore_reply_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_hiscore_reply_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hiscore_reply_v1_out },
 };
 
 const int rsprot_hiscore_reply_out_count =

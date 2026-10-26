@@ -17,10 +17,10 @@ typedef struct MsgResumePNameDialog {
 	const char *name;
 } MsgResumePNameDialog;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_resume_p_namedialog_v1_in(RsprotExec *x, MsgResumePNameDialog *m);
 
-/* Per-revision entry points: what revision N calls is packet_resume_p_namedialog_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_resume_p_namedialog_<R>_in. */
 #define packet_resume_p_namedialog_osrs221_in packet_resume_p_namedialog_v1_in
 #define packet_resume_p_namedialog_osrs222_in packet_resume_p_namedialog_v1_in
 #define packet_resume_p_namedialog_osrs223_in packet_resume_p_namedialog_v1_in

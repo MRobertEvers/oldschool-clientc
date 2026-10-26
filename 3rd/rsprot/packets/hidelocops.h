@@ -17,10 +17,10 @@ typedef struct MsgHideLocOps {
 	int32_t hidden;
 } MsgHideLocOps;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_hidelocops_v1_out(RsprotExec *x, MsgHideLocOps *m);
 
-/* Per-revision entry points: what revision N calls is packet_hidelocops_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_hidelocops_<R>_out. */
 #define packet_hidelocops_osrs223_out packet_hidelocops_v1_out
 #define packet_hidelocops_osrs224_out packet_hidelocops_v1_out
 #define packet_hidelocops_osrs225_out packet_hidelocops_v1_out

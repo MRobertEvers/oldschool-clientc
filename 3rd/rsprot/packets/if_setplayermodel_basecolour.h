@@ -19,48 +19,48 @@ typedef struct MsgIfSetPlayerModelBaseColour {
 	int32_t index;
 } MsgIfSetPlayerModelBaseColour;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setplayermodel_basecolour_v1_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_setplayermodel_basecolour_v2_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setplayermodel_basecolour_v3_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setplayermodel_basecolour_v4_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setplayermodel_basecolour_v5_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_if_setplayermodel_basecolour_v6_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_if_setplayermodel_basecolour_v7_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_if_setplayermodel_basecolour_v8_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_if_setplayermodel_basecolour_v9_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v10 -- revs 230, 239. */
+/* v10 -- revs osrs230, osrs239. */
 void packet_if_setplayermodel_basecolour_v10_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_if_setplayermodel_basecolour_v11_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_if_setplayermodel_basecolour_v12_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_if_setplayermodel_basecolour_v13_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void packet_if_setplayermodel_basecolour_v14_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void packet_if_setplayermodel_basecolour_v15_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void packet_if_setplayermodel_basecolour_v16_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v17 -- revs 237. */
+/* v17 -- revs osrs237. */
 void packet_if_setplayermodel_basecolour_v17_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v18 -- revs 238. */
+/* v18 -- revs osrs238. */
 void packet_if_setplayermodel_basecolour_v18_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v19 -- revs 240. */
+/* v19 -- revs osrs240. */
 void packet_if_setplayermodel_basecolour_v19_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
-/* v20 -- revs 241. */
+/* v20 -- revs osrs241. */
 void packet_if_setplayermodel_basecolour_v20_out(RsprotExec *x, MsgIfSetPlayerModelBaseColour *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setplayermodel_basecolour_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setplayermodel_basecolour_<R>_out. */
 #define packet_if_setplayermodel_basecolour_osrs221_out packet_if_setplayermodel_basecolour_v1_out
 #define packet_if_setplayermodel_basecolour_osrs222_out packet_if_setplayermodel_basecolour_v2_out
 #define packet_if_setplayermodel_basecolour_osrs223_out packet_if_setplayermodel_basecolour_v3_out

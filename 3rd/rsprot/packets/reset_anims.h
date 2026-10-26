@@ -19,10 +19,10 @@ typedef struct MsgResetAnims {
 	int32_t _unused;
 } MsgResetAnims;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_reset_anims_v1_out(RsprotExec *x, MsgResetAnims *m);
 
-/* Per-revision entry points: what revision N calls is packet_reset_anims_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_reset_anims_<R>_out. */
 #define packet_reset_anims_osrs221_out packet_reset_anims_v1_out
 #define packet_reset_anims_osrs222_out packet_reset_anims_v1_out
 #define packet_reset_anims_osrs223_out packet_reset_anims_v1_out

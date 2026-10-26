@@ -18,10 +18,10 @@ typedef struct MsgMembershipPromotionEligibility {
 	int32_t eligible_for_trial_purchase;
 } MsgMembershipPromotionEligibility;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_membership_promotion_eligibility_v1_in(RsprotExec *x, MsgMembershipPromotionEligibility *m);
 
-/* Per-revision entry points: what revision N calls is packet_membership_promotion_eligibility_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_membership_promotion_eligibility_<R>_in. */
 #define packet_membership_promotion_eligibility_osrs221_in packet_membership_promotion_eligibility_v1_in
 #define packet_membership_promotion_eligibility_osrs222_in packet_membership_promotion_eligibility_v1_in
 #define packet_membership_promotion_eligibility_osrs223_in packet_membership_promotion_eligibility_v1_in

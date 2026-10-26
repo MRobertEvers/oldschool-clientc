@@ -128,7 +128,7 @@ dup_borrowed(char const* s)
     MSGTYPE msg;                                                                  \
     RsprotExec x;                                                                 \
     RsprotBuf buf;                                                                \
-    RsprotCodecFn fn = rsprot_version_pick(TABLE, TABLE##_count, revision);        \
+    RsprotCodecFn fn = rsprot_version_pick(TABLE, TABLE##_count, rsprot_osrs(revision)); \
     if( !fn )                                                                     \
         return -1;                                                                \
     memset(&msg, 0, sizeof(msg));                                                 \
@@ -751,7 +751,7 @@ bridge_update_inv_full(int revision, uint8_t const* data, int len, struct RevPac
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_update_inv_full_out, rsprot_update_inv_full_out_count, revision);
+        rsprot_update_inv_full_out, rsprot_update_inv_full_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;
@@ -786,7 +786,7 @@ bridge_update_inv_partial(int revision, uint8_t const* data, int len, struct Rev
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_update_inv_partial_out, rsprot_update_inv_partial_out_count, revision);
+        rsprot_update_inv_partial_out, rsprot_update_inv_partial_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;
@@ -831,7 +831,7 @@ bridge_update_ignorelist(int revision, uint8_t const* data, int len, struct RevP
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_update_ignorelist_out, rsprot_update_ignorelist_out_count, revision);
+        rsprot_update_ignorelist_out, rsprot_update_ignorelist_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;
@@ -868,7 +868,7 @@ bridge_update_friendlist(int revision, uint8_t const* data, int len, struct RevP
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_update_friendlist_out, rsprot_update_friendlist_out_count, revision);
+        rsprot_update_friendlist_out, rsprot_update_friendlist_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;
@@ -907,7 +907,7 @@ bridge_runclientscript(int revision, uint8_t const* data, int len, struct RevPac
     RsprotBuf buf;
     int argc;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_runclientscript_out, rsprot_runclientscript_out_count, revision);
+        rsprot_runclientscript_out, rsprot_runclientscript_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;
@@ -1114,7 +1114,7 @@ bridge_if_resync(int revision, uint8_t const* data, int len, struct RevPacket* o
     RsprotExec x;
     RsprotBuf buf;
     RsprotCodecFn fn = rsprot_version_pick(
-        rsprot_if_resync_v2_out, rsprot_if_resync_v2_out_count, revision);
+        rsprot_if_resync_v2_out, rsprot_if_resync_v2_out_count, rsprot_osrs(revision));
 
     if( !fn )
         return -1;

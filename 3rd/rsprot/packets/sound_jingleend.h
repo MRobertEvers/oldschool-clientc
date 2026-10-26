@@ -17,10 +17,10 @@ typedef struct MsgSoundJingleEnd {
 	int32_t jingle;
 } MsgSoundJingleEnd;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m);
 
-/* Per-revision entry points: what revision N calls is packet_sound_jingleend_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_sound_jingleend_<R>_in. */
 #define packet_sound_jingleend_osrs221_in packet_sound_jingleend_v1_in
 #define packet_sound_jingleend_osrs222_in packet_sound_jingleend_v1_in
 #define packet_sound_jingleend_osrs223_in packet_sound_jingleend_v1_in

@@ -19,10 +19,10 @@ typedef struct MsgLogout {
 	int32_t _unused;
 } MsgLogout;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_logout_v1_out(RsprotExec *x, MsgLogout *m);
 
-/* Per-revision entry points: what revision N calls is packet_logout_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_logout_<R>_out. */
 #define packet_logout_osrs221_out packet_logout_v1_out
 #define packet_logout_osrs222_out packet_logout_v1_out
 #define packet_logout_osrs223_out packet_logout_v1_out

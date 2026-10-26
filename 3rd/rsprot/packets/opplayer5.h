@@ -18,40 +18,40 @@ typedef struct MsgOpPlayer5 {
 	int32_t control_key;
 } MsgOpPlayer5;
 
-/* v1 -- revs 221, 237. */
+/* v1 -- revs osrs221, osrs237. */
 void packet_opplayer5_v1_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_opplayer5_v2_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_opplayer5_v3_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v4 -- revs 224, 233. */
+/* v4 -- revs osrs224, osrs233. */
 void packet_opplayer5_v4_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_opplayer5_v5_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v6 -- revs 226, 235. */
+/* v6 -- revs osrs226, osrs235. */
 void packet_opplayer5_v6_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v7 -- revs 227, 241. */
+/* v7 -- revs osrs227, osrs241. */
 void packet_opplayer5_v7_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v8 -- revs 228, 236. */
+/* v8 -- revs osrs228, osrs236. */
 void packet_opplayer5_v8_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_opplayer5_v9_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_opplayer5_v10_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_opplayer5_v11_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_opplayer5_v12_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v13 -- revs 234. */
+/* v13 -- revs osrs234. */
 void packet_opplayer5_v13_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void packet_opplayer5_v14_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v15 -- revs 239. */
+/* v15 -- revs osrs239. */
 void packet_opplayer5_v15_in(RsprotExec *x, MsgOpPlayer5 *m);
-/* v16 -- revs 240. */
+/* v16 -- revs osrs240. */
 void packet_opplayer5_v16_in(RsprotExec *x, MsgOpPlayer5 *m);
 
-/* Per-revision entry points: what revision N calls is packet_opplayer5_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opplayer5_<R>_in. */
 #define packet_opplayer5_osrs221_in packet_opplayer5_v1_in
 #define packet_opplayer5_osrs222_in packet_opplayer5_v2_in
 #define packet_opplayer5_osrs223_in packet_opplayer5_v3_in

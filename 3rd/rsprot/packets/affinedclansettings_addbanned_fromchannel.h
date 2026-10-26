@@ -19,10 +19,10 @@ typedef struct MsgAffinedClanSettingsAddBannedFromChannel {
 	const char *name;
 } MsgAffinedClanSettingsAddBannedFromChannel;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_affinedclansettings_addbanned_fromchannel_v1_in(RsprotExec *x, MsgAffinedClanSettingsAddBannedFromChannel *m);
 
-/* Per-revision entry points: what revision N calls is packet_affinedclansettings_addbanned_fromchannel_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_affinedclansettings_addbanned_fromchannel_<R>_in. */
 #define packet_affinedclansettings_addbanned_fromchannel_osrs221_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 #define packet_affinedclansettings_addbanned_fromchannel_osrs222_in packet_affinedclansettings_addbanned_fromchannel_v1_in
 #define packet_affinedclansettings_addbanned_fromchannel_osrs223_in packet_affinedclansettings_addbanned_fromchannel_v1_in

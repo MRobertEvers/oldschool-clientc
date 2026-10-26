@@ -88,7 +88,7 @@ packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m)
 }
 
 const RsprotVersionRange rsprot_clansettings_delta_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_clansettings_delta_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_delta_v1_out },
 };
 
 const int rsprot_clansettings_delta_out_count =

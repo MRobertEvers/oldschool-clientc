@@ -18,36 +18,36 @@ typedef struct MsgMidiSongStop {
 	int32_t fade_out_speed;
 } MsgMidiSongStop;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_midi_song_stop_v1_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v2 -- revs 222, 238. */
+/* v2 -- revs osrs222, osrs238. */
 void packet_midi_song_stop_v2_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v3 -- revs 223, 230, 232. */
+/* v3 -- revs osrs223, osrs230, osrs232. */
 void packet_midi_song_stop_v3_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v4 -- revs 224, 227-228. */
+/* v4 -- revs osrs224, osrs227-228. */
 void packet_midi_song_stop_v4_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_midi_song_stop_v5_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_midi_song_stop_v6_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v7 -- revs 229, 231. */
+/* v7 -- revs osrs229, osrs231. */
 void packet_midi_song_stop_v7_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v8 -- revs 233. */
+/* v8 -- revs osrs233. */
 void packet_midi_song_stop_v8_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v9 -- revs 234. */
+/* v9 -- revs osrs234. */
 void packet_midi_song_stop_v9_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v10 -- revs 235, 237. */
+/* v10 -- revs osrs235, osrs237. */
 void packet_midi_song_stop_v10_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_midi_song_stop_v11_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v12 -- revs 239. */
+/* v12 -- revs osrs239. */
 void packet_midi_song_stop_v12_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v13 -- revs 240. */
+/* v13 -- revs osrs240. */
 void packet_midi_song_stop_v13_out(RsprotExec *x, MsgMidiSongStop *m);
-/* v14 -- revs 241. */
+/* v14 -- revs osrs241. */
 void packet_midi_song_stop_v14_out(RsprotExec *x, MsgMidiSongStop *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_song_stop_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_song_stop_<R>_out. */
 #define packet_midi_song_stop_osrs221_out packet_midi_song_stop_v1_out
 #define packet_midi_song_stop_osrs222_out packet_midi_song_stop_v2_out
 #define packet_midi_song_stop_osrs223_out packet_midi_song_stop_v3_out

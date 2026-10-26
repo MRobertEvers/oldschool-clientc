@@ -27,7 +27,7 @@ packet_event_native_mouse_move_v1_in(RsprotExec *x, MsgEventNativeMouseMove *m)
 }
 
 const RsprotVersionRange rsprot_event_native_mouse_move_in[] = {
-    { 223, 241, (RsprotCodecFn)packet_event_native_mouse_move_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_native_mouse_move_v1_in },
 };
 
 const int rsprot_event_native_mouse_move_in_count =

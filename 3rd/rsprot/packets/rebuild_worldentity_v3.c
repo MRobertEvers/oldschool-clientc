@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 229-236. */
+/* v1 -- revs osrs229-236. */
 void
 packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
@@ -26,7 +26,7 @@ packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
     }
 }
 
-/* v2 -- revs 237. */
+/* v2 -- revs osrs237. */
 void
 packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
@@ -47,8 +47,8 @@ packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_worldentity_v3_out[] = {
-    { 229, 236, (RsprotCodecFn)packet_rebuild_worldentity_v3_v1_out },
-    { 237, 237, (RsprotCodecFn)packet_rebuild_worldentity_v3_v2_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_rebuild_worldentity_v3_v1_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_rebuild_worldentity_v3_v2_out },
 };
 
 const int rsprot_rebuild_worldentity_v3_out_count =

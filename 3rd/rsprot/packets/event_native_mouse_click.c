@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 222. */
+/* v1 -- revs osrs222. */
 void
 packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -19,7 +19,7 @@ packet_event_native_mouse_click_v1_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v2 -- revs 223. */
+/* v2 -- revs osrs223. */
 void
 packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -28,7 +28,7 @@ packet_event_native_mouse_click_v2_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2_21_ADD128(x, m->last_transmitted_mouse_click);
 }
 
-/* v3 -- revs 224. */
+/* v3 -- revs osrs224. */
 void
 packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -37,7 +37,7 @@ packet_event_native_mouse_click_v3_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v4 -- revs 225. */
+/* v4 -- revs osrs225. */
 void
 packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -46,7 +46,7 @@ packet_event_native_mouse_click_v4_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2_21_ADD128(x, m->last_transmitted_mouse_click);
 }
 
-/* v5 -- revs 226. */
+/* v5 -- revs osrs226. */
 void
 packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -55,7 +55,7 @@ packet_event_native_mouse_click_v5_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U2_12(x, m->last_transmitted_mouse_click);
 }
 
-/* v6 -- revs 227. */
+/* v6 -- revs osrs227. */
 void
 packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -64,7 +64,7 @@ packet_event_native_mouse_click_v6_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1_NEG(x, m->code);
 }
 
-/* v7 -- revs 228. */
+/* v7 -- revs osrs228. */
 void
 packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -73,7 +73,7 @@ packet_event_native_mouse_click_v7_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U4_3412(x, m->packed_coord);
 }
 
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void
 packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -82,7 +82,7 @@ packet_event_native_mouse_click_v8_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1_ADD128(x, m->code);
 }
 
-/* v9 -- revs 230. */
+/* v9 -- revs osrs230. */
 void
 packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -91,7 +91,7 @@ packet_event_native_mouse_click_v9_in(RsprotExec *x, MsgEventNativeMouseClick *m
     RSPROT_U1(x, m->code);
 }
 
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void
 packet_event_native_mouse_click_v10_in(RsprotExec *x, MsgEventNativeMouseClick *m)
 {
@@ -105,16 +105,16 @@ packet_event_native_mouse_click_v10_in(RsprotExec *x, MsgEventNativeMouseClick *
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_native_mouse_click_in[] = {
-    { 222, 222, (RsprotCodecFn)packet_event_native_mouse_click_v1_in },
-    { 223, 223, (RsprotCodecFn)packet_event_native_mouse_click_v2_in },
-    { 224, 224, (RsprotCodecFn)packet_event_native_mouse_click_v3_in },
-    { 225, 225, (RsprotCodecFn)packet_event_native_mouse_click_v4_in },
-    { 226, 226, (RsprotCodecFn)packet_event_native_mouse_click_v5_in },
-    { 227, 227, (RsprotCodecFn)packet_event_native_mouse_click_v6_in },
-    { 228, 228, (RsprotCodecFn)packet_event_native_mouse_click_v7_in },
-    { 229, 229, (RsprotCodecFn)packet_event_native_mouse_click_v8_in },
-    { 230, 230, (RsprotCodecFn)packet_event_native_mouse_click_v9_in },
-    { 231, 231, (RsprotCodecFn)packet_event_native_mouse_click_v10_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_event_native_mouse_click_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_event_native_mouse_click_v2_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_event_native_mouse_click_v3_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_event_native_mouse_click_v4_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_event_native_mouse_click_v5_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_event_native_mouse_click_v6_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_event_native_mouse_click_v7_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_event_native_mouse_click_v8_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_event_native_mouse_click_v9_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_event_native_mouse_click_v10_in },
 };
 
 const int rsprot_event_native_mouse_click_in_count =

@@ -17,10 +17,10 @@ typedef struct MsgChatFilterSettingsPrivateChat {
 	int32_t private_chat_filter;
 } MsgChatFilterSettingsPrivateChat;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_chat_filter_settings_privatechat_v1_out(RsprotExec *x, MsgChatFilterSettingsPrivateChat *m);
 
-/* Per-revision entry points: what revision N calls is packet_chat_filter_settings_privatechat_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_chat_filter_settings_privatechat_<R>_out. */
 #define packet_chat_filter_settings_privatechat_osrs221_out packet_chat_filter_settings_privatechat_v1_out
 #define packet_chat_filter_settings_privatechat_osrs222_out packet_chat_filter_settings_privatechat_v1_out
 #define packet_chat_filter_settings_privatechat_osrs223_out packet_chat_filter_settings_privatechat_v1_out

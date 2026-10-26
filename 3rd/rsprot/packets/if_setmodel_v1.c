@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void
 packet_if_setmodel_v1_v1_out(RsprotExec *x, MsgIfSetModelV1 *m)
 {
@@ -23,7 +23,7 @@ packet_if_setmodel_v1_v1_out(RsprotExec *x, MsgIfSetModelV1 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setmodel_v1_out[] = {
-    { 237, 237, (RsprotCodecFn)packet_if_setmodel_v1_v1_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_if_setmodel_v1_v1_out },
 };
 
 const int rsprot_if_setmodel_v1_out_count =

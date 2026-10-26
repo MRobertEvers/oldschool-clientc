@@ -34,10 +34,10 @@ typedef struct MsgIfResyncV1 {
 	int32_t events_count;
 } MsgIfResyncV1;
 
-/* v1 -- revs 227-231. */
+/* v1 -- revs osrs227-231. */
 void packet_if_resync_v1_v1_out(RsprotExec *x, MsgIfResyncV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_resync_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_resync_v1_<R>_out. */
 #define packet_if_resync_v1_osrs227_out packet_if_resync_v1_v1_out
 #define packet_if_resync_v1_osrs228_out packet_if_resync_v1_v1_out
 #define packet_if_resync_v1_osrs229_out packet_if_resync_v1_v1_out

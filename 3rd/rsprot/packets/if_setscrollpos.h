@@ -18,38 +18,38 @@ typedef struct MsgIfSetScrollPos {
 	int32_t combined_id;
 } MsgIfSetScrollPos;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setscrollpos_v1_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_if_setscrollpos_v2_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v3 -- revs 223, 234. */
+/* v3 -- revs osrs223, osrs234. */
 void packet_if_setscrollpos_v3_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v4 -- revs 224, 233. */
+/* v4 -- revs osrs224, osrs233. */
 void packet_if_setscrollpos_v4_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setscrollpos_v5_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_if_setscrollpos_v6_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_if_setscrollpos_v7_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_if_setscrollpos_v8_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_if_setscrollpos_v9_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v10 -- revs 230, 239-240. */
+/* v10 -- revs osrs230, osrs239-240. */
 void packet_if_setscrollpos_v10_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_if_setscrollpos_v11_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_if_setscrollpos_v12_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v14 -- revs 236-237, 241. */
+/* v14 -- revs osrs236-237, osrs241. */
 void packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m);
-/* v15 -- revs 238. */
+/* v15 -- revs osrs238. */
 void packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setscrollpos_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setscrollpos_<R>_out. */
 #define packet_if_setscrollpos_osrs221_out packet_if_setscrollpos_v1_out
 #define packet_if_setscrollpos_osrs222_out packet_if_setscrollpos_v2_out
 #define packet_if_setscrollpos_osrs223_out packet_if_setscrollpos_v3_out

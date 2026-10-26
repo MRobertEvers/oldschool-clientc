@@ -8,62 +8,62 @@
 #include <stddef.h>
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v3_osrs(int revision)
+worldentity_info_v3_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 226: return worldentity_info_v3_osrs226;
-    case 227: return worldentity_info_v3_osrs227;
-    case 228: return worldentity_info_v3_osrs228;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(226): return worldentity_info_v3_osrs226;
+    case RSPROT_OSRS_ID(227): return worldentity_info_v3_osrs227;
+    case RSPROT_OSRS_ID(228): return worldentity_info_v3_osrs228;
     default: return NULL;
     }
 }
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v4_osrs(int revision)
+worldentity_info_v4_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 227: return worldentity_info_v4_osrs227;
-    case 228: return worldentity_info_v4_osrs228;
-    case 229: return worldentity_info_v4_osrs229;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(227): return worldentity_info_v4_osrs227;
+    case RSPROT_OSRS_ID(228): return worldentity_info_v4_osrs228;
+    case RSPROT_OSRS_ID(229): return worldentity_info_v4_osrs229;
     default: return NULL;
     }
 }
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v5_osrs(int revision)
+worldentity_info_v5_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 229: return worldentity_info_v5_osrs229;
-    case 230: return worldentity_info_v5_osrs230;
-    case 231: return worldentity_info_v5_osrs231;
-    case 232: return worldentity_info_v5_osrs232;
-    case 233: return worldentity_info_v5_osrs233;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(229): return worldentity_info_v5_osrs229;
+    case RSPROT_OSRS_ID(230): return worldentity_info_v5_osrs230;
+    case RSPROT_OSRS_ID(231): return worldentity_info_v5_osrs231;
+    case RSPROT_OSRS_ID(232): return worldentity_info_v5_osrs232;
+    case RSPROT_OSRS_ID(233): return worldentity_info_v5_osrs233;
     default: return NULL;
     }
 }
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v6_osrs(int revision)
+worldentity_info_v6_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 233: return worldentity_info_v6_osrs233;
-    case 234: return worldentity_info_v6_osrs234;
-    case 235: return worldentity_info_v6_osrs235;
-    case 236: return worldentity_info_v6_osrs236;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(233): return worldentity_info_v6_osrs233;
+    case RSPROT_OSRS_ID(234): return worldentity_info_v6_osrs234;
+    case RSPROT_OSRS_ID(235): return worldentity_info_v6_osrs235;
+    case RSPROT_OSRS_ID(236): return worldentity_info_v6_osrs236;
     default: return NULL;
     }
 }
 
 RsprotWorldEntityInfoReadFn
-worldentity_info_v7_osrs(int revision)
+worldentity_info_v7_osrs(RsprotRev rev)
 {
-    switch (revision) {
-    case 236: return worldentity_info_v7_osrs236;
-    case 237: return worldentity_info_v7_osrs237;
-    case 238: return worldentity_info_v7_osrs238;
-    case 239: return worldentity_info_v7_osrs239;
-    case 240: return worldentity_info_v7_osrs240;
-    case 241: return worldentity_info_v7_osrs241;
+    switch (rev.id) {
+    case RSPROT_OSRS_ID(236): return worldentity_info_v7_osrs236;
+    case RSPROT_OSRS_ID(237): return worldentity_info_v7_osrs237;
+    case RSPROT_OSRS_ID(238): return worldentity_info_v7_osrs238;
+    case RSPROT_OSRS_ID(239): return worldentity_info_v7_osrs239;
+    case RSPROT_OSRS_ID(240): return worldentity_info_v7_osrs240;
+    case RSPROT_OSRS_ID(241): return worldentity_info_v7_osrs241;
     default: return NULL;
     }
 }

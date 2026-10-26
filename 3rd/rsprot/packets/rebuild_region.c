@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void
 packet_rebuild_region_v1_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -22,7 +22,7 @@ packet_rebuild_region_v1_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v2 -- revs 224. */
+/* v2 -- revs osrs224. */
 void
 packet_rebuild_region_v2_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -34,7 +34,7 @@ packet_rebuild_region_v2_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v3 -- revs 225. */
+/* v3 -- revs osrs225. */
 void
 packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -46,7 +46,7 @@ packet_rebuild_region_v3_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void
 packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -58,7 +58,7 @@ packet_rebuild_region_v4_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void
 packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -70,7 +70,7 @@ packet_rebuild_region_v5_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void
 packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -82,7 +82,7 @@ packet_rebuild_region_v6_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void
 packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -94,7 +94,7 @@ packet_rebuild_region_v7_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void
 packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -106,7 +106,7 @@ packet_rebuild_region_v8_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void
 packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -118,7 +118,7 @@ packet_rebuild_region_v9_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void
 packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -130,7 +130,7 @@ packet_rebuild_region_v10_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v11 -- revs 233. */
+/* v11 -- revs osrs233. */
 void
 packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -142,7 +142,7 @@ packet_rebuild_region_v11_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void
 packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -154,7 +154,7 @@ packet_rebuild_region_v12_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void
 packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -166,7 +166,7 @@ packet_rebuild_region_v13_out(RsprotExec *x, MsgRebuildRegion *m)
     rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);
 }
 
-/* v14 -- revs 236. */
+/* v14 -- revs osrs236. */
 void
 packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
 {
@@ -183,20 +183,20 @@ packet_rebuild_region_v14_out(RsprotExec *x, MsgRebuildRegion *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_region_out[] = {
-    { 223, 223, (RsprotCodecFn)packet_rebuild_region_v1_out },
-    { 224, 224, (RsprotCodecFn)packet_rebuild_region_v2_out },
-    { 225, 225, (RsprotCodecFn)packet_rebuild_region_v3_out },
-    { 226, 226, (RsprotCodecFn)packet_rebuild_region_v4_out },
-    { 227, 227, (RsprotCodecFn)packet_rebuild_region_v5_out },
-    { 228, 228, (RsprotCodecFn)packet_rebuild_region_v6_out },
-    { 229, 229, (RsprotCodecFn)packet_rebuild_region_v7_out },
-    { 230, 230, (RsprotCodecFn)packet_rebuild_region_v8_out },
-    { 231, 231, (RsprotCodecFn)packet_rebuild_region_v9_out },
-    { 232, 232, (RsprotCodecFn)packet_rebuild_region_v10_out },
-    { 233, 233, (RsprotCodecFn)packet_rebuild_region_v11_out },
-    { 234, 234, (RsprotCodecFn)packet_rebuild_region_v12_out },
-    { 235, 235, (RsprotCodecFn)packet_rebuild_region_v13_out },
-    { 236, 236, (RsprotCodecFn)packet_rebuild_region_v14_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_rebuild_region_v1_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_rebuild_region_v2_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_rebuild_region_v3_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_rebuild_region_v4_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_rebuild_region_v5_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_rebuild_region_v6_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_rebuild_region_v7_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_rebuild_region_v8_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_rebuild_region_v9_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_rebuild_region_v10_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_rebuild_region_v11_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_rebuild_region_v12_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_rebuild_region_v13_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_rebuild_region_v14_out },
 };
 
 const int rsprot_rebuild_region_out_count =

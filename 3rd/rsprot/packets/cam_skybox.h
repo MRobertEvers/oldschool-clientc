@@ -17,14 +17,14 @@ typedef struct MsgCamSkybox {
 	int32_t model;
 } MsgCamSkybox;
 
-/* v1 -- revs 238. */
+/* v1 -- revs osrs238. */
 void packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m);
-/* v2 -- revs 239-240. */
+/* v2 -- revs osrs239-240. */
 void packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m);
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_skybox_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_skybox_<R>_out. */
 #define packet_cam_skybox_osrs238_out packet_cam_skybox_v1_out
 #define packet_cam_skybox_osrs239_out packet_cam_skybox_v2_out
 #define packet_cam_skybox_osrs240_out packet_cam_skybox_v2_out

@@ -93,7 +93,7 @@ static int g_explain_len;
 static struct
 {
     char const* prot;
-    RsprotNpcInfoReadFn (*osrs)(int revision);
+    RsprotNpcInfoReadFn (*osrs)(RsprotRev rev);
 } const k_npc_streams[] = {
     { "NPC_INFO_SMALL_V5", npc_info_small_v5_osrs },
     { "NPC_INFO_LARGE_V5", npc_info_large_v5_osrs },
@@ -112,7 +112,7 @@ npc_reader(char const* prot, int revision)
 
         if( strcmp(k_npc_streams[i].prot, prot) != 0 )
             continue;
-        fn = k_npc_streams[i].osrs(revision);
+        fn = k_npc_streams[i].osrs(rsprot_osrs(revision));
         assert(fn);
         return fn;
     }
@@ -178,7 +178,7 @@ explain_codec(int revision, char const* prot, uint8_t const* data, int len)
         long double align;
         uint8_t bytes[1 << 20];
     } scratch;
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, revision);
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
     RsprotExec x;
     RsprotBuf b;
 

@@ -13,7 +13,7 @@ packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m)
 }
 
 const RsprotVersionRange rsprot_update_uid192_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_update_uid192_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_uid192_v1_out },
 };
 
 const int rsprot_update_uid192_out_count =

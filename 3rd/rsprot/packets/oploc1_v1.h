@@ -20,10 +20,10 @@ typedef struct MsgOpLoc1V1 {
 	int32_t id;
 } MsgOpLoc1V1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_oploc1_v1_v1_in(RsprotExec *x, MsgOpLoc1V1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_oploc1_v1_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_oploc1_v1_<R>_in. */
 #define packet_oploc1_v1_osrs237_in packet_oploc1_v1_v1_in
 
 /** Revision -> layout. See the .c for the rows. */

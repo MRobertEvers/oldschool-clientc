@@ -19,16 +19,16 @@ typedef struct MsgBugReport {
 	const char *instructions;
 } MsgBugReport;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_bug_report_v1_in(RsprotExec *x, MsgBugReport *m);
-/* v2 -- revs 222-239. */
+/* v2 -- revs osrs222-239. */
 void packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m);
-/* v3 -- revs 240. */
+/* v3 -- revs osrs240. */
 void packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m);
-/* v4 -- revs 241. */
+/* v4 -- revs osrs241. */
 void packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m);
 
-/* Per-revision entry points: what revision N calls is packet_bug_report_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_bug_report_<R>_in. */
 #define packet_bug_report_osrs221_in packet_bug_report_v1_in
 #define packet_bug_report_osrs222_in packet_bug_report_v2_in
 #define packet_bug_report_osrs223_in packet_bug_report_v2_in

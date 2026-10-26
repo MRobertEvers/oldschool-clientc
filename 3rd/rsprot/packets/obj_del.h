@@ -19,46 +19,46 @@ typedef struct MsgObjDel {
 	int32_t id;
 } MsgObjDel;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_obj_del_v1_out(RsprotExec *x, MsgObjDel *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_obj_del_v2_out(RsprotExec *x, MsgObjDel *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_obj_del_v3_out(RsprotExec *x, MsgObjDel *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_obj_del_v4_out(RsprotExec *x, MsgObjDel *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_obj_del_v5_out(RsprotExec *x, MsgObjDel *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_obj_del_v6_out(RsprotExec *x, MsgObjDel *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_obj_del_v7_out(RsprotExec *x, MsgObjDel *m);
-/* v8 -- revs 228, 232. */
+/* v8 -- revs osrs228, osrs232. */
 void packet_obj_del_v8_out(RsprotExec *x, MsgObjDel *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_obj_del_v9_out(RsprotExec *x, MsgObjDel *m);
-/* v10 -- revs 230, 236. */
+/* v10 -- revs osrs230, osrs236. */
 void packet_obj_del_v10_out(RsprotExec *x, MsgObjDel *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_obj_del_v11_out(RsprotExec *x, MsgObjDel *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_obj_del_v12_out(RsprotExec *x, MsgObjDel *m);
-/* v13 -- revs 234. */
+/* v13 -- revs osrs234. */
 void packet_obj_del_v13_out(RsprotExec *x, MsgObjDel *m);
-/* v14 -- revs 235. */
+/* v14 -- revs osrs235. */
 void packet_obj_del_v14_out(RsprotExec *x, MsgObjDel *m);
-/* v15 -- revs 237. */
+/* v15 -- revs osrs237. */
 void packet_obj_del_v15_out(RsprotExec *x, MsgObjDel *m);
-/* v16 -- revs 238. */
+/* v16 -- revs osrs238. */
 void packet_obj_del_v16_out(RsprotExec *x, MsgObjDel *m);
-/* v17 -- revs 239. */
+/* v17 -- revs osrs239. */
 void packet_obj_del_v17_out(RsprotExec *x, MsgObjDel *m);
-/* v18 -- revs 240. */
+/* v18 -- revs osrs240. */
 void packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m);
-/* v19 -- revs 241. */
+/* v19 -- revs osrs241. */
 void packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_del_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_del_<R>_out. */
 #define packet_obj_del_osrs221_out packet_obj_del_v1_out
 #define packet_obj_del_osrs222_out packet_obj_del_v2_out
 #define packet_obj_del_osrs223_out packet_obj_del_v3_out

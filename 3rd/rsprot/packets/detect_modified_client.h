@@ -17,10 +17,10 @@ typedef struct MsgDetectModifiedClient {
 	int32_t code;
 } MsgDetectModifiedClient;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_detect_modified_client_v1_in(RsprotExec *x, MsgDetectModifiedClient *m);
 
-/* Per-revision entry points: what revision N calls is packet_detect_modified_client_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_detect_modified_client_<R>_in. */
 #define packet_detect_modified_client_osrs221_in packet_detect_modified_client_v1_in
 #define packet_detect_modified_client_osrs222_in packet_detect_modified_client_v1_in
 #define packet_detect_modified_client_osrs223_in packet_detect_modified_client_v1_in

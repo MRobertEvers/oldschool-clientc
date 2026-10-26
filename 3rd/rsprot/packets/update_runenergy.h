@@ -17,10 +17,10 @@ typedef struct MsgUpdateRunEnergy {
 	int32_t runenergy;
 } MsgUpdateRunEnergy;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_update_runenergy_v1_out(RsprotExec *x, MsgUpdateRunEnergy *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_runenergy_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_runenergy_<R>_out. */
 #define packet_update_runenergy_osrs221_out packet_update_runenergy_v1_out
 #define packet_update_runenergy_osrs222_out packet_update_runenergy_v1_out
 #define packet_update_runenergy_osrs223_out packet_update_runenergy_v1_out

@@ -17,16 +17,16 @@ typedef struct MsgSetHeading {
 	int32_t heading;
 } MsgSetHeading;
 
-/* v1 -- revs 226, 229, 238. */
+/* v1 -- revs osrs226, osrs229, osrs238. */
 void packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m);
-/* v2 -- revs 227, 232-233, 235-236, 240-241. */
+/* v2 -- revs osrs227, osrs232-233, osrs235-236, osrs240-241. */
 void packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m);
-/* v3 -- revs 228, 237. */
+/* v3 -- revs osrs228, osrs237. */
 void packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m);
-/* v4 -- revs 230-231, 234, 239. */
+/* v4 -- revs osrs230-231, osrs234, osrs239. */
 void packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_heading_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_set_heading_<R>_in. */
 #define packet_set_heading_osrs226_in packet_set_heading_v1_in
 #define packet_set_heading_osrs227_in packet_set_heading_v2_in
 #define packet_set_heading_osrs228_in packet_set_heading_v3_in

@@ -19,46 +19,46 @@ typedef struct MsgObjEnabledOps {
 	int32_t id;
 } MsgObjEnabledOps;
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void packet_obj_enabled_ops_v1_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v2 -- revs 224. */
+/* v2 -- revs osrs224. */
 void packet_obj_enabled_ops_v2_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v3 -- revs 225. */
+/* v3 -- revs osrs225. */
 void packet_obj_enabled_ops_v3_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void packet_obj_enabled_ops_v4_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void packet_obj_enabled_ops_v5_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void packet_obj_enabled_ops_v6_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_obj_enabled_ops_v7_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void packet_obj_enabled_ops_v8_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_obj_enabled_ops_v9_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_obj_enabled_ops_v10_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v11 -- revs 233. */
+/* v11 -- revs osrs233. */
 void packet_obj_enabled_ops_v11_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void packet_obj_enabled_ops_v12_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_obj_enabled_ops_v13_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v14 -- revs 236. */
+/* v14 -- revs osrs236. */
 void packet_obj_enabled_ops_v14_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v15 -- revs 237. */
+/* v15 -- revs osrs237. */
 void packet_obj_enabled_ops_v15_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v16 -- revs 238. */
+/* v16 -- revs osrs238. */
 void packet_obj_enabled_ops_v16_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v17 -- revs 239. */
+/* v17 -- revs osrs239. */
 void packet_obj_enabled_ops_v17_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v18 -- revs 240. */
+/* v18 -- revs osrs240. */
 void packet_obj_enabled_ops_v18_out(RsprotExec *x, MsgObjEnabledOps *m);
-/* v19 -- revs 241. */
+/* v19 -- revs osrs241. */
 void packet_obj_enabled_ops_v19_out(RsprotExec *x, MsgObjEnabledOps *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_enabled_ops_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_enabled_ops_<R>_out. */
 #define packet_obj_enabled_ops_osrs223_out packet_obj_enabled_ops_v1_out
 #define packet_obj_enabled_ops_osrs224_out packet_obj_enabled_ops_v2_out
 #define packet_obj_enabled_ops_osrs225_out packet_obj_enabled_ops_v3_out

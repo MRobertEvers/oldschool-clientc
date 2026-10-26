@@ -17,10 +17,10 @@ typedef struct MsgEventAppletFocus {
 	int32_t in_focus;
 } MsgEventAppletFocus;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_event_applet_focus_v1_in(RsprotExec *x, MsgEventAppletFocus *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_applet_focus_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_applet_focus_<R>_in. */
 #define packet_event_applet_focus_osrs221_in packet_event_applet_focus_v1_in
 #define packet_event_applet_focus_osrs222_in packet_event_applet_focus_v1_in
 #define packet_event_applet_focus_osrs223_in packet_event_applet_focus_v1_in

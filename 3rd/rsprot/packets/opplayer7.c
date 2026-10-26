@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_opplayer7_v1_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -18,7 +18,7 @@ packet_opplayer7_v1_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_21(x, m->index);
 }
 
-/* v2 -- revs 223. */
+/* v2 -- revs osrs223. */
 void
 packet_opplayer7_v2_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -26,7 +26,7 @@ packet_opplayer7_v2_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v3 -- revs 224-225. */
+/* v3 -- revs osrs224-225. */
 void
 packet_opplayer7_v3_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -34,7 +34,7 @@ packet_opplayer7_v3_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_21_ADD128(x, m->index);
 }
 
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void
 packet_opplayer7_v4_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -42,7 +42,7 @@ packet_opplayer7_v4_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void
 packet_opplayer7_v5_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -50,7 +50,7 @@ packet_opplayer7_v5_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void
 packet_opplayer7_v6_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -58,7 +58,7 @@ packet_opplayer7_v6_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1(x, m->control_key);
 }
 
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void
 packet_opplayer7_v7_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -66,7 +66,7 @@ packet_opplayer7_v7_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v8 -- revs 230, 232. */
+/* v8 -- revs osrs230, osrs232. */
 void
 packet_opplayer7_v8_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -74,7 +74,7 @@ packet_opplayer7_v8_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_ADD128(x, m->control_key);
 }
 
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void
 packet_opplayer7_v9_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -82,7 +82,7 @@ packet_opplayer7_v9_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1(x, m->control_key);
 }
 
-/* v10 -- revs 233. */
+/* v10 -- revs osrs233. */
 void
 packet_opplayer7_v10_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -90,7 +90,7 @@ packet_opplayer7_v10_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v11 -- revs 234. */
+/* v11 -- revs osrs234. */
 void
 packet_opplayer7_v11_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -98,7 +98,7 @@ packet_opplayer7_v11_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v12 -- revs 235. */
+/* v12 -- revs osrs235. */
 void
 packet_opplayer7_v12_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -106,7 +106,7 @@ packet_opplayer7_v12_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
-/* v13 -- revs 236, 241. */
+/* v13 -- revs osrs236, osrs241. */
 void
 packet_opplayer7_v13_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -114,7 +114,7 @@ packet_opplayer7_v13_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_21_ADD128(x, m->index);
 }
 
-/* v14 -- revs 237. */
+/* v14 -- revs osrs237. */
 void
 packet_opplayer7_v14_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -122,7 +122,7 @@ packet_opplayer7_v14_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
-/* v15 -- revs 238. */
+/* v15 -- revs osrs238. */
 void
 packet_opplayer7_v15_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -130,7 +130,7 @@ packet_opplayer7_v15_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
-/* v16 -- revs 239. */
+/* v16 -- revs osrs239. */
 void
 packet_opplayer7_v16_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -138,7 +138,7 @@ packet_opplayer7_v16_in(RsprotExec *x, MsgOpPlayer7 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v17 -- revs 240. */
+/* v17 -- revs osrs240. */
 void
 packet_opplayer7_v17_in(RsprotExec *x, MsgOpPlayer7 *m)
 {
@@ -151,25 +151,25 @@ packet_opplayer7_v17_in(RsprotExec *x, MsgOpPlayer7 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer7_in[] = {
-    { 221, 222, (RsprotCodecFn)packet_opplayer7_v1_in },
-    { 223, 223, (RsprotCodecFn)packet_opplayer7_v2_in },
-    { 224, 225, (RsprotCodecFn)packet_opplayer7_v3_in },
-    { 226, 226, (RsprotCodecFn)packet_opplayer7_v4_in },
-    { 227, 227, (RsprotCodecFn)packet_opplayer7_v5_in },
-    { 228, 228, (RsprotCodecFn)packet_opplayer7_v6_in },
-    { 229, 229, (RsprotCodecFn)packet_opplayer7_v7_in },
-    { 230, 230, (RsprotCodecFn)packet_opplayer7_v8_in },
-    { 231, 231, (RsprotCodecFn)packet_opplayer7_v9_in },
-    { 232, 232, (RsprotCodecFn)packet_opplayer7_v8_in },
-    { 233, 233, (RsprotCodecFn)packet_opplayer7_v10_in },
-    { 234, 234, (RsprotCodecFn)packet_opplayer7_v11_in },
-    { 235, 235, (RsprotCodecFn)packet_opplayer7_v12_in },
-    { 236, 236, (RsprotCodecFn)packet_opplayer7_v13_in },
-    { 237, 237, (RsprotCodecFn)packet_opplayer7_v14_in },
-    { 238, 238, (RsprotCodecFn)packet_opplayer7_v15_in },
-    { 239, 239, (RsprotCodecFn)packet_opplayer7_v16_in },
-    { 240, 240, (RsprotCodecFn)packet_opplayer7_v17_in },
-    { 241, 241, (RsprotCodecFn)packet_opplayer7_v13_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_opplayer7_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_opplayer7_v2_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_opplayer7_v3_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_opplayer7_v4_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_opplayer7_v5_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_opplayer7_v6_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_opplayer7_v7_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_opplayer7_v8_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_opplayer7_v9_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_opplayer7_v8_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opplayer7_v10_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opplayer7_v11_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_opplayer7_v12_in },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opplayer7_v13_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_opplayer7_v14_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_opplayer7_v15_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opplayer7_v16_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer7_v17_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer7_v13_in },
 };
 
 const int rsprot_opplayer7_in_count =

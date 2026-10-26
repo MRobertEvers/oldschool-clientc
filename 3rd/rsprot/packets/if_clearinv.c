@@ -10,35 +10,35 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m)
 {
     RSPROT_U4_4321(x, m->combined_id);
 }
 
-/* v2 -- revs 222, 227, 230, 235-236. */
+/* v2 -- revs osrs222, osrs227, osrs230, osrs235-236. */
 void
 packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m)
 {
     RSPROT_COM_2143(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 237, 240. */
+/* v3 -- revs osrs223, osrs237, osrs240. */
 void
 packet_if_clearinv_v3_out(RsprotExec *x, MsgIfClearInv *m)
 {
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v4 -- revs 224-226, 228, 231, 233, 238, 241. */
+/* v4 -- revs osrs224-226, osrs228, osrs231, osrs233, osrs238, osrs241. */
 void
 packet_if_clearinv_v4_out(RsprotExec *x, MsgIfClearInv *m)
 {
     RSPROT_COM_1234(x, m->combined_id);
 }
 
-/* v5 -- revs 229, 232, 234, 239. */
+/* v5 -- revs osrs229, osrs232, osrs234, osrs239. */
 void
 packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m)
 {
@@ -50,24 +50,24 @@ packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_clearinv_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_if_clearinv_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_if_clearinv_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_if_clearinv_v3_out },
-    { 224, 226, (RsprotCodecFn)packet_if_clearinv_v4_out },
-    { 227, 227, (RsprotCodecFn)packet_if_clearinv_v2_out },
-    { 228, 228, (RsprotCodecFn)packet_if_clearinv_v4_out },
-    { 229, 229, (RsprotCodecFn)packet_if_clearinv_v5_out },
-    { 230, 230, (RsprotCodecFn)packet_if_clearinv_v2_out },
-    { 231, 231, (RsprotCodecFn)packet_if_clearinv_v4_out },
-    { 232, 232, (RsprotCodecFn)packet_if_clearinv_v5_out },
-    { 233, 233, (RsprotCodecFn)packet_if_clearinv_v4_out },
-    { 234, 234, (RsprotCodecFn)packet_if_clearinv_v5_out },
-    { 235, 236, (RsprotCodecFn)packet_if_clearinv_v2_out },
-    { 237, 237, (RsprotCodecFn)packet_if_clearinv_v3_out },
-    { 238, 238, (RsprotCodecFn)packet_if_clearinv_v4_out },
-    { 239, 239, (RsprotCodecFn)packet_if_clearinv_v5_out },
-    { 240, 240, (RsprotCodecFn)packet_if_clearinv_v3_out },
-    { 241, 241, (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_clearinv_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_if_clearinv_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_if_clearinv_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_if_clearinv_v2_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_if_clearinv_v5_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_if_clearinv_v2_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_if_clearinv_v5_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_if_clearinv_v5_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_if_clearinv_v2_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_if_clearinv_v3_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_clearinv_v5_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_clearinv_v3_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_clearinv_v4_out },
 };
 
 const int rsprot_if_clearinv_out_count =

@@ -18,40 +18,40 @@ typedef struct MsgAnimSpecific {
 	int32_t id;
 } MsgAnimSpecific;
 
-/* v1 -- revs 221, 239. */
+/* v1 -- revs osrs221, osrs239. */
 void packet_anim_specific_v1_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_anim_specific_v2_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_anim_specific_v3_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_anim_specific_v4_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_anim_specific_v5_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_anim_specific_v6_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_anim_specific_v7_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v8 -- revs 228, 241. */
+/* v8 -- revs osrs228, osrs241. */
 void packet_anim_specific_v8_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v9 -- revs 229, 237. */
+/* v9 -- revs osrs229, osrs237. */
 void packet_anim_specific_v9_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_anim_specific_v10_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v11 -- revs 231-232. */
+/* v11 -- revs osrs231-232. */
 void packet_anim_specific_v11_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_anim_specific_v12_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v13 -- revs 234. */
+/* v13 -- revs osrs234. */
 void packet_anim_specific_v13_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v14 -- revs 235. */
+/* v14 -- revs osrs235. */
 void packet_anim_specific_v14_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v15 -- revs 236, 238. */
+/* v15 -- revs osrs236, osrs238. */
 void packet_anim_specific_v15_out(RsprotExec *x, MsgAnimSpecific *m);
-/* v16 -- revs 240. */
+/* v16 -- revs osrs240. */
 void packet_anim_specific_v16_out(RsprotExec *x, MsgAnimSpecific *m);
 
-/* Per-revision entry points: what revision N calls is packet_anim_specific_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_anim_specific_<R>_out. */
 #define packet_anim_specific_osrs221_out packet_anim_specific_v1_out
 #define packet_anim_specific_osrs222_out packet_anim_specific_v2_out
 #define packet_anim_specific_osrs223_out packet_anim_specific_v3_out

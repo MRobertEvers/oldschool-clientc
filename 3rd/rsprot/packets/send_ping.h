@@ -18,10 +18,10 @@ typedef struct MsgSendPing {
 	int32_t value2;
 } MsgSendPing;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_send_ping_v1_out(RsprotExec *x, MsgSendPing *m);
 
-/* Per-revision entry points: what revision N calls is packet_send_ping_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_send_ping_<R>_out. */
 #define packet_send_ping_osrs221_out packet_send_ping_v1_out
 #define packet_send_ping_osrs222_out packet_send_ping_v1_out
 #define packet_send_ping_osrs223_out packet_send_ping_v1_out

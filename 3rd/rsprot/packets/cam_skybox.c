@@ -10,21 +10,21 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 238. */
+/* v1 -- revs osrs238. */
 void
 packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m)
 {
     RSPROT_U4_2143(x, m->model);
 }
 
-/* v2 -- revs 239-240. */
+/* v2 -- revs osrs239-240. */
 void
 packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m)
 {
     RSPROT_U4_3412(x, m->model);
 }
 
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void
 packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m)
 {
@@ -36,9 +36,9 @@ packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_skybox_out[] = {
-    { 238, 238, (RsprotCodecFn)packet_cam_skybox_v1_out },
-    { 239, 240, (RsprotCodecFn)packet_cam_skybox_v2_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_skybox_v3_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_cam_skybox_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_skybox_v2_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_skybox_v3_out },
 };
 
 const int rsprot_cam_skybox_out_count =

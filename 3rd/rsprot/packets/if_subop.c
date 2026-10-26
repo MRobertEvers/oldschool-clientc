@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 224-241. */
+/* v1 -- revs osrs224-241. */
 void
 packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m)
 {
@@ -26,7 +26,7 @@ packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_subop_in[] = {
-    { 224, 241, (RsprotCodecFn)packet_if_subop_v1_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_subop_v1_in },
 };
 
 const int rsprot_if_subop_in_count =

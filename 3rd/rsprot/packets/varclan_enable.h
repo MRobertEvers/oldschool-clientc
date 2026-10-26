@@ -19,10 +19,10 @@ typedef struct MsgVarClanEnable {
 	int32_t _unused;
 } MsgVarClanEnable;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m);
 
-/* Per-revision entry points: what revision N calls is packet_varclan_enable_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varclan_enable_<R>_out. */
 #define packet_varclan_enable_osrs221_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs222_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs223_out packet_varclan_enable_v1_out

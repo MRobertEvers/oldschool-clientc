@@ -17,10 +17,10 @@ typedef struct MsgSetHeatmapEnabled {
 	int32_t enabled;
 } MsgSetHeatmapEnabled;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_set_heatmap_enabled_v1_out(RsprotExec *x, MsgSetHeatmapEnabled *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_heatmap_enabled_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_heatmap_enabled_<R>_out. */
 #define packet_set_heatmap_enabled_osrs223_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_osrs224_out packet_set_heatmap_enabled_v1_out
 #define packet_set_heatmap_enabled_osrs225_out packet_set_heatmap_enabled_v1_out

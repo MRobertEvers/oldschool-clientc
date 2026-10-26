@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void
 packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m)
 {
@@ -25,7 +25,7 @@ packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateby_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_cam_rotateby_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_rotateby_v1_out },
 };
 
 const int rsprot_cam_rotateby_out_count =

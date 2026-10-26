@@ -819,10 +819,14 @@ rsprot_branch(RsprotExec *x, const int32_t *value)
 /* ------------------------------------------------------------------ */
 
 RsprotCodecFn
-rsprot_version_pick(const RsprotVersionRange *ranges, int count, int revision)
+rsprot_version_pick(const RsprotVersionRange *ranges, int count, RsprotRev rev)
 {
+    assert(rsprot_rev_family(rev) != RSPROT_FAMILY_NONE);
     for (int i = 0; i < count; i++) {
-        if (revision >= ranges[i].rev_lo && revision <= ranges[i].rev_hi)
+        /* A row written as a bare number would never match a tagged id. */
+        assert(ranges[i].rev_lo >> 24 != RSPROT_FAMILY_NONE);
+        assert(ranges[i].rev_lo >> 24 == ranges[i].rev_hi >> 24);
+        if (rev.id >= ranges[i].rev_lo && rev.id <= ranges[i].rev_hi)
             return ranges[i].fn;
     }
     /* Not an error: "this revision has no such packet" is a real answer, and

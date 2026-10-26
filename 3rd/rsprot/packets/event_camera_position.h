@@ -18,34 +18,34 @@ typedef struct MsgEventCameraPosition {
 	int32_t angle_y;
 } MsgEventCameraPosition;
 
-/* v1 -- revs 221, 225, 232, 237. */
+/* v1 -- revs osrs221, osrs225, osrs232, osrs237. */
 void packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v3 -- revs 223, 230, 234. */
+/* v3 -- revs osrs223, osrs230, osrs234. */
 void packet_event_camera_position_v3_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v4 -- revs 224, 227. */
+/* v4 -- revs osrs224, osrs227. */
 void packet_event_camera_position_v4_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v5 -- revs 226. */
+/* v5 -- revs osrs226. */
 void packet_event_camera_position_v5_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void packet_event_camera_position_v6_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_event_camera_position_v7_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v8 -- revs 231. */
+/* v8 -- revs osrs231. */
 void packet_event_camera_position_v8_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v9 -- revs 233. */
+/* v9 -- revs osrs233. */
 void packet_event_camera_position_v9_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v10 -- revs 235. */
+/* v10 -- revs osrs235. */
 void packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v11 -- revs 236, 239, 241. */
+/* v11 -- revs osrs236, osrs239, osrs241. */
 void packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v12 -- revs 238. */
+/* v12 -- revs osrs238. */
 void packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m);
-/* v13 -- revs 240. */
+/* v13 -- revs osrs240. */
 void packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_camera_position_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_camera_position_<R>_in. */
 #define packet_event_camera_position_osrs221_in packet_event_camera_position_v1_in
 #define packet_event_camera_position_osrs222_in packet_event_camera_position_v2_in
 #define packet_event_camera_position_osrs223_in packet_event_camera_position_v3_in

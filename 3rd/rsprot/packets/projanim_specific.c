@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_projanim_specific_v1_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -27,7 +27,7 @@ packet_projanim_specific_v1_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_projanim_specific_v2_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -44,7 +44,7 @@ packet_projanim_specific_v2_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U3_213(x, m->coord_in_build_area_packed);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void
 packet_projanim_specific_v3_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -61,7 +61,7 @@ packet_projanim_specific_v3_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U3_123(x, m->coord_in_build_area_packed);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_projanim_specific_v4_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -78,7 +78,7 @@ packet_projanim_specific_v4_out(RsprotExec *x, MsgProjAnimSpecific *m)
     RSPROT_U2_12_ADD128(x, m->start_time);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_projanim_specific_v5_out(RsprotExec *x, MsgProjAnimSpecific *m)
 {
@@ -101,11 +101,11 @@ packet_projanim_specific_v5_out(RsprotExec *x, MsgProjAnimSpecific *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_projanim_specific_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_projanim_specific_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_projanim_specific_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_projanim_specific_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_projanim_specific_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_projanim_specific_v5_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_projanim_specific_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_projanim_specific_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_projanim_specific_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_projanim_specific_v4_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_projanim_specific_v5_out },
 };
 
 const int rsprot_projanim_specific_out_count =

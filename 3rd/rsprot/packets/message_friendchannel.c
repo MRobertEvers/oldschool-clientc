@@ -14,7 +14,7 @@ packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel *m)
 }
 
 const RsprotVersionRange rsprot_message_friendchannel_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_message_friendchannel_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_friendchannel_v1_out },
 };
 
 const int rsprot_message_friendchannel_out_count =

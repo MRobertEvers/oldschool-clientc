@@ -17,16 +17,16 @@ typedef struct MsgUpdateInvStopTransmit {
 	int32_t inventory_id;
 } MsgUpdateInvStopTransmit;
 
-/* v1 -- revs 221, 226, 229, 231, 233-234. */
+/* v1 -- revs osrs221, osrs226, osrs229, osrs231, osrs233-234. */
 void packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v2 -- revs 222-223, 225, 228, 238-239, 241. */
+/* v2 -- revs osrs222-223, osrs225, osrs228, osrs238-239, osrs241. */
 void packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v3 -- revs 224, 227, 230, 232, 236. */
+/* v3 -- revs osrs224, osrs227, osrs230, osrs232, osrs236. */
 void packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
-/* v4 -- revs 235, 237, 240. */
+/* v4 -- revs osrs235, osrs237, osrs240. */
 void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_inv_stoptransmit_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_inv_stoptransmit_<R>_out. */
 #define packet_update_inv_stoptransmit_osrs221_out packet_update_inv_stoptransmit_v1_out
 #define packet_update_inv_stoptransmit_osrs222_out packet_update_inv_stoptransmit_v2_out
 #define packet_update_inv_stoptransmit_osrs223_out packet_update_inv_stoptransmit_v2_out

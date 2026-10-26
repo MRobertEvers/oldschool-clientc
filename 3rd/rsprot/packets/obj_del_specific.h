@@ -19,26 +19,26 @@ typedef struct MsgObjDelSpecific {
 	int32_t quantity;
 } MsgObjDelSpecific;
 
-/* v1 -- revs 232. */
+/* v1 -- revs osrs232. */
 void packet_obj_del_specific_v1_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v2 -- revs 233. */
+/* v2 -- revs osrs233. */
 void packet_obj_del_specific_v2_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v3 -- revs 234. */
+/* v3 -- revs osrs234. */
 void packet_obj_del_specific_v3_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v4 -- revs 235. */
+/* v4 -- revs osrs235. */
 void packet_obj_del_specific_v4_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v5 -- revs 236. */
+/* v5 -- revs osrs236. */
 void packet_obj_del_specific_v5_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v6 -- revs 237. */
+/* v6 -- revs osrs237. */
 void packet_obj_del_specific_v6_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v7 -- revs 238. */
+/* v7 -- revs osrs238. */
 void packet_obj_del_specific_v7_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v8 -- revs 239. */
+/* v8 -- revs osrs239. */
 void packet_obj_del_specific_v8_out(RsprotExec *x, MsgObjDelSpecific *m);
-/* v9 -- revs 240-241. */
+/* v9 -- revs osrs240-241. */
 void packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_del_specific_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_del_specific_<R>_out. */
 #define packet_obj_del_specific_osrs232_out packet_obj_del_specific_v1_out
 #define packet_obj_del_specific_osrs233_out packet_obj_del_specific_v2_out
 #define packet_obj_del_specific_osrs234_out packet_obj_del_specific_v3_out

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 241. */
+/* v1 -- revs osrs241. */
 void
 packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m)
 {
@@ -23,7 +23,7 @@ packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_objunlock_reset_out[] = {
-    { 241, 241, (RsprotCodecFn)packet_objunlock_reset_v1_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_objunlock_reset_v1_out },
 };
 
 const int rsprot_objunlock_reset_out_count =

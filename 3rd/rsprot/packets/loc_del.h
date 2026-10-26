@@ -18,38 +18,38 @@ typedef struct MsgLocDel {
 	int32_t loc_properties_packed;
 } MsgLocDel;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_loc_del_v1_out(RsprotExec *x, MsgLocDel *m);
-/* v2 -- revs 222, 229. */
+/* v2 -- revs osrs222, osrs229. */
 void packet_loc_del_v2_out(RsprotExec *x, MsgLocDel *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_loc_del_v3_out(RsprotExec *x, MsgLocDel *m);
-/* v4 -- revs 224, 240. */
+/* v4 -- revs osrs224, osrs240. */
 void packet_loc_del_v4_out(RsprotExec *x, MsgLocDel *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_loc_del_v5_out(RsprotExec *x, MsgLocDel *m);
-/* v6 -- revs 226, 235. */
+/* v6 -- revs osrs226, osrs235. */
 void packet_loc_del_v6_out(RsprotExec *x, MsgLocDel *m);
-/* v7 -- revs 227, 241. */
+/* v7 -- revs osrs227, osrs241. */
 void packet_loc_del_v7_out(RsprotExec *x, MsgLocDel *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_loc_del_v8_out(RsprotExec *x, MsgLocDel *m);
-/* v9 -- revs 230, 233. */
+/* v9 -- revs osrs230, osrs233. */
 void packet_loc_del_v9_out(RsprotExec *x, MsgLocDel *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_loc_del_v10_out(RsprotExec *x, MsgLocDel *m);
-/* v11 -- revs 232, 234. */
+/* v11 -- revs osrs232, osrs234. */
 void packet_loc_del_v11_out(RsprotExec *x, MsgLocDel *m);
-/* v12 -- revs 236. */
+/* v12 -- revs osrs236. */
 void packet_loc_del_v12_out(RsprotExec *x, MsgLocDel *m);
-/* v13 -- revs 237. */
+/* v13 -- revs osrs237. */
 void packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m);
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m);
-/* v15 -- revs 239. */
+/* v15 -- revs osrs239. */
 void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
 
-/* Per-revision entry points: what revision N calls is packet_loc_del_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_loc_del_<R>_out. */
 #define packet_loc_del_osrs221_out packet_loc_del_v1_out
 #define packet_loc_del_osrs222_out packet_loc_del_v2_out
 #define packet_loc_del_osrs223_out packet_loc_del_v3_out

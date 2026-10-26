@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void
 packet_timings_v1_in(RsprotExec *x, MsgTimings *m)
 {
@@ -28,7 +28,7 @@ packet_timings_v1_in(RsprotExec *x, MsgTimings *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_timings_in[] = {
-    { 221, 222, (RsprotCodecFn)packet_timings_v1_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_timings_v1_in },
 };
 
 const int rsprot_timings_in_count =

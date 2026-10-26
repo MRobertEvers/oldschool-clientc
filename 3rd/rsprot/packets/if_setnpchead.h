@@ -18,42 +18,42 @@ typedef struct MsgIfSetNpcHead {
 	int32_t combined_id;
 } MsgIfSetNpcHead;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setnpchead_v1_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v2 -- revs 222-223, 225. */
+/* v2 -- revs osrs222-223, osrs225. */
 void packet_if_setnpchead_v2_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v3 -- revs 224. */
+/* v3 -- revs osrs224. */
 void packet_if_setnpchead_v3_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v4 -- revs 226. */
+/* v4 -- revs osrs226. */
 void packet_if_setnpchead_v4_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v5 -- revs 227. */
+/* v5 -- revs osrs227. */
 void packet_if_setnpchead_v5_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void packet_if_setnpchead_v6_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v7 -- revs 229. */
+/* v7 -- revs osrs229. */
 void packet_if_setnpchead_v7_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v8 -- revs 230. */
+/* v8 -- revs osrs230. */
 void packet_if_setnpchead_v8_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v9 -- revs 231, 236. */
+/* v9 -- revs osrs231, osrs236. */
 void packet_if_setnpchead_v9_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v10 -- revs 232. */
+/* v10 -- revs osrs232. */
 void packet_if_setnpchead_v10_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v11 -- revs 233. */
+/* v11 -- revs osrs233. */
 void packet_if_setnpchead_v11_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void packet_if_setnpchead_v12_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v13 -- revs 235, 237. */
+/* v13 -- revs osrs235, osrs237. */
 void packet_if_setnpchead_v13_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v14 -- revs 238. */
+/* v14 -- revs osrs238. */
 void packet_if_setnpchead_v14_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v15 -- revs 239. */
+/* v15 -- revs osrs239. */
 void packet_if_setnpchead_v15_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v16 -- revs 240. */
+/* v16 -- revs osrs240. */
 void packet_if_setnpchead_v16_out(RsprotExec *x, MsgIfSetNpcHead *m);
-/* v17 -- revs 241. */
+/* v17 -- revs osrs241. */
 void packet_if_setnpchead_v17_out(RsprotExec *x, MsgIfSetNpcHead *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setnpchead_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setnpchead_<R>_out. */
 #define packet_if_setnpchead_osrs221_out packet_if_setnpchead_v1_out
 #define packet_if_setnpchead_osrs222_out packet_if_setnpchead_v2_out
 #define packet_if_setnpchead_osrs223_out packet_if_setnpchead_v2_out

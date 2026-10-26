@@ -19,10 +19,10 @@ typedef struct MsgVarpReset {
 	int32_t _unused;
 } MsgVarpReset;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_varp_reset_v1_out(RsprotExec *x, MsgVarpReset *m);
 
-/* Per-revision entry points: what revision N calls is packet_varp_reset_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varp_reset_<R>_out. */
 #define packet_varp_reset_osrs221_out packet_varp_reset_v1_out
 #define packet_varp_reset_osrs222_out packet_varp_reset_v1_out
 #define packet_varp_reset_osrs223_out packet_varp_reset_v1_out

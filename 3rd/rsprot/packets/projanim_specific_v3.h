@@ -28,20 +28,20 @@ typedef struct MsgProjAnimSpecificV3 {
 	int32_t delta_z;
 } MsgProjAnimSpecificV3;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v2 -- revs 227. */
+/* v2 -- revs osrs227. */
 void packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v3 -- revs 228. */
+/* v3 -- revs osrs228. */
 void packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v4 -- revs 229. */
+/* v4 -- revs osrs229. */
 void packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v5 -- revs 230. */
+/* v5 -- revs osrs230. */
 void packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
-/* v6 -- revs 231. */
+/* v6 -- revs osrs231. */
 void packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m);
 
-/* Per-revision entry points: what revision N calls is packet_projanim_specific_v3_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_projanim_specific_v3_<R>_out. */
 #define packet_projanim_specific_v3_osrs226_out packet_projanim_specific_v3_v1_out
 #define packet_projanim_specific_v3_osrs227_out packet_projanim_specific_v3_v2_out
 #define packet_projanim_specific_v3_osrs228_out packet_projanim_specific_v3_v3_out

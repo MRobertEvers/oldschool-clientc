@@ -20,7 +20,7 @@ packet_update_stockmarket_slot_v1_v1_out(RsprotExec *x, MsgUpdateStockmarketSlot
 }
 
 const RsprotVersionRange rsprot_update_stockmarket_slot_v1_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_update_stockmarket_slot_v1_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_stockmarket_slot_v1_v1_out },
 };
 
 const int rsprot_update_stockmarket_slot_v1_out_count =

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_update_stat_v1_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -20,7 +20,7 @@ packet_update_stat_v1_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U4_4321(x, m->experience);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_update_stat_v2_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -30,7 +30,7 @@ packet_update_stat_v2_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_ADD128(x, m->stat);
 }
 
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void
 packet_update_stat_v3_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -40,7 +40,7 @@ packet_update_stat_v3_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_SUB128(x, m->current_level);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_update_stat_v4_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -50,7 +50,7 @@ packet_update_stat_v4_out(RsprotExec *x, MsgUpdateStat *m)
     RSPROT_U1_ADD128(x, m->stat);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_update_stat_v5_out(RsprotExec *x, MsgUpdateStat *m)
 {
@@ -65,11 +65,11 @@ packet_update_stat_v5_out(RsprotExec *x, MsgUpdateStat *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_stat_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_update_stat_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_update_stat_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_update_stat_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_update_stat_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_update_stat_v5_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_update_stat_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_update_stat_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_update_stat_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_update_stat_v4_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_update_stat_v5_out },
 };
 
 const int rsprot_update_stat_out_count =

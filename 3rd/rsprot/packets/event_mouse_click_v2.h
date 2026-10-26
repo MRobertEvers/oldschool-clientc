@@ -22,28 +22,28 @@ typedef struct MsgEventMouseClickV2 {
 	int32_t right_click;
 } MsgEventMouseClickV2;
 
-/* v1 -- revs 232. */
+/* v1 -- revs osrs232. */
 void packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v2 -- revs 233. */
+/* v2 -- revs osrs233. */
 void packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v3 -- revs 234. */
+/* v3 -- revs osrs234. */
 void packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v4 -- revs 235. */
+/* v4 -- revs osrs235. */
 void packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v5 -- revs 236. */
+/* v5 -- revs osrs236. */
 void packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v6 -- revs 237. */
+/* v6 -- revs osrs237. */
 void packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v7 -- revs 238. */
+/* v7 -- revs osrs238. */
 void packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v8 -- revs 239. */
+/* v8 -- revs osrs239. */
 void packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v9 -- revs 240. */
+/* v9 -- revs osrs240. */
 void packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m);
-/* v10 -- revs 241. */
+/* v10 -- revs osrs241. */
 void packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_mouse_click_v2_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_mouse_click_v2_<R>_in. */
 #define packet_event_mouse_click_v2_osrs232_in packet_event_mouse_click_v2_v1_in
 #define packet_event_mouse_click_v2_osrs233_in packet_event_mouse_click_v2_v2_in
 #define packet_event_mouse_click_v2_osrs234_in packet_event_mouse_click_v2_v3_in

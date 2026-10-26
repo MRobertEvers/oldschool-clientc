@@ -17,10 +17,10 @@ typedef struct MsgResetInteractionMode {
 	int32_t world_id;
 } MsgResetInteractionMode;
 
-/* v1 -- revs 226-241. */
+/* v1 -- revs osrs226-241. */
 void packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m);
 
-/* Per-revision entry points: what revision N calls is packet_reset_interaction_mode_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_reset_interaction_mode_<R>_out. */
 #define packet_reset_interaction_mode_osrs226_out packet_reset_interaction_mode_v1_out
 #define packet_reset_interaction_mode_osrs227_out packet_reset_interaction_mode_v1_out
 #define packet_reset_interaction_mode_osrs228_out packet_reset_interaction_mode_v1_out

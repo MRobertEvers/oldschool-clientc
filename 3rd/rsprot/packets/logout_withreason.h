@@ -17,10 +17,10 @@ typedef struct MsgLogoutWithReason {
 	int32_t reason;
 } MsgLogoutWithReason;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_logout_withreason_v1_out(RsprotExec *x, MsgLogoutWithReason *m);
 
-/* Per-revision entry points: what revision N calls is packet_logout_withreason_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_logout_withreason_<R>_out. */
 #define packet_logout_withreason_osrs221_out packet_logout_withreason_v1_out
 #define packet_logout_withreason_osrs222_out packet_logout_withreason_v1_out
 #define packet_logout_withreason_osrs223_out packet_logout_withreason_v1_out

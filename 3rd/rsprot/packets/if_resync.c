@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 223-230. */
+/* v1 -- revs osrs223-230. */
 void
 packet_if_resync_v1_out(RsprotExec *x, MsgIfResync *m)
 {
@@ -36,7 +36,7 @@ packet_if_resync_v1_out(RsprotExec *x, MsgIfResync *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_resync_out[] = {
-    { 223, 230, (RsprotCodecFn)packet_if_resync_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_if_resync_v1_out },
 };
 
 const int rsprot_if_resync_out_count =

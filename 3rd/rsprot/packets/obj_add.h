@@ -24,50 +24,50 @@ typedef struct MsgObjAdd {
 	int32_t coord_in_zone_packed;
 } MsgObjAdd;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_obj_add_v1_out(RsprotExec *x, MsgObjAdd *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_obj_add_v2_out(RsprotExec *x, MsgObjAdd *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_obj_add_v3_out(RsprotExec *x, MsgObjAdd *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_obj_add_v4_out(RsprotExec *x, MsgObjAdd *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_obj_add_v5_out(RsprotExec *x, MsgObjAdd *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_obj_add_v6_out(RsprotExec *x, MsgObjAdd *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_obj_add_v7_out(RsprotExec *x, MsgObjAdd *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_obj_add_v8_out(RsprotExec *x, MsgObjAdd *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_obj_add_v9_out(RsprotExec *x, MsgObjAdd *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_obj_add_v10_out(RsprotExec *x, MsgObjAdd *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_obj_add_v11_out(RsprotExec *x, MsgObjAdd *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_obj_add_v12_out(RsprotExec *x, MsgObjAdd *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_obj_add_v13_out(RsprotExec *x, MsgObjAdd *m);
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void packet_obj_add_v14_out(RsprotExec *x, MsgObjAdd *m);
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void packet_obj_add_v15_out(RsprotExec *x, MsgObjAdd *m);
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void packet_obj_add_v16_out(RsprotExec *x, MsgObjAdd *m);
-/* v17 -- revs 237. */
+/* v17 -- revs osrs237. */
 void packet_obj_add_v17_out(RsprotExec *x, MsgObjAdd *m);
-/* v18 -- revs 238. */
+/* v18 -- revs osrs238. */
 void packet_obj_add_v18_out(RsprotExec *x, MsgObjAdd *m);
-/* v19 -- revs 239. */
+/* v19 -- revs osrs239. */
 void packet_obj_add_v19_out(RsprotExec *x, MsgObjAdd *m);
-/* v20 -- revs 240. */
+/* v20 -- revs osrs240. */
 void packet_obj_add_v20_out(RsprotExec *x, MsgObjAdd *m);
-/* v21 -- revs 241. */
+/* v21 -- revs osrs241. */
 void packet_obj_add_v21_out(RsprotExec *x, MsgObjAdd *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_add_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_add_<R>_out. */
 #define packet_obj_add_osrs221_out packet_obj_add_v1_out
 #define packet_obj_add_osrs222_out packet_obj_add_v2_out
 #define packet_obj_add_osrs223_out packet_obj_add_v3_out

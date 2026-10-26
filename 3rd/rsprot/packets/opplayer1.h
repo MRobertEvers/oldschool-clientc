@@ -18,38 +18,38 @@ typedef struct MsgOpPlayer1 {
 	int32_t control_key;
 } MsgOpPlayer1;
 
-/* v1 -- revs 221, 225, 232, 236. */
+/* v1 -- revs osrs221, osrs225, osrs232, osrs236. */
 void packet_opplayer1_v1_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_opplayer1_v2_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v3 -- revs 223, 229. */
+/* v3 -- revs osrs223, osrs229. */
 void packet_opplayer1_v3_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_opplayer1_v4_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v5 -- revs 226. */
+/* v5 -- revs osrs226. */
 void packet_opplayer1_v5_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v6 -- revs 227. */
+/* v6 -- revs osrs227. */
 void packet_opplayer1_v6_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v7 -- revs 228, 237. */
+/* v7 -- revs osrs228, osrs237. */
 void packet_opplayer1_v7_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v8 -- revs 230, 241. */
+/* v8 -- revs osrs230, osrs241. */
 void packet_opplayer1_v8_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v9 -- revs 231. */
+/* v9 -- revs osrs231. */
 void packet_opplayer1_v9_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v10 -- revs 233. */
+/* v10 -- revs osrs233. */
 void packet_opplayer1_v10_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v11 -- revs 234. */
+/* v11 -- revs osrs234. */
 void packet_opplayer1_v11_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v12 -- revs 235. */
+/* v12 -- revs osrs235. */
 void packet_opplayer1_v12_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_opplayer1_v13_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v14 -- revs 239. */
+/* v14 -- revs osrs239. */
 void packet_opplayer1_v14_in(RsprotExec *x, MsgOpPlayer1 *m);
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void packet_opplayer1_v15_in(RsprotExec *x, MsgOpPlayer1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_opplayer1_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opplayer1_<R>_in. */
 #define packet_opplayer1_osrs221_in packet_opplayer1_v1_in
 #define packet_opplayer1_osrs222_in packet_opplayer1_v2_in
 #define packet_opplayer1_osrs223_in packet_opplayer1_v3_in

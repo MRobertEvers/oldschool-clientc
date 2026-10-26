@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_if_initialstate_v1_out(RsprotExec *x, MsgIfInitialState *m)
 {
@@ -31,7 +31,7 @@ packet_if_initialstate_v1_out(RsprotExec *x, MsgIfInitialState *m)
     }
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_if_initialstate_v2_out(RsprotExec *x, MsgIfInitialState *m)
 {
@@ -57,8 +57,8 @@ packet_if_initialstate_v2_out(RsprotExec *x, MsgIfInitialState *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_initialstate_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_if_initialstate_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_if_initialstate_v2_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_initialstate_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_if_initialstate_v2_out },
 };
 
 const int rsprot_if_initialstate_out_count =

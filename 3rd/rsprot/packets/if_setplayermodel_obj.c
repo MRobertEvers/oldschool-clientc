@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void
 packet_if_setplayermodel_obj_v1_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -18,7 +18,7 @@ packet_if_setplayermodel_obj_v1_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_2143(x, m->obj);
 }
 
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void
 packet_if_setplayermodel_obj_v2_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -26,7 +26,7 @@ packet_if_setplayermodel_obj_v2_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_2143(x, m->combined_id);
 }
 
-/* v3 -- revs 223, 231. */
+/* v3 -- revs osrs223, osrs231. */
 void
 packet_if_setplayermodel_obj_v3_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -34,7 +34,7 @@ packet_if_setplayermodel_obj_v3_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_2143(x, m->obj);
 }
 
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void
 packet_if_setplayermodel_obj_v4_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -42,7 +42,7 @@ packet_if_setplayermodel_obj_v4_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_4321(x, m->obj);
 }
 
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void
 packet_if_setplayermodel_obj_v5_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -50,7 +50,7 @@ packet_if_setplayermodel_obj_v5_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_3412(x, m->combined_id);
 }
 
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void
 packet_if_setplayermodel_obj_v6_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -58,7 +58,7 @@ packet_if_setplayermodel_obj_v6_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_1234(x, m->obj);
 }
 
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void
 packet_if_setplayermodel_obj_v7_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -66,7 +66,7 @@ packet_if_setplayermodel_obj_v7_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void
 packet_if_setplayermodel_obj_v8_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -74,7 +74,7 @@ packet_if_setplayermodel_obj_v8_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void
 packet_if_setplayermodel_obj_v9_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -82,7 +82,7 @@ packet_if_setplayermodel_obj_v9_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_3412(x, m->combined_id);
 }
 
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void
 packet_if_setplayermodel_obj_v10_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -90,7 +90,7 @@ packet_if_setplayermodel_obj_v10_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_3412(x, m->obj);
 }
 
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void
 packet_if_setplayermodel_obj_v11_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -98,7 +98,7 @@ packet_if_setplayermodel_obj_v11_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v12 -- revs 233, 241. */
+/* v12 -- revs osrs233, osrs241. */
 void
 packet_if_setplayermodel_obj_v12_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -106,7 +106,7 @@ packet_if_setplayermodel_obj_v12_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_1234(x, m->obj);
 }
 
-/* v13 -- revs 234, 238. */
+/* v13 -- revs osrs234, osrs238. */
 void
 packet_if_setplayermodel_obj_v13_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -114,7 +114,7 @@ packet_if_setplayermodel_obj_v13_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_1234(x, m->obj);
 }
 
-/* v14 -- revs 235. */
+/* v14 -- revs osrs235. */
 void
 packet_if_setplayermodel_obj_v14_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -122,7 +122,7 @@ packet_if_setplayermodel_obj_v14_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_3412(x, m->combined_id);
 }
 
-/* v15 -- revs 236. */
+/* v15 -- revs osrs236. */
 void
 packet_if_setplayermodel_obj_v15_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -130,7 +130,7 @@ packet_if_setplayermodel_obj_v15_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_4321(x, m->obj);
 }
 
-/* v16 -- revs 237. */
+/* v16 -- revs osrs237. */
 void
 packet_if_setplayermodel_obj_v16_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -138,7 +138,7 @@ packet_if_setplayermodel_obj_v16_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_4321(x, m->combined_id);
 }
 
-/* v17 -- revs 239. */
+/* v17 -- revs osrs239. */
 void
 packet_if_setplayermodel_obj_v17_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -146,7 +146,7 @@ packet_if_setplayermodel_obj_v17_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_U4_2143(x, m->obj);
 }
 
-/* v18 -- revs 240. */
+/* v18 -- revs osrs240. */
 void
 packet_if_setplayermodel_obj_v18_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
@@ -159,27 +159,27 @@ packet_if_setplayermodel_obj_v18_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayermodel_obj_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_if_setplayermodel_obj_v1_out },
-    { 222, 222, (RsprotCodecFn)packet_if_setplayermodel_obj_v2_out },
-    { 223, 223, (RsprotCodecFn)packet_if_setplayermodel_obj_v3_out },
-    { 224, 224, (RsprotCodecFn)packet_if_setplayermodel_obj_v4_out },
-    { 225, 225, (RsprotCodecFn)packet_if_setplayermodel_obj_v5_out },
-    { 226, 226, (RsprotCodecFn)packet_if_setplayermodel_obj_v6_out },
-    { 227, 227, (RsprotCodecFn)packet_if_setplayermodel_obj_v7_out },
-    { 228, 228, (RsprotCodecFn)packet_if_setplayermodel_obj_v8_out },
-    { 229, 229, (RsprotCodecFn)packet_if_setplayermodel_obj_v9_out },
-    { 230, 230, (RsprotCodecFn)packet_if_setplayermodel_obj_v10_out },
-    { 231, 231, (RsprotCodecFn)packet_if_setplayermodel_obj_v3_out },
-    { 232, 232, (RsprotCodecFn)packet_if_setplayermodel_obj_v11_out },
-    { 233, 233, (RsprotCodecFn)packet_if_setplayermodel_obj_v12_out },
-    { 234, 234, (RsprotCodecFn)packet_if_setplayermodel_obj_v13_out },
-    { 235, 235, (RsprotCodecFn)packet_if_setplayermodel_obj_v14_out },
-    { 236, 236, (RsprotCodecFn)packet_if_setplayermodel_obj_v15_out },
-    { 237, 237, (RsprotCodecFn)packet_if_setplayermodel_obj_v16_out },
-    { 238, 238, (RsprotCodecFn)packet_if_setplayermodel_obj_v13_out },
-    { 239, 239, (RsprotCodecFn)packet_if_setplayermodel_obj_v17_out },
-    { 240, 240, (RsprotCodecFn)packet_if_setplayermodel_obj_v18_out },
-    { 241, 241, (RsprotCodecFn)packet_if_setplayermodel_obj_v12_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_setplayermodel_obj_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_if_setplayermodel_obj_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_if_setplayermodel_obj_v3_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_if_setplayermodel_obj_v4_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_if_setplayermodel_obj_v5_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_if_setplayermodel_obj_v6_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_if_setplayermodel_obj_v7_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_if_setplayermodel_obj_v8_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_if_setplayermodel_obj_v9_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_if_setplayermodel_obj_v10_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_if_setplayermodel_obj_v3_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_if_setplayermodel_obj_v11_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_if_setplayermodel_obj_v12_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_if_setplayermodel_obj_v13_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_if_setplayermodel_obj_v14_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_if_setplayermodel_obj_v15_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_if_setplayermodel_obj_v16_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_if_setplayermodel_obj_v13_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayermodel_obj_v17_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayermodel_obj_v18_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayermodel_obj_v12_out },
 };
 
 const int rsprot_if_setplayermodel_obj_out_count =

@@ -195,7 +195,7 @@ sweep_side(int rev, const RsprotProtDef *defs, int count, RsprotRegistryDir dir,
 {
     for (int i = 0; i < count; i++) {
         const RsprotProtDef *d = &defs[i];
-        RsprotCodecFn fn = rsprot_registry_resolve(d->name, dir, rev);
+        RsprotCodecFn fn = rsprot_registry_resolve(d->name, dir, rsprot_osrs(rev));
 
         if (!fn) {
             if (dir == RSPROT_REG_OUT && !no_codec_reason(d->name)) {
@@ -216,7 +216,7 @@ main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
     for (int rev = REV_LO; rev <= REV_HI; rev++) {
-        const RsprotRevTable *t = rsprot_rev_table(rev);
+        const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(rev));
         int un_server = 0, un_client = 0;
 
         if (!t) {
@@ -229,7 +229,7 @@ main(void)
         /* Every zone sub-prot must resolve to a table row and a codec: the
          * enclosed packet indexes them by ordinal and has no other way out. */
         for (int z = 0; z < t->zone_count; z++) {
-            if (!rsprot_registry_resolve(t->zone_order[z], RSPROT_REG_OUT, rev)) {
+            if (!rsprot_registry_resolve(t->zone_order[z], RSPROT_REG_OUT, rsprot_osrs(rev))) {
                 printf("FAIL zone  rev %d ordinal %d %s has no codec\n", rev, z, t->zone_order[z]);
                 g_failures++;
             }

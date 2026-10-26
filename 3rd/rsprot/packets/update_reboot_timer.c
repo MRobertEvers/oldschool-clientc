@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221, 228, 234. */
+/* v1 -- revs osrs221, osrs228, osrs234. */
 void
 packet_update_reboot_timer_v1_out(RsprotExec *x, MsgUpdateRebootTimer *m)
 {
     RSPROT_U2_21(x, m->game_cycles);
 }
 
-/* v2 -- revs 222-223, 226, 229, 231-232, 235. */
+/* v2 -- revs osrs222-223, osrs226, osrs229, osrs231-232, osrs235. */
 void
 packet_update_reboot_timer_v2_out(RsprotExec *x, MsgUpdateRebootTimer *m)
 {
     RSPROT_U2_21_ADD128(x, m->game_cycles);
 }
 
-/* v3 -- revs 224, 227, 233. */
+/* v3 -- revs osrs224, osrs227, osrs233. */
 void
 packet_update_reboot_timer_v3_out(RsprotExec *x, MsgUpdateRebootTimer *m)
 {
     RSPROT_U2_12(x, m->game_cycles);
 }
 
-/* v4 -- revs 225, 230. */
+/* v4 -- revs osrs225, osrs230. */
 void
 packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m)
 {
@@ -43,19 +43,19 @@ packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_out[] = {
-    { 221, 221, (RsprotCodecFn)packet_update_reboot_timer_v1_out },
-    { 222, 223, (RsprotCodecFn)packet_update_reboot_timer_v2_out },
-    { 224, 224, (RsprotCodecFn)packet_update_reboot_timer_v3_out },
-    { 225, 225, (RsprotCodecFn)packet_update_reboot_timer_v4_out },
-    { 226, 226, (RsprotCodecFn)packet_update_reboot_timer_v2_out },
-    { 227, 227, (RsprotCodecFn)packet_update_reboot_timer_v3_out },
-    { 228, 228, (RsprotCodecFn)packet_update_reboot_timer_v1_out },
-    { 229, 229, (RsprotCodecFn)packet_update_reboot_timer_v2_out },
-    { 230, 230, (RsprotCodecFn)packet_update_reboot_timer_v4_out },
-    { 231, 232, (RsprotCodecFn)packet_update_reboot_timer_v2_out },
-    { 233, 233, (RsprotCodecFn)packet_update_reboot_timer_v3_out },
-    { 234, 234, (RsprotCodecFn)packet_update_reboot_timer_v1_out },
-    { 235, 235, (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_update_reboot_timer_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_update_reboot_timer_v3_out },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_update_reboot_timer_v4_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_update_reboot_timer_v3_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_update_reboot_timer_v1_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_update_reboot_timer_v4_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_update_reboot_timer_v3_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_update_reboot_timer_v1_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
 };
 
 const int rsprot_update_reboot_timer_out_count =

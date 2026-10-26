@@ -18,46 +18,46 @@ typedef struct MsgOpPlayer6 {
 	int32_t control_key;
 } MsgOpPlayer6;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_opplayer6_v1_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_opplayer6_v2_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_opplayer6_v3_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_opplayer6_v4_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v5 -- revs 225, 234. */
+/* v5 -- revs osrs225, osrs234. */
 void packet_opplayer6_v5_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v6 -- revs 226, 230. */
+/* v6 -- revs osrs226, osrs230. */
 void packet_opplayer6_v6_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_opplayer6_v7_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_opplayer6_v8_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_opplayer6_v9_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_opplayer6_v10_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void packet_opplayer6_v11_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_opplayer6_v12_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_opplayer6_v13_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v14 -- revs 236. */
+/* v14 -- revs osrs236. */
 void packet_opplayer6_v14_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v15 -- revs 237. */
+/* v15 -- revs osrs237. */
 void packet_opplayer6_v15_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v16 -- revs 238. */
+/* v16 -- revs osrs238. */
 void packet_opplayer6_v16_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v17 -- revs 239. */
+/* v17 -- revs osrs239. */
 void packet_opplayer6_v17_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v18 -- revs 240. */
+/* v18 -- revs osrs240. */
 void packet_opplayer6_v18_in(RsprotExec *x, MsgOpPlayer6 *m);
-/* v19 -- revs 241. */
+/* v19 -- revs osrs241. */
 void packet_opplayer6_v19_in(RsprotExec *x, MsgOpPlayer6 *m);
 
-/* Per-revision entry points: what revision N calls is packet_opplayer6_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opplayer6_<R>_in. */
 #define packet_opplayer6_osrs221_in packet_opplayer6_v1_in
 #define packet_opplayer6_osrs222_in packet_opplayer6_v2_in
 #define packet_opplayer6_osrs223_in packet_opplayer6_v3_in

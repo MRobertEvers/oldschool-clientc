@@ -17,10 +17,10 @@ typedef struct MsgEventMouseScroll {
 	int32_t rotation;
 } MsgEventMouseScroll;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_event_mouse_scroll_v1_in(RsprotExec *x, MsgEventMouseScroll *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_mouse_scroll_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_mouse_scroll_<R>_in. */
 #define packet_event_mouse_scroll_osrs221_in packet_event_mouse_scroll_v1_in
 #define packet_event_mouse_scroll_osrs222_in packet_event_mouse_scroll_v1_in
 #define packet_event_mouse_scroll_osrs223_in packet_event_mouse_scroll_v1_in

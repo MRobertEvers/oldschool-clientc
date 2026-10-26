@@ -17,16 +17,16 @@ typedef struct MsgMidiSongOld {
 	int32_t id;
 } MsgMidiSongOld;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_midi_song_old_v1_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v2 -- revs 223. */
+/* v2 -- revs osrs223. */
 void packet_midi_song_old_v2_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v3 -- revs 224. */
+/* v3 -- revs osrs224. */
 void packet_midi_song_old_v3_out(RsprotExec *x, MsgMidiSongOld *m);
-/* v4 -- revs 225. */
+/* v4 -- revs osrs225. */
 void packet_midi_song_old_v4_out(RsprotExec *x, MsgMidiSongOld *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_song_old_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_song_old_<R>_out. */
 #define packet_midi_song_old_osrs221_out packet_midi_song_old_v1_out
 #define packet_midi_song_old_osrs222_out packet_midi_song_old_v1_out
 #define packet_midi_song_old_osrs223_out packet_midi_song_old_v2_out

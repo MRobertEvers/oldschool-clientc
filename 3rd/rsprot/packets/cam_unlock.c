@@ -10,21 +10,21 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 238, 240. */
+/* v1 -- revs osrs238, osrs240. */
 void
 packet_cam_unlock_v1_out(RsprotExec *x, MsgCamUnlock *m)
 {
     RSPROT_U1_ADD128(x, m->unlock);
 }
 
-/* v2 -- revs 239. */
+/* v2 -- revs osrs239. */
 void
 packet_cam_unlock_v2_out(RsprotExec *x, MsgCamUnlock *m)
 {
     RSPROT_BOOL(x, m->unlock);
 }
 
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void
 packet_cam_unlock_v3_out(RsprotExec *x, MsgCamUnlock *m)
 {
@@ -36,10 +36,10 @@ packet_cam_unlock_v3_out(RsprotExec *x, MsgCamUnlock *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_unlock_out[] = {
-    { 238, 238, (RsprotCodecFn)packet_cam_unlock_v1_out },
-    { 239, 239, (RsprotCodecFn)packet_cam_unlock_v2_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_unlock_v1_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_unlock_v3_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_cam_unlock_v1_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_cam_unlock_v2_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_unlock_v1_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_unlock_v3_out },
 };
 
 const int rsprot_cam_unlock_out_count =

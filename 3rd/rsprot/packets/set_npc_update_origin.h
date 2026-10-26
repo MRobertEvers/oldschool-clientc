@@ -18,10 +18,10 @@ typedef struct MsgSetNpcUpdateOrigin {
 	int32_t origin_z;
 } MsgSetNpcUpdateOrigin;
 
-/* v1 -- revs 222-241. */
+/* v1 -- revs osrs222-241. */
 void packet_set_npc_update_origin_v1_out(RsprotExec *x, MsgSetNpcUpdateOrigin *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_npc_update_origin_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_npc_update_origin_<R>_out. */
 #define packet_set_npc_update_origin_osrs222_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_osrs223_out packet_set_npc_update_origin_v1_out
 #define packet_set_npc_update_origin_osrs224_out packet_set_npc_update_origin_v1_out

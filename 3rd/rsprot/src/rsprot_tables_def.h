@@ -1,6 +1,8 @@
 #ifndef RSPROT_TABLES_DEF_H
 #define RSPROT_TABLES_DEF_H
 
+#include "../include/rsprot_rev.h"
+
 #include <string.h>
 
 /*
@@ -32,7 +34,7 @@ rsprot_prot_version(const RsprotProtDef *def)
 }
 
 typedef struct RsprotRevTable {
-	int revision;
+	RsprotRev rev;
 	const RsprotProtDef *server;
 	int server_count;
 	const RsprotProtDef *client;

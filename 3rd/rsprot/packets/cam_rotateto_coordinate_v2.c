@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 236. */
+/* v1 -- revs osrs236. */
 void
 packet_cam_rotateto_coordinate_v2_v1_out(RsprotExec *x, MsgCamRotateToCoordinateV2 *m)
 {
@@ -21,7 +21,7 @@ packet_cam_rotateto_coordinate_v2_v1_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U2_12(x, m->cycles);
 }
 
-/* v2 -- revs 237. */
+/* v2 -- revs osrs237. */
 void
 packet_cam_rotateto_coordinate_v2_v2_out(RsprotExec *x, MsgCamRotateToCoordinateV2 *m)
 {
@@ -32,7 +32,7 @@ packet_cam_rotateto_coordinate_v2_v2_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U2_12(x, m->cycles);
 }
 
-/* v3 -- revs 238. */
+/* v3 -- revs osrs238. */
 void
 packet_cam_rotateto_coordinate_v2_v3_out(RsprotExec *x, MsgCamRotateToCoordinateV2 *m)
 {
@@ -43,7 +43,7 @@ packet_cam_rotateto_coordinate_v2_v3_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U2_12_ADD128(x, m->cycles);
 }
 
-/* v4 -- revs 239. */
+/* v4 -- revs osrs239. */
 void
 packet_cam_rotateto_coordinate_v2_v4_out(RsprotExec *x, MsgCamRotateToCoordinateV2 *m)
 {
@@ -54,7 +54,7 @@ packet_cam_rotateto_coordinate_v2_v4_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U2_21_ADD128(x, m->x);
 }
 
-/* v5 -- revs 240. */
+/* v5 -- revs osrs240. */
 void
 packet_cam_rotateto_coordinate_v2_v5_out(RsprotExec *x, MsgCamRotateToCoordinateV2 *m)
 {
@@ -70,11 +70,11 @@ packet_cam_rotateto_coordinate_v2_v5_out(RsprotExec *x, MsgCamRotateToCoordinate
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v2_out[] = {
-    { 236, 236, (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v1_out },
-    { 237, 237, (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v2_out },
-    { 238, 238, (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v3_out },
-    { 239, 239, (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v4_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v5_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v1_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v2_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v3_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v4_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_rotateto_coordinate_v2_v5_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v2_out_count =

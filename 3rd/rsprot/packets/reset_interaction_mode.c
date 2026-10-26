@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 226-241. */
+/* v1 -- revs osrs226-241. */
 void
 packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m)
 {
@@ -22,7 +22,7 @@ packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_reset_interaction_mode_out[] = {
-    { 226, 241, (RsprotCodecFn)packet_reset_interaction_mode_v1_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_reset_interaction_mode_v1_out },
 };
 
 const int rsprot_reset_interaction_mode_out_count =

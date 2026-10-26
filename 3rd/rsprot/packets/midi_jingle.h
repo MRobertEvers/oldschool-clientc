@@ -18,42 +18,42 @@ typedef struct MsgMidiJingle {
 	int32_t id;
 } MsgMidiJingle;
 
-/* v1 -- revs 221, 229, 237. */
+/* v1 -- revs osrs221, osrs229, osrs237. */
 void packet_midi_jingle_v1_out(RsprotExec *x, MsgMidiJingle *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_midi_jingle_v2_out(RsprotExec *x, MsgMidiJingle *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_midi_jingle_v3_out(RsprotExec *x, MsgMidiJingle *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_midi_jingle_v4_out(RsprotExec *x, MsgMidiJingle *m);
-/* v5 -- revs 225, 240. */
+/* v5 -- revs osrs225, osrs240. */
 void packet_midi_jingle_v5_out(RsprotExec *x, MsgMidiJingle *m);
-/* v6 -- revs 226, 233. */
+/* v6 -- revs osrs226, osrs233. */
 void packet_midi_jingle_v6_out(RsprotExec *x, MsgMidiJingle *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_midi_jingle_v7_out(RsprotExec *x, MsgMidiJingle *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_midi_jingle_v8_out(RsprotExec *x, MsgMidiJingle *m);
-/* v9 -- revs 230. */
+/* v9 -- revs osrs230. */
 void packet_midi_jingle_v9_out(RsprotExec *x, MsgMidiJingle *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_midi_jingle_v10_out(RsprotExec *x, MsgMidiJingle *m);
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void packet_midi_jingle_v11_out(RsprotExec *x, MsgMidiJingle *m);
-/* v12 -- revs 234. */
+/* v12 -- revs osrs234. */
 void packet_midi_jingle_v12_out(RsprotExec *x, MsgMidiJingle *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_midi_jingle_v13_out(RsprotExec *x, MsgMidiJingle *m);
-/* v14 -- revs 236. */
+/* v14 -- revs osrs236. */
 void packet_midi_jingle_v14_out(RsprotExec *x, MsgMidiJingle *m);
-/* v15 -- revs 238. */
+/* v15 -- revs osrs238. */
 void packet_midi_jingle_v15_out(RsprotExec *x, MsgMidiJingle *m);
-/* v16 -- revs 239. */
+/* v16 -- revs osrs239. */
 void packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m);
-/* v17 -- revs 241. */
+/* v17 -- revs osrs241. */
 void packet_midi_jingle_v17_out(RsprotExec *x, MsgMidiJingle *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_jingle_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_jingle_<R>_out. */
 #define packet_midi_jingle_osrs221_out packet_midi_jingle_v1_out
 #define packet_midi_jingle_osrs222_out packet_midi_jingle_v2_out
 #define packet_midi_jingle_osrs223_out packet_midi_jingle_v3_out

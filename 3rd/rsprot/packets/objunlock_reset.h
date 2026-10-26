@@ -17,10 +17,10 @@ typedef struct MsgObjunlockReset {
 	int32_t unused; /* zero-payload packet */
 } MsgObjunlockReset;
 
-/* v1 -- revs 241. */
+/* v1 -- revs osrs241. */
 void packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m);
 
-/* Per-revision entry points: what revision N calls is packet_objunlock_reset_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_objunlock_reset_<R>_out. */
 #define packet_objunlock_reset_osrs241_out packet_objunlock_reset_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

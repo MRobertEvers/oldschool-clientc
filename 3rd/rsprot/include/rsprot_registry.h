@@ -8,7 +8,7 @@
  * revision; this says which codec reads that prot there. Together they make a
  * revision's inbound path data: a client that knows the revision number frames
  * an opcode with the table and decodes it with
- * `rsprot_registry_codec(prot, RSPROT_REG_OUT, revision)`, and a NULL means the
+ * `rsprot_registry_codec(prot, RSPROT_REG_OUT, rev)`, and a NULL means the
  * one thing rsprot_version_pick's NULL means -- no layout for that prot at that
  * revision.
  *
@@ -42,8 +42,8 @@ extern const int rsprot_registry_count;
 /** The entry for `prot` in `dir`, or NULL when no packet file carries it. */
 const RsprotRegistryEntry *rsprot_registry_find(const char *prot, RsprotRegistryDir dir);
 
-/** The codec for `prot` at `revision`, or NULL: no file, or no layout there. */
-RsprotCodecFn rsprot_registry_codec(const char *prot, RsprotRegistryDir dir, int revision);
+/** The codec for `prot` at `rev`, or NULL: no file, or no layout there. */
+RsprotCodecFn rsprot_registry_codec(const char *prot, RsprotRegistryDir dir, RsprotRev rev);
 
 /**
  * rsprot_registry_codec, accepting either spelling of a prot RSProx renamed.
@@ -55,10 +55,10 @@ RsprotCodecFn rsprot_registry_codec(const char *prot, RsprotRegistryDir dir, int
  * disagreed. So this tries `prot`, then `prot` without a trailing `_V1`, then
  * `prot` with one.
  */
-RsprotCodecFn rsprot_registry_resolve(const char *prot, RsprotRegistryDir dir, int revision);
+RsprotCodecFn rsprot_registry_resolve(const char *prot, RsprotRegistryDir dir, RsprotRev rev);
 
 /**
- * The codec for a prot table row at `revision`: the version the row calls --
+ * The codec for a prot table row at `rev`: the version the row calls --
  * its `codec` exactly when it has one (gen/osrs223-225: RSProt's X / X_OLD,
  * filed as X_V2 / X_V1) -- else rsprot_registry_resolve on its `name`.
  * `prot_out`, when not NULL, gets the registry name that answered -- the packet
@@ -66,6 +66,6 @@ RsprotCodecFn rsprot_registry_resolve(const char *prot, RsprotRegistryDir dir, i
  */
 struct RsprotProtDef;
 RsprotCodecFn rsprot_registry_resolve_def(const struct RsprotProtDef *def, RsprotRegistryDir dir,
-                                          int revision, const char **prot_out);
+                                          RsprotRev rev, const char **prot_out);
 
 #endif

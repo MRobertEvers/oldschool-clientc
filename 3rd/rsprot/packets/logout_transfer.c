@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void
 packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m)
 {
@@ -24,7 +24,7 @@ packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_logout_transfer_out[] = {
-    { 221, 241, (RsprotCodecFn)packet_logout_transfer_v1_out },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_logout_transfer_v1_out },
 };
 
 const int rsprot_logout_transfer_out_count =

@@ -19,10 +19,10 @@ typedef struct MsgUpdateStatV1 {
 	int32_t stat;
 } MsgUpdateStatV1;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_update_stat_v1_v1_out(RsprotExec *x, MsgUpdateStatV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_stat_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_stat_v1_<R>_out. */
 #define packet_update_stat_v1_osrs226_out packet_update_stat_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

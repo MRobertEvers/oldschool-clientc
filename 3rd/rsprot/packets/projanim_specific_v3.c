@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void
 packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -28,7 +28,7 @@ packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ADD128(x, m->delta_z);
 }
 
-/* v2 -- revs 227. */
+/* v2 -- revs osrs227. */
 void
 packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -46,7 +46,7 @@ packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ADD128(x, m->start_height);
 }
 
-/* v3 -- revs 228. */
+/* v3 -- revs osrs228. */
 void
 packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -64,7 +64,7 @@ packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U3_132(x, m->source_index);
 }
 
-/* v4 -- revs 229. */
+/* v4 -- revs osrs229. */
 void
 packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -82,7 +82,7 @@ packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1(x, m->angle);
 }
 
-/* v5 -- revs 230. */
+/* v5 -- revs osrs230. */
 void
 packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -100,7 +100,7 @@ packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
     RSPROT_U1_ADD128(x, m->delta_x);
 }
 
-/* v6 -- revs 231. */
+/* v6 -- revs osrs231. */
 void
 packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
@@ -123,12 +123,12 @@ packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_projanim_specific_v3_out[] = {
-    { 226, 226, (RsprotCodecFn)packet_projanim_specific_v3_v1_out },
-    { 227, 227, (RsprotCodecFn)packet_projanim_specific_v3_v2_out },
-    { 228, 228, (RsprotCodecFn)packet_projanim_specific_v3_v3_out },
-    { 229, 229, (RsprotCodecFn)packet_projanim_specific_v3_v4_out },
-    { 230, 230, (RsprotCodecFn)packet_projanim_specific_v3_v5_out },
-    { 231, 231, (RsprotCodecFn)packet_projanim_specific_v3_v6_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_projanim_specific_v3_v1_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_projanim_specific_v3_v2_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_projanim_specific_v3_v3_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_projanim_specific_v3_v4_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_projanim_specific_v3_v5_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_projanim_specific_v3_v6_out },
 };
 
 const int rsprot_projanim_specific_v3_out_count =

@@ -17,10 +17,10 @@ typedef struct MsgSetMapFlagV2 {
 	int32_t coord_grid_packed;
 } MsgSetMapFlagV2;
 
-/* v1 -- revs 236-241. */
+/* v1 -- revs osrs236-241. */
 void packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_set_map_flag_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_set_map_flag_v2_<R>_out. */
 #define packet_set_map_flag_v2_osrs236_out packet_set_map_flag_v2_v1_out
 #define packet_set_map_flag_v2_osrs237_out packet_set_map_flag_v2_v1_out
 #define packet_set_map_flag_v2_osrs238_out packet_set_map_flag_v2_v1_out

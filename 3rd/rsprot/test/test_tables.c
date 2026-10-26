@@ -35,7 +35,7 @@ static void test_all_revisions_present(void)
 {
 	int rev;
 	for (rev = 221; rev <= 239; rev++) {
-		const RsprotRevTable *t = rsprot_rev_table(rev);
+		const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(rev));
 		char msg[64];
 		snprintf(msg, sizeof(msg), "revision %d present", rev);
 		CHECK(t != NULL, msg);
@@ -44,12 +44,12 @@ static void test_all_revisions_present(void)
 			CHECK(t->client_count > 0, "client table nonempty");
 		}
 	}
-	CHECK(rsprot_rev_table(999) == NULL, "unknown revision returns NULL");
+	CHECK(rsprot_rev_table(rsprot_osrs(999)) == NULL, "unknown revision returns NULL");
 }
 
 static void test_rev239_known_facts(void)
 {
-	const RsprotRevTable *t = rsprot_rev_table(239);
+	const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(239));
 	const RsprotProtDef *d;
 	int i;
 	int max_code = -1;
@@ -87,7 +87,7 @@ static void test_rev239_known_facts(void)
 
 static void test_zone_order_nonempty(void)
 {
-	const RsprotRevTable *t = rsprot_rev_table(239);
+	const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(239));
 	CHECK(t != NULL, "rev239 present for zone check");
 	if (!t)
 		return;
@@ -102,7 +102,7 @@ static void test_no_duplicate_opcodes_within_direction(void)
 	/* Two prots at the same top-level opcode in the same direction would
 	 * mean the wire is ambiguous. Rows with code == -1 (enclosed-only
 	 * sub-packets) are exempt -- they share -1 by construction. */
-	const RsprotRevTable *t = rsprot_rev_table(239);
+	const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(239));
 	int i, j;
 	int dups = 0;
 

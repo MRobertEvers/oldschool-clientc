@@ -24,46 +24,46 @@ typedef struct MsgDesktopUpdateZonePartialEnclosed {
 	int32_t payload_length;
 } MsgDesktopUpdateZonePartialEnclosed;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_update_zone_partial_enclosed_v3_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_update_zone_partial_enclosed_v4_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v10 -- revs 230, 234. */
+/* v10 -- revs osrs230, osrs234. */
 void packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_update_zone_partial_enclosed_v11_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v14 -- revs 235. */
+/* v14 -- revs osrs235. */
 void packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v15 -- revs 236. */
+/* v15 -- revs osrs236. */
 void packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v16 -- revs 237, 240. */
+/* v16 -- revs osrs237, osrs240. */
 void packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v17 -- revs 238. */
+/* v17 -- revs osrs238. */
 void packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v18 -- revs 239. */
+/* v18 -- revs osrs239. */
 void packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
-/* v19 -- revs 241. */
+/* v19 -- revs osrs241. */
 void packet_update_zone_partial_enclosed_v19_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_zone_partial_enclosed_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_zone_partial_enclosed_<R>_out. */
 #define packet_update_zone_partial_enclosed_osrs221_out packet_update_zone_partial_enclosed_v1_out
 #define packet_update_zone_partial_enclosed_osrs222_out packet_update_zone_partial_enclosed_v2_out
 #define packet_update_zone_partial_enclosed_osrs223_out packet_update_zone_partial_enclosed_v3_out

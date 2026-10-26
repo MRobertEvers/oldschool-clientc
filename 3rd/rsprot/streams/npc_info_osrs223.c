@@ -1,5 +1,5 @@
 /*
- * NPC_INFO at revision 223: the constants of the version(s) it carries (v4),
+ * NPC_INFO at revision osrs223: the constants of the version(s) it carries (v4),
  * and their entry points. The flag bits, the dispatch's block order, each field's
  * byte transform and each record's field order are this revision's; the shapes
  * are rsprot_info_blocks.c and rsprot_info_worldentity.c.

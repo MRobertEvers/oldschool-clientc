@@ -20,10 +20,10 @@ typedef struct MsgMessageGame {
 	const char *message;
 } MsgMessageGame;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
 
-/* Per-revision entry points: what revision N calls is packet_message_game_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_message_game_<R>_out. */
 #define packet_message_game_osrs221_out packet_message_game_v1_out
 #define packet_message_game_osrs222_out packet_message_game_v1_out
 #define packet_message_game_osrs223_out packet_message_game_v1_out

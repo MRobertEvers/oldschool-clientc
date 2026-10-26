@@ -27,30 +27,30 @@ typedef struct MsgMapProjAnimV2 {
 	int32_t source_index;
 } MsgMapProjAnimV2;
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void packet_map_projanim_v2_v1_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v2 -- revs 232. */
+/* v2 -- revs osrs232. */
 void packet_map_projanim_v2_v2_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v3 -- revs 233. */
+/* v3 -- revs osrs233. */
 void packet_map_projanim_v2_v3_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v4 -- revs 234. */
+/* v4 -- revs osrs234. */
 void packet_map_projanim_v2_v4_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v5 -- revs 235. */
+/* v5 -- revs osrs235. */
 void packet_map_projanim_v2_v5_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v6 -- revs 236. */
+/* v6 -- revs osrs236. */
 void packet_map_projanim_v2_v6_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v7 -- revs 237. */
+/* v7 -- revs osrs237. */
 void packet_map_projanim_v2_v7_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v8 -- revs 238. */
+/* v8 -- revs osrs238. */
 void packet_map_projanim_v2_v8_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v9 -- revs 239. */
+/* v9 -- revs osrs239. */
 void packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v10 -- revs 240. */
+/* v10 -- revs osrs240. */
 void packet_map_projanim_v2_v10_out(RsprotExec *x, MsgMapProjAnimV2 *m);
-/* v11 -- revs 241. */
+/* v11 -- revs osrs241. */
 void packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_map_projanim_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_map_projanim_v2_<R>_out. */
 #define packet_map_projanim_v2_osrs231_out packet_map_projanim_v2_v1_out
 #define packet_map_projanim_v2_osrs232_out packet_map_projanim_v2_v2_out
 #define packet_map_projanim_v2_osrs233_out packet_map_projanim_v2_v3_out

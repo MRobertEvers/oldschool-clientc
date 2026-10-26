@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221, 234. */
+/* v1 -- revs osrs221, osrs234. */
 void
 packet_opnpc2_v1_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -18,7 +18,7 @@ packet_opnpc2_v1_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U2_12_ADD128(x, m->index);
 }
 
-/* v2 -- revs 222, 224. */
+/* v2 -- revs osrs222, osrs224. */
 void
 packet_opnpc2_v2_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -26,7 +26,7 @@ packet_opnpc2_v2_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U1(x, m->control_key);
 }
 
-/* v3 -- revs 223, 229. */
+/* v3 -- revs osrs223, osrs229. */
 void
 packet_opnpc2_v3_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -34,7 +34,7 @@ packet_opnpc2_v3_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U1(x, m->control_key);
 }
 
-/* v4 -- revs 225-226. */
+/* v4 -- revs osrs225-226. */
 void
 packet_opnpc2_v4_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -42,7 +42,7 @@ packet_opnpc2_v4_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U2_21(x, m->index);
 }
 
-/* v5 -- revs 227, 235-236. */
+/* v5 -- revs osrs227, osrs235-236. */
 void
 packet_opnpc2_v5_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -50,7 +50,7 @@ packet_opnpc2_v5_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U1_NEG(x, m->control_key);
 }
 
-/* v6 -- revs 228. */
+/* v6 -- revs osrs228. */
 void
 packet_opnpc2_v6_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -58,7 +58,7 @@ packet_opnpc2_v6_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U1_NEG(x, m->control_key);
 }
 
-/* v7 -- revs 230. */
+/* v7 -- revs osrs230. */
 void
 packet_opnpc2_v7_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -66,7 +66,7 @@ packet_opnpc2_v7_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U2_12(x, m->index);
 }
 
-/* v8 -- revs 231. */
+/* v8 -- revs osrs231. */
 void
 packet_opnpc2_v8_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -74,7 +74,7 @@ packet_opnpc2_v8_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U2_21(x, m->index);
 }
 
-/* v9 -- revs 232. */
+/* v9 -- revs osrs232. */
 void
 packet_opnpc2_v9_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -82,7 +82,7 @@ packet_opnpc2_v9_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U2_21_ADD128(x, m->index);
 }
 
-/* v10 -- revs 233. */
+/* v10 -- revs osrs233. */
 void
 packet_opnpc2_v10_in(RsprotExec *x, MsgOpNpc2 *m)
 {
@@ -95,20 +95,20 @@ packet_opnpc2_v10_in(RsprotExec *x, MsgOpNpc2 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opnpc2_in[] = {
-    { 221, 221, (RsprotCodecFn)packet_opnpc2_v1_in },
-    { 222, 222, (RsprotCodecFn)packet_opnpc2_v2_in },
-    { 223, 223, (RsprotCodecFn)packet_opnpc2_v3_in },
-    { 224, 224, (RsprotCodecFn)packet_opnpc2_v2_in },
-    { 225, 226, (RsprotCodecFn)packet_opnpc2_v4_in },
-    { 227, 227, (RsprotCodecFn)packet_opnpc2_v5_in },
-    { 228, 228, (RsprotCodecFn)packet_opnpc2_v6_in },
-    { 229, 229, (RsprotCodecFn)packet_opnpc2_v3_in },
-    { 230, 230, (RsprotCodecFn)packet_opnpc2_v7_in },
-    { 231, 231, (RsprotCodecFn)packet_opnpc2_v8_in },
-    { 232, 232, (RsprotCodecFn)packet_opnpc2_v9_in },
-    { 233, 233, (RsprotCodecFn)packet_opnpc2_v10_in },
-    { 234, 234, (RsprotCodecFn)packet_opnpc2_v1_in },
-    { 235, 236, (RsprotCodecFn)packet_opnpc2_v5_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_opnpc2_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_opnpc2_v2_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_opnpc2_v3_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_opnpc2_v2_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_opnpc2_v4_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_opnpc2_v5_in },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_opnpc2_v6_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_opnpc2_v3_in },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_opnpc2_v7_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_opnpc2_v8_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_opnpc2_v9_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opnpc2_v10_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opnpc2_v1_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opnpc2_v5_in },
 };
 
 const int rsprot_opnpc2_in_count =

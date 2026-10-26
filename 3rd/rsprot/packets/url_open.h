@@ -17,10 +17,10 @@ typedef struct MsgUrlOpen {
 	const char *url;
 } MsgUrlOpen;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
 
-/* Per-revision entry points: what revision N calls is packet_url_open_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_url_open_<R>_out. */
 #define packet_url_open_osrs223_out packet_url_open_v1_out
 #define packet_url_open_osrs224_out packet_url_open_v1_out
 #define packet_url_open_osrs225_out packet_url_open_v1_out

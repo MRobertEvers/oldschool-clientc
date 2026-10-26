@@ -19,10 +19,10 @@ typedef struct MsgVarpSync {
 	int32_t _unused;
 } MsgVarpSync;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_varp_sync_v1_out(RsprotExec *x, MsgVarpSync *m);
 
-/* Per-revision entry points: what revision N calls is packet_varp_sync_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_varp_sync_<R>_out. */
 #define packet_varp_sync_osrs221_out packet_varp_sync_v1_out
 #define packet_varp_sync_osrs222_out packet_varp_sync_v1_out
 #define packet_varp_sync_osrs223_out packet_varp_sync_v1_out

@@ -13,7 +13,7 @@ packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m)
 }
 
 const RsprotVersionRange rsprot_message_private_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_message_private_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_private_v1_out },
 };
 
 const int rsprot_message_private_out_count =
@@ -28,7 +28,7 @@ packet_message_private_v1_in(RsprotExec *x, MsgMessagePrivateClient *m)
 }
 
 const RsprotVersionRange rsprot_message_private_in[] = {
-    { 223, 241, (RsprotCodecFn)packet_message_private_v1_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_private_v1_in },
 };
 
 const int rsprot_message_private_in_count =

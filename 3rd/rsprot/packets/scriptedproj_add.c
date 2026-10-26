@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs osrs239. */
 void
 packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
@@ -33,7 +33,7 @@ packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U2_21(x, m->curve_script_t);
 }
 
-/* v2 -- revs 240. */
+/* v2 -- revs osrs240. */
 void
 packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
@@ -56,7 +56,7 @@ packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m)
     RSPROT_U2_21_ADD128(x, m->curve_script_a);
 }
 
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void
 packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
@@ -84,9 +84,9 @@ packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_scriptedproj_add_out[] = {
-    { 239, 239, (RsprotCodecFn)packet_scriptedproj_add_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_scriptedproj_add_v2_out },
-    { 241, 241, (RsprotCodecFn)packet_scriptedproj_add_v3_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_scriptedproj_add_v1_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_scriptedproj_add_v2_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_scriptedproj_add_v3_out },
 };
 
 const int rsprot_scriptedproj_add_out_count =

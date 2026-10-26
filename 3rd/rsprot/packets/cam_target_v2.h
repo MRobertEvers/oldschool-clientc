@@ -19,10 +19,10 @@ typedef struct MsgCamTargetV2 {
 	int32_t camera_locked_player_index;
 } MsgCamTargetV2;
 
-/* v1 -- revs 223-228. */
+/* v1 -- revs osrs223-228. */
 void packet_cam_target_v2_v1_out(RsprotExec *x, MsgCamTargetV2 *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_target_v2_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_target_v2_<R>_out. */
 #define packet_cam_target_v2_osrs223_out packet_cam_target_v2_v1_out
 #define packet_cam_target_v2_osrs224_out packet_cam_target_v2_v1_out
 #define packet_cam_target_v2_osrs225_out packet_cam_target_v2_v1_out

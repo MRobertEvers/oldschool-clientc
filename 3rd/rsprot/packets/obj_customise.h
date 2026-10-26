@@ -24,40 +24,40 @@ typedef struct MsgObjCustomise {
 	int32_t recol_index;
 } MsgObjCustomise;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_obj_customise_v1_out(RsprotExec *x, MsgObjCustomise *m);
-/* v2 -- revs 227. */
+/* v2 -- revs osrs227. */
 void packet_obj_customise_v2_out(RsprotExec *x, MsgObjCustomise *m);
-/* v3 -- revs 228. */
+/* v3 -- revs osrs228. */
 void packet_obj_customise_v3_out(RsprotExec *x, MsgObjCustomise *m);
-/* v4 -- revs 229. */
+/* v4 -- revs osrs229. */
 void packet_obj_customise_v4_out(RsprotExec *x, MsgObjCustomise *m);
-/* v5 -- revs 230. */
+/* v5 -- revs osrs230. */
 void packet_obj_customise_v5_out(RsprotExec *x, MsgObjCustomise *m);
-/* v6 -- revs 231. */
+/* v6 -- revs osrs231. */
 void packet_obj_customise_v6_out(RsprotExec *x, MsgObjCustomise *m);
-/* v7 -- revs 232. */
+/* v7 -- revs osrs232. */
 void packet_obj_customise_v7_out(RsprotExec *x, MsgObjCustomise *m);
-/* v8 -- revs 233. */
+/* v8 -- revs osrs233. */
 void packet_obj_customise_v8_out(RsprotExec *x, MsgObjCustomise *m);
-/* v9 -- revs 234. */
+/* v9 -- revs osrs234. */
 void packet_obj_customise_v9_out(RsprotExec *x, MsgObjCustomise *m);
-/* v10 -- revs 235. */
+/* v10 -- revs osrs235. */
 void packet_obj_customise_v10_out(RsprotExec *x, MsgObjCustomise *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_obj_customise_v11_out(RsprotExec *x, MsgObjCustomise *m);
-/* v12 -- revs 237. */
+/* v12 -- revs osrs237. */
 void packet_obj_customise_v12_out(RsprotExec *x, MsgObjCustomise *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_obj_customise_v13_out(RsprotExec *x, MsgObjCustomise *m);
-/* v14 -- revs 239. */
+/* v14 -- revs osrs239. */
 void packet_obj_customise_v14_out(RsprotExec *x, MsgObjCustomise *m);
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void packet_obj_customise_v15_out(RsprotExec *x, MsgObjCustomise *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_customise_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_customise_<R>_out. */
 #define packet_obj_customise_osrs226_out packet_obj_customise_v1_out
 #define packet_obj_customise_osrs227_out packet_obj_customise_v2_out
 #define packet_obj_customise_osrs228_out packet_obj_customise_v3_out

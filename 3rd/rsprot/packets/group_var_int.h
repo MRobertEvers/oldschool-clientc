@@ -19,10 +19,10 @@ typedef struct MsgGroupVarInt {
 	int32_t update_variable_value;
 } MsgGroupVarInt;
 
-/* v1 -- revs 239-241. */
+/* v1 -- revs osrs239-241. */
 void packet_group_var_int_v1_out(RsprotExec *x, MsgGroupVarInt *m);
 
-/* Per-revision entry points: what revision N calls is packet_group_var_int_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_group_var_int_<R>_out. */
 #define packet_group_var_int_osrs239_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrs240_out packet_group_var_int_v1_out
 #define packet_group_var_int_osrs241_out packet_group_var_int_v1_out

@@ -28,18 +28,18 @@ typedef struct MsgProjAnimSpecific {
 	int32_t source_index;
 } MsgProjAnimSpecific;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_projanim_specific_v1_out(RsprotExec *x, MsgProjAnimSpecific *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_projanim_specific_v2_out(RsprotExec *x, MsgProjAnimSpecific *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_projanim_specific_v3_out(RsprotExec *x, MsgProjAnimSpecific *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_projanim_specific_v4_out(RsprotExec *x, MsgProjAnimSpecific *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_projanim_specific_v5_out(RsprotExec *x, MsgProjAnimSpecific *m);
 
-/* Per-revision entry points: what revision N calls is packet_projanim_specific_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_projanim_specific_<R>_out. */
 #define packet_projanim_specific_osrs221_out packet_projanim_specific_v1_out
 #define packet_projanim_specific_osrs222_out packet_projanim_specific_v2_out
 #define packet_projanim_specific_osrs223_out packet_projanim_specific_v3_out

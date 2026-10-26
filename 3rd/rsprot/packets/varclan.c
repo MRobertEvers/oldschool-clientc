@@ -10,7 +10,7 @@ packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m)
 }
 
 const RsprotVersionRange rsprot_varclan_out[] = {
-    { 223, 241, (RsprotCodecFn)packet_varclan_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varclan_v1_out },
 };
 
 const int rsprot_varclan_out_count =

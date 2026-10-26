@@ -20,40 +20,40 @@ typedef struct MsgOpLoc3 {
 	int32_t control_key;
 } MsgOpLoc3;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_oploc3_v1_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_oploc3_v2_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_oploc3_v3_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_oploc3_v4_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_oploc3_v5_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_oploc3_v6_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_oploc3_v7_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_oploc3_v8_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_oploc3_v9_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_oploc3_v10_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_oploc3_v11_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_oploc3_v12_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_oploc3_v13_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void packet_oploc3_v14_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void packet_oploc3_v15_in(RsprotExec *x, MsgOpLoc3 *m);
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void packet_oploc3_v16_in(RsprotExec *x, MsgOpLoc3 *m);
 
-/* Per-revision entry points: what revision N calls is packet_oploc3_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_oploc3_<R>_in. */
 #define packet_oploc3_osrs221_in packet_oploc3_v1_in
 #define packet_oploc3_osrs222_in packet_oploc3_v2_in
 #define packet_oploc3_osrs223_in packet_oploc3_v3_in

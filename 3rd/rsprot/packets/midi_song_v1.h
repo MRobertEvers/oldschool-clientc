@@ -17,10 +17,10 @@ typedef struct MsgMidiSongV1 {
 	int32_t id;
 } MsgMidiSongV1;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_midi_song_v1_v1_out(RsprotExec *x, MsgMidiSongV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_midi_song_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_midi_song_v1_<R>_out. */
 #define packet_midi_song_v1_osrs226_out packet_midi_song_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

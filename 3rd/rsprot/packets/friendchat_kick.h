@@ -17,10 +17,10 @@ typedef struct MsgFriendChatKick {
 	const char *name;
 } MsgFriendChatKick;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_friendchat_kick_v1_in(RsprotExec *x, MsgFriendChatKick *m);
 
-/* Per-revision entry points: what revision N calls is packet_friendchat_kick_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_friendchat_kick_<R>_in. */
 #define packet_friendchat_kick_osrs221_in packet_friendchat_kick_v1_in
 #define packet_friendchat_kick_osrs222_in packet_friendchat_kick_v1_in
 #define packet_friendchat_kick_osrs223_in packet_friendchat_kick_v1_in

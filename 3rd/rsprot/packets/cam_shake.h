@@ -24,12 +24,12 @@ typedef struct MsgCamShake {
 	int32_t rate;
 } MsgCamShake;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
-/* v2 -- revs 223-241. */
+/* v2 -- revs osrs223-241. */
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_shake_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_shake_<R>_out. */
 #define packet_cam_shake_osrs221_out packet_cam_shake_v1_out
 #define packet_cam_shake_osrs222_out packet_cam_shake_v1_out
 #define packet_cam_shake_osrs223_out packet_cam_shake_v2_out

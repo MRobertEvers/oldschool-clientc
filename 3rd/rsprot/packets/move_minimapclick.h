@@ -29,48 +29,48 @@ typedef struct MsgMoveMinimapClick {
 	int32_t checkpoint5;
 } MsgMoveMinimapClick;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_move_minimapclick_v1_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v2 -- revs 222, 227. */
+/* v2 -- revs osrs222, osrs227. */
 void packet_move_minimapclick_v2_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_move_minimapclick_v3_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_move_minimapclick_v4_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_move_minimapclick_v5_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_move_minimapclick_v6_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v7 -- revs 228. */
+/* v7 -- revs osrs228. */
 void packet_move_minimapclick_v7_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void packet_move_minimapclick_v8_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v9 -- revs 230. */
+/* v9 -- revs osrs230. */
 void packet_move_minimapclick_v9_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_move_minimapclick_v10_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void packet_move_minimapclick_v11_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v12 -- revs 233. */
+/* v12 -- revs osrs233. */
 void packet_move_minimapclick_v12_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v13 -- revs 234. */
+/* v13 -- revs osrs234. */
 void packet_move_minimapclick_v13_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v14 -- revs 235. */
+/* v14 -- revs osrs235. */
 void packet_move_minimapclick_v14_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v15 -- revs 236. */
+/* v15 -- revs osrs236. */
 void packet_move_minimapclick_v15_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v16 -- revs 237. */
+/* v16 -- revs osrs237. */
 void packet_move_minimapclick_v16_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v17 -- revs 238. */
+/* v17 -- revs osrs238. */
 void packet_move_minimapclick_v17_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v18 -- revs 239. */
+/* v18 -- revs osrs239. */
 void packet_move_minimapclick_v18_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v19 -- revs 240. */
+/* v19 -- revs osrs240. */
 void packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m);
-/* v20 -- revs 241. */
+/* v20 -- revs osrs241. */
 void packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m);
 
-/* Per-revision entry points: what revision N calls is packet_move_minimapclick_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_move_minimapclick_<R>_in. */
 #define packet_move_minimapclick_osrs221_in packet_move_minimapclick_v1_in
 #define packet_move_minimapclick_osrs222_in packet_move_minimapclick_v2_in
 #define packet_move_minimapclick_osrs223_in packet_move_minimapclick_v3_in

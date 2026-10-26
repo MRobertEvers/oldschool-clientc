@@ -21,10 +21,10 @@ typedef struct MsgIfSubOp {
 	int32_t subop;
 } MsgIfSubOp;
 
-/* v1 -- revs 224-241. */
+/* v1 -- revs osrs224-241. */
 void packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_subop_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_if_subop_<R>_in. */
 #define packet_if_subop_osrs224_in packet_if_subop_v1_in
 #define packet_if_subop_osrs225_in packet_if_subop_v1_in
 #define packet_if_subop_osrs226_in packet_if_subop_v1_in

@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 223. */
+/* v1 -- revs osrs223. */
 void
 packet_projanim_specific_v2_v1_out(RsprotExec *x, MsgProjanimSpecificV2 *m)
 {
@@ -27,7 +27,7 @@ packet_projanim_specific_v2_v1_out(RsprotExec *x, MsgProjanimSpecificV2 *m)
     RSPROT_U3_123(x, m->coord_in_build_area);
 }
 
-/* v2 -- revs 224. */
+/* v2 -- revs osrs224. */
 void
 packet_projanim_specific_v2_v2_out(RsprotExec *x, MsgProjanimSpecificV2 *m)
 {
@@ -49,8 +49,8 @@ packet_projanim_specific_v2_v2_out(RsprotExec *x, MsgProjanimSpecificV2 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_projanim_specific_v2_out[] = {
-    { 223, 223, (RsprotCodecFn)packet_projanim_specific_v2_v1_out },
-    { 224, 224, (RsprotCodecFn)packet_projanim_specific_v2_v2_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_projanim_specific_v2_v1_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_projanim_specific_v2_v2_out },
 };
 
 const int rsprot_projanim_specific_v2_out_count =

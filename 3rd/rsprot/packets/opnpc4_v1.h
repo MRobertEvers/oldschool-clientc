@@ -18,10 +18,10 @@ typedef struct MsgOpNpc4V1 {
 	int32_t index;
 } MsgOpNpc4V1;
 
-/* v1 -- revs 237. */
+/* v1 -- revs osrs237. */
 void packet_opnpc4_v1_v1_in(RsprotExec *x, MsgOpNpc4V1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_opnpc4_v1_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_opnpc4_v1_<R>_in. */
 #define packet_opnpc4_v1_osrs237_in packet_opnpc4_v1_v1_in
 
 /** Revision -> layout. See the .c for the rows. */

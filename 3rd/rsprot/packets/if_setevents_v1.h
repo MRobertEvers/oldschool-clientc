@@ -20,10 +20,10 @@ typedef struct MsgIfSetEventsV1 {
 	int32_t events;
 } MsgIfSetEventsV1;
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void packet_if_setevents_v1_v1_out(RsprotExec *x, MsgIfSetEventsV1 *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setevents_v1_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setevents_v1_<R>_out. */
 #define packet_if_setevents_v1_osrs231_out packet_if_setevents_v1_v1_out
 
 /** Revision -> layout. See the .c for the rows. */

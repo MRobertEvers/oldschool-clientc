@@ -19,50 +19,50 @@ typedef struct MsgUpdateZoneFullFollows {
 	int32_t zone_x;
 } MsgUpdateZoneFullFollows;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_update_zone_full_follows_v1_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_update_zone_full_follows_v2_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_update_zone_full_follows_v3_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_update_zone_full_follows_v4_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_update_zone_full_follows_v5_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_update_zone_full_follows_v6_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_update_zone_full_follows_v7_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v8 -- revs 228. */
+/* v8 -- revs osrs228. */
 void packet_update_zone_full_follows_v8_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v9 -- revs 229. */
+/* v9 -- revs osrs229. */
 void packet_update_zone_full_follows_v9_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v10 -- revs 230. */
+/* v10 -- revs osrs230. */
 void packet_update_zone_full_follows_v10_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v11 -- revs 231. */
+/* v11 -- revs osrs231. */
 void packet_update_zone_full_follows_v11_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v12 -- revs 232. */
+/* v12 -- revs osrs232. */
 void packet_update_zone_full_follows_v12_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v13 -- revs 233. */
+/* v13 -- revs osrs233. */
 void packet_update_zone_full_follows_v13_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v14 -- revs 234. */
+/* v14 -- revs osrs234. */
 void packet_update_zone_full_follows_v14_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v15 -- revs 235. */
+/* v15 -- revs osrs235. */
 void packet_update_zone_full_follows_v15_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v16 -- revs 236. */
+/* v16 -- revs osrs236. */
 void packet_update_zone_full_follows_v16_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v17 -- revs 237. */
+/* v17 -- revs osrs237. */
 void packet_update_zone_full_follows_v17_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v18 -- revs 238. */
+/* v18 -- revs osrs238. */
 void packet_update_zone_full_follows_v18_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v19 -- revs 239. */
+/* v19 -- revs osrs239. */
 void packet_update_zone_full_follows_v19_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v20 -- revs 240. */
+/* v20 -- revs osrs240. */
 void packet_update_zone_full_follows_v20_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
-/* v21 -- revs 241. */
+/* v21 -- revs osrs241. */
 void packet_update_zone_full_follows_v21_out(RsprotExec *x, MsgUpdateZoneFullFollows *m);
 
-/* Per-revision entry points: what revision N calls is packet_update_zone_full_follows_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_update_zone_full_follows_<R>_out. */
 #define packet_update_zone_full_follows_osrs221_out packet_update_zone_full_follows_v1_out
 #define packet_update_zone_full_follows_osrs222_out packet_update_zone_full_follows_v2_out
 #define packet_update_zone_full_follows_osrs223_out packet_update_zone_full_follows_v3_out

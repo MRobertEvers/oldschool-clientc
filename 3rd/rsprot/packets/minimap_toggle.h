@@ -17,10 +17,10 @@ typedef struct MsgMinimapToggle {
 	int32_t minimap_state;
 } MsgMinimapToggle;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
 
-/* Per-revision entry points: what revision N calls is packet_minimap_toggle_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_minimap_toggle_<R>_out. */
 #define packet_minimap_toggle_osrs221_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_osrs222_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_osrs223_out packet_minimap_toggle_v1_out

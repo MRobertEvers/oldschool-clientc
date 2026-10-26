@@ -21,10 +21,10 @@ typedef struct MsgEventMouseClick {
 	int32_t right_click;
 } MsgEventMouseClick;
 
-/* v1 -- revs 221-231. */
+/* v1 -- revs osrs221-231. */
 void packet_event_mouse_click_v1_in(RsprotExec *x, MsgEventMouseClick *m);
 
-/* Per-revision entry points: what revision N calls is packet_event_mouse_click_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_event_mouse_click_<R>_in. */
 #define packet_event_mouse_click_osrs221_in packet_event_mouse_click_v1_in
 #define packet_event_mouse_click_osrs222_in packet_event_mouse_click_v1_in
 #define packet_event_mouse_click_osrs223_in packet_event_mouse_click_v1_in

@@ -1,5 +1,5 @@
 /*
- * WORLDENTITY_INFO at revision 229: the constants of the version(s) it carries (v4, v5),
+ * WORLDENTITY_INFO at revision osrs229: the constants of the version(s) it carries (v4, v5),
  * and their entry points. The flag bits, the dispatch's block order, each field's
  * byte transform and each record's field order are this revision's; the shapes
  * are rsprot_info_blocks.c and rsprot_info_worldentity.c.

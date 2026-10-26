@@ -20,10 +20,10 @@ typedef struct MsgCamLookAtEasedAngleAbsolute {
 	int32_t function_id;
 } MsgCamLookAtEasedAngleAbsolute;
 
-/* v1 -- revs 221-222. */
+/* v1 -- revs osrs221-222. */
 void packet_cam_lookat_eased_angle_absolute_v1_out(RsprotExec *x, MsgCamLookAtEasedAngleAbsolute *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_lookat_eased_angle_absolute_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_lookat_eased_angle_absolute_<R>_out. */
 #define packet_cam_lookat_eased_angle_absolute_osrs221_out packet_cam_lookat_eased_angle_absolute_v1_out
 #define packet_cam_lookat_eased_angle_absolute_osrs222_out packet_cam_lookat_eased_angle_absolute_v1_out
 

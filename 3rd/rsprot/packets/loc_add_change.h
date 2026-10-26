@@ -20,22 +20,22 @@ typedef struct MsgLocAddChange {
 	int32_t op_flags;
 } MsgLocAddChange;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_loc_add_change_v1_out(RsprotExec *x, MsgLocAddChange *m);
-/* v2 -- revs 222. */
+/* v2 -- revs osrs222. */
 void packet_loc_add_change_v2_out(RsprotExec *x, MsgLocAddChange *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_loc_add_change_v3_out(RsprotExec *x, MsgLocAddChange *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_loc_add_change_v4_out(RsprotExec *x, MsgLocAddChange *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_loc_add_change_v5_out(RsprotExec *x, MsgLocAddChange *m);
-/* v6 -- revs 226. */
+/* v6 -- revs osrs226. */
 void packet_loc_add_change_v6_out(RsprotExec *x, MsgLocAddChange *m);
-/* v7 -- revs 227. */
+/* v7 -- revs osrs227. */
 void packet_loc_add_change_v7_out(RsprotExec *x, MsgLocAddChange *m);
 
-/* Per-revision entry points: what revision N calls is packet_loc_add_change_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_loc_add_change_<R>_out. */
 #define packet_loc_add_change_osrs221_out packet_loc_add_change_v1_out
 #define packet_loc_add_change_osrs222_out packet_loc_add_change_v2_out
 #define packet_loc_add_change_osrs223_out packet_loc_add_change_v3_out

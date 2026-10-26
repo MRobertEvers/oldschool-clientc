@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 221, 225, 231, 233. */
+/* v1 -- revs osrs221, osrs225, osrs231, osrs233. */
 void
 packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -18,7 +18,7 @@ packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1_ADD128(x, m->rank);
 }
 
-/* v2 -- revs 222, 240. */
+/* v2 -- revs osrs222, osrs240. */
 void
 packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -26,7 +26,7 @@ packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v3 -- revs 223, 229-230, 237. */
+/* v3 -- revs osrs223, osrs229-230, osrs237. */
 void
 packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -34,7 +34,7 @@ packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1(x, m->rank);
 }
 
-/* v4 -- revs 224, 226, 235, 239. */
+/* v4 -- revs osrs224, osrs226, osrs235, osrs239. */
 void
 packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -42,7 +42,7 @@ packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v5 -- revs 227-228, 236. */
+/* v5 -- revs osrs227-228, osrs236. */
 void
 packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -50,7 +50,7 @@ packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
-/* v6 -- revs 232, 234. */
+/* v6 -- revs osrs232, osrs234. */
 void
 packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -58,7 +58,7 @@ packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_U1_SUB128(x, m->rank);
 }
 
-/* v7 -- revs 238, 241. */
+/* v7 -- revs osrs238, osrs241. */
 void
 packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
@@ -71,25 +71,25 @@ packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendchat_setrank_in[] = {
-    { 221, 221, (RsprotCodecFn)packet_friendchat_setrank_v1_in },
-    { 222, 222, (RsprotCodecFn)packet_friendchat_setrank_v2_in },
-    { 223, 223, (RsprotCodecFn)packet_friendchat_setrank_v3_in },
-    { 224, 224, (RsprotCodecFn)packet_friendchat_setrank_v4_in },
-    { 225, 225, (RsprotCodecFn)packet_friendchat_setrank_v1_in },
-    { 226, 226, (RsprotCodecFn)packet_friendchat_setrank_v4_in },
-    { 227, 228, (RsprotCodecFn)packet_friendchat_setrank_v5_in },
-    { 229, 230, (RsprotCodecFn)packet_friendchat_setrank_v3_in },
-    { 231, 231, (RsprotCodecFn)packet_friendchat_setrank_v1_in },
-    { 232, 232, (RsprotCodecFn)packet_friendchat_setrank_v6_in },
-    { 233, 233, (RsprotCodecFn)packet_friendchat_setrank_v1_in },
-    { 234, 234, (RsprotCodecFn)packet_friendchat_setrank_v6_in },
-    { 235, 235, (RsprotCodecFn)packet_friendchat_setrank_v4_in },
-    { 236, 236, (RsprotCodecFn)packet_friendchat_setrank_v5_in },
-    { 237, 237, (RsprotCodecFn)packet_friendchat_setrank_v3_in },
-    { 238, 238, (RsprotCodecFn)packet_friendchat_setrank_v7_in },
-    { 239, 239, (RsprotCodecFn)packet_friendchat_setrank_v4_in },
-    { 240, 240, (RsprotCodecFn)packet_friendchat_setrank_v2_in },
-    { 241, 241, (RsprotCodecFn)packet_friendchat_setrank_v7_in },
+    { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_friendchat_setrank_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_friendchat_setrank_v2_in },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_friendchat_setrank_v3_in },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(224), (RsprotCodecFn)packet_friendchat_setrank_v4_in },
+    { RSPROT_OSRS_ID(225), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_friendchat_setrank_v1_in },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_friendchat_setrank_v4_in },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_friendchat_setrank_v5_in },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(230), (RsprotCodecFn)packet_friendchat_setrank_v3_in },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_friendchat_setrank_v1_in },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_friendchat_setrank_v6_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_friendchat_setrank_v1_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_friendchat_setrank_v6_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_friendchat_setrank_v4_in },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_friendchat_setrank_v5_in },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_friendchat_setrank_v3_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_friendchat_setrank_v7_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_friendchat_setrank_v4_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_friendchat_setrank_v2_in },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendchat_setrank_v7_in },
 };
 
 const int rsprot_friendchat_setrank_in_count =

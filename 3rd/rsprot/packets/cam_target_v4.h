@@ -18,14 +18,14 @@ typedef struct MsgCamTargetV4 {
 	int32_t value;
 } MsgCamTargetV4;
 
-/* v1 -- revs 238, 241. */
+/* v1 -- revs osrs238, osrs241. */
 void packet_cam_target_v4_v1_out(RsprotExec *x, MsgCamTargetV4 *m);
-/* v2 -- revs 239. */
+/* v2 -- revs osrs239. */
 void packet_cam_target_v4_v2_out(RsprotExec *x, MsgCamTargetV4 *m);
-/* v3 -- revs 240. */
+/* v3 -- revs osrs240. */
 void packet_cam_target_v4_v3_out(RsprotExec *x, MsgCamTargetV4 *m);
 
-/* Per-revision entry points: what revision N calls is packet_cam_target_v4_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_cam_target_v4_<R>_out. */
 #define packet_cam_target_v4_osrs238_out packet_cam_target_v4_v1_out
 #define packet_cam_target_v4_osrs239_out packet_cam_target_v4_v2_out
 #define packet_cam_target_v4_osrs240_out packet_cam_target_v4_v3_out

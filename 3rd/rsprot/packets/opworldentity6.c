@@ -10,28 +10,28 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 233. */
+/* v1 -- revs osrs233. */
 void
 packet_opworldentity6_v1_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
     RSPROT_U2_21(x, m->id);
 }
 
-/* v2 -- revs 234, 239. */
+/* v2 -- revs osrs234, osrs239. */
 void
 packet_opworldentity6_v2_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
-/* v3 -- revs 235-237. */
+/* v3 -- revs osrs235-237. */
 void
 packet_opworldentity6_v3_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
     RSPROT_U2_12(x, m->id);
 }
 
-/* v4 -- revs 238, 240-241. */
+/* v4 -- revs osrs238, osrs240-241. */
 void
 packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
@@ -43,12 +43,12 @@ packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opworldentity6_in[] = {
-    { 233, 233, (RsprotCodecFn)packet_opworldentity6_v1_in },
-    { 234, 234, (RsprotCodecFn)packet_opworldentity6_v2_in },
-    { 235, 237, (RsprotCodecFn)packet_opworldentity6_v3_in },
-    { 238, 238, (RsprotCodecFn)packet_opworldentity6_v4_in },
-    { 239, 239, (RsprotCodecFn)packet_opworldentity6_v2_in },
-    { 240, 241, (RsprotCodecFn)packet_opworldentity6_v4_in },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opworldentity6_v1_in },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opworldentity6_v2_in },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_opworldentity6_v3_in },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_opworldentity6_v4_in },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opworldentity6_v2_in },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opworldentity6_v4_in },
 };
 
 const int rsprot_opworldentity6_in_count =

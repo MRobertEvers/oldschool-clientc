@@ -170,21 +170,21 @@ test_range_table_covers_every_revision(void)
     CHECK_EQ(n, 15);
 
     for (int rev = 221; rev <= 239; rev++)
-        CHECK(rsprot_version_pick(r, n, rev) != NULL);
+        CHECK(rsprot_version_pick(r, n, rsprot_osrs(rev)) != NULL);
 
-    CHECK(rsprot_version_pick(r, n, 227) == (RsprotCodecFn)packet_if_opentop_v3_out);
-    CHECK(rsprot_version_pick(r, n, 230) == (RsprotCodecFn)packet_if_opentop_v3_out);
-    CHECK(rsprot_version_pick(r, n, 231) == (RsprotCodecFn)packet_if_opentop_v4_out);
-    CHECK(rsprot_version_pick(r, n, 235) == (RsprotCodecFn)packet_if_opentop_v2_out);
-    CHECK(rsprot_version_pick(r, n, 239) == (RsprotCodecFn)packet_if_opentop_v4_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(227)) == (RsprotCodecFn)packet_if_opentop_v3_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(230)) == (RsprotCodecFn)packet_if_opentop_v3_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(231)) == (RsprotCodecFn)packet_if_opentop_v4_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(235)) == (RsprotCodecFn)packet_if_opentop_v2_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(239)) == (RsprotCodecFn)packet_if_opentop_v4_out);
 
-    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_v2_out);
-    CHECK(rsprot_version_pick(r, n, 240) == (RsprotCodecFn)packet_if_opentop_osrs240_out);
-    CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_v4_out);
-    CHECK(rsprot_version_pick(r, n, 241) == (RsprotCodecFn)packet_if_opentop_osrs241_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(240)) == (RsprotCodecFn)packet_if_opentop_v2_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(240)) == (RsprotCodecFn)packet_if_opentop_osrs240_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(241)) == (RsprotCodecFn)packet_if_opentop_v4_out);
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(241)) == (RsprotCodecFn)packet_if_opentop_osrs241_out);
 
-    CHECK(rsprot_version_pick(r, n, 220) == NULL); /* before the first range */
-    CHECK(rsprot_version_pick(r, n, 242) == NULL); /* after the last */
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(220)) == NULL); /* before the first range */
+    CHECK(rsprot_version_pick(r, n, rsprot_osrs(242)) == NULL); /* after the last */
 }
 
 /**
@@ -214,7 +214,7 @@ test_aliases_agree_with_range_table(void)
     for (int i = 0; i < (int)(sizeof(by_rev) / sizeof(by_rev[0])); i++) {
         int rev = 221 + i;
         RsprotCodecFn picked =
-            rsprot_version_pick(rsprot_if_opentop_out, rsprot_if_opentop_out_count, rev);
+            rsprot_version_pick(rsprot_if_opentop_out, rsprot_if_opentop_out_count, rsprot_osrs(rev));
         if (picked != by_rev[i]) {
             printf("FAIL rev %d: alias and range table disagree\n", rev);
             g_failures++;

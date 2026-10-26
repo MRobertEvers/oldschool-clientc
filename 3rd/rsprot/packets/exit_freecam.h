@@ -19,10 +19,10 @@ typedef struct MsgExitFreecam {
 	int32_t _unused;
 } MsgExitFreecam;
 
-/* v1 -- revs 221-241. */
+/* v1 -- revs osrs221-241. */
 void packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m);
 
-/* Per-revision entry points: what revision N calls is packet_exit_freecam_osrsN_in. */
+/* Per-revision entry points: what revision R calls is packet_exit_freecam_<R>_in. */
 #define packet_exit_freecam_osrs221_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs222_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs223_in packet_exit_freecam_v1_in

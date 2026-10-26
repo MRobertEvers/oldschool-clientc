@@ -19,40 +19,40 @@ typedef struct MsgObjUncustomise {
 	int32_t quantity;
 } MsgObjUncustomise;
 
-/* v1 -- revs 226. */
+/* v1 -- revs osrs226. */
 void packet_obj_uncustomise_v1_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v2 -- revs 227. */
+/* v2 -- revs osrs227. */
 void packet_obj_uncustomise_v2_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v3 -- revs 228. */
+/* v3 -- revs osrs228. */
 void packet_obj_uncustomise_v3_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v4 -- revs 229. */
+/* v4 -- revs osrs229. */
 void packet_obj_uncustomise_v4_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v5 -- revs 230. */
+/* v5 -- revs osrs230. */
 void packet_obj_uncustomise_v5_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v6 -- revs 231. */
+/* v6 -- revs osrs231. */
 void packet_obj_uncustomise_v6_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v7 -- revs 232. */
+/* v7 -- revs osrs232. */
 void packet_obj_uncustomise_v7_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v8 -- revs 233. */
+/* v8 -- revs osrs233. */
 void packet_obj_uncustomise_v8_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v9 -- revs 234. */
+/* v9 -- revs osrs234. */
 void packet_obj_uncustomise_v9_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v10 -- revs 235. */
+/* v10 -- revs osrs235. */
 void packet_obj_uncustomise_v10_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v11 -- revs 236. */
+/* v11 -- revs osrs236. */
 void packet_obj_uncustomise_v11_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v12 -- revs 237. */
+/* v12 -- revs osrs237. */
 void packet_obj_uncustomise_v12_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v13 -- revs 238. */
+/* v13 -- revs osrs238. */
 void packet_obj_uncustomise_v13_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v14 -- revs 239. */
+/* v14 -- revs osrs239. */
 void packet_obj_uncustomise_v14_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v15 -- revs 240. */
+/* v15 -- revs osrs240. */
 void packet_obj_uncustomise_v15_out(RsprotExec *x, MsgObjUncustomise *m);
-/* v16 -- revs 241. */
+/* v16 -- revs osrs241. */
 void packet_obj_uncustomise_v16_out(RsprotExec *x, MsgObjUncustomise *m);
 
-/* Per-revision entry points: what revision N calls is packet_obj_uncustomise_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_obj_uncustomise_<R>_out. */
 #define packet_obj_uncustomise_osrs226_out packet_obj_uncustomise_v1_out
 #define packet_obj_uncustomise_osrs227_out packet_obj_uncustomise_v2_out
 #define packet_obj_uncustomise_osrs228_out packet_obj_uncustomise_v3_out

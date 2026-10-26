@@ -17,10 +17,10 @@ typedef struct MsgHideObjOps {
 	int32_t hidden;
 } MsgHideObjOps;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs osrs223-241. */
 void packet_hideobjops_v1_out(RsprotExec *x, MsgHideObjOps *m);
 
-/* Per-revision entry points: what revision N calls is packet_hideobjops_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_hideobjops_<R>_out. */
 #define packet_hideobjops_osrs223_out packet_hideobjops_v1_out
 #define packet_hideobjops_osrs224_out packet_hideobjops_v1_out
 #define packet_hideobjops_osrs225_out packet_hideobjops_v1_out

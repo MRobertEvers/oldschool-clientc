@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 239. */
+/* v1 -- revs osrs239. */
 void
 packet_cam_rotateto_coordinate_v3_v1_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
 {
@@ -23,7 +23,7 @@ packet_cam_rotateto_coordinate_v3_v1_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U1(x, m->easing_id);
 }
 
-/* v2 -- revs 240. */
+/* v2 -- revs osrs240. */
 void
 packet_cam_rotateto_coordinate_v3_v2_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
 {
@@ -36,7 +36,7 @@ packet_cam_rotateto_coordinate_v3_v2_out(RsprotExec *x, MsgCamRotateToCoordinate
     RSPROT_U1(x, m->track_target);
 }
 
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void
 packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinateV3 *m)
 {
@@ -54,9 +54,9 @@ packet_cam_rotateto_coordinate_v3_v3_out(RsprotExec *x, MsgCamRotateToCoordinate
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_rotateto_coordinate_v3_out[] = {
-    { 239, 239, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v1_out },
-    { 240, 240, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v2_out },
-    { 241, 241, (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v3_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v1_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v2_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_rotateto_coordinate_v3_v3_out },
 };
 
 const int rsprot_cam_rotateto_coordinate_v3_out_count =

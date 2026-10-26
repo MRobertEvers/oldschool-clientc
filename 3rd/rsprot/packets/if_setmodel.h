@@ -18,34 +18,34 @@ typedef struct MsgIfSetModel {
 	int32_t model;
 } MsgIfSetModel;
 
-/* v1 -- revs 221. */
+/* v1 -- revs osrs221. */
 void packet_if_setmodel_v1_out(RsprotExec *x, MsgIfSetModel *m);
-/* v2 -- revs 222, 226. */
+/* v2 -- revs osrs222, osrs226. */
 void packet_if_setmodel_v2_out(RsprotExec *x, MsgIfSetModel *m);
-/* v3 -- revs 223. */
+/* v3 -- revs osrs223. */
 void packet_if_setmodel_v3_out(RsprotExec *x, MsgIfSetModel *m);
-/* v4 -- revs 224. */
+/* v4 -- revs osrs224. */
 void packet_if_setmodel_v4_out(RsprotExec *x, MsgIfSetModel *m);
-/* v5 -- revs 225. */
+/* v5 -- revs osrs225. */
 void packet_if_setmodel_v5_out(RsprotExec *x, MsgIfSetModel *m);
-/* v6 -- revs 227. */
+/* v6 -- revs osrs227. */
 void packet_if_setmodel_v6_out(RsprotExec *x, MsgIfSetModel *m);
-/* v7 -- revs 228. */
+/* v7 -- revs osrs228. */
 void packet_if_setmodel_v7_out(RsprotExec *x, MsgIfSetModel *m);
-/* v8 -- revs 229. */
+/* v8 -- revs osrs229. */
 void packet_if_setmodel_v8_out(RsprotExec *x, MsgIfSetModel *m);
-/* v9 -- revs 230, 233. */
+/* v9 -- revs osrs230, osrs233. */
 void packet_if_setmodel_v9_out(RsprotExec *x, MsgIfSetModel *m);
-/* v10 -- revs 231. */
+/* v10 -- revs osrs231. */
 void packet_if_setmodel_v10_out(RsprotExec *x, MsgIfSetModel *m);
-/* v11 -- revs 232. */
+/* v11 -- revs osrs232. */
 void packet_if_setmodel_v11_out(RsprotExec *x, MsgIfSetModel *m);
-/* v12 -- revs 234, 236. */
+/* v12 -- revs osrs234, osrs236. */
 void packet_if_setmodel_v12_out(RsprotExec *x, MsgIfSetModel *m);
-/* v13 -- revs 235. */
+/* v13 -- revs osrs235. */
 void packet_if_setmodel_v13_out(RsprotExec *x, MsgIfSetModel *m);
 
-/* Per-revision entry points: what revision N calls is packet_if_setmodel_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_if_setmodel_<R>_out. */
 #define packet_if_setmodel_osrs221_out packet_if_setmodel_v1_out
 #define packet_if_setmodel_osrs222_out packet_if_setmodel_v2_out
 #define packet_if_setmodel_osrs223_out packet_if_setmodel_v3_out

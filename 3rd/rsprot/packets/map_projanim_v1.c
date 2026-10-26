@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs 231. */
+/* v1 -- revs osrs231. */
 void
 packet_map_projanim_v1_v1_out(RsprotExec *x, MsgMapProjAnimV1 *m)
 {
@@ -33,7 +33,7 @@ packet_map_projanim_v1_v1_out(RsprotExec *x, MsgMapProjAnimV1 *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_projanim_v1_out[] = {
-    { 231, 231, (RsprotCodecFn)packet_map_projanim_v1_v1_out },
+    { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_map_projanim_v1_v1_out },
 };
 
 const int rsprot_map_projanim_v1_out_count =

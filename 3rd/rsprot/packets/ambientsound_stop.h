@@ -17,14 +17,14 @@ typedef struct MsgAmbientSoundStop {
 	int32_t fade;
 } MsgAmbientSoundStop;
 
-/* v1 -- revs 238, 240. */
+/* v1 -- revs osrs238, osrs240. */
 void packet_ambientsound_stop_v1_out(RsprotExec *x, MsgAmbientSoundStop *m);
-/* v2 -- revs 239. */
+/* v2 -- revs osrs239. */
 void packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m);
-/* v3 -- revs 241. */
+/* v3 -- revs osrs241. */
 void packet_ambientsound_stop_v3_out(RsprotExec *x, MsgAmbientSoundStop *m);
 
-/* Per-revision entry points: what revision N calls is packet_ambientsound_stop_osrsN_out. */
+/* Per-revision entry points: what revision R calls is packet_ambientsound_stop_<R>_out. */
 #define packet_ambientsound_stop_osrs238_out packet_ambientsound_stop_v1_out
 #define packet_ambientsound_stop_osrs239_out packet_ambientsound_stop_v2_out
 #define packet_ambientsound_stop_osrs240_out packet_ambientsound_stop_v1_out

@@ -208,7 +208,7 @@ static int
 run(int revision, char const* prot, RsprotBuf* c, void* msg)
 {
     RsprotExec x;
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, revision);
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
 
     if( !fn )
         return 0;
@@ -1404,7 +1404,7 @@ rsprox_parse_validate(
     int len)
 {
     struct RsproxRev const* r = rsprox_rev(rev);
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, r->revision);
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(r->revision));
     static union
     {
         long double align;
