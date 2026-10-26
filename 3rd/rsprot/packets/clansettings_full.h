@@ -66,9 +66,10 @@ typedef struct MsgClansettingsFull {
 	MsgClansettingsFullSetting settings[MSG_CLANSETTINGS_FULL_MAX_SETTINGS];
 } MsgClansettingsFull;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m);
 
+#define packet_clansettings_full_osrs222_out packet_clansettings_full_v1_out
 #define packet_clansettings_full_osrs223_out packet_clansettings_full_v1_out
 #define packet_clansettings_full_osrs224_out packet_clansettings_full_v1_out
 #define packet_clansettings_full_osrs225_out packet_clansettings_full_v1_out

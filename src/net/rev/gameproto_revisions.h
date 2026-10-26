@@ -16,7 +16,7 @@
  * revision-agnostic and key on canonical GameProtoPktName /
  * GameProtoPktOutName values.
  *
- * Two families: OSRS (osrs227-241) and LostCity's, RSProt's `rs` (rs245.2,
+ * Two families: OSRS (osrs222-241) and LostCity's, RSProt's `rs` (rs245.2,
  * the build the v0 client targets; rs254, the authoritative LostCity_Server,
  * Engine-TS branch 254; rs289, its January-2005 branch).
  */

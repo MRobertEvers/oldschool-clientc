@@ -1,7 +1,7 @@
 /* MESSAGE_CLANCHANNEL. Hand-written; see message_clanchannel.h. */
 #include "message_clanchannel.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_message_clanchannel_v1_out(RsprotExec *x, MsgMessageClanchannel *m)
 {
@@ -14,7 +14,7 @@ packet_message_clanchannel_v1_out(RsprotExec *x, MsgMessageClanchannel *m)
 }
 
 const RsprotVersionRange rsprot_message_clanchannel_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_clanchannel_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_clanchannel_v1_out },
 };
 
 const int rsprot_message_clanchannel_out_count =

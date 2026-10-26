@@ -1,7 +1,7 @@
 /* EVENT_MOUSE_MOVE. Hand-written; see event_mouse_move.h. */
 #include "event_mouse_move.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m)
 {
@@ -24,7 +24,7 @@ packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m)
 }
 
 const RsprotVersionRange rsprot_event_mouse_move_in[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_mouse_move_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_mouse_move_v1_in },
 };
 
 const int rsprot_event_mouse_move_in_count =

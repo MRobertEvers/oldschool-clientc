@@ -10,6 +10,8 @@
 
 #include "rsprot_info.h"
 
+int player_info_osrs222(
+    RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 int player_info_osrs223(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 int player_info_osrs224(

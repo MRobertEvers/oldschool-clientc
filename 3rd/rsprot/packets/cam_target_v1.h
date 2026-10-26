@@ -18,10 +18,11 @@ typedef struct MsgCamTargetV1 {
 	int32_t index;
 } MsgCamTargetV1;
 
-/* v1 -- revs osrs223-226. */
+/* v1 -- revs osrs222-226. */
 void packet_cam_target_v1_v1_out(RsprotExec *x, MsgCamTargetV1 *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_target_v1_<R>_out. */
+#define packet_cam_target_v1_osrs222_out packet_cam_target_v1_v1_out
 #define packet_cam_target_v1_osrs223_out packet_cam_target_v1_v1_out
 #define packet_cam_target_v1_osrs224_out packet_cam_target_v1_v1_out
 #define packet_cam_target_v1_osrs225_out packet_cam_target_v1_v1_out

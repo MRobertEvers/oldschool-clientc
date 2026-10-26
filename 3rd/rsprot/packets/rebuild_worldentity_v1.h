@@ -29,9 +29,10 @@ typedef struct MsgRebuildWorldEntityV1 {
 	int32_t keys[RSPROT_REGION_KEYS_MAX * 4];
 } MsgRebuildWorldEntityV1;
 
-/* v1 -- revs 223-224. */
+/* v1 -- revs 222-224. */
 void packet_rebuild_worldentity_v1_v1_out(RsprotExec *x, MsgRebuildWorldEntityV1 *m);
 
+#define packet_rebuild_worldentity_v1_osrs222_out packet_rebuild_worldentity_v1_v1_out
 #define packet_rebuild_worldentity_v1_osrs223_out packet_rebuild_worldentity_v1_v1_out
 #define packet_rebuild_worldentity_v1_osrs224_out packet_rebuild_worldentity_v1_v1_out
 

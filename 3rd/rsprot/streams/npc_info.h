@@ -10,6 +10,12 @@
 
 #include "rsprot_info.h"
 
+int npc_info_small_v4_osrs222(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
+int npc_info_large_v4_osrs222(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
 int npc_info_small_v4_osrs223(
     const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
     RsprotInfoList *out);

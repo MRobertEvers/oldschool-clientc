@@ -25,9 +25,10 @@ typedef struct MsgMessagePrivate {
 	int32_t huffman_length;
 } MsgMessagePrivate;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m);
 
+#define packet_message_private_osrs222_out packet_message_private_v1_out
 #define packet_message_private_osrs223_out packet_message_private_v1_out
 #define packet_message_private_osrs224_out packet_message_private_v1_out
 #define packet_message_private_osrs225_out packet_message_private_v1_out
@@ -61,9 +62,10 @@ typedef struct MsgMessagePrivateClient {
 	int32_t huffman_length;
 } MsgMessagePrivateClient;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_message_private_v1_in(RsprotExec *x, MsgMessagePrivateClient *m);
 
+#define packet_message_private_osrs222_in packet_message_private_v1_in
 #define packet_message_private_osrs223_in packet_message_private_v1_in
 #define packet_message_private_osrs224_in packet_message_private_v1_in
 #define packet_message_private_osrs225_in packet_message_private_v1_in

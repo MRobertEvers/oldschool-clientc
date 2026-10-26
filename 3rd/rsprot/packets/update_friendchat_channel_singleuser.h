@@ -20,9 +20,10 @@ typedef struct MsgUpdateFriendchatChannelSingleuser {
 	const char *world_name;
 } MsgUpdateFriendchatChannelSingleuser;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_update_friendchat_channel_singleuser_v1_out(RsprotExec *x, MsgUpdateFriendchatChannelSingleuser *m);
 
+#define packet_update_friendchat_channel_singleuser_osrs222_out packet_update_friendchat_channel_singleuser_v1_out
 #define packet_update_friendchat_channel_singleuser_osrs223_out packet_update_friendchat_channel_singleuser_v1_out
 #define packet_update_friendchat_channel_singleuser_osrs224_out packet_update_friendchat_channel_singleuser_v1_out
 #define packet_update_friendchat_channel_singleuser_osrs225_out packet_update_friendchat_channel_singleuser_v1_out

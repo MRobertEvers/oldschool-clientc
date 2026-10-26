@@ -3,7 +3,7 @@
  *
  *   make -C src test-pktsweep
  *
- * For each revision 227-241 and each prot its table (3rd/rsprot/gen/osrs<N>_prot.h)
+ * For each revision 222-241 and each prot its table (3rd/rsprot/gen/osrs<N>_prot.h)
  * names, server side and zone sub-packets included:
  *
  *   1. COVERAGE  the registry has a codec for the prot at that revision, or the
@@ -43,7 +43,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define REV_LO 227
+#define REV_LO 222
 #define REV_HI 241
 
 static int g_failures;
@@ -55,9 +55,14 @@ static const struct
 {
     const char *prot;
     const char *why;
+    int rev; /* 0: at every revision */
 } k_no_codec[] = {
     /* Stateful bit streams, read by the client's entity-info readers. */
     { "PLAYER_INFO", "info stream" },
+    { "NPC_INFO_SMALL_V4", "info stream" },
+    { "NPC_INFO_LARGE_V4", "info stream" },
+    { "WORLDENTITY_INFO_V1", "info stream" },
+    { "WORLDENTITY_INFO_V2", "info stream" },
     { "NPC_INFO_SMALL_V5", "info stream" },
     { "NPC_INFO_LARGE_V5", "info stream" },
     { "NPC_INFO_SMALL_V6", "info stream" },
@@ -84,13 +89,23 @@ static const struct
     { "UPDATE_STOCKMARKET_SLOT", "raw to the stock market store" },
     /* RSProx's catch-all row for a prot it cannot decode: no layout exists. */
     { "UNHANDLED", "no layout" },
+    /* Older projectile forms the tables still carry an opcode for: neither
+     * RSProx (223-226 decode only the current form) nor RSProt (osrs-222's
+     * one ProjAnimSpecificEncoder) states their layout. */
+    { "PROJANIM_SPECIFIC_OLD", "no layout in RSProx or RSProt", 222 },
+    { "PROJANIM_SPECIFIC_OLD", "no layout in RSProx or RSProt", 223 },
+    { "PROJANIM_SPECIFIC_OLD", "no layout in RSProx or RSProt", 224 },
+    { "PROJANIM_SPECIFIC_OLD", "no layout in RSProx or RSProt", 225 },
+    { "PROJANIM_SPECIFIC_OLD_OLD", "no layout in RSProx or RSProt", 225 },
+    { "PROJANIM_SPECIFIC_V1", "no layout in RSProx or RSProt", 226 },
+    { "PROJANIM_SPECIFIC_V2", "no layout in RSProx or RSProt", 226 },
 };
 
 static const char*
-no_codec_reason(const char *prot)
+no_codec_reason(const char *prot, int rev)
 {
     for (size_t i = 0; i < sizeof(k_no_codec) / sizeof(k_no_codec[0]); i++)
-        if (strcmp(k_no_codec[i].prot, prot) == 0)
+        if (strcmp(k_no_codec[i].prot, prot) == 0 && (k_no_codec[i].rev == 0 || k_no_codec[i].rev == rev))
             return k_no_codec[i].why;
     return NULL;
 }
@@ -195,10 +210,13 @@ sweep_side(int rev, const RsprotProtDef *defs, int count, RsprotRegistryDir dir,
 {
     for (int i = 0; i < count; i++) {
         const RsprotProtDef *d = &defs[i];
-        RsprotCodecFn fn = rsprot_registry_resolve(d->name, dir, rsprot_osrs(rev));
+        const char *prot = d->name;
+        /* A row that names its version (222-226) is decoded by that version. */
+        RsprotCodecFn fn = rsprot_registry_resolve_def(d, dir, rsprot_osrs(rev), &prot);
 
         if (!fn) {
-            if (dir == RSPROT_REG_OUT && !no_codec_reason(d->name)) {
+            if (dir == RSPROT_REG_OUT && !no_codec_reason(d->name, rev) &&
+                !(d->codec && no_codec_reason(d->codec, rev))) {
                 printf("FAIL cover rev %d %-36s no codec (opcode %d, size %d)\n", rev, d->name,
                        d->code, d->size);
                 g_failures++;
@@ -206,7 +224,7 @@ sweep_side(int rev, const RsprotProtDef *defs, int count, RsprotRegistryDir dir,
             (*uncovered)++;
             continue;
         }
-        if (!check_codec(rev, d->name, d->size, fn))
+        if (!check_codec(rev, prot, d->size, fn))
             g_failures++;
     }
 }

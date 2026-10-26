@@ -10,144 +10,153 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223. */
+/* v1 -- revs osrs222. */
 void
 packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m)
+{
+    RSPROT_U1_NEG(x, m->id);
+    RSPROT_U1_ADD128(x, m->priority);
+    RSPROT_JSTR(x, m->op);
+}
+
+/* v2 -- revs osrs223. */
+void
+packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ADD128(x, m->id);
     RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v2 -- revs osrs224-225, osrs235. */
+/* v3 -- revs osrs224-225, osrs235. */
 void
-packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_NEG(x, m->id);
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v3 -- revs osrs226. */
+/* v4 -- revs osrs226. */
 void
-packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_SUB128(x, m->priority);
     RSPROT_U1_SUB128(x, m->id);
 }
 
-/* v4 -- revs osrs227. */
+/* v5 -- revs osrs227. */
 void
-packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_NEG(x, m->priority);
     RSPROT_U1_NEG(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v5 -- revs osrs228. */
+/* v6 -- revs osrs228. */
 void
-packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ADD128(x, m->id);
 }
 
-/* v6 -- revs osrs229. */
+/* v7 -- revs osrs229. */
 void
-packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_SUB128(x, m->priority);
     RSPROT_U1_NEG(x, m->id);
 }
 
-/* v7 -- revs osrs230-231. */
-void
-packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m)
-{
-    RSPROT_U1_ADD128(x, m->priority);
-    RSPROT_U1(x, m->id);
-    RSPROT_JSTR(x, m->op);
-}
-
-/* v8 -- revs osrs232. */
+/* v8 -- revs osrs230-231. */
 void
 packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_ADD128(x, m->priority);
+    RSPROT_U1(x, m->id);
+    RSPROT_JSTR(x, m->op);
+}
+
+/* v9 -- revs osrs232. */
+void
+packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m)
+{
+    RSPROT_U1_ADD128(x, m->priority);
     RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v9 -- revs osrs233. */
+/* v10 -- revs osrs233. */
 void
-packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_NEG(x, m->id);
     RSPROT_U1_NEG(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v10 -- revs osrs234. */
+/* v11 -- revs osrs234. */
 void
-packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_NEG(x, m->priority);
 }
 
-/* v11 -- revs osrs236. */
+/* v12 -- revs osrs236. */
 void
-packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ADD128(x, m->id);
 }
 
-/* v12 -- revs osrs237. */
+/* v13 -- revs osrs237. */
 void
-packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_NEG(x, m->priority);
     RSPROT_U1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v13 -- revs osrs238. */
+/* v14 -- revs osrs238. */
 void
-packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_NEG(x, m->id);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1_ADD128(x, m->priority);
 }
 
-/* v14 -- revs osrs239. */
+/* v15 -- revs osrs239. */
 void
-packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
     RSPROT_U1_ADD128(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v15 -- revs osrs240. */
+/* v16 -- revs osrs240. */
 void
-packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_SUB128(x, m->id);
     RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
-/* v16 -- revs osrs241. */
+/* v17 -- revs osrs241. */
 void
-packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m)
+packet_set_player_op_v17_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
@@ -155,27 +164,28 @@ packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m)
 }
 
 /*
- * 17 row(s) for 16 layout(s). A revision not listed has no SET_PLAYER_OP and
+ * 18 row(s) for 17 layout(s). A revision not listed has no SET_PLAYER_OP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_player_op_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_set_player_op_v1_out },
-    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_set_player_op_v2_out },
-    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_set_player_op_v3_out },
-    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_set_player_op_v4_out },
-    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_set_player_op_v5_out },
-    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_set_player_op_v6_out },
-    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_set_player_op_v7_out },
-    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_set_player_op_v8_out },
-    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_set_player_op_v9_out },
-    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_set_player_op_v10_out },
-    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_set_player_op_v2_out },
-    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_set_player_op_v11_out },
-    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_set_player_op_v12_out },
-    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_set_player_op_v13_out },
-    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_set_player_op_v14_out },
-    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_set_player_op_v15_out },
-    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_player_op_v16_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_set_player_op_v1_out },
+    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(223), (RsprotCodecFn)packet_set_player_op_v2_out },
+    { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(225), (RsprotCodecFn)packet_set_player_op_v3_out },
+    { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(226), (RsprotCodecFn)packet_set_player_op_v4_out },
+    { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(227), (RsprotCodecFn)packet_set_player_op_v5_out },
+    { RSPROT_OSRS_ID(228), RSPROT_OSRS_ID(228), (RsprotCodecFn)packet_set_player_op_v6_out },
+    { RSPROT_OSRS_ID(229), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_set_player_op_v7_out },
+    { RSPROT_OSRS_ID(230), RSPROT_OSRS_ID(231), (RsprotCodecFn)packet_set_player_op_v8_out },
+    { RSPROT_OSRS_ID(232), RSPROT_OSRS_ID(232), (RsprotCodecFn)packet_set_player_op_v9_out },
+    { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_set_player_op_v10_out },
+    { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_set_player_op_v11_out },
+    { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_set_player_op_v3_out },
+    { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_set_player_op_v12_out },
+    { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(237), (RsprotCodecFn)packet_set_player_op_v13_out },
+    { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_set_player_op_v14_out },
+    { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_set_player_op_v15_out },
+    { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_set_player_op_v16_out },
+    { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_player_op_v17_out },
 };
 
 const int rsprot_set_player_op_out_count =

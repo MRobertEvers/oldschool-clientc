@@ -54,9 +54,10 @@ typedef struct MsgClansettingsDelta {
 	int32_t trailing_length;
 } MsgClansettingsDelta;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m);
 
+#define packet_clansettings_delta_osrs222_out packet_clansettings_delta_v1_out
 #define packet_clansettings_delta_osrs223_out packet_clansettings_delta_v1_out
 #define packet_clansettings_delta_osrs224_out packet_clansettings_delta_v1_out
 #define packet_clansettings_delta_osrs225_out packet_clansettings_delta_v1_out

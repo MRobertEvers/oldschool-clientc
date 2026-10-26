@@ -1,4 +1,4 @@
-/* WORLDENTITY_INFO_V1 / _V2, revisions 223-226. See worldentity_info_v1.h. */
+/* WORLDENTITY_INFO_V1 / _V2, revisions 222-226. See worldentity_info_v1.h. */
 #include "worldentity_info_v1.h"
 
 #include "rsprot_info_internal.h"
@@ -58,6 +58,7 @@ worldentity_info_v1(const uint8_t *data, int32_t len, RsprotInfoList *out)
         return worldentity_info_v1(data, len, out);                                                \
     }
 
+WORLDENTITY_INFO_V1_ENTRY(v1, 222)
 WORLDENTITY_INFO_V1_ENTRY(v1, 223)
 WORLDENTITY_INFO_V1_ENTRY(v1, 224)
 WORLDENTITY_INFO_V1_ENTRY(v1, 225)
@@ -69,6 +70,7 @@ RsprotWorldEntityInfoReadFn
 worldentity_info_v1_osrs(RsprotRev rev)
 {
     switch (rev.id) {
+    case RSPROT_OSRS_ID(222): return worldentity_info_v1_osrs222;
     case RSPROT_OSRS_ID(223): return worldentity_info_v1_osrs223;
     case RSPROT_OSRS_ID(224): return worldentity_info_v1_osrs224;
     case RSPROT_OSRS_ID(225): return worldentity_info_v1_osrs225;

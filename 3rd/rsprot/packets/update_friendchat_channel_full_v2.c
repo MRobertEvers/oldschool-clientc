@@ -1,7 +1,7 @@
 /* UPDATE_FRIENDCHAT_CHANNEL_FULL_V2. Hand-written; see update_friendchat_channel_full_v2.h. */
 #include "update_friendchat_channel_full_v2.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_update_friendchat_channel_full_v2_v1_out(RsprotExec *x, MsgUpdateFriendchatChannelFullV2 *m)
 {
@@ -25,7 +25,7 @@ packet_update_friendchat_channel_full_v2_v1_out(RsprotExec *x, MsgUpdateFriendch
 }
 
 const RsprotVersionRange rsprot_update_friendchat_channel_full_v2_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_friendchat_channel_full_v2_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_friendchat_channel_full_v2_v1_out },
 };
 
 const int rsprot_update_friendchat_channel_full_v2_out_count =

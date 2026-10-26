@@ -1,7 +1,7 @@
 /* UPDATE_TRADINGPOST_V1. Hand-written; see update_tradingpost_v1.h. */
 #include "update_tradingpost_v1.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_update_tradingpost_v1_v1_out(RsprotExec *x, MsgUpdateTradingpostV1 *m)
 {
@@ -23,7 +23,7 @@ packet_update_tradingpost_v1_v1_out(RsprotExec *x, MsgUpdateTradingpostV1 *m)
 }
 
 const RsprotVersionRange rsprot_update_tradingpost_v1_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_tradingpost_v1_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_tradingpost_v1_v1_out },
 };
 
 const int rsprot_update_tradingpost_v1_out_count =

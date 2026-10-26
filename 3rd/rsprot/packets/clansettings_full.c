@@ -1,7 +1,7 @@
 /* CLANSETTINGS_FULL. Hand-written; see clansettings_full.h. */
 #include "clansettings_full.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m)
 {
@@ -72,7 +72,7 @@ packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m)
 }
 
 const RsprotVersionRange rsprot_clansettings_full_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_full_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_full_v1_out },
 };
 
 const int rsprot_clansettings_full_out_count =

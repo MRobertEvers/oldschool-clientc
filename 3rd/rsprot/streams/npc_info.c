@@ -11,6 +11,7 @@ RsprotNpcInfoReadFn
 npc_info_large_v4_osrs(RsprotRev rev)
 {
     switch (rev.id) {
+    case RSPROT_OSRS_ID(222): return npc_info_large_v4_osrs222;
     case RSPROT_OSRS_ID(223): return npc_info_large_v4_osrs223;
     case RSPROT_OSRS_ID(224): return npc_info_large_v4_osrs224;
     case RSPROT_OSRS_ID(225): return npc_info_large_v4_osrs225;
@@ -55,6 +56,7 @@ RsprotNpcInfoReadFn
 npc_info_small_v4_osrs(RsprotRev rev)
 {
     switch (rev.id) {
+    case RSPROT_OSRS_ID(222): return npc_info_small_v4_osrs222;
     case RSPROT_OSRS_ID(223): return npc_info_small_v4_osrs223;
     case RSPROT_OSRS_ID(224): return npc_info_small_v4_osrs224;
     case RSPROT_OSRS_ID(225): return npc_info_small_v4_osrs225;

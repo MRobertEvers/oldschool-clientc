@@ -1,7 +1,7 @@
 /* CLANSETTINGS_DELTA. Hand-written; see clansettings_delta.h. */
 #include "clansettings_delta.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m)
 {
@@ -88,7 +88,7 @@ packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m)
 }
 
 const RsprotVersionRange rsprot_clansettings_delta_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_delta_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_delta_v1_out },
 };
 
 const int rsprot_clansettings_delta_out_count =

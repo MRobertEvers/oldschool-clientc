@@ -43,9 +43,10 @@ typedef struct MsgClanchannelFull {
 	MsgClanchannelFullMember members[MSG_CLANCHANNEL_FULL_MAX_MEMBERS];
 } MsgClanchannelFull;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_clanchannel_full_v1_out(RsprotExec *x, MsgClanchannelFull *m);
 
+#define packet_clanchannel_full_osrs222_out packet_clanchannel_full_v1_out
 #define packet_clanchannel_full_osrs223_out packet_clanchannel_full_v1_out
 #define packet_clanchannel_full_osrs224_out packet_clanchannel_full_v1_out
 #define packet_clanchannel_full_osrs225_out packet_clanchannel_full_v1_out

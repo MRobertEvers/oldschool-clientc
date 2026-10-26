@@ -2,7 +2,7 @@
 #include "hiscore_reply.h"
 
 /*
- * v1 -- revs 223-241.
+ * v1 -- revs 222-241.
  * g1 requestId, g1 responseType; 0: g1 version, g1 statCount,
  * [g2 id, g4 rank, g4 result]*, g4 overallRank, g8 overallExperience,
  * g2 activityCount, [g2 id, g4 rank, g4 result]*; 1: gjstr reason.
@@ -36,7 +36,7 @@ packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m)
 }
 
 const RsprotVersionRange rsprot_hiscore_reply_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hiscore_reply_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hiscore_reply_v1_out },
 };
 
 const int rsprot_hiscore_reply_out_count =

@@ -44,9 +44,10 @@ typedef struct MsgReflectionChecker {
 	MsgReflectionCheck checks[MSG_REFLECTION_CHECKER_MAX_CHECKS];
 } MsgReflectionChecker;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m);
 
+#define packet_reflection_checker_osrs222_out packet_reflection_checker_v1_out
 #define packet_reflection_checker_osrs223_out packet_reflection_checker_v1_out
 #define packet_reflection_checker_osrs224_out packet_reflection_checker_v1_out
 #define packet_reflection_checker_osrs225_out packet_reflection_checker_v1_out

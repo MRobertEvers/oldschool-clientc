@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223-241. */
+/* v1 -- revs osrs222-241. */
 void
 packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m)
 {
@@ -22,7 +22,7 @@ packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_url_open_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_url_open_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_url_open_v1_out },
 };
 
 const int rsprot_url_open_out_count =

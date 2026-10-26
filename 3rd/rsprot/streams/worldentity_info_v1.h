@@ -2,7 +2,8 @@
 #define RSPROT_STREAM_WORLDENTITY_INFO_V1_H
 
 /*
- * WORLDENTITY_INFO_V1 / _V2 -- server -> client, revisions 223-226.
+ * WORLDENTITY_INFO_V1 / _V2 -- server -> client, revisions 222-226 (222 from
+ * RSProt's osrs-222, whose encoder and model match 223's).
  *
  * RSProx reads both versions with one fixed layout (GenericWorldEntityInfoClient,
  * protocol/src: `version >= 3` takes the V2 path, 1 and 2 the V1 path), plain
@@ -22,6 +23,7 @@
 /** The reader both versions run. */
 int worldentity_info_v1(const uint8_t *data, int32_t len, RsprotInfoList *out);
 
+int worldentity_info_v1_osrs222(const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v1_osrs223(const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v1_osrs224(const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v1_osrs225(const uint8_t *data, int32_t len, RsprotInfoList *out);

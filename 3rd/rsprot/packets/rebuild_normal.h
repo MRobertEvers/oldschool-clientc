@@ -25,48 +25,51 @@ typedef struct MsgRebuildNormal {
 	int32_t gpi_init_length;
 } MsgRebuildNormal;
 
-/* v1 -- revs osrs223. */
+/* v1 -- revs osrs222. */
 void packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v2 -- revs osrs224. */
+/* v2 -- revs osrs223. */
 void packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v3 -- revs osrs225. */
+/* v3 -- revs osrs224. */
 void packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v4 -- revs osrs226. */
+/* v4 -- revs osrs225. */
 void packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v5 -- revs osrs227. */
+/* v5 -- revs osrs226. */
 void packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v6 -- revs osrs228. */
+/* v6 -- revs osrs227. */
 void packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v7 -- revs osrs229. */
+/* v7 -- revs osrs228. */
 void packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v8 -- revs osrs230, osrs233. */
+/* v8 -- revs osrs229. */
 void packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v9 -- revs osrs231. */
+/* v9 -- revs osrs230, osrs233. */
 void packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v10 -- revs osrs232. */
+/* v10 -- revs osrs231. */
 void packet_rebuild_normal_v10_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v11 -- revs osrs234. */
+/* v11 -- revs osrs232. */
 void packet_rebuild_normal_v11_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v12 -- revs osrs235. */
+/* v12 -- revs osrs234. */
 void packet_rebuild_normal_v12_out(RsprotExec *x, MsgRebuildNormal *m);
-/* v13 -- revs osrs236. */
+/* v13 -- revs osrs235. */
 void packet_rebuild_normal_v13_out(RsprotExec *x, MsgRebuildNormal *m);
+/* v14 -- revs osrs236. */
+void packet_rebuild_normal_v14_out(RsprotExec *x, MsgRebuildNormal *m);
 
 /* Per-revision entry points: what revision R calls is packet_rebuild_normal_<R>_out. */
-#define packet_rebuild_normal_osrs223_out packet_rebuild_normal_v1_out
-#define packet_rebuild_normal_osrs224_out packet_rebuild_normal_v2_out
-#define packet_rebuild_normal_osrs225_out packet_rebuild_normal_v3_out
-#define packet_rebuild_normal_osrs226_out packet_rebuild_normal_v4_out
-#define packet_rebuild_normal_osrs227_out packet_rebuild_normal_v5_out
-#define packet_rebuild_normal_osrs228_out packet_rebuild_normal_v6_out
-#define packet_rebuild_normal_osrs229_out packet_rebuild_normal_v7_out
-#define packet_rebuild_normal_osrs230_out packet_rebuild_normal_v8_out
-#define packet_rebuild_normal_osrs231_out packet_rebuild_normal_v9_out
-#define packet_rebuild_normal_osrs232_out packet_rebuild_normal_v10_out
-#define packet_rebuild_normal_osrs233_out packet_rebuild_normal_v8_out
-#define packet_rebuild_normal_osrs234_out packet_rebuild_normal_v11_out
-#define packet_rebuild_normal_osrs235_out packet_rebuild_normal_v12_out
-#define packet_rebuild_normal_osrs236_out packet_rebuild_normal_v13_out
+#define packet_rebuild_normal_osrs222_out packet_rebuild_normal_v1_out
+#define packet_rebuild_normal_osrs223_out packet_rebuild_normal_v2_out
+#define packet_rebuild_normal_osrs224_out packet_rebuild_normal_v3_out
+#define packet_rebuild_normal_osrs225_out packet_rebuild_normal_v4_out
+#define packet_rebuild_normal_osrs226_out packet_rebuild_normal_v5_out
+#define packet_rebuild_normal_osrs227_out packet_rebuild_normal_v6_out
+#define packet_rebuild_normal_osrs228_out packet_rebuild_normal_v7_out
+#define packet_rebuild_normal_osrs229_out packet_rebuild_normal_v8_out
+#define packet_rebuild_normal_osrs230_out packet_rebuild_normal_v9_out
+#define packet_rebuild_normal_osrs231_out packet_rebuild_normal_v10_out
+#define packet_rebuild_normal_osrs232_out packet_rebuild_normal_v11_out
+#define packet_rebuild_normal_osrs233_out packet_rebuild_normal_v9_out
+#define packet_rebuild_normal_osrs234_out packet_rebuild_normal_v12_out
+#define packet_rebuild_normal_osrs235_out packet_rebuild_normal_v13_out
+#define packet_rebuild_normal_osrs236_out packet_rebuild_normal_v14_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_rebuild_normal_out[];

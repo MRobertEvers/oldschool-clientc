@@ -11,6 +11,7 @@ RsprotPlayerInfoReadFn
 player_info_osrs(RsprotRev rev)
 {
     switch (rev.id) {
+    case RSPROT_OSRS_ID(222): return player_info_osrs222;
     case RSPROT_OSRS_ID(223): return player_info_osrs223;
     case RSPROT_OSRS_ID(224): return player_info_osrs224;
     case RSPROT_OSRS_ID(225): return player_info_osrs225;

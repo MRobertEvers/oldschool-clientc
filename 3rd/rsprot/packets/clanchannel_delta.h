@@ -41,9 +41,10 @@ typedef struct MsgClanchannelDelta {
 	int32_t trailing_length;
 } MsgClanchannelDelta;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m);
 
+#define packet_clanchannel_delta_osrs222_out packet_clanchannel_delta_v1_out
 #define packet_clanchannel_delta_osrs223_out packet_clanchannel_delta_v1_out
 #define packet_clanchannel_delta_osrs224_out packet_clanchannel_delta_v1_out
 #define packet_clanchannel_delta_osrs225_out packet_clanchannel_delta_v1_out

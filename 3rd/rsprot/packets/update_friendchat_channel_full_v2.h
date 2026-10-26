@@ -33,9 +33,10 @@ typedef struct MsgUpdateFriendchatChannelFullV2 {
 	MsgUpdateFriendchatChannelFullV2Entry entries[MSG_FRIENDCHAT_V2_MAX_ENTRIES];
 } MsgUpdateFriendchatChannelFullV2;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_update_friendchat_channel_full_v2_v1_out(RsprotExec *x, MsgUpdateFriendchatChannelFullV2 *m);
 
+#define packet_update_friendchat_channel_full_v2_osrs222_out packet_update_friendchat_channel_full_v2_v1_out
 #define packet_update_friendchat_channel_full_v2_osrs223_out packet_update_friendchat_channel_full_v2_v1_out
 #define packet_update_friendchat_channel_full_v2_osrs224_out packet_update_friendchat_channel_full_v2_v1_out
 #define packet_update_friendchat_channel_full_v2_osrs225_out packet_update_friendchat_channel_full_v2_v1_out

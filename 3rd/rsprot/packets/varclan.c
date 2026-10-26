@@ -1,7 +1,7 @@
 /* VARCLAN. Hand-written; see varclan.h. */
 #include "varclan.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m)
 {
@@ -10,7 +10,7 @@ packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m)
 }
 
 const RsprotVersionRange rsprot_varclan_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varclan_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varclan_v1_out },
 };
 
 const int rsprot_varclan_out_count =

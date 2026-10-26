@@ -10,7 +10,7 @@
  * transcription and cannot drift apart.
  */
 
-/* v1 -- revs osrs223-229. */
+/* v1 -- revs osrs222-229. */
 void
 packet_clear_entities_v1_out(RsprotExec *x, MsgClearEntities *m)
 {
@@ -23,7 +23,7 @@ packet_clear_entities_v1_out(RsprotExec *x, MsgClearEntities *m)
  * picks NULL.
  */
 const RsprotVersionRange rsprot_clear_entities_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_clear_entities_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(229), (RsprotCodecFn)packet_clear_entities_v1_out },
 };
 
 const int rsprot_clear_entities_out_count =

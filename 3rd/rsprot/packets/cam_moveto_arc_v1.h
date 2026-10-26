@@ -24,10 +24,15 @@ typedef struct MsgCamMoveToArcV1 {
 	int32_t easing_id;
 } MsgCamMoveToArcV1;
 
-/* v1 -- revs osrs227-236. */
+/* v1 -- revs osrs222-236. */
 void packet_cam_moveto_arc_v1_v1_out(RsprotExec *x, MsgCamMoveToArcV1 *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_moveto_arc_v1_<R>_out. */
+#define packet_cam_moveto_arc_v1_osrs222_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_osrs223_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_osrs224_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_osrs225_out packet_cam_moveto_arc_v1_v1_out
+#define packet_cam_moveto_arc_v1_osrs226_out packet_cam_moveto_arc_v1_v1_out
 #define packet_cam_moveto_arc_v1_osrs227_out packet_cam_moveto_arc_v1_v1_out
 #define packet_cam_moveto_arc_v1_osrs228_out packet_cam_moveto_arc_v1_v1_out
 #define packet_cam_moveto_arc_v1_osrs229_out packet_cam_moveto_arc_v1_v1_out

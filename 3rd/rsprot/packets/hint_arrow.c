@@ -2,7 +2,7 @@
 #include "hint_arrow.h"
 
 /*
- * v1 -- revs 223-234 (RSProx 223-226 read it as 227 does).
+ * v1 -- revs 222-234 (RSProx 223-226 read it as 227 does).
  * g1 type, then per type (see the struct).
  */
 void
@@ -55,7 +55,7 @@ packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m)
 }
 
 const RsprotVersionRange rsprot_hint_arrow_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_hint_arrow_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_hint_arrow_v1_out },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hint_arrow_v2_out },
 };
 

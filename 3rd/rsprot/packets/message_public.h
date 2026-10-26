@@ -28,9 +28,10 @@ typedef struct MsgMessagePublic {
 	int32_t clan_type;
 } MsgMessagePublic;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_message_public_v1_in(RsprotExec *x, MsgMessagePublic *m);
 
+#define packet_message_public_osrs222_in packet_message_public_v1_in
 #define packet_message_public_osrs223_in packet_message_public_v1_in
 #define packet_message_public_osrs224_in packet_message_public_v1_in
 #define packet_message_public_osrs225_in packet_message_public_v1_in

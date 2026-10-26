@@ -1,7 +1,7 @@
 /* MESSAGE_PUBLIC. Hand-written; see message_public.h. */
 #include "message_public.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_message_public_v1_in(RsprotExec *x, MsgMessagePublic *m)
 {
@@ -17,7 +17,7 @@ packet_message_public_v1_in(RsprotExec *x, MsgMessagePublic *m)
 }
 
 const RsprotVersionRange rsprot_message_public_in[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_public_v1_in },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_public_v1_in },
 };
 
 const int rsprot_message_public_in_count =

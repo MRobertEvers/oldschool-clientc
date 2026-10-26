@@ -34,9 +34,10 @@ typedef struct MsgEventMouseMove {
 	MsgEventMouseMoveMove moves[MSG_EVENT_MOUSE_MOVE_MAX];
 } MsgEventMouseMove;
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m);
 
+#define packet_event_mouse_move_osrs222_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs223_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs224_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs225_in packet_event_mouse_move_v1_in

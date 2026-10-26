@@ -1,7 +1,7 @@
 /* CLANCHANNEL_DELTA. Hand-written; see clanchannel_delta.h. */
 #include "clanchannel_delta.h"
 
-/* v1 -- revs 223-241. */
+/* v1 -- revs 222-241. */
 void
 packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 {
@@ -63,7 +63,7 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 }
 
 const RsprotVersionRange rsprot_clanchannel_delta_out[] = {
-    { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
+    { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
 };
 
 const int rsprot_clanchannel_delta_out_count =
