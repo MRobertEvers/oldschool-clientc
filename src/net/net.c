@@ -5,7 +5,6 @@
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
 #include "net/net_capture.h"
-#include "net/proto/proto_in_adapt.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -541,9 +540,8 @@ net_process_packets(struct ToriRS_Network* net)
              * The LostCity tables, until they are generated too, try in order,
              * each returning <0 for "not mine":
              *
-             *   1. rsprot   — the bridge rows (net/proto/proto_in_adapt.h);
-             *   2. rev->parse — a hand-written per-revision override;
-             *   3. gameproto_parse — the shared lc-style parser.
+             *   1. rev->parse — a hand-written per-revision override;
+             *   2. gameproto_parse — the shared lc-style parser.
              *
              * rsprot goes first so that moving a packet across is adding one
              * row to the bridge table, with the arm it supersedes becoming
@@ -561,8 +559,6 @@ net_process_packets(struct ToriRS_Network* net)
              * CAM_TARGET_V3 and _V4 share one) parses by wire opcode first. */
             if( net->rev->parse_wire )
                 parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
-            if( parsed < 0 )
-                parsed = proto_decode_name(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 && net->rev->parse )
                 parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 )

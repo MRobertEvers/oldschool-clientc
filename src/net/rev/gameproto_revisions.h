@@ -289,11 +289,6 @@ GameProtoRev_Osrs(int revision);
 struct GameProtoRevTable const*
 GameProtoRev_OsrsByName(char const* name);
 
-/** The previous data-driven module's table for `revision` (net/proto/proto_rev.c),
- *  kept only to diff the generated executors against (net/test/proto_diff.c). */
-struct GameProtoRevTable const*
-GameProtoRev_Rsprox(int revision);
-
 /* Boot-time login-parameter injection from a boot manifest. The tables are
  * static non-const singletons; these cast the const away by design and MUST be
  * called before ToriRS_Network_Init (nothing reads these fields until login).

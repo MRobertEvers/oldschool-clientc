@@ -154,8 +154,8 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
-/** Revisions a recording can be replayed at: the data-driven family's range
- *  (net/proto/proto.h). */
+/** Revisions a recording can be replayed at: the supported OSRS revisions
+ *  (src/net/rev/revisions.ini). */
 #define RSPROX_RECORDING_REV_FIRST 227
 #define RSPROX_RECORDING_REV_LAST 241
 
