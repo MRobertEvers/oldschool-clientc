@@ -4,6 +4,7 @@
 
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
+#include "net/net_capture.h"
 #include "net/proto/proto_in_adapt.h"
 
 #include <assert.h>
@@ -493,6 +494,9 @@ push_parsed_packet(
     net->packets_tail = item;
 }
 
+/* TORIRS_NET_CAPTURE: every framed server packet, as a recording. */
+static struct NetCapture g_net_capture;
+
 static void
 net_process_packets(struct ToriRS_Network* net)
 {
@@ -505,6 +509,9 @@ net_process_packets(struct ToriRS_Network* net)
         enum GameProtoPktName name = (enum GameProtoPktName)net->rev->packetin_code(wire);
 
         memset(&packet, 0, sizeof(packet));
+        net_capture_server(&g_net_capture, "TORIRS_NET_CAPTURE", net->rev, wire,
+                           packetbuffer_data(&net->packet_buffer),
+                           packetbuffer_size(&net->packet_buffer));
         if( torirs_env_net_debug() )
             TORIRS_LOG("net: <- wire=%d name=%d size=%d\n",
                 wire,

@@ -13,6 +13,7 @@
 #include "world/entity_npc.h"
 #include "world/entity_player.h"
 #include "world/world.h"
+#include "net/net_capture.h"
 #include "net/proto/proto_in_adapt.h"
 #include "net/rev/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
@@ -2033,8 +2034,15 @@ ScriptrunCore_Packet(
     const uint8_t* payload,
     int len)
 {
+    /* TORIRS_SCRIPTRUN_CAPTURE: what the sink handed over, as a recording. */
+    static struct NetCapture capture;
+    int wire;
+
     assert(core);
     assert(len >= 0);
+    wire = core->rev->packetin_wire(pkt_name);
+    if( wire >= 0 )
+        net_capture_server(&capture, "TORIRS_SCRIPTRUN_CAPTURE", core->rev, wire, payload, len);
     core->packets++;
     if( core->player_decoder_state )
         core->rev->player_info_state_load(core->player_decoder_state);
