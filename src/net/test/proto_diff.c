@@ -161,8 +161,10 @@ same(struct RevPacket const* a, struct RevPacket const* b)
     }
     case PKT_NAME_REBUILD_WORLDENTITY:
         owned = a->_rebuild_wev.length == b->_rebuild_wev.length &&
-                blob_eq(a->_rebuild_wev.data, b->_rebuild_wev.data, (size_t)a->_rebuild_wev.length);
+                blob_eq(a->_rebuild_wev.data, b->_rebuild_wev.data, (size_t)a->_rebuild_wev.length) &&
+                str_eq(a->_rebuild_wev.prot, b->_rebuild_wev.prot);
         x._rebuild_wev.data = y._rebuild_wev.data = NULL;
+        x._rebuild_wev.prot = y._rebuild_wev.prot = NULL;
         break;
     case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
     case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:

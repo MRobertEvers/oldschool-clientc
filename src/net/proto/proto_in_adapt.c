@@ -5,8 +5,12 @@
 #include <stdio.h>
 
 #include "rsprot_exec.h"
+#include "rsprot_registry.h"
 
 #include "packets/cam_lookat_v2.h"
+#include "packets/rebuild_worldentity_v2.h"
+#include "packets/rebuild_worldentity_v3.h"
+#include "packets/rebuild_worldentity_v4.h"
 #include "packets/cam_lookat_v3.h"
 #include "packets/if_resync_v2.h"
 #include "packets/cam_moveto_v2.h"
@@ -1359,4 +1363,87 @@ proto_decode_name(
         return k_rows[i].fn(revision, data, len, out);
     }
     return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* REBUILD_WORLDENTITY's grid, once the view's size is known           */
+/* ------------------------------------------------------------------ */
+
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones)
+{
+    static union
+    {
+        long double align;
+        MsgRebuildWorldEntityV2 v2;
+        MsgRebuildWorldEntityV3 v3;
+        MsgRebuildWorldEntityV4 v4;
+    } m;
+    RsprotRev rev;
+    RsprotCodecFn fn;
+    RsprotExec x;
+    RsprotBuf b;
+    int32_t const* zones;
+
+    assert(p);
+    assert(p->data);
+    assert(p->prot);
+    assert(out_zones);
+    /* 13 is the PKT_MAP_REBUILD_ZONES stride (revpacket.h): a view wider than
+     * the full-instance grid cannot be expressed in the array the world-load
+     * path consumes. */
+    assert(zones_x > 0);
+    assert(zones_x <= 13);
+    assert(zones_z > 0);
+    assert(zones_z <= 13);
+    rev.id = p->rev_id;
+    fn = rsprot_registry_codec(p->prot, RSPROT_REG_OUT, rev);
+    assert(fn);
+
+    memset(out_zones, 0, PKT_MAP_REBUILD_ZONES * sizeof(*out_zones));
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, p->data, p->length);
+    rsprot_exec_decode(&x, &b);
+    if( strcmp(p->prot, "REBUILD_WORLDENTITY_V2") == 0 )
+    {
+        /* V2's grid is the full 13x13 instance grid, already at the stride. */
+        fn(&x, &m.v2);
+        if( !rsprot_exec_ok(&x) || b.err || b.rpos != p->length )
+            return 0;
+        for( int i = 0; i < PKT_MAP_REBUILD_ZONES; i++ )
+            out_zones[i] = m.v2.zones[i] < 0 ? 0 : m.v2.zones[i];
+        return 1;
+    }
+    if( strcmp(p->prot, "REBUILD_WORLDENTITY_V3") == 0 )
+    {
+        m.v3.size_x_zones = zones_x;
+        m.v3.size_z_zones = zones_z;
+        fn(&x, &m.v3);
+        zones = m.v3.zones;
+    }
+    else
+    {
+        m.v4.size_x_zones = zones_x;
+        m.v4.size_z_zones = zones_z;
+        fn(&x, &m.v4);
+        zones = m.v4.zones;
+    }
+    if( !rsprot_exec_ok(&x) || b.err || b.rpos != p->length )
+        return 0;
+    /* The codec reads [4 levels][zones_x][zones_z] in wire order (deob
+     * class592.method12654); restride onto the 13x13 instance array, with
+     * the wire's -1 (no zone) as the array's 0 (void). */
+    for( int level = 0; level < 4; level++ )
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+            {
+                int32_t z = zones[(level * zones_x + zx) * zones_z + zz];
+
+                out_zones[level * 13 * 13 + zx * 13 + zz] = z < 0 ? 0 : z;
+            }
+    return 1;
 }

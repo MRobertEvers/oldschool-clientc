@@ -1735,9 +1735,13 @@ osrs239_parse(
          * so a grid with no bytes at all is a malformed frame. */
         if( len - c.rpos < 1 )
             return 0;
-        p->length = len - c.rpos;
-        p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)p->length);
-        memcpy(p->data, data + c.rpos, (size_t)p->length);
+        /* The whole payload and the codec that reads it, as the protocol
+         * module carries it (PktRebuildWev_DecodeZones reruns it). */
+        p->prot = "REBUILD_WORLDENTITY_V4";
+        p->rev_id = RSPROT_OSRS_ID(239);
+        p->length = len;
+        p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)len);
+        memcpy(p->data, data, (size_t)len);
         return 1;
     }
 

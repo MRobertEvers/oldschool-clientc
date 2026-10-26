@@ -78,6 +78,10 @@
 #include "packets/rebuild_worldentity_v2.h"
 #include "packets/rebuild_worldentity_v3.h"
 #include "packets/rebuild_worldentity_v4.h"
+#include "packets/message_clanchannel.h"
+#include "packets/message_clanchannel_system.h"
+#include "packets/message_private.h"
+#include "packets/update_stockmarket_slot_v1.h"
 #include "packets/scriptedproj_add.h"
 #include "packets/set_active_world_v1.h"
 #include "packets/set_active_world_v2.h"
@@ -492,10 +496,10 @@ parse_zone_enclosed(
     int revision,
     char const* prot,
     RsprotBuf* c,
-    int len,
     struct RevPacket* out)
 {
     struct PktUpdateZoneEnclosed* enc = &out->_update_zone_enclosed;
+    RsprotBuf subs;
     int cap = 16;
 
     {
@@ -503,19 +507,20 @@ parse_zone_enclosed(
         enc->level = hdr.level;
         enc->base_z = hdr.zone_z;
         enc->base_x = hdr.zone_x;
-        /* The codec carries the sub-packets as `payload`; walk them here. */
-        c->rpos = len - hdr.payload_length;
+        rsprot_buf_wrap_read(&subs, hdr.payload, hdr.payload_length);
     }
     enc->count = 0;
     enc->entries = (struct PktZoneSubPacket*)ToriMem_Alloc(
         ToriMem_Net(), (size_t)cap * sizeof(*enc->entries));
     assert(enc->entries);
-    while( c->rpos < len && !c->err )
+    for( ;; )
     {
-        int ordinal = rsprot_g1(c);
-        char const* sub = rsprot_zone_prot_name(r->prots, ordinal);
+        int ordinal;
+        char const* sub = rsprot_zone_enclosed_next(&subs, r->prots, &ordinal);
         int got;
 
+        if( ordinal < 0 )
+            break;
         if( enc->count == cap )
         {
             cap *= 2;
@@ -523,11 +528,11 @@ parse_zone_enclosed(
                 ToriMem_Net(), enc->entries, (size_t)cap * sizeof(*enc->entries));
             assert(enc->entries);
         }
-        got = sub ? zone_sub(revision, sub, c, &enc->entries[enc->count]) : 0;
+        got = sub ? zone_sub(revision, sub, &subs, &enc->entries[enc->count]) : 0;
         if( got == 0 )
         {
             TORIRS_ERR("%s: ZONE_ENCLOSED sub-ordinal %d (%s) unreadable at %d/%d\n", r->name,
-                       ordinal, sub ? sub : "?", c->rpos, len);
+                       ordinal, sub ? sub : "?", subs.rpos, subs.wpos);
             break;
         }
         if( got == 1 )
@@ -659,42 +664,45 @@ parse_rebuild_region(int revision, char const* prot, RsprotBuf* c, int len, stru
  * codec decodes whole; its raw bytes follow the 8-byte head.
  */
 static int
-parse_rebuild_wev(int revision, char const* prot, RsprotBuf* c, int len, struct RevPacket* out)
+parse_rebuild_wev(
+    int revision, char const* prot, RsprotBuf* c, uint8_t const* data, int len, struct RevPacket* out)
 {
     struct PktRebuildWev* p = &out->_rebuild_wev;
-    uint8_t const* data = c->data;
 
     memset(p, 0, sizeof(*p));
     out->packet_type = PKT_NAME_REBUILD_WORLDENTITY;
-    uint8_t const* grid = NULL;
-
+    /* Run with the view's size unknown (0): the codec reads the header and
+     * either the whole grid (V2's fixed 13x13) or carries it unread. */
     if( strcmp(prot, "REBUILD_WORLDENTITY_V2") == 0 )
     {
         RUN(prot, MsgRebuildWorldEntityV2, m);
         p->base_x = m.base_x;
         p->base_z = m.base_z;
-        grid = len > 8 ? data + 8 : NULL;
     }
     else if( strcmp(prot, "REBUILD_WORLDENTITY_V3") == 0 )
     {
         RUN(prot, MsgRebuildWorldEntityV3, m);
+        if( m.grid_raw_length <= 0 )
+            return 0;
         p->base_x = m.base_x;
         p->base_z = m.base_z;
-        grid = m.grid_raw_length > 0 ? m.grid_raw : NULL;
     }
     else
     {
         RUN(prot, MsgRebuildWorldEntityV4, m);
+        if( m.grid_raw_length <= 0 )
+            return 0;
         p->base_x = m.base_x;
         p->base_z = m.base_z;
-        grid = m.grid_raw_length > 0 ? m.grid_raw : NULL;
     }
-    if( !grid )
-        return 0;
-    p->length = len - (int)(grid - data);
-    p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)p->length);
+    /* The whole payload, and the codec that reads it: the exec layer decodes
+     * the grid once it knows the view's size (PktRebuildWev_DecodeZones). */
+    p->prot = rsprot_registry_find(prot, RSPROT_REG_OUT)->prot;
+    p->rev_id = rsprot_osrs(revision).id;
+    p->length = len;
+    p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)len);
     assert(p->data);
-    memcpy(p->data, grid, (size_t)p->length);
+    memcpy(p->data, data, (size_t)len);
     return 1;
 }
 
@@ -702,12 +710,20 @@ parse_rebuild_wev(int revision, char const* prot, RsprotBuf* c, int len, struct 
 /* The rest                                                            */
 /* ------------------------------------------------------------------ */
 
+/* A packet the store decodes against client state, carried raw once its
+ * codec has read it whole: a malformed one stops here, not in the store. */
 static int
-parse_raw(uint8_t const* data, int len, struct RevPacket* out)
+parse_raw(struct ProtoRev const* r, char const* prot, uint8_t const* data, int len, struct RevPacket* out)
 {
     struct PktRawPayload* p = &out->_raw_payload;
+    int valid = proto_validate(&r->table, prot, data, len);
 
+    /* Every raw prot has a codec (3rd/rsprot/packets); none is a build that
+     * dropped one. */
+    assert(valid >= 0);
     memset(p, 0, sizeof(*p));
+    if( !valid )
+        return 0;
     if( len == 0 )
         return 1;
     p->length = len;
@@ -717,78 +733,90 @@ parse_raw(uint8_t const* data, int len, struct RevPacket* out)
     return 1;
 }
 
-/* MessagePrivateDecoder (every revision 227-241): gjstr sender, g2 world,
- * g3 world message counter, g1 chat crown, then the huffman text to the end. */
+/* The huffman text a chat message ends with. */
+static char*
+unpack_text(uint8_t const* huffman, int32_t length)
+{
+    struct RSCache_Buffer text;
+
+    RSCache_BufferInit(&text, (uint8_t*)huffman, (uint32_t)length);
+    return wordpack_unpack(&text, length);
+}
+
 static int
-parse_message_private(RsprotBuf* c, uint8_t const* data, int len, struct RevPacket* out)
+parse_message_private(int revision, char const* prot, RsprotBuf* c, struct RevPacket* out)
 {
     struct PktMessagePrivate* p = &out->_message_private;
-    struct RSCache_Buffer text;
-    int32_t name_len = 0;
-    char const* sender = rsprot_gjstr(c, &name_len);
 
     memset(p, 0, sizeof(*p));
-    (void)rsprot_g2_12(c); /* world */
-    p->message_id = rsprot_g3_123(c);
-    p->staff_mod = rsprot_g1(c);
-    if( c->err || !sender )
-        return 0;
-    p->from = (int64_t)strtobase37(sender);
-    RSCache_BufferInit(&text, (uint8_t*)data + c->rpos, (uint32_t)(len - c->rpos));
-    p->text = wordpack_unpack(&text, len - c->rpos);
+    {
+        RUN(prot, MsgMessagePrivate, m);
+        if( !m.sender )
+            return 0;
+        p->from = (int64_t)strtobase37(m.sender);
+        p->message_id = m.world_message_counter;
+        p->staff_mod = m.chat_crown_type;
+        p->text = unpack_text(m.huffman, m.huffman_length);
+    }
     return p->text != NULL;
 }
 
-/* Every revision 227-241 (the RSProt ledger: one layout since 223). */
 static int
-parse_message_clanchannel(
-    RsprotBuf* c, uint8_t const* data, int len, int system, struct RevPacket* out)
+parse_message_clanchannel(int revision, char const* prot, RsprotBuf* c, int system, struct RevPacket* out)
 {
     struct PktMessageClanChannel* p = &out->_message_clanchannel;
-    struct RSCache_Buffer text;
 
     memset(p, 0, sizeof(*p));
-    p->clan_type = rsprot_g1s(c);
     p->crown = -1;
-    if( !system )
+    if( system )
     {
-        int32_t n = 0;
-        char const* sender = rsprot_gjstr(c, &n);
-
-        if( c->err || !sender || n >= (int)sizeof(p->sender) )
-            return 0;
-        memcpy(p->sender, sender, (size_t)n);
-        p->sender[n] = '\0';
+        RUN(prot, MsgMessageClanchannelSystem, m);
+        p->clan_type = (int8_t)m.clan_type;
+        p->world = m.world_id;
+        p->counter = m.world_message_counter;
+        p->text = unpack_text(m.huffman, m.huffman_length);
     }
-    p->world = rsprot_g2_12(c);
-    p->counter = rsprot_g3_123(c);
-    if( !system )
-        p->crown = rsprot_g1(c);
-    if( c->err )
-        return 0;
-    RSCache_BufferInit(&text, (uint8_t*)data + c->rpos, (uint32_t)(len - c->rpos));
-    p->text = wordpack_unpack(&text, len - c->rpos);
+    else
+    {
+        RUN(prot, MsgMessageClanchannel, m);
+        size_t n;
+
+        if( !m.name )
+            return 0;
+        n = strlen(m.name);
+        if( n >= sizeof(p->sender) )
+            return 0;
+        memcpy(p->sender, m.name, n + 1);
+        p->clan_type = (int8_t)m.clan_type;
+        p->world = m.world_id;
+        p->counter = m.world_message_counter;
+        p->crown = m.chat_crown_type;
+        p->text = unpack_text(m.huffman, m.huffman_length);
+    }
     return p->text != NULL;
 }
 
 static int
-parse_stockmarket_slot(RsprotBuf* c, struct RevPacket* out)
+parse_stockmarket_slot(int revision, char const* prot, RsprotBuf* c, struct RevPacket* out)
 {
     struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
 
     memset(p, 0, sizeof(*p));
-    p->slot = rsprot_g1(c);
-    p->status = rsprot_g1s(c);
-    /* An empty slot's remaining 18 bytes are padding. */
-    if( p->status != 0 )
     {
-        p->obj = rsprot_g2_12(c);
-        p->price = rsprot_g4_1234(c);
-        p->count = rsprot_g4_1234(c);
-        p->completed_count = rsprot_g4_1234(c);
-        p->completed_gold = rsprot_g4_1234(c);
+        RUN(prot, MsgUpdateStockmarketSlotV1, m);
+        p->slot = m.slot;
+        p->status = (int8_t)m.status;
+        /* An empty slot's remaining 18 bytes are padding. */
+        if( p->status != 0 )
+        {
+            p->obj = m.obj;
+            p->price = m.price;
+            p->count = m.count;
+            p->completed_count = m.completed_count;
+            p->completed_gold = m.completed_gold;
+        }
     }
-    return !c->err;
+    return 1;
 }
 
 /* Returns as `parse`, or -2 when `prot` is not a special case. */
@@ -841,16 +869,16 @@ parse_special(
     if( strncmp(prot, "REBUILD_REGION", 14) == 0 )
         return parse_rebuild_region(revision, prot, c, len, out);
     if( strncmp(prot, "REBUILD_WORLDENTITY", 19) == 0 )
-        return parse_rebuild_wev(revision, prot, c, len, out);
+        return parse_rebuild_wev(revision, prot, c, data, len, out);
     if( strcmp(prot, "UPDATE_ZONE_PARTIAL_ENCLOSED") == 0 )
     {
         out->packet_type = PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED;
-        return parse_zone_enclosed(r, revision, prot, c, len, out);
+        return parse_zone_enclosed(r, revision, prot, c, out);
     }
     if( strcmp(prot, "MESSAGE_PRIVATE") == 0 )
     {
         out->packet_type = PKT_NAME_MESSAGE_PRIVATE;
-        return parse_message_private(c, data, len, out);
+        return parse_message_private(revision, prot, c, out);
     }
     if( strcmp(prot, "MESSAGE_CLANCHANNEL") == 0 ||
         strcmp(prot, "MESSAGE_CLANCHANNEL_SYSTEM") == 0 )
@@ -858,12 +886,12 @@ parse_special(
         int system = strcmp(prot, "MESSAGE_CLANCHANNEL_SYSTEM") == 0;
 
         out->packet_type = system ? PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM : PKT_NAME_MESSAGE_CLANCHANNEL;
-        return parse_message_clanchannel(c, data, len, system, out);
+        return parse_message_clanchannel(revision, prot, c, system, out);
     }
     if( strcmp(prot, "UPDATE_STOCKMARKET_SLOT") == 0 )
     {
         out->packet_type = PKT_NAME_UPDATE_STOCKMARKET_SLOT;
-        return parse_stockmarket_slot(c, out);
+        return parse_stockmarket_slot(revision, prot, c, out);
     }
     {
         static char const* const k_raw[] = {
@@ -878,7 +906,7 @@ parse_special(
             if( strcmp(prot, k_raw[i]) == 0 )
             {
                 out->packet_type = (enum GameProtoPktName)proto_canon_server(prot);
-                return parse_raw(data, len, out);
+                return parse_raw(r, prot, data, len, out);
             }
         }
     }

@@ -2,6 +2,7 @@
 #define RSPROT_TABLES_DEF_H
 
 #include "../include/rsprot_rev.h"
+#include "rsprot_buf.h"
 
 #include <string.h>
 
@@ -89,6 +90,23 @@ static inline const char *rsprot_zone_prot_name(const RsprotRevTable *t, int ord
 	if (ordinal < 0 || ordinal >= t->zone_count)
 		return 0;
 	return t->zone_order[ordinal];
+}
+
+/*
+ * UPDATE_ZONE_PARTIAL_ENCLOSED's payload is its sub-packets back to back, each
+ * an ordinal byte (the revision's [zone_order]) and that prot's payload. This
+ * reads the next ordinal and returns its prot, leaving `buf` at the sub-packet's
+ * payload for that prot's codec. NULL at the end of `buf`, and for an ordinal
+ * the table has no prot for (`*ordinal` says which): the walk cannot step past
+ * a sub-packet it cannot size.
+ */
+static inline const char *rsprot_zone_enclosed_next(RsprotBuf *buf, const RsprotRevTable *t, int *ordinal)
+{
+	*ordinal = -1;
+	if (rsprot_buf_readable(buf) <= 0 || buf->err)
+		return 0;
+	*ordinal = rsprot_g1(buf);
+	return rsprot_zone_prot_name(t, *ordinal);
 }
 
 #endif /* RSPROT_TABLES_DEF_H */

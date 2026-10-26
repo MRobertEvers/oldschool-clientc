@@ -3,6 +3,7 @@
 
 #include "app.h"
 #include "net/rev/gameproto_parse.h"
+#include "net/proto/proto_in_adapt.h"
 #include "rs_gameproto_exec.h"
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"

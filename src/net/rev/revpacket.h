@@ -879,22 +879,24 @@ struct PktWorldEntityInfo
 };
 
 /**
- * REBUILD_WORLDENTITY_V4: rebuild the ACTIVE view's deck map. base_x/base_z
- * are the view's SW corner in absolute root-world tiles (the off-map staging
+ * REBUILD_WORLDENTITY: rebuild the ACTIVE view's deck map. base_x/base_z are
+ * the view's SW corner in absolute root-world tiles (the off-map staging
  * rectangle — deob field1405/field1395), zone-aligned. The zone-descriptor
- * grid that follows the header is bit-packed over
- * [4 levels][view_size_x/8][view_size_z/8] — dimensions the server took from
- * the view's spawn-time size and did NOT put on the wire, so the stateless
- * parse layer cannot walk it. The grid bytes are carried raw (`data`, heap,
- * freed by gameproto_free — the PLAYER_INFO precedent) and decoded at exec
- * with PktRebuildWev_DecodeZones, where the active view's size is known.
+ * grid is bit-packed over [4 levels][view_size_x/8][view_size_z/8] —
+ * dimensions the server took from the view's spawn-time size and did NOT put
+ * on the wire, so the grid cannot be read until the view is known. The arm
+ * keeps the whole payload (`data`, heap, freed by gameproto_free) and the
+ * codec that reads it (`prot` at `rev_id`, an RsprotRev id); the exec layer
+ * reruns it with the view's size (PktRebuildWev_DecodeZones).
  */
 struct PktRebuildWev
 {
     int base_x;
     int base_z;
-    int length; /* raw grid bytes (after the u16 source-square count) */
+    int length; /* the whole payload */
     uint8_t* data;
+    char const* prot; /* the RSProt codec that reads `data` (static) */
+    uint32_t rev_id;  /* the revision it reads it at (RsprotRev.id) */
 };
 
 /*

@@ -80,6 +80,23 @@ proto_in_adapt(
 
 /** The RSProt revision number a rev table speaks, or 0 for the project-native
  *  protocols RSProt never carried. Exposed for tests and for the trace. */
+/**
+ * Decode a REBUILD_WORLDENTITY grid against the target view's zone counts
+ * (view size in tiles / 8 per axis -- spawn-time state the wire omits, which
+ * is why the parse arm cannot): reruns the arm's codec (`prot` at `rev_id`)
+ * over its payload with the size filled in. Fills out_zones with
+ * PKT_MAP_REBUILD_ZONES ints at the [level*13*13 + zx*13 + zz] stride
+ * REBUILD_REGION uses; zones past the view's counts stay 0 = void. Returns 1
+ * when the codec read the payload whole, 0 when it did not -- with the size
+ * known, client and server disagree about the view, which the caller stops on.
+ */
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones);
+
 int
 proto_osrs_revision(struct GameProtoRevTable const* rev);
 
