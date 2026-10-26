@@ -1,0 +1,31 @@
+{
+  "prot": "PACKET_GROUP_START",
+  "file": "packet_group_start",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/client/PacketGroupStartEncoder.kt"
+  },
+  "includes": ["../include/rsprot_tails.h"],
+  "structs": [
+    {
+      "name": "MsgPacketGroupStart",
+      "fields": [
+        {
+          "decl": "int32_t length",
+          "doc": ["/** Bytes of the packets that follow in this group. */"]
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [227, 241]
+      ],
+      "body": [
+        ["U2", "length"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,174 @@
+{
+  "prot": "EVENT_MOUSE_CLICK_V2",
+  "file": "event_mouse_click_v2",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/events/EventMouseClickV2Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgEventMouseClickV2",
+      "fields": [
+        "int32_t x",
+        "int32_t packed",
+        "int32_t code",
+        "int32_t y",
+        "int32_t last_transmitted_mouse_click",
+        "int32_t right_click"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U2_ALT1", "x"],
+        ["U2_ALT3", "packed"],
+        ["U1", "code"],
+        ["U2_ALT3", "y"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2_ALT3", "x"],
+        ["U2", "packed"],
+        ["U2_ALT1", "y"],
+        ["U1_ALT2", "code"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U1_ALT3", "code"],
+        ["U2_ALT3", "x"],
+        ["U2_ALT1", "packed"],
+        ["U2_ALT1", "y"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U2", "x"],
+        ["U2", "y"],
+        ["U1_ALT1", "code"],
+        ["U2_ALT2", "packed"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U1_ALT2", "code"],
+        ["U2_ALT2", "y"],
+        ["U2_ALT2", "x"],
+        ["U2_ALT1", "packed"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT1", "y"],
+        ["U1_ALT2", "code"],
+        ["U2_ALT1", "packed"],
+        ["U2", "x"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U2_ALT2", "y"],
+        ["U2_ALT3", "x"],
+        ["U1", "code"],
+        ["U2", "packed"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2_ALT2", "x"],
+        ["U2_ALT3", "packed"],
+        ["U2_ALT2", "y"],
+        ["U1_ALT3", "code"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1", "code"],
+        ["U2_ALT3", "y"],
+        ["U2", "packed"],
+        ["U2_ALT3", "x"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT3", "y"],
+        ["U2_ALT3", "x"],
+        ["U2_ALT2", "packed"],
+        ["U1_ALT2", "code"],
+        "    int32_t right_click = (m->packed & (0x1 != 0));",
+        "    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));",
+        "    m->last_transmitted_mouse_click = last_transmitted_mouse_click;",
+        "    m->right_click = right_click;"
+      ]
+    }
+  ]
+}

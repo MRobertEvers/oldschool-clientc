@@ -38,7 +38,7 @@
  * Revision-241 parse (server -> this client) -- a COPY of osrs239_parse.c,
  * changed to 241's wire. RSProt stops at 239, so every 241 layout here is
  * transcribed from RSProx's osrs-241 decoders (or runs a generated codec whose
- * 241 row tools/rsprox_codec_overlay.py derived from them), and each arm that
+ * 241 row RSProt ported from them), and each arm that
  * moved names the decoder it came from.
  *
  * WHAT IS NOT HERE: every packet `rsprot_bridge_parse` decodes at 241. The
@@ -300,8 +300,7 @@ osrs241_read_zone_sub(
      * The old note follows: it is the one that
      * cannot be generated yet: its layout carries a COUNTED ARRAY of
      * `p1 op-1, pjstr text` pairs replacing the loctype's right-click options,
-     * and the generator refuses array/nested element structs rather than emit a
-     * struct union it cannot model (see tools/rsprot_gen_codec.py). Skipping the
+     * and RSProt has no codec for its array of nested element structs. Skipping the
      * pairs rather than assuming zero is what keeps the cursor honest for the
      * next record in the enclosed stream.
      *

@@ -1,0 +1,27 @@
+{
+  "prot": "UPDATE_STAT_V1",
+  "file": "update_stat_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/UpdateStatV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateStatV1",
+      "fields": ["int32_t current_level", "int32_t experience", "int32_t stat"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U1", "current_level"],
+        ["U4_ALT3", "experience"],
+        ["U1_ALT3", "stat"]
+      ]
+    }
+  ]
+}

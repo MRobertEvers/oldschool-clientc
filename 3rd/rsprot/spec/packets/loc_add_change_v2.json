@@ -1,0 +1,294 @@
+{
+  "prot": "LOC_ADD_CHANGE_V2",
+  "file": "loc_add_change_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/LocAddChangeV2Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "Rsprot_MsgLocAddChangeV2_opsElem",
+      "fields": ["int32_t key", "const char *value"]
+    },
+    {
+      "name": "MsgLocAddChangeV2",
+      "fields": [
+        "int32_t coord_in_zone_packed",
+        "int32_t loc_properties_packed",
+        "int32_t op_flags",
+        "int32_t id",
+        "Rsprot_MsgLocAddChangeV2_opsElem *ops",
+        "int32_t ops_count"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT2", "op_flags"],
+        ["U2", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1", "op_flags"],
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }"
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U1_ALT2", "op_flags"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U2_ALT2", "id"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1_ALT2", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U2_ALT3", "id"],
+        ["U1_ALT3", "op_flags"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }"
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U1_ALT3", "op_flags"],
+        ["U1_ALT1", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U2_ALT3", "id"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U2_ALT1", "id"],
+        ["U1", "op_flags"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U1_ALT2", "op_flags"],
+        ["U2", "id"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U1_ALT1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1_ALT1", "op_flags"],
+        ["U2_ALT2", "id"],
+        ["U1_ALT1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U1_ALT1", "op_flags"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1_ALT3", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1", "coord_in_zone_packed"],
+        ["U2_ALT1", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "op_flags"],
+        ["U1", "loc_properties_packed"],
+        ["U2", "id"],
+        ["U1", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }"
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT1", "op_flags"],
+        ["U2_ALT2", "id"],
+        ["U1_ALT1", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U1_ALT1", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1_ALT3", "op_flags"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U2_ALT3", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1_ALT3", "op_flags"],
+        ["U1", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U1", "coord_in_zone_packed"],
+        ["U2_ALT2", "id"],
+        ["U1", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1", "op_flags"],
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U1_ALT2", "ops_count"],
+        "    if ((!(m->ops_count == 0))) {",
+        "        for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {",
+        "            Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];",
+        "            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);",
+        "            RSPROT_JSTR(x, elem->value);",
+        "        }",
+        "    }",
+        ["U2", "id"]
+      ]
+    }
+  ]
+}

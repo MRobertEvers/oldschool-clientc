@@ -1,0 +1,28 @@
+{
+  "prot": "OPOBJ3_V1",
+  "file": "opobj3_v1",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/objs/OpObj3V1Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgOpObj3V1",
+      "fields": ["int32_t control_key", "int32_t z", "int32_t id", "int32_t x"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U1", "control_key"],
+        ["U2_ALT2", "z"],
+        ["U2_ALT2", "id"],
+        ["U2_ALT3", "x"]
+      ]
+    }
+  ]
+}

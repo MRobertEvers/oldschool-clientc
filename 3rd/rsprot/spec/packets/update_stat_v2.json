@@ -1,0 +1,198 @@
+{
+  "prot": "UPDATE_STAT_V2",
+  "file": "update_stat_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/UpdateStatV2Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateStatV2",
+      "fields": [
+        "int32_t stat",
+        "int32_t experience",
+        "int32_t invisible_boosted_level",
+        "int32_t current_level"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U1", "stat"],
+        ["U4_ALT2", "experience"],
+        ["U1", "invisible_boosted_level"],
+        ["U1_ALT2", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U4", "experience"],
+        ["U1", "invisible_boosted_level"],
+        ["U1", "current_level"],
+        ["U1", "stat"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT2", "invisible_boosted_level"],
+        ["U1_ALT2", "stat"],
+        ["U4", "experience"],
+        ["U1", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U4_ALT3", "experience"],
+        ["U1_ALT1", "stat"],
+        ["U1_ALT2", "invisible_boosted_level"],
+        ["U1_ALT3", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U4_ALT3", "experience"],
+        ["U1_ALT1", "current_level"],
+        ["U1_ALT1", "stat"],
+        ["U1_ALT2", "invisible_boosted_level"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1", "stat"],
+        ["U4_ALT2", "experience"],
+        ["U1_ALT2", "invisible_boosted_level"],
+        ["U1", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U1_ALT1", "current_level"],
+        ["U4_ALT1", "experience"],
+        ["U1", "invisible_boosted_level"],
+        ["U1_ALT2", "stat"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U1_ALT2", "stat"],
+        ["U1_ALT2", "invisible_boosted_level"],
+        ["U4", "experience"],
+        ["U1_ALT3", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U1_ALT1", "invisible_boosted_level"],
+        ["U1_ALT1", "stat"],
+        ["U1_ALT2", "current_level"],
+        ["U4_ALT2", "experience"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U1_ALT1", "current_level"],
+        ["U1_ALT3", "invisible_boosted_level"],
+        ["U1_ALT1", "stat"],
+        ["U4", "experience"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U4_ALT1", "experience"],
+        ["U1_ALT3", "invisible_boosted_level"],
+        ["U1_ALT1", "stat"],
+        ["U1_ALT1", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U1_ALT2", "stat"],
+        ["U4", "experience"],
+        ["U1_ALT3", "current_level"],
+        ["U1_ALT1", "invisible_boosted_level"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U4", "experience"],
+        ["U1_ALT3", "current_level"],
+        ["U1_ALT1", "invisible_boosted_level"],
+        ["U1_ALT2", "stat"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U1", "invisible_boosted_level"],
+        ["U1", "current_level"],
+        ["U1_ALT1", "stat"],
+        ["U4_ALT2", "experience"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1_ALT3", "stat"],
+        ["U4_ALT1", "experience"],
+        ["U1", "invisible_boosted_level"],
+        ["U1_ALT3", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U4_ALT1", "experience"],
+        ["U1_ALT1", "invisible_boosted_level"],
+        ["U1_ALT2", "stat"],
+        ["U1_ALT2", "current_level"]
+      ]
+    }
+  ]
+}

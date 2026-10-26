@@ -81,14 +81,14 @@ rev_appearance_decode(
  * source (RSProt never vendored 240+):
  *
  *  - Every opcode was renumbered, server and client side. packetin.h /
- *    packetout.h / zoneprot.h are generated from RSProx
- *    (tools/rsprot_gen_rev.py 241 --source rsprox) and checked against it by
- *    tools/rsprox_prot_compare.py 241.
+ *    packetout.h / zoneprot.h are generated from RSProt's 241 table
+ *    (tools/rsprot_gen_rev.py 241; 3rd/rsprot/spec/tables/osrs241.json, which
+ *    RSProt ported from RSProx).
  *
  *  - Most fixed-layout packets reshuffled their field order and byte
  *    transforms. The generated codecs carry a 241 row for each
- *    (tools/rsprox_codec_overlay.py); the client -> server op packets are one
- *    generated table both ends run (clientprot.h).
+ *    (3rd/rsprot/spec/packets); the client -> server op packets are one
+ *    table both ends run (clientprot.h).
  *
  *  - CAM_MOVETO_V2 / CAM_LOOKAT_V2 were deleted; the canonical packets are the
  *    V3 prots (one extra height-relative byte). NPC_INFO is NPC_INFO_*_V6, a

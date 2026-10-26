@@ -1,0 +1,48 @@
+{
+  "prot": "CAM_SHAKE",
+  "file": "cam_shake",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamShakeEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamShake",
+      "fields": [
+        "int32_t type",
+        "int32_t random_amount",
+        "int32_t sine_amount",
+        "int32_t sine_frequency",
+        "int32_t axis",
+        "int32_t random",
+        "int32_t amplitude",
+        "int32_t rate"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 222]
+      ],
+      "body": [
+        ["U1", "type"],
+        ["U1", "random_amount"],
+        ["U1", "sine_amount"],
+        ["U1", "sine_frequency"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 241]
+      ],
+      "body": [
+        ["U1", "axis"],
+        ["U1", "random"],
+        ["U1", "amplitude"],
+        ["U1", "rate"]
+      ]
+    }
+  ]
+}

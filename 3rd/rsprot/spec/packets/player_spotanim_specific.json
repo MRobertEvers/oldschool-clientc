@@ -1,0 +1,302 @@
+{
+  "prot": "PLAYER_SPOTANIM_SPECIFIC",
+  "file": "player_spotanim_specific",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/specific/PlayerSpotAnimSpecificDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgPlayerSpotanimSpecific",
+      "fields": ["int32_t slot", "int32_t id", "int32_t index", "int32_t packed"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U1_ALT3", "slot"],
+        ["U2", "id"],
+        ["U2_ALT3", "index"],
+        ["U4_ALT1", "packed"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2", "id"],
+        ["U4", "packed"],
+        ["U1_ALT1", "slot"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT1", "id"],
+        ["U4", "packed"],
+        ["U1_ALT1", "slot"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U4_ALT2", "packed"],
+        ["U2_ALT3", "id"],
+        ["U1", "slot"],
+        ["U2_ALT1", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT1", "index"],
+        ["U1_ALT2", "slot"],
+        ["U4_ALT1", "packed"],
+        ["U2_ALT3", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U4_ALT3", "packed"],
+        ["U2_ALT1", "index"],
+        ["U2_ALT2", "id"],
+        ["U1_ALT3", "slot"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U1_ALT2", "slot"],
+        ["U2", "id"],
+        ["U2", "index"],
+        ["U4_ALT3", "packed"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2", "id"],
+        ["U2_ALT3", "index"],
+        ["U4", "packed"],
+        ["U1", "slot"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U1_ALT2", "slot"],
+        ["U2_ALT2", "index"],
+        ["U2_ALT2", "id"],
+        ["U4_ALT2", "packed"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT3", "index"],
+        ["U2", "id"],
+        ["U4_ALT1", "packed"],
+        ["U1_ALT3", "slot"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U4_ALT2", "packed"],
+        ["U2", "index"],
+        ["U2_ALT1", "id"],
+        ["U1", "slot"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2", "index"],
+        ["U1_ALT3", "slot"],
+        ["U4_ALT3", "packed"],
+        ["U2", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT1", "id"],
+        ["U1_ALT1", "slot"],
+        ["U4_ALT1", "packed"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U4_ALT1", "packed"],
+        ["U2", "id"],
+        ["U1_ALT2", "slot"],
+        ["U2_ALT3", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U1_ALT3", "slot"],
+        ["U2_ALT3", "index"],
+        ["U2_ALT2", "id"],
+        ["U4_ALT1", "packed"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2", "id"],
+        ["U2_ALT1", "index"],
+        ["U4", "packed"],
+        ["U1_ALT1", "slot"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT2", "id"],
+        ["U4", "packed"],
+        ["U1_ALT3", "slot"],
+        ["U2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U4_ALT2", "packed"],
+        ["U1_ALT3", "slot"],
+        ["U2_ALT2", "id"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val height = packed ushr 16",
+        "     *   val delay = packed and 0xFFFF",
+        "     */",
+        ["U2_ALT3", "index"],
+        ["U4", "packed"],
+        ["U1_ALT3", "slot"],
+        ["U2", "id"]
+      ]
+    }
+  ]
+}

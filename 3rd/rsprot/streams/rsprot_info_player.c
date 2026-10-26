@@ -4,8 +4,7 @@
  * The four bit sections and the movement encodings are RSProx's
  * PlayerInfoClient.decodeBitCodes / getHighResolutionPlayerPosition /
  * getLowResolutionPlayerPosition, which have one shape at every revision this
- * library carries (tools/rsprox_gen_info.py would not have to touch this file
- * for a new revision that kept them). The port follows the reader this project
+ * library carries (a new revision that kept them needs only its spec). The port follows the reader this project
  * verified against recordings at 239 and 241
  * (src/net/rev/osrs241/osrs241_entity_info.c). The extended-info tail after
  * the sections is each version's (player_info_v<N>.c), and both write the op

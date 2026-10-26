@@ -5,10 +5,8 @@
  * GROUP_VAR -- server -> client.
  *
  * Hand-written from RSProx (GroupVarDecoder, protocol/osrs-<N>/.../decoder/codec/group/GroupVarDecoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder loops to the end of the payload, branching on a type packed into a field, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * RSProt has no codec for this prot, and the RSProx decoder loops to the end of the payload, branching on a type packed into a field, so it is written by hand: tools/rsprot_gen.py has no spec for it.
+ * Field names are RSProx's; version numbers are local to this file.
  */
 
 #include "../include/rsprot_exec.h"
@@ -35,7 +33,7 @@ typedef struct MsgGroupVar {
 	MsgGroupVarUpdate updates[MSG_GROUP_VAR_MAX_UPDATES];
 } MsgGroupVar;
 
-/* v1 (rsprox_versions.txt 100) -- revs 239-241. */
+/* v1 -- revs 239-241. */
 void packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m);
 
 #define packet_group_var_osrs239_out packet_group_var_v1_out

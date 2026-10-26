@@ -1,0 +1,210 @@
+{
+  "prot": "REBUILD_REGION",
+  "file": "rebuild_region",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/map/RebuildRegionEncoder.kt"
+  },
+  "includes": ["../include/rsprot_tails.h"],
+  "structs": [
+    {
+      "name": "MsgRebuildRegion",
+      "fields": [
+        "int32_t reload",
+        "int32_t zone_z",
+        "int32_t zone_x",
+        "int32_t xtea_count",
+        {
+          "decl": "int32_t zones[RSPROT_REGION_ZONES]",
+          "doc": ["/** Level-major, then x, then z; -1 where the grid has no zone. */"]
+        },
+        "int32_t keys[RSPROT_REGION_KEYS_MAX * 4]"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U1_ALT3", "reload"],
+        ["U2_ALT3", "zone_z"],
+        ["U2", "zone_x"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U2_ALT2", "zone_z"],
+        ["U1_ALT1", "reload"],
+        ["U2_ALT2", "zone_x"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U2", "zone_z"],
+        ["U2", "zone_x"],
+        ["U1_ALT2", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U2_ALT3", "zone_z"],
+        ["U2_ALT3", "zone_x"],
+        ["U1_ALT2", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U2_ALT2", "zone_x"],
+        ["U1_ALT3", "reload"],
+        ["U2_ALT2", "zone_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U2_ALT1", "zone_x"],
+        ["U2", "zone_z"],
+        ["U1_ALT1", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U1_ALT3", "reload"],
+        ["U2_ALT2", "zone_z"],
+        ["U2_ALT1", "zone_x"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U2_ALT1", "zone_x"],
+        ["U2_ALT3", "zone_z"],
+        ["BOOL", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1_ALT1", "reload"],
+        ["U2_ALT3", "zone_x"],
+        ["U2", "zone_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U2_ALT2", "zone_z"],
+        ["BOOL", "reload"],
+        ["U2_ALT3", "zone_x"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2_ALT1", "zone_x"],
+        ["U2_ALT2", "zone_z"],
+        ["U1_ALT3", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["BOOL", "reload"],
+        ["U2_ALT2", "zone_x"],
+        ["U2", "zone_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U2", "zone_z"],
+        ["U1_ALT1", "reload"],
+        ["U2_ALT2", "zone_x"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U2", "zone_z"],
+        ["U2_ALT3", "zone_x"],
+        ["U1_ALT3", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    }
+  ]
+}

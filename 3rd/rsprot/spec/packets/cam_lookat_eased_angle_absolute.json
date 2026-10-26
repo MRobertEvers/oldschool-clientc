@@ -1,0 +1,33 @@
+{
+  "prot": "CAM_LOOKAT_EASED_ANGLE_ABSOLUTE",
+  "file": "cam_lookat_eased_angle_absolute",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamLookAtEasedAngleAbsoluteEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamLookAtEasedAngleAbsolute",
+      "fields": [
+        "int32_t y_angle",
+        "int32_t x_angle",
+        "int32_t duration",
+        "int32_t function_id"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 222]
+      ],
+      "body": [
+        ["U2", "y_angle"],
+        ["U2", "x_angle"],
+        ["U2", "duration"],
+        ["U1", "function_id"]
+      ]
+    }
+  ]
+}

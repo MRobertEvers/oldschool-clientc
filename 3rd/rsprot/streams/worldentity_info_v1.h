@@ -8,7 +8,7 @@
  * protocol/src: `version >= 3` takes the V2 path, 1 and 2 the V1 path), plain
  * bytes with no per-revision transform, so this is one hand-written reader with
  * an entry point per revision that carries the prot -- not the generated
- * <stream>_osrs<N> files the V3+ versions have (tools/rsprox_gen_worldentity_info.py
+ * <stream>_osrs<N> files the V3+ versions have (spec/streams/worldentity_info.json
  * models V3+):
  *
  *   update   g1 count, then per entry of the previous list: g1 keep; when kept,

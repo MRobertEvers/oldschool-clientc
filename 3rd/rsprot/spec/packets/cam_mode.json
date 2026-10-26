@@ -1,0 +1,25 @@
+{
+  "prot": "CAM_MODE",
+  "file": "cam_mode",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamModeEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamMode",
+      "fields": ["int32_t mode"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U1", "mode"]
+      ]
+    }
+  ]
+}

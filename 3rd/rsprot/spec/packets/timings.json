@@ -1,0 +1,39 @@
+{
+  "prot": "TIMINGS",
+  "file": "timings",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/misc/client/TimingsDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgTimings",
+      "fields": [
+        "int32_t connection_lost_duration",
+        "int32_t login_duration",
+        "int32_t unused_duration",
+        "int32_t client_state",
+        "int32_t unused1",
+        "int32_t login_count",
+        "int32_t unused2"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 222]
+      ],
+      "body": [
+        ["U2", "connection_lost_duration"],
+        ["U2", "login_duration"],
+        ["U2", "unused_duration"],
+        ["U2", "client_state"],
+        ["U2", "unused1"],
+        ["U2", "login_count"],
+        ["U2", "unused2"]
+      ]
+    }
+  ]
+}

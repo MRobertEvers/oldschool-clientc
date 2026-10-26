@@ -2,7 +2,7 @@
 #include "reflection_checker.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 223-241.
+ * v1 -- revs 223-241.
  * g1 checksCount, g4 id, then per check g1 opcode and its arm.
  */
 void

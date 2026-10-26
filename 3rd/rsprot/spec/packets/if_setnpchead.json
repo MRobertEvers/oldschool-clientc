@@ -1,0 +1,173 @@
+{
+  "prot": "IF_SETNPCHEAD",
+  "file": "if_setnpchead",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfSetNpcHeadEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfSetNpcHead",
+      "fields": ["int32_t npc", "int32_t combined_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U2_ALT2", "npc"],
+        ["U4", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 223],
+        [225, 225]
+      ],
+      "body": [
+        ["U2_ALT1", "npc"],
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["COM_ALT1", "combined_id"],
+        ["U2_ALT3", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["COM_ALT3", "combined_id"],
+        ["U2", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U2", "npc"],
+        ["COM_ALT3", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U2_ALT3", "npc"],
+        ["COM_ALT3", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U2_ALT3", "npc"],
+        ["COM_ALT2", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U2_ALT2", "npc"],
+        ["COM_ALT3", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231],
+        [236, 236]
+      ],
+      "body": [
+        ["COM_ALT1", "combined_id"],
+        ["U2", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["COM", "combined_id"],
+        ["U2_ALT1", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2_ALT2", "npc"],
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["COM_ALT3", "combined_id"],
+        ["U2_ALT1", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235],
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT3", "npc"],
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U2_ALT1", "npc"],
+        ["COM", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["COM", "combined_id"],
+        ["U2_ALT3", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["COM_ALT2", "combined_id"],
+        ["U2_ALT1", "npc"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["COM", "combined_id"],
+        ["U2_ALT2", "npc"]
+      ]
+    }
+  ]
+}

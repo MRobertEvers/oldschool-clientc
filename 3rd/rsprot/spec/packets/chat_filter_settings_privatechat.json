@@ -1,0 +1,25 @@
+{
+  "prot": "CHAT_FILTER_SETTINGS_PRIVATECHAT",
+  "file": "chat_filter_settings_privatechat",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/ChatFilterSettingsPrivateChatEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgChatFilterSettingsPrivateChat",
+      "fields": ["int32_t private_chat_filter"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U1", "private_chat_filter"]
+      ]
+    }
+  ]
+}

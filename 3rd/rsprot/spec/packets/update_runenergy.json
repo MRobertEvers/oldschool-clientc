@@ -1,0 +1,25 @@
+{
+  "prot": "UPDATE_RUNENERGY",
+  "file": "update_runenergy",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/UpdateRunEnergyEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateRunEnergy",
+      "fields": ["int32_t runenergy"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U2", "runenergy"]
+      ]
+    }
+  ]
+}

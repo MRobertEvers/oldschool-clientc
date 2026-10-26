@@ -1,0 +1,26 @@
+{
+  "prot": "IF_SETMODEL_V1",
+  "file": "if_setmodel_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfSetModelV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfSetModelV1",
+      "fields": ["int32_t model", "int32_t combined_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT3", "model"],
+        ["COM_ALT2", "combined_id"]
+      ]
+    }
+  ]
+}

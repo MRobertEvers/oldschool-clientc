@@ -1,0 +1,25 @@
+{
+  "prot": "IF_BUTTON",
+  "file": "if_button",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/buttons/If1ButtonDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIf1Button",
+      "fields": ["int32_t combined_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["COM", "combined_id"]
+      ]
+    }
+  ]
+}

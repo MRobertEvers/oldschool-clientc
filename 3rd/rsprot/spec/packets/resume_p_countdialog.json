@@ -1,0 +1,25 @@
+{
+  "prot": "RESUME_P_COUNTDIALOG",
+  "file": "resume_p_countdialog",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/resumed/ResumePCountDialogDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgResumePCountDialog",
+      "fields": ["int32_t count"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U4", "count"]
+      ]
+    }
+  ]
+}

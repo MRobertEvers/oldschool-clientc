@@ -1,0 +1,77 @@
+{
+  "prot": "PROJANIM_SPECIFIC_V2",
+  "file": "projanim_specific_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/specific/ProjAnimSpecificV2Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgProjanimSpecificV2",
+      "fields": [
+        "int32_t angle",
+        {
+          "decl": "int32_t target_index",
+          "note": "signed"
+        },
+        {
+          "decl": "int32_t delta_z",
+          "note": "signed"
+        },
+        "int32_t end_time",
+        "int32_t end_height",
+        {
+          "decl": "int32_t delta_x",
+          "note": "signed"
+        },
+        "int32_t start_height",
+        "int32_t id",
+        "int32_t progress",
+        "int32_t start_time",
+        {
+          "decl": "int32_t coord_in_build_area",
+          "note": "RSProx: CoordInBuildArea(<g3>)"
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U1", "angle"],
+        ["U3_ALT2", "target_index"],
+        ["U1_ALT1", "delta_z"],
+        ["U2_ALT1", "end_time"],
+        ["U1_ALT2", "end_height"],
+        ["U1_ALT3", "delta_x"],
+        ["U1_ALT3", "start_height"],
+        ["U2_ALT1", "id"],
+        ["U2_ALT3", "progress"],
+        ["U2_ALT2", "start_time"],
+        ["U3", "coord_in_build_area"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U1_ALT2", "start_height"],
+        ["I1", "delta_x"],
+        ["U2_ALT1", "progress"],
+        ["U1_ALT1", "angle"],
+        ["U1_ALT3", "end_height"],
+        ["U2_ALT2", "end_time"],
+        ["U2", "id"],
+        ["U3", "target_index"],
+        ["U3_ALT1", "coord_in_build_area"],
+        ["U1_ALT3", "delta_z"],
+        ["U2_ALT2", "start_time"]
+      ]
+    }
+  ]
+}

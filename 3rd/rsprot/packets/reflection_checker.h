@@ -5,9 +5,8 @@
  * REFLECTION_CHECKER -- server -> client.
  *
  * Hand-written from RSProx (ReflectionCheckerDecoder, protocol/osrs-<N>/.../decoder/codec/misc/client/ReflectionCheckerDecoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder loops over checks that each branch on an opcode, two of them with nested lists, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's.
+ * RSProt has no codec for this prot, and the RSProx decoder loops over checks that each branch on an opcode, two of them with nested lists, , so it is
+ * written by hand. Field names are RSProx's.
  *
  * Both counts are one byte on the wire. The parameter list takes the wire's
  * whole range -- Jagex sends 20 (RSProx index 1130, rev 237) where this was
@@ -45,7 +44,7 @@ typedef struct MsgReflectionChecker {
 	MsgReflectionCheck checks[MSG_REFLECTION_CHECKER_MAX_CHECKS];
 } MsgReflectionChecker;
 
-/* v1 (rsprox_versions.txt 100) -- revs 223-241. */
+/* v1 -- revs 223-241. */
 void packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m);
 
 #define packet_reflection_checker_osrs223_out packet_reflection_checker_v1_out

@@ -1,0 +1,89 @@
+{
+  "prot": "CAM_MOVETO_CYCLES_V2",
+  "file": "cam_moveto_cycles_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamMoveToCyclesV2Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamMoveToCyclesV2",
+      "fields": [
+        "int32_t x",
+        "int32_t ignore_terrain",
+        "int32_t easing_id",
+        "int32_t cycles",
+        "int32_t z",
+        "int32_t height"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U2_ALT1", "x"],
+        ["BOOL", "ignore_terrain"],
+        ["U1", "easing_id"],
+        ["U2_ALT1", "cycles"],
+        ["U2_ALT3", "z"],
+        ["U2_ALT2", "height"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2", "x"],
+        ["U2_ALT3", "cycles"],
+        ["U2", "z"],
+        ["U2_ALT2", "height"],
+        ["U1", "easing_id"],
+        ["U1_ALT3", "ignore_terrain"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U1_ALT2", "easing_id"],
+        ["U2_ALT2", "z"],
+        ["U2", "x"],
+        ["U1_ALT3", "ignore_terrain"],
+        ["U2_ALT2", "height"],
+        ["U2_ALT3", "cycles"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2_ALT3", "cycles"],
+        ["U2", "x"],
+        ["U1_ALT1", "easing_id"],
+        ["U2_ALT2", "height"],
+        ["U2_ALT3", "z"],
+        ["U1_ALT3", "ignore_terrain"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1", "ignore_terrain"],
+        ["U2_ALT3", "z"],
+        ["U2_ALT2", "cycles"],
+        ["U2_ALT1", "height"],
+        ["U1", "easing_id"],
+        ["U2", "x"]
+      ]
+    }
+  ]
+}

@@ -67,8 +67,7 @@ static const struct
     { "WORLDENTITY_INFO_V5", "info stream" },
     { "WORLDENTITY_INFO_V6", "info stream" },
     { "WORLDENTITY_INFO_V7", "info stream" },
-    /* One layout across 227-241; carried raw to the store that decodes it
-     * (tools/rsprox_gen_codec.py RAW). */
+    /* One layout across 227-241; carried raw to the store that decodes it. */
     { "CLANCHANNEL_FULL", "raw to rs_clan" },
     { "CLANCHANNEL_DELTA", "raw to rs_clan" },
     { "CLANSETTINGS_FULL", "raw to rs_clan" },

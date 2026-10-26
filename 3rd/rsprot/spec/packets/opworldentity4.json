@@ -1,0 +1,89 @@
+{
+  "prot": "OPWORLDENTITY4",
+  "file": "opworldentity4",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/worldentities/OpWorldEntity4Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgOpWorldEntity4",
+      "fields": ["int32_t index", "int32_t control_key"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2_ALT2", "index"],
+        ["U1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U2_ALT2", "index"],
+        ["U1_ALT3", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U1_ALT2", "control_key"],
+        ["U2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U2_ALT3", "index"],
+        ["U1_ALT1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 238]
+      ],
+      "body": [
+        ["U2_ALT1", "index"],
+        ["U1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2", "index"],
+        ["U1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U2", "index"],
+        ["U1_ALT2", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U1_ALT3", "control_key"],
+        ["U2", "index"]
+      ]
+    }
+  ]
+}

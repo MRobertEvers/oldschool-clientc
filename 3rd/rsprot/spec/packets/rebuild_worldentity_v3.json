@@ -1,0 +1,72 @@
+{
+  "prot": "REBUILD_WORLDENTITY_V3",
+  "file": "rebuild_worldentity_v3",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/map/RebuildWorldEntityV3Encoder.kt"
+  },
+  "includes": ["../include/rsprot_tails.h"],
+  "structs": [
+    {
+      "name": "MsgRebuildWorldEntityV3",
+      "fields": [
+        "int32_t base_x",
+        "int32_t base_z",
+        "int32_t xtea_count",
+        {
+          "decl": "int32_t zones[RSPROT_REGION_ZONES]",
+          "doc": ["/** Level-major, then x, then z; -1 where the grid has no zone. */"]
+        },
+        "int32_t keys[RSPROT_REGION_KEYS_MAX * 4]",
+        {
+          "decl": "int32_t size_x_zones",
+          "doc": [
+            "/** In: the rebuilt world entity's size in zones (WORLDENTITY_INFO), which",
+            " *  the grid's length depends on. 0 when unknown: the grid is then carried",
+            " *  unread in grid_raw. */"
+          ]
+        },
+        "int32_t size_z_zones",
+        "const uint8_t *grid_raw",
+        "int32_t grid_raw_length"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [229, 236]
+      ],
+      "body": [
+        ["U2", "base_x"],
+        ["U2", "base_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&",
+        "        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {",
+        "        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);",
+        "        rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);",
+        "    } else {",
+        "        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);",
+        "    }"
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2", "base_x"],
+        ["U2", "base_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&",
+        "        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {",
+        "        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);",
+        "        rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);",
+        "    } else {",
+        "        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);",
+        "    }"
+      ]
+    }
+  ]
+}

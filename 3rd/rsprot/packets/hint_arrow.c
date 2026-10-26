@@ -2,7 +2,7 @@
 #include "hint_arrow.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 223-234 (RSProx 223-226 read it as 227 does).
+ * v1 -- revs 223-234 (RSProx 223-226 read it as 227 does).
  * g1 type, then per type (see the struct).
  */
 void
@@ -27,7 +27,7 @@ packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m)
 }
 
 /*
- * v2 (rsprox_versions.txt 101) -- revs 235-241.
+ * v2 -- revs 235-241.
  * 227's arms, plus type 11: g2 world entity index, g3 height.
  */
 void

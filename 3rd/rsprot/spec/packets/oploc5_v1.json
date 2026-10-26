@@ -1,0 +1,28 @@
+{
+  "prot": "OPLOC5_V1",
+  "file": "oploc5_v1",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/locs/OpLoc5V1Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgOpLoc5V1",
+      "fields": ["int32_t id", "int32_t control_key", "int32_t z", "int32_t x"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT3", "id"],
+        ["U1_ALT3", "control_key"],
+        ["U2_ALT2", "z"],
+        ["U2_ALT3", "x"]
+      ]
+    }
+  ]
+}

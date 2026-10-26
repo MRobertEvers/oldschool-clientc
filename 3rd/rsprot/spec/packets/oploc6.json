@@ -1,0 +1,62 @@
+{
+  "prot": "OPLOC6",
+  "file": "oploc6",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/locs/OpLoc6Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgOpLoc6",
+      "fields": ["int32_t id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221],
+        [224, 224],
+        [230, 230],
+        [238, 238]
+      ],
+      "body": [
+        ["U2_ALT2", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222],
+        [226, 227],
+        [229, 229],
+        [231, 231],
+        [233, 234],
+        [239, 240]
+      ],
+      "body": [
+        ["U2_ALT1", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223],
+        [228, 228],
+        [235, 236],
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT3", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225],
+        [232, 232],
+        [237, 237]
+      ],
+      "body": [
+        ["U2", "id"]
+      ]
+    }
+  ]
+}

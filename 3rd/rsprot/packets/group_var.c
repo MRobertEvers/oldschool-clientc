@@ -2,7 +2,7 @@
 #include "group_var.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 239-241.
+ * v1 -- revs 239-241.
  * while readable: g1 index, g4 packed, then by (packed >>> 16) & 3:
  * g4 | g8 | gjstr | gdata(rest).
  */

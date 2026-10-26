@@ -2,7 +2,7 @@
 #include "update_uid192.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 223-241.
+ * v1 -- revs 223-241.
  * gdata(24), g4 crc.
  */
 void

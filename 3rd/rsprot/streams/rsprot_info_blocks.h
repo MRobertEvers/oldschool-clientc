@@ -5,9 +5,8 @@
  * The extended-info blocks of PLAYER_INFO and NPC_INFO: one reader per block
  * SHAPE, shared by every version of both streams.
  *
- * A shape's fields come in the same order at every revision 227-241 (checked
- * by tools/rsprox_gen_info.py: it refuses a revision whose decode function
- * reads them otherwise), so each reader below is straight-line C. What a
+ * A shape's fields come in the same order at every revision 223-241, so each
+ * reader below is straight-line C. What a
  * revision changes is how each field is ENCODED -- g2 or g2Alt1 or g2Alt3 --
  * and that is the block's encoding struct: one read function per field, filled
  * in by the revision's constants (<stream>_osrs<N>.c).

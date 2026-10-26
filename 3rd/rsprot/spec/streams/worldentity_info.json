@@ -1,0 +1,809 @@
+{
+  "stream": "worldentity_info",
+  "versions": [
+    {
+      "version": 3,
+      "revs": [
+        [226, 228]
+      ],
+      "extended": false
+    },
+    {
+      "version": 4,
+      "revs": [
+        [227, 229]
+      ],
+      "extended": false
+    },
+    {
+      "version": 5,
+      "revs": [
+        [229, 233]
+      ],
+      "extended": false
+    },
+    {
+      "version": 6,
+      "revs": [
+        [233, 236]
+      ],
+      "extended": true
+    },
+    {
+      "version": 7,
+      "revs": [
+        [236, 241]
+      ],
+      "extended": true
+    }
+  ],
+  "revisions": [
+    {
+      "revision": 226,
+      "carries": [
+        {
+          "version": 3,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs226_v3_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 227,
+      "carries": [
+        {
+          "version": 3,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs227_v3_spawn"
+          }
+        },
+        {
+          "version": 4,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->has_centre = 1;",
+                "    a->centre_x = rsprot_g2s(b);",
+                "    a->centre_z = rsprot_g2s(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs227_v4_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 228,
+      "carries": [
+        {
+          "version": 3,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs228_v3_spawn"
+          }
+        },
+        {
+          "version": 4,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->has_centre = 1;",
+                "    a->centre_x = rsprot_g2s(b);",
+                "    a->centre_z = rsprot_g2s(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs228_v4_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 229,
+      "carries": [
+        {
+          "version": 4,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->id = -1;",
+                "    a->priority = -1;",
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->has_level = 1;",
+                "    a->level = rsprot_g1s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->has_centre = 1;",
+                "    a->centre_x = rsprot_g2s(b);",
+                "    a->centre_z = rsprot_g2s(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs229_v4_spawn"
+          }
+        },
+        {
+          "version": 5,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs229_v5_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 230,
+      "carries": [
+        {
+          "version": 5,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs230_v5_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 231,
+      "carries": [
+        {
+          "version": 5,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs231_v5_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 232,
+      "carries": [
+        {
+          "version": 5,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs232_v5_spawn"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 233,
+      "carries": [
+        {
+          "version": 5,
+          "functions": [
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs233_v5_spawn"
+          }
+        },
+        {
+          "version": 6,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs233_v6_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);",
+                "    worldentity_info_osrs233_v6_ext(b, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs233_v6_spawn",
+            "ext": "worldentity_info_osrs233_v6_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 234,
+      "carries": [
+        {
+          "version": 6,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1(b);",
+                "    }",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs234_v6_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);",
+                "    worldentity_info_osrs234_v6_ext(b, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs234_v6_spawn",
+            "ext": "worldentity_info_osrs234_v6_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 235,
+      "carries": [
+        {
+          "version": 6,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1(b);",
+                "    }",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs235_v6_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2s(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);",
+                "    worldentity_info_osrs235_v6_ext(b, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs235_v6_spawn",
+            "ext": "worldentity_info_osrs235_v6_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 236,
+      "carries": [
+        {
+          "version": 6,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1(b);",
+                "    }",
+                "    if (flags & 0x1) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs236_v6_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    a->size_x = rsprot_g1(b) * 8;",
+                "    a->size_z = rsprot_g1(b) * 8;",
+                "    a->id = rsprot_g2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    a->priority = rsprot_g1(b);",
+                "    worldentity_info_osrs236_v6_ext(b, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs236_v6_spawn",
+            "ext": "worldentity_info_osrs236_v6_ext"
+          }
+        },
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2_alt2(b);",
+                "        e->sequence_delay = rsprot_g1_alt3(b);",
+                "    }",
+                "    if (flags & 0x1) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs236_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    {",
+                "        int32_t packed = rsprot_g1(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    ext_flags = rsprot_g1(b);",
+                "    a->priority = rsprot_g1_alt2(b);",
+                "    a->id = rsprot_g2s_alt2(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs236_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs236_v7_spawn",
+            "ext": "worldentity_info_osrs236_v7_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 237,
+      "carries": [
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1_alt2(b);",
+                "    }",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2_alt1(b);",
+                "        e->sequence_delay = rsprot_g1_alt3(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs237_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    a->id = rsprot_g2s_alt1(b);",
+                "    a->priority = rsprot_g1_alt3(b);",
+                "    {",
+                "        int32_t packed = rsprot_g1_alt3(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    ext_flags = rsprot_g1_alt3(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs237_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs237_v7_spawn",
+            "ext": "worldentity_info_osrs237_v7_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 238,
+      "carries": [
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2_alt3(b);",
+                "        e->sequence_delay = rsprot_g1(b);",
+                "    }",
+                "    if (flags & 0x1) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1_alt1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs238_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    ext_flags = rsprot_g1_alt1(b);",
+                "    a->id = rsprot_g2s_alt1(b);",
+                "    a->priority = rsprot_g1_alt2(b);",
+                "    {",
+                "        int32_t packed = rsprot_g1(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs238_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs238_v7_spawn",
+            "ext": "worldentity_info_osrs238_v7_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 239,
+      "carries": [
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1_alt3(b);",
+                "    }",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs239_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    ext_flags = rsprot_g1(b);",
+                "    {",
+                "        int32_t packed = rsprot_g1_alt2(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    a->priority = rsprot_g1_alt1(b);",
+                "    a->id = rsprot_g2s_alt1(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs239_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs239_v7_spawn",
+            "ext": "worldentity_info_osrs239_v7_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 240,
+      "carries": [
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1_alt1(b);",
+                "    }",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1_alt1(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs240_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    ext_flags = rsprot_g1_alt3(b);",
+                "    {",
+                "        int32_t packed = rsprot_g1_alt3(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    a->priority = rsprot_g1_alt1(b);",
+                "    a->id = rsprot_g2s_alt1(b);",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs240_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs240_v7_spawn",
+            "ext": "worldentity_info_osrs240_v7_ext"
+          }
+        }
+      ]
+    },
+    {
+      "revision": 241,
+      "carries": [
+        {
+          "version": 7,
+          "functions": [
+            {
+              "name": "ext_payload",
+              "params": "RsprotBuf *b, int32_t flags, RsprotInfoWeExt *e",
+              "body": [
+                "    e->flags = flags;",
+                "    if (flags & 0x1) {",
+                "        e->has_sequence = 1;",
+                "        e->sequence_id = rsprot_g2(b);",
+                "        e->sequence_delay = rsprot_g1_alt2(b);",
+                "    }",
+                "    if (flags & 0x2) {",
+                "        e->has_ops = 1;",
+                "        e->ops = rsprot_g1_alt2(b);",
+                "    }"
+              ]
+            },
+            {
+              "name": "ext",
+              "params": "RsprotBuf *b, RsprotInfoWeExt *e",
+              "body": ["    worldentity_info_osrs241_v7_ext_payload(b, rsprot_g1(b), e);"]
+            },
+            {
+              "name": "spawn",
+              "params": "RsprotBuf *b, RsprotInfoWeAdd *a",
+              "body": [
+                "    int32_t ext_flags;",
+                "",
+                "    a->id = rsprot_g2s_alt1(b);",
+                "    ext_flags = rsprot_g1_alt3(b);",
+                "    a->priority = rsprot_g1_alt2(b);",
+                "    {",
+                "        int32_t packed = rsprot_g1_alt3(b);",
+                "",
+                "        a->size_x = ((packed >> 4) & 0xf) * 8;",
+                "        a->size_z = (packed & 0xf) * 8;",
+                "    }",
+                "    rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);",
+                "    worldentity_info_osrs241_v7_ext_payload(b, ext_flags, &a->ext);"
+              ]
+            }
+          ],
+          "constants": {
+            "spawn": "worldentity_info_osrs241_v7_spawn",
+            "ext": "worldentity_info_osrs241_v7_ext"
+          }
+        }
+      ]
+    }
+  ]
+}

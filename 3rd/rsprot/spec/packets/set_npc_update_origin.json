@@ -1,0 +1,26 @@
+{
+  "prot": "SET_NPC_UPDATE_ORIGIN",
+  "file": "set_npc_update_origin",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/npcinfo/SetNpcUpdateOriginEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgSetNpcUpdateOrigin",
+      "fields": ["int32_t origin_x", "int32_t origin_z"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [222, 241]
+      ],
+      "body": [
+        ["U1", "origin_x"],
+        ["U1", "origin_z"]
+      ]
+    }
+  ]
+}

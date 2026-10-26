@@ -1,0 +1,41 @@
+{
+  "prot": "REBUILD_REGION_V1",
+  "file": "rebuild_region_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/map/RebuildRegionV1Encoder.kt"
+  },
+  "includes": ["../include/rsprot_tails.h"],
+  "structs": [
+    {
+      "name": "MsgRebuildRegionV1",
+      "fields": [
+        "int32_t zone_z",
+        "int32_t zone_x",
+        "int32_t reload",
+        "int32_t xtea_count",
+        {
+          "decl": "int32_t zones[RSPROT_REGION_ZONES]",
+          "doc": ["/** Level-major, then x, then z; -1 where the grid has no zone. */"]
+        },
+        "int32_t keys[RSPROT_REGION_KEYS_MAX * 4]"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT1", "zone_z"],
+        ["U2_ALT3", "zone_x"],
+        ["BOOL", "reload"],
+        "    RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);",
+        "    rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);",
+        "    rsprot_tail_xtea_keys(x, m->keys, m->xtea_count);"
+      ]
+    }
+  ]
+}

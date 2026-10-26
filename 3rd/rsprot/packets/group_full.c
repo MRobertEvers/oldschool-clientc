@@ -2,7 +2,7 @@
 #include "group_full.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 239-241.
+ * v1 -- revs 239-241.
  * while readable: g1 index, gSmart1or2null id; id != -1: g8 uid, gdata(rest).
  */
 void

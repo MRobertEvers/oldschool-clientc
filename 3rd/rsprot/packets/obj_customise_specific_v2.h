@@ -5,10 +5,8 @@
  * OBJ_CUSTOMISE_SPECIFIC_V2 -- server -> client.
  *
  * Hand-written from RSProx (ObjCustomiseSpecificV2Decoder, protocol/osrs-<N>/.../decoder/codec/specific/ObjCustomiseSpecificV2Decoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder carries two counted lists and an optional colour, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * RSProt has no codec for this prot, and the RSProx decoder carries two counted lists and an optional colour, so it is written by hand: tools/rsprot_gen.py has no spec for it.
+ * Field names are RSProx's; version numbers are local to this file.
  */
 
 #include "../include/rsprot_exec.h"
@@ -33,7 +31,7 @@ typedef struct MsgObjCustomiseSpecificV2 {
 	int32_t colour;
 } MsgObjCustomiseSpecificV2;
 
-/* v1 (rsprox_versions.txt 100) -- revs 241. */
+/* v1 -- revs 241. */
 void packet_obj_customise_specific_v2_v1_out(RsprotExec *x, MsgObjCustomiseSpecificV2 *m);
 
 #define packet_obj_customise_specific_v2_osrs241_out packet_obj_customise_specific_v2_v1_out

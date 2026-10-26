@@ -1,0 +1,33 @@
+{
+  "prot": "LOC_ADD_CHANGE_V1",
+  "file": "loc_add_change_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/LocAddChangeV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgLocAddChangeV1",
+      "fields": [
+        "int32_t coord_in_zone_packed",
+        "int32_t op_flags",
+        "int32_t id",
+        "int32_t loc_properties_packed"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U1_ALT2", "op_flags"],
+        ["U2_ALT2", "id"],
+        ["U1_ALT2", "loc_properties_packed"]
+      ]
+    }
+  ]
+}

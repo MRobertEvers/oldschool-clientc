@@ -298,8 +298,7 @@ osrs239_read_zone_sub(
      * The old note follows: it is the one that
      * cannot be generated yet: its layout carries a COUNTED ARRAY of
      * `p1 op-1, pjstr text` pairs replacing the loctype's right-click options,
-     * and the generator refuses array/nested element structs rather than emit a
-     * struct union it cannot model (see tools/rsprot_gen_codec.py). Skipping the
+     * and RSProt has no codec for its array of nested element structs. Skipping the
      * pairs rather than assuming zero is what keeps the cursor honest for the
      * next record in the enclosed stream.
      *

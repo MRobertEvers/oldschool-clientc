@@ -1,0 +1,31 @@
+{
+  "prot": "SET_ACTIVE_WORLD_V1",
+  "file": "set_active_world_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/worldentity/SetActiveWorldV1Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgSetActiveWorldV1",
+      "fields": ["int32_t type", "int32_t index", "int32_t active_level"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [223, 230]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   val world = session.getWorld(if (type == 0) -1 else index)",
+        "     *   world.level = activeLevel",
+        "     */",
+        ["U1", "type"],
+        ["U2", "index"],
+        ["U1", "active_level"]
+      ]
+    }
+  ]
+}

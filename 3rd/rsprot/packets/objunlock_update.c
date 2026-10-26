@@ -2,7 +2,7 @@
 #include "objunlock_update.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 241.
+ * v1 -- revs 241.
  * while readable: gSmart1or2 delta, g8 bits.
  */
 void

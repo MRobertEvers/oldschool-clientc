@@ -9,8 +9,8 @@
  * `if (buffer.isReadable) buffer.g1() == 1`).
  *
  * Hand-written: v1 from RSProt's decoder (221-239), v2 from RSProx's (240-241),
- * whose optional byte rsprox_codec_overlay.py could not derive. The C here is
- * the source -- no generator writes this file.
+ * whose optional trailing byte a spec's reads cannot say. The C here is the
+ * source -- no generator writes this file.
  */
 
 #include "../include/rsprot_exec.h"

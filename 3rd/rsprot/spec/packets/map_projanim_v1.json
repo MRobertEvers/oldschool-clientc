@@ -1,0 +1,49 @@
+{
+  "prot": "MAP_PROJANIM_V1",
+  "file": "map_projanim_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/MapProjAnimV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgMapProjAnimV1",
+      "fields": [
+        "int32_t coord_in_zone_packed",
+        "int32_t delta_x",
+        "int32_t start_height",
+        "int32_t id",
+        "int32_t angle",
+        "int32_t progress",
+        "int32_t end_height",
+        "int32_t delta_z",
+        "int32_t target_index",
+        "int32_t start_time",
+        "int32_t end_time",
+        "int32_t source_index"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "delta_x"],
+        ["U1", "start_height"],
+        ["U2", "id"],
+        ["U1_ALT1", "angle"],
+        ["U2", "progress"],
+        ["U1_ALT1", "end_height"],
+        ["U1_ALT1", "delta_z"],
+        ["U3_ALT3", "target_index"],
+        ["U2", "start_time"],
+        ["U2_ALT2", "end_time"],
+        ["U3_ALT1", "source_index"]
+      ]
+    }
+  ]
+}

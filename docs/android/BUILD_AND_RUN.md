@@ -1280,14 +1280,14 @@ changes.
 | `tools/cs2_gen_opcodes/gen_opcodes.py` | vendored RuneStar `Opcodes.kt` | `src/cs2vm2/`, `src/osrs/rscache/dat2a/` CS2 opcode tables |
 | `src/serverscript/gen_opcode_meta.py` | LostCity's engine | `ss_opcode.h`, `ss_trigger.h`, `ss_meta.gen.h` |
 | `src/torirsserver/gen_opcode_coverage.py` | the `case SS_OP_*:` labels themselves | `torirs_server_opcode_coverage.gen.h` (`--check` gates it) |
-| `tools/rsprot_gen_tables.py` | RSProt's Kotlin | `{name, opcode, size}` prot tables for all 19 vendored revisions |
-| `tools/rsprot_gen_codec.py`, `rsprot_gen_rev.py`, `rsprot_dump_prot.py`, `rsprot_version_ledger.py` | RSProt | codec bodies, per-revision tables, ledgers |
+| `3rd/rsprot/tools/rsprot_gen.py` | `3rd/rsprot/spec/` (no Kotlin) | RSProt's codecs, prot tables, info-stream constants, unity file (`--check` gates it) |
+| `tools/rsprot_gen_rev.py` | `3rd/rsprot/spec/tables/` | the client's `src/net/rev/osrs<N>/packetin.h`, `packetout.h`, `zoneprot.h` |
 | `tools/gen_levelrequire_dbrow.py` | content | DBRows |
 | `tools/gen_music_regions.py`, `gen_sound_names.py` | caches | music-region and sound-name tables |
 
 ```sh
 python3 tools/cs2_gen_opcodes/gen_opcodes.py
-python3 tools/rsprot_gen_tables.py
+python3 3rd/rsprot/tools/rsprot_gen.py
 ```
 
 The cullmap generator (`gen_painters_cullmap/` + `batch_cullmaps.mjs`), the

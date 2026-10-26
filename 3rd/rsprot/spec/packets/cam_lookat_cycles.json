@@ -1,0 +1,63 @@
+{
+  "prot": "CAM_LOOKAT_CYCLES",
+  "file": "cam_lookat_cycles",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamLookAtCyclesEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamLookAtCycles",
+      "fields": [
+        "int32_t cycles",
+        "int32_t height_relative",
+        "int32_t x",
+        "int32_t easing_id",
+        "int32_t z",
+        "int32_t height"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2", "cycles"],
+        ["U1_ALT3", "height_relative"],
+        ["U2", "x"],
+        ["U1_ALT2", "easing_id"],
+        ["U2", "z"],
+        ["U2_ALT2", "height"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U2_ALT2", "x"],
+        ["U2_ALT2", "cycles"],
+        ["U1_ALT3", "easing_id"],
+        ["U2", "z"],
+        ["U1_ALT3", "height_relative"],
+        ["U2_ALT1", "height"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT2", "height"],
+        ["U1", "easing_id"],
+        ["U2_ALT1", "x"],
+        ["U2_ALT1", "z"],
+        ["U2_ALT3", "cycles"],
+        ["U1_ALT1", "height_relative"]
+      ]
+    }
+  ]
+}

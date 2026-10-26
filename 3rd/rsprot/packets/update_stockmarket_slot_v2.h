@@ -5,10 +5,8 @@
  * UPDATE_STOCKMARKET_SLOT_V2 -- server -> client.
  *
  * Hand-written from RSProx (UpdateStockMarketSlotV2Decoder, protocol/osrs-<N>/.../decoder/codec/misc/player/UpdateStockMarketSlotV2Decoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder escapes into a versioned layout on a bit pattern of its second byte, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * RSProt has no codec for this prot, and the RSProx decoder escapes into a versioned layout on a bit pattern of its second byte, so it is written by hand: tools/rsprot_gen.py has no spec for it.
+ * Field names are RSProx's; version numbers are local to this file.
  */
 
 #include "../include/rsprot_exec.h"
@@ -38,7 +36,7 @@ typedef struct MsgUpdateStockmarketSlotV2 {
 	const uint8_t *padding; /* version 1 only: the 14 bytes after it */
 } MsgUpdateStockmarketSlotV2;
 
-/* v1 (rsprox_versions.txt 100) -- revs 241. */
+/* v1 -- revs 241. */
 void packet_update_stockmarket_slot_v2_v1_out(RsprotExec *x, MsgUpdateStockmarketSlotV2 *m);
 
 #define packet_update_stockmarket_slot_v2_osrs241_out packet_update_stockmarket_slot_v2_v1_out

@@ -1,0 +1,67 @@
+{
+  "prot": "CAM_ROTATETO_COORDINATE_V3",
+  "file": "cam_rotateto_coordinate_v3",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamRotateToCoordinateV3Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamRotateToCoordinateV3",
+      "fields": [
+        "int32_t track_target",
+        "int32_t z",
+        "int32_t height_relative",
+        "int32_t x",
+        "int32_t cycles",
+        "int32_t height",
+        "int32_t easing_id"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U1_ALT1", "track_target"],
+        ["U2_ALT1", "z"],
+        ["BOOL", "height_relative"],
+        ["U2_ALT3", "x"],
+        ["U2_ALT1", "cycles"],
+        ["U2_ALT3", "height"],
+        ["U1", "easing_id"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U2_ALT2", "height"],
+        ["U2_ALT2", "x"],
+        ["U1", "easing_id"],
+        ["U2", "cycles"],
+        ["BOOL", "height_relative"],
+        ["U2_ALT3", "z"],
+        ["U1", "track_target"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT1", "x"],
+        ["U2", "height"],
+        ["U2_ALT3", "z"],
+        ["BOOL", "height_relative"],
+        ["U2_ALT2", "cycles"],
+        ["U1_ALT1", "track_target"],
+        ["U1_ALT3", "easing_id"]
+      ]
+    }
+  ]
+}

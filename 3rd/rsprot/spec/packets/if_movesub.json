@@ -1,0 +1,149 @@
+{
+  "prot": "IF_MOVESUB",
+  "file": "if_movesub",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfMoveSubEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfMoveSub",
+      "fields": ["int32_t source_combined_id", "int32_t destination_combined_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U4_ALT2", "source_combined_id"],
+        ["U4_ALT2", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["COM", "destination_combined_id"],
+        ["COM_ALT1", "source_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223],
+        [230, 230]
+      ],
+      "body": [
+        ["COM_ALT1", "destination_combined_id"],
+        ["COM_ALT1", "source_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224],
+        [241, 241]
+      ],
+      "body": [
+        ["COM_ALT1", "source_combined_id"],
+        ["COM_ALT1", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225],
+        [238, 238]
+      ],
+      "body": [
+        ["COM_ALT3", "source_combined_id"],
+        ["COM_ALT1", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226],
+        [232, 232]
+      ],
+      "body": [
+        ["COM_ALT2", "source_combined_id"],
+        ["COM_ALT2", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["COM_ALT1", "source_combined_id"],
+        ["COM", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 229],
+        [240, 240]
+      ],
+      "body": [
+        ["COM_ALT3", "source_combined_id"],
+        ["COM_ALT3", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231],
+        [235, 235]
+      ],
+      "body": [
+        ["COM_ALT2", "source_combined_id"],
+        ["COM_ALT1", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["COM_ALT2", "source_combined_id"],
+        ["COM", "destination_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["COM_ALT1", "destination_combined_id"],
+        ["COM_ALT3", "source_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["COM_ALT3", "destination_combined_id"],
+        ["COM_ALT2", "source_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["COM", "destination_combined_id"],
+        ["COM_ALT2", "source_combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["COM_ALT1", "destination_combined_id"],
+        ["COM", "source_combined_id"]
+      ]
+    }
+  ]
+}

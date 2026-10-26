@@ -1,0 +1,28 @@
+{
+  "prot": "IF_SETEVENTS_V1",
+  "file": "if_setevents_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfSetEventsV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfSetEventsV1",
+      "fields": ["int32_t start", "int32_t combined_id", "int32_t end", "int32_t events"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U2", "start"],
+        ["COM_ALT2", "combined_id"],
+        ["U2", "end"],
+        ["U4", "events"]
+      ]
+    }
+  ]
+}

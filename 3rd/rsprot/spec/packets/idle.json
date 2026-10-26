@@ -1,0 +1,31 @@
+{
+  "prot": "IDLE",
+  "file": "idle",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/misc/client/IdleDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIdle",
+      "fields": [
+        {
+          "decl": "int32_t _unused",
+          "doc": [
+            "/* No payload at any version. C has no empty",
+            " * struct; nothing reads this. */"
+          ]
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": ["    (void)x;", "    (void)m;"]
+    }
+  ]
+}

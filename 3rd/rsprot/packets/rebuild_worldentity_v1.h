@@ -7,9 +7,8 @@
  * Hand-written from RSProx (RebuildWorldEntityV1Decoder, protocol/osrs-<N>/.../
  * decoder/codec/map/RebuildWorldEntityV1Decoder.kt; 223 and 224 are the same).
  * RSProt's encoder wraps the build in a try block and RSProx's decoder reads a
- * bit-packed GPI block in the middle, neither of which the generators
- * translate; tools/rsprox_gen_codec.py lists this file in HAND and never
- * overwrites it.
+ * bit-packed GPI block in the middle, neither of which a spec's reads say, so
+ * it is written by hand.
  *
  *   g2 index  g2 base_x  g2 base_z   (zones)
  *   the GPI init block, always (RSPROT_GPI_INIT_BYTES): the world's player

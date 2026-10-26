@@ -1,0 +1,70 @@
+{
+  "prot": "IF_CLEARINV",
+  "file": "if_clearinv",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfClearInvEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfClearInv",
+      "fields": ["int32_t combined_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U4_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222],
+        [227, 227],
+        [230, 230],
+        [235, 236]
+      ],
+      "body": [
+        ["COM_ALT3", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223],
+        [237, 237],
+        [240, 240]
+      ],
+      "body": [
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 226],
+        [228, 228],
+        [231, 231],
+        [233, 233],
+        [238, 238],
+        [241, 241]
+      ],
+      "body": [
+        ["COM", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229],
+        [232, 232],
+        [234, 234],
+        [239, 239]
+      ],
+      "body": [
+        ["COM_ALT2", "combined_id"]
+      ]
+    }
+  ]
+}

@@ -5,10 +5,8 @@
  * GROUP_FULL -- server -> client.
  *
  * Hand-written from RSProx (GroupFullDecoder, protocol/osrs-<N>/.../decoder/codec/group/GroupFullDecoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder loops to the end of the payload, and its last entry is a blob of everything left, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * RSProt has no codec for this prot, and the RSProx decoder loops to the end of the payload, and its last entry is a blob of everything left, so it is written by hand: tools/rsprot_gen.py has no spec for it.
+ * Field names are RSProx's; version numbers are local to this file.
  */
 
 #include "../include/rsprot_exec.h"
@@ -31,7 +29,7 @@ typedef struct MsgGroupFull {
 	MsgGroupFullUpdate updates[MSG_GROUP_FULL_MAX_UPDATES];
 } MsgGroupFull;
 
-/* v1 (rsprox_versions.txt 100) -- revs 239-241. */
+/* v1 -- revs 239-241. */
 void packet_group_full_v1_out(RsprotExec *x, MsgGroupFull *m);
 
 #define packet_group_full_osrs239_out packet_group_full_v1_out

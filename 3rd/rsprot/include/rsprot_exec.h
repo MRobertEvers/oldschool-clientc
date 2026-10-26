@@ -592,10 +592,10 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 /**
  * Which layout version a revision speaks.
  *
- * A *version* is the identity of a layout, not its ordinal: version numbers are
- * assigned by content hash and recorded append-only in gen/packet_versions.txt,
- * because 31 packet classes have a layout that disappears and later reappears,
- * and a number that silently renumbers is a number that silently mismatches.
+ * A *version* is the identity of a layout, not its ordinal: 31 packet classes
+ * have a layout that disappears and later reappears, and it keeps its number
+ * (spec/packets/<file>.json), because a number that silently renumbers is a
+ * number that silently mismatches.
  *
  * Ranges rather than a row per revision because 207 of 238 packet classes have
  * contiguous version runs — most of these tables are two or three rows.

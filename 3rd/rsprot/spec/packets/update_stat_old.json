@@ -1,0 +1,67 @@
+{
+  "prot": "UPDATE_STAT_OLD",
+  "file": "update_stat_old",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/UpdateStatOldEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateStatOld",
+      "fields": ["int32_t stat", "int32_t experience", "int32_t current_level"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U1", "stat"],
+        ["U4_ALT1", "experience"],
+        ["U1_ALT2", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U1_ALT1", "stat"],
+        ["U1_ALT2", "current_level"],
+        ["U4_ALT2", "experience"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U4", "experience"],
+        ["U1_ALT3", "current_level"],
+        ["U1_ALT3", "stat"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U4", "experience"],
+        ["U1_ALT2", "stat"],
+        ["U1_ALT3", "current_level"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U4_ALT2", "experience"],
+        ["U1_ALT2", "current_level"],
+        ["U1", "stat"]
+      ]
+    }
+  ]
+}

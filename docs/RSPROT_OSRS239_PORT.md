@@ -24,7 +24,7 @@ ISAAC/XTEA/RSA crypto as thin adapters over this project's existing
 `src/net/isaac.c` / `3rd/xteas` / `src/net/rsa.c` rather than a second copy,
 the Huffman chat codec and Base37 name codec (full port), and **generated
 `{name, opcode, size}` prot tables for all 19 revisions RSProt vendors**
-(221..239 — `tools/rsprot_gen_tables.py`, cross-checked against the facts in
+(221..239 — now `3rd/rsprot/spec/tables`, written out by `3rd/rsprot/tools/rsprot_gen.py`; cross-checked against the facts in
 §5a/§5b of this doc). See `3rd/rsprot/README.md` for full scope and status,
 including what is deliberately **not** done yet: message-struct/encoder/
 decoder codec bodies (the ~65k lines of Kotlin under RSProt's `osrs-239-desktop`
@@ -61,8 +61,7 @@ real**. That is the entire reason it exists.
 ## 2. The tables are generated, not transcribed
 
 ```sh
-tools/rsprot_dump_prot.py 239                       # RSProt Kotlin -> JSON
-tools/rsprot_gen_rev.py 239 --out src/net/rev/osrs239
+tools/rsprot_gen_rev.py 239 --out src/net/rev/osrs239   # from 3rd/rsprot/spec/tables/osrs239.json
 ```
 
 produces `packetin.h` (158 server prots), `packetout.h` (101 client prots) and

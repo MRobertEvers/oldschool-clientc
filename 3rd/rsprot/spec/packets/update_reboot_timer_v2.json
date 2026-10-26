@@ -1,0 +1,54 @@
+{
+  "prot": "UPDATE_REBOOT_TIMER_V2",
+  "file": "update_reboot_timer_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/misc/client/UpdateRebootTimerV2Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateRebootTimerV2",
+      "fields": ["const char *message", "int32_t game_cycles"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [236, 236],
+        [240, 241]
+      ],
+      "body": [
+        ["JSTR", "message"],
+        ["U2_ALT2", "game_cycles"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["JSTR", "message"],
+        ["U2_ALT3", "game_cycles"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U2_ALT2", "game_cycles"],
+        ["JSTR", "message"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["JSTR", "message"],
+        ["U2", "game_cycles"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,176 @@
+{
+  "prot": "OBJ_ADD_SPECIFIC",
+  "file": "obj_add_specific",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/specific/ObjAddSpecificEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgObjAddSpecific",
+      "fields": [
+        "int32_t ownership_type",
+        "int32_t op_flags",
+        "int32_t quantity",
+        "int32_t never_becomes_public",
+        "int32_t time_until_public",
+        "int32_t id",
+        "int32_t time_until_despawn",
+        "int32_t coord_grid_packed"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U1_ALT3", "ownership_type"],
+        ["U1_ALT3", "op_flags"],
+        ["U4_ALT1", "quantity"],
+        ["BOOL", "never_becomes_public"],
+        ["U2_ALT3", "time_until_public"],
+        ["U2", "id"],
+        ["U2", "time_until_despawn"],
+        ["U4_ALT3", "coord_grid_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U1_ALT2", "ownership_type"],
+        ["U2", "id"],
+        ["U4_ALT1", "quantity"],
+        ["U1_ALT3", "op_flags"],
+        ["U2_ALT3", "time_until_despawn"],
+        ["U4_ALT3", "coord_grid_packed"],
+        ["U1_ALT2", "never_becomes_public"],
+        ["U2", "time_until_public"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["BOOL", "never_becomes_public"],
+        ["U1_ALT1", "ownership_type"],
+        ["U4_ALT1", "coord_grid_packed"],
+        ["U2_ALT3", "time_until_despawn"],
+        ["U4_ALT1", "quantity"],
+        ["U2", "time_until_public"],
+        ["U1_ALT2", "op_flags"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U2_ALT3", "time_until_despawn"],
+        ["BOOL", "never_becomes_public"],
+        ["U4_ALT3", "coord_grid_packed"],
+        ["U2", "id"],
+        ["U2_ALT2", "time_until_public"],
+        ["U1_ALT2", "op_flags"],
+        ["U1_ALT2", "ownership_type"],
+        ["U4", "quantity"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U4_ALT1", "coord_grid_packed"],
+        ["U2_ALT3", "time_until_public"],
+        ["U2_ALT2", "time_until_despawn"],
+        ["U4_ALT3", "quantity"],
+        ["U2_ALT1", "id"],
+        ["U1_ALT3", "never_becomes_public"],
+        ["U1_ALT3", "ownership_type"],
+        ["U1_ALT1", "op_flags"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U4_ALT2", "quantity"],
+        ["U1_ALT2", "ownership_type"],
+        ["BOOL", "never_becomes_public"],
+        ["U1_ALT3", "op_flags"],
+        ["U4", "coord_grid_packed"],
+        ["U2_ALT2", "id"],
+        ["U2", "time_until_despawn"],
+        ["U2_ALT1", "time_until_public"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U2", "time_until_despawn"],
+        ["U4_ALT1", "quantity"],
+        ["U4_ALT2", "coord_grid_packed"],
+        ["U1_ALT2", "op_flags"],
+        ["U1", "ownership_type"],
+        ["U2", "id"],
+        ["BOOL", "never_becomes_public"],
+        ["U2_ALT2", "time_until_public"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2", "time_until_public"],
+        ["U2_ALT1", "id"],
+        ["U2_ALT1", "time_until_despawn"],
+        ["U1_ALT3", "never_becomes_public"],
+        ["U1", "ownership_type"],
+        ["U1_ALT2", "op_flags"],
+        ["U4_ALT2", "coord_grid_packed"],
+        ["U4_ALT3", "quantity"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U4_ALT1", "quantity"],
+        ["U1_ALT2", "op_flags"],
+        ["U4_ALT3", "coord_grid_packed"],
+        ["U1_ALT2", "never_becomes_public"],
+        ["U2_ALT2", "id"],
+        ["U2", "time_until_despawn"],
+        ["U1", "ownership_type"],
+        ["U2_ALT1", "time_until_public"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["U2_ALT3", "time_until_public"],
+        ["U1_ALT2", "ownership_type"],
+        ["U4_ALT2", "quantity"],
+        ["U4_ALT3", "coord_grid_packed"],
+        ["U1", "op_flags"],
+        ["U1", "never_becomes_public"],
+        ["U2_ALT1", "time_until_despawn"]
+      ]
+    }
+  ]
+}

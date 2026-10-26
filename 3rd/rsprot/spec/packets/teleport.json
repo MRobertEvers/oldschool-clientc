@@ -1,0 +1,248 @@
+{
+  "prot": "TELEPORT",
+  "file": "teleport",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/misc/user/TeleportDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgTeleport",
+      "fields": ["int32_t oculus_sync_value", "int32_t x", "int32_t level", "int32_t z"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U2_ALT1", "x"],
+        ["U1_ALT1", "level"],
+        ["U2_ALT1", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U1_ALT2", "level"],
+        ["U2_ALT2", "z"],
+        ["U4_ALT3", "oculus_sync_value"],
+        ["U2", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U2_ALT1", "x"],
+        ["U2_ALT3", "z"],
+        ["U1_ALT2", "level"],
+        ["U4_ALT1", "oculus_sync_value"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U2_ALT3", "z"],
+        ["U2", "x"],
+        ["U4_ALT3", "oculus_sync_value"],
+        ["U1_ALT1", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U4_ALT1", "oculus_sync_value"],
+        ["U1_ALT1", "level"],
+        ["U2_ALT1", "x"],
+        ["U2_ALT1", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U1_ALT2", "level"],
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U2_ALT1", "z"],
+        ["U2_ALT1", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U2_ALT2", "x"],
+        ["U2_ALT2", "z"],
+        ["U1_ALT2", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U2_ALT2", "x"],
+        ["U2_ALT3", "z"],
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U1_ALT2", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U2", "x"],
+        ["U1_ALT1", "level"],
+        ["U2_ALT2", "z"],
+        ["U4_ALT1", "oculus_sync_value"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U2_ALT3", "z"],
+        ["U1_ALT1", "level"],
+        ["U4_ALT1", "oculus_sync_value"],
+        ["U2_ALT1", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U2", "z"],
+        ["U2_ALT2", "x"],
+        ["U1_ALT1", "level"],
+        ["U4_ALT1", "oculus_sync_value"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U4_ALT3", "oculus_sync_value"],
+        ["U2_ALT1", "z"],
+        ["U1_ALT1", "level"],
+        ["U2", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2_ALT3", "x"],
+        ["U1_ALT2", "level"],
+        ["U4", "oculus_sync_value"],
+        ["U2_ALT2", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U2_ALT1", "z"],
+        ["U2_ALT1", "x"],
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U1_ALT1", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U2_ALT3", "x"],
+        ["U2_ALT2", "z"],
+        ["U4_ALT2", "oculus_sync_value"],
+        ["U1_ALT1", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U1", "level"],
+        ["U2_ALT3", "z"],
+        ["U4_ALT1", "oculus_sync_value"],
+        ["U2", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2", "z"],
+        ["U2_ALT1", "x"],
+        ["U4_ALT1", "oculus_sync_value"],
+        ["U1", "level"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U1_ALT3", "level"],
+        ["U4_ALT3", "oculus_sync_value"],
+        ["U2_ALT3", "z"],
+        ["U2_ALT2", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U4", "oculus_sync_value"],
+        ["U1_ALT1", "level"],
+        ["U2", "z"],
+        ["U2_ALT2", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1_ALT3", "level"],
+        ["U2_ALT3", "x"],
+        ["U4", "oculus_sync_value"],
+        ["U2", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT2", "z"],
+        ["U2_ALT3", "x"],
+        ["U4_ALT3", "oculus_sync_value"],
+        ["U1_ALT2", "level"]
+      ]
+    }
+  ]
+}

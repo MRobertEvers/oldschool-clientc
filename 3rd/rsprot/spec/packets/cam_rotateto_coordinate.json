@@ -1,0 +1,49 @@
+{
+  "prot": "CAM_ROTATETO_COORDINATE",
+  "file": "cam_rotateto_coordinate",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamRotateToCoordinateEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamRotateToCoordinate",
+      "fields": [
+        "int32_t destination_x_in_build_area",
+        "int32_t destination_z_in_build_area",
+        "int32_t height",
+        "int32_t duration",
+        "int32_t function_id",
+        "int32_t cycles",
+        "int32_t easing_id"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 222]
+      ],
+      "body": [
+        ["U1", "destination_x_in_build_area"],
+        ["U1", "destination_z_in_build_area"],
+        ["U2", "height"],
+        ["U2", "duration"],
+        ["U1", "function_id"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 235]
+      ],
+      "body": [
+        ["U1", "destination_x_in_build_area"],
+        ["U1", "destination_z_in_build_area"],
+        ["U2", "height"],
+        ["U2", "cycles"],
+        ["U1", "easing_id"]
+      ]
+    }
+  ]
+}

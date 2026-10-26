@@ -2,7 +2,7 @@
 #include "update_stockmarket_slot_v2.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 241.
+ * v1 -- revs 241.
  * g1 slot, g1 firstState, [g1 version, g1 status], g2 obj, g8|g4 price,
  * g4 count, g4 completedCount, g8|g4 completedGold, [g4 extLength, gdata].
  */

@@ -1,0 +1,39 @@
+{
+  "prot": "IF3_BUTTON",
+  "file": "if3_button",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/buttons/If3ButtonDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIf3Button",
+      "fields": ["int32_t combined_id", "int32_t sub", "int32_t obj"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 231]
+      ],
+      "body": [
+        ["COM", "combined_id"],
+        ["U2", "sub"],
+        ["U2", "obj"]
+      ]
+    }
+  ],
+  "binds": [
+    "IF_BUTTON1",
+    "IF_BUTTON2",
+    "IF_BUTTON3",
+    "IF_BUTTON4",
+    "IF_BUTTON5",
+    "IF_BUTTON6",
+    "IF_BUTTON7",
+    "IF_BUTTON8",
+    "IF_BUTTON9",
+    "IF_BUTTON10"
+  ]
+}

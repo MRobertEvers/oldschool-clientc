@@ -1,0 +1,117 @@
+{
+  "prot": "EVENT_NATIVE_MOUSE_CLICK",
+  "file": "event_native_mouse_click",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/events/EventNativeMouseClickDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgEventNativeMouseClick",
+      "fields": ["int32_t last_transmitted_mouse_click", "int32_t packed_coord", "int32_t code"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U2_ALT2", "last_transmitted_mouse_click"],
+        ["U4_ALT1", "packed_coord"],
+        ["U1", "code"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U4_ALT3", "packed_coord"],
+        ["U1_ALT3", "code"],
+        ["U2_ALT3", "last_transmitted_mouse_click"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U4", "packed_coord"],
+        ["U2_ALT1", "last_transmitted_mouse_click"],
+        ["U1", "code"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U4_ALT2", "packed_coord"],
+        ["U1_ALT1", "code"],
+        ["U2_ALT3", "last_transmitted_mouse_click"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U4_ALT1", "packed_coord"],
+        ["U1_ALT1", "code"],
+        ["U2", "last_transmitted_mouse_click"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U4_ALT2", "packed_coord"],
+        ["U2", "last_transmitted_mouse_click"],
+        ["U1_ALT2", "code"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT1", "code"],
+        ["U2_ALT2", "last_transmitted_mouse_click"],
+        ["U4_ALT2", "packed_coord"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U2_ALT3", "last_transmitted_mouse_click"],
+        ["U4", "packed_coord"],
+        ["U1_ALT1", "code"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U4_ALT2", "packed_coord"],
+        ["U2_ALT3", "last_transmitted_mouse_click"],
+        ["U1", "code"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U2_ALT1", "last_transmitted_mouse_click"],
+        ["U4_ALT2", "packed_coord"],
+        ["U1_ALT2", "code"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,129 @@
+{
+  "prot": "OPNPC5",
+  "file": "opnpc5",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/npcs/OpNpc5Decoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgOpNpc5",
+      "fields": ["int32_t index", "int32_t control_key"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221],
+        [227, 227],
+        [232, 232]
+      ],
+      "body": [
+        ["U2_ALT1", "index"],
+        ["U1_ALT1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222],
+        [229, 229]
+      ],
+      "body": [
+        ["U2_ALT3", "index"],
+        ["U1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223],
+        [225, 225]
+      ],
+      "body": [
+        ["U2_ALT2", "index"],
+        ["U1_ALT1", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U1_ALT3", "control_key"],
+        ["U2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U1_ALT1", "control_key"],
+        ["U2_ALT3", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U2", "index"],
+        ["U1_ALT3", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U1_ALT3", "control_key"],
+        ["U2_ALT3", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1_ALT1", "control_key"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U2", "index"],
+        ["U1_ALT2", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U1_ALT2", "control_key"],
+        ["U2_ALT1", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U2_ALT2", "index"],
+        ["U1_ALT2", "control_key"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U2_ALT1", "index"],
+        ["U1_ALT3", "control_key"]
+      ]
+    }
+  ]
+}

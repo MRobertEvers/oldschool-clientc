@@ -12,10 +12,7 @@
  *       232-234 / 237                  buffer.p2Alt1(message.interfaceId)
  *   rev 231 / 239                      buffer.p2Alt2(message.interfaceId)
  *
- * Read out of the vendored tree, not from memory. The four layouts and their
- * revision sets agree with gen/packet_versions.txt rows 410-413, which are
- * derived independently by content-hashing the same Kotlin — the numbers here
- * come from that ledger rather than being allocated in this file.
+ * Read out of the vendored tree, not from memory.
  *
  * One function per layout, and it runs in whichever direction the executor is
  * in — so the server's writer and the client's reader cannot be two different

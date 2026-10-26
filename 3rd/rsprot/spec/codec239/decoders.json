@@ -1,0 +1,1484 @@
+{
+  "kind": "decode",
+  "entries": [
+    {
+      "cls": "OpWorldEntity1Decoder",
+      "path": "worldentities/OpWorldEntity1Decoder.kt",
+      "prot": "OPWORLDENTITY1",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpWorldEntity",
+          "fields": ["int32_t index", "bool controlKey"]
+        }
+      ],
+      "fn": "OpWorldEntity1",
+      "msg": "RsprotMsg_OpWorldEntity",
+      "body": [
+        ["index", "g2_alt1"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpWorldEntity2Decoder",
+      "path": "worldentities/OpWorldEntity2Decoder.kt",
+      "prot": "OPWORLDENTITY2",
+      "fn": "OpWorldEntity2",
+      "msg": "RsprotMsg_OpWorldEntity",
+      "body": [
+        ["index", "g2_alt2"],
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpWorldEntity3Decoder",
+      "path": "worldentities/OpWorldEntity3Decoder.kt",
+      "prot": "OPWORLDENTITY3",
+      "fn": "OpWorldEntity3",
+      "msg": "RsprotMsg_OpWorldEntity",
+      "body": [
+        ["index", "g2"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpWorldEntity4Decoder",
+      "path": "worldentities/OpWorldEntity4Decoder.kt",
+      "prot": "OPWORLDENTITY4",
+      "fn": "OpWorldEntity4",
+      "msg": "RsprotMsg_OpWorldEntity",
+      "body": [
+        ["index", "g2"],
+        "    out->controlKey = (rsprot_g1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpWorldEntity5Decoder",
+      "path": "worldentities/OpWorldEntity5Decoder.kt",
+      "prot": "OPWORLDENTITY5",
+      "fn": "OpWorldEntity5",
+      "msg": "RsprotMsg_OpWorldEntity",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["index", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "OpWorldEntity6Decoder",
+      "path": "worldentities/OpWorldEntity6Decoder.kt",
+      "prot": "OPWORLDENTITY6",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpWorldEntity6",
+          "fields": ["int32_t id"]
+        }
+      ],
+      "fn": "OpWorldEntity6",
+      "msg": "RsprotMsg_OpWorldEntity6",
+      "body": [
+        ["id", "g2_alt3"]
+      ]
+    },
+    {
+      "cls": "OpWorldEntityTDecoder",
+      "path": "worldentities/OpWorldEntityTDecoder.kt",
+      "prot": "OPWORLDENTITYT",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpWorldEntityT",
+          "fields": [
+            "int32_t index",
+            "int32_t selectedCombinedId",
+            "int32_t selectedObj",
+            "int32_t selectedSub",
+            "bool controlKey"
+          ]
+        }
+      ],
+      "fn": "OpWorldEntityT",
+      "msg": "RsprotMsg_OpWorldEntityT",
+      "body": [
+        ["index", "g2_alt2"],
+        ["selectedCombinedId", "gcombined_id_alt2"],
+        ["selectedObj", "g2_alt3"],
+        ["selectedSub", "g2_alt3"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "BugReportDecoder",
+      "path": "misc/user/BugReportDecoder.kt",
+      "prot": "BUG_REPORT",
+      "structs": [
+        {
+          "name": "RsprotMsg_BugReport",
+          "fields": ["const char * description", "int32_t type", "const char * instructions"]
+        }
+      ],
+      "fn": "BugReport",
+      "msg": "RsprotMsg_BugReport",
+      "body": [
+        "    out->description = rsprot_gjstr(buf, NULL);",
+        ["type", "g1_alt3"],
+        "    out->instructions = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "ClientCheatDecoder",
+      "path": "misc/user/ClientCheatDecoder.kt",
+      "prot": "CLIENT_CHEAT",
+      "structs": [
+        {
+          "name": "RsprotMsg_ClientCheat",
+          "fields": ["const char * command"]
+        }
+      ],
+      "fn": "ClientCheat",
+      "msg": "RsprotMsg_ClientCheat",
+      "body": ["    out->command = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "CloseModalDecoder",
+      "path": "misc/user/CloseModalDecoder.kt",
+      "prot": "CLOSE_MODAL",
+      "structs": [
+        {
+          "name": "RsprotMsg_CloseModal",
+          "fields": ["int32_t _unused"]
+        }
+      ],
+      "fn": "CloseModal",
+      "msg": "RsprotMsg_CloseModal",
+      "body": ["\t(void)buf;", "\tout->_unused = 0;"]
+    },
+    {
+      "cls": "ExitFreecamDecoder",
+      "path": "misc/user/ExitFreecamDecoder.kt",
+      "prot": "EXIT_FREECAM",
+      "structs": [
+        {
+          "name": "RsprotMsg_ExitFreecam",
+          "fields": ["int32_t _unused"]
+        }
+      ],
+      "fn": "ExitFreecam",
+      "msg": "RsprotMsg_ExitFreecam",
+      "body": ["\t(void)buf;", "\tout->_unused = 0;"]
+    },
+    {
+      "cls": "HiscoreRequestDecoder",
+      "path": "misc/user/HiscoreRequestDecoder.kt",
+      "prot": "HISCORE_REQUEST",
+      "structs": [
+        {
+          "name": "RsprotMsg_HiscoreRequest",
+          "fields": ["int32_t requestId", "int32_t type", "const char * name"]
+        }
+      ],
+      "fn": "HiscoreRequest",
+      "msg": "RsprotMsg_HiscoreRequest",
+      "body": [
+        ["requestId", "g1"],
+        ["type", "g1"],
+        "    out->name = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "IfCrmViewOpDecoder",
+      "path": "misc/user/IfCrmViewOpDecoder.kt",
+      "prot": "IF_CRMVIEW_OP",
+      "structs": [
+        {
+          "name": "RsprotMsg_IfCrmViewOp",
+          "fields": [
+            "int32_t combinedId",
+            "int32_t serverTarget",
+            "int32_t behaviour1",
+            "int32_t behaviour3",
+            "int32_t behaviour2",
+            "int32_t sub"
+          ]
+        }
+      ],
+      "fn": "IfCrmViewOp",
+      "msg": "RsprotMsg_IfCrmViewOp",
+      "body": [
+        ["combinedId", "gcombined_id_alt2"],
+        ["serverTarget", "g4"],
+        ["behaviour1", "g4_alt2"],
+        ["behaviour3", "g4_alt2"],
+        ["behaviour2", "g4_alt1"],
+        ["sub", "g2_alt1"]
+      ]
+    },
+    {
+      "cls": "MoveGameClickDecoder",
+      "path": "misc/user/MoveGameClickDecoder.kt",
+      "prot": "MOVE_GAMECLICK",
+      "structs": [
+        {
+          "name": "RsprotMsg_MoveGameClick",
+          "fields": ["int32_t x", "int32_t z", "int32_t keyCombination"]
+        }
+      ],
+      "fn": "MoveGameClick",
+      "msg": "RsprotMsg_MoveGameClick",
+      "body": [
+        ["x", "g2_alt1"],
+        ["z", "g2_alt1"],
+        ["keyCombination", "g1_alt3"]
+      ]
+    },
+    {
+      "cls": "MoveMinimapClickDecoder",
+      "path": "misc/user/MoveMinimapClickDecoder.kt",
+      "prot": "MOVE_MINIMAPCLICK",
+      "structs": [
+        {
+          "name": "RsprotMsg_MoveMinimapClick",
+          "fields": [
+            "int32_t x",
+            "int32_t z",
+            "int32_t keyCombination",
+            "int32_t minimapWidth",
+            "int32_t minimapHeight",
+            "int32_t cameraAngleY",
+            "int32_t checkpoint1",
+            "int32_t checkpoint2",
+            "int32_t checkpoint3",
+            "int32_t checkpoint4",
+            "int32_t fineX",
+            "int32_t fineZ",
+            "int32_t checkpoint5"
+          ]
+        }
+      ],
+      "fn": "MoveMinimapClick",
+      "msg": "RsprotMsg_MoveMinimapClick",
+      "body": [
+        ["x", "g2_alt1"],
+        ["z", "g2_alt1"],
+        ["keyCombination", "g1_alt3"],
+        ["minimapWidth", "g1"],
+        ["minimapHeight", "g1"],
+        ["cameraAngleY", "g2"],
+        ["checkpoint1", "g1"],
+        ["checkpoint2", "g1"],
+        ["checkpoint3", "g1"],
+        ["checkpoint4", "g1"],
+        ["fineX", "g2"],
+        ["fineZ", "g2"],
+        ["checkpoint5", "g1"]
+      ]
+    },
+    {
+      "cls": "SendSnapshotDecoder",
+      "path": "misc/user/SendSnapshotDecoder.kt",
+      "prot": "SEND_SNAPSHOT",
+      "structs": [
+        {
+          "name": "RsprotMsg_SendSnapshot",
+          "fields": ["const char * name", "int32_t ruleId", "bool mute"]
+        }
+      ],
+      "fn": "SendSnapshot",
+      "msg": "RsprotMsg_SendSnapshot",
+      "body": [
+        "    out->name = rsprot_gjstr(buf, NULL);",
+        ["ruleId", "g1"],
+        "    out->mute = (rsprot_g1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "SetChatFilterSettingsDecoder",
+      "path": "misc/user/SetChatFilterSettingsDecoder.kt",
+      "prot": "SET_CHATFILTERSETTINGS",
+      "structs": [
+        {
+          "name": "RsprotMsg_SetChatFilterSettings",
+          "fields": [
+            "int32_t publicChatFilter",
+            "int32_t privateChatFilter",
+            "int32_t tradeChatFilter"
+          ]
+        }
+      ],
+      "fn": "SetChatFilterSettings",
+      "msg": "RsprotMsg_SetChatFilterSettings",
+      "body": [
+        ["publicChatFilter", "g1"],
+        ["privateChatFilter", "g1"],
+        ["tradeChatFilter", "g1"]
+      ]
+    },
+    {
+      "cls": "SetHeadingDecoder",
+      "path": "misc/user/SetHeadingDecoder.kt",
+      "prot": "SET_HEADING",
+      "structs": [
+        {
+          "name": "RsprotMsg_SetHeading",
+          "fields": ["int32_t heading"]
+        }
+      ],
+      "fn": "SetHeading",
+      "msg": "RsprotMsg_SetHeading",
+      "body": [
+        ["heading", "g1"]
+      ]
+    },
+    {
+      "cls": "TeleportDecoder",
+      "path": "misc/user/TeleportDecoder.kt",
+      "prot": "TELEPORT",
+      "structs": [
+        {
+          "name": "RsprotMsg_Teleport",
+          "fields": ["int32_t oculusSyncValue", "int32_t level", "int32_t z", "int32_t x"]
+        }
+      ],
+      "fn": "Teleport",
+      "msg": "RsprotMsg_Teleport",
+      "body": [
+        ["oculusSyncValue", "g4"],
+        ["level", "g1_alt1"],
+        ["z", "g2"],
+        ["x", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "ConnectionTelemetryDecoder",
+      "path": "misc/client/ConnectionTelemetryDecoder.kt",
+      "prot": "CONNECTION_TELEMETRY",
+      "structs": [
+        {
+          "name": "RsprotMsg_ConnectionTelemetry",
+          "fields": [
+            "int32_t connectionLostDuration",
+            "int32_t loginDuration",
+            "int32_t unusedDuration",
+            "int32_t clientState",
+            "int32_t unused1",
+            "int32_t loginCount",
+            "int32_t unused2"
+          ]
+        }
+      ],
+      "fn": "ConnectionTelemetry",
+      "msg": "RsprotMsg_ConnectionTelemetry",
+      "body": [
+        ["connectionLostDuration", "g2"],
+        ["loginDuration", "g2"],
+        ["unusedDuration", "g2"],
+        ["clientState", "g2"],
+        ["unused1", "g2"],
+        ["loginCount", "g2"],
+        ["unused2", "g2"]
+      ]
+    },
+    {
+      "cls": "DetectModifiedClientDecoder",
+      "path": "misc/client/DetectModifiedClientDecoder.kt",
+      "prot": "DETECT_MODIFIED_CLIENT",
+      "structs": [
+        {
+          "name": "RsprotMsg_DetectModifiedClient",
+          "fields": ["int32_t code"]
+        }
+      ],
+      "fn": "DetectModifiedClient",
+      "msg": "RsprotMsg_DetectModifiedClient",
+      "body": [
+        ["code", "g4"]
+      ]
+    },
+    {
+      "cls": "IdleDecoder",
+      "path": "misc/client/IdleDecoder.kt",
+      "prot": "IDLE",
+      "structs": [
+        {
+          "name": "RsprotMsg_Idle",
+          "fields": ["int32_t _unused"]
+        }
+      ],
+      "fn": "Idle",
+      "msg": "RsprotMsg_Idle",
+      "body": ["\t(void)buf;", "\tout->_unused = 0;"]
+    },
+    {
+      "cls": "MapBuildCompleteDecoder",
+      "path": "misc/client/MapBuildCompleteDecoder.kt",
+      "prot": "MAP_BUILD_COMPLETE",
+      "structs": [
+        {
+          "name": "RsprotMsg_MapBuildComplete",
+          "fields": ["int32_t _unused"]
+        }
+      ],
+      "fn": "MapBuildComplete",
+      "msg": "RsprotMsg_MapBuildComplete",
+      "body": ["\t(void)buf;", "\tout->_unused = 0;"]
+    },
+    {
+      "cls": "MembershipPromotionEligibilityDecoder",
+      "path": "misc/client/MembershipPromotionEligibilityDecoder.kt",
+      "prot": "MEMBERSHIP_PROMOTION_ELIGIBILITY",
+      "structs": [
+        {
+          "name": "RsprotMsg_MembershipPromotionEligibility",
+          "fields": ["int32_t eligibleForIntroductoryPrice", "int32_t eligibleForTrialPurchase"]
+        }
+      ],
+      "fn": "MembershipPromotionEligibility",
+      "msg": "RsprotMsg_MembershipPromotionEligibility",
+      "body": [
+        ["eligibleForIntroductoryPrice", "g1"],
+        ["eligibleForTrialPurchase", "g1"]
+      ]
+    },
+    {
+      "cls": "NoTimeoutDecoder",
+      "path": "misc/client/NoTimeoutDecoder.kt",
+      "prot": "NO_TIMEOUT",
+      "structs": [
+        {
+          "name": "RsprotMsg_NoTimeout",
+          "fields": ["int32_t _unused"]
+        }
+      ],
+      "fn": "NoTimeout",
+      "msg": "RsprotMsg_NoTimeout",
+      "body": ["\t(void)buf;", "\tout->_unused = 0;"]
+    },
+    {
+      "cls": "RSevenStatusDecoder",
+      "path": "misc/client/RSevenStatusDecoder.kt",
+      "prot": "RSEVEN_STATUS",
+      "structs": [
+        {
+          "name": "RsprotMsg_RSevenStatus",
+          "fields": ["int32_t packed"]
+        }
+      ],
+      "fn": "RSevenStatus",
+      "msg": "RsprotMsg_RSevenStatus",
+      "body": [
+        ["packed", "g1"]
+      ]
+    },
+    {
+      "cls": "SendPingReplyDecoder",
+      "path": "misc/client/SendPingReplyDecoder.kt",
+      "prot": "SEND_PING_REPLY",
+      "structs": [
+        {
+          "name": "RsprotMsg_SendPingReply",
+          "fields": ["int32_t value1", "int32_t value2", "int32_t fps", "int32_t gcPercentTime"]
+        }
+      ],
+      "fn": "SendPingReply",
+      "msg": "RsprotMsg_SendPingReply",
+      "body": [
+        ["value1", "g4_alt3"],
+        ["value2", "g4"],
+        ["fps", "g1_alt1"],
+        ["gcPercentTime", "g1_alt2"]
+      ]
+    },
+    {
+      "cls": "SoundJingleEndDecoder",
+      "path": "misc/client/SoundJingleEndDecoder.kt",
+      "prot": "SOUND_JINGLEEND",
+      "structs": [
+        {
+          "name": "RsprotMsg_SoundJingleEnd",
+          "fields": ["int32_t jingle"]
+        }
+      ],
+      "fn": "SoundJingleEnd",
+      "msg": "RsprotMsg_SoundJingleEnd",
+      "body": [
+        ["jingle", "g4"]
+      ]
+    },
+    {
+      "cls": "WindowStatusDecoder",
+      "path": "misc/client/WindowStatusDecoder.kt",
+      "prot": "WINDOW_STATUS",
+      "structs": [
+        {
+          "name": "RsprotMsg_WindowStatus",
+          "fields": ["int32_t windowMode", "int32_t frameWidth", "int32_t frameHeight"]
+        }
+      ],
+      "fn": "WindowStatus",
+      "msg": "RsprotMsg_WindowStatus",
+      "body": [
+        ["windowMode", "g1"],
+        ["frameWidth", "g2"],
+        ["frameHeight", "g2"]
+      ]
+    },
+    {
+      "cls": "FriendChatKickDecoder",
+      "path": "friendchat/FriendChatKickDecoder.kt",
+      "prot": "FRIENDCHAT_KICK",
+      "structs": [
+        {
+          "name": "RsprotMsg_FriendChatKick",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "FriendChatKick",
+      "msg": "RsprotMsg_FriendChatKick",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "FriendChatSetRankDecoder",
+      "path": "friendchat/FriendChatSetRankDecoder.kt",
+      "prot": "FRIENDCHAT_SETRANK",
+      "structs": [
+        {
+          "name": "RsprotMsg_FriendChatSetRank",
+          "fields": ["int32_t rank", "const char * name"]
+        }
+      ],
+      "fn": "FriendChatSetRank",
+      "msg": "RsprotMsg_FriendChatSetRank",
+      "body": [
+        ["rank", "g1_alt3"],
+        "    out->name = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "If1ButtonDecoder",
+      "path": "buttons/If1ButtonDecoder.kt",
+      "prot": "IF_BUTTON",
+      "structs": [
+        {
+          "name": "RsprotMsg_If1Button",
+          "fields": ["int32_t combinedId"]
+        }
+      ],
+      "fn": "If1Button",
+      "msg": "RsprotMsg_If1Button",
+      "body": [
+        ["combinedId", "gcombined_id"]
+      ]
+    },
+    {
+      "cls": "IfButtonDDecoder",
+      "path": "buttons/IfButtonDDecoder.kt",
+      "prot": "IF_BUTTOND",
+      "structs": [
+        {
+          "name": "RsprotMsg_IfButtonD",
+          "fields": [
+            "int32_t selectedCombinedId",
+            "int32_t selectedObj",
+            "int32_t selectedSub",
+            "int32_t targetCombinedId",
+            "int32_t targetObj",
+            "int32_t targetSub"
+          ]
+        }
+      ],
+      "fn": "IfButtonD",
+      "msg": "RsprotMsg_IfButtonD",
+      "body": [
+        ["selectedCombinedId", "gcombined_id_alt1"],
+        ["selectedObj", "g2_alt1"],
+        ["selectedSub", "g2_alt3"],
+        ["targetCombinedId", "gcombined_id"],
+        ["targetObj", "g2_alt2"],
+        ["targetSub", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "IfButtonTDecoder",
+      "path": "buttons/IfButtonTDecoder.kt",
+      "prot": "IF_BUTTONT",
+      "structs": [
+        {
+          "name": "RsprotMsg_IfButtonT",
+          "fields": [
+            "int32_t targetCombinedId",
+            "int32_t selectedSub",
+            "int32_t targetObj",
+            "int32_t targetSub",
+            "int32_t selectedObj",
+            "int32_t selectedCombinedId"
+          ]
+        }
+      ],
+      "fn": "IfButtonT",
+      "msg": "RsprotMsg_IfButtonT",
+      "body": [
+        ["targetCombinedId", "gcombined_id"],
+        ["selectedSub", "g2_alt2"],
+        ["targetObj", "g2_alt3"],
+        ["targetSub", "g2_alt1"],
+        ["selectedObj", "g2_alt2"],
+        ["selectedCombinedId", "gcombined_id_alt2"]
+      ]
+    },
+    {
+      "cls": "IfButtonXDecoder",
+      "path": "buttons/IfButtonXDecoder.kt",
+      "prot": "IF_BUTTONX",
+      "structs": [
+        {
+          "name": "RsprotMsg_If3Button",
+          "fields": ["int32_t combinedId", "int32_t sub", "int32_t obj", "int32_t op"]
+        }
+      ],
+      "fn": "IfButtonX",
+      "msg": "RsprotMsg_If3Button",
+      "body": [
+        ["combinedId", "gcombined_id"],
+        ["sub", "g2"],
+        ["obj", "g2"],
+        ["op", "g1"]
+      ]
+    },
+    {
+      "cls": "IfSubOpDecoder",
+      "path": "buttons/IfSubOpDecoder.kt",
+      "prot": "IF_SUBOP",
+      "structs": [
+        {
+          "name": "RsprotMsg_IfSubOp",
+          "fields": [
+            "int32_t combinedId",
+            "int32_t sub",
+            "int32_t obj",
+            "int32_t op",
+            "int32_t subop"
+          ]
+        }
+      ],
+      "fn": "IfSubOp",
+      "msg": "RsprotMsg_IfSubOp",
+      "body": [
+        ["combinedId", "gcombined_id"],
+        ["sub", "g2"],
+        ["obj", "g2"],
+        ["op", "g1"],
+        ["subop", "g1"]
+      ]
+    },
+    {
+      "cls": "AffinedClanSettingsAddBannedFromChannelDecoder",
+      "path": "clan/AffinedClanSettingsAddBannedFromChannelDecoder.kt",
+      "prot": "AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL",
+      "structs": [
+        {
+          "name": "RsprotMsg_AffinedClanSettingsAddBannedFromChannel",
+          "fields": ["int32_t clanId", "int32_t memberIndex", "const char * name"]
+        }
+      ],
+      "fn": "AffinedClanSettingsAddBannedFromChannel",
+      "msg": "RsprotMsg_AffinedClanSettingsAddBannedFromChannel",
+      "body": [
+        ["clanId", "g1"],
+        ["memberIndex", "g2"],
+        "    out->name = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "AffinedClanSettingsSetMutedFromChannelDecoder",
+      "path": "clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt",
+      "prot": "AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL",
+      "structs": [
+        {
+          "name": "RsprotMsg_AffinedClanSettingsSetMutedFromChannel",
+          "fields": ["int32_t clanId", "int32_t memberIndex", "bool muted", "const char * name"]
+        }
+      ],
+      "fn": "AffinedClanSettingsSetMutedFromChannel",
+      "msg": "RsprotMsg_AffinedClanSettingsSetMutedFromChannel",
+      "body": [
+        ["clanId", "g1"],
+        ["memberIndex", "g2"],
+        "    out->muted = (rsprot_g1(buf) == 1);",
+        "    out->name = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "ClanChannelFullRequestDecoder",
+      "path": "clan/ClanChannelFullRequestDecoder.kt",
+      "prot": "CLANCHANNEL_FULL_REQUEST",
+      "structs": [
+        {
+          "name": "RsprotMsg_ClanChannelFullRequest",
+          "fields": ["int32_t clanId"]
+        }
+      ],
+      "fn": "ClanChannelFullRequest",
+      "msg": "RsprotMsg_ClanChannelFullRequest",
+      "body": [
+        ["clanId", "g1s"]
+      ]
+    },
+    {
+      "cls": "ClanChannelKickUserDecoder",
+      "path": "clan/ClanChannelKickUserDecoder.kt",
+      "prot": "CLANCHANNEL_KICKUSER",
+      "structs": [
+        {
+          "name": "RsprotMsg_ClanChannelKickUser",
+          "fields": ["int32_t clanId", "int32_t memberIndex", "const char * name"]
+        }
+      ],
+      "fn": "ClanChannelKickUser",
+      "msg": "RsprotMsg_ClanChannelKickUser",
+      "body": [
+        ["clanId", "g1"],
+        ["memberIndex", "g2"],
+        "    out->name = rsprot_gjstr(buf, NULL);"
+      ]
+    },
+    {
+      "cls": "ClanSettingsFullRequestDecoder",
+      "path": "clan/ClanSettingsFullRequestDecoder.kt",
+      "prot": "CLANSETTINGS_FULL_REQUEST",
+      "structs": [
+        {
+          "name": "RsprotMsg_ClanSettingsFullRequest",
+          "fields": ["int32_t clanId"]
+        }
+      ],
+      "fn": "ClanSettingsFullRequest",
+      "msg": "RsprotMsg_ClanSettingsFullRequest",
+      "body": [
+        ["clanId", "g1s"]
+      ]
+    },
+    {
+      "cls": "OpNpc1V2Decoder",
+      "path": "npcs/OpNpc1V2Decoder.kt",
+      "prot": "OPNPC1_V2",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpNpcV2",
+          "fields": ["int32_t index", "int32_t subop", "bool controlKey"]
+        }
+      ],
+      "fn": "OpNpc1V2",
+      "msg": "RsprotMsg_OpNpcV2",
+      "body": [
+        ["index", "g2_alt1"],
+        ["subop", "g1_alt2"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpNpc2V2Decoder",
+      "path": "npcs/OpNpc2V2Decoder.kt",
+      "prot": "OPNPC2_V2",
+      "fn": "OpNpc2V2",
+      "msg": "RsprotMsg_OpNpcV2",
+      "body": [
+        ["index", "g2_alt3"],
+        ["subop", "g1_alt2"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpNpc3V2Decoder",
+      "path": "npcs/OpNpc3V2Decoder.kt",
+      "prot": "OPNPC3_V2",
+      "fn": "OpNpc3V2",
+      "msg": "RsprotMsg_OpNpcV2",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);",
+        ["subop", "g1_alt3"],
+        ["index", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "OpNpc4V2Decoder",
+      "path": "npcs/OpNpc4V2Decoder.kt",
+      "prot": "OPNPC4_V2",
+      "fn": "OpNpc4V2",
+      "msg": "RsprotMsg_OpNpcV2",
+      "body": [
+        ["subop", "g1_alt1"],
+        ["index", "g2"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpNpc5V2Decoder",
+      "path": "npcs/OpNpc5V2Decoder.kt",
+      "prot": "OPNPC5_V2",
+      "fn": "OpNpc5V2",
+      "msg": "RsprotMsg_OpNpcV2",
+      "body": [
+        ["subop", "g1_alt1"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);",
+        ["index", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "OpNpc6Decoder",
+      "path": "npcs/OpNpc6Decoder.kt",
+      "prot": "OPNPC6",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpNpc6",
+          "fields": ["int32_t id"]
+        }
+      ],
+      "fn": "OpNpc6",
+      "msg": "RsprotMsg_OpNpc6",
+      "body": [
+        ["id", "g2"]
+      ]
+    },
+    {
+      "cls": "OpNpcTDecoder",
+      "path": "npcs/OpNpcTDecoder.kt",
+      "prot": "OPNPCT",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpNpcT",
+          "fields": [
+            "bool controlKey",
+            "int32_t selectedSub",
+            "int32_t index",
+            "int32_t selectedObj",
+            "int32_t selectedCombinedId"
+          ]
+        }
+      ],
+      "fn": "OpNpcT",
+      "msg": "RsprotMsg_OpNpcT",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);",
+        ["selectedSub", "g2"],
+        ["index", "g2_alt2"],
+        ["selectedObj", "g2"],
+        ["selectedCombinedId", "gcombined_id"]
+      ]
+    },
+    {
+      "cls": "OpPlayer1Decoder",
+      "path": "players/OpPlayer1Decoder.kt",
+      "prot": "OPPLAYER1",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpPlayer",
+          "fields": ["bool controlKey", "int32_t index"]
+        }
+      ],
+      "fn": "OpPlayer1",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);",
+        ["index", "g2_alt1"]
+      ]
+    },
+    {
+      "cls": "OpPlayer2Decoder",
+      "path": "players/OpPlayer2Decoder.kt",
+      "prot": "OPPLAYER2",
+      "fn": "OpPlayer2",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        ["index", "g2_alt1"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpPlayer3Decoder",
+      "path": "players/OpPlayer3Decoder.kt",
+      "prot": "OPPLAYER3",
+      "fn": "OpPlayer3",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);",
+        ["index", "g2_alt3"]
+      ]
+    },
+    {
+      "cls": "OpPlayer4Decoder",
+      "path": "players/OpPlayer4Decoder.kt",
+      "prot": "OPPLAYER4",
+      "fn": "OpPlayer4",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        ["index", "g2"],
+        "    out->controlKey = (rsprot_g1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpPlayer5Decoder",
+      "path": "players/OpPlayer5Decoder.kt",
+      "prot": "OPPLAYER5",
+      "fn": "OpPlayer5",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);",
+        ["index", "g2"]
+      ]
+    },
+    {
+      "cls": "OpPlayer6Decoder",
+      "path": "players/OpPlayer6Decoder.kt",
+      "prot": "OPPLAYER6",
+      "fn": "OpPlayer6",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        ["index", "g2_alt3"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpPlayer7Decoder",
+      "path": "players/OpPlayer7Decoder.kt",
+      "prot": "OPPLAYER7",
+      "fn": "OpPlayer7",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        "    out->controlKey = (rsprot_g1(buf) == 1);",
+        ["index", "g2"]
+      ]
+    },
+    {
+      "cls": "OpPlayer8Decoder",
+      "path": "players/OpPlayer8Decoder.kt",
+      "prot": "OPPLAYER8",
+      "fn": "OpPlayer8",
+      "msg": "RsprotMsg_OpPlayer",
+      "body": [
+        ["index", "g2"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpPlayerTDecoder",
+      "path": "players/OpPlayerTDecoder.kt",
+      "prot": "OPPLAYERT",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpPlayerT",
+          "fields": [
+            "int32_t selectedSub",
+            "bool controlKey",
+            "int32_t selectedObj",
+            "int32_t selectedCombinedId",
+            "int32_t index"
+          ]
+        }
+      ],
+      "fn": "OpPlayerT",
+      "msg": "RsprotMsg_OpPlayerT",
+      "body": [
+        ["selectedSub", "g2_alt2"],
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["selectedObj", "g2_alt3"],
+        ["selectedCombinedId", "gcombined_id_alt2"],
+        ["index", "g2"]
+      ]
+    },
+    {
+      "cls": "OpObj1V2Decoder",
+      "path": "objs/OpObj1V2Decoder.kt",
+      "prot": "OPOBJ1_V2",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpObjV2",
+          "fields": ["int32_t id", "int32_t subop", "int32_t z", "bool controlKey", "int32_t x"]
+        }
+      ],
+      "fn": "OpObj1V2",
+      "msg": "RsprotMsg_OpObjV2",
+      "body": [
+        ["id", "g2_alt2"],
+        ["subop", "g1_alt3"],
+        ["z", "g2_alt2"],
+        "    out->controlKey = (rsprot_g1_alt3(buf) == 1);",
+        ["x", "g2"]
+      ]
+    },
+    {
+      "cls": "OpObj2V2Decoder",
+      "path": "objs/OpObj2V2Decoder.kt",
+      "prot": "OPOBJ2_V2",
+      "fn": "OpObj2V2",
+      "msg": "RsprotMsg_OpObjV2",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["subop", "g1_alt3"],
+        ["z", "g2"],
+        ["id", "g2_alt1"],
+        ["x", "g2_alt3"]
+      ]
+    },
+    {
+      "cls": "OpObj3V2Decoder",
+      "path": "objs/OpObj3V2Decoder.kt",
+      "prot": "OPOBJ3_V2",
+      "fn": "OpObj3V2",
+      "msg": "RsprotMsg_OpObjV2",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["x", "g2_alt1"],
+        ["id", "g2_alt3"],
+        ["subop", "g1_alt1"],
+        ["z", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "OpObj4V2Decoder",
+      "path": "objs/OpObj4V2Decoder.kt",
+      "prot": "OPOBJ4_V2",
+      "fn": "OpObj4V2",
+      "msg": "RsprotMsg_OpObjV2",
+      "body": [
+        ["subop", "g1_alt3"],
+        ["id", "g2"],
+        ["x", "g2"],
+        ["z", "g2_alt1"],
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpObj5V2Decoder",
+      "path": "objs/OpObj5V2Decoder.kt",
+      "prot": "OPOBJ5_V2",
+      "fn": "OpObj5V2",
+      "msg": "RsprotMsg_OpObjV2",
+      "body": [
+        ["subop", "g1_alt2"],
+        ["x", "g2_alt2"],
+        ["id", "g2"],
+        ["z", "g2_alt3"],
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpObj6Decoder",
+      "path": "objs/OpObj6Decoder.kt",
+      "prot": "OPOBJ6",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpObj6",
+          "fields": ["int32_t z", "int32_t id", "int32_t x"]
+        }
+      ],
+      "fn": "OpObj6",
+      "msg": "RsprotMsg_OpObj6",
+      "body": [
+        ["z", "g2_alt2"],
+        ["id", "g2_alt1"],
+        ["x", "g2_alt1"]
+      ]
+    },
+    {
+      "cls": "OpObjTDecoder",
+      "path": "objs/OpObjTDecoder.kt",
+      "prot": "OPOBJT",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpObjT",
+          "fields": [
+            "int32_t selectedObj",
+            "int32_t id",
+            "int32_t x",
+            "int32_t selectedCombinedId",
+            "bool controlKey",
+            "int32_t selectedSub",
+            "int32_t z"
+          ]
+        }
+      ],
+      "fn": "OpObjT",
+      "msg": "RsprotMsg_OpObjT",
+      "body": [
+        ["selectedObj", "g2_alt1"],
+        ["id", "g2_alt2"],
+        ["x", "g2"],
+        ["selectedCombinedId", "gcombined_id_alt2"],
+        "    out->controlKey = (rsprot_g1(buf) == 1);",
+        ["selectedSub", "g2_alt1"],
+        ["z", "g2"]
+      ]
+    },
+    {
+      "cls": "FriendListAddDecoder",
+      "path": "social/FriendListAddDecoder.kt",
+      "prot": "FRIENDLIST_ADD",
+      "structs": [
+        {
+          "name": "RsprotMsg_FriendListAdd",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "FriendListAdd",
+      "msg": "RsprotMsg_FriendListAdd",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "FriendListDelDecoder",
+      "path": "social/FriendListDelDecoder.kt",
+      "prot": "FRIENDLIST_DEL",
+      "structs": [
+        {
+          "name": "RsprotMsg_FriendListDel",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "FriendListDel",
+      "msg": "RsprotMsg_FriendListDel",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "IgnoreListAddDecoder",
+      "path": "social/IgnoreListAddDecoder.kt",
+      "prot": "IGNORELIST_ADD",
+      "structs": [
+        {
+          "name": "RsprotMsg_IgnoreListAdd",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "IgnoreListAdd",
+      "msg": "RsprotMsg_IgnoreListAdd",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "IgnoreListDelDecoder",
+      "path": "social/IgnoreListDelDecoder.kt",
+      "prot": "IGNORELIST_DEL",
+      "structs": [
+        {
+          "name": "RsprotMsg_IgnoreListDel",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "IgnoreListDel",
+      "msg": "RsprotMsg_IgnoreListDel",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "EventAppletFocusDecoder",
+      "path": "events/EventAppletFocusDecoder.kt",
+      "prot": "EVENT_APPLET_FOCUS",
+      "structs": [
+        {
+          "name": "RsprotMsg_EventAppletFocus",
+          "fields": ["bool inFocus"]
+        }
+      ],
+      "fn": "EventAppletFocus",
+      "msg": "RsprotMsg_EventAppletFocus",
+      "body": ["    out->inFocus = (rsprot_g1(buf) == 1);"]
+    },
+    {
+      "cls": "EventCameraPositionDecoder",
+      "path": "events/EventCameraPositionDecoder.kt",
+      "prot": "EVENT_CAMERA_POSITION",
+      "structs": [
+        {
+          "name": "RsprotMsg_EventCameraPosition",
+          "fields": ["int32_t angleX", "int32_t angleY"]
+        }
+      ],
+      "fn": "EventCameraPosition",
+      "msg": "RsprotMsg_EventCameraPosition",
+      "body": [
+        ["angleX", "g2_alt1"],
+        ["angleY", "g2_alt3"]
+      ]
+    },
+    {
+      "cls": "EventMouseClickV1Decoder",
+      "path": "events/EventMouseClickV1Decoder.kt",
+      "prot": "EVENT_MOUSE_CLICK_V1",
+      "structs": [
+        {
+          "name": "RsprotMsg_EventMouseClickV1",
+          "fields": [
+            "int32_t packed",
+            "int32_t x",
+            "int32_t y",
+            "int32_t lastTransmittedMouseClick",
+            "int32_t rightClick"
+          ]
+        }
+      ],
+      "fn": "EventMouseClickV1",
+      "msg": "RsprotMsg_EventMouseClickV1",
+      "body": [
+        ["packed", "g2"],
+        "    int32_t rightClick = (out->packed & (0x1 != 0));",
+        "    int32_t lastTransmittedMouseClick = ((int32_t)((uint32_t)(out->packed) >> (1)));",
+        ["x", "g2"],
+        ["y", "g2"],
+        "    out->lastTransmittedMouseClick = lastTransmittedMouseClick;",
+        "    out->rightClick = rightClick;"
+      ]
+    },
+    {
+      "cls": "EventMouseClickV2Decoder",
+      "path": "events/EventMouseClickV2Decoder.kt",
+      "prot": "EVENT_MOUSE_CLICK_V2",
+      "structs": [
+        {
+          "name": "RsprotMsg_EventMouseClickV2",
+          "fields": [
+            "int32_t x",
+            "int32_t packed",
+            "int32_t y",
+            "int32_t code",
+            "int32_t lastTransmittedMouseClick",
+            "int32_t rightClick"
+          ]
+        }
+      ],
+      "fn": "EventMouseClickV2",
+      "msg": "RsprotMsg_EventMouseClickV2",
+      "body": [
+        ["x", "g2_alt2"],
+        ["packed", "g2_alt3"],
+        ["y", "g2_alt2"],
+        ["code", "g1_alt3"],
+        "    int32_t rightClick = (out->packed & (0x1 != 0));",
+        "    int32_t lastTransmittedMouseClick = ((int32_t)((uint32_t)(out->packed) >> (1)));",
+        "    out->lastTransmittedMouseClick = lastTransmittedMouseClick;",
+        "    out->rightClick = rightClick;"
+      ]
+    },
+    {
+      "cls": "EventMouseScrollDecoder",
+      "path": "events/EventMouseScrollDecoder.kt",
+      "prot": "EVENT_MOUSE_SCROLL",
+      "structs": [
+        {
+          "name": "RsprotMsg_EventMouseScroll",
+          "fields": ["int32_t rotation"]
+        }
+      ],
+      "fn": "EventMouseScroll",
+      "msg": "RsprotMsg_EventMouseScroll",
+      "body": [
+        ["rotation", "g2s"]
+      ]
+    },
+    {
+      "cls": "OpLoc1V2Decoder",
+      "path": "locs/OpLoc1V2Decoder.kt",
+      "prot": "OPLOC1_V2",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpLocV2",
+          "fields": ["int32_t z", "int32_t x", "bool controlKey", "int32_t subop", "int32_t id"]
+        }
+      ],
+      "fn": "OpLoc1V2",
+      "msg": "RsprotMsg_OpLocV2",
+      "body": [
+        ["z", "g2_alt2"],
+        ["x", "g2_alt1"],
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["subop", "g1_alt1"],
+        ["id", "g2"]
+      ]
+    },
+    {
+      "cls": "OpLoc2V2Decoder",
+      "path": "locs/OpLoc2V2Decoder.kt",
+      "prot": "OPLOC2_V2",
+      "fn": "OpLoc2V2",
+      "msg": "RsprotMsg_OpLocV2",
+      "body": [
+        ["z", "g2_alt3"],
+        ["id", "g2_alt3"],
+        ["x", "g2"],
+        ["subop", "g1_alt2"],
+        "    out->controlKey = (rsprot_g1(buf) == 1);"
+      ]
+    },
+    {
+      "cls": "OpLoc3V2Decoder",
+      "path": "locs/OpLoc3V2Decoder.kt",
+      "prot": "OPLOC3_V2",
+      "fn": "OpLoc3V2",
+      "msg": "RsprotMsg_OpLocV2",
+      "body": [
+        ["id", "g2_alt2"],
+        ["subop", "g1_alt3"],
+        "    out->controlKey = (rsprot_g1(buf) == 1);",
+        ["z", "g2_alt3"],
+        ["x", "g2_alt2"]
+      ]
+    },
+    {
+      "cls": "OpLoc4V2Decoder",
+      "path": "locs/OpLoc4V2Decoder.kt",
+      "prot": "OPLOC4_V2",
+      "fn": "OpLoc4V2",
+      "msg": "RsprotMsg_OpLocV2",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["x", "g2_alt1"],
+        ["id", "g2_alt3"],
+        ["subop", "g1_alt2"],
+        ["z", "g2"]
+      ]
+    },
+    {
+      "cls": "OpLoc5V2Decoder",
+      "path": "locs/OpLoc5V2Decoder.kt",
+      "prot": "OPLOC5_V2",
+      "fn": "OpLoc5V2",
+      "msg": "RsprotMsg_OpLocV2",
+      "body": [
+        ["z", "g2_alt3"],
+        ["x", "g2_alt1"],
+        "    out->controlKey = (rsprot_g1_alt1(buf) == 1);",
+        ["subop", "g1_alt2"],
+        ["id", "g2"]
+      ]
+    },
+    {
+      "cls": "OpLoc6Decoder",
+      "path": "locs/OpLoc6Decoder.kt",
+      "prot": "OPLOC6",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpLoc6",
+          "fields": ["int32_t id"]
+        }
+      ],
+      "fn": "OpLoc6",
+      "msg": "RsprotMsg_OpLoc6",
+      "body": [
+        ["id", "g2_alt1"]
+      ]
+    },
+    {
+      "cls": "OpLocTDecoder",
+      "path": "locs/OpLocTDecoder.kt",
+      "prot": "OPLOCT",
+      "structs": [
+        {
+          "name": "RsprotMsg_OpLocT",
+          "fields": [
+            "bool controlKey",
+            "int32_t selectedSub",
+            "int32_t id",
+            "int32_t selectedCombinedId",
+            "int32_t z",
+            "int32_t x",
+            "int32_t selectedObj"
+          ]
+        }
+      ],
+      "fn": "OpLocT",
+      "msg": "RsprotMsg_OpLocT",
+      "body": [
+        "    out->controlKey = (rsprot_g1_alt2(buf) == 1);",
+        ["selectedSub", "g2_alt2"],
+        ["id", "g2_alt1"],
+        ["selectedCombinedId", "gcombined_id_alt1"],
+        ["z", "g2_alt3"],
+        ["x", "g2_alt1"],
+        ["selectedObj", "g2_alt1"]
+      ]
+    },
+    {
+      "cls": "ResumePCountDialogDecoder",
+      "path": "resumed/ResumePCountDialogDecoder.kt",
+      "prot": "RESUME_P_COUNTDIALOG",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePCountDialog",
+          "fields": ["int32_t count"]
+        }
+      ],
+      "fn": "ResumePCountDialog",
+      "msg": "RsprotMsg_ResumePCountDialog",
+      "body": [
+        ["count", "g4"]
+      ]
+    },
+    {
+      "cls": "ResumePCountDialogLongDecoder",
+      "path": "resumed/ResumePCountDialogLongDecoder.kt",
+      "prot": "RESUME_P_COUNTDIALOG_LONG",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePCountDialogLong",
+          "fields": ["int64_t count"]
+        }
+      ],
+      "fn": "ResumePCountDialogLong",
+      "msg": "RsprotMsg_ResumePCountDialogLong",
+      "body": ["    out->count = (int64_t)rsprot_g8(buf);"]
+    },
+    {
+      "cls": "ResumePNameDialogDecoder",
+      "path": "resumed/ResumePNameDialogDecoder.kt",
+      "prot": "RESUME_P_NAMEDIALOG",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePNameDialog",
+          "fields": ["const char * name"]
+        }
+      ],
+      "fn": "ResumePNameDialog",
+      "msg": "RsprotMsg_ResumePNameDialog",
+      "body": ["    out->name = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "ResumePObjDialogDecoder",
+      "path": "resumed/ResumePObjDialogDecoder.kt",
+      "prot": "RESUME_P_OBJDIALOG",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePObjDialog",
+          "fields": ["int32_t obj"]
+        }
+      ],
+      "fn": "ResumePObjDialog",
+      "msg": "RsprotMsg_ResumePObjDialog",
+      "body": [
+        ["obj", "g2"]
+      ]
+    },
+    {
+      "cls": "ResumePStringDialogDecoder",
+      "path": "resumed/ResumePStringDialogDecoder.kt",
+      "prot": "RESUME_P_STRINGDIALOG",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePStringDialog",
+          "fields": ["const char * string"]
+        }
+      ],
+      "fn": "ResumePStringDialog",
+      "msg": "RsprotMsg_ResumePStringDialog",
+      "body": ["    out->string = rsprot_gjstr(buf, NULL);"]
+    },
+    {
+      "cls": "ResumePauseButtonDecoder",
+      "path": "resumed/ResumePauseButtonDecoder.kt",
+      "prot": "RESUME_PAUSEBUTTON",
+      "structs": [
+        {
+          "name": "RsprotMsg_ResumePauseButton",
+          "fields": ["int32_t combinedId", "int32_t sub"]
+        }
+      ],
+      "fn": "ResumePauseButton",
+      "msg": "RsprotMsg_ResumePauseButton",
+      "body": [
+        ["combinedId", "gcombined_id_alt3"],
+        ["sub", "g2"]
+      ]
+    }
+  ]
+}

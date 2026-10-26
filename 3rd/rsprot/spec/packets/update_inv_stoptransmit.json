@@ -1,0 +1,63 @@
+{
+  "prot": "UPDATE_INV_STOPTRANSMIT",
+  "file": "update_inv_stoptransmit",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/inv/UpdateInvStopTransmitEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateInvStopTransmit",
+      "fields": ["int32_t inventory_id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221],
+        [226, 226],
+        [229, 229],
+        [231, 231],
+        [233, 234]
+      ],
+      "body": [
+        ["U2_ALT3", "inventory_id"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 223],
+        [225, 225],
+        [228, 228],
+        [238, 239],
+        [241, 241]
+      ],
+      "body": [
+        ["U2_ALT2", "inventory_id"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224],
+        [227, 227],
+        [230, 230],
+        [232, 232],
+        [236, 236]
+      ],
+      "body": [
+        ["U2", "inventory_id"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235],
+        [237, 237],
+        [240, 240]
+      ],
+      "body": [
+        ["U2_ALT1", "inventory_id"]
+      ]
+    }
+  ]
+}

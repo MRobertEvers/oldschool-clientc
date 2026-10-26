@@ -80,8 +80,8 @@ rsprot_bridge_revision(struct GameProtoRevTable const* rev)
         return 230;
     case GAMEPROTO_REVISION_OSRS239:
         return 239;
-    /* Not an RSProt revision: the 241 rows in 3rd/rsprot/packets/ come from
-     * RSProx through tools/rsprox_codec_overlay.py. Same lookup. */
+    /* RSProt's 241 rows were ported from RSProx (3rd/rsprot/spec/packets).
+     * Same lookup. */
     case GAMEPROTO_REVISION_OSRS241:
         return 241;
     /*

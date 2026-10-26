@@ -1,0 +1,385 @@
+{
+  "prot": "LOC_MERGE",
+  "file": "loc_merge",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/LocMergeEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgLocMerge",
+      "fields": [
+        "int32_t min_x",
+        "int32_t min_z",
+        "int32_t index",
+        "int32_t id",
+        "int32_t loc_properties_packed",
+        "int32_t max_x",
+        "int32_t start",
+        "int32_t end",
+        "int32_t coord_in_zone_packed",
+        "int32_t max_z"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U1_ALT3", "min_x"],
+        ["U1_ALT3", "min_z"],
+        ["U2_ALT2", "index"],
+        ["U2", "id"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1_ALT3", "max_x"],
+        ["U2_ALT1", "start"],
+        ["U2_ALT1", "end"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "max_z"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U1_ALT1", "max_x"],
+        ["U2_ALT2", "id"],
+        ["U2_ALT2", "end"],
+        ["U1_ALT2", "min_x"],
+        ["U2_ALT2", "start"],
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT3", "min_z"],
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U2_ALT3", "index"],
+        ["U1_ALT1", "max_z"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["U1_ALT3", "max_x"],
+        ["U2", "end"],
+        ["U1_ALT2", "min_x"],
+        ["U1_ALT1", "max_z"],
+        ["U1_ALT2", "min_z"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U2_ALT3", "start"],
+        ["U2_ALT2", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U1_ALT1", "max_z"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U2_ALT1", "id"],
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U2", "end"],
+        ["U1", "min_z"],
+        ["U1_ALT2", "min_x"],
+        ["U1", "max_x"],
+        ["U2", "index"],
+        ["U2_ALT2", "start"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U2_ALT1", "start"],
+        ["U2_ALT1", "end"],
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U2_ALT2", "index"],
+        ["U1_ALT2", "min_x"],
+        ["U2", "id"],
+        ["U1_ALT1", "max_x"],
+        ["U1", "min_z"],
+        ["U1_ALT2", "max_z"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U1_ALT2", "min_z"],
+        ["U1_ALT2", "max_z"],
+        ["U2_ALT3", "start"],
+        ["U1_ALT2", "min_x"],
+        ["U2", "id"],
+        ["U1_ALT1", "max_x"],
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U2_ALT2", "end"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U2_ALT1", "index"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U2", "start"],
+        ["U1_ALT3", "max_z"],
+        ["U1", "min_z"],
+        ["U2_ALT1", "id"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1", "max_x"],
+        ["U2_ALT2", "index"],
+        ["U2_ALT1", "end"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1_ALT2", "min_x"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT1", "max_z"],
+        ["U2_ALT1", "index"],
+        ["U1_ALT1", "max_x"],
+        ["U2", "id"],
+        ["U1_ALT2", "min_x"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U2_ALT1", "end"],
+        ["U2", "start"],
+        ["U1", "min_z"],
+        ["U1", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U2_ALT1", "id"],
+        ["U2_ALT2", "start"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U1_ALT3", "max_z"],
+        ["U1_ALT3", "min_z"],
+        ["U2_ALT1", "index"],
+        ["U1_ALT2", "min_x"],
+        ["U1", "max_x"],
+        ["U2", "end"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U1_ALT1", "max_x"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U2_ALT3", "id"],
+        ["U2_ALT3", "start"],
+        ["U1_ALT1", "max_z"],
+        ["U1", "min_x"],
+        ["U2_ALT3", "index"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "min_z"],
+        ["U2", "end"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1_ALT1", "min_x"],
+        ["U1", "loc_properties_packed"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1", "min_z"],
+        ["U2", "end"],
+        ["U2_ALT2", "id"],
+        ["U2", "start"],
+        ["U2_ALT3", "index"],
+        ["U1", "max_x"],
+        ["U1_ALT3", "max_z"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232]
+      ],
+      "body": [
+        ["U2_ALT1", "id"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U2", "end"],
+        ["U2_ALT3", "start"],
+        ["U1", "min_x"],
+        ["U1_ALT3", "min_z"],
+        ["U1_ALT3", "max_z"],
+        ["U1", "max_x"],
+        ["U2_ALT3", "index"],
+        ["U1_ALT3", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [233, 233]
+      ],
+      "body": [
+        ["U1_ALT2", "min_z"],
+        ["U2", "index"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT3", "max_z"],
+        ["U1_ALT2", "min_x"],
+        ["U2", "start"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1_ALT3", "max_x"],
+        ["U2_ALT1", "id"],
+        ["U2_ALT3", "end"]
+      ]
+    },
+    {
+      "revs": [
+        [234, 234]
+      ],
+      "body": [
+        ["U2_ALT2", "start"],
+        ["U1_ALT1", "max_z"],
+        ["U1_ALT3", "min_z"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U2_ALT1", "index"],
+        ["U2_ALT3", "id"],
+        ["U1", "min_x"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U2_ALT2", "end"],
+        ["U1_ALT2", "max_x"]
+      ]
+    },
+    {
+      "revs": [
+        [235, 235]
+      ],
+      "body": [
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT1", "min_z"],
+        ["U2_ALT2", "start"],
+        ["U2_ALT2", "index"],
+        ["U1_ALT3", "max_z"],
+        ["U1_ALT3", "min_x"],
+        ["U2", "end"],
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U2_ALT1", "id"],
+        ["U1_ALT2", "max_x"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U1_ALT3", "min_z"],
+        ["U1_ALT2", "max_x"],
+        ["U1_ALT1", "max_z"],
+        ["U2", "end"],
+        ["U2_ALT1", "index"],
+        ["U2_ALT1", "start"],
+        ["U1", "coord_in_zone_packed"],
+        ["U2_ALT3", "id"],
+        ["U1_ALT3", "min_x"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U1_ALT1", "min_x"],
+        ["U2_ALT2", "start"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U2_ALT3", "end"],
+        ["U2_ALT2", "id"],
+        ["U2", "index"],
+        ["U1_ALT2", "max_z"],
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT2", "min_z"],
+        ["U1_ALT1", "max_x"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U1_ALT2", "min_z"],
+        ["U2_ALT1", "start"],
+        ["U1_ALT1", "max_z"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U2_ALT1", "index"],
+        ["U1", "max_x"],
+        ["U2_ALT1", "id"],
+        ["U2_ALT3", "end"],
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1_ALT2", "min_x"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U1", "min_x"],
+        ["U2_ALT1", "index"],
+        ["U1", "loc_properties_packed"],
+        ["U1", "min_z"],
+        ["U2_ALT1", "id"],
+        ["U2", "end"],
+        ["U2_ALT3", "start"],
+        ["U1_ALT1", "max_x"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT3", "max_z"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1", "min_z"],
+        ["U2_ALT3", "id"],
+        ["U2", "end"],
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U2_ALT3", "start"],
+        ["U1_ALT2", "max_z"],
+        ["U1", "min_x"],
+        ["U1_ALT2", "max_x"],
+        ["U2_ALT2", "index"],
+        ["U1_ALT2", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1", "max_z"],
+        ["U2", "end"],
+        ["U1_ALT1", "min_x"],
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U2_ALT1", "index"],
+        ["U2_ALT3", "start"],
+        ["U1_ALT3", "max_x"],
+        ["U2_ALT3", "id"],
+        ["U1_ALT1", "min_z"]
+      ]
+    }
+  ]
+}

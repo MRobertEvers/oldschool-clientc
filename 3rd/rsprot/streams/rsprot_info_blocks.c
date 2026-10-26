@@ -1,12 +1,10 @@
 /*
  * The extended-info block readers -- see rsprot_info_blocks.h.
  *
- * Shapes are transcribed from RSProx's PlayerInfoClient / NpcInfoClient (the
- * decode<Name> functions tools/rsprox_gen_info.py maps to each one). The
- * generator has checked that every revision's function reads these fields in
- * this order; only the encodings come from the revision. What each block
- * writes is the executor's vocabulary, converted as the reference client
- * converts it.
+ * Shapes are ported from RSProx's PlayerInfoClient / NpcInfoClient (their
+ * decode<Name> functions). Every revision reads a block's fields in this order;
+ * only the encodings come from the revision (spec/streams). What each block
+ * writes is the op list's vocabulary, every value as sent.
  */
 #include "rsprot_info_blocks.h"
 

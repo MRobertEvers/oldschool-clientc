@@ -5,10 +5,8 @@
  * HINT_ARROW -- server -> client.
  *
  * Hand-written from RSProx (HintArrowDecoder, protocol/osrs-<N>/.../decoder/codec/misc/client/HintArrowDecoder.kt).
- * RSProt has no codec for this prot, and the RSProx decoder branches on the arrow type, with reads in each arm, which
- * tools/rsprox_gen_codec.py does not translate -- it lists this file in HAND and
- * never overwrites it. Field names are RSProx's. Version numbers are local to
- * this file and start at 100, the RSProx numbering (gen/rsprox_versions.txt).
+ * RSProt has no codec for this prot, and the RSProx decoder branches on the arrow type, with reads in each arm, so it is written by hand: tools/rsprot_gen.py has no spec for it.
+ * Field names are RSProx's; version numbers are local to this file.
  */
 
 #include "../include/rsprot_exec.h"
@@ -31,9 +29,9 @@ typedef struct MsgHintArrow {
 	const uint8_t *skip0;
 } MsgHintArrow;
 
-/* v1 (rsprox_versions.txt 100) -- revs 223-234. */
+/* v1 -- revs 223-234. */
 void packet_hint_arrow_v1_out(RsprotExec *x, MsgHintArrow *m);
-/* v2 (rsprox_versions.txt 101) -- revs 235-241. */
+/* v2 -- revs 235-241. */
 void packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m);
 
 #define packet_hint_arrow_osrs223_out packet_hint_arrow_v1_out

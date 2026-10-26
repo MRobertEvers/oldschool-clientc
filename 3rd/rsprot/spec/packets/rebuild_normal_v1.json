@@ -1,0 +1,53 @@
+{
+  "prot": "REBUILD_NORMAL_V1",
+  "file": "rebuild_normal_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/map/StaticRebuildV1Decoder.kt"
+  },
+  "includes": ["../include/rsprot_tails.h"],
+  "structs": [
+    {
+      "name": "MsgRebuildNormalV1",
+      "fields": [
+        {
+          "decl": "int32_t world_area",
+          "note": "signed"
+        },
+        "int32_t zone_x",
+        "int32_t zone_z",
+        "int32_t xtea_count",
+        "int32_t keys[169][4]",
+        {
+          "decl": "const uint8_t *gpi_init",
+          "doc": ["/** The login form's GPI init block (RSPROT_GPI_INIT_BYTES), or length 0. */"]
+        },
+        "int32_t gpi_init_length"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        "    /* RSProx derives, after the reads:",
+        "     *   (caller) the login variant's player-info init block precedes this",
+        "     */",
+        "    rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);",
+        ["U2_ALT3", "world_area"],
+        ["U2_ALT1", "zone_x"],
+        ["U2_ALT2", "zone_z"],
+        "    RSPROT_COUNT2(x, m->xtea_count, 169);",
+        "    for (int32_t i = 0; i < m->xtea_count; i++) {",
+        "        RSPROT_U4(x, m->keys[i][0]);",
+        "        RSPROT_U4(x, m->keys[i][1]);",
+        "        RSPROT_U4(x, m->keys[i][2]);",
+        "        RSPROT_U4(x, m->keys[i][3]);",
+        "    }"
+      ]
+    }
+  ]
+}

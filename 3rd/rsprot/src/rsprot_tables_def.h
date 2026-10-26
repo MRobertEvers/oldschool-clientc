@@ -4,9 +4,8 @@
 #include <string.h>
 
 /*
- * Shared types for the generated per-revision prot tables in 3rd/rsprot/gen/.
- * See tools/rsprot_gen_tables.py, which is the only thing that should ever
- * write a file in that directory.
+ * Shared types for the generated per-revision prot tables in 3rd/rsprot/gen/,
+ * which tools/rsprot_gen.py writes from spec/tables.
  */
 
 #define RSPROT_VARU8 (-1)  /* Prot.VAR_BYTE  */

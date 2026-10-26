@@ -2,7 +2,7 @@
 #include "update_tradingpost_v2.h"
 
 /*
- * v1 (rsprox_versions.txt 100) -- revs 241.
+ * v1 -- revs 241.
  * g1 hasUpdate; != 0: g8 age, g2 obj, g1 status, g2 offerCount,
  * [gjstr name, gjstr previousName, g2 world, g8 time, g8 price, g4 count]*.
  */

@@ -1,0 +1,27 @@
+{
+  "prot": "UPDATE_REBOOT_TIMER_V1",
+  "file": "update_reboot_timer_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/client/UpdateRebootTimerV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgUpdateRebootTimerV1",
+      "fields": ["int32_t game_cycles"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [229, 229],
+        [231, 232],
+        [235, 236]
+      ],
+      "body": [
+        ["U2_ALT3", "game_cycles"]
+      ]
+    }
+  ]
+}

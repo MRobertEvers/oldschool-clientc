@@ -1,0 +1,127 @@
+{
+  "prot": "IF_SETEVENTS",
+  "file": "if_setevents",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/interfaces/IfSetEventsEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfSetEvents",
+      "fields": ["int32_t end", "int32_t start", "int32_t combined_id", "int32_t events"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U2", "end"],
+        ["U2_ALT3", "start"],
+        ["U4_ALT3", "combined_id"],
+        ["U4_ALT2", "events"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U2_ALT2", "start"],
+        ["U2_ALT1", "end"],
+        ["U4_ALT2", "events"],
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U2_ALT2", "end"],
+        ["U2_ALT3", "start"],
+        ["U4_ALT1", "events"],
+        ["COM_ALT1", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U2_ALT1", "start"],
+        ["U2_ALT1", "end"],
+        ["U4_ALT2", "events"],
+        ["COM_ALT2", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U2", "start"],
+        ["U2_ALT1", "end"],
+        ["COM_ALT3", "combined_id"],
+        ["U4", "events"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U2_ALT1", "end"],
+        ["U4_ALT3", "events"],
+        ["U2_ALT3", "start"],
+        ["COM_ALT2", "combined_id"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U4_ALT1", "events"],
+        ["COM_ALT1", "combined_id"],
+        ["U2_ALT3", "end"],
+        ["U2_ALT2", "start"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U4_ALT3", "events"],
+        ["COM_ALT3", "combined_id"],
+        ["U2_ALT3", "end"],
+        ["U2", "start"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["COM_ALT3", "combined_id"],
+        ["U2_ALT2", "end"],
+        ["U2_ALT3", "start"],
+        ["U4_ALT2", "events"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["COM_ALT3", "combined_id"],
+        ["U2_ALT2", "start"],
+        ["U4_ALT1", "events"],
+        ["U2", "end"]
+      ]
+    }
+  ]
+}

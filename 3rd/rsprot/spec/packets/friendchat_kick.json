@@ -1,0 +1,25 @@
+{
+  "prot": "FRIENDCHAT_KICK",
+  "file": "friendchat_kick",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/friendchat/FriendChatKickDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgFriendChatKick",
+      "fields": ["const char *name"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["JSTR", "name"]
+      ]
+    }
+  ]
+}

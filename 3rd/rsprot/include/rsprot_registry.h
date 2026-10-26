@@ -12,7 +12,7 @@
  * one thing rsprot_version_pick's NULL means -- no layout for that prot at that
  * revision.
  *
- * Generated with the unity file (tools/rsprot_gen_codec.py, write_packets_unity),
+ * Generated with the unity file (tools/rsprot_gen.py, from every packet header),
  * so a packet file cannot exist without a row. Like the codecs themselves it
  * links only where an executor does: it lives in rsprot_packets_unity.c.
  *

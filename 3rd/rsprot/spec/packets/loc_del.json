@@ -1,0 +1,158 @@
+{
+  "prot": "LOC_DEL",
+  "file": "loc_del",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/LocDelEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgLocDel",
+      "fields": ["int32_t coord_in_zone_packed", "int32_t loc_properties_packed"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222],
+        [229, 229]
+      ],
+      "body": [
+        ["U1_ALT2", "loc_properties_packed"],
+        ["U1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224],
+        [240, 240]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U1", "coord_in_zone_packed"],
+        ["U1", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226],
+        [235, 235]
+      ],
+      "body": [
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT3", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227],
+        [241, 241]
+      ],
+      "body": [
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT1", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230],
+        [233, 233]
+      ],
+      "body": [
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT2", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [231, 231]
+      ],
+      "body": [
+        ["U1_ALT1", "loc_properties_packed"],
+        ["U1_ALT3", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [232, 232],
+        [234, 234]
+      ],
+      "body": [
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U1_ALT2", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U1_ALT1", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U1_ALT1", "coord_in_zone_packed"],
+        ["U1_ALT3", "loc_properties_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U1_ALT3", "loc_properties_packed"],
+        ["U1_ALT3", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U1", "loc_properties_packed"],
+        ["U1_ALT2", "coord_in_zone_packed"]
+      ]
+    }
+  ]
+}

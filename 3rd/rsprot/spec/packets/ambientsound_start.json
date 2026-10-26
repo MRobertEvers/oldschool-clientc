@@ -1,0 +1,44 @@
+{
+  "prot": "AMBIENTSOUND_START",
+  "file": "ambientsound_start",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/sound/AmbientSoundStartEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgAmbientSoundStart",
+      "fields": ["int32_t fade", "int32_t id"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [238, 239]
+      ],
+      "body": [
+        ["U1_ALT1", "fade"],
+        ["U2", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U2_ALT2", "id"],
+        ["U1_ALT2", "fade"]
+      ]
+    },
+    {
+      "revs": [
+        [241, 241]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["U1_ALT1", "fade"]
+      ]
+    }
+  ]
+}

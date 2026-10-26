@@ -8,10 +8,9 @@
  * generators cannot transcribe -- a placeholder back-patched with a length, a
  * de-duplicated key list, a pre-encoded sub-packet stream, a bit grid. The
  * generated codec stops where the Kotlin stops, and every payload then fails
- * to decode whole. These are those parts, each written once; the generators
- * append (or prepend) a call to them for the prots in their TAILS table
- * (tools/rsprot_gen_codec.py, tools/rsprox_gen_codec.py), so the codecs stay
- * generated and decode the whole payload.
+ * to decode whole. These are those parts, each written once; a packet's spec
+ * calls them (spec/packets/<file>.json), so the codecs stay generated and
+ * decode the whole payload.
  */
 
 #include "rsprot_exec.h"

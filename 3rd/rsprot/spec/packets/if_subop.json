@@ -1,0 +1,35 @@
+{
+  "prot": "IF_SUBOP",
+  "file": "if_subop",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/buttons/IfSubOpDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgIfSubOp",
+      "fields": [
+        "int32_t combined_id",
+        "int32_t sub",
+        "int32_t obj",
+        "int32_t op",
+        "int32_t subop"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [224, 241]
+      ],
+      "body": [
+        ["COM", "combined_id"],
+        ["U2", "sub"],
+        ["U2", "obj"],
+        ["U1", "op"],
+        ["U1", "subop"]
+      ]
+    }
+  ]
+}

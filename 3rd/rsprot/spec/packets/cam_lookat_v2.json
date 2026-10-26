@@ -1,0 +1,77 @@
+{
+  "prot": "CAM_LOOKAT_V2",
+  "file": "cam_lookat_v2",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/camera/CamLookAtV2Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgCamLookAtV2",
+      "fields": ["int32_t z", "int32_t rate2", "int32_t rate", "int32_t x", "int32_t height"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [236, 236]
+      ],
+      "body": [
+        ["U2_ALT2", "z"],
+        ["U1_ALT3", "rate2"],
+        ["U1", "rate"],
+        ["U2", "x"],
+        ["U2", "height"]
+      ]
+    },
+    {
+      "revs": [
+        [237, 237]
+      ],
+      "body": [
+        ["U2_ALT2", "x"],
+        ["U1_ALT3", "rate"],
+        ["U2_ALT3", "height"],
+        ["U1", "rate2"],
+        ["U2", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [238, 238]
+      ],
+      "body": [
+        ["U2_ALT1", "x"],
+        ["U2", "height"],
+        ["U1_ALT2", "rate"],
+        ["U1", "rate2"],
+        ["U2_ALT1", "z"]
+      ]
+    },
+    {
+      "revs": [
+        [239, 239]
+      ],
+      "body": [
+        ["U2", "z"],
+        ["U2_ALT2", "height"],
+        ["U1", "rate2"],
+        ["U1_ALT3", "rate"],
+        ["U2_ALT1", "x"]
+      ]
+    },
+    {
+      "revs": [
+        [240, 240]
+      ],
+      "body": [
+        ["U1_ALT3", "rate2"],
+        ["U2", "height"],
+        ["U2", "z"],
+        ["U1_ALT3", "rate"],
+        ["U2_ALT1", "x"]
+      ]
+    }
+  ]
+}

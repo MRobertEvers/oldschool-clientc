@@ -1,0 +1,26 @@
+{
+  "prot": "SET_MAP_FLAG_V1",
+  "file": "set_map_flag_v1",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/misc/player/SetMapFlagV1Encoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgSetMapFlagV1",
+      "fields": ["int32_t x_in_build_area", "int32_t z_in_build_area"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [227, 236]
+      ],
+      "body": [
+        ["U1", "x_in_build_area"],
+        ["U1", "z_in_build_area"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "prot": "AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL",
+  "file": "affinedclansettings_setmuted_fromchannel",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/clan/AffinedClanSettingsSetMutedFromChannelDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgAffinedClanSettingsSetMutedFromChannel",
+      "fields": ["int32_t clan_id", "int32_t member_index", "int32_t muted", "const char *name"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U1", "clan_id"],
+        ["U2", "member_index"],
+        ["U1", "muted"],
+        ["JSTR", "name"]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "prot": "SET_CHATFILTERSETTINGS",
+  "file": "set_chatfiltersettings",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/misc/user/SetChatFilterSettingsDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgSetChatFilterSettings",
+      "fields": [
+        "int32_t public_chat_filter",
+        "int32_t private_chat_filter",
+        "int32_t trade_chat_filter"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U1", "public_chat_filter"],
+        ["U1", "private_chat_filter"],
+        ["U1", "trade_chat_filter"]
+      ]
+    }
+  ]
+}

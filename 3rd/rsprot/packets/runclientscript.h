@@ -8,8 +8,7 @@
  * casts) and then emits C that does not compile, because the layout uses one
  * field two ways: `types` is written as a STRING and then SUBSCRIPTED,
  * `types[i]`, as the per-argument discriminator. Character access into a
- * transferred string is the missing feature; see REFUSE_CLASSES in
- * tools/rsprot_gen_codec.py.
+ * transferred string is what a spec's reads cannot say, so this is hand-written.
  *
  * ## Three things about this layout that are easy to get wrong
  *

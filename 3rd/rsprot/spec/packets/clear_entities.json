@@ -1,0 +1,28 @@
+{
+  "prot": "CLEAR_ENTITIES",
+  "file": "clear_entities",
+  "dir": "out",
+  "source": {
+    "project": "RSProx",
+    "path": "protocol/osrs-<N>/src/main/kotlin/net/rsprox/protocol/v<N>/game/outgoing/decoder/codec/worldentity/ClearEntitiesDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgClearEntities",
+      "fields": [
+        {
+          "decl": "int32_t unused",
+          "note": "zero-payload packet"
+        }
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [223, 229]
+      ],
+      "body": ["    (void)x;", "    (void)m;"]
+    }
+  ]
+}

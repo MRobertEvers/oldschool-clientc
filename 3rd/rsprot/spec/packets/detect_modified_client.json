@@ -1,0 +1,25 @@
+{
+  "prot": "DETECT_MODIFIED_CLIENT",
+  "file": "detect_modified_client",
+  "dir": "in",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/incoming/codec/misc/client/DetectModifiedClientDecoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgDetectModifiedClient",
+      "fields": ["int32_t code"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U4", "code"]
+      ]
+    }
+  ]
+}

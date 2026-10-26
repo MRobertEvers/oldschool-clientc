@@ -1,0 +1,25 @@
+{
+  "prot": "LOGOUT_WITHREASON",
+  "file": "logout_withreason",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/logout/LogoutWithReasonEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgLogoutWithReason",
+      "fields": ["int32_t reason"]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 241]
+      ],
+      "body": [
+        ["U1", "reason"]
+      ]
+    }
+  ]
+}

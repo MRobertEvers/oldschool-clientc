@@ -1,0 +1,220 @@
+{
+  "prot": "MAP_PROJANIM",
+  "file": "map_projanim",
+  "dir": "out",
+  "source": {
+    "project": "RSProt",
+    "path": "protocol/osrs-<N>/osrs-<N>-desktop/src/main/kotlin/net/rsprot/protocol/game/outgoing/codec/zone/payload/MapProjAnimEncoder.kt"
+  },
+  "structs": [
+    {
+      "name": "MsgMapProjAnim",
+      "fields": [
+        "int32_t end_height",
+        "int32_t delta_z",
+        "int32_t progress",
+        "int32_t end_time",
+        "int32_t start_height",
+        "int32_t target_index",
+        "int32_t source_index",
+        "int32_t coord_in_zone_packed",
+        "int32_t delta_x",
+        "int32_t angle",
+        "int32_t id",
+        "int32_t start_time"
+      ]
+    }
+  ],
+  "layouts": [
+    {
+      "revs": [
+        [221, 221]
+      ],
+      "body": [
+        ["U1_ALT2", "end_height"],
+        ["U1_ALT2", "delta_z"],
+        ["U2_ALT1", "progress"],
+        ["U2_ALT1", "end_time"],
+        ["U1_ALT1", "start_height"],
+        ["U3_ALT1", "target_index"],
+        ["U3_ALT2", "source_index"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT1", "delta_x"],
+        ["U1", "angle"],
+        ["U2_ALT2", "id"],
+        ["U2_ALT1", "start_time"]
+      ]
+    },
+    {
+      "revs": [
+        [222, 222]
+      ],
+      "body": [
+        ["U2_ALT1", "progress"],
+        ["U2", "id"],
+        ["U3_ALT2", "target_index"],
+        ["U1_ALT3", "angle"],
+        ["U1_ALT3", "start_height"],
+        ["U1_ALT2", "delta_x"],
+        ["U3_ALT2", "source_index"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U1_ALT2", "end_height"],
+        ["U2", "end_time"],
+        ["U2", "start_time"],
+        ["U1", "delta_z"]
+      ]
+    },
+    {
+      "revs": [
+        [223, 223]
+      ],
+      "body": [
+        ["U1", "delta_x"],
+        ["U2_ALT1", "end_time"],
+        ["U1_ALT2", "delta_z"],
+        ["U3", "target_index"],
+        ["U1", "angle"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1", "start_height"],
+        ["U2_ALT3", "id"],
+        ["U2_ALT2", "start_time"],
+        ["U2", "progress"],
+        ["U1_ALT2", "end_height"],
+        ["U3_ALT1", "source_index"]
+      ]
+    },
+    {
+      "revs": [
+        [224, 224]
+      ],
+      "body": [
+        ["U1", "angle"],
+        ["U2_ALT1", "end_time"],
+        ["U3_ALT3", "target_index"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U1_ALT1", "end_height"],
+        ["U1_ALT3", "start_height"],
+        ["U2", "progress"],
+        ["U2_ALT3", "start_time"],
+        ["U3_ALT2", "source_index"],
+        ["U1", "delta_x"],
+        ["U1_ALT1", "delta_z"],
+        ["U2_ALT3", "id"]
+      ]
+    },
+    {
+      "revs": [
+        [225, 225]
+      ],
+      "body": [
+        ["U2", "id"],
+        ["U1_ALT2", "end_height"],
+        ["U3_ALT1", "target_index"],
+        ["U2_ALT2", "progress"],
+        ["U2", "end_time"],
+        ["U1", "coord_in_zone_packed"],
+        ["U3_ALT2", "source_index"],
+        ["U1_ALT1", "angle"],
+        ["U1", "start_height"],
+        ["U1_ALT3", "delta_x"],
+        ["U2_ALT2", "start_time"],
+        ["U1", "delta_z"]
+      ]
+    },
+    {
+      "revs": [
+        [226, 226]
+      ],
+      "body": [
+        ["U2_ALT2", "end_time"],
+        ["U3", "source_index"],
+        ["U2_ALT2", "start_time"],
+        ["U2_ALT3", "progress"],
+        ["U3_ALT1", "target_index"],
+        ["U1", "start_height"],
+        ["U1_ALT3", "coord_in_zone_packed"],
+        ["U1_ALT1", "end_height"],
+        ["U2_ALT2", "id"],
+        ["U1_ALT2", "delta_z"],
+        ["U1_ALT2", "angle"],
+        ["U1_ALT1", "delta_x"]
+      ]
+    },
+    {
+      "revs": [
+        [227, 227]
+      ],
+      "body": [
+        ["U3_ALT3", "source_index"],
+        ["U2_ALT2", "end_time"],
+        ["U2", "id"],
+        ["U2_ALT2", "start_time"],
+        ["U1_ALT2", "coord_in_zone_packed"],
+        ["U2_ALT2", "progress"],
+        ["U3_ALT2", "target_index"],
+        ["U1", "start_height"],
+        ["U1_ALT3", "delta_x"],
+        ["U1_ALT3", "end_height"],
+        ["U1_ALT3", "delta_z"],
+        ["U1_ALT3", "angle"]
+      ]
+    },
+    {
+      "revs": [
+        [228, 228]
+      ],
+      "body": [
+        ["U1_ALT2", "end_height"],
+        ["U1", "angle"],
+        ["U2", "progress"],
+        ["U3_ALT2", "target_index"],
+        ["U1", "start_height"],
+        ["U1", "coord_in_zone_packed"],
+        ["U1_ALT2", "delta_x"],
+        ["U2_ALT2", "id"],
+        ["U2_ALT1", "end_time"],
+        ["U2_ALT1", "start_time"],
+        ["U1", "delta_z"],
+        ["U3_ALT2", "source_index"]
+      ]
+    },
+    {
+      "revs": [
+        [229, 229]
+      ],
+      "body": [
+        ["U3_ALT3", "target_index"],
+        ["U2", "end_time"],
+        ["U1_ALT1", "delta_x"],
+        ["U1_ALT3", "end_height"],
+        ["U1", "angle"],
+        ["U2_ALT1", "start_time"],
+        ["U3_ALT2", "source_index"],
+        ["U2_ALT1", "progress"],
+        ["U1_ALT1", "delta_z"],
+        ["U2", "id"],
+        ["U1_ALT3", "start_height"],
+        ["U1_ALT1", "coord_in_zone_packed"]
+      ]
+    },
+    {
+      "revs": [
+        [230, 230]
+      ],
+      "body": [
+        ["U3_ALT2", "target_index"],
+        ["U2", "end_time"],
+        ["U3_ALT1", "source_index"],
+        ["U1_ALT2", "start_height"],
+        ["U2_ALT1", "progress"],
+        ["U2_ALT3", "id"],
+        ["U1_ALT3", "delta_x"],
+        ["U1_ALT2", "delta_z"],
+        ["U1_ALT1", "angle"],
+        ["U1_ALT2", "end_height"],
+        ["U1", "coord_in_zone_packed"],
+        ["U2_ALT1", "start_time"]
+      ]
+    }
+  ]
+}
