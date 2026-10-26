@@ -41,7 +41,7 @@
  * 241 row RSProt ported from them), and each arm that
  * moved names the decoder it came from.
  *
- * WHAT IS NOT HERE: every packet `rsprot_bridge_parse` decodes at 241. The
+ * WHAT IS NOT HERE: every packet `proto_decode_name` decodes at 241. The
  * bridge runs first (net.c), so the 239 copy's hand-written arms for those
  * would be dead -- and, worse, wrong, because they spell out 239 byte orders.
  * They were removed from this copy rather than carried.
@@ -246,7 +246,7 @@ osrs241_zone_name(int ordinal)
  *
  * A zone sub-packet is decoded from the ENCLOSED stream's shared cursor rather
  * than from a payload of its own, which is why this does not go through
- * `rsprot_bridge_parse` like a top-level packet. It does not need to:
+ * `proto_decode_name` like a top-level packet. It does not need to:
  * `RsprotBuf` IS `RsprotBuf`, so an executor can run a codec against this
  * cursor in place and the reads advance it exactly as the hand-written ones
  * did. That is the whole reason the buffer types were unified.

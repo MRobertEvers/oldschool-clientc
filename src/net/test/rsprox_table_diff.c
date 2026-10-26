@@ -1,6 +1,6 @@
 /*
  * One recording parsed by two revision tables, packet for packet: a reference
- * table's name-keyed chain (rsprot_bridge_parse, rev->parse, gameproto_parse --
+ * table's name-keyed chain (proto_decode_name, rev->parse, gameproto_parse --
  * net.c's order) against a data-driven table's parse_wire. Where they agree
  * the data-driven table is doing what the reference does; every difference is
  * printed with the first bytes of both canonical arms.
@@ -15,7 +15,7 @@
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
-#include "net/rev/rsprot_bridge.h"
+#include "net/proto/proto_in_adapt.h"
 #include "net/rsprox_recording.h"
 
 #include <assert.h>
@@ -45,7 +45,7 @@ parse_reference(
     if( name == PKT_NAME_NONE )
         return 0;
     out->packet_type = name;
-    parsed = rsprot_bridge_parse(rev, name, data, len, out);
+    parsed = proto_decode_name(rev, name, data, len, out);
     if( parsed < 0 && rev->parse )
         parsed = rev->parse(rev, name, data, len, out);
     if( parsed < 0 )

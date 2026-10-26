@@ -1,5 +1,5 @@
 /*
- * The data-driven revisions' parse (rsprox_rev.h): one wire opcode in, one
+ * The data-driven revisions' parse (proto.h): one wire opcode in, one
  * canonical RevPacket out, at any revision 227-241.
  *
  * The prot is looked up by opcode in the revision's table, and decoded by
@@ -10,24 +10,24 @@
  *      the social payloads the stores decode, WORLDENTITY_INFO -- is a case of
  *      parse_special below;
  *   2. a prot an existing rsprot_bridge adapter runs EXACTLY is decoded there
- *      (rsprot_bridge_parse_prot), so the 239 / 241 adapters are shared, not
+ *      (proto_in_adapt), so the 239 / 241 adapters are shared, not
  *      copied;
  *   3. every other prot is an adapter in k_adapters: its codec, found through
  *      the rsprot registry at this revision, then a mapping into the canonical
  *      arm.
  *
  * A prot with no canonical name still has its payload run through its codec
- * (rsprox_parse_validate) -- it is decodable, the client just has nothing to do
+ * (proto_validate) -- it is decodable, the client just has nothing to do
  * with it yet -- and parses as dropped.
  */
-#include "rsprox_rev.h"
+#include "proto.h"
 
 #include "rsprot_storage.h"
-#include "net/rev/rsprot_entity_state.h"
+#include "net/proto/proto_info.h"
 
 #include "mem/torirs_mem.h"
 #include "net/jbase37.h"
-#include "net/rev/rsprot_bridge.h"
+#include "net/proto/proto_in_adapt.h"
 #include "net/wordpack.h"
 #include "rsprot_exec.h"
 #include "rsprot_registry.h"
@@ -488,7 +488,7 @@ zone_sub(int revision, char const* prot, RsprotBuf* c, struct PktZoneSubPacket* 
 
 static int
 parse_zone_enclosed(
-    struct RsproxRev const* r,
+    struct ProtoRev const* r,
     int revision,
     char const* prot,
     RsprotBuf* c,
@@ -590,7 +590,7 @@ parse_rebuild_normal(
     {
         RUN(prot, MsgRebuildNormalV2, m);
         if( m.gpi_init_length > 0 )
-            rsprot_entity_init(m.gpi_init, m.gpi_init_length);
+            proto_info_init(m.gpi_init, m.gpi_init_length);
         p->world_area = (int16_t)m.world_area;
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
@@ -603,7 +603,7 @@ parse_rebuild_normal(
         if( !run(revision, prot, c, &m) || c->rpos != len )
             return 0;
         if( m.gpi_init_length > 0 )
-            rsprot_entity_init(m.gpi_init, m.gpi_init_length);
+            proto_info_init(m.gpi_init, m.gpi_init_length);
         p->world_area = (int16_t)m.world_area;
         p->zonex = m.zone_x;
         p->zonez = m.zone_z;
@@ -794,7 +794,7 @@ parse_stockmarket_slot(RsprotBuf* c, struct RevPacket* out)
 /* Returns as `parse`, or -2 when `prot` is not a special case. */
 static int
 parse_special(
-    struct RsproxRev const* r,
+    struct ProtoRev const* r,
     char const* prot,
     uint8_t const* data,
     int len,
@@ -877,7 +877,7 @@ parse_special(
         {
             if( strcmp(prot, k_raw[i]) == 0 )
             {
-                out->packet_type = (enum GameProtoPktName)rsprox_canon_server(prot);
+                out->packet_type = (enum GameProtoPktName)proto_canon_server(prot);
                 return parse_raw(data, len, out);
             }
         }
@@ -1397,13 +1397,13 @@ static struct AdaptRow const k_adapters[] = {
 /* ------------------------------------------------------------------ */
 
 int
-rsprox_parse_validate(
+proto_validate(
     struct GameProtoRevTable const* rev,
     char const* prot,
     uint8_t const* data,
     int len)
 {
-    struct RsproxRev const* r = rsprox_rev(rev);
+    struct ProtoRev const* r = proto_rev_state(rev);
     RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(r->revision));
     static union
     {
@@ -1424,15 +1424,15 @@ rsprox_parse_validate(
 }
 
 int
-rsprox_parse_wire(
+proto_decode_wire(
     struct GameProtoRevTable const* rev,
     int wire_opcode,
     uint8_t const* data,
     int len,
     struct RevPacket* out)
 {
-    struct RsproxRev const* r = rsprox_rev(rev);
-    RsprotProtDef const* d = rsprox_server_prot(r, wire_opcode);
+    struct ProtoRev const* r = proto_rev_state(rev);
+    RsprotProtDef const* d = proto_server_prot(r, wire_opcode);
     int got;
 
     if( !d )
@@ -1443,7 +1443,7 @@ rsprox_parse_wire(
     if( got != -2 )
         return got;
 
-    got = rsprot_bridge_parse_prot(r->revision, d->name, data, len, out);
+    got = proto_in_adapt(r->revision, d->name, data, len, out);
     if( got >= 0 )
         return got;
 

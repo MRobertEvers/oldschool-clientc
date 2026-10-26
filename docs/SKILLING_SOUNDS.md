@@ -678,7 +678,7 @@ jingle work (see `docs/AUDIO_ACCURACY.md` §4 and `tools/gen_jingle_names.py`):
 - `MIDI_JINGLE` (opcode 2064) now has a real case in `torirs_server_scripts.c`, an
   encoder (`ToriRSServer_SendMidiJingle`), a wire-table entry, and a client-side
   decode fix (rev 239's layout was never 4 bytes; see
-  `src/net/rev/rsprot_bridge.c`'s `bridge_midi_jingle`).
+  `src/net/proto/proto_in_adapt.c`'s `bridge_midi_jingle`).
 - `pack/11_musicjingles.pack` is named for 313 of its 315 rows. The name→id
   mapping this section said was missing turned out to be recoverable: the OSRS
   Wiki's jingle infobox `cacheid` field **is** the JS5 group id (verified, not

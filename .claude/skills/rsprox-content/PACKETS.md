@@ -207,7 +207,7 @@ Clock varps to ignore: `map_clock` (3079, +1 every tick, rev 241) and the `date_
    field it sets. Copy that behaviour into the client, not a guess.
 2. **Client**: append `PKT_NAME_*` to `src/net/rev/pktnames.h` (never insert); map the opcode in
    each revision's `packetin.h` row (they are listed with `PKT_NAME_NONE` already); a `struct Pkt*` in
-   `revpacket.h`; the plain parser in `gameproto_parse.c`; a `bridge_*` in `rsprot_bridge.c` when
+   `revpacket.h`; the plain parser in `gameproto_parse.c`; a `bridge_*` in `net/proto/proto_in_adapt.c` when
    `3rd/rsprot/packets/<name>.c` scrambles bytes per revision (241 often does: `U1_ALT3`); the exec in
    `rs_gameproto_exec.c`; a line in `scriptrun_core.c`'s packet log.
 3. **Server**: an encoder `ToriRSServer_Send*` in `torirs_server_encode.c` (`OP_* = PKT_NAME_*`),

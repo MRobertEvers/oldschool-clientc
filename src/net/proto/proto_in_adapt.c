@@ -1,5 +1,5 @@
-/* See rsprot_bridge.h — the rsprot codecs, wired into the inbound path. */
-#include "rsprot_bridge.h"
+/* See proto_in_adapt.h — the rsprot codecs, wired into the inbound path. */
+#include "proto_in_adapt.h"
 #include "mem/torirs_mem.h"
 #include <assert.h>
 #include <stdio.h>
@@ -71,7 +71,7 @@
 #include <string.h>
 
 int
-rsprot_bridge_revision(struct GameProtoRevTable const* rev)
+proto_osrs_revision(struct GameProtoRevTable const* rev)
 {
     assert(rev);
     switch( rev->revision )
@@ -1235,9 +1235,9 @@ static struct BridgeRow const k_rows[] = {
 /*
  * The same adapters, keyed by the PROT whose codec each one runs.
  *
- * rsprot_bridge_parse above keys on the canonical name, which is safe only
+ * proto_decode_name above keys on the canonical name, which is safe only
  * because each hand-written revision maps one prot to each name. The
- * data-driven revisions (net/rev/rsprox/) do not: CAM_LOOKAT is CAM_LOOKAT_V2
+ * data-driven revisions (net/proto/) do not: CAM_LOOKAT is CAM_LOOKAT_V2
  * and CAM_LOOKAT_V3 at once at 239-240, and running the V2 adapter on the V3
  * prot decodes six bytes of a seven-byte layout. So a row here names the exact
  * prot its adapter's codec table is, and a prot with no row is the caller's.
@@ -1319,7 +1319,7 @@ static struct BridgeProtRow const k_prot_rows[] = {
 };
 
 int
-rsprot_bridge_parse_prot(
+proto_in_adapt(
     int revision,
     char const* prot,
     uint8_t const* data,
@@ -1338,14 +1338,14 @@ rsprot_bridge_parse_prot(
 }
 
 int
-rsprot_bridge_parse(
+proto_decode_name(
     struct GameProtoRevTable const* rev,
     int pkt_name,
     uint8_t const* data,
     int len,
     struct RevPacket* out)
 {
-    int revision = rsprot_bridge_revision(rev);
+    int revision = proto_osrs_revision(rev);
     size_t i;
 
     if( revision == 0 )

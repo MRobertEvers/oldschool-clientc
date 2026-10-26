@@ -1560,7 +1560,7 @@ This section is the rev-239 half, measured 2026-09-06; the evidence is
 ### 11.2 What a fabricated 0 cost
 
 Both decoders wrote `chat_private_mode = 0` for the missing field —
-`bridge_chat_filter_settings` in `src/net/rev/rsprot_bridge.c` and the
+`bridge_chat_filter_settings` in `src/net/proto/proto_in_adapt.c` and the
 hand-written arm in `src/net/rev/osrs239/osrs239_parse.c`. A fabricated 0 is not
 "no value"; it is the value *Show all*, written over whatever the player chose.
 Two symptoms, one cause:
@@ -1583,7 +1583,7 @@ the client's own copy stands.
 > **`osrs239_parse.c` is not where this runs.** `src/net/net.c:500` calls
 > `rsprot_bridge_parse` **first** and falls through to `rev->parse` only when it
 > returns < 0. `PKT_NAME_CHAT_FILTER_SETTINGS` is in the bridge table
-> (`rsprot_bridge.c:1082`), so the hand-written arm was dead code for this
+> (`proto_in_adapt.c:1082`), so the hand-written arm was dead code for this
 > packet and fixing only it changed nothing observable. Both say `-1` now, so
 > `rsprot_bridge_test.c`'s differential comparison still holds.
 

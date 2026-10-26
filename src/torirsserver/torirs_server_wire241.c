@@ -85,7 +85,7 @@
  * encoders. RSProt has no 241, so this file does not transcribe anything: every
  * fixed-layout server prot is written by running the GENERATED codec in
  * 3rd/rsprot/packets/ at revision 241 in the encode direction -- the very
- * function the 241 client's bridge (src/net/rev/rsprot_bridge.c) runs to read
+ * function the 241 client's bridge (src/net/proto/proto_in_adapt.c) runs to read
  * it. Those 241 rows were ported from RSProx's osrs-241 decoders (RSProt's
  * spec/packets) and checked field for field against the 239 pairing, so the server's writer and the client's reader are one statement of
  * the layout and cannot drift.

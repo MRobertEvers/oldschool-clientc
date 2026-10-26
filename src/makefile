@@ -671,15 +671,16 @@ RS_INFO_SRCS = net/rev/rs/info_rs.c net/rev/rs/info_rs_blocks.c \
 	net/rev/rs/player_info_rs_v1.c net/rev/rs/npc_info_rs_v1.c net/rev/rs/npc_info_rs_v2.c
 RS_INFO_OBJS = $(patsubst net/rev/rs/%.c,$(OBJ_DIR)/%.o,$(RS_INFO_SRCS))
 
-# The data-driven OSRS revisions, 227-241 (net/rev/rsprox/rsprox_rev.h). Like
-# rsprot_bridge.c they read 3rd/rsprot's codec, prot-table and info-stream
-# headers, so they have explicit rules below and stay out of the generic one.
+# The client's protocol module (net/proto/proto.h): every revision's wire
+# table, codecs and entity streams come from 3rd/rsprot through it. It reads
+# rsprot's codec, prot-table and info-stream headers, so it has explicit rules
+# below and stays out of the generic one.
 # Defined ahead of SRCS: a rule's prerequisites are expanded where the rule
 # is read, so $(TARGET): $(OBJS) would otherwise link them without building
 # them.
-RSPROX_REV_SRCS = net/rev/rsprox/gameproto_rev_rsprox.c net/rev/rsprox/rsprox_canon.c \
-	net/rev/rsprox/rsprox_parse.c net/rev/rsprox/rsprox_reconnect.c
-RSPROX_REV_OBJS = $(patsubst net/rev/rsprox/%.c,$(OBJ_DIR)/%.o,$(RSPROX_REV_SRCS))
+PROTO_SRCS = net/proto/proto_rev.c net/proto/proto_canon.c \
+	net/proto/proto_in.c net/proto/proto_reconnect.c
+PROTO_OBJS = $(patsubst net/proto/%.c,$(OBJ_DIR)/%.o,$(PROTO_SRCS))
 
 SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	$(TORIMEM_SRCS) \
@@ -897,7 +898,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/rev/gameproto_parse.c $(RS_INFO_SRCS) \
 	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
 	net/rev/packets/pkt_rebuild_region.c \
-	net/rev/gameproto_rev_params.c net/rev/rsprot_bridge.c \
+	net/rev/gameproto_rev_params.c net/proto/proto_in_adapt.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
 	net/rev/lc289/gameproto_rev_lc289.c \
 	bootmanifest/bootmanifest.c features/features.c \
@@ -910,11 +911,11 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/loginproto_osrs239.c net/sha256.c net/pow_sha256.c \
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
-	net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c \
+	net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c \
 	net/loginproto_osrs241.c \
 	net/rev/osrs241/gameproto_rev_osrs241.c net/rev/osrs241/osrs241_parse.c \
 	net/rev/osrs241/osrs241_entity_info.c net/rev/osrs241/osrs241_clientprot.c \
-	$(RSPROX_REV_SRCS) \
+	$(PROTO_SRCS) \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
@@ -983,7 +984,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \
 	torirsserver/mock239_playerinfo.c \
-	net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/bitbuffer.c \
+	net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/bitbuffer.c \
 	torirsserver/mock239_interface_setters.c \
 	torirsserver/mock239_varp.c \
 	torirsserver/mock239_interface_inbound.c \
@@ -1043,7 +1044,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
-	net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/bitbuffer.c \
+	net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/bitbuffer.c \
 	net/rev/osrs241/osrs241_clientprot.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
@@ -1689,7 +1690,7 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 	net/rev/osrs230/gameproto_rev_osrs230.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs241/gameproto_rev_osrs241.c
 
-# rsprot_bridge.c is excluded for the same reason the rev tables are: it has an
+# proto_in_adapt.c is excluded for the same reason the rev tables are: it has an
 # explicit rule below carrying extra include paths, and letting the generic
 # rule also claim it makes make warn about overriding commands.
 DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c \
@@ -1698,7 +1699,7 @@ DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c
 	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c \
 	plugin/torirs_plugin_drive_record.c
 
-$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS) $(RSPROX_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c net/proto/proto_in_adapt.c $(NET_REV_SRCS) $(PROTO_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 $(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
@@ -2769,10 +2770,10 @@ $(OBJ_DIR)/pkt_codec_storage.o: $(RSPROT_DIR)/src/rsprot_storage.c | $(OBJ_DIR)
 
 # The bridge asks rsprot for a packet's layout, so it needs rsprot's headers on
 # top of the main build's. Own rule for the same reason pkt_exec.o has one.
-$(OBJ_DIR)/rsprot_bridge.o: net/rev/rsprot_bridge.c | $(OBJ_DIR)
+$(OBJ_DIR)/proto_in_adapt.o: net/proto/proto_in_adapt.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
-$(RSPROX_REV_OBJS): $(OBJ_DIR)/%.o: net/rev/rsprox/%.c | $(OBJ_DIR)
+$(PROTO_OBJS): $(OBJ_DIR)/%.o: net/proto/%.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
 # `make -C src rsprot` is the compile gate for all three, so a codec or an
@@ -3599,7 +3600,7 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(RS_INFO_OBJS) \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
-	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/rsprot_entity_state.o \
+	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/proto_info.o \
 	$(OBJ_DIR)/pkt_player_appearance.o \
 	$(OBJ_DIR)/loginproto_osrs239.o $(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/gameproto_rev_osrs241.o $(OBJ_DIR)/osrs241_parse.o \
@@ -3611,11 +3612,11 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(RSPROT_PARSE_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 
-# The rsprot inbound path, as one name. net.c calls rsprot_bridge_parse before
+# The rsprot inbound path, as one name. net.c calls proto_decode_name before
 # either hand-written parser, so anything linking net.o needs all four: the
 # bridge, the codecs, the executor they call, and rsprot_buf underneath.
-RSPROT_PARSE_OBJS = $(OBJ_DIR)/rsprot_bridge.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
-	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(RSPROX_REV_OBJS)
+RSPROT_PARSE_OBJS = $(OBJ_DIR)/proto_in_adapt.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o \
+	$(OBJ_DIR)/pkt_exec.o $(OBJ_DIR)/rsprot_unity.o $(PROTO_OBJS)
 # The info streams' readers and the list they write (3rd/rsprot/streams, in the
 # codec unity), for a test that links an entity reader without net.o.
 RSPROT_INFO_OBJS = $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/rsprot_unity.o
@@ -3627,7 +3628,7 @@ test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		torirsserver/mock241_playerinfo.c \
-		net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/bitbuffer.c \
+		net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/bitbuffer.c \
 		$(RSAREABUF_DIR)/rsareabuf.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
 
@@ -3637,7 +3638,7 @@ test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_npc_info_large_test $(TORIMEM_SRCS) \
 		net/rev/test/osrs241_npc_info_large_test.c net/rev/osrs241/osrs241_entity_info.c \
-		net/rev/rsprot_entity_state.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/proto/proto_info.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
 
@@ -3647,7 +3648,7 @@ test-mock241-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock241_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock241_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		torirsserver/mock241_playerinfo.c net/rev/osrs241/osrs241_entity_info.c \
-		net/rev/rsprot_entity_state.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/proto/proto_info.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock241_playerinfo_test
 
@@ -5000,7 +5001,7 @@ TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
-	net/rev/gameproto_parse.c net/rev/osrs239/gameproto_rev_osrs239.c net/rev/rsprot_bridge.c \
+	net/rev/gameproto_parse.c net/rev/osrs239/gameproto_rev_osrs239.c net/proto/proto_in_adapt.c \
 	net/rev/osrs239/osrs239_parse.c net/loginproto_osrs239.c \
 	net/rev/osrs241/gameproto_rev_osrs241.c net/rev/osrs241/osrs241_parse.c \
 	net/rev/osrs241/osrs241_entity_info.c net/loginproto_osrs241.c \
@@ -6715,7 +6716,7 @@ test-content-name-index: $(OBJ_DIR)
 # saying so.
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
-		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
@@ -6731,7 +6732,7 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 .PHONY: test-embed-party-link
 test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
-		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
@@ -6743,7 +6744,7 @@ test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/c
 # machine, not by the server checking its own arithmetic.
 test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginIndexTest \
-		torirsserver/test/login_index_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_index_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginIndexTest
@@ -6752,7 +6753,7 @@ test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OB
 # client holds, only to the session's own key, and never seats a second copy.
 test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_ReconnectClaimTest \
-		torirsserver/test/reconnect_claim_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/reconnect_claim_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
@@ -6763,7 +6764,7 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # over the session playing, development mode lets anything in.
 test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
-		torirsserver/test/login_password_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/rev/rsprot_entity_state.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_password_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest

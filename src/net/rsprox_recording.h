@@ -66,7 +66,7 @@ struct RsproxRecordingFrame
      *  writes RSProx's rule, the index it had; a world hop moves the player to
      *  a new slot the recording does not log (RSProx records the new world's
      *  LOGIN_OK as this RECONNECT), and rsprox_recording_resolve_reconnects
-     *  (net/rev/rsprox/) puts that slot here. -1 on every other frame. */
+     *  (net/proto/) puts that slot here. -1 on every other frame. */
     int reconnect_index;
 };
 
@@ -144,7 +144,7 @@ RsproxRecording_Index(
 
 /**
  * Put the local index each RECONNECT continues under into its frame's
- * reconnect_index (net/rev/rsprox/rsprox_reconnect.c), with `rev` the
+ * reconnect_index (net/proto/proto_reconnect.c), with `rev` the
  * data-driven table for the recording's revision (GameProtoRev_Rsprox).
  * Returns how many moved the player to a new slot. Leaves the session's
  * player table as the last trial left it: the caller re-seeds before
@@ -155,7 +155,7 @@ rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
 /** Revisions a recording can be replayed at: the data-driven family's range
- *  (net/rev/rsprox/rsprox_rev.h). */
+ *  (net/proto/proto.h). */
 #define RSPROX_RECORDING_REV_FIRST 227
 #define RSPROX_RECORDING_REV_LAST 241
 

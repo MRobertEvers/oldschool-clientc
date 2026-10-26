@@ -36,7 +36,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_LC289 = 6,
     GAMEPROTO_REVISION_OSRS241 = 7,
     /**
-     * One of the data-driven OSRS revisions, 227-241 (net/rev/rsprox/): every
+     * One of the data-driven OSRS revisions, 227-241 (net/proto/): every
      * wire table, codec and info-stream layout comes from 3rd/rsprot's
      * generated tables, so the revision NUMBER is GameProtoRevTable.
      * client_version and nothing else distinguishes them. Named "rsprox<N>".
@@ -209,7 +209,7 @@ struct GameProtoRevTable
     int (*npc_info_read_large)(uint8_t const* data, int len, struct RsprotInfoList* out);
     /**
      * The modern player stream's session state (a 2048-slot high-resolution
-     * table, net/rev/rsprot_entity_state.c) the host seeds, parks and
+     * table, net/proto/proto_info.c) the host seeds, parks and
      * restores. All five or none: NULL is a stream with no state across
      * packets (the classic bitcodec, lc289).
      */
@@ -232,7 +232,7 @@ struct GameProtoRevTable
      * Parse by WIRE opcode, ahead of the three name-keyed parsers. NULL for
      * every revision whose packets are told apart by canonical name.
      *
-     * The data-driven revisions (net/rev/rsprox/) need it because a canonical
+     * The data-driven revisions (net/proto/) need it because a canonical
      * name does not identify a layout there: two prots of one revision can
      * share a name and differ in bytes (CAM_TARGET_V3 and _V4 at 238+,
      * REBUILD_NORMAL_V1 and _V2 at 237). Returns as `parse` does, and sets

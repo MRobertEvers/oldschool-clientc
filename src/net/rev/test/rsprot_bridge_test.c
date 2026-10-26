@@ -28,7 +28,7 @@
  */
 #include "rev/gameproto_revisions.h"
 #include "rev/revpacket.h"
-#include "rev/rsprot_bridge.h"
+#include "net/proto/proto_in_adapt.h"
 #include "rsprot_exec.h"
 #include "game/rs_minimap_state.h"
 
@@ -167,7 +167,7 @@ parse_both(int pkt_name, int len, struct RevPacket* via_rsprot, struct RevPacket
     via_rsprot->packet_type = (enum GameProtoPktName)pkt_name;
     via_hand->packet_type = (enum GameProtoPktName)pkt_name;
 
-    a = rsprot_bridge_parse(rev, pkt_name, g_bytes, len, via_rsprot);
+    a = proto_decode_name(rev, pkt_name, g_bytes, len, via_rsprot);
     b = osrs239_parse(rev, pkt_name, g_bytes, len, via_hand);
 
     if( a != 1 )
@@ -436,7 +436,7 @@ test_midi_jingle(uint32_t seed)
 
     memset(&r, 0, sizeof(r));
     r.packet_type = (enum GameProtoPktName)PKT_NAME_MIDI_JINGLE;
-    ok = rsprot_bridge_parse(rev, PKT_NAME_MIDI_JINGLE, g_bytes, len, &r);
+    ok = proto_decode_name(rev, PKT_NAME_MIDI_JINGLE, g_bytes, len, &r);
     CHECK(ok == 1);
     if( ok != 1 )
         return;
@@ -554,7 +554,7 @@ static void test_minimap_native_state_route(void)
         uint8_t payload[] = { (uint8_t)state };
         struct RevPacket packet = { 0 };
         int kind = revision->packetin_code(43);
-        int decoded = rsprot_bridge_parse(revision, kind, payload, sizeof(payload), &packet);
+        int decoded = proto_decode_name(revision, kind, payload, sizeof(payload), &packet);
         printf("NATIVE_WIRE minimap opcode=43 canonical=%d decoded=%d state=%d permissions=%u\n",
                kind, decoded, decoded == 1 ? packet._minimap_toggle.state : -1,
                RS_MinimapPermissions(packet._minimap_toggle.state));

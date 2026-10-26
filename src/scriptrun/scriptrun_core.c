@@ -13,7 +13,7 @@
 #include "world/entity_npc.h"
 #include "world/entity_player.h"
 #include "world/world.h"
-#include "net/rev/rsprot_bridge.h"
+#include "net/proto/proto_in_adapt.h"
 #include "net/rev/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
@@ -2078,7 +2078,7 @@ core_packet(
     packet.packet_type = pkt_name;
     {
         int via = 0;
-        parsed = rsprot_bridge_parse(core->rev, pkt_name, data, len, &packet);
+        parsed = proto_decode_name(core->rev, pkt_name, data, len, &packet);
         if( parsed < 0 && core->rev->parse )
         {
             via = 1;

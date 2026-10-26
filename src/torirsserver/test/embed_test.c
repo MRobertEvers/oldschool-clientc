@@ -216,7 +216,7 @@ struct Peer
     int saw_synth_id, saw_synth_loops, saw_synth_delay;
 
     /** Same idea, for MIDI_JINGLE -- decoded by the client's real
-     *  `gameproto_parse.c`/`rsprot_bridge.c` reader, not asserted against a
+     *  `gameproto_parse.c`/`proto_in_adapt.c` reader, not asserted against a
      *  second parser. See the SS_OP_MIDI_JINGLE direct-dispatch check below. */
     int saw_jingle_count;
     int saw_jingle_id, saw_jingle_delay;
@@ -1127,7 +1127,7 @@ main(void)
      *
      * What this proves: the id reaches `ToriRSServer_SendMidiJingle`, is framed on
      * the wire as `PKT_NAME_MIDI_JINGLE`, and is decoded back by the client's
-     * *own* reader -- which for rev 239 is now `rsprot_bridge.c`'s
+     * *own* reader -- which for rev 239 is now `proto_in_adapt.c`'s
      * `bridge_midi_jingle`, not the 4-byte LostCity-era arm in
      * `gameproto_parse.c`. That routing is the actual bug fix; a test that only
      * checked the encoder would miss it entirely, since the encoder was never
@@ -1173,7 +1173,7 @@ main(void)
                   "MIDI_JINGLE reached alice's stream (the packet is no longer "
                   "refused by torirs_server_wire.c's transcribed-packet gate)");
             check(peers[0].saw_jingle_id == jingle_id,
-                  "id round-tripped through the client's own rsprot_bridge.c "
+                  "id round-tripped through the client's own proto_in_adapt.c "
                   "reader unchanged");
             check(peers[0].saw_jingle_delay >= 0,
                   "the length field decoded to a plausible value rather than "

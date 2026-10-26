@@ -1958,7 +1958,7 @@ Also: `OSRS-Content/osrs-content/pack/stat.pack` stops at `22=construction` — 
 | osrs239 | `src/net/rev/osrs239/osrs239_parse.c:755-763` | `g1 invisibleBoostedLevel`, `g1 level`, `g1_add128 stat`, `g4_3412 xp` |
 | osrs230 | `src/net/rev/osrs230/osrs230_parse.c:380-400` | `g1 stat`, `g1 base`, `g4 xp`, `g1 boosted` (mock's own order) |
 | lc245_2 / lc254 | `src/net/rev/gameproto_parse.c:284-290` | `g1 stat`, `g4 xp`, `g1 level` |
-| RSProt bridge | `src/net/rev/rsprot_bridge.c:447-454` → `3rd/rsprot/packets/update_stat_v2.h` `MsgUpdateStatV2{stat,experience,invisible_boosted_level,current_level}` | 14 layouts, revs 226-239; stat always a byte |
+| RSProt bridge | `src/net/proto/proto_in_adapt.c:447-454` → `3rd/rsprot/packets/update_stat_v2.h` `MsgUpdateStatV2{stat,experience,invisible_boosted_level,current_level}` | 14 layouts, revs 226-239; stat always a byte |
 
 Packet sizes: `osrs239/packetin.h:175` op 46 len 7; `osrs230/packetin.h:55` op 114 len 7; `lc254/packetin.h:144` len 6; `lc245_2/packetin.h:142` len 6.
 

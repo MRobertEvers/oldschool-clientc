@@ -17,7 +17,7 @@
  *   WORLDENTITY_INFO_V*       through its reader; a stream that reads whole but
  *                             does not fit the canonical arm (over 15 entities)
  *                             is tallied as `arm` rather than failed
- *   a prot with a codec       through rsprox_parse_validate, which also asks
+ *   a prot with a codec       through proto_validate, which also asks
  *                             that the codec consume the payload EXACTLY
  *   everything               through the revision's parse_wire
  *
@@ -34,9 +34,9 @@
  */
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/rsprot_entity_state.h"
+#include "net/proto/proto_info.h"
 #include "net/rev/revpacket.h"
-#include "net/rev/rsprox/rsprox_rev.h"
+#include "net/proto/proto.h"
 #include "net/rsprox_recording.h"
 #include "info_op_dump.h"
 #include "rsprot_storage.h"
@@ -233,7 +233,7 @@ check_one(char const* path, int verbose)
         struct RsproxRecordingFrame const* fr = &rec.frames[f];
         uint8_t const* data = rec.data + fr->offset;
         int len = (int)fr->length;
-        RsprotProtDef const* d = rsprox_server_prot(rsprox_rev(rev), fr->opcode);
+        RsprotProtDef const* d = proto_server_prot(proto_rev_state(rev), fr->opcode);
         struct Tally* t;
         struct RevPacket packet;
         RsprotNpcInfoReadFn npc_read;
@@ -308,14 +308,14 @@ check_one(char const* path, int verbose)
         {
             int v = d->name[strlen(d->name) - 1] - '0';
 
-            rsprox_rev(rev)->worldentity_read[v](data, len, &g_list);
+            proto_rev_state(rev)->worldentity_read[v](data, len, &g_list);
             ok = rsprot_info_list_complete(&g_list);
             if( ok && parsed <= 0 )
                 t->arm++;
         }
         else if( (npc_read = npc_reader(d->name, rec.revision)) != NULL )
         {
-            int n = rsprot_entity_npc_read(npc_read, data, len, &g_list);
+            int n = proto_info_npc_read(npc_read, data, len, &g_list);
 
             ok = rsprot_info_list_complete(&g_list);
             if( g_dump )
@@ -326,7 +326,7 @@ check_one(char const* path, int verbose)
         }
         else
         {
-            ok = rsprox_parse_validate(rev, d->name, data, len);
+            ok = proto_validate(rev, d->name, data, len);
             if( ok < 0 && packet.packet_type != PKT_NAME_NONE )
                 ok = parsed > 0; /* no codec: the special parse is the check */
             if( ok == 0 && getenv("MULTIREV_WHY") && t->failed < 2 )

@@ -16,7 +16,7 @@
  * whole under it up to the next RECONNECT; otherwise RSProx's rule stands, and
  * the line says so.
  */
-#include "rsprox_rev.h"
+#include "proto.h"
 
 #include "net/rsprox_recording.h"
 #include "rsprot_exec.h"
@@ -98,7 +98,7 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec)
 {
-    struct RsproxRev const* r = rsprox_rev(rev);
+    struct ProtoRev const* r = proto_rev_state(rev);
     int current = rec->local_player_index;
     int moved = 0;
 
@@ -120,7 +120,7 @@ rsprox_recording_resolve_reconnects(
 
             if( fr->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
                 continue;
-            d = rsprox_server_prot(r, fr->opcode);
+            d = proto_server_prot(r, fr->opcode);
             if( d && strncmp(rsprot_prot_version(d), "CAM_TARGET_V", 12) == 0 )
                 camera = camera_player(rec->revision, rsprot_prot_version(d), rec->data + fr->offset,
                                        (int)fr->length);

@@ -1,6 +1,6 @@
 /*
  * Which canonical name each RSProt / RSProx prot answers to, for the
- * data-driven revisions (rsprox_rev.h).
+ * data-driven revisions (proto.h).
  *
  * One table across 227-241 because a prot's NAME is stable across the
  * revisions that carry it: where its layout moved, RSProt and RSProx renamed it
@@ -8,14 +8,14 @@
  * knows the layout at each revision. That is the difference from the
  * per-revision packetin.h tables tools/rsprot_gen_rev.py writes: there, a name
  * mapped is a claim that THIS client's hand parser reads the bytes; here it is
- * only routing, and the decoding is the codec's (rsprox_parse.c).
+ * only routing, and the decoding is the codec's (proto_in.c).
  *
  * Several prots of one revision may share a canonical name (CAM_TARGET_V3 and
  * _V4 at 238+, REBUILD_NORMAL_V1 and _V2 at 237): the name says what the packet
- * DOES, and rsprox_parse.c decodes by prot. A prot with no canonical name here
+ * DOES, and proto_in.c decodes by prot. A prot with no canonical name here
  * frames and drops (PKT_NAME_NONE).
  */
-#include "rsprox_rev.h"
+#include "proto.h"
 
 #include <string.h>
 
@@ -290,13 +290,13 @@ lookup(struct CanonRow const* rows, size_t n, char const* prot)
 }
 
 int
-rsprox_canon_server(char const* prot)
+proto_canon_server(char const* prot)
 {
     return lookup(k_server, sizeof(k_server) / sizeof(k_server[0]), prot);
 }
 
 int
-rsprox_canon_client(char const* prot)
+proto_canon_client(char const* prot)
 {
     return lookup(k_client, sizeof(k_client) / sizeof(k_client[0]), prot);
 }

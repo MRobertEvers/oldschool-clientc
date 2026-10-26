@@ -4,7 +4,7 @@
 
 #include "cmd/cmdbus.h"
 #include "rev/gameproto_parse.h"
-#include "rev/rsprot_bridge.h"
+#include "net/proto/proto_in_adapt.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -535,7 +535,7 @@ net_process_packets(struct ToriRS_Network* net)
              *   1. rsprot   — the generated per-layout codecs in
              *                 3rd/rsprot/packets/, selected by (packet,
              *                 revision). This is where packets are migrating
-             *                 TO; see net/rev/rsprot_bridge.h.
+             *                 TO; see net/proto/proto_in_adapt.h.
              *   2. rev->parse — the hand-written per-revision overrides
              *                 (osrs239_parse.c, osrs230_parse.c).
              *   3. gameproto_parse — the shared lc-style parser.
@@ -552,12 +552,12 @@ net_process_packets(struct ToriRS_Network* net)
             /* Set the canonical name up front so a rev->parse override need not
              * (the shared gameproto_parse also sets it). */
             packet.packet_type = name;
-            /* A table whose names do not identify a layout (net/rev/rsprox/:
+            /* A table whose names do not identify a layout (net/proto/:
              * CAM_TARGET_V3 and _V4 share one) parses by wire opcode first. */
             if( net->rev->parse_wire )
                 parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
             if( parsed < 0 )
-                parsed = rsprot_bridge_parse(net->rev, name, pdata, psize, &packet);
+                parsed = proto_decode_name(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 && net->rev->parse )
                 parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
             if( parsed < 0 )

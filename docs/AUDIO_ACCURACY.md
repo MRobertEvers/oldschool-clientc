@@ -672,7 +672,7 @@ payload slot and `k_transcribed_osrs239[]`), and rev 239's actual 5-byte layout
 — `p3 length_in_millis` / `p2Alt3 id`, confirmed against the vendored generated
 codec (`3rd/rsprot/packets/midi_jingle.c`, v16 = revs 239), the 239 Kotlin
 transcription, and the rev-239 deob independently — is decoded by a new
-`bridge_midi_jingle` row in `src/net/rev/rsprot_bridge.c`, which `net.c` tries
+`bridge_midi_jingle` row in `src/net/proto/proto_in_adapt.c`, which `net.c` tries
 before the hand-written parser. The length field itself is computed
 server-side from the cache (`tools/gen_jingle_lengths.py` →
 `torirs_server_jingle_lengths.gen.h`, a real Standard MIDI File duration integration,

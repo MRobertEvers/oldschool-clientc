@@ -379,7 +379,7 @@ RsproxRecording_RevName(struct RsproxRecording const* rec)
     static char names[RSPROX_RECORDING_REV_LAST - RSPROX_RECORDING_REV_FIRST + 1][16];
 
     assert(rec);
-    /* Every revision plays on the data-driven family's table (net/rev/rsprox/),
+    /* Every revision plays on the data-driven family's table (net/proto/),
      * which is generated from the same RSProx that wrote the recording. The
      * cache is this tree's rev 241, so an older recording's ids can name
      * different things than they did when it was recorded (seq 579 is an axe

@@ -460,7 +460,7 @@ this gate.
 | production | `3rd/rsprot/packets/update_zone_partial_follows.c` | `971330a1a47b41f66e6467fb228a67d9c4458a09468cda86fdf853d7d67179d9` |
 | production | `3rd/rsprot/packets/varp_large.c` | `c6ed10c6b34345d7b8a5db4f7f0f6ea9a1b8d756ebf0d361cd4fd43be09d6323` |
 | production | `3rd/rsprot/packets/varp_small.c` | `086d1f28c2056238d8a3a9c93f7c30a784035b406c1a3db609883186877a4e4b` |
-| production | `src/net/rev/rsprot_bridge.c` | `c8813d19f14da594cfe141389132b068cf394ea132d3157caf311f236a03dfd1` |
+| production | `src/net/proto/proto_in_adapt.c` | `c8813d19f14da594cfe141389132b068cf394ea132d3157caf311f236a03dfd1` |
 
 ### `test-social`
 

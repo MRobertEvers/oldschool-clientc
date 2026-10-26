@@ -1,5 +1,5 @@
-#ifndef SRC_NET_REV_RSPROT_BRIDGE_H
-#define SRC_NET_REV_RSPROT_BRIDGE_H
+#ifndef SRC_NET_PROTO_PROTO_IN_ADAPT_H
+#define SRC_NET_PROTO_PROTO_IN_ADAPT_H
 
 /*
  * The rsprot codecs, wired into this project's inbound packet path.
@@ -41,8 +41,8 @@
  * the borrow straight over would free a pointer into a network buffer.
  */
 
-#include "gameproto_revisions.h"
-#include "revpacket.h"
+#include "net/rev/gameproto_revisions.h"
+#include "net/rev/revpacket.h"
 
 #include <stdint.h>
 
@@ -57,7 +57,7 @@
  * never vendored (lc254, lc245_2) simply has no codec and returns <0.
  */
 int
-rsprot_bridge_parse(
+proto_decode_name(
     struct GameProtoRevTable const* rev,
     int pkt_name,
     uint8_t const* data,
@@ -66,12 +66,12 @@ rsprot_bridge_parse(
 
 /**
  * Decode `data` as the prot named `prot` at RSProt revision `revision`, with
- * the adapter whose codec IS that prot. Returns as rsprot_bridge_parse, and <0
+ * the adapter whose codec IS that prot. Returns as proto_decode_name, and <0
  * when no adapter runs exactly that prot. For the data-driven revisions
- * (net/rev/rsprox/), which cannot key on canonical names.
+ * (net/proto/), which cannot key on canonical names.
  */
 int
-rsprot_bridge_parse_prot(
+proto_in_adapt(
     int revision,
     char const* prot,
     uint8_t const* data,
@@ -81,6 +81,6 @@ rsprot_bridge_parse_prot(
 /** The RSProt revision number a rev table speaks, or 0 for the project-native
  *  protocols RSProt never carried. Exposed for tests and for the trace. */
 int
-rsprot_bridge_revision(struct GameProtoRevTable const* rev);
+proto_osrs_revision(struct GameProtoRevTable const* rev);
 
 #endif
