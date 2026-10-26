@@ -7356,6 +7356,21 @@ UITree_ChildMountType(
     return -1;
 }
 
+/* The first root of the active gameframe. The root list leads with it except
+ * after an IF_OPENTOP, which keeps the groups a script loaded but nothing
+ * opened ahead of the new gameframe (UITree_ClearKeepingUnopenedGroups):
+ * taking the very first root then named one of those as the top level, and
+ * every gameframe root failed the display test -- each replay drew its clear
+ * colour from its first IF_OPENTOP on. */
+static int32_t
+uitree_toplevel_root(struct UITree const* tree)
+{
+    for( int32_t r = tree->root_index; r >= 0; r = tree->components[r].next_sibling )
+        if( !uitree_root_is_unopened_group(tree, r) )
+            return r;
+    return tree->root_index;
+}
+
 int
 UITree_RootIsDisplayable(
     struct UITree const* tree,
@@ -7375,7 +7390,7 @@ UITree_RootIsDisplayable(
      * the gameframe. Displayable = the active gameframe (which is baked as several
      * roots sharing the toplevel group id), or a group actually placed into a
      * slot (InterfaceParent-mounted). */
-    toplevel_group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
+    toplevel_group = (tree->components[uitree_toplevel_root(tree)].component_id >> 16) & 0xffff;
     group = (tree->components[root].component_id >> 16) & 0xffff;
     if( group <= 0 || group == toplevel_group )
         return 1;

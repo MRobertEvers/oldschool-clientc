@@ -1598,6 +1598,14 @@ test_opentop_keeps_unopened_groups(void)
 
     UITree_ClearKeepingUnopenedGroups(tree);
 
+    /* The new gameframe bakes after the kept group; it is the top level,
+     * not the hidden group ahead of it in the root list. */
+    struct UITreeNodeSpec next_frame = { .type = UIELEM_RS_LAYER, .component_id = 161 << 16,
+                                         .width = 200, .height = 200 };
+    int32_t const next_idx = UITree_Push(tree, -1, &next_frame);
+    CHECK(UITree_RootIsDisplayable(tree, next_idx), "the new gameframe is displayable");
+    CHECK(!UITree_RootIsDisplayable(tree, root_idx), "the kept group is not");
+
     CHECK(UITree_FindByComponentId(tree, 165 << 16) < 0, "the old gameframe is reclaimed");
     CHECK(UITree_FindByComponentId(tree, model_id) == idx, "the unopened group survives");
     CHECK(UITree_GroupPresent(tree, 378), "the kept group still answers as baked");
