@@ -39,7 +39,7 @@ print_usage(const char* program)
 {
     fprintf(
         stderr,
-        "usage: %s --cache DIR [--revision 239] [--bind 127.0.0.1] "
+        "usage: %s --cache DIR [--revision 239] [--cache-for REV DIR ...] [--bind 127.0.0.1] "
         "[--port 43594] [--max-clients 48] [--backlog 64] "
         "[--max-pending 200] [--handshake-timeout-ms 10000] "
         "[--idle-timeout-ms 300000] [--output-timeout-ms 30000] [--verbose]\n",
@@ -81,6 +81,24 @@ main(int argc, char** argv)
             config.cache_dir = argv[++index];
         else if( strcmp(flag, "--bind") == 0 && index + 1 < argc )
             config.bind_address = argv[++index];
+        /* Another revision beside the main one, from its own cache: a client
+         * whose handshake names it is served it (an older recording replayed
+         * in the browser asks for its own revision). Repeatable. */
+        else if( strcmp(flag, "--cache-for") == 0 && index + 2 < argc )
+        {
+            uint32_t revision;
+            if( parse_u32(flag, argv[++index], 1u, INT_MAX, &revision) != 0 )
+                return 2;
+            if( config.alternate_count >= JS5_SERVER_MAX_ALTERNATES )
+            {
+                fprintf(stderr, "js5_server: more than %u --cache-for\n",
+                        (unsigned)JS5_SERVER_MAX_ALTERNATES);
+                return 2;
+            }
+            config.alternates[config.alternate_count].revision = revision;
+            config.alternates[config.alternate_count].cache_dir = argv[++index];
+            config.alternate_count++;
+        }
         else if( strcmp(flag, "--revision") == 0 && index + 1 < argc )
         {
             if( parse_u32(flag, argv[++index], 1u, INT_MAX, &config.revision) != 0 )

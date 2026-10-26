@@ -28,7 +28,7 @@
 #include <unistd.h>
 #endif
 
-#define JS5_TEST_REVISION 239u
+#define JS5_TEST_REVISION 241u
 #define JS5_TEST_MASTER_ARCHIVE 255u
 #define JS5_TEST_MASTER_GROUP 255u
 
@@ -424,7 +424,7 @@ test_handshake_statuses(struct TestContext* context, struct Js5ServerCache* cach
     Js5ServerSessionGetStats(session, &stats);
     CHECK(
         context,
-        stats.state == JS5_SERVER_SESSION_CLOSED && stats.client_revision == 238u &&
+        stats.state == JS5_SERVER_SESSION_CLOSED && stats.client_revision == JS5_TEST_REVISION - 1u &&
             Js5ServerSessionWantsClose(session));
     Js5ServerSessionFree(session);
     session = NULL;
@@ -442,6 +442,39 @@ test_handshake_statuses(struct TestContext* context, struct Js5ServerCache* cach
             output_size == 1u && output[0] == 7u);
     CHECK(context, Js5ServerSessionConsumeOutput(session, 1u, 13u) == 0);
     CHECK(context, Js5ServerSessionWantsClose(session));
+    Js5ServerSessionFree(session);
+    session = NULL;
+
+    /* --cache-for: a revision the server lists beside its own is accepted and
+     * served; one it does not list is still out of date. */
+    {
+        struct Js5ServerSessionAlternate alternate = { JS5_TEST_REVISION - 18u, cache };
+
+        Js5ServerSessionConfigInit(&config);
+        config.alternates = &alternate;
+        config.alternate_count = 1u;
+        session = Js5ServerSessionNew(cache, &config, 20u);
+        CHECK(context, session != NULL);
+        make_handshake(handshake, JS5_TEST_REVISION - 18u);
+        CHECK(context, Js5ServerSessionFeed(session, handshake, sizeof(handshake), 21u) == 0);
+        CHECK(
+            context,
+            Js5ServerSessionPeekOutput(session, &output, &output_size) == 1 &&
+                output_size == 1u && output[0] == 0u);
+        CHECK(context, Js5ServerSessionConsumeOutput(session, 1u, 22u) == 0);
+        Js5ServerSessionGetStats(session, &stats);
+        CHECK(context, stats.state == JS5_SERVER_SESSION_ACTIVE);
+        Js5ServerSessionFree(session);
+
+        session = Js5ServerSessionNew(cache, &config, 30u);
+        CHECK(context, session != NULL);
+        make_handshake(handshake, JS5_TEST_REVISION - 17u);
+        CHECK(context, Js5ServerSessionFeed(session, handshake, sizeof(handshake), 31u) == 0);
+        CHECK(
+            context,
+            Js5ServerSessionPeekOutput(session, &output, &output_size) == 1 &&
+                output_size == 1u && output[0] == 6u);
+    }
 
 cleanup:
     Js5ServerSessionFree(session);

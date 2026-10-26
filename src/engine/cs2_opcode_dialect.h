@@ -1,6 +1,8 @@
 #ifndef CS2_OPCODE_DIALECT_H
 #define CS2_OPCODE_DIALECT_H
 
+#include "cs2vm2/cs2vm2_dialect.h"
+
 #include <rscache.h>
 #include <stdint.h>
 
@@ -37,23 +39,19 @@
  * The full list is docs/RS2_634_CLIENT_REFERENCES.md section 3.
  */
 
-enum CS2_OpcodeDialect
-{
-    CS2_OPCODE_DIALECT_CANONICAL = 0, /* cs2_opcode.h numbering (OldSchool) */
-    CS2_OPCODE_DIALECT_RS2_DAT2,      /* RS2 on dat2; verified against the 634 client */
-};
-
-/** Pick the dialect for a cache profile. RS2-on-dat2 -> RS2_DAT2, else CANONICAL. */
-enum CS2_OpcodeDialect
-CS2_OpcodeDialectForCache(const struct RSCache* cache);
+/** Pick the dialect for a cache profile: RS2 on dat2 -> RS2_634; OldSchool
+ *  through 229 -> OSRS_229, 230 -> OSRS_230; any other (and an OldSchool cache
+ *  of unknown revision) -> OSRS, the VM's own. */
+struct CS2VM2_Dialect const*
+CS2_DialectForCache(const struct RSCache* cache);
 
 /**
- * Map a wire opcode from `dialect` into the canonical numbering the VM speaks.
- * Identity under CANONICAL; under RS2_DAT2 remaps 51 -> CS2_OP_SWITCH (60).
+ * Map a wire opcode from `dialect` into the canonical numbering the VM speaks:
+ * the dialect's remap table, identity for anything it does not list.
  */
 uint16_t
 CS2_OpcodeTranslate(
-    enum CS2_OpcodeDialect dialect,
+    struct CS2VM2_Dialect const* dialect,
     uint16_t wire_opcode);
 
 #endif

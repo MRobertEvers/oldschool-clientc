@@ -4,6 +4,7 @@
  */
 
 #include "cs2vm2.h"
+#include "cs2vm2_dialect.h"
 #include "mem/torirs_mem.h"
 
 #include "cs2_opcode.h"
@@ -516,6 +517,48 @@ cs2vm2_array_begin(
     return 1;
 }
 
+/* 634 SWITCH lives at wire 51; canonical moved it to 60 and reused 51 for
+ * GET_VARC_LONG. STRUCT_PARAM: 634 wire 4500, canonical 6516 -- same stack
+ * shape (pop struct, param; push int or string by the ParamType), so the
+ * existing handler is correct once the id lines up. */
+static struct CS2VM2_DialectRemap const g_cs2vm2_remap_rs2_634[] = {
+    { 51, CS2_OP_SWITCH },
+    { 4500, CS2_OP_STRUCT_PARAM },
+};
+
+struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS = {
+    .name = "osrs",
+    .cc_create_nested = true,
+    .array_handles = true,
+};
+
+struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS_230 = {
+    .name = "osrs230",
+    .cc_create_nested = true,
+};
+
+struct CS2VM2_Dialect const CS2VM2_DIALECT_OSRS_229 = {
+    .name = "osrs229",
+};
+
+struct CS2VM2_Dialect const CS2VM2_DIALECT_RS2_634 = {
+    .name = "rs2_634",
+    .remap = g_cs2vm2_remap_rs2_634,
+    .remap_count = (int)(sizeof(g_cs2vm2_remap_rs2_634) / sizeof(g_cs2vm2_remap_rs2_634[0])),
+    .array_handles = true,
+    .rs2_commands = true,
+};
+
+/* The dialect the running script is in; a frame with no script, or a script
+ * built in memory, is in the VM's own. */
+static struct CS2VM2_Dialect const*
+cs2vm2_frame_dialect(struct CS2VM2_Frame const* frame)
+{
+    if( frame && frame->script && frame->script->dialect )
+        return frame->script->dialect;
+    return &CS2VM2_DIALECT_OSRS;
+}
+
 /* An array HANDLE is a raw pointer into vm->arrays carried in a string local
  * (and across the string stack / gosub args, which copy the char* verbatim).
  * Resolution validates rather than trusts: anything that is not a live,
@@ -536,10 +579,17 @@ cs2vm2_array_from_handle(struct CS2VM2_Thread* vm, char* handle)
 }
 
 /* PUSH/POP_ARRAY_INT's operand: the string-local slot of the CURRENT frame
- * holding the handle. */
+ * holding the handle -- or, in a dialect without array handles, the number of
+ * one of the arrays every frame of the run shares. */
 static struct CS2VM2_Array*
 cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slot)
 {
+    if( !cs2vm2_frame_dialect(frame)->array_handles )
+    {
+        if( slot < 0 || slot >= CS2VM2_SHARED_ARRAYS )
+            return NULL;
+        return cs2vm2_array_from_handle(vm, vm->shared_arrays[slot]);
+    }
     if( slot < 0 || slot >= CS2VM_MAX_LOCALS )
         return NULL;
     return cs2vm2_array_from_handle(vm, cs2vm2_frame_str_local(frame, slot));
@@ -2058,9 +2108,10 @@ CS2VM2_Op_CC_Create(
     int is_nested = 0, child_index, type, parent_id;
 
     /* RS2 (634) pushes only (parent, type, index) — Class66.method710 opcode 100
-     * pops three. The nested flag is a later OldSchool addition; popping it under
-     * RS2 steals the parent id and the create fails on a garbage uid. */
-    if( !(frame->script && frame->script->rs2_dialect) )
+     * pops three. The nested flag is a later OldSchool addition (rev 230);
+     * popping it under RS2 or an older OldSchool cache steals the parent id and
+     * the create fails on a garbage uid. */
+    if( cs2vm2_frame_dialect(frame)->cc_create_nested )
     {
         if( CS2VM2_PopInt(vm, &is_nested) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -7602,7 +7653,8 @@ CS2VM2_Op_DefineArray(
      * frame's local, which is what lets a proc receive an array as an
      * ordinary string argument (the spellbook sort does). */
     int const str_slot = CS2VM2_ArrayDefineSlot(operand);
-    if( str_slot < 0 || str_slot >= CS2VM_MAX_LOCALS )
+    int const shared = !cs2vm2_frame_dialect(frame)->array_handles;
+    if( str_slot < 0 || str_slot >= (shared ? CS2VM2_SHARED_ARRAYS : CS2VM_MAX_LOCALS) )
         return CS2VM_EXECNO_OK;
 
     if( vm->array_alloc >= CS2VM2_MAX_ARRAYS )
@@ -7618,7 +7670,8 @@ CS2VM2_Op_DefineArray(
      * only one that lives on the string stack. The rest are the RuneScript base
      * types (`i` 105 int, `Ð` 208 dbrow, …) and all share the int stack.
      *
-     * A fresh array's cells are **-1, not 0**, and that is not cosmetic. -1 is
+     * A fresh array's cells are **-1, not 0** (int and boolean aside, below),
+     * and that is not cosmetic. -1 is
      * `null` for every reference-typed RuneScript base type, so a script that
      * fills an array and guards each slot with `= null` is testing a sentinel —
      * and 0 is a perfectly good dbrow / component / obj id.
@@ -7643,13 +7696,22 @@ CS2VM2_Op_DefineArray(
      * already treats NULL as "". */
     if( cs2vm2_array_begin(array, size, (operand & 0xffff) == 's') )
     {
+        /* Except `int` and `boolean`, which start at 0: the rev-239 deob's
+         * DEFINE_ARRAY fills 0 for element types 'i' (105) and '1' (49) and -1
+         * for every other non-string type. */
+        int const element = operand & 0xffff;
+        int const fill = (element == 'i' || element == '1') ? 0 : -1;
+
         if( array->is_string )
             memset(array->cells.strings, 0, (size_t)array->size * sizeof(char*));
         else
             for( int i = 0; i < array->size; i++ )
-                array->cells.ints[i] = -1;
+                array->cells.ints[i] = fill;
     }
-    *cs2vm2_frame_str_local_ref(frame, str_slot) = (char*)array;
+    if( shared )
+        vm->shared_arrays[str_slot] = (char*)array;
+    else
+        *cs2vm2_frame_str_local_ref(frame, str_slot) = (char*)array;
     return CS2VM_EXECNO_OK;
 }
 
@@ -10480,7 +10542,7 @@ CS2VM2_Op_StackMetaStub(
 
     /* The RS2 overlay wins where it has an entry: for the ids it names the
      * canonical signature is either absent or a different command's. */
-    if( frame->script && frame->script->rs2_dialect )
+    if( cs2vm2_frame_dialect(frame)->rs2_commands )
     {
         struct CS2VM2OpcodeStack rs2;
         if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
@@ -12499,7 +12561,7 @@ CS2VM2_RunOp(
      * Only ids the overlay actually lists divert; everything RS2 shares with
      * OldSchool falls through to its real handler as before.
      */
-    if( frame->script && frame->script->rs2_dialect )
+    if( cs2vm2_frame_dialect(frame)->rs2_commands )
     {
         struct CS2VM2OpcodeStack rs2;
         if( cs2vm2_opcode_stack_rs2_lookup(opcode, &rs2) )
@@ -15992,7 +16054,7 @@ CS2VM2_Op_CC_GetParam(
     assert(frame);
 
     struct CS2VM_HostRequest request;
-    if( !(frame->script && frame->script->rs2_dialect) )
+    if( !cs2vm2_frame_dialect(frame)->rs2_commands )
     {
         request.kind = CS2VM_HOST_REQUEST_CC_GETBLENDMODE;
         memset(&request.u.CC_GETBLENDMODE, 0, sizeof(request.u.CC_GETBLENDMODE));
@@ -16383,6 +16445,7 @@ cs2vm2_thread_init_common(
     thread->children_iter_parent = -1;
 
     thread->array_alloc = 0;
+    memset(thread->shared_arrays, 0, sizeof(thread->shared_arrays));
 
     thread->canvas_w = 0;
     thread->canvas_h = 0;
@@ -16494,6 +16557,7 @@ cs2vm2_cleanup(
             vm->threads[i].arrays[a].is_string = 0;
         }
         vm->threads[i].array_alloc = 0;
+        memset(vm->threads[i].shared_arrays, 0, sizeof(vm->threads[i].shared_arrays));
         cs2vm2_thread_frames_release(&vm->threads[i]);
     }
 }

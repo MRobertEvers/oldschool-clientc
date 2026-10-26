@@ -676,7 +676,10 @@ mergeInto(LibraryManager.library, {
           if (!keyPtr) { throw new Error('torirs: out of memory for an XTEA key'); }
           for (let i = 0; i < 4; i++) { HEAP32[(keyPtr >> 2) + i] = xteaKey[i] | 0; }
         }
-        return _ToriRS_WebApi_ArchiveDecode(scratch, bytes.length, table, archive, keyPtr);
+        /* No host key: the one the server sent for this square, if any
+         * (REBUILD_* below rev 237). rscache owns it -- never freed here. */
+        const decodeKey = keyPtr || _ToriRS_WebApi_XteaKey(table, archive);
+        return _ToriRS_WebApi_ArchiveDecode(scratch, bytes.length, table, archive, decodeKey);
       } finally {
         _free(scratch);
         if (keyPtr) { _free(keyPtr); }

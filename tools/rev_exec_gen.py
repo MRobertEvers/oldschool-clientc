@@ -55,7 +55,7 @@ FIELD_RE = re.compile(r"^\s*(?:const\s+)?[\w ]+?\s*\**\s*(\w+)(?:\[\w+\])*;", re
 DECL_RE = re.compile(r"^(?:int|void)\n((?:adapt|prep)_\w+)\((.*?)\);", re.M | re.S)
 WRITER_RE = re.compile(r"^static (?:inline )?void\n(w_\w+)\(", re.M)
 
-APPEARANCE = {"v3": "APPEARANCE_ENC_V3", "v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6",
+APPEARANCE = {"v2": "APPEARANCE_ENC_V2", "v3": "APPEARANCE_ENC_V3", "v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6",
               "classic": "APPEARANCE_ENC_CLASSIC", "classic_lc289": "APPEARANCE_ENC_CLASSIC_LC289"}
 # A login driver's vtable; `lc` is the classic handshake net.c drives itself
 # (net/login/login_lc.c), which a table states with no vtable.

@@ -381,7 +381,7 @@ skip_obj_customisation_v6(struct RSCache_Buffer* rsbuf)
 static int
 model_override_bytes(enum AppearanceEncoding encoding)
 {
-    if( encoding == APPEARANCE_ENC_V3 )
+    if( encoding == APPEARANCE_ENC_V2 || encoding == APPEARANCE_ENC_V3 )
         return 0;
     return encoding == APPEARANCE_ENC_V4 ? 2 : 4;
 }
@@ -475,7 +475,7 @@ read_v5(
             op_value(w, PKT_APPEARANCE_OP_TRANSMOG, g2(rsbuf));
             break;
         }
-        op_slot(w, APPEARANCE_ENC_V5, APPEARANCE_LAYER_VISIBLE, i, wire);
+        op_slot(w, encoding, APPEARANCE_LAYER_VISIBLE, i, wire);
     }
 
     /* `identKit` — the body underneath, written whether or not it shows. */
@@ -484,7 +484,7 @@ read_v5(
         int wire = read_slot_word(rsbuf);
         if( wire < 0 )
             return 0;
-        op_slot(w, APPEARANCE_ENC_V5, APPEARANCE_LAYER_IDENTKIT, i, wire);
+        op_slot(w, encoding, APPEARANCE_LAYER_IDENTKIT, i, wire);
     }
 
     if( !need(rsbuf, APPEARANCE_COLOUR_COUNT + APPEARANCE_ANIM_COUNT * 2) )
@@ -575,8 +575,9 @@ pkt_appearance_read(
     w.capacity = ops_capacity;
     RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)len);
 
-    if( encoding == APPEARANCE_ENC_V3 || encoding == APPEARANCE_ENC_V4 ||
-        encoding == APPEARANCE_ENC_V5 || encoding == APPEARANCE_ENC_V6 )
+    if( encoding == APPEARANCE_ENC_V2 || encoding == APPEARANCE_ENC_V3 ||
+        encoding == APPEARANCE_ENC_V4 || encoding == APPEARANCE_ENC_V5 ||
+        encoding == APPEARANCE_ENC_V6 )
         ok = read_v5(&w, &rsbuf, encoding);
     else if( encoding == APPEARANCE_ENC_CLASSIC_LC289 )
         ok = read_classic_lc289(&w, &rsbuf);

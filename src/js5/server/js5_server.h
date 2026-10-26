@@ -8,9 +8,20 @@
 extern "C" {
 #endif
 
+#define JS5_SERVER_MAX_ALTERNATES 64u
+
+/* Another revision served beside the main one: --cache-for REV DIR. */
+struct Js5ServerCacheFor
+{
+    uint32_t revision;
+    const char* cache_dir;
+};
+
 struct Js5ServerConfig
 {
     const char* cache_dir;
+    struct Js5ServerCacheFor alternates[JS5_SERVER_MAX_ALTERNATES];
+    uint32_t alternate_count;
     const char* bind_address;
     uint16_t port;
     uint32_t revision;

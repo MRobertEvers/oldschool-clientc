@@ -193,10 +193,19 @@ js5_session_handshake(struct Js5ServerSession* session)
     session->client_revision = js5_read_u32(session->input + 1u);
     if( session->config.server_full )
         status = JS5_STATUS_SERVER_FULL;
-    else if( session->client_revision != session->config.revision )
-        status = JS5_STATUS_OUT_OF_DATE;
-    else
+    else if( session->client_revision == session->config.revision )
         status = JS5_STATUS_OK;
+    else
+    {
+        status = JS5_STATUS_OUT_OF_DATE;
+        for( uint32_t i = 0u; i < session->config.alternate_count; i++ )
+            if( session->config.alternates[i].revision == session->client_revision )
+            {
+                session->cache = session->config.alternates[i].cache;
+                status = JS5_STATUS_OK;
+                break;
+            }
+    }
 
     /* Bytes 5..20 are login/XTEA seeds. They are deliberately never retained. */
     memset(session->input, 0, sizeof(session->input));

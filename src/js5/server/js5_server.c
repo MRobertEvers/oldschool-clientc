@@ -259,6 +259,7 @@ js5_server_accept_clients(
     struct Js5ServerClient* clients,
     uint32_t regular_count,
     struct Js5ServerCache* cache,
+    const struct Js5ServerSessionAlternate* alternates,
     const struct Js5ServerConfig* config,
     uint64_t now_ms)
 {
@@ -313,6 +314,8 @@ js5_server_accept_clients(
         struct Js5ServerSessionConfig session_config;
         Js5ServerSessionConfigInit(&session_config);
         session_config.revision = config->revision;
+        session_config.alternates = alternates;
+        session_config.alternate_count = config->alternate_count;
         session_config.max_pending_per_lane = config->max_pending_per_lane;
         session_config.handshake_timeout_ms = config->handshake_timeout_ms;
         session_config.idle_timeout_ms = config->idle_timeout_ms;
@@ -415,6 +418,7 @@ int
 Js5ServerRun(const struct Js5ServerConfig* config)
 {
     struct Js5ServerCache* cache = NULL;
+    struct Js5ServerSessionAlternate alternates[JS5_SERVER_MAX_ALTERNATES];
     struct Js5ServerClient* clients = NULL;
     js5_server_socket_t listener = JS5_SERVER_INVALID_SOCKET;
     uint32_t slot_count;
@@ -430,11 +434,13 @@ Js5ServerRun(const struct Js5ServerConfig* config)
         config->revision == 0u || config->max_clients == 0u ||
         config->max_clients >
             (uint32_t)(FD_SETSIZE - JS5_SERVER_REJECT_SLOTS - 1u) ||
-        config->backlog == 0u || config->max_pending_per_lane == 0u )
+        config->backlog == 0u || config->max_pending_per_lane == 0u ||
+        config->alternate_count > JS5_SERVER_MAX_ALTERNATES )
     {
         fprintf(stderr, "js5_server: invalid configuration\n");
         return -1;
     }
+    memset(alternates, 0, sizeof(alternates));
 
 #ifdef _WIN32
     if( WSAStartup(MAKEWORD(2, 2), &winsock) != 0 )
@@ -447,6 +453,15 @@ Js5ServerRun(const struct Js5ServerConfig* config)
     cache = Js5ServerCacheOpen(config->cache_dir);
     if( !cache )
         goto cleanup;
+    for( uint32_t i = 0u; i < config->alternate_count; i++ )
+    {
+        alternates[i].revision = config->alternates[i].revision;
+        alternates[i].cache = Js5ServerCacheOpen(config->alternates[i].cache_dir);
+        if( !alternates[i].cache )
+            goto cleanup;
+        fprintf(stderr, "js5_server: revision %u from %s\n", (unsigned)alternates[i].revision,
+                config->alternates[i].cache_dir);
+    }
     listener = js5_server_open_listener(config);
     if( listener == JS5_SERVER_INVALID_SOCKET )
     {
@@ -511,6 +526,8 @@ Js5ServerRun(const struct Js5ServerConfig* config)
         {
             last_refresh_ms = now_ms;
             Js5ServerCacheRefreshIfStale(cache);
+            for( uint32_t i = 0u; i < config->alternate_count; i++ )
+                Js5ServerCacheRefreshIfStale(alternates[i].cache);
         }
 
         FD_ZERO(&readable);
@@ -567,7 +584,7 @@ Js5ServerRun(const struct Js5ServerConfig* config)
         now_ms = js5_server_now_ms();
         if( FD_ISSET(listener, &readable) &&
             js5_server_accept_clients(
-                listener, clients, config->max_clients, cache, config, now_ms) != 0 )
+                listener, clients, config->max_clients, cache, alternates, config, now_ms) != 0 )
         {
             fprintf(stderr, "js5_server: accept failed\n");
             result = -1;
@@ -600,6 +617,8 @@ cleanup:
     ToriMem_Free(ToriMem_ServerNet(), clients);
     js5_server_socket_close(listener);
     Js5ServerCacheFree(cache);
+    for( uint32_t i = 0u; i < config->alternate_count; i++ )
+        Js5ServerCacheFree(alternates[i].cache);
 #ifdef _WIN32
     if( winsock_started )
         WSACleanup();

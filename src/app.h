@@ -372,6 +372,9 @@ struct AppDebugHotkeyBinding
 struct AppConfig
 {
     char const* cache_dir;
+    /* Another revision's cache, `{revision}` standing for the number
+     * ([cache:boot] dir_for_revision); NULL when the manifest names none. */
+    char const* cache_dir_for_revision;
     char const* config_dir;
     char const* script_dir;
     /* [io:boot] -- the server asked for any stored file this disk lacks: the

@@ -594,6 +594,28 @@ test_appearance_encoding_independent(void)
     printf("ok - classic and 239 blocks decode to the same appearance\n");
 }
 
+/* 222-223 wear objs at the classic 0x200 in the 239-shaped block: the word a
+ * 223 server writes for obj 1153 is an obj there, and a kit to v3 (224+),
+ * whose kit range runs to 0x800 -- kit 1409, past any table, drawing nothing. */
+static void
+test_appearance_v2_obj_tag(void)
+{
+    struct BitWriter w = { 0 };
+    struct PktPlayerAppearance v2;
+    struct PktPlayerAppearance v3;
+
+    build_v5_blob(&w, APPEARANCE_WIRE_OBJ_TAG_CLASSIC, 0);
+    TEST_CHECK(PktPlayerAppearance_DecodeAs(&v2, APPEARANCE_ENC_V2, w.buf, bw_len(&w)));
+    TEST_CHECK(v2.slots[FIXTURE_OBJ_SLOT] == Appearance_PackObj(FIXTURE_OBJ_ID));
+    TEST_CHECK(v2.slots[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    TEST_CHECK(v2.identkit[FIXTURE_KIT_SLOT] == Appearance_PackKit(FIXTURE_KIT_ID));
+    TEST_CHECK(PktPlayerAppearance_DecodeAs(&v3, APPEARANCE_ENC_V3, w.buf, bw_len(&w)));
+    TEST_CHECK(v3.slots[FIXTURE_OBJ_SLOT] ==
+               Appearance_PackKit(APPEARANCE_WIRE_OBJ_TAG_CLASSIC + FIXTURE_OBJ_ID -
+                                  APPEARANCE_WIRE_KIT_TAG));
+    printf("ok - 222-223 worn objs are 0x200 + obj\n");
+}
+
 static void
 test_appearance_tag_is_per_encoding(void)
 {
@@ -911,6 +933,7 @@ main(void)
     test_appearance_v5_decode();
     test_appearance_encoding_independent();
     test_appearance_tag_is_per_encoding();
+    test_appearance_v2_obj_tag();
     test_appearance_rejects_undecodable();
     test_appearance_transmog();
     printf("entity-decode: all tests passed\n");

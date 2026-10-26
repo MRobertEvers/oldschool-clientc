@@ -229,6 +229,10 @@ Task_Dat2MapSceneryLoad_Run(
         PT_EXIT(&task->pt);
     }
 
+    /* A key the server sent for this square (REBUILD_* below rev 237) is
+     * known by square; the read below finds keys by group. Maps sits at the
+     * same index as a role and on disk (0..15 agree). */
+    RSCache_XteaConfigBindSquare(task->map_x, task->map_z, RSCACHE_DAT2_TABLE_MAPS, archive_id);
     RSCache_IO_Dat2MapArchiveLoad(io, 0, archive_id);
     PT_YIELD(&task->pt);
 

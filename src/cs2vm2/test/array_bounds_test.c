@@ -79,7 +79,7 @@ test_int_bounds(void)
     CHECK(CS2VM2_ThreadRun(thread, &error) == CS2VM2_THREAD_DONE, "int array completes");
     CHECK(thread->array_alloc == 1, "int array allocated once");
     CHECK(thread->arrays[0].cells.ints[0] == 17, "int in-range write is retained");
-    CHECK(thread->arrays[0].cells.ints[1] == -1, "int neighbor stays initialized");
+    CHECK(thread->arrays[0].cells.ints[1] == 0, "int neighbor stays initialized");
     CHECK(thread->ints_stack_top == 1 && thread->ints_stack[0] == 17,
           "negative and index == size int writes are dropped");
     CHECK(thread->undo_log_len == 0, "VM-only int write creates no undo entry");

@@ -107,6 +107,32 @@ App_FrameLockEngage(void)
     s_frame_lock_engaged = 1;
 }
 /*
+ * Map loc keys, for a cache that encrypts them (OldSchool below 237, RS2 dat2
+ * from 414): the cache's own xteas.json, into the rscache table the archive
+ * reads consult -- only when the identity gate says so, because a key applied
+ * to plain data corrupts it. A server's REBUILD keys fill the squares this
+ * file lacks (task_gameproto_exec.c). The browser has no cache directory, but
+ * torirs_host.js stages the file at the same path before main() runs.
+ */
+static void
+app_load_map_keys(struct AppConfig const* cfg)
+{
+    struct RSCache probe = RSCache_ProfileForIdentity(
+        cfg->cache_game, cfg->cache_epoch, cfg->cache_revision, cfg->cache_quirks);
+    char xtea_path[1024];
+
+    if( !RSCache_MapLocsEncrypted(&probe) )
+    {
+        TORIRS_LOG("app: map archives are unencrypted at this revision\n");
+        return;
+    }
+    snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
+    if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
+        TORIRS_ERR("app: no xtea keys at %s (only the server's REBUILD keys will open "
+                   "map locs)\n", xtea_path);
+}
+
+/*
  * Construction and teardown.
  *
  * Included into app.c rather than compiled on its own. App_Init names nearly
@@ -238,7 +264,8 @@ App_Init(
      * honest -- anything that tried to read locally would fault rather than
      * quietly answer out of an empty cache.
      */
-    (void)cfg->cache_dir;
+    if( cfg->cache_kind == APP_CACHE_DAT2 )
+        app_load_map_keys(cfg);
 #else
     if( cfg->cache_kind == APP_CACHE_DAT1 && cfg->cache_on_demand )
     {
@@ -346,24 +373,7 @@ App_Init(
                 cfg->cache_dir);
             app_boot_refuse(message);
         }
-        /* Map archives may be xtea-encrypted (OldSchool below 237; RS2 dat2
-         * from 414). Keys load into the rscache global table the disk layer
-         * consults on archive fetch — only when the identity gate says so. */
-        {
-            struct RSCache probe = RSCache_ProfileForIdentity(
-                cfg->cache_game, cfg->cache_epoch, cfg->cache_revision, cfg->cache_quirks);
-            if( RSCache_MapLocsEncrypted(&probe) )
-            {
-                char xtea_path[1024];
-                snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cfg->cache_dir);
-                if( RSCache_XteaConfigLoadKeys(xtea_path) <= 0 )
-                    TORIRS_ERR("app: no xtea keys at %s (world maps may fail)\n", xtea_path);
-            }
-            else
-            {
-                TORIRS_LOG("app: map archives are unencrypted at this revision\n");
-            }
-        }
+        app_load_map_keys(cfg);
         Platform_IO_InitDat2Disk(app->runner.px, app->dat2_disk);
     }
 #endif

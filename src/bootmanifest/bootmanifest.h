@@ -258,6 +258,10 @@ struct BootManifest
      * write nothing down" (dir= stated empty) from silence, which defaults to
      * <home>/torirs_cache/<game>/<world>. */
     int cache_dir_stated;
+    /* [cache:boot] dir_for_revision -- another revision's cache, as a path
+     * with `{revision}` in it (resolved against the manifest dir like dir). A
+     * replay of a recording from that revision boots it instead. */
+    char cache_dir_for_revision[512];
     /* [cache:boot] source — 0 = disk (the default), 1 = ondemand: read the
      * cache off the LostCity server named by [net:boot] instead. */
     int cache_on_demand;

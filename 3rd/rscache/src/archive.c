@@ -167,7 +167,12 @@ RSCache_ArchiveDecryptDecompress(
 
     int compression = g1(&buffer);
     int size = g4(&buffer);
-    if( xtea_key_nullable && compression != NON_OSRS_PACKED_ARCHIVE_FORMAT )
+    /* An all-zero key is no key: a server sends one for a square whose locs
+     * are not encrypted, and the client decrypts only behind a key with a
+     * non-zero word (rev-239 deob class532). */
+    if( xtea_key_nullable && compression != NON_OSRS_PACKED_ARCHIVE_FORMAT &&
+        (xtea_key_nullable[0] | xtea_key_nullable[1] | xtea_key_nullable[2] |
+         xtea_key_nullable[3]) != 0 )
         xteas_decrypt(archive->data + buffer.position, size + 4, (int32_t*)xtea_key_nullable);
 
     int bytes_read;
@@ -197,6 +202,9 @@ RSCache_ArchiveDecryptDecompress(
     case 1:
     {
         int uncompressed_length = g4(&buffer);
+        /* Bytes, not a contract: a wrong key decrypts the length to noise. */
+        if( uncompressed_length < 0 )
+            return false;
 
         char* compressed_data = RSCACHE_MALLOC((size_t)size);
         if( !compressed_data )
@@ -243,6 +251,8 @@ RSCache_ArchiveDecryptDecompress(
     case 2:
     {
         int uncompressed_length = g4(&buffer) & 0xFFFFFFFF;
+        if( uncompressed_length < 0 )
+            return false;
         uint8_t* compressed_data = RSCACHE_MALLOC((size_t)size);
         if( !compressed_data )
             return false;

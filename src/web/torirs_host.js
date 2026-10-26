@@ -294,6 +294,13 @@
    */
   let cacheKey = '';
   let cacheRevision = 0;
+  /* `[cache:boot] dir_for_revision`: where another revision's cache lives, as a
+   * pattern with `{revision}` in it. A replay of an older recording swaps to it
+   * (main.c does the same from the same key). */
+  let cacheDirForRevision = '';
+  /* The manifest's directory, which its paths -- dir among them -- are
+   * relative to (main.c joins them the same way). */
+  let manifestDir = '';
 
   function readBootIdentity(bytes) {
     const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
@@ -313,6 +320,7 @@
       const value = line.substring(eq + 1).trim();
       if (key === 'dir') { cacheKey = value; }
       else if (key === 'revision') { cacheRevision = parseInt(value, 10) || 0; }
+      else if (key === 'dir_for_revision') { cacheDirForRevision = value; }
     });
   }
 
@@ -547,6 +555,7 @@
              * the JS5 handshake announces. */
             readBootIdentity(bytes);
             const dir = value.includes('/') ? value.replace(/\/[^/]*$/, '/') : '';
+            manifestDir = dir;
             for (const rel of this.revconfigPaths(bytes)) { await take(dir + rel); }
             // Additional CLI paths keep CLI/CWD semantics; unlike typed
             // revconfig keys they are not relative to the manifest directory.
@@ -603,6 +612,40 @@
     },
   };
 
+  /*
+   * A recording of another revision reads that revision's cache: its packets
+   * name that cache's ids, and the rev-241 one answers a rev-223 obj id with
+   * something else or nothing. The header's second int is the revision
+   * (rsprox_recording.c); the database key and the JS5 handshake both follow
+   * it, so the groups land apart from the boot cache's and the server is asked
+   * for the right ones. main() makes the same swap from the same manifest key.
+   * Before callMain, so no read has used the old key yet.
+   */
+  async function replayCache(bytes) {
+    let head = bytes;
+    if (head.length >= 2 && head[0] === 0x1f && head[1] === 0x8b) {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const reader = stream.getReader();
+      const { value } = await reader.read();
+      reader.cancel().catch(() => null);
+      head = value || new Uint8Array(0);
+    }
+    if (head.length < 8) { return; }
+    const revision = new DataView(head.buffer, head.byteOffset, head.byteLength).getInt32(4);
+    if (!cacheDirForRevision || revision === cacheRevision) { return; }
+    cacheKey = cacheDirForRevision.split('{revision}').join(String(revision));
+    cacheRevision = revision;
+    log(`torirs: replay is revision ${revision}; cache ${cacheKey}`);
+    /* Below 237 the map locs are XTEA-encrypted. The recording's REBUILD keys
+     * open only the squares that have not been re-keyed since; the cache's own
+     * keys open all of them. app.c reads them where main() resolves the cache
+     * directory: the manifest's directory joined with this key. */
+    if (revision < 237 && !(await boot.fetch(`${manifestDir}${cacheKey}/xteas.json`))) {
+      log(`torirs: no ${cacheKey}/xteas.json beside the manifest — map locs open only ` +
+          'where the recording\'s own keys still fit', true);
+    }
+  }
+
   const clientBoot = {
     async start() {
       /*
@@ -652,6 +695,7 @@
           args.push('--replay', `/${REPLAY_PATH}`);
           if (params.get('unlocked') === '1') { args.push('--unlocked'); }
           log(`torirs: replay ${replayUrl} (${kb(bytes.length)})`);
+          await replayCache(bytes);
         } catch (err) {
           log(`torirs: replay ${replayUrl} could not be fetched — ${err && err.message}`, true);
         }

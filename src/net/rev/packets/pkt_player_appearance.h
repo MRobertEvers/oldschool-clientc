@@ -177,7 +177,15 @@ enum AppearanceEncoding
      * obj customisation's worn and head model overrides -- the slot flag has
      * only 0x1 recolour and 0x2 retexture, and nothing follows a 0x4 or 0x8.
      */
-    APPEARANCE_ENC_V3 = 5
+    APPEARANCE_ENC_V3 = 5,
+    /*
+     * osrs222-223: v3 byte for byte, but a worn obj is still the classic
+     * `0x200 + obj`. Those caches ship 248 identity kits, which fit below it;
+     * 224's ship 307, and a kit past 255 would land on an obj, so 224 moved
+     * worn objs to 0x800. Read with v3's tag, a 223 obj is a kit id past the
+     * end of the table and the slot draws nothing.
+     */
+    APPEARANCE_ENC_V2 = 6
 };
 
 /* Wire tags, stated together so a mismatch is one line apart rather than one

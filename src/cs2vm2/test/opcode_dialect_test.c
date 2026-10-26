@@ -212,7 +212,7 @@ test_rs2_switch_hit(void)
     build_wire_switch_script(&src, 42);
 
     struct CS2VM2_Script dst;
-    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, CS2_OPCODE_DIALECT_RS2_DAT2), "copy ok");
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_RS2_634), "copy ok");
     CHECK_EQ(dst.opcodes[1], CS2_OP_SWITCH, "opcodes[1] remapped to SWITCH");
     CHECK_EQ(run_converted_script(&dst), 7, "matched key returns 7");
 
@@ -231,7 +231,7 @@ test_rs2_switch_miss(void)
     src.int_operands[0] = 99;
 
     struct CS2VM2_Script dst;
-    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, CS2_OPCODE_DIALECT_RS2_DAT2), "copy ok");
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_RS2_634), "copy ok");
     CHECK_EQ(run_converted_script(&dst), 0, "unmatched key falls through to 0");
 
     CS2VM2_ScriptFree(&dst);
@@ -247,7 +247,7 @@ test_canonical_leaves_51(void)
     build_wire_switch_script(&src, 42);
 
     struct CS2VM2_Script dst;
-    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, CS2_OPCODE_DIALECT_CANONICAL), "copy ok");
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, &CS2VM2_DIALECT_OSRS), "copy ok");
     CHECK_EQ(dst.opcodes[1], 51, "opcodes[1] still wire 51");
 
     CS2VM2_ScriptFree(&dst);
@@ -257,29 +257,33 @@ test_canonical_leaves_51(void)
 static void
 test_dialect_for_cache(void)
 {
-    printf("TEST: CS2_OpcodeDialectForCache gates on RSCache_IsRs2Dat2\n");
+    printf("TEST: CS2_DialectForCache picks by game and revision\n");
 
     struct RSCache rs2 = RSCache_ProfileZero();
     rs2.game = RSCACHE_GAME_RS2;
     rs2.epoch = RSCACHE_EPOCH_DAT2;
     rs2.revision = 643;
-    CHECK_EQ(
-        (int)CS2_OpcodeDialectForCache(&rs2),
-        (int)CS2_OPCODE_DIALECT_RS2_DAT2,
-        "rs2 dat2 -> RS2_DAT2");
+    CHECK(CS2_DialectForCache(&rs2) == &CS2VM2_DIALECT_RS2_634, "rs2 dat2 -> RS2_634");
 
     struct RSCache osrs = RSCache_ProfileZero();
     osrs.game = RSCACHE_GAME_OLDSCHOOL;
     osrs.epoch = RSCACHE_EPOCH_DAT2;
     osrs.revision = 239;
-    CHECK_EQ(
-        (int)CS2_OpcodeDialectForCache(&osrs),
-        (int)CS2_OPCODE_DIALECT_CANONICAL,
-        "osrs -> CANONICAL");
+    CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS, "osrs 239 -> OSRS");
 
-    CHECK_EQ(CS2_OpcodeTranslate(CS2_OPCODE_DIALECT_RS2_DAT2, 51), CS2_OP_SWITCH, "translate 51");
-    CHECK_EQ(CS2_OpcodeTranslate(CS2_OPCODE_DIALECT_CANONICAL, 51), 51, "canonical identity");
-    CHECK_EQ(CS2_OpcodeTranslate(CS2_OPCODE_DIALECT_RS2_DAT2, 60), 60, "60 unchanged");
+    osrs.revision = 230;
+    CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS_230, "osrs 230 -> OSRS_230");
+    osrs.revision = 231;
+    CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS, "osrs 231 -> OSRS");
+    osrs.revision = 229;
+    CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS_229, "osrs 229 -> OSRS_229");
+    osrs.revision = RSCACHE_REVISION_UNKNOWN;
+    CHECK(CS2_DialectForCache(&osrs) == &CS2VM2_DIALECT_OSRS, "osrs of unknown revision -> OSRS");
+    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_OSRS_229, 51), 51, "osrs 229 identity");
+
+    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_RS2_634, 51), CS2_OP_SWITCH, "translate 51");
+    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_OSRS, 51), 51, "canonical identity");
+    CHECK_EQ(CS2_OpcodeTranslate(&CS2VM2_DIALECT_RS2_634, 60), 60, "60 unchanged");
 }
 
 /* BRANCH_IF_ONE: push value; BRANCH_IF_ONE +2; push 0; RETURN; push 7; RETURN */
@@ -424,7 +428,7 @@ test_rs2_overlay_entry(
     memset(&error, 0, sizeof(error));
     CS2VM2_ScriptInit(&script);
     script.script_id = 634000 + opcode;
-    script.rs2_dialect = true;
+    script.dialect = &CS2VM2_DIALECT_RS2_634;
     script.op_count = 1;
     script.opcodes = &wire_opcode;
     script.int_operands = &operand;
@@ -447,6 +451,173 @@ test_rs2_overlay_entry(
     CHECK_EQ(thread->ints_stack_top, int_out, "RS2 overlay int stack signature");
     CHECK_EQ(thread->strs_stack_top, str_out, "RS2 overlay string stack signature");
     CS2VM2_Free(&vm);
+}
+
+/* What the CC_CREATE host saw. */
+struct CreateHost
+{
+    int calls;
+    int parent_id;
+    int component_type;
+    int child_index;
+    int is_nested;
+};
+
+static int
+create_host_exec(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request)
+{
+    struct CreateHost* host = (struct CreateHost*)CS2VM_USER(vm);
+    if( request->kind != CS2VM_HOST_REQUEST_CC_CREATE )
+        return CS2VM_EXECNO_ERROR;
+    host->calls++;
+    host->parent_id = request->u.CC_CREATE.parent_id;
+    host->component_type = request->u.CC_CREATE.component_type;
+    host->child_index = request->u.CC_CREATE.child_index;
+    host->is_nested = request->u.CC_CREATE.is_nested;
+    return CS2VM_EXECNO_OK;
+}
+
+/* push parent, type, index[, nested]; CC_CREATE; RETURN -- under `dialect`. */
+static void
+test_cc_create_arity(
+    struct CS2VM2_Dialect const* dialect,
+    int pushes_nested,
+    char const* label)
+{
+    struct RSCache_CS2_Script src;
+    struct CS2VM2_Script dst;
+    struct CreateHost host;
+    struct CS2VM2 vm;
+    int n = 0;
+
+    printf("TEST: CC_CREATE arity, %s\n", label);
+    RSCache_CS2_ScriptInit(&src);
+    src.script_id = 3953;
+    src.op_count = pushes_nested ? 6 : 5;
+    src.opcodes = calloc((size_t)src.op_count, sizeof(uint16_t));
+    src.int_operands = calloc((size_t)src.op_count, sizeof(int));
+    src.string_operands = calloc((size_t)src.op_count, sizeof(char*));
+    assert(src.opcodes && src.int_operands && src.string_operands);
+    src.int_operands[n] = 10551300; /* parent 161:4 */
+    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    src.int_operands[n] = 5; /* type: graphic */
+    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    src.int_operands[n] = 3; /* index */
+    src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    if( pushes_nested )
+    {
+        src.int_operands[n] = 1;
+        src.opcodes[n++] = CS2_OP_PUSH_CONSTANT_INT;
+    }
+    src.opcodes[n++] = CS2_OP_CC_CREATE;
+    src.opcodes[n++] = CS2_OP_RETURN;
+
+    CHECK(CS2VM2_ScriptCopyFromRSCache(&src, &dst, dialect), "copy ok");
+    memset(&host, 0, sizeof(host));
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &host, create_host_exec);
+    struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_PushCallScript(thread, &dst);
+    CS2VM2_RunScript(thread);
+    CHECK_EQ(host.calls, 1, label);
+    CHECK_EQ(host.parent_id, 10551300, label);
+    CHECK_EQ(host.component_type, 5, label);
+    CHECK_EQ(host.child_index, 3, label);
+    CHECK_EQ(host.is_nested, pushes_nested ? 1 : 0, label);
+    CHECK_EQ(thread->ints_stack_top, 0, label);
+
+    CS2VM2_Free(&vm);
+    CS2VM2_ScriptFree(&dst);
+    free_wire_script(&src);
+}
+
+/* The callee a GOSUB in test_array_model reaches. */
+static struct CS2VM2_Script* g_gosub_callee;
+
+static int
+gosub_host_exec(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest* request)
+{
+    if( request->kind != CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
+        return CS2VM_EXECNO_ERROR;
+    CS2VM2_PushCallScript(vm, g_gosub_callee);
+    return CS2VM_EXECNO_OK;
+}
+
+/* A script of `count` ops from parallel opcode/operand lists. */
+static void
+build_ops(
+    struct CS2VM2_Script* script,
+    int id,
+    struct CS2VM2_Dialect const* dialect,
+    uint16_t const* opcodes,
+    int const* operands,
+    int count)
+{
+    CS2VM2_ScriptInit(script);
+    script->script_id = id;
+    script->dialect = dialect;
+    script->op_count = count;
+    script->local_string_count = 1;
+    script->opcodes = calloc((size_t)count, sizeof(uint16_t));
+    script->int_operands = calloc((size_t)count, sizeof(int));
+    script->string_operands = calloc((size_t)count, sizeof(char*));
+    assert(script->opcodes && script->int_operands && script->string_operands);
+    memcpy(script->opcodes, opcodes, (size_t)count * sizeof(uint16_t));
+    memcpy(script->int_operands, operands, (size_t)count * sizeof(int));
+}
+
+/*
+ * Caller: def_int $a(3); $a(1) = 42; gosub callee; return.
+ * Callee: push $a(1) -- array 0, never defined or received here; return.
+ * Numbered arrays (OldSchool through 230) are shared, so the callee reads 42
+ * (script 2255's recursive sort depends on it); a handle lives in the frame
+ * that defined it, so the native dialect reads nothing (0). An int array
+ * starts at 0 either way, so $a(0) reads 0, not -1.
+ */
+static void
+test_array_model(
+    struct CS2VM2_Dialect const* dialect,
+    int want,
+    char const* label)
+{
+    uint16_t const caller_ops[] = { CS2_OP_PUSH_CONSTANT_INT, CS2_OP_DEFINE_ARRAY,
+        CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_POP_ARRAY_INT,
+        CS2_OP_GOSUB_WITH_PARAMS, CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_ARRAY_INT, CS2_OP_RETURN };
+    int const caller_operands[] = { 3, (0 << 16) | 'i', 1, 42, 0, 2256, 0, 0, 0 };
+    uint16_t const callee_ops[] = { CS2_OP_PUSH_CONSTANT_INT, CS2_OP_PUSH_ARRAY_INT, CS2_OP_RETURN };
+    int const callee_operands[] = { 1, 0, 0 };
+    struct CS2VM2_Script caller;
+    struct CS2VM2_Script callee;
+    struct CS2VM2 vm;
+    int unset = -7;
+    int got = -7;
+
+    printf("TEST: array model, %s\n", label);
+    build_ops(&caller, 2255, dialect, caller_ops, caller_operands, 9);
+    build_ops(&callee, 2256, dialect, callee_ops, callee_operands, 3);
+    g_gosub_callee = &callee;
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, NULL, gosub_host_exec);
+    struct CS2VM2_Thread* thread = CS2VM2_ThreadMain(&vm);
+    CS2VM2_PushCallScript(thread, &caller);
+    CS2VM2_RunScript(thread);
+    CHECK_EQ(thread->ints_stack_top, 2, label);
+    CS2VM2_PopInt(thread, &unset);
+    CS2VM2_PopInt(thread, &got);
+    CHECK_EQ(got, want, label);
+    CHECK_EQ(unset, 0, "an int array starts at 0");
+
+    CS2VM2_Free(&vm);
+    for( struct CS2VM2_Script* s = &caller; s; s = s == &caller ? &callee : NULL )
+    {
+        free(s->opcodes);
+        free(s->int_operands);
+        free(s->string_operands);
+    }
 }
 
 static void
@@ -487,6 +658,11 @@ main(void)
         CS2VM_HOST_REQUEST_PUSH_VARC_STRING,
         "PUSH/POP_VARC_STRING (49/50)");
     test_rs2_overlay_binary_lookup();
+    test_cc_create_arity(&CS2VM2_DIALECT_OSRS, 1, "rev 230+ pops the nested flag");
+    test_cc_create_arity(&CS2VM2_DIALECT_OSRS_229, 0, "rev 229 and below pop three");
+    test_cc_create_arity(&CS2VM2_DIALECT_RS2_634, 0, "RS2 pops three");
+    test_array_model(&CS2VM2_DIALECT_OSRS_230, 42, "rev 230 and below share numbered arrays");
+    test_array_model(&CS2VM2_DIALECT_OSRS, 0, "rev 231+ keeps a handle in its frame");
 
     if( g_fail )
     {

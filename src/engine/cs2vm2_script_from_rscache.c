@@ -10,7 +10,7 @@
 static void
 cs2vm2_script_translate_opcodes(
     struct CS2VM2_Script* dst,
-    enum CS2_OpcodeDialect dialect)
+    struct CS2VM2_Dialect const* dialect)
 {
     assert(dst);
     assert(dst->opcodes || dst->op_count == 0);
@@ -122,7 +122,7 @@ bool
 CS2VM2_ScriptFromRSCache(
     struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst,
-    enum CS2_OpcodeDialect dialect)
+    struct CS2VM2_Dialect const* dialect)
 {
     assert(src);
     assert(dst);
@@ -132,6 +132,7 @@ CS2VM2_ScriptFromRSCache(
 
     CS2VM2_ScriptInit(dst);
     dst->script_id = src->script_id;
+    dst->dialect = dialect;
     /* The decoder's arrays become the script's: taken from RSCache into
      * SCRIPT, where CS2VM2_ScriptFree releases them. */
     dst->signature = src->signature ? ToriMem_TakeStrFromRSCache(ToriMem_Script(), src->signature) : NULL;
@@ -173,7 +174,7 @@ bool
 CS2VM2_ScriptCopyFromRSCache(
     const struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst,
-    enum CS2_OpcodeDialect dialect)
+    struct CS2VM2_Dialect const* dialect)
 {
     assert(src);
     assert(dst);
@@ -183,7 +184,7 @@ CS2VM2_ScriptCopyFromRSCache(
 
     CS2VM2_ScriptInit(dst);
     dst->script_id = src->script_id;
-    dst->rs2_dialect = dialect == CS2_OPCODE_DIALECT_RS2_DAT2;
+    dst->dialect = dialect;
     dst->signature = NULL;
     dst->local_int_count = src->local_int_count;
     dst->local_string_count = src->local_string_count;

@@ -93,6 +93,23 @@ ToriRS_WebApi_ArchiveDecode(
 }
 
 /**
+ * The key a map archive decrypts with, or NULL.
+ *
+ * A web cache ships no xteas.json; below rev 237 the keys arrive the way a
+ * real client receives them, in REBUILD_*, and the loc load binds each
+ * square's key to the group it resolved (RSCache_XteaConfigBindSquare) before
+ * the read. The pointer is rscache's and stays valid until the next key is
+ * added, which cannot happen while a decode is in flight on this thread.
+ */
+EMSCRIPTEN_KEEPALIVE uint32_t*
+ToriRS_WebApi_XteaKey(
+    int table_id,
+    int archive_id)
+{
+    return (uint32_t*)RSCache_XteaConfigFindKey(table_id, archive_id);
+}
+
+/**
  * The disk table id this cache's branch keeps a logical table at.
  *
  * The client addresses tables by ROLE (`enum RSCache_Dat2Table`) and the cache

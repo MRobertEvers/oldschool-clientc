@@ -1,6 +1,7 @@
 #include "xtea_config.h"
 #include "rscache_alloc.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -138,6 +139,7 @@ RSCache_XteaConfigLoadKeys(const char* filename)
     FILE* file = fopen(filename, "rb");
     if( !file )
         return -1;
+    RSCache_XteaConfigCleanupKeys();
 
     fseek(file, 0, SEEK_END);
     long size = ftell(file);
@@ -196,6 +198,56 @@ RSCache_XteaConfigFindKey(
             return xtea_keys[i].key;
     }
     return NULL;
+}
+
+void
+RSCache_XteaConfigPutSquareKey(
+    int map_x,
+    int map_z,
+    const int32_t key[4])
+{
+    int mapsquare = (map_x << 8) | map_z;
+
+    assert(key);
+    for( int i = 0; i < xtea_key_count; i++ )
+    {
+        if( xtea_keys[i].mapsquare == mapsquare )
+            return;
+    }
+    if( !xtea_keys )
+    {
+        xtea_keys = RSCACHE_MALLOC(MAX_XTEA_KEYS * sizeof(struct XteaKey));
+        assert(xtea_keys);
+        xtea_key_count = 0;
+    }
+    assert(xtea_key_count < MAX_XTEA_KEYS);
+    struct XteaKey* entry = &xtea_keys[xtea_key_count++];
+    memset(entry, 0, sizeof(*entry));
+    entry->archive = -1;
+    entry->group = -1;
+    entry->mapsquare = mapsquare;
+    memcpy(entry->key, key, sizeof(entry->key));
+}
+
+int
+RSCache_XteaConfigBindSquare(
+    int map_x,
+    int map_z,
+    int archive,
+    int group)
+{
+    int mapsquare = (map_x << 8) | map_z;
+
+    for( int i = 0; i < xtea_key_count; i++ )
+    {
+        if( xtea_keys[i].mapsquare == mapsquare )
+        {
+            xtea_keys[i].archive = archive;
+            xtea_keys[i].group = group;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 void

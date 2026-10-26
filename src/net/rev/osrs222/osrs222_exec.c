@@ -4096,7 +4096,7 @@ exec_has(int out_name)
 static int
 appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)
 {
-    return PktPlayerAppearance_DecodeAs(o, APPEARANCE_ENC_V3, d, l);
+    return PktPlayerAppearance_DecodeAs(o, APPEARANCE_ENC_V2, d, l);
 }
 
 static int

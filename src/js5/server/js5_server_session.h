@@ -32,9 +32,20 @@ enum Js5ServerSessionError
     JS5_SERVER_SESSION_ERROR_NO_MEMORY,
 };
 
+/* Another revision the server serves, and the cache it serves it from
+ * (js5_server --cache-for): a handshake naming it is answered from it. */
+struct Js5ServerSessionAlternate
+{
+    uint32_t revision;
+    struct Js5ServerCache* cache;
+};
+
 struct Js5ServerSessionConfig
 {
     uint32_t revision;
+    /* Borrowed; outlives every session made with this config. */
+    const struct Js5ServerSessionAlternate* alternates;
+    uint32_t alternate_count;
     uint32_t max_pending_per_lane;
     uint32_t handshake_timeout_ms;
     uint32_t idle_timeout_ms;

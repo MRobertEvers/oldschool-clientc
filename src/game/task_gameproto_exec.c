@@ -9,6 +9,9 @@
 #include "task_exec_entity_info.h"
 #include "engine/world_builder/task_world_load.h"
 #include "world/world.h"
+#include "log/torirs_log.h"
+
+#include <rscache.h>
 
 #include <assert.h>
 #include <stdlib.h>
@@ -155,6 +158,31 @@ rebuild_instance_compute_chunks(
     }
 }
 
+/*
+ * The loc keys a REBUILD carries below rev 237, one per square in the order
+ * the squares were just listed: the deob's x-major walk for a normal rebuild,
+ * first sight in the zone grid for a region one -- the order the server wrote
+ * them in. The loc load binds each to its group (task_dat2_map_load.c).
+ *
+ * A count that disagrees means the two walks disagree, and pairing anyway
+ * would hand every square its neighbour's key: say so and use none.
+ */
+static void
+rebuild_put_keys(struct Task_GameProtoExec* self)
+{
+    struct PktMapRebuild const* p = &self->packet._map_rebuild;
+
+    if( p->region_count != self->chunk_count )
+    {
+        TORIRS_ERR("rebuild: %d xtea keys for %d map squares; keys ignored\n", p->region_count,
+                   self->chunk_count);
+        return;
+    }
+    for( int i = 0; i < p->region_count; i++ )
+        RSCache_XteaConfigPutSquareKey(
+            self->chunks[i * 2], self->chunks[i * 2 + 1], &p->region_keys[i * 4]);
+}
+
 static int
 Task_GameProtoExec_Run(
     struct ToriRS_Task* base,
@@ -211,6 +239,8 @@ Task_GameProtoExec_Run(
             rebuild_instance_compute_chunks(self, self->packet._map_rebuild.zones);
         else
             rebuild_compute_chunks(self);
+        if( self->packet._map_rebuild.region_count > 0 )
+            rebuild_put_keys(self);
         /* Kept for the plugins: @see App::rebuild_instance_zones. */
         _Static_assert(
             sizeof(app->rebuild_instance_zones) ==

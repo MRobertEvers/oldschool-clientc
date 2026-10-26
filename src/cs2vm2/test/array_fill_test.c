@@ -37,12 +37,14 @@ static void check(int type,int value,int offset,int count,const char* text,
 }
 int main(void)
 {
-    int all[]={-1,-1,-1,-1},part[]={-1,7,7,-1},ones[]={1,1,1,1},strpart[]={0,1,1,0},empty[]={0,0,0,0};
+    /* An int array starts at 0 and a dbrow one at -1 (the rev-239 deob's
+     * DEFINE_ARRAY), so unfilled int cells read 0. */
+    int all[]={-1,-1,-1,-1},part[]={0,7,7,0},ones[]={1,1,1,1},strpart[]={0,1,1,0},empty[]={0,0,0,0};
     check(0,-1,0,-1,NULL,all,0); /* native facilities call */
     check(0,7,1,2,NULL,part,0);
     check(0,1,-20,INT_MAX,NULL,ones,0);
-    check(0,9,4,-1,NULL,all,0);
-    check(0,9,0,0,NULL,all,0);
+    check(0,9,4,-1,NULL,empty,0);
+    check(0,9,0,0,NULL,empty,0);
     check(0,9,5,0,NULL,all,1);
     check(2,0,1,2,"crew",strpart,0);
     check(2,0,-1,-1,"cargo",ones,0);

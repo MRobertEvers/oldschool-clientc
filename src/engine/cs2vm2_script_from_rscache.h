@@ -16,7 +16,7 @@ bool
 CS2VM2_ScriptFromRSCache(
     struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst,
-    enum CS2_OpcodeDialect dialect);
+    struct CS2VM2_Dialect const* dialect);
 
 /**
  * Deep-copies src into dst; src is unchanged. Returns false if op_count <= 0.
@@ -27,6 +27,6 @@ bool
 CS2VM2_ScriptCopyFromRSCache(
     const struct RSCache_CS2_Script* src,
     struct CS2VM2_Script* dst,
-    enum CS2_OpcodeDialect dialect);
+    struct CS2VM2_Dialect const* dialect);
 
 #endif

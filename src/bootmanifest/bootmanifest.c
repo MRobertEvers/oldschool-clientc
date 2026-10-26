@@ -627,6 +627,19 @@ bm_set_kv(
             bm_join_path(bm->cache_dir, sizeof(bm->cache_dir), manifest_dir, value);
             return;
         }
+        if( strcmp(key, "dir_for_revision") == 0 )
+        {
+            if( !strstr(value, "{revision}") )
+            {
+                TORIRS_LOG("bootmanifest: [cache] dir_for_revision needs {revision}, got '%s'\n",
+                    value);
+                return;
+            }
+            bm_join_path(
+                bm->cache_dir_for_revision, sizeof(bm->cache_dir_for_revision), manifest_dir,
+                value);
+            return;
+        }
         if( strcmp(key, "source") == 0 )
         {
             if( strcmp(value, "disk") == 0 )
@@ -1573,6 +1586,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->cache_kind = (enum AppCacheKind)bm->cache_kind;
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
+    if( bm->cache_dir_for_revision[0] )
+        cfg->cache_dir_for_revision = bm->cache_dir_for_revision;
     if( bm->io_host[0] )
         snprintf(cfg->io_host, sizeof(cfg->io_host), "%s", bm->io_host);
     if( bm->io_port > 0 )

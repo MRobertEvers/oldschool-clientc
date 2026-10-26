@@ -7040,7 +7040,43 @@ main_rsprox_replay_open(void)
                    rsprox_replay_path, rsprox_replay_rec.revision);
         return 0;
     }
-    if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )
+    /* Its packets name that revision's cache ids, so it reads that revision's
+     * cache when the manifest says where one lives (torirs_host.js makes the
+     * same swap for the browser's database and JS5 handshake). */
+    if( cfg.cache_dir_for_revision && cfg.cache_identity_set &&
+        cfg.cache_revision != rsprox_replay_rec.revision )
+    {
+        static char replay_cache_dir[512];
+        char const* hole = strstr(cfg.cache_dir_for_revision, "{revision}");
+
+        assert(hole);
+        snprintf(replay_cache_dir, sizeof(replay_cache_dir), "%.*s%d%s",
+                 (int)(hole - cfg.cache_dir_for_revision), cfg.cache_dir_for_revision,
+                 rsprox_replay_rec.revision, hole + strlen("{revision}"));
+#if !defined(TORIRS_PLATFORM_WEB)
+        {
+            char probe_path[600];
+            FILE* probe;
+
+            snprintf(probe_path, sizeof(probe_path), "%s/main_file_cache.dat2", replay_cache_dir);
+            probe = fopen(probe_path, "rb");
+            if( !probe )
+            {
+                TORIRS_ERR("replay: %s is a revision %d recording and there is no cache at %s "
+                           "(tools/fetch_cache_osrs.sh %d)\n",
+                           rsprox_replay_path, rsprox_replay_rec.revision, replay_cache_dir,
+                           rsprox_replay_rec.revision);
+                return 0;
+            }
+            fclose(probe);
+        }
+#endif
+        TORIRS_REPORT("replay: the recording is %s; it boots its own cache, %s\n", rev_name,
+                      replay_cache_dir);
+        cfg.cache_dir = replay_cache_dir;
+        cfg.cache_revision = rsprox_replay_rec.revision;
+    }
+    else if( cfg.rev_name && cfg.rev_name[0] && strcmp(cfg.rev_name, rev_name) != 0 )
         TORIRS_REPORT("replay: the recording is %s; it replaces the boot's %s (the cache stays "
                       "the manifest's)\n",
                       rev_name, cfg.rev_name);

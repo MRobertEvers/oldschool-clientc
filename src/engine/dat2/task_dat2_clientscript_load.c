@@ -46,7 +46,7 @@ Task_Dat2ClientScriptLoad_Run(
     if( !CS2VM2_ScriptCopyFromRSCache(
             &rscache_script->script,
             vm_script,
-            CS2_OpcodeDialectForCache(CacheProvider_Profile(&task->bc->base)) ) )
+            CS2_DialectForCache(CacheProvider_Profile(&task->bc->base)) ) )
     {
         TORIRS_ERR("Failed to convert dat2 clientscript %d\n", task->script_id);
         ToriMem_Free(ToriMem_Script(), vm_script);

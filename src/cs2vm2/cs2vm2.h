@@ -324,6 +324,9 @@ struct CS2VM2_Thread
      * is the bump allocator, reset per top-level run like the string pool. */
     struct CS2VM2_Array arrays[CS2VM2_MAX_ARRAYS];
     int array_alloc;
+    /* A dialect without array handles (OldSchool through 230) numbers its
+     * arrays and every frame of the run shares them: the handle of array N. */
+    char* shared_arrays[CS2VM2_SHARED_ARRAYS];
 
     /* Backing storage for every string this thread makes — stack strings, frame
      * string locals, and the strings handed to host requests. Released as a unit
