@@ -9,7 +9,12 @@ packet_update_friendchat_channel_full_v1_v1_out(RsprotExec *x, MsgUpdateFriendch
         RSPROT_JSTR(x, m->channel_owner);
         RSPROT_U8(x, m->channel_name);
         RSPROT_U1(x, m->kick_rank);
-        RSPROT_COUNT_AS(x, I1, m->entry_count, MSG_FRIENDCHAT_V1_MAX_ENTRIES);
+        /* A negative count reads no entries, as RSProx's 0..<count does. */
+        RSPROT_I1(x, m->entry_count);
+        if (m->entry_count > MSG_FRIENDCHAT_V1_MAX_ENTRIES) {
+            rsprot_exec_fail(x, "UPDATE_FRIENDCHAT_CHANNEL_FULL_V1: too many entries");
+            return;
+        }
         for (int32_t k = 0; k < m->entry_count; k++) {
             RSPROT_JSTR(x, m->entries[k].name);
             RSPROT_U2(x, m->entries[k].world_id);
