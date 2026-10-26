@@ -668,7 +668,7 @@ player_apply_op(
             idx,
             entity_id,
             op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
-            op->face_entity.instant);
+            op->face_entity.has_fallback_angle && op->face_entity.instant);
         break;
     }
     case RSPROT_OP_FACE_COORD:
@@ -1488,7 +1488,7 @@ npc_apply_op(
                 idx,
                 entity_id,
                 op->face_entity.has_fallback_angle ? op->face_entity.fallback_angle : -1,
-                op->face_entity.instant);
+                op->face_entity.has_fallback_angle && op->face_entity.instant);
             entity_debug_log("entity_sync: npc %d faces entity %d\n", self->cur_slot, entity_id);
         }
         break;

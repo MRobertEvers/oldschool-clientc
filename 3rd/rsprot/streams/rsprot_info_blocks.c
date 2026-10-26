@@ -671,6 +671,7 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
         op = rsprot_info_emit(t->out, RSPROT_OP_FACE_ENTITY);
         op->face_entity.entity_id = -1;
         op->face_entity.target_index = -1;
+        op->face_entity.instant = instant;
     } else {
         t->b->err |= RSPROT_BUF_ERR_RANGE; /* no such kind */
         return block_end(t, before, RSPROT_IK_FACING, bit);

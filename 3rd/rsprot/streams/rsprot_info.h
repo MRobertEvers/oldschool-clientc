@@ -360,7 +360,7 @@ typedef struct RsprotInfoFaceEntity
     int32_t entity_id;
     uint16_t fallback_angle;
     bool has_fallback_angle; /* false: the 238+ block's reset */
-    bool instant;
+    bool instant;            /* as sent: a reset carries one too */
     uint8_t movement_mode;
     bool modern; /* the 238+ facing block */
     /** As sent. The older block: `target_type` 0 and its 24-bit index
