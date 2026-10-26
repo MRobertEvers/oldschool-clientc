@@ -87,8 +87,8 @@ rev_appearance_decode(
  *
  *  - Most fixed-layout packets reshuffled their field order and byte
  *    transforms. The generated codecs carry a 241 row for each
- *    (3rd/rsprot/spec/packets); the client -> server op packets are one
- *    table both ends run (clientprot.h).
+ *    (3rd/rsprot/spec/packets), and the client writes its packets through
+ *    them (net/proto/proto_out.c).
  *
  *  - CAM_MOVETO_V2 / CAM_LOOKAT_V2 were deleted; the canonical packets are the
  *    V3 prots (one extra height-relative byte). NPC_INFO is NPC_INFO_*_V6, a

@@ -1,8 +1,8 @@
-#ifndef SRC_NET_REV_OSRS241_OSRS241_CLIENTPROT_H
-#define SRC_NET_REV_OSRS241_OSRS241_CLIENTPROT_H
+#ifndef SRC_TORIRSSERVER_WIRE_OSRS241_CLIENTPROT_H
+#define SRC_TORIRSSERVER_WIRE_OSRS241_CLIENTPROT_H
 
 /*
- * Run one of revision 241's generated client -> server layouts (clientprot.h)
+ * Run one of revision 241's client -> server layouts (osrs241_clientprot_table.h)
  * in either direction.
  *
  * The client builds a packet by filling `vals[role]` and calling
@@ -12,7 +12,7 @@
  * failure every hand-transcribed 239 pair had to be checked for by eye.
  */
 
-#include "clientprot.h"
+#include "osrs241_clientprot_table.h"
 
 #include <stdint.h>
 

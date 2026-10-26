@@ -679,7 +679,7 @@ RS_INFO_OBJS = $(patsubst net/rev/rs/%.c,$(OBJ_DIR)/%.o,$(RS_INFO_SRCS))
 # is read, so $(TARGET): $(OBJS) would otherwise link them without building
 # them.
 PROTO_SRCS = net/proto/proto_rev.c net/proto/proto_canon.c \
-	net/proto/proto_in.c net/proto/proto_reconnect.c
+	net/proto/proto_in.c net/proto/proto_reconnect.c net/proto/proto_out.c
 PROTO_OBJS = $(patsubst net/proto/%.c,$(OBJ_DIR)/%.o,$(PROTO_SRCS))
 
 SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
@@ -914,7 +914,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c \
 	net/loginproto_osrs241.c \
 	net/rev/osrs241/gameproto_rev_osrs241.c net/rev/osrs241/osrs241_parse.c \
-	net/rev/osrs241/osrs241_entity_info.c net/rev/osrs241/osrs241_clientprot.c \
+	net/rev/osrs241/osrs241_entity_info.c torirsserver/wire/osrs241_clientprot.c \
 	$(PROTO_SRCS) \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 	revconfig/revconfig_profile.c \
@@ -993,7 +993,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_wire241.c \
 	torirsserver/mock241_inbound.c \
 	torirsserver/mock241_playerinfo.c \
-	net/rev/osrs241/osrs241_clientprot.c \
+	torirsserver/wire/osrs241_clientprot.c \
 	torirsserver/torirs_server_objinfo.c \
 	torirsserver/torirs_server_split.c \
 	torirsserver/torirs_server_runenergy.c \
@@ -1045,7 +1045,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
 	net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/bitbuffer.c \
-	net/rev/osrs241/osrs241_clientprot.c \
+	torirsserver/wire/osrs241_clientprot.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
 	platform/net_transport_ws_handshake.c \
@@ -3720,6 +3720,14 @@ test-net-out-clientscript-packets: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/net_out_clientscript_packets_test \
 		net/test/net_out_clientscript_packets_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_out_clientscript_packets_test
+
+# Every client packet writer at every revision, as bytes (net/test/net_out_dump.c):
+# diff two commits' output to see what a change to net_out.c sends.
+.PHONY: net-out-dump
+net-out-dump: $(OBJ_DIR) $(OBJS)
+	@$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_out_dump \
+		net/test/net_out_dump.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
+	@./$(OBJ_DIR)/net_out_dump
 
 test-net-out-resume: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_out_resume_test \
@@ -6666,7 +6674,7 @@ test-loc-ops-wire: $(OBJ_DIR) $(RSPROT_TEST_DEPS) $(OBJ_DIR)/rsprot_packets_unit
 		torirsserver/test/loc_ops_wire_test.c \
 		torirsserver/torirs_server_wire.c torirsserver/torirs_server_loc_ops.c \
 		torirsserver/torirs_server_wire241.c torirsserver/mock241_inbound.c \
-		net/rev/osrs241/osrs241_clientprot.c \
+		torirsserver/wire/osrs241_clientprot.c \
 		torirsserver/torirs_server_interface_state.c torirsserver/mock239_interface_setters.c \
 		torirsserver/mock239_runclientscript.c torirsserver/mock239_varp.c \
 		torirsserver/mock239_inbound.c torirsserver/mock239_interface_inbound.c \
@@ -6719,7 +6727,7 @@ test-content-name-index: $(OBJ_DIR)
 # saying so.
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
-		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
@@ -6735,7 +6743,7 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 .PHONY: test-embed-party-link
 test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
-		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
@@ -6747,7 +6755,7 @@ test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/c
 # machine, not by the server checking its own arithmetic.
 test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginIndexTest \
-		torirsserver/test/login_index_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_index_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginIndexTest
@@ -6756,7 +6764,7 @@ test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OB
 # client holds, only to the session's own key, and never seats a second copy.
 test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_ReconnectClaimTest \
-		torirsserver/test/reconnect_claim_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/reconnect_claim_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
@@ -6767,7 +6775,7 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # over the session playing, development mode lets anything in.
 test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
-		torirsserver/test/login_password_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c net/rev/osrs241/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_password_test.c $(filter-out net/rev/osrs239/osrs239_entity_info.c net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest

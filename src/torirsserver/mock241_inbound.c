@@ -2,7 +2,7 @@
 
 #include "torirsserver/mock239_inbound.h"
 #include "torirsserver/mock239_interface_inbound.h"
-#include "net/rev/osrs241/osrs241_clientprot.h"
+#include "torirsserver/wire/osrs241_clientprot.h"
 #include "net/rev/pktnames.h"
 
 #include <assert.h>
@@ -14,7 +14,7 @@
  * handlers read -- a COPY of mock239_inbound.c's job, done differently.
  *
  * Every fixed-layout 241 client prot is read through the SAME generated table
- * the client writes it with (net/rev/osrs241/clientprot.h, from RSProx's
+ * the client writes it with (torirsserver/wire/osrs241_clientprot_table.h, from RSProx's
  * osrs-241 decoders), by role. Two transcriptions of one packet cannot
  * disagree when there is only one.
  *

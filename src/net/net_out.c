@@ -3,7 +3,7 @@
 
 #include "jbase37.h"
 #include "wordpack.h"
-#include "rev/osrs241/osrs241_clientprot.h"
+#include "net/proto/proto_out.h"
 
 #include <rsbuffer.h>
 #include <string.h>
@@ -72,123 +72,13 @@ out_begin(
 }
 
 
-/* ------------------------------------------------------------------ */
-/* Revision 241                                                         */
-/* ------------------------------------------------------------------ */
-
 /*
- * Revision 241's fixed-layout client prots are not spelled out here field by
- * field the way 239's are below. They are ONE generated table
- * (net/rev/osrs241/clientprot.h, from RSProx's osrs-241 decoders) that the
- * server's reader runs too (src/torirsserver/mock241_inbound.c), so a 241
- * packet is filled by ROLE -- "x", "z", "id", "controlKey" -- and the table
- * decides the order and the byte transforms.
- *
- * Every function in this file with a 239 branch has a 241 branch ahead of it
- * that comes here; the 239 code is untouched.
+ * The OSRS revisions write through RSProt (net/proto/proto_out.h): each writer
+ * below says what its packet means -- fills a struct ProtoOutArgs -- and
+ * proto_encode lays it out the way the revision does, version, field order
+ * and byte transforms included. The bodies that follow a writer's RSProt
+ * branch are the LostCity revisions' (and osrs230's) until those move too.
  */
-static int
-is_osrs241(struct GameProtoRevTable const* rev)
-{
-    return rev && rev->revision == GAMEPROTO_REVISION_OSRS241;
-}
-
-/** Write one 241 layout as the whole payload of `out_name`. */
-static int
-out241(
-    struct GameProtoRevTable const* rev,
-    struct Isaac* random_out,
-    uint8_t* buf,
-    int cap,
-    int out_name,
-    struct Osrs241CpLayout const* layout,
-    int32_t const vals[OSRS241_CP_ROLE_COUNT])
-{
-    struct RSCache_Buffer b;
-    int n = osrs241_cp_bytes(layout);
-
-    assert(layout->size == n);
-    if( out_begin(rev, random_out, buf, cap, out_name, n, &b) < 0 )
-        return -1;
-    b.position += (uint32_t)osrs241_cp_write(layout, vals, b.data + b.position,
-                                             (int)(b.size - b.position));
-    return 1 + (int)b.position;
-}
-
-/** A var-byte prot whose body is one fixed 241 layout plus `trailer_len` bytes
- *  the caller writes after it (the movement packets). Returns the buffer
- *  position after the layout, with `*b` armed for the trailer. */
-static int
-out241_var_u8_begin(
-    struct GameProtoRevTable const* rev,
-    struct Isaac* random_out,
-    uint8_t* buf,
-    int cap,
-    int out_name,
-    struct Osrs241CpLayout const* layout,
-    int32_t const vals[OSRS241_CP_ROLE_COUNT],
-    int trailer_len,
-    struct RSCache_Buffer* b)
-{
-    int n = osrs241_cp_bytes(layout);
-
-    assert(layout->size == -1);
-    if( out_begin(rev, random_out, buf, cap, out_name, 1 + n + trailer_len, b) < 0 )
-        return -1;
-    p1(b, n + trailer_len);
-    b->position += (uint32_t)osrs241_cp_write(layout, vals, b->data + b->position,
-                                              (int)(b->size - b->position));
-    return 0;
-}
-
-static struct Osrs241CpLayout const*
-osrs241_oploc_layout(int op_num)
-{
-    static struct Osrs241CpLayout const* const k[5] = {
-        &g_osrs241_cp_oploc1_v2, &g_osrs241_cp_oploc2_v2, &g_osrs241_cp_oploc3_v2,
-        &g_osrs241_cp_oploc4_v2, &g_osrs241_cp_oploc5_v2,
-    };
-    assert(op_num >= 1);
-    assert(op_num <= 5);
-    return k[op_num - 1];
-}
-
-static struct Osrs241CpLayout const*
-osrs241_opobj_layout(int op_num)
-{
-    static struct Osrs241CpLayout const* const k[5] = {
-        &g_osrs241_cp_opobj1_v2, &g_osrs241_cp_opobj2_v2, &g_osrs241_cp_opobj3_v2,
-        &g_osrs241_cp_opobj4_v2, &g_osrs241_cp_opobj5_v2,
-    };
-    assert(op_num >= 1);
-    assert(op_num <= 5);
-    return k[op_num - 1];
-}
-
-static struct Osrs241CpLayout const*
-osrs241_opnpc_layout(int op_num)
-{
-    static struct Osrs241CpLayout const* const k[5] = {
-        &g_osrs241_cp_opnpc1_v2, &g_osrs241_cp_opnpc2_v2, &g_osrs241_cp_opnpc3_v2,
-        &g_osrs241_cp_opnpc4_v2, &g_osrs241_cp_opnpc5_v2,
-    };
-    assert(op_num >= 1);
-    assert(op_num <= 5);
-    return k[op_num - 1];
-}
-
-static struct Osrs241CpLayout const*
-osrs241_opplayer_layout(int op_num)
-{
-    static struct Osrs241CpLayout const* const k[8] = {
-        &g_osrs241_cp_opplayer1, &g_osrs241_cp_opplayer2, &g_osrs241_cp_opplayer3,
-        &g_osrs241_cp_opplayer4, &g_osrs241_cp_opplayer5, &g_osrs241_cp_opplayer6,
-        &g_osrs241_cp_opplayer7, &g_osrs241_cp_opplayer8,
-    };
-    assert(op_num >= 1);
-    assert(op_num <= 8);
-    return k[op_num - 1];
-}
 
 /*
  * IF_BUTTONX — the packet twenty-two canonical names collapse into.
@@ -213,17 +103,15 @@ out_if_buttonx(
     int sub,
     int obj_id)
 {
-    struct RSCache_Buffer b;
+    struct ProtoOutArgs a = { 0 };
 
-    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_BUTTONX) < 0 )
+    if( !rev || !proto_out_speaks(rev) || !proto_out_has(rev, PKTOUT_NAME_IF_BUTTONX) )
         return -1;
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONX, 9, &b) < 0 )
-        return -1;
-    p4(&b, component_id);
-    p2(&b, sub & 0xffff);
-    p2(&b, obj_id & 0xffff);
-    p1(&b, op_num & 0xff);
-    return 1 + (int)b.position;
+    a.combined_id = component_id;
+    a.sub = sub & 0xffff;
+    a.obj = obj_id & 0xffff;
+    a.op = op_num & 0xff;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONX, &a);
 }
 
 /** The sentinel IF_BUTTONX's `obj` carries when the click is not on an item. */
@@ -252,6 +140,12 @@ out_empty(
     int cap,
     int out_name)
 {
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
+    }
     if( cap < 1 )
         return -1;
     if( net_out_opcode(rev, random_out, buf, out_name) < 0 )
@@ -293,20 +187,25 @@ net_out_window_status(
     int height)
 {
     struct RSCache_Buffer b;
-    int wire_mode = mode;
 
-    /* Revision 239 reports only the window class: 1 is fixed and 2 is
+    /* The OSRS revisions report only the window class: 1 is fixed and 2 is
      * resizable.  The Display setting is finer grained (0 fixed, 1 resizable
      * classic, 2 resizable modern), so sending it verbatim turns Classic's 1
      * into Fixed on the server and causes the selected layout to be remounted
      * briefly before snapping back.  Revision 230's mock-local extension does
      * carry the three-way layout value and must remain unchanged. */
-    if( rev && (rev->revision == GAMEPROTO_REVISION_OSRS239 || is_osrs241(rev)) )
-        wire_mode = mode == 0 ? 1 : 2;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
 
+        a.window_mode = mode == 0 ? 1 : 2;
+        a.frame_width = width & 0xffff;
+        a.frame_height = height & 0xffff;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_WINDOW_STATUS, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_WINDOW_STATUS, 5, &b) < 0 )
         return -1;
-    p1(&b, wire_mode & 0xff);
+    p1(&b, mode & 0xff);
     p2(&b, width & 0xffff);
     p2(&b, height & 0xffff);
     return 1 + (int)b.position;
@@ -376,6 +275,47 @@ net_out_if_script_trigger(struct GameProtoRevTable const* rev,
     assert(signature);
     assert(values);
     assert(strings);
+    if( proto_out_speaks(rev) )
+    {
+        /* The arguments after the fixed twelve bytes: a zigzag varint per
+         * `i`, a NUL-terminated string per `s` -- the tail RSProt carries as
+         * `copy` (IfScriptTriggerDecoder). */
+        static uint8_t tail[65535];
+        struct RSCache_Buffer t;
+        struct ProtoOutArgs a = { 0 };
+        int count = (int)strlen(signature);
+
+        if( count > 16 )
+            return -1;
+        RSCache_BufferInit(&t, tail, (uint32_t)sizeof(tail));
+        for( int i = 0; i < count; ++i )
+        {
+            if( signature[i] == 'i' )
+            {
+                uint32_t value = ((uint32_t)values[i] << 1) ^ (uint32_t)-(values[i] < 0);
+                while( value >= 128 )
+                {
+                    p1(&t, (value & 127) | 128);
+                    value >>= 7;
+                }
+                p1(&t, value);
+            }
+            else
+            {
+                assert(strings[i]);
+                if( strlen(strings[i]) + 1 > sizeof(tail) - t.position )
+                    return -1;
+                pjstr(&t, strings[i], RSCACHE_JSTR_TERMINATOR_NULL);
+            }
+        }
+        a.crc = crc;
+        a.combined_id = component_id;
+        a.sub = child & 0xffff;
+        a.obj = object_id & 0xffff;
+        a.copy = tail;
+        a.copy_length = (int32_t)t.position;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_IF_SCRIPT_TRIGGER, &a);
+    }
     int payload = 12;
     int count = (int)strlen(signature);
     if( count > 16 ) return -1;
@@ -400,26 +340,10 @@ net_out_if_script_trigger(struct GameProtoRevTable const* rev,
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_SCRIPT_TRIGGER,
                   payload + 2, &out) < 0 ) return -1;
     p2(&out, payload);
-    if( is_osrs241(rev) )
-    {
-        /* IfScriptTriggerDecoder (241): gCombinedIdAlt2, g2Alt1 obj, g2Alt1
-         * sub, g4Alt2 crc -- the same twelve bytes, reordered. */
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_COMBINED_ID] = component_id;
-        vals[OSRS241_CP_OBJ] = object_id;
-        vals[OSRS241_CP_SUB] = child;
-        vals[OSRS241_CP_CRC] = crc;
-        out.position += (uint32_t)osrs241_cp_write(&g_osrs241_cp_if_script_trigger, vals,
-                                                   out.data + out.position,
-                                                   (int)(out.size - out.position));
-    }
-    else
-    {
-        p2_le_add128(&out, child);
-        p2(&out, object_id);
-        p4_le(&out, component_id);
-        p4_le(&out, crc);
-    }
+    p2_le_add128(&out, child);
+    p2(&out, object_id);
+    p4_le(&out, component_id);
+    p4_le(&out, crc);
     for( int i = 0; i < count; ++i )
     {
         if( signature[i] == 'i' )
@@ -462,6 +386,15 @@ net_out_if_button_op(
         rev, random_out, buf, cap, op_num, component_id, sub, OUT_IF_BUTTONX_OBJ_NONE);
     if( collapsed >= 0 )
         return collapsed;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.combined_id = component_id;
+        a.sub = sub & 0xffff;
+        a.obj = OUT_IF_BUTTONX_OBJ_NONE;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTON1 + (op_num - 1), &a);
+    }
     if( out_begin(
             rev,
             random_out,
@@ -510,24 +443,20 @@ net_out_click_world_map(
     int abs_z)
 {
     struct RSCache_Buffer b;
+    /* RSProt ClickWorldMap packs the destination into one int, the same
+     * level<<28 | x<<14 | z coord the CS2 map ops speak. */
+    int packed = ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff);
 
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_PACKED] =
-            ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff);
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_CLICK_WORLD_MAP,
-                      &g_osrs241_cp_clickworldmap, vals);
+        struct ProtoOutArgs a = { 0 };
+
+        a.packed = packed;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_CLICK_WORLD_MAP, &a);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLICK_WORLD_MAP, 4, &b) < 0 )
         return -1;
-    /* RSProt ClickWorldMap packs the destination into one int, the same
-     * level<<28 | x<<14 | z coord the CS2 map ops speak. */
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-        out_p4_alt1(
-            &b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
-    else
-        p4(&b, ((level & 0x3) << 28) | ((abs_x & 0x3fff) << 14) | (abs_z & 0x3fff));
+    p4(&b, packed);
     return 1 + (int)b.position;
 }
 
@@ -540,22 +469,13 @@ net_out_resume_pausebutton(
     int component_id,
     int sub_id)
 {
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_COMBINED_ID] = component_id;
-        vals[OSRS241_CP_SUB] = sub_id < 0 ? 0xffff : sub_id;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON,
-                      &g_osrs241_cp_resume_pausebutton, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        struct RSCache_Buffer b;
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, 6, &b) < 0 )
-            return -1;
-        out_p4_alt3(&b, component_id);
-        p2(&b, sub_id < 0 ? 0xffff : sub_id);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.combined_id = component_id;
+        a.sub = sub_id < 0 ? 0xffff : sub_id;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, &a);
     }
     return out_com(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_PAUSEBUTTON, component_id);
 }
@@ -576,6 +496,13 @@ net_out_resume_countdialog(
     int amount)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.count = amount;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_COUNTDIALOG, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_COUNTDIALOG, 4, &b) < 0 )
         return -1;
     p4(&b, amount);
@@ -640,6 +567,13 @@ net_out_resume_namedialog(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
     char const* name)
 {
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.name = name;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_NAMEDIALOG, &a);
+    }
     return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_NAMEDIALOG, name);
 }
 
@@ -648,6 +582,13 @@ net_out_resume_stringdialog(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
     char const* text)
 {
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.string = text;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_STRINGDIALOG, &a);
+    }
     return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_STRINGDIALOG, text);
 }
 
@@ -657,6 +598,13 @@ net_out_resume_countdialog_long(
     int64_t amount)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.count_long = amount;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_COUNTDIALOG_LONG, 8, &b) < 0 )
         return -1;
     out_p8(&b, amount);
@@ -669,6 +617,13 @@ net_out_resume_objdialog(
     int obj_id)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.obj = obj_id;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_OBJDIALOG, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_RESUME_P_OBJDIALOG, 2, &b) < 0 )
         return -1;
     p2(&b, obj_id);
@@ -685,27 +640,24 @@ net_out_bug_report(
     struct RSCache_Buffer b;
     assert(description);
     assert(instructions);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.description = description;
+        a.instructions = instructions;
+        a.type = template_id;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_BUG_REPORT, &a);
+    }
     int const body = (int)strlen(description) + 1 + 1 + (int)strlen(instructions) + 1;
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_BUG_REPORT, 2 + body, &b) < 0 )
         return -1;
     p2(&b, 0);
     int const len_pos = (int)b.position - 2;
     int const start = (int)b.position;
-    if( is_osrs241(rev) )
-    {
-        /* BugReportDecoder (241): gjstr instructions, g1Alt2 type, gjstr
-         * description. RSProx names the leading string `instructions` at 239
-         * too, where RSProt names it the description; 241 follows RSProx. */
-        pjstr(&b, instructions, RSCACHE_JSTR_TERMINATOR_NULL);
-        out_p1_alt2(&b, template_id);
-        pjstr(&b, description, RSCACHE_JSTR_TERMINATOR_NULL);
-    }
-    else
-    {
-        pjstr(&b, description, RSCACHE_JSTR_TERMINATOR_NULL);
-        out_p1_alt3(&b, template_id);
-        pjstr(&b, instructions, RSCACHE_JSTR_TERMINATOR_NULL);
-    }
+    pjstr(&b, description, RSCACHE_JSTR_TERMINATOR_NULL);
+    out_p1_alt3(&b, template_id);
+    pjstr(&b, instructions, RSCACHE_JSTR_TERMINATOR_NULL);
     int const length = (int)b.position - start;
     buf[1 + len_pos] = (uint8_t)(length >> 8);
     buf[1 + len_pos + 1] = (uint8_t)length;
@@ -722,6 +674,15 @@ net_out_send_snapshot(
     int len_pos;
     int start;
     assert(name);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.name = name;
+        a.rule_id = rule_id;
+        a.mute = mute;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_SEND_SNAPSHOT, &a);
+    }
     if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_SEND_SNAPSHOT, (int)strlen(name) + 3, &b, &len_pos, &start) < 0 )
         return -1;
     pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
@@ -739,6 +700,14 @@ net_out_friendchat_join_leave(
     struct RSCache_Buffer b;
     int len_pos;
     int start;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.has_name = name != NULL;
+        a.name = name;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, &a);
+    }
     if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_JOIN_LEAVE, name ? (int)strlen(name) + 1 : 0, &b, &len_pos, &start) < 0 )
         return -1;
     if( name )
@@ -751,6 +720,13 @@ net_out_friendchat_kick(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap,
     char const* name)
 {
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.name = name;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_KICK, &a);
+    }
     return out_jstr_only(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_KICK, name);
 }
 
@@ -764,13 +740,17 @@ net_out_friendchat_setrank(
     int len_pos;
     int start;
     assert(name);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.name = name;
+        a.rank = rank;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_SETRANK, &a);
+    }
     if( out_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_FRIENDCHAT_SETRANK, (int)strlen(name) + 2, &b, &len_pos, &start) < 0 )
         return -1;
-    /* FriendChatSetRankDecoder: g1Alt3 rank at 239, a plain g1 at 241. */
-    if( is_osrs241(rev) )
-        p1(&b, rank);
-    else
-        out_p1_alt3(&b, rank);
+    out_p1_alt3(&b, rank);
     pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
     return out_var_u8_end(buf, &b, len_pos, start);
 }
@@ -781,6 +761,13 @@ net_out_clanchannel_full_request(
     int clan_id)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.clan_id = clan_id;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLANCHANNEL_FULL_REQUEST, 1, &b) < 0 )
         return -1;
     p1(&b, clan_id);
@@ -793,6 +780,13 @@ net_out_clansettings_full_request(
     int clan_id)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.clan_id = clan_id;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_CLANSETTINGS_FULL_REQUEST, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLANSETTINGS_FULL_REQUEST, 1, &b) < 0 )
         return -1;
     p1(&b, clan_id);
@@ -809,6 +803,16 @@ out_clan_member(
     int len_pos;
     int start;
     assert(name);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.clan_id = clan_id;
+        a.member_index = member_index;
+        a.muted = muted < 0 ? 0 : muted;
+        a.name = name;
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
+    }
     if( out_var_u8_begin(rev, random_out, buf, cap, out_name, (int)strlen(name) + 5, &b, &len_pos, &start) < 0 )
         return -1;
     p1(&b, clan_id);
@@ -892,31 +896,15 @@ out_move(
     if( route_len < 1 )
         return -1;
 
-    /* MoveGameClickDecoder (241): g1Alt1 keyCombination, g2Alt2 z, g2Alt2 x,
-     * behind the same var-byte length as 239. */
-    if( is_osrs241(rev) && trailer_len == 0 && out_name == PKTOUT_NAME_MOVE_GAMECLICK )
+    /* OSRS movement names the destination only; the server paths. */
+    if( proto_out_speaks(rev) && trailer_len == 0 )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_KEY_COMBINATION] = ctrl_held ? 1 : 0;
-        vals[OSRS241_CP_X] = base_x + route_x[0];
-        vals[OSRS241_CP_Z] = base_z + route_z[0];
-        if( out241_var_u8_begin(rev, random_out, buf, cap, out_name,
-                                &g_osrs241_cp_move_gameclick, vals, 0, &b) < 0 )
-            return -1;
-        return 1 + (int)b.position;
-    }
-    /* Modern destination-only movement. 239 retains the outer var-byte length
-     * but transforms both coordinates and the key-combination byte. */
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 && trailer_len == 0 &&
-        out_name == PKTOUT_NAME_MOVE_GAMECLICK )
-    {
-        if( out_begin(rev, random_out, buf, cap, out_name, 6, &b) < 0 )
-            return -1;
-        p1(&b, 5);
-        out_p2_alt1(&b, base_x + route_x[0]);
-        out_p2_alt1(&b, base_z + route_z[0]);
-        out_p1_alt3(&b, ctrl_held ? 1 : 0);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.x = base_x + route_x[0];
+        a.z = base_z + route_z[0];
+        a.key_combination = ctrl_held ? 1 : 0;
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
     }
     dest_only = rev->revision == GAMEPROTO_REVISION_OSRS230 &&
                 out_name == PKTOUT_NAME_MOVE_GAMECLICK && trailer_len == 0;
@@ -964,14 +952,16 @@ net_out_set_heading(
 
     assert(heading >= 0);
     assert(heading < 16);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.heading = heading;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_SET_HEADING, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_SET_HEADING, 1, &b) < 0 )
         return -1;
-    /* RSProt SetHeadingDecoder v4, used by revision 239: no byte transform.
-     * RSProx's 241 SetHeadingDecoder reads g1Alt1. */
-    if( is_osrs241(rev) )
-        out_p1_alt1(&b, heading);
-    else
-        p1(&b, heading);
+    p1(&b, heading);
     return 1 + (int)b.position;
 }
 
@@ -1052,56 +1042,28 @@ net_out_move_minimapclick(
     int player_fine_z,
     int nearest)
 {
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        /* MoveMinimapClickDecoder (241): the destination header is
-         * MOVE_GAMECLICK's 241 one (g1Alt1 key, g2Alt2 z, g2Alt2 x); the
-         * anticheat trailer that follows is unchanged from 239 and is the same
-         * generated layout's tail, so the whole body is one row. */
-        struct RSCache_Buffer b241;
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
+        /* The destination, then the anticheat trailer (the two checkpoint
+         * constants are the client's own, 57 and 89). */
+        struct ProtoOutArgs a = { 0 };
 
         if( route_len < 1 )
             return -1;
-        vals[OSRS241_CP_KEY_COMBINATION] = ctrl_held ? 1 : 0;
-        vals[OSRS241_CP_X] = base_x + route_x[0];
-        vals[OSRS241_CP_Z] = base_z + route_z[0];
-        vals[OSRS241_CP_MINIMAP_WIDTH] = click_x;
-        vals[OSRS241_CP_MINIMAP_HEIGHT] = click_y;
-        vals[OSRS241_CP_CAMERA_ANGLE_Y] = camera_yaw;
-        vals[OSRS241_CP_CHECKPOINT1] = 57;
-        vals[OSRS241_CP_CHECKPOINT2] = minimap_angle;
-        vals[OSRS241_CP_CHECKPOINT3] = minimap_zoom;
-        vals[OSRS241_CP_CHECKPOINT4] = 89;
-        vals[OSRS241_CP_FINE_X] = player_fine_x;
-        vals[OSRS241_CP_FINE_Z] = player_fine_z;
-        vals[OSRS241_CP_CHECKPOINT5] = nearest;
-        if( out241_var_u8_begin(rev, random_out, buf, cap, PKTOUT_NAME_MOVE_MINIMAPCLICK,
-                                &g_osrs241_cp_move_minimapclick, vals, 0, &b241) < 0 )
-            return -1;
-        return 1 + (int)b241.position;
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        struct RSCache_Buffer b239;
-        if( route_len < 1 ||
-            out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MOVE_MINIMAPCLICK, 19, &b239) < 0 )
-            return -1;
-        p1(&b239, 18);
-        out_p2_alt1(&b239, base_x + route_x[0]);
-        out_p2_alt1(&b239, base_z + route_z[0]);
-        out_p1_alt3(&b239, ctrl_held ? 1 : 0);
-        p1(&b239, click_x);
-        p1(&b239, click_y);
-        p2(&b239, camera_yaw);
-        p1(&b239, 57);
-        p1(&b239, minimap_angle);
-        p1(&b239, minimap_zoom);
-        p1(&b239, 89);
-        p2(&b239, player_fine_x);
-        p2(&b239, player_fine_z);
-        p1(&b239, nearest);
-        return 1 + (int)b239.position;
+        a.x = base_x + route_x[0];
+        a.z = base_z + route_z[0];
+        a.key_combination = ctrl_held ? 1 : 0;
+        a.minimap_width = click_x;
+        a.minimap_height = click_y;
+        a.camera_angle_y = camera_yaw;
+        a.checkpoint1 = 57;
+        a.checkpoint2 = minimap_angle;
+        a.checkpoint3 = minimap_zoom;
+        a.checkpoint4 = 89;
+        a.fine_x = player_fine_x;
+        a.fine_z = player_fine_z;
+        a.checkpoint5 = nearest;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_MOVE_MINIMAPCLICK, &a);
     }
     int n = out_move(
         rev,
@@ -1259,22 +1221,22 @@ net_out_opheld_subop(
     int slot,
     int component_id)
 {
-    struct RSCache_Buffer b;
-
     assert(op_num >= 1);
     assert(op_num <= 5);
     assert(subop >= 0);
     assert(subop <= 0xff);
-    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_SUBOP) < 0 )
+    if( !rev || !proto_out_speaks(rev) || !proto_out_has(rev, PKTOUT_NAME_IF_SUBOP) )
         return -1;
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_SUBOP, 10, &b) < 0 )
-        return -1;
-    p4(&b, component_id);
-    p2(&b, slot & 0xffff);
-    p2(&b, obj_id & 0xffff);
-    p1(&b, OPHELD_IF_BUTTONX_OP[op_num - 1] & 0xff);
-    p1(&b, subop);
-    return 1 + (int)b.position;
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.combined_id = component_id;
+        a.sub = slot & 0xffff;
+        a.obj = obj_id & 0xffff;
+        a.op = OPHELD_IF_BUTTONX_OP[op_num - 1] & 0xff;
+        a.subop = subop;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_IF_SUBOP, &a);
+    }
 }
 
 int
@@ -1407,31 +1369,17 @@ out_if_buttont(
     int selected_sub,
     int selected_obj)
 {
-    struct RSCache_Buffer b;
+    struct ProtoOutArgs a = { 0 };
 
-    if( !rev || rev->packetout_code(PKTOUT_NAME_IF_BUTTONT) < 0 )
+    if( !rev || !proto_out_speaks(rev) || !proto_out_has(rev, PKTOUT_NAME_IF_BUTTONT) )
         return -1;
-    if( is_osrs241(rev) )
-    {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_TARGET_COMBINED_ID] = target_com;
-        vals[OSRS241_CP_TARGET_SUB] = target_sub & 0xffff;
-        vals[OSRS241_CP_TARGET_OBJ] = target_obj & 0xffff;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = selected_com;
-        vals[OSRS241_CP_SELECTED_SUB] = selected_sub & 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = selected_obj & 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONT,
-                      &g_osrs241_cp_if_buttont, vals);
-    }
-    if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONT, 16, &b) < 0 )
-        return -1;
-    p4(&b, target_com);
-    out_p2_alt2(&b, selected_sub);
-    out_p2_alt3(&b, target_obj);
-    out_p2_alt1(&b, target_sub);
-    out_p2_alt2(&b, selected_obj);
-    out_p4_alt2(&b, selected_com);
-    return 1 + (int)b.position;
+    a.target_combined_id = target_com;
+    a.target_sub = target_sub & 0xffff;
+    a.target_obj = target_obj & 0xffff;
+    a.selected_combined_id = selected_com;
+    a.selected_sub = selected_sub & 0xffff;
+    a.selected_obj = selected_obj & 0xffff;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_IF_BUTTONT, &a);
 }
 
 int
@@ -1451,20 +1399,20 @@ net_out_inv_buttond(
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
 
-    /* IfButtonDDecoder (241): the drag's two endpoints, each component +
-     * sub + obj, in the 241 table's order. Selected = the dragged-from end. */
-    if( is_osrs241(rev) )
+    /* IfButtonDDecoder: the drag's two endpoints, each component + sub +
+     * obj. Selected = the dragged-from end. */
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = src_com;
-        vals[OSRS241_CP_SELECTED_OBJ] = src_obj & 0xffff;
-        vals[OSRS241_CP_SELECTED_SUB] = src_slot & 0xffff;
-        vals[OSRS241_CP_TARGET_COMBINED_ID] = dst_com;
-        vals[OSRS241_CP_TARGET_OBJ] = dst_obj & 0xffff;
-        vals[OSRS241_CP_TARGET_SUB] = dst_slot & 0xffff;
+        struct ProtoOutArgs a = { 0 };
+
+        a.selected_combined_id = src_com;
+        a.selected_obj = src_obj & 0xffff;
+        a.selected_sub = src_slot & 0xffff;
+        a.target_combined_id = dst_com;
+        a.target_obj = dst_obj & 0xffff;
+        a.target_sub = dst_slot & 0xffff;
         (void)mode;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND,
-                      &g_osrs241_cp_if_buttond, vals);
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_INV_BUTTOND, &a);
     }
     /* Rev-230: ClientProt 48 shape — both endpoints with item ids (16 bytes).
      * Encodings from the deob class108.method3759 / class617 writers. */
@@ -1509,69 +1457,15 @@ out_xz_id(
     int id)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) )
+    /* No sub-op and no control key, as the client has always sent. */
+    if( proto_out_speaks(rev) )
     {
-        /* OpLoc<n>V2 / OpObj<n>V2 (241): x, z, id, a sub-op byte and the
-         * control-key byte, each op in its own order. Sub-op 0 and no control
-         * key, as the 239 writers below send. */
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        int is_loc = out_name >= PKTOUT_NAME_OPLOC1 && out_name <= PKTOUT_NAME_OPLOC5;
+        struct ProtoOutArgs a = { 0 };
 
-        vals[OSRS241_CP_X] = abs_x;
-        vals[OSRS241_CP_Z] = abs_z;
-        vals[OSRS241_CP_ID] = id;
-        return out241(rev, random_out, buf, cap, out_name,
-                      is_loc ? osrs241_oploc_layout(out_name - PKTOUT_NAME_OPLOC1 + 1)
-                             : osrs241_opobj_layout(out_name - PKTOUT_NAME_OPOBJ1 + 1),
-                      vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, out_name, 8, &b) < 0 )
-            return -1;
-        if( out_name >= PKTOUT_NAME_OPLOC1 && out_name <= PKTOUT_NAME_OPLOC5 )
-        {
-            switch( out_name - PKTOUT_NAME_OPLOC1 + 1 )
-            {
-            case 1:
-                out_p2_alt2(&b, abs_z); out_p2_alt1(&b, abs_x);
-                out_p1_alt1(&b, 0); out_p1_alt1(&b, 0); p2(&b, id); break;
-            case 2:
-                out_p2_alt3(&b, abs_z); out_p2_alt3(&b, id); p2(&b, abs_x);
-                out_p1_alt2(&b, 0); p1(&b, 0); break;
-            case 3:
-                out_p2_alt2(&b, id); out_p1_alt3(&b, 0); p1(&b, 0);
-                out_p2_alt3(&b, abs_z); out_p2_alt2(&b, abs_x); break;
-            case 4:
-                out_p1_alt1(&b, 0); out_p2_alt1(&b, abs_x); out_p2_alt3(&b, id);
-                out_p1_alt2(&b, 0); p2(&b, abs_z); break;
-            default:
-                out_p2_alt3(&b, abs_z); out_p2_alt1(&b, abs_x);
-                out_p1_alt1(&b, 0); out_p1_alt2(&b, 0); p2(&b, id); break;
-            }
-        }
-        else
-        {
-            switch( out_name - PKTOUT_NAME_OPOBJ1 + 1 )
-            {
-            case 1:
-                out_p2_alt2(&b, id); out_p1_alt3(&b, 0); out_p2_alt2(&b, abs_z);
-                out_p1_alt3(&b, 0); p2(&b, abs_x); break;
-            case 2:
-                out_p1_alt1(&b, 0); out_p1_alt3(&b, 0); p2(&b, abs_z);
-                out_p2_alt1(&b, id); out_p2_alt3(&b, abs_x); break;
-            case 3:
-                out_p1_alt1(&b, 0); out_p2_alt1(&b, abs_x); out_p2_alt3(&b, id);
-                out_p1_alt1(&b, 0); out_p2_alt2(&b, abs_z); break;
-            case 4:
-                out_p1_alt3(&b, 0); p2(&b, id); p2(&b, abs_x);
-                out_p2_alt1(&b, abs_z); out_p1_alt2(&b, 0); break;
-            default:
-                out_p1_alt2(&b, 0); out_p2_alt2(&b, abs_x); p2(&b, id);
-                out_p2_alt3(&b, abs_z); out_p1_alt1(&b, 0); break;
-            }
-        }
-        return 1 + (int)b.position;
+        a.x = abs_x;
+        a.z = abs_z;
+        a.id = id;
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
     }
     if( out_begin(rev, random_out, buf, cap, out_name, 6, &b) < 0 )
         return -1;
@@ -1579,6 +1473,29 @@ out_xz_id(
     p2(&b, abs_z);
     p2(&b, id);
     return 1 + (int)b.position;
+}
+
+/*
+ * The OSRS targeted ops (OPLOCT, OPOBJT, OPNPCT, OPPLAYERT): what is clicked,
+ * and the selected component -- a spell (no sub, no obj: 0xffff each) or the
+ * carried item of a use-on, which travels as the same T packet.
+ */
+static int
+out_proto_t(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int out_name,
+    struct ProtoOutArgs* a,
+    int selected_com,
+    int selected_sub,
+    int selected_obj)
+{
+    a->selected_combined_id = selected_com;
+    a->selected_sub = selected_sub & 0xffff;
+    a->selected_obj = selected_obj & 0xffff;
+    return proto_encode(rev, random_out, buf, cap, out_name, a);
 }
 
 int
@@ -1611,31 +1528,15 @@ net_out_oploct(
 {
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        /* OpLocTDecoder (241). A spell: the selected component is the spell,
-         * with no sub and no obj (0xffff each), as at 239. */
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_X] = abs_x;
-        vals[OSRS241_CP_Z] = abs_z;
-        vals[OSRS241_CP_ID] = loc_id;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = spell_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, &g_osrs241_cp_oploct, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 15, &b) < 0 )
-            return -1;
-        out_p1_alt2(&b, 0);
-        out_p2_alt2(&b, 0xffff);
-        out_p2_alt1(&b, loc_id);
-        out_p4_alt1(&b, spell_component_id);
-        out_p2_alt3(&b, abs_z);
-        out_p2_alt1(&b, abs_x);
-        out_p2_alt1(&b, 0xffff);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.x = abs_x;
+        a.z = abs_z;
+        a.id = loc_id;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, &a, spell_component_id,
+                           0xffff, 0xffff);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 6 + width, &b) < 0 )
         return -1;
@@ -1665,31 +1566,16 @@ net_out_oplocu(
     int use_component_id)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) )
+    /* Use-on travels as OPLOCT: the selected triple is the carried item. */
+    if( proto_out_speaks(rev) )
     {
-        /* Use-on travels as OPLOCT at 241 as at 239: the selected triple is
-         * the carried item. */
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_X] = abs_x;
-        vals[OSRS241_CP_Z] = abs_z;
-        vals[OSRS241_CP_ID] = loc_id;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = use_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = use_slot & 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = use_obj_id & 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, &g_osrs241_cp_oploct, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, 15, &b) < 0 )
-            return -1;
-        out_p1_alt2(&b, 0);
-        out_p2_alt2(&b, use_slot);
-        out_p2_alt1(&b, loc_id);
-        out_p4_alt1(&b, use_component_id);
-        out_p2_alt3(&b, abs_z);
-        out_p2_alt1(&b, abs_x);
-        out_p2_alt1(&b, use_obj_id);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.x = abs_x;
+        a.z = abs_z;
+        a.id = loc_id;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCT, &a, use_component_id,
+                           use_slot, use_obj_id);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPLOCU, 12, &b) < 0 )
         return -1;
@@ -1712,33 +1598,12 @@ out_slot2(
     int slot)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) && out_name >= PKTOUT_NAME_OPNPC1 && out_name <= PKTOUT_NAME_OPNPC5 )
+    if( proto_out_speaks(rev) )
     {
-        /* OpNpc<n>V2Decoder (241): index, sub-op, control key. */
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = slot;
-        return out241(rev, random_out, buf, cap, out_name,
-                      osrs241_opnpc_layout(out_name - PKTOUT_NAME_OPNPC1 + 1), vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 &&
-        out_name >= PKTOUT_NAME_OPNPC1 && out_name <= PKTOUT_NAME_OPNPC5 )
-    {
-        if( out_begin(rev, random_out, buf, cap, out_name, 4, &b) < 0 )
-            return -1;
-        switch( out_name - PKTOUT_NAME_OPNPC1 + 1 )
-        {
-        case 1:
-            out_p2_alt1(&b, slot); out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); break;
-        case 2:
-            out_p2_alt3(&b, slot); out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); break;
-        case 3:
-            out_p1_alt2(&b, 0); out_p1_alt3(&b, 0); out_p2_alt2(&b, slot); break;
-        case 4:
-            out_p1_alt1(&b, 0); p2(&b, slot); out_p1_alt2(&b, 0); break;
-        default:
-            out_p1_alt1(&b, 0); out_p1_alt2(&b, 0); out_p2_alt2(&b, slot); break;
-        }
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = slot;
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
     }
     if( out_begin(rev, random_out, buf, cap, out_name, 2, &b) < 0 )
         return -1;
@@ -1771,25 +1636,13 @@ net_out_opnpct(
 {
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = npc_slot;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = spell_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, &g_osrs241_cp_opnpct, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 11, &b) < 0 )
-            return -1;
-        out_p1_alt2(&b, 0);
-        p2(&b, 0xffff);
-        out_p2_alt2(&b, npc_slot);
-        p2(&b, 0xffff);
-        p4(&b, spell_component_id);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = npc_slot;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, &a, spell_component_id,
+                           0xffff, 0xffff);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 2 + width, &b) < 0 )
         return -1;
@@ -1815,25 +1668,13 @@ net_out_opnpcu(
     int use_component_id)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = npc_slot;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = use_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = use_slot & 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = use_obj_id & 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, &g_osrs241_cp_opnpct, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, 11, &b) < 0 )
-            return -1;
-        out_p1_alt2(&b, 0);
-        p2(&b, use_slot);
-        out_p2_alt2(&b, npc_slot);
-        p2(&b, use_obj_id);
-        p4(&b, use_component_id);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = npc_slot;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCT, &a, use_component_id,
+                           use_slot, use_obj_id);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPNPCU, 8, &b) < 0 )
         return -1;
@@ -1874,29 +1715,15 @@ net_out_opobjt(
 {
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_X] = abs_x;
-        vals[OSRS241_CP_Z] = abs_z;
-        vals[OSRS241_CP_ID] = obj_id;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = spell_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, &g_osrs241_cp_opobjt, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 15, &b) < 0 )
-            return -1;
-        out_p2_alt1(&b, 0xffff);
-        out_p2_alt2(&b, obj_id);
-        p2(&b, abs_x);
-        out_p4_alt2(&b, spell_component_id);
-        p1(&b, 0);
-        out_p2_alt1(&b, 0xffff);
-        p2(&b, abs_z);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.x = abs_x;
+        a.z = abs_z;
+        a.id = obj_id;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, &a, spell_component_id,
+                           0xffff, 0xffff);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 6 + width, &b) < 0 )
         return -1;
@@ -1926,29 +1753,15 @@ net_out_opobju(
     int use_component_id)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_X] = abs_x;
-        vals[OSRS241_CP_Z] = abs_z;
-        vals[OSRS241_CP_ID] = obj_id;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = use_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = use_slot & 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = use_obj_id & 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, &g_osrs241_cp_opobjt, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, 15, &b) < 0 )
-            return -1;
-        out_p2_alt1(&b, use_obj_id);
-        out_p2_alt2(&b, obj_id);
-        p2(&b, abs_x);
-        out_p4_alt2(&b, use_component_id);
-        p1(&b, 0);
-        out_p2_alt1(&b, use_slot);
-        p2(&b, abs_z);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.x = abs_x;
+        a.z = abs_z;
+        a.id = obj_id;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJT, &a, use_component_id,
+                           use_slot, use_obj_id);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPOBJU, 12, &b) < 0 )
         return -1;
@@ -1970,56 +1783,22 @@ net_out_opplayer(
     int op_num,
     int player_slot)
 {
-    struct RSCache_Buffer b;
+    /* Not consecutive: OPPLAYER6..8 were named after OPPLAYERT. */
+    static int const k_names[8] = {
+        PKTOUT_NAME_OPPLAYER1, PKTOUT_NAME_OPPLAYER2, PKTOUT_NAME_OPPLAYER3, PKTOUT_NAME_OPPLAYER4,
+        PKTOUT_NAME_OPPLAYER5, PKTOUT_NAME_OPPLAYER6, PKTOUT_NAME_OPPLAYER7, PKTOUT_NAME_OPPLAYER8,
+    };
 
     if( op_num < 1 || op_num > 8 )
         return -1;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        /* OpPlayer1..8Decoder (241): index and control key, per-op order. */
-        static int const k_names[8] = {
-            PKTOUT_NAME_OPPLAYER1, PKTOUT_NAME_OPPLAYER2, PKTOUT_NAME_OPPLAYER3,
-            PKTOUT_NAME_OPPLAYER4, PKTOUT_NAME_OPPLAYER5, PKTOUT_NAME_OPPLAYER6,
-            PKTOUT_NAME_OPPLAYER7, PKTOUT_NAME_OPPLAYER8,
-        };
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = player_slot;
-        return out241(rev, random_out, buf, cap, k_names[op_num - 1],
-                      osrs241_opplayer_layout(op_num), vals);
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = player_slot;
+        return proto_encode(rev, random_out, buf, cap, k_names[op_num - 1], &a);
     }
-    if( op_num >= 6 )
-    {
-        /* RSProt OpPlayer6..8Decoder at rev 239. Only 239 names these rows; an
-         * older revision has no row and builds nothing. */
-        int const out_name = op_num == 6 ? PKTOUT_NAME_OPPLAYER6
-                             : op_num == 7 ? PKTOUT_NAME_OPPLAYER7
-                                           : PKTOUT_NAME_OPPLAYER8;
-        if( out_begin(rev, random_out, buf, cap, out_name, 3, &b) < 0 )
-            return -1;
-        switch( op_num )
-        {
-        case 6: out_p2_alt3(&b, player_slot); out_p1_alt3(&b, 0); break;
-        case 7: p1(&b, 0); p2(&b, player_slot); break;
-        default: p2(&b, player_slot); out_p1_alt2(&b, 0); break;
-        }
-        return 1 + (int)b.position;
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        int out_name = PKTOUT_NAME_OPPLAYER1 + (op_num - 1);
-        if( out_begin(rev, random_out, buf, cap, out_name, 3, &b) < 0 )
-            return -1;
-        switch( op_num )
-        {
-        case 1: out_p1_alt3(&b, 0); out_p2_alt1(&b, player_slot); break;
-        case 2: out_p2_alt1(&b, player_slot); out_p1_alt2(&b, 0); break;
-        case 3: out_p1_alt2(&b, 0); out_p2_alt3(&b, player_slot); break;
-        case 4: p2(&b, player_slot); p1(&b, 0); break;
-        default: out_p1_alt3(&b, 0); p2(&b, player_slot); break;
-        }
-        return 1 + (int)b.position;
-    }
-    return out_slot2(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYER1 + (op_num - 1), player_slot);
+    return out_slot2(rev, random_out, buf, cap, k_names[op_num - 1], player_slot);
 }
 
 int
@@ -2033,26 +1812,13 @@ net_out_opplayert(
 {
     struct RSCache_Buffer b;
     int width = (rev && rev->component_id_bytes > 0) ? rev->component_id_bytes : 2;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = player_slot;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = spell_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT,
-                      &g_osrs241_cp_opplayert, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 11, &b) < 0 )
-            return -1;
-        out_p2_alt2(&b, 0xffff);
-        out_p1_alt1(&b, 0);
-        out_p2_alt3(&b, 0xffff);
-        out_p4_alt2(&b, spell_component_id);
-        p2(&b, player_slot);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = player_slot;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, &a, spell_component_id,
+                           0xffff, 0xffff);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 2 + width, &b) < 0 )
         return -1;
@@ -2078,26 +1844,13 @@ net_out_opplayeru(
     int use_component_id)
 {
     struct RSCache_Buffer b;
-    if( is_osrs241(rev) )
+    if( proto_out_speaks(rev) )
     {
-        int32_t vals[OSRS241_CP_ROLE_COUNT] = { 0 };
-        vals[OSRS241_CP_INDEX] = player_slot;
-        vals[OSRS241_CP_SELECTED_COMBINED_ID] = use_component_id;
-        vals[OSRS241_CP_SELECTED_SUB] = use_slot & 0xffff;
-        vals[OSRS241_CP_SELECTED_OBJ] = use_obj_id & 0xffff;
-        return out241(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT,
-                      &g_osrs241_cp_opplayert, vals);
-    }
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 )
-    {
-        if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, 11, &b) < 0 )
-            return -1;
-        out_p2_alt2(&b, use_slot);
-        out_p1_alt1(&b, 0);
-        out_p2_alt3(&b, use_obj_id);
-        out_p4_alt2(&b, use_component_id);
-        p2(&b, player_slot);
-        return 1 + (int)b.position;
+        struct ProtoOutArgs a = { 0 };
+
+        a.index = player_slot;
+        return out_proto_t(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERT, &a, use_component_id,
+                           use_slot, use_obj_id);
     }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_OPPLAYERU, 8, &b) < 0 )
         return -1;
@@ -2151,8 +1904,10 @@ net_out_message_private(
     assert(text);
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_MESSAGE_PRIVATE, 12, &b) < 0 )
         return -1;
-    /* MessagePrivateDecoder is unchanged at 241. */
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 || is_osrs241(rev) )
+    /* The OSRS layout (MessagePrivateDecoder) with this project's packed text
+     * in place of OSRS's Huffman, which the server reads back the same way --
+     * not yet RSProt's: the text encoding moves on both ends at once. */
+    if( rev->revision == GAMEPROTO_REVISION_OSRS239 || rev->revision == GAMEPROTO_REVISION_OSRS241 )
     {
         char name[16];
         p2(&b, 0);
@@ -2190,17 +1945,19 @@ net_out_client_cheat(
     int len_pos;
     int start;
     assert(text);
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.command = text;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_CLIENT_CHEAT, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CLIENT_CHEAT, (int)strlen(text) + 3, &b) < 0 )
         return -1;
     p1(&b, 0); /* length placeholder */
     len_pos = (int)b.position - 1;
     start = (int)b.position;
-    pjstr(
-        &b,
-        text,
-        (rev->revision == GAMEPROTO_REVISION_OSRS239 || is_osrs241(rev))
-            ? RSCACHE_JSTR_TERMINATOR_NULL
-            : RSCACHE_JSTR_TERMINATOR_NEWLINE);
+    pjstr(&b, text, RSCACHE_JSTR_TERMINATOR_NEWLINE);
     buf[1 + len_pos] = (uint8_t)((int)b.position - start);
     return 1 + (int)b.position;
 }
@@ -2216,6 +1973,15 @@ net_out_chat_setmode(
     int trade_mode)
 {
     struct RSCache_Buffer b;
+    if( proto_out_speaks(rev) )
+    {
+        struct ProtoOutArgs a = { 0 };
+
+        a.public_chat_filter = public_mode;
+        a.private_chat_filter = private_mode;
+        a.trade_chat_filter = trade_mode;
+        return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_CHAT_SETMODE, &a);
+    }
     if( out_begin(rev, random_out, buf, cap, PKTOUT_NAME_CHAT_SETMODE, 3, &b) < 0 )
         return -1;
     p1(&b, public_mode);
@@ -2234,19 +2000,15 @@ out_name37(
     int64_t name37)
 {
     struct RSCache_Buffer b;
-    /* Friend/ignore add/del are a lone gjstr at 239 and 241 alike. */
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 || is_osrs241(rev) )
+    /* Friend/ignore add/del are a name at the OSRS revisions. */
+    if( proto_out_speaks(rev) )
     {
+        struct ProtoOutArgs a = { 0 };
         char name[16];
-        int body_len;
 
         base37tostr((uint64_t)name37, name, (int)sizeof(name));
-        body_len = (int)strlen(name) + 1;
-        if( out_begin(rev, random_out, buf, cap, out_name, body_len + 1, &b) < 0 )
-            return -1;
-        p1(&b, body_len);
-        pjstr(&b, name, RSCACHE_JSTR_TERMINATOR_NULL);
-        return 1 + (int)b.position;
+        a.name = name;
+        return proto_encode(rev, random_out, buf, cap, out_name, &a);
     }
     if( out_begin(rev, random_out, buf, cap, out_name, 8, &b) < 0 )
         return -1;

@@ -1,15 +1,15 @@
-#ifndef SRC_NET_REV_OSRS241_CLIENTPROT_H
-#define SRC_NET_REV_OSRS241_CLIENTPROT_H
+#ifndef SRC_TORIRSSERVER_WIRE_OSRS241_CLIENTPROT_TABLE_H
+#define SRC_TORIRSSERVER_WIRE_OSRS241_CLIENTPROT_TABLE_H
 
 /*
  * Seeded from RSProx 323d322's osrs-241 client decoders; maintained here as
  * data (its generator, which read the Kotlin, is gone).
  *
- * Revision 241's flat client -> server packets as data: each layout is the
- * decoder's wire accesses in order, with the field each one carries. The
- * client writes through osrs241_cp_write() and the server reads through
- * osrs241_cp_read() (osrs241_clientprot.c), so both ends run the
- * same row.
+ * Revision 241's flat client -> server packets as data, for the server's
+ * reader (osrs241_cp_read, osrs241_clientprot.c): each layout is the decoder's
+ * wire accesses in order, with the field each one carries. The client writes
+ * these packets with RSProt's codecs (net/proto/proto_out.c), which name the
+ * same bytes.
  *
  * Access names follow RSProt/RSProx: G2_ALT1 is g2Alt1 (little endian),
  * G2_ALT2 big endian with the low byte +128, G2_ALT3 little endian +128;

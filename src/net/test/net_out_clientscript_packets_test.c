@@ -58,7 +58,7 @@ decode_exact(
     int len,
     void* message)
 {
-    RsprotCodecFn fn = rsprot_version_pick(ranges, count, 239);
+    RsprotCodecFn fn = rsprot_version_pick(ranges, count, rsprot_osrs(239));
     RsprotExec x;
     RsprotBuf buf;
     if( !fn )
