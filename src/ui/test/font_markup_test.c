@@ -229,21 +229,25 @@ main(void)
         visit_glyph_count(font, "<str>abcd</str>") == visit_glyph_count(font, "abcd"),
         "the glyph walk emits no glyphs for the tag");
 
-    /* An unclosed or malformed tag still has to render as text, or a stray '<'
-     * in content would silently eat the rest of the line. There is no kerning,
-     * so a literal run measures as the sum of its pieces. */
-    int const lt_w = ToriDraw2D_MeasureString(font, "<");
-    check(
-        ToriDraw2D_MeasureString(font, "<str") == lt_w + ToriDraw2D_MeasureString(font, "str"),
-        "an unterminated <str is left as literal text");
-    check(
-        ToriDraw2D_MeasureString(font, "<strong>") ==
-            lt_w + ToriDraw2D_MeasureString(font, "strong") + ToriDraw2D_MeasureString(font, ">"),
-        "an unknown <strong> tag is left as literal text");
-    check(
-        ToriDraw2D_MeasureString(font, "<str=zz>") ==
-            lt_w + ToriDraw2D_MeasureString(font, "str=zz") + ToriDraw2D_MeasureString(font, ">"),
-        "a <str=> with bad hex is left as literal text");
+    /* Every `<` opens a tag and none of it is drawn, whatever it says (deob
+     * class671's draw loop). A tag nothing knows, or a value that does not
+     * parse, changes nothing but is still swallowed; an unclosed `<` swallows
+     * the rest of the line. Content that means a literal `<` writes `<lt>`. */
+    check(ToriDraw2D_MeasureString(font, "ab<str") == ToriDraw2D_MeasureString(font, "ab"),
+          "an unterminated <str swallows the rest of the line");
+    check(ToriDraw2D_MeasureString(font, "<strong>abcd") == plain_w, "an unknown <strong> tag is swallowed");
+    check(ToriDraw2D_MeasureString(font, "<str=zz>abcd") == plain_w, "a <str=> with bad hex is swallowed");
+    check(ToriDraw2D_MeasureString(font, "<col=0xff0000>abcd") == plain_w,
+          "<col=0xff0000> (a value the reference's parser refuses) is swallowed");
+    check(ToriDraw2D_MeasureString(font, "<img=22>abcd") == plain_w, "<img=22> draws no glyphs");
+
+    printf("tag values parse as the reference parses them\n");
+    canvas_draw(canvas, font, "<col=ff>abcd");
+    check(canvas_count(canvas, (int)0xFF0000FF) > 0, "<col=ff> is blue: any number of hex digits");
+    canvas_draw(canvas, font, "<col=0xff0000>abcd");
+    check(canvas_count(canvas, (int)0xFFFF0000) == 0, "<col=0xff0000> does not turn the text red");
+    canvas_draw(canvas, font, "<str=zz>abcd");
+    check(canvas_count(canvas, STRIKE_DEFAULT_ARGB) == 0, "<str=zz> strikes nothing");
 
     printf("the rule is drawn\n");
     canvas_draw(canvas, font, "abcd");

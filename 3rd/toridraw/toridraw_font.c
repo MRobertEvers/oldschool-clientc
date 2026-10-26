@@ -5,6 +5,7 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 
 #define TORIDRAW_FONT_ADVANCE_ONLY_GLYPH TORIDRAW_FONT_GLYPH_COUNT
@@ -215,6 +216,108 @@ font_markup_style_init(int default_color)
     return style;
 }
 
+/* The deob's own number parser (Statics.method2551): an optional sign, then
+ * at least one digit of `radix`, and nothing else. Overflow is a failure. */
+static bool
+font_parse_radix(
+    char const* s,
+    int n,
+    int radix,
+    int* out)
+{
+    long long v = 0;
+    bool negative = false;
+    bool any = false;
+
+    for( int k = 0; k < n; k++ )
+    {
+        int const c = (unsigned char)s[k];
+        int d;
+
+        if( k == 0 && c == '-' )
+        {
+            negative = true;
+            continue;
+        }
+        if( k == 0 && c == '+' )
+            continue;
+        if( c >= '0' && c <= '9' )
+            d = c - '0';
+        else if( c >= 'A' && c <= 'Z' )
+            d = c - 'A' + 10;
+        else if( c >= 'a' && c <= 'z' )
+            d = c - 'a' + 10;
+        else
+            return false;
+        if( d >= radix )
+            return false;
+        v = v * radix + (negative ? -d : d);
+        if( v > INT32_MAX || v < INT32_MIN )
+            return false;
+        any = true;
+    }
+    if( !any )
+        return false;
+    *out = (int)v;
+    return true;
+}
+
+static bool
+font_tag_is(
+    char const* tag,
+    int n,
+    char const* name)
+{
+    int const k = (int)strlen(name);
+    return n == k && strncmp(tag, name, (size_t)k) == 0;
+}
+
+static bool
+font_tag_value(
+    char const* tag,
+    int n,
+    char const* prefix,
+    int* out)
+{
+    int const k = (int)strlen(prefix);
+    return n > k && strncmp(tag, prefix, (size_t)k) == 0 && font_parse_radix(tag + k, n - k, 16, out);
+}
+
+/*
+ * What a tag does to the style (deob class671 method14556). A value that does
+ * not parse leaves the style as it was; a tag nothing here knows -- `<img=…>`,
+ * `<shad>`, a typo -- changes nothing. Either way the caller has already
+ * swallowed it.
+ */
+static void
+font_apply_tag(
+    char const* tag,
+    int n,
+    int default_color,
+    struct FontMarkupStyle* style)
+{
+    int v;
+
+    if( font_tag_value(tag, n, "col=", &v) )
+        style->color = v & 0xffffff;
+    else if( font_tag_is(tag, n, "/col") )
+        style->color = default_color;
+    else if( font_tag_value(tag, n, "str=", &v) )
+        style->strike = v & 0xffffff;
+    else if( font_tag_is(tag, n, "str") )
+        style->strike = TORIDRAW_FONT_STRIKE_DEFAULT_RGB;
+    else if( font_tag_is(tag, n, "/str") )
+        style->strike = -1;
+    else if( font_tag_value(tag, n, "u=", &v) )
+        style->underline = v & 0xffffff;
+    else if( font_tag_is(tag, n, "u") )
+        style->underline = 0;
+    else if( font_tag_is(tag, n, "/u") )
+        style->underline = -1;
+    else if( font_tag_is(tag, n, "br") )
+        *style = font_markup_style_init(default_color);
+}
+
 /**
  * `style` is optional: pass NULL to only measure the token grammar (how many
  * bytes the token spans and what character it renders), which is what the
@@ -263,110 +366,28 @@ font_try_consume_markup(
         return 4;
     }
 
-    if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</col>", 6) == 0 )
+    /*
+     * Every other `<` opens a tag, whatever it says (deob class671's draw
+     * loop): the text up to the next `>` is the tag, and none of it is drawn.
+     * What the tag MEANS is decided after that, and a tag that means nothing
+     * -- an unknown name, or a value that does not parse, such as the
+     * `<col=0xff0000>` some interfaces build -- is still swallowed whole, never
+     * printed. A second `<` before the `>` restarts the tag there, and a `<`
+     * that is never closed swallows the rest of the line.
+     */
+    if( text[i] == '<' )
     {
-        if( style )
-            style->color = default_color;
-        return 6;
-    }
+        int j = i + 1;
 
-    if( text[i] == '<' && len - i >= 4 && strncmp(&text[i], "</u>", 4) == 0 )
-    {
-        if( style )
-            style->underline = -1;
-        return 4;
-    }
-
-    if( text[i] == '<' && len - i >= 6 && strncmp(&text[i], "</str>", 6) == 0 )
-    {
-        if( style )
-            style->strike = -1;
-        return 6;
-    }
-
-    if( text[i] == '<' && len - i >= 10 && strncmp(&text[i], "<col=", 5) == 0 )
-    {
-        int j = i + 5;
-        int hex_len = 0;
-        while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
-        {
+        while( j < len && text[j] != '>' && text[j] != '<' )
             j++;
-            hex_len++;
-        }
-        if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
-        {
-            if( style )
-            {
-                int const parsed = font_parse_hex_rgb(&text[i + 5], hex_len);
-                if( parsed >= 0 )
-                    style->color = parsed;
-            }
-            return j - i + 1;
-        }
-    }
-
-    /* Colored underline only — does not recolor glyphs (OSRS AbstractFont). */
-    if( text[i] == '<' && len - i >= 3 && text[i + 1] == 'u' )
-    {
-        if( text[i + 2] == '>' )
-        {
-            if( style )
-                style->underline = 0;
-            return 3;
-        }
-        if( text[i + 2] == '=' && len - i >= 10 )
-        {
-            int j = i + 3;
-            int hex_len = 0;
-            while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
-            {
-                j++;
-                hex_len++;
-            }
-            if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
-            {
-                if( style )
-                {
-                    int const parsed = font_parse_hex_rgb(&text[i + 3], hex_len);
-                    if( parsed >= 0 )
-                        style->underline = parsed;
-                }
-                return j - i + 1;
-            }
-        }
-    }
-
-    /* Strikethrough, same shape as underline: bare `<str>` takes the reference's
-     * fixed dark red (deob class671 sets 0x800000), `<str=rrggbb>` overrides it,
-     * and neither recolors glyphs. */
-    if( text[i] == '<' && len - i >= 5 && strncmp(&text[i], "<str", 4) == 0 )
-    {
-        if( text[i + 4] == '>' )
-        {
-            if( style )
-                style->strike = TORIDRAW_FONT_STRIKE_DEFAULT_RGB;
-            return 5;
-        }
-        if( text[i + 4] == '=' && len - i >= 12 )
-        {
-            int j = i + 5;
-            int hex_len = 0;
-            while( j < len && hex_len < 8 && font_is_hex_digit(text[j]) )
-            {
-                j++;
-                hex_len++;
-            }
-            if( (hex_len == 6 || hex_len == 8) && j < len && text[j] == '>' )
-            {
-                if( style )
-                {
-                    int const parsed = font_parse_hex_rgb(&text[i + 5], hex_len);
-                    if( parsed >= 0 )
-                        style->strike = parsed;
-                }
-                return j - i + 1;
-            }
-        }
+        if( j >= len )
+            return len - i;
+        if( text[j] == '<' )
+            return j - i;
+        if( style )
+            font_apply_tag(&text[i + 1], j - i - 1, default_color, style);
+        return j - i + 1;
     }
 
     return 0;
