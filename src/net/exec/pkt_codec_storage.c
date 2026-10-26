@@ -15,15 +15,16 @@
 #include <assert.h>
 #include <string.h>
 
-static union
+/* Per thread: a host may decode on several (rsprox-c's FFI). */
+static _Thread_local union
 {
     long double align;
     uint8_t bytes[1 << 20];
 } g_pool[2];
 
-static MsgRunClientScriptArg g_cs2_args[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS];
-static int32_t g_cs2_ints[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS][MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
-static const char *g_cs2_strs[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS][MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
+static _Thread_local MsgRunClientScriptArg g_cs2_args[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS];
+static _Thread_local int32_t g_cs2_ints[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS][MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
+static _Thread_local const char *g_cs2_strs[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS][MSG_RUNCLIENTSCRIPT_MAX_ELEMS];
 
 #define POOL(T, side) ((T *)(void *)g_pool[side].bytes)
 #define POOL_HALF(T, side) ((T *)(void *)(g_pool[side].bytes + sizeof(g_pool[side].bytes) / 2))

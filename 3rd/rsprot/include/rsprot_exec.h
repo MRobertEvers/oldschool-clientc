@@ -253,7 +253,48 @@ typedef struct RsprotExec
     /** DESCRIBE: fields transferred so far, so the branch rule can tell whether
      *  a codec had any business consulting one. */
     int transferred;
+
+    /** DECODE, optional (rsprot_exec_trace): every value read, as read. */
+    struct RsprotTrace *trace;
 } RsprotExec;
+
+/*
+ * A decode's trace: each value the codec read, in wire order, AS READ -- the raw
+ * value before an offset (RSPROT_XFORM) or a clamp, which is what a reader
+ * calling JagByteBuf's own g* would have got -- under the codec's name for its
+ * field (`m->interface_id`, `elem->value`, `m->members[k].rank`). Every entry
+ * starts u8 tag, u8 name length, the name; then:
+ *
+ *   RSPROT_TRACE_PRIM  u8 RsprotPrim, i32 value (BE)
+ *   RSPROT_TRACE_LONG  i64 value (BE)
+ *   RSPROT_TRACE_STR   u8 RsprotStrKind, i32 length (-1: null), bytes
+ *   RSPROT_TRACE_DATA  i32 length, bytes (as on the wire)
+ *   RSPROT_TRACE_BITS  u8 width, i32 value
+ *
+ * What it is for: a host in another language (rsprox-c's Kotlin) decodes with
+ * the C codecs and builds its own models from the values by field name, so the
+ * wire -- every revision's layout -- is read in exactly one place.
+ */
+enum
+{
+    RSPROT_TRACE_PRIM = 1,
+    RSPROT_TRACE_LONG,
+    RSPROT_TRACE_STR,
+    RSPROT_TRACE_DATA,
+    RSPROT_TRACE_BITS,
+};
+
+typedef struct RsprotTrace
+{
+    uint8_t *out;
+    int32_t cap;
+    int32_t len;
+    /** An entry did not fit; the decode carried on, the trace is incomplete. */
+    int overflow;
+} RsprotTrace;
+
+/** Record `x`'s reads into `trace` (after rsprot_exec_decode). */
+void rsprot_exec_trace(RsprotExec *x, RsprotTrace *trace);
 
 /** The shape every generated codec has. `msg` is that packet's message struct. */
 typedef void (*RsprotCodecFn)(RsprotExec *x, void *msg);
