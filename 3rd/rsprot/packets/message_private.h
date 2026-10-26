@@ -17,7 +17,10 @@
 #include "../include/rsprot_exec.h"
 
 typedef struct MsgMessagePrivate {
-	const char *name;
+	const char *sender;
+	int32_t world_id;
+	int32_t world_message_counter;
+	int32_t chat_crown_type;
 	const uint8_t *huffman;
 	int32_t huffman_length;
 } MsgMessagePrivate;

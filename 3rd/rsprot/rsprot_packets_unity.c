@@ -329,6 +329,7 @@
 #include "packets/update_inv_full.c"
 #include "packets/update_inv_partial.c"
 #include "packets/update_inv_stoptransmit.c"
+#include "packets/update_player_model_v1.c"
 #include "packets/update_reboot_timer.c"
 #include "packets/update_reboot_timer_v1.c"
 #include "packets/update_reboot_timer_v2.c"
@@ -771,6 +772,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "UPDATE_INV_FULL", RSPROT_REG_OUT, rsprot_update_inv_full_out, &rsprot_update_inv_full_out_count },
     { "UPDATE_INV_PARTIAL", RSPROT_REG_OUT, rsprot_update_inv_partial_out, &rsprot_update_inv_partial_out_count },
     { "UPDATE_INV_STOPTRANSMIT", RSPROT_REG_OUT, rsprot_update_inv_stoptransmit_out, &rsprot_update_inv_stoptransmit_out_count },
+    { "UPDATE_PLAYER_MODEL_V1", RSPROT_REG_IN, rsprot_update_player_model_v1_in, &rsprot_update_player_model_v1_in_count },
     { "UPDATE_REBOOT_TIMER", RSPROT_REG_OUT, rsprot_update_reboot_timer_out, &rsprot_update_reboot_timer_out_count },
     { "UPDATE_REBOOT_TIMER_V1", RSPROT_REG_OUT, rsprot_update_reboot_timer_v1_out, &rsprot_update_reboot_timer_v1_out_count },
     { "UPDATE_REBOOT_TIMER_V2", RSPROT_REG_OUT, rsprot_update_reboot_timer_v2_out, &rsprot_update_reboot_timer_v2_out_count },

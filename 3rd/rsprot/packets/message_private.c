@@ -5,7 +5,10 @@
 void
 packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m)
 {
-    RSPROT_JSTR(x, m->name);
+    RSPROT_JSTR(x, m->sender);
+    RSPROT_U2(x, m->world_id);
+    RSPROT_U3(x, m->world_message_counter);
+    RSPROT_U1(x, m->chat_crown_type);
     RSPROT_REST(x, m->huffman, m->huffman_length);
 }
 

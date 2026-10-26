@@ -2367,6 +2367,8 @@ def apply_tail(prot, struct_text, versions):
 
 HAND_WRITTEN_PROTS = {
     "IF_OPENTOP",
+    # v2 (240-241) reads an optional trailing byte the overlay cannot derive.
+    "CLIENT_CHEAT",
     # The long tail, hand-written from RSProx's decoders (2026-10-25): the
     # social, clan and chat payloads and the input events. The C is the source.
     "MESSAGE_CLANCHANNEL",

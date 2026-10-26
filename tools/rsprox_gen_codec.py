@@ -86,7 +86,7 @@ SKIP = {
 # Packet files written by hand in this generator's shape. Listed so a run never
 # overwrites one, and so the report says where the layout lives.
 HAND = {
-    "HINT_ARROW", "UPDATE_UID192", "HISCORE_REPLY", "REFLECTION_CHECKER",
+    "CLIENT_CHEAT", "UPDATE_PLAYER_MODEL_V1", "HINT_ARROW", "UPDATE_UID192", "HISCORE_REPLY", "REFLECTION_CHECKER",
     "GROUP_FULL", "GROUP_VAR", "UPDATE_TRADINGPOST_V2", "OBJUNLOCK_UPDATE",
     "OBJ_CUSTOMISE_SPECIFIC_V2", "UPDATE_STOCKMARKET_SLOT_V2", "REBUILD_WORLDENTITY_V1",
     "MESSAGE_CLANCHANNEL",
