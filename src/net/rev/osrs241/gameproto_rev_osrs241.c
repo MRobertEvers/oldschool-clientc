@@ -82,7 +82,7 @@ rev_appearance_decode(
  *
  *  - Every opcode was renumbered, server and client side. packetin.h /
  *    packetout.h / zoneprot.h are generated from RSProt's 241 table
- *    (tools/rsprot_gen_rev.py 241; 3rd/rsprot/spec/tables/osrs241.json, which
+ *    (tools/rsprot_gen_rev.py 241; 3rd/rsprot/spec/tables/osrs241.ini, which
  *    RSProt ported from RSProx).
  *
  *  - Most fixed-layout packets reshuffled their field order and byte

@@ -61,7 +61,7 @@ real**. That is the entire reason it exists.
 ## 2. The tables are generated, not transcribed
 
 ```sh
-tools/rsprot_gen_rev.py 239 --out src/net/rev/osrs239   # from 3rd/rsprot/spec/tables/osrs239.json
+tools/rsprot_gen_rev.py 239 --out src/net/rev/osrs239   # from 3rd/rsprot/spec/tables/osrs239.ini
 ```
 
 produces `packetin.h` (158 server prots), `packetout.h` (101 client prots) and

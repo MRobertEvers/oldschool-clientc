@@ -6,8 +6,9 @@
 
 /*
  * Every field order and alternative transform below is transcribed literally
- * from 3rd/rsprot/gen/codec/encoders_239.h.  Similar-looking packets do not
- * establish a pattern in this protocol, so each encoder is stated separately.
+ * from the revision-239 layouts in 3rd/rsprot/packets/.  Similar-looking
+ * packets do not establish a pattern in this protocol, so each encoder is
+ * stated separately.
  */
 
 /* IfSetRotateSpeedEncoder:

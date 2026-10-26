@@ -9,7 +9,7 @@
  * de-duplicated key list, a pre-encoded sub-packet stream, a bit grid. The
  * generated codec stops where the Kotlin stops, and every payload then fails
  * to decode whole. These are those parts, each written once; a packet's spec
- * calls them (spec/packets/<file>.json), so the codecs stay generated and
+ * calls them (spec/packets/<file>.ini), so the codecs stay generated and
  * decode the whole payload.
  */
 

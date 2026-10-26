@@ -17398,7 +17398,7 @@ ToriRSServer_WorldSelftest(void)
                                            iface_capture.packets[at].len);
                             rsab_wrap(&body, (void*)iface_capture.packets[at].data,
                                       (size_t)iface_capture.packets[at].len);
-                            /* encoders_239.h IfSetAngleEncoder:
+                            /* 3rd/rsprot/packets/if_setangle.c at 239:
                              * p4Alt3(uid) p2(zoom) p2(angleX) p2Alt3(angleY). */
                             uid = rsab_g4_alt3(&body);
                             zoom = rsab_g2(&body);

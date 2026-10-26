@@ -1037,10 +1037,9 @@ w239_midi_song_stop(struct RSAreaBuf* buf, int fade_out_delay, int fade_out_spee
  * MidiJingleEncoder v16 (revs 239). `length_in_millis` is a big-endian p3, id
  * is a p2Alt3 with 65535 meaning "no id" -- the same sentinel MIDI_SONG uses.
  *
- * Confirmed three independent ways rather than transcribed once:
- *   - the vendored generated codec, 3rd/rsprot/packets/midi_jingle.c:134-140
+ * Confirmed two independent ways rather than transcribed once:
+ *   - the vendored generated codec, 3rd/rsprot/packets/midi_jingle.c
  *     (`packet_midi_jingle_osrs239_out`, table row `{239, 239, ...}`)
- *   - the 239 Kotlin transcription, 3rd/rsprot/gen/codec/encoders_239.h:1496
  *   - the rev-239 deob: `class243(118, 5)` and the g3/g2Alt3 read pair in
  *     `client.java`'s handler for opcode 118.
  *

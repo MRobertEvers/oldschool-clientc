@@ -21,7 +21,7 @@
  * of block shapes.
  *
  * What Jagex reshuffles every revision is the CONSTANTS, generated into
- * <stream>_osrs<N>.c by tools/rsprot_gen.py from spec/streams/<stream>.json:
+ * <stream>_osrs<N>.c by tools/rsprot_gen.py from spec/streams/<stream>.ini:
  *
  *   - each block's flag bit, and the order the blocks are read in: a generated
  *     dispatch, one `if (flag & bit)` per block in wire order;

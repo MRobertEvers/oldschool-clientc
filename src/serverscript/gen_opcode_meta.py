@@ -1010,7 +1010,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # the 2004 IF1 protocol and has neither command (engine.rs2 and
     # ScriptOpcode.ts carry no angle/rotate op), so the wire half already
     # existed -- ToriRSServer_SendIfSetangle / _SendIfSetrotatespeed,
-    # mock239_encode_if_setangle (encoders_239.h IfSetAngleEncoder) and the
+    # mock239_encode_if_setangle (3rd/rsprot/packets/if_setangle.c) and the
     # client's UITree_ApplyModelAngle -- with no script able to send it.
     # Argument order follows this dialect's if_setposition: the component
     # first, then the values in the order the client's IF_SETANGLE handler

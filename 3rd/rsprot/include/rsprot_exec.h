@@ -594,7 +594,7 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
  *
  * A *version* is the identity of a layout, not its ordinal: 31 packet classes
  * have a layout that disappears and later reappears, and it keeps its number
- * (spec/packets/<file>.json), because a number that silently renumbers is a
+ * (spec/packets/<file>.ini), because a number that silently renumbers is a
  * number that silently mismatches.
  *
  * Ranges rather than a row per revision because 207 of 238 packet classes have

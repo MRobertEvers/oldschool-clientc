@@ -18,15 +18,16 @@ python3 3rd/rsprot/tools/rsprot_gen.py --check   # exit 1 if anything is stale
 ## Layout
 
 ```
-spec/                  the protocol as data -- the generator's only input
-  packets/<file>.json    a codec: message structs; per version, its reads in
+spec/                  the protocol as data, in INI -- the generator's only input
+  packets/<file>.ini     a codec: message structs; per version, its reads in
                          wire order and the revisions it covers
-  tables/osrs<N>.json    revision N's prots: name, opcode, size, the version
+  tables/osrs<N>.ini     revision N's prots: name, opcode, size, the version
                          each row calls where that is not its name
-  streams/<stream>.json  PLAYER_INFO / NPC_INFO / WORLDENTITY_INFO: each
+  streams/<stream>.ini   PLAYER_INFO / NPC_INFO / WORLDENTITY_INFO: each
                          version's constants shape, each revision's flag bits,
                          block order, field transforms and record readers
-  codec239/*.json        revision 239's buffer codecs (the server's wire layer)
+tools/rsprot_spec.py   reads spec/ (the INI dialect and every section is
+                       documented there)
 tools/rsprot_gen.py    spec/ -> the GENERATED files below
 src/                   buffer, crypto (ISAAC, XTEA, RSA), Huffman / Base37,
                        the codec executor (rsprot_exec.c), codec storage, the
@@ -37,7 +38,7 @@ packets/               one codec per prot: generated from spec/packets, or
 streams/               the info streams: shared section and block readers
                        (hand-written) and per-version / per-revision files
                        (generated)
-gen/                   the prot tables and the 239 buffer codecs (generated)
+gen/                   the prot tables (generated)
 ffi/                   a C ABI over all of it, for a foreign host
 ```
 
@@ -57,5 +58,33 @@ it.
 ## Changing the protocol
 
 Edit the spec and run the generator; never hand-edit a file that says
-GENERATED. A new revision is a new `spec/tables/osrs<N>.json`, its versions'
+GENERATED. A new revision is a new `spec/tables/osrs<N>.ini`, its versions'
 `revs` in the packet specs, and its entry in each stream spec.
+
+A packet spec is one `[layout]` per version, its reads in wire order:
+
+```ini
+[packet]
+prot = CAM_TARGET_V2
+dir = out
+
+[struct:MsgCamTargetV2]
+field = int32_t type
+field = int32_t index
+field = int32_t camera_locked_player_index
+
+; v1
+[layout]
+revs = 223-228
+U1 = type
+U2 = index
+U2 = camera_locked_player_index
+```
+
+and a table row is `NAME = opcode size [the version it calls]`:
+
+```ini
+[server]
+CAM_TARGET = 125 5 CAM_TARGET_V2
+IF_SETTEXT = 13 VARU16
+```
