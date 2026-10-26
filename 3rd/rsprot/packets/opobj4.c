@@ -170,8 +170,17 @@ packet_opobj4_v16_in(RsprotExec *x, MsgOpObj4 *m)
     RSPROT_U2_12(x, m->x);
 }
 
+/* v17 -- revs rs245.2, rs254, rs289. */
+void
+packet_opobj4_v17_in(RsprotExec *x, MsgOpObj4 *m)
+{
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12(x, m->id);
+}
+
 /*
- * 16 row(s) for 16 layout(s). A revision not listed has no OPOBJ4 and
+ * 19 row(s) for 17 layout(s). A revision not listed has no OPOBJ4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opobj4_in[] = {
@@ -191,6 +200,9 @@ const RsprotVersionRange rsprot_opobj4_in[] = {
     { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opobj4_v14_in },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_opobj4_v15_in },
     { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opobj4_v16_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opobj4_v17_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opobj4_v17_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opobj4_v17_in },
 };
 
 const int rsprot_opobj4_in_count =

@@ -14,7 +14,8 @@ int
 proto_out_has(struct GameProtoRevTable const* rev, int out_name)
 {
     assert(rev);
-    return rev->packetout_code(out_name) >= 0;
+    assert(rev->encodes);
+    return rev->packetout_code(out_name) >= 0 && rev->encodes(out_name);
 }
 
 int

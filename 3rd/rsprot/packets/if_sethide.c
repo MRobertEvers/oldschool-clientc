@@ -154,8 +154,16 @@ packet_if_sethide_v18_out(RsprotExec *x, MsgIfSetHide *m)
     RSPROT_U1(x, m->hidden);
 }
 
+/* v19 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_sethide_v19_out(RsprotExec *x, MsgIfSetHide *m)
+{
+    RSPROT_U2_12(x, m->combined_id);
+    RSPROT_U1(x, m->hidden);
+}
+
 /*
- * 21 row(s) for 18 layout(s). A revision not listed has no IF_SETHIDE and
+ * 24 row(s) for 19 layout(s). A revision not listed has no IF_SETHIDE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_sethide_out[] = {
@@ -180,6 +188,9 @@ const RsprotVersionRange rsprot_if_sethide_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_sethide_v17_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_sethide_v5_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_sethide_v18_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_sethide_v19_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_sethide_v19_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_sethide_v19_out },
 };
 
 const int rsprot_if_sethide_out_count =

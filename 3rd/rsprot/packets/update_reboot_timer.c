@@ -38,8 +38,15 @@ packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m)
     RSPROT_U2_12_ADD128(x, m->game_cycles);
 }
 
+/* v5 -- revs rs245.2, rs254, rs289. */
+void
+packet_update_reboot_timer_v5_out(RsprotExec *x, MsgUpdateRebootTimer *m)
+{
+    RSPROT_U2_12(x, m->game_cycles);
+}
+
 /*
- * 13 row(s) for 4 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER and
+ * 16 row(s) for 5 layout(s). A revision not listed has no UPDATE_REBOOT_TIMER and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_reboot_timer_out[] = {
@@ -56,6 +63,9 @@ const RsprotVersionRange rsprot_update_reboot_timer_out[] = {
     { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_update_reboot_timer_v3_out },
     { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_update_reboot_timer_v1_out },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_update_reboot_timer_v2_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_update_reboot_timer_v5_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_update_reboot_timer_v5_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_update_reboot_timer_v5_out },
 };
 
 const int rsprot_update_reboot_timer_out_count =

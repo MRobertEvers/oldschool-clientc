@@ -63,9 +63,21 @@ ToriMem_TakeFromRSCacheAt(
 
 #define ToriMem_TakeFromRSCache(to, ptr, size)                                                     \
     ToriMem_TakeFromRSCacheAt((to), (ptr), (size), TORIMEM_SITE)
-/** A NUL-terminated string RSCache allocated. */
-#define ToriMem_TakeStrFromRSCache(to, str)                                                        \
-    ((char*)ToriMem_TakeFromRSCacheAt((to), (str), strlen(str) + 1, TORIMEM_SITE))
+/** A NUL-terminated string RSCache allocated. A function, not a macro over
+ *  `strlen(str)`: `str` is often the read itself (gstringnewline(&buffer)),
+ *  and a second evaluation reads a second string. */
+static inline char*
+ToriMem_TakeStrFromRSCacheAt(
+    struct ToriMem_Group* to,
+    char* str,
+    const char* file,
+    int line)
+{
+    assert(str);
+    return (char*)ToriMem_TakeFromRSCacheAt(to, str, strlen(str) + 1, file, line);
+}
+
+#define ToriMem_TakeStrFromRSCache(to, str) ToriMem_TakeStrFromRSCacheAt((to), (str), TORIMEM_SITE)
 
 /** A copy of `size` bytes that RSCache owns (RSCACHE_FREE releases it). */
 static inline void*

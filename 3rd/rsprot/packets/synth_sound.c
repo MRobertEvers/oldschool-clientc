@@ -19,12 +19,24 @@ packet_synth_sound_v1_out(RsprotExec *x, MsgSynthSound *m)
     RSPROT_U2_12(x, m->delay);
 }
 
+/* v2 -- revs rs245.2, rs254, rs289. */
+void
+packet_synth_sound_v2_out(RsprotExec *x, MsgSynthSound *m)
+{
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1(x, m->loops);
+    RSPROT_U2_12(x, m->delay);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no SYNTH_SOUND and
+ * 4 row(s) for 2 layout(s). A revision not listed has no SYNTH_SOUND and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_synth_sound_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_synth_sound_v1_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_synth_sound_v2_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_synth_sound_v2_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_synth_sound_v2_out },
 };
 
 const int rsprot_synth_sound_out_count =

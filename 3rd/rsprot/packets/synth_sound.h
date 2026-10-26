@@ -21,6 +21,8 @@ typedef struct MsgSynthSound {
 
 /* v1 -- revs osrs221-241. */
 void packet_synth_sound_v1_out(RsprotExec *x, MsgSynthSound *m);
+/* v2 -- revs rs245.2, rs254, rs289. */
+void packet_synth_sound_v2_out(RsprotExec *x, MsgSynthSound *m);
 
 /* Per-revision entry points: what revision R calls is packet_synth_sound_<R>_out. */
 #define packet_synth_sound_osrs221_out packet_synth_sound_v1_out
@@ -44,6 +46,9 @@ void packet_synth_sound_v1_out(RsprotExec *x, MsgSynthSound *m);
 #define packet_synth_sound_osrs239_out packet_synth_sound_v1_out
 #define packet_synth_sound_osrs240_out packet_synth_sound_v1_out
 #define packet_synth_sound_osrs241_out packet_synth_sound_v1_out
+#define packet_synth_sound_rs245_2_out packet_synth_sound_v2_out
+#define packet_synth_sound_rs254_out packet_synth_sound_v2_out
+#define packet_synth_sound_rs289_out packet_synth_sound_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_synth_sound_out[];

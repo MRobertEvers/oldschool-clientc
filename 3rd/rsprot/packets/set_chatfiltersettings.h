@@ -21,6 +21,8 @@ typedef struct MsgSetChatFilterSettings {
 
 /* v1 -- revs osrs221-241. */
 void packet_set_chatfiltersettings_v1_in(RsprotExec *x, MsgSetChatFilterSettings *m);
+/* v2 -- revs rs245.2, rs254, rs289. */
+void packet_set_chatfiltersettings_v2_in(RsprotExec *x, MsgSetChatFilterSettings *m);
 
 /* Per-revision entry points: what revision R calls is packet_set_chatfiltersettings_<R>_in. */
 #define packet_set_chatfiltersettings_osrs221_in packet_set_chatfiltersettings_v1_in
@@ -44,6 +46,9 @@ void packet_set_chatfiltersettings_v1_in(RsprotExec *x, MsgSetChatFilterSettings
 #define packet_set_chatfiltersettings_osrs239_in packet_set_chatfiltersettings_v1_in
 #define packet_set_chatfiltersettings_osrs240_in packet_set_chatfiltersettings_v1_in
 #define packet_set_chatfiltersettings_osrs241_in packet_set_chatfiltersettings_v1_in
+#define packet_set_chatfiltersettings_rs245_2_in packet_set_chatfiltersettings_v2_in
+#define packet_set_chatfiltersettings_rs254_in packet_set_chatfiltersettings_v2_in
+#define packet_set_chatfiltersettings_rs289_in packet_set_chatfiltersettings_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_set_chatfiltersettings_in[];

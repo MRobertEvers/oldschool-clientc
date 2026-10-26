@@ -174,6 +174,43 @@
 #include "packets/varp_long.h"
 #include "packets/varp_small.h"
 
+#include "packets/chat_filter_settings_rs.h"
+#include "packets/friendlist_loaded_rs.h"
+#include "packets/hint_arrow_rs.h"
+#include "packets/if_close.h"
+#include "packets/if_openchat.h"
+#include "packets/if_openmain.h"
+#include "packets/if_openmain_side.h"
+#include "packets/if_openoverlay.h"
+#include "packets/if_openside.h"
+#include "packets/if_settab.h"
+#include "packets/if_settab_active.h"
+#include "packets/if_settext_rs.h"
+#include "packets/last_login_info.h"
+#include "packets/loc_add_change_rs.h"
+#include "packets/map_projanim_rs.h"
+#include "packets/message_game_rs.h"
+#include "packets/message_private_rs.h"
+#include "packets/midi_song.h"
+#include "packets/obj_reveal.h"
+#include "packets/rebuild_normal_rs.h"
+#include "packets/set_multiway.h"
+#include "packets/set_player_op_rs.h"
+#include "packets/tut_flash.h"
+#include "packets/tut_open.h"
+#include "packets/unset_map_flag.h"
+#include "packets/update_friendlist_rs.h"
+#include "packets/update_ignorelist_rs.h"
+#include "packets/update_inv_full_rs.h"
+#include "packets/update_inv_partial_rs.h"
+#include "packets/update_inv_stoptransmit_rs.h"
+#include "packets/update_pid.h"
+#include "packets/update_runenergy_rs.h"
+#include "packets/update_stat_rs.h"
+#include "packets/update_zone_full_follows_rs.h"
+#include "packets/update_zone_partial_enclosed_rs.h"
+#include "packets/update_zone_partial_follows_rs.h"
+
 #include <stdint.h>
 
 /**
@@ -507,5 +544,85 @@ int
 adapt_zone_obj_count(MsgObjCount const* m, struct PktZoneSubPacket* out);
 int
 adapt_zone_obj_enabled_ops(MsgObjEnabledOps const* m, struct PktZoneSubPacket* out);
+
+/* --- LostCity (the rs245.2 / rs254 / rs289 revisions) ---------------------- */
+
+int
+adapt_chat_filter_settings_rs(MsgChatFilterSettingsRs const* m, struct RevPacket* out);
+int
+adapt_friendlist_loaded_rs(MsgFriendlistLoadedRs const* m, struct RevPacket* out);
+int
+adapt_hint_arrow_rs(MsgHintArrowRs const* m, struct RevPacket* out);
+int
+adapt_if_openchat(MsgIfOpenchat const* m, struct RevPacket* out);
+int
+adapt_if_openmain(MsgIfOpenmain const* m, struct RevPacket* out);
+int
+adapt_if_openmain_side(MsgIfOpenmainSide const* m, struct RevPacket* out);
+int
+adapt_if_openoverlay(MsgIfOpenoverlay const* m, struct RevPacket* out);
+int
+adapt_if_openside(MsgIfOpenside const* m, struct RevPacket* out);
+int
+adapt_if_settab(MsgIfSettab const* m, struct RevPacket* out);
+int
+adapt_if_settab_active(MsgIfSettabActive const* m, struct RevPacket* out);
+int
+adapt_if_settext_rs(MsgIfSettextRs const* m, struct RevPacket* out);
+int
+adapt_last_login_info(MsgLastLoginInfo const* m, struct RevPacket* out);
+int
+adapt_zone_loc_add_change_rs(MsgLocAddChangeRs const* m, struct PktZoneSubPacket* out);
+int
+adapt_zone_map_projanim_rs(MsgMapProjanimRs const* m, struct PktZoneSubPacket* out);
+int
+adapt_message_game_rs(MsgMessageGameRs const* m, struct RevPacket* out);
+int
+adapt_message_private_rs(MsgMessagePrivateRs const* m, struct RevPacket* out);
+int
+adapt_midi_song(MsgMidiSong const* m, struct RevPacket* out);
+int
+adapt_zone_obj_reveal(MsgObjReveal const* m, struct PktZoneSubPacket* out);
+int
+adapt_rebuild_normal_rs(MsgRebuildNormalRs const* m, struct RevPacket* out);
+int
+adapt_set_multiway(MsgSetMultiway const* m, struct RevPacket* out);
+int
+adapt_set_player_op_rs(MsgSetPlayerOpRs const* m, struct RevPacket* out);
+int
+adapt_tut_flash(MsgTutFlash const* m, struct RevPacket* out);
+int
+adapt_tut_open(MsgTutOpen const* m, struct RevPacket* out);
+int
+adapt_unset_map_flag(struct RevPacket* out);
+int
+adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out);
+void
+prep_update_ignorelist_rs(MsgUpdateIgnoreListRs* m);
+int
+adapt_update_ignorelist_rs(MsgUpdateIgnoreListRs const* m, struct RevPacket* out);
+void
+prep_update_inv_full_rs(MsgUpdateInvFullRs* m);
+int
+adapt_update_inv_full_rs(MsgUpdateInvFullRs const* m, struct RevPacket* out);
+void
+prep_update_inv_partial_rs(MsgUpdateInvPartialRs* m);
+int
+adapt_update_inv_partial_rs(MsgUpdateInvPartialRs const* m, struct RevPacket* out);
+int
+adapt_update_inv_stoptransmit_rs(MsgUpdateInvStoptransmitRs const* m, struct RevPacket* out);
+int
+adapt_update_pid(MsgUpdatePid const* m, struct RevPacket* out);
+int
+adapt_update_runenergy_rs(MsgUpdateRunenergyRs const* m, struct RevPacket* out);
+int
+adapt_update_stat_rs(MsgUpdateStatRs const* m, struct RevPacket* out);
+int
+adapt_update_zone_full_follows_rs(MsgUpdateZoneFullFollowsRs const* m, struct RevPacket* out);
+int
+adapt_update_zone_partial_enclosed_rs(
+    MsgUpdateZonePartialEnclosedRs const* m, ProtoZoneSubFn zone, struct RevPacket* out);
+int
+adapt_update_zone_partial_follows_rs(MsgUpdateZonePartialFollowsRs const* m, struct RevPacket* out);
 
 #endif

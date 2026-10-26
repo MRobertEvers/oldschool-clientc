@@ -81,24 +81,3 @@ GameProtoRev_LC254(void)
     }
     return &k_rev_lc254;
 }
-
-struct GameProtoRevTable const*
-GameProtoRev_ByName(char const* name)
-{
-    assert(name);
-    if( strcmp(name, "lc254") == 0 )
-        return GameProtoRev_LC254();
-    if( strcmp(name, "lc289") == 0 )
-        return GameProtoRev_LC289();
-    if( strcmp(name, "lc245_2") == 0 )
-        return GameProtoRev_LC245_2();
-    if( strncmp(name, "rsprox", 6) == 0 )
-    {
-        char* end = NULL;
-        long revision = strtol(name + 6, &end, 10);
-
-        if( end && *end == '\0' && end != name + 6 )
-            return GameProtoRev_Osrs((int)revision);
-    }
-    return GameProtoRev_OsrsByName(name);
-}

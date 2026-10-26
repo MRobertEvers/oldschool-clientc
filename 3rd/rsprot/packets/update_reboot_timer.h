@@ -25,6 +25,8 @@ void packet_update_reboot_timer_v2_out(RsprotExec *x, MsgUpdateRebootTimer *m);
 void packet_update_reboot_timer_v3_out(RsprotExec *x, MsgUpdateRebootTimer *m);
 /* v4 -- revs osrs225, osrs230. */
 void packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m);
+/* v5 -- revs rs245.2, rs254, rs289. */
+void packet_update_reboot_timer_v5_out(RsprotExec *x, MsgUpdateRebootTimer *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_reboot_timer_<R>_out. */
 #define packet_update_reboot_timer_osrs221_out packet_update_reboot_timer_v1_out
@@ -42,6 +44,9 @@ void packet_update_reboot_timer_v4_out(RsprotExec *x, MsgUpdateRebootTimer *m);
 #define packet_update_reboot_timer_osrs233_out packet_update_reboot_timer_v3_out
 #define packet_update_reboot_timer_osrs234_out packet_update_reboot_timer_v1_out
 #define packet_update_reboot_timer_osrs235_out packet_update_reboot_timer_v2_out
+#define packet_update_reboot_timer_rs245_2_out packet_update_reboot_timer_v5_out
+#define packet_update_reboot_timer_rs254_out packet_update_reboot_timer_v5_out
+#define packet_update_reboot_timer_rs289_out packet_update_reboot_timer_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_reboot_timer_out[];

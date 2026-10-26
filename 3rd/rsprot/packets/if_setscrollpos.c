@@ -130,8 +130,16 @@ packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m)
     RSPROT_U2_12_ADD128(x, m->scroll_pos);
 }
 
+/* v16 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_setscrollpos_v16_out(RsprotExec *x, MsgIfSetScrollPos *m)
+{
+    RSPROT_U2_12(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
+}
+
 /*
- * 19 row(s) for 15 layout(s). A revision not listed has no IF_SETSCROLLPOS and
+ * 22 row(s) for 16 layout(s). A revision not listed has no IF_SETSCROLLPOS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
@@ -154,6 +162,9 @@ const RsprotVersionRange rsprot_if_setscrollpos_out[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_if_setscrollpos_v15_out },
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setscrollpos_v10_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setscrollpos_v14_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setscrollpos_v16_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setscrollpos_v16_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setscrollpos_v16_out },
 };
 
 const int rsprot_if_setscrollpos_out_count =

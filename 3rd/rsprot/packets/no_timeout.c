@@ -18,12 +18,23 @@ packet_no_timeout_v1_in(RsprotExec *x, MsgNoTimeout *m)
     (void)m;
 }
 
+/* v2 -- revs rs245.2, rs254, rs289. */
+void
+packet_no_timeout_v2_in(RsprotExec *x, MsgNoTimeout *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no NO_TIMEOUT and
+ * 4 row(s) for 2 layout(s). A revision not listed has no NO_TIMEOUT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_no_timeout_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_no_timeout_v1_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_no_timeout_v2_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_no_timeout_v2_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_no_timeout_v2_in },
 };
 
 const int rsprot_no_timeout_in_count =

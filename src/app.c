@@ -1166,11 +1166,11 @@ App_Init(
         if( !rev_name || !rev_name[0] )
             rev_name = getenv("TORIRS_REV");
         struct GameProtoRevTable const* rev =
-            rev_name && rev_name[0] ? GameProtoRev_ByName(rev_name) : GameProtoRev_LC254();
+            rev_name && rev_name[0] ? GameProtoRev_ByName(rev_name) : GameProtoRev_RS254();
         if( !rev )
         {
-            TORIRS_ERR("app: unknown protocol rev '%s', using lc254\n", rev_name);
-            rev = GameProtoRev_LC254();
+            TORIRS_ERR("app: unknown protocol rev '%s', using rs254\n", rev_name);
+            rev = GameProtoRev_RS254();
         }
 
         /* Manifest login params override the table defaults, but env still wins

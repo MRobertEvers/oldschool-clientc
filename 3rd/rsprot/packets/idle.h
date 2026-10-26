@@ -21,6 +21,8 @@ typedef struct MsgIdle {
 
 /* v1 -- revs osrs221-241. */
 void packet_idle_v1_in(RsprotExec *x, MsgIdle *m);
+/* v2 -- revs rs245.2, rs254, rs289. */
+void packet_idle_v2_in(RsprotExec *x, MsgIdle *m);
 
 /* Per-revision entry points: what revision R calls is packet_idle_<R>_in. */
 #define packet_idle_osrs221_in packet_idle_v1_in
@@ -44,6 +46,9 @@ void packet_idle_v1_in(RsprotExec *x, MsgIdle *m);
 #define packet_idle_osrs239_in packet_idle_v1_in
 #define packet_idle_osrs240_in packet_idle_v1_in
 #define packet_idle_osrs241_in packet_idle_v1_in
+#define packet_idle_rs245_2_in packet_idle_v2_in
+#define packet_idle_rs254_in packet_idle_v2_in
+#define packet_idle_rs289_in packet_idle_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_idle_in[];

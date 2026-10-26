@@ -56,6 +56,7 @@
 #include "packets/cam_unlock.c"
 #include "packets/chat_filter_settings.c"
 #include "packets/chat_filter_settings_privatechat.c"
+#include "packets/chat_filter_settings_rs.c"
 #include "packets/clanchannel_delta.c"
 #include "packets/clanchannel_full.c"
 #include "packets/clanchannel_full_request.c"
@@ -66,9 +67,11 @@
 #include "packets/clear_entities.c"
 #include "packets/clickworldmap.c"
 #include "packets/client_cheat.c"
+#include "packets/client_cheat_rs.c"
 #include "packets/close_modal.c"
 #include "packets/connection_telemetry.c"
 #include "packets/detect_modified_client.c"
+#include "packets/enable_tracking.c"
 #include "packets/event_applet_focus.c"
 #include "packets/event_camera_position.c"
 #include "packets/event_keyboard.c"
@@ -79,13 +82,18 @@
 #include "packets/event_mouse_scroll.c"
 #include "packets/event_native_mouse_click.c"
 #include "packets/event_native_mouse_move.c"
+#include "packets/event_tracking.c"
 #include "packets/exit_freecam.c"
+#include "packets/finish_tracking.c"
 #include "packets/friendchat_join_leave.c"
 #include "packets/friendchat_kick.c"
 #include "packets/friendchat_setrank.c"
 #include "packets/friendlist_add.c"
+#include "packets/friendlist_add_rs.c"
 #include "packets/friendlist_del.c"
+#include "packets/friendlist_del_rs.c"
 #include "packets/friendlist_loaded.c"
+#include "packets/friendlist_loaded_rs.c"
 #include "packets/group_full.c"
 #include "packets/group_var.c"
 #include "packets/group_var_int.c"
@@ -95,19 +103,28 @@
 #include "packets/hidenpcops.c"
 #include "packets/hideobjops.c"
 #include "packets/hint_arrow.c"
+#include "packets/hint_arrow_rs.c"
 #include "packets/hiscore_reply.c"
 #include "packets/hiscore_request.c"
+#include "packets/idk_savedesign.c"
 #include "packets/idle.c"
 #include "packets/if3_button.c"
 #include "packets/if_button.c"
 #include "packets/if_buttond.c"
+#include "packets/if_buttond_rs.c"
 #include "packets/if_buttont.c"
 #include "packets/if_buttonx.c"
 #include "packets/if_clearinv.c"
+#include "packets/if_close.c"
 #include "packets/if_closesub.c"
 #include "packets/if_crmview_op.c"
 #include "packets/if_initialstate.c"
 #include "packets/if_movesub.c"
+#include "packets/if_openchat.c"
+#include "packets/if_openmain.c"
+#include "packets/if_openmain_side.c"
+#include "packets/if_openoverlay.c"
+#include "packets/if_openside.c"
 #include "packets/if_opensub.c"
 #include "packets/if_opentop.c"
 #include "packets/if_resync.c"
@@ -135,11 +152,19 @@
 #include "packets/if_setposition.c"
 #include "packets/if_setrotatespeed.c"
 #include "packets/if_setscrollpos.c"
+#include "packets/if_settab.c"
+#include "packets/if_settab_active.c"
 #include "packets/if_settext.c"
+#include "packets/if_settext_rs.c"
 #include "packets/if_subop.c"
 #include "packets/ignorelist_add.c"
+#include "packets/ignorelist_add_rs.c"
 #include "packets/ignorelist_del.c"
+#include "packets/ignorelist_del_rs.c"
+#include "packets/inv_button.c"
+#include "packets/last_login_info.c"
 #include "packets/loc_add_change.c"
+#include "packets/loc_add_change_rs.c"
 #include "packets/loc_add_change_v1.c"
 #include "packets/loc_add_change_v2.c"
 #include "packets/loc_anim.c"
@@ -153,6 +178,7 @@
 #include "packets/map_anim_specific.c"
 #include "packets/map_build_complete.c"
 #include "packets/map_projanim.c"
+#include "packets/map_projanim_rs.c"
 #include "packets/map_projanim_v1.c"
 #include "packets/map_projanim_v2.c"
 #include "packets/membership_promotion_eligibility.c"
@@ -160,9 +186,13 @@
 #include "packets/message_clanchannel_system.c"
 #include "packets/message_friendchannel.c"
 #include "packets/message_game.c"
+#include "packets/message_game_rs.c"
 #include "packets/message_private.c"
 #include "packets/message_private_echo.c"
+#include "packets/message_private_in_rs.c"
+#include "packets/message_private_rs.c"
 #include "packets/message_public.c"
+#include "packets/message_public_rs.c"
 #include "packets/midi_jingle.c"
 #include "packets/midi_song.c"
 #include "packets/midi_song_old.c"
@@ -172,8 +202,10 @@
 #include "packets/midi_song_withsecondary.c"
 #include "packets/midi_swap.c"
 #include "packets/minimap_toggle.c"
+#include "packets/move_click_rs.c"
 #include "packets/move_gameclick.c"
 #include "packets/move_minimapclick.c"
+#include "packets/move_minimapclick_rs.c"
 #include "packets/no_timeout.c"
 #include "packets/npc_anim_specific.c"
 #include "packets/npc_headicon_specific.c"
@@ -190,11 +222,15 @@
 #include "packets/obj_enabled_ops.c"
 #include "packets/obj_enabled_ops_specific.c"
 #include "packets/obj_opfilter.c"
+#include "packets/obj_reveal.c"
 #include "packets/obj_uncustomise.c"
 #include "packets/obj_uncustomise_specific.c"
 #include "packets/objunlock_reset.c"
 #include "packets/objunlock_update.c"
 #include "packets/oculus_sync.c"
+#include "packets/opheld.c"
+#include "packets/opheldt.c"
+#include "packets/opheldu.c"
 #include "packets/oploc1.c"
 #include "packets/oploc1_v1.c"
 #include "packets/oploc1_v2.c"
@@ -212,6 +248,7 @@
 #include "packets/oploc5_v2.c"
 #include "packets/oploc6.c"
 #include "packets/oploct.c"
+#include "packets/oplocu.c"
 #include "packets/opnpc1.c"
 #include "packets/opnpc1_v1.c"
 #include "packets/opnpc1_v2.c"
@@ -229,6 +266,7 @@
 #include "packets/opnpc5_v2.c"
 #include "packets/opnpc6.c"
 #include "packets/opnpct.c"
+#include "packets/opnpcu.c"
 #include "packets/opobj1.c"
 #include "packets/opobj1_v1.c"
 #include "packets/opobj1_v2.c"
@@ -246,6 +284,7 @@
 #include "packets/opobj5_v2.c"
 #include "packets/opobj6.c"
 #include "packets/opobjt.c"
+#include "packets/opobju.c"
 #include "packets/opplayer1.c"
 #include "packets/opplayer2.c"
 #include "packets/opplayer3.c"
@@ -255,6 +294,7 @@
 #include "packets/opplayer7.c"
 #include "packets/opplayer8.c"
 #include "packets/opplayert.c"
+#include "packets/opplayeru.c"
 #include "packets/opworldentity1.c"
 #include "packets/opworldentity2.c"
 #include "packets/opworldentity3.c"
@@ -262,6 +302,7 @@
 #include "packets/opworldentity5.c"
 #include "packets/opworldentity6.c"
 #include "packets/opworldentityt.c"
+#include "packets/p_countdialog.c"
 #include "packets/packet_group_start.c"
 #include "packets/player_spotanim_specific.c"
 #include "packets/projanim_specific.c"
@@ -269,6 +310,7 @@
 #include "packets/projanim_specific_v3.c"
 #include "packets/projanim_specific_v4.c"
 #include "packets/rebuild_normal.c"
+#include "packets/rebuild_normal_rs.c"
 #include "packets/rebuild_normal_v1.c"
 #include "packets/rebuild_normal_v2.c"
 #include "packets/rebuild_region.c"
@@ -281,6 +323,7 @@
 #include "packets/reflection_check_reply.c"
 #include "packets/reflection_check_reply_results.c"
 #include "packets/reflection_checker.c"
+#include "packets/report_abuse.c"
 #include "packets/reset_anims.c"
 #include "packets/reset_interaction_mode.c"
 #include "packets/resume_p_countdialog.c"
@@ -306,8 +349,10 @@
 #include "packets/set_map_flag.c"
 #include "packets/set_map_flag_v1.c"
 #include "packets/set_map_flag_v2.c"
+#include "packets/set_multiway.c"
 #include "packets/set_npc_update_origin.c"
 #include "packets/set_player_op.c"
+#include "packets/set_player_op_rs.c"
 #include "packets/site_settings.c"
 #include "packets/sound_area.c"
 #include "packets/sound_jingleend.c"
@@ -315,24 +360,36 @@
 #include "packets/teleport.c"
 #include "packets/timings.c"
 #include "packets/trigger_ondialogabort.c"
+#include "packets/tut_clickside.c"
+#include "packets/tut_flash.c"
+#include "packets/tut_open.c"
 #include "packets/unknown_string.c"
+#include "packets/unset_map_flag.c"
 #include "packets/update_friendchat_channel_full_v1.c"
 #include "packets/update_friendchat_channel_full_v2.c"
 #include "packets/update_friendchat_channel_singleuser.c"
 #include "packets/update_friendlist.c"
+#include "packets/update_friendlist_rs.c"
 #include "packets/update_ignorelist.c"
+#include "packets/update_ignorelist_rs.c"
 #include "packets/update_inv_full.c"
+#include "packets/update_inv_full_rs.c"
 #include "packets/update_inv_partial.c"
+#include "packets/update_inv_partial_rs.c"
 #include "packets/update_inv_stoptransmit.c"
+#include "packets/update_inv_stoptransmit_rs.c"
+#include "packets/update_pid.c"
 #include "packets/update_player_model_v1.c"
 #include "packets/update_reboot_timer.c"
 #include "packets/update_reboot_timer_v1.c"
 #include "packets/update_reboot_timer_v2.c"
 #include "packets/update_runenergy.c"
+#include "packets/update_runenergy_rs.c"
 #include "packets/update_runweight.c"
 #include "packets/update_sitesettings.c"
 #include "packets/update_stat.c"
 #include "packets/update_stat_old.c"
+#include "packets/update_stat_rs.c"
 #include "packets/update_stat_v1.c"
 #include "packets/update_stat_v2.c"
 #include "packets/update_stockmarket_slot_v1.c"
@@ -341,8 +398,11 @@
 #include "packets/update_tradingpost_v2.c"
 #include "packets/update_uid192.c"
 #include "packets/update_zone_full_follows.c"
+#include "packets/update_zone_full_follows_rs.c"
 #include "packets/update_zone_partial_enclosed.c"
+#include "packets/update_zone_partial_enclosed_rs.c"
 #include "packets/update_zone_partial_follows.c"
+#include "packets/update_zone_partial_follows_rs.c"
 #include "packets/url_open.c"
 #include "packets/varclan.c"
 #include "packets/varclan_disable.c"
@@ -489,6 +549,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "CAM_UNLOCK", RSPROT_REG_OUT, rsprot_cam_unlock_out, &rsprot_cam_unlock_out_count },
     { "CHAT_FILTER_SETTINGS", RSPROT_REG_OUT, rsprot_chat_filter_settings_out, &rsprot_chat_filter_settings_out_count },
     { "CHAT_FILTER_SETTINGS_PRIVATECHAT", RSPROT_REG_OUT, rsprot_chat_filter_settings_privatechat_out, &rsprot_chat_filter_settings_privatechat_out_count },
+    { "CHAT_FILTER_SETTINGS_RS", RSPROT_REG_OUT, rsprot_chat_filter_settings_rs_out, &rsprot_chat_filter_settings_rs_out_count },
     { "CLANCHANNEL_DELTA", RSPROT_REG_OUT, rsprot_clanchannel_delta_out, &rsprot_clanchannel_delta_out_count },
     { "CLANCHANNEL_FULL", RSPROT_REG_OUT, rsprot_clanchannel_full_out, &rsprot_clanchannel_full_out_count },
     { "CLANCHANNEL_FULL_REQUEST", RSPROT_REG_IN, rsprot_clanchannel_full_request_in, &rsprot_clanchannel_full_request_in_count },
@@ -499,9 +560,11 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "CLEAR_ENTITIES", RSPROT_REG_OUT, rsprot_clear_entities_out, &rsprot_clear_entities_out_count },
     { "CLICKWORLDMAP", RSPROT_REG_IN, rsprot_clickworldmap_in, &rsprot_clickworldmap_in_count },
     { "CLIENT_CHEAT", RSPROT_REG_IN, rsprot_client_cheat_in, &rsprot_client_cheat_in_count },
+    { "CLIENT_CHEAT_RS", RSPROT_REG_IN, rsprot_client_cheat_rs_in, &rsprot_client_cheat_rs_in_count },
     { "CLOSE_MODAL", RSPROT_REG_IN, rsprot_close_modal_in, &rsprot_close_modal_in_count },
     { "CONNECTION_TELEMETRY", RSPROT_REG_IN, rsprot_connection_telemetry_in, &rsprot_connection_telemetry_in_count },
     { "DETECT_MODIFIED_CLIENT", RSPROT_REG_IN, rsprot_detect_modified_client_in, &rsprot_detect_modified_client_in_count },
+    { "ENABLE_TRACKING", RSPROT_REG_OUT, rsprot_enable_tracking_out, &rsprot_enable_tracking_out_count },
     { "EVENT_APPLET_FOCUS", RSPROT_REG_IN, rsprot_event_applet_focus_in, &rsprot_event_applet_focus_in_count },
     { "EVENT_CAMERA_POSITION", RSPROT_REG_IN, rsprot_event_camera_position_in, &rsprot_event_camera_position_in_count },
     { "EVENT_KEYBOARD", RSPROT_REG_IN, rsprot_event_keyboard_in, &rsprot_event_keyboard_in_count },
@@ -512,13 +575,18 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "EVENT_MOUSE_SCROLL", RSPROT_REG_IN, rsprot_event_mouse_scroll_in, &rsprot_event_mouse_scroll_in_count },
     { "EVENT_NATIVE_MOUSE_CLICK", RSPROT_REG_IN, rsprot_event_native_mouse_click_in, &rsprot_event_native_mouse_click_in_count },
     { "EVENT_NATIVE_MOUSE_MOVE", RSPROT_REG_IN, rsprot_event_native_mouse_move_in, &rsprot_event_native_mouse_move_in_count },
+    { "EVENT_TRACKING", RSPROT_REG_IN, rsprot_event_tracking_in, &rsprot_event_tracking_in_count },
     { "EXIT_FREECAM", RSPROT_REG_IN, rsprot_exit_freecam_in, &rsprot_exit_freecam_in_count },
+    { "FINISH_TRACKING", RSPROT_REG_OUT, rsprot_finish_tracking_out, &rsprot_finish_tracking_out_count },
     { "FRIENDCHAT_JOIN_LEAVE", RSPROT_REG_IN, rsprot_friendchat_join_leave_in, &rsprot_friendchat_join_leave_in_count },
     { "FRIENDCHAT_KICK", RSPROT_REG_IN, rsprot_friendchat_kick_in, &rsprot_friendchat_kick_in_count },
     { "FRIENDCHAT_SETRANK", RSPROT_REG_IN, rsprot_friendchat_setrank_in, &rsprot_friendchat_setrank_in_count },
     { "FRIENDLIST_ADD", RSPROT_REG_IN, rsprot_friendlist_add_in, &rsprot_friendlist_add_in_count },
+    { "FRIENDLIST_ADD_RS", RSPROT_REG_IN, rsprot_friendlist_add_rs_in, &rsprot_friendlist_add_rs_in_count },
     { "FRIENDLIST_DEL", RSPROT_REG_IN, rsprot_friendlist_del_in, &rsprot_friendlist_del_in_count },
+    { "FRIENDLIST_DEL_RS", RSPROT_REG_IN, rsprot_friendlist_del_rs_in, &rsprot_friendlist_del_rs_in_count },
     { "FRIENDLIST_LOADED", RSPROT_REG_OUT, rsprot_friendlist_loaded_out, &rsprot_friendlist_loaded_out_count },
+    { "FRIENDLIST_LOADED_RS", RSPROT_REG_OUT, rsprot_friendlist_loaded_rs_out, &rsprot_friendlist_loaded_rs_out_count },
     { "GROUP_FULL", RSPROT_REG_OUT, rsprot_group_full_out, &rsprot_group_full_out_count },
     { "GROUP_VAR", RSPROT_REG_OUT, rsprot_group_var_out, &rsprot_group_var_out_count },
     { "GROUP_VAR_INT", RSPROT_REG_OUT, rsprot_group_var_int_out, &rsprot_group_var_int_out_count },
@@ -528,8 +596,10 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "HIDENPCOPS", RSPROT_REG_OUT, rsprot_hidenpcops_out, &rsprot_hidenpcops_out_count },
     { "HIDEOBJOPS", RSPROT_REG_OUT, rsprot_hideobjops_out, &rsprot_hideobjops_out_count },
     { "HINT_ARROW", RSPROT_REG_OUT, rsprot_hint_arrow_out, &rsprot_hint_arrow_out_count },
+    { "HINT_ARROW_RS", RSPROT_REG_OUT, rsprot_hint_arrow_rs_out, &rsprot_hint_arrow_rs_out_count },
     { "HISCORE_REPLY", RSPROT_REG_OUT, rsprot_hiscore_reply_out, &rsprot_hiscore_reply_out_count },
     { "HISCORE_REQUEST", RSPROT_REG_IN, rsprot_hiscore_request_in, &rsprot_hiscore_request_in_count },
+    { "IDK_SAVEDESIGN", RSPROT_REG_IN, rsprot_idk_savedesign_in, &rsprot_idk_savedesign_in_count },
     { "IDLE", RSPROT_REG_IN, rsprot_idle_in, &rsprot_idle_in_count },
     { "IF_BUTTON1", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
     { "IF_BUTTON2", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
@@ -543,13 +613,20 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "IF_BUTTON10", RSPROT_REG_IN, rsprot_if3_button_in, &rsprot_if3_button_in_count },
     { "IF_BUTTON", RSPROT_REG_IN, rsprot_if_button_in, &rsprot_if_button_in_count },
     { "IF_BUTTOND", RSPROT_REG_IN, rsprot_if_buttond_in, &rsprot_if_buttond_in_count },
+    { "IF_BUTTOND_RS", RSPROT_REG_IN, rsprot_if_buttond_rs_in, &rsprot_if_buttond_rs_in_count },
     { "IF_BUTTONT", RSPROT_REG_IN, rsprot_if_buttont_in, &rsprot_if_buttont_in_count },
     { "IF_BUTTONX", RSPROT_REG_IN, rsprot_if_buttonx_in, &rsprot_if_buttonx_in_count },
     { "IF_CLEARINV", RSPROT_REG_OUT, rsprot_if_clearinv_out, &rsprot_if_clearinv_out_count },
+    { "IF_CLOSE", RSPROT_REG_OUT, rsprot_if_close_out, &rsprot_if_close_out_count },
     { "IF_CLOSESUB", RSPROT_REG_OUT, rsprot_if_closesub_out, &rsprot_if_closesub_out_count },
     { "IF_CRMVIEW_OP", RSPROT_REG_IN, rsprot_if_crmview_op_in, &rsprot_if_crmview_op_in_count },
     { "IF_INITIALSTATE", RSPROT_REG_OUT, rsprot_if_initialstate_out, &rsprot_if_initialstate_out_count },
     { "IF_MOVESUB", RSPROT_REG_OUT, rsprot_if_movesub_out, &rsprot_if_movesub_out_count },
+    { "IF_OPENCHAT", RSPROT_REG_OUT, rsprot_if_openchat_out, &rsprot_if_openchat_out_count },
+    { "IF_OPENMAIN", RSPROT_REG_OUT, rsprot_if_openmain_out, &rsprot_if_openmain_out_count },
+    { "IF_OPENMAIN_SIDE", RSPROT_REG_OUT, rsprot_if_openmain_side_out, &rsprot_if_openmain_side_out_count },
+    { "IF_OPENOVERLAY", RSPROT_REG_OUT, rsprot_if_openoverlay_out, &rsprot_if_openoverlay_out_count },
+    { "IF_OPENSIDE", RSPROT_REG_OUT, rsprot_if_openside_out, &rsprot_if_openside_out_count },
     { "IF_OPENSUB", RSPROT_REG_OUT, rsprot_if_opensub_out, &rsprot_if_opensub_out_count },
     { "IF_OPENTOP", RSPROT_REG_OUT, rsprot_if_opentop_out, &rsprot_if_opentop_out_count },
     { "IF_RESYNC", RSPROT_REG_OUT, rsprot_if_resync_out, &rsprot_if_resync_out_count },
@@ -577,11 +654,23 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "IF_SETPOSITION", RSPROT_REG_OUT, rsprot_if_setposition_out, &rsprot_if_setposition_out_count },
     { "IF_SETROTATESPEED", RSPROT_REG_OUT, rsprot_if_setrotatespeed_out, &rsprot_if_setrotatespeed_out_count },
     { "IF_SETSCROLLPOS", RSPROT_REG_OUT, rsprot_if_setscrollpos_out, &rsprot_if_setscrollpos_out_count },
+    { "IF_SETTAB", RSPROT_REG_OUT, rsprot_if_settab_out, &rsprot_if_settab_out_count },
+    { "IF_SETTAB_ACTIVE", RSPROT_REG_OUT, rsprot_if_settab_active_out, &rsprot_if_settab_active_out_count },
     { "IF_SETTEXT", RSPROT_REG_OUT, rsprot_if_settext_out, &rsprot_if_settext_out_count },
+    { "IF_SETTEXT_RS", RSPROT_REG_OUT, rsprot_if_settext_rs_out, &rsprot_if_settext_rs_out_count },
     { "IF_SUBOP", RSPROT_REG_IN, rsprot_if_subop_in, &rsprot_if_subop_in_count },
     { "IGNORELIST_ADD", RSPROT_REG_IN, rsprot_ignorelist_add_in, &rsprot_ignorelist_add_in_count },
+    { "IGNORELIST_ADD_RS", RSPROT_REG_IN, rsprot_ignorelist_add_rs_in, &rsprot_ignorelist_add_rs_in_count },
     { "IGNORELIST_DEL", RSPROT_REG_IN, rsprot_ignorelist_del_in, &rsprot_ignorelist_del_in_count },
+    { "IGNORELIST_DEL_RS", RSPROT_REG_IN, rsprot_ignorelist_del_rs_in, &rsprot_ignorelist_del_rs_in_count },
+    { "INV_BUTTON1", RSPROT_REG_IN, rsprot_inv_button_in, &rsprot_inv_button_in_count },
+    { "INV_BUTTON2", RSPROT_REG_IN, rsprot_inv_button_in, &rsprot_inv_button_in_count },
+    { "INV_BUTTON3", RSPROT_REG_IN, rsprot_inv_button_in, &rsprot_inv_button_in_count },
+    { "INV_BUTTON4", RSPROT_REG_IN, rsprot_inv_button_in, &rsprot_inv_button_in_count },
+    { "INV_BUTTON5", RSPROT_REG_IN, rsprot_inv_button_in, &rsprot_inv_button_in_count },
+    { "LAST_LOGIN_INFO", RSPROT_REG_OUT, rsprot_last_login_info_out, &rsprot_last_login_info_out_count },
     { "LOC_ADD_CHANGE", RSPROT_REG_OUT, rsprot_loc_add_change_out, &rsprot_loc_add_change_out_count },
+    { "LOC_ADD_CHANGE_RS", RSPROT_REG_OUT, rsprot_loc_add_change_rs_out, &rsprot_loc_add_change_rs_out_count },
     { "LOC_ADD_CHANGE_V1", RSPROT_REG_OUT, rsprot_loc_add_change_v1_out, &rsprot_loc_add_change_v1_out_count },
     { "LOC_ADD_CHANGE_V2", RSPROT_REG_OUT, rsprot_loc_add_change_v2_out, &rsprot_loc_add_change_v2_out_count },
     { "LOC_ANIM", RSPROT_REG_OUT, rsprot_loc_anim_out, &rsprot_loc_anim_out_count },
@@ -595,6 +684,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "MAP_ANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_map_anim_specific_out, &rsprot_map_anim_specific_out_count },
     { "MAP_BUILD_COMPLETE", RSPROT_REG_IN, rsprot_map_build_complete_in, &rsprot_map_build_complete_in_count },
     { "MAP_PROJANIM", RSPROT_REG_OUT, rsprot_map_projanim_out, &rsprot_map_projanim_out_count },
+    { "MAP_PROJANIM_RS", RSPROT_REG_OUT, rsprot_map_projanim_rs_out, &rsprot_map_projanim_rs_out_count },
     { "MAP_PROJANIM_V1", RSPROT_REG_OUT, rsprot_map_projanim_v1_out, &rsprot_map_projanim_v1_out_count },
     { "MAP_PROJANIM_V2", RSPROT_REG_OUT, rsprot_map_projanim_v2_out, &rsprot_map_projanim_v2_out_count },
     { "MEMBERSHIP_PROMOTION_ELIGIBILITY", RSPROT_REG_IN, rsprot_membership_promotion_eligibility_in, &rsprot_membership_promotion_eligibility_in_count },
@@ -602,10 +692,14 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "MESSAGE_CLANCHANNEL_SYSTEM", RSPROT_REG_OUT, rsprot_message_clanchannel_system_out, &rsprot_message_clanchannel_system_out_count },
     { "MESSAGE_FRIENDCHANNEL", RSPROT_REG_OUT, rsprot_message_friendchannel_out, &rsprot_message_friendchannel_out_count },
     { "MESSAGE_GAME", RSPROT_REG_OUT, rsprot_message_game_out, &rsprot_message_game_out_count },
+    { "MESSAGE_GAME_RS", RSPROT_REG_OUT, rsprot_message_game_rs_out, &rsprot_message_game_rs_out_count },
     { "MESSAGE_PRIVATE", RSPROT_REG_OUT, rsprot_message_private_out, &rsprot_message_private_out_count },
     { "MESSAGE_PRIVATE", RSPROT_REG_IN, rsprot_message_private_in, &rsprot_message_private_in_count },
     { "MESSAGE_PRIVATE_ECHO", RSPROT_REG_OUT, rsprot_message_private_echo_out, &rsprot_message_private_echo_out_count },
+    { "MESSAGE_PRIVATE_IN_RS", RSPROT_REG_IN, rsprot_message_private_in_rs_in, &rsprot_message_private_in_rs_in_count },
+    { "MESSAGE_PRIVATE_RS", RSPROT_REG_OUT, rsprot_message_private_rs_out, &rsprot_message_private_rs_out_count },
     { "MESSAGE_PUBLIC", RSPROT_REG_IN, rsprot_message_public_in, &rsprot_message_public_in_count },
+    { "MESSAGE_PUBLIC_RS", RSPROT_REG_IN, rsprot_message_public_rs_in, &rsprot_message_public_rs_in_count },
     { "MIDI_JINGLE", RSPROT_REG_OUT, rsprot_midi_jingle_out, &rsprot_midi_jingle_out_count },
     { "MIDI_SONG", RSPROT_REG_OUT, rsprot_midi_song_out, &rsprot_midi_song_out_count },
     { "MIDI_SONG_OLD", RSPROT_REG_OUT, rsprot_midi_song_old_out, &rsprot_midi_song_old_out_count },
@@ -615,8 +709,11 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "MIDI_SONG_WITHSECONDARY", RSPROT_REG_OUT, rsprot_midi_song_withsecondary_out, &rsprot_midi_song_withsecondary_out_count },
     { "MIDI_SWAP", RSPROT_REG_OUT, rsprot_midi_swap_out, &rsprot_midi_swap_out_count },
     { "MINIMAP_TOGGLE", RSPROT_REG_OUT, rsprot_minimap_toggle_out, &rsprot_minimap_toggle_out_count },
+    { "MOVE_GAMECLICK_RS", RSPROT_REG_IN, rsprot_move_click_rs_in, &rsprot_move_click_rs_in_count },
+    { "MOVE_OPCLICK_RS", RSPROT_REG_IN, rsprot_move_click_rs_in, &rsprot_move_click_rs_in_count },
     { "MOVE_GAMECLICK", RSPROT_REG_IN, rsprot_move_gameclick_in, &rsprot_move_gameclick_in_count },
     { "MOVE_MINIMAPCLICK", RSPROT_REG_IN, rsprot_move_minimapclick_in, &rsprot_move_minimapclick_in_count },
+    { "MOVE_MINIMAPCLICK_RS", RSPROT_REG_IN, rsprot_move_minimapclick_rs_in, &rsprot_move_minimapclick_rs_in_count },
     { "NO_TIMEOUT", RSPROT_REG_IN, rsprot_no_timeout_in, &rsprot_no_timeout_in_count },
     { "NPC_ANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_npc_anim_specific_out, &rsprot_npc_anim_specific_out_count },
     { "NPC_HEADICON_SPECIFIC", RSPROT_REG_OUT, rsprot_npc_headicon_specific_out, &rsprot_npc_headicon_specific_out_count },
@@ -633,11 +730,19 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OBJ_ENABLED_OPS", RSPROT_REG_OUT, rsprot_obj_enabled_ops_out, &rsprot_obj_enabled_ops_out_count },
     { "OBJ_ENABLED_OPS_SPECIFIC", RSPROT_REG_OUT, rsprot_obj_enabled_ops_specific_out, &rsprot_obj_enabled_ops_specific_out_count },
     { "OBJ_OPFILTER", RSPROT_REG_OUT, rsprot_obj_opfilter_out, &rsprot_obj_opfilter_out_count },
+    { "OBJ_REVEAL", RSPROT_REG_OUT, rsprot_obj_reveal_out, &rsprot_obj_reveal_out_count },
     { "OBJ_UNCUSTOMISE", RSPROT_REG_OUT, rsprot_obj_uncustomise_out, &rsprot_obj_uncustomise_out_count },
     { "OBJ_UNCUSTOMISE_SPECIFIC", RSPROT_REG_OUT, rsprot_obj_uncustomise_specific_out, &rsprot_obj_uncustomise_specific_out_count },
     { "OBJUNLOCK_RESET", RSPROT_REG_OUT, rsprot_objunlock_reset_out, &rsprot_objunlock_reset_out_count },
     { "OBJUNLOCK_UPDATE", RSPROT_REG_OUT, rsprot_objunlock_update_out, &rsprot_objunlock_update_out_count },
     { "OCULUS_SYNC", RSPROT_REG_OUT, rsprot_oculus_sync_out, &rsprot_oculus_sync_out_count },
+    { "OPHELD1", RSPROT_REG_IN, rsprot_opheld_in, &rsprot_opheld_in_count },
+    { "OPHELD2", RSPROT_REG_IN, rsprot_opheld_in, &rsprot_opheld_in_count },
+    { "OPHELD3", RSPROT_REG_IN, rsprot_opheld_in, &rsprot_opheld_in_count },
+    { "OPHELD4", RSPROT_REG_IN, rsprot_opheld_in, &rsprot_opheld_in_count },
+    { "OPHELD5", RSPROT_REG_IN, rsprot_opheld_in, &rsprot_opheld_in_count },
+    { "OPHELDT", RSPROT_REG_IN, rsprot_opheldt_in, &rsprot_opheldt_in_count },
+    { "OPHELDU", RSPROT_REG_IN, rsprot_opheldu_in, &rsprot_opheldu_in_count },
     { "OPLOC1", RSPROT_REG_IN, rsprot_oploc1_in, &rsprot_oploc1_in_count },
     { "OPLOC1_V1", RSPROT_REG_IN, rsprot_oploc1_v1_in, &rsprot_oploc1_v1_in_count },
     { "OPLOC1_V2", RSPROT_REG_IN, rsprot_oploc1_v2_in, &rsprot_oploc1_v2_in_count },
@@ -655,6 +760,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPLOC5_V2", RSPROT_REG_IN, rsprot_oploc5_v2_in, &rsprot_oploc5_v2_in_count },
     { "OPLOC6", RSPROT_REG_IN, rsprot_oploc6_in, &rsprot_oploc6_in_count },
     { "OPLOCT", RSPROT_REG_IN, rsprot_oploct_in, &rsprot_oploct_in_count },
+    { "OPLOCU", RSPROT_REG_IN, rsprot_oplocu_in, &rsprot_oplocu_in_count },
     { "OPNPC1", RSPROT_REG_IN, rsprot_opnpc1_in, &rsprot_opnpc1_in_count },
     { "OPNPC1_V1", RSPROT_REG_IN, rsprot_opnpc1_v1_in, &rsprot_opnpc1_v1_in_count },
     { "OPNPC1_V2", RSPROT_REG_IN, rsprot_opnpc1_v2_in, &rsprot_opnpc1_v2_in_count },
@@ -672,6 +778,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPNPC5_V2", RSPROT_REG_IN, rsprot_opnpc5_v2_in, &rsprot_opnpc5_v2_in_count },
     { "OPNPC6", RSPROT_REG_IN, rsprot_opnpc6_in, &rsprot_opnpc6_in_count },
     { "OPNPCT", RSPROT_REG_IN, rsprot_opnpct_in, &rsprot_opnpct_in_count },
+    { "OPNPCU", RSPROT_REG_IN, rsprot_opnpcu_in, &rsprot_opnpcu_in_count },
     { "OPOBJ1", RSPROT_REG_IN, rsprot_opobj1_in, &rsprot_opobj1_in_count },
     { "OPOBJ1_V1", RSPROT_REG_IN, rsprot_opobj1_v1_in, &rsprot_opobj1_v1_in_count },
     { "OPOBJ1_V2", RSPROT_REG_IN, rsprot_opobj1_v2_in, &rsprot_opobj1_v2_in_count },
@@ -689,6 +796,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPOBJ5_V2", RSPROT_REG_IN, rsprot_opobj5_v2_in, &rsprot_opobj5_v2_in_count },
     { "OPOBJ6", RSPROT_REG_IN, rsprot_opobj6_in, &rsprot_opobj6_in_count },
     { "OPOBJT", RSPROT_REG_IN, rsprot_opobjt_in, &rsprot_opobjt_in_count },
+    { "OPOBJU", RSPROT_REG_IN, rsprot_opobju_in, &rsprot_opobju_in_count },
     { "OPPLAYER1", RSPROT_REG_IN, rsprot_opplayer1_in, &rsprot_opplayer1_in_count },
     { "OPPLAYER2", RSPROT_REG_IN, rsprot_opplayer2_in, &rsprot_opplayer2_in_count },
     { "OPPLAYER3", RSPROT_REG_IN, rsprot_opplayer3_in, &rsprot_opplayer3_in_count },
@@ -698,6 +806,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPPLAYER7", RSPROT_REG_IN, rsprot_opplayer7_in, &rsprot_opplayer7_in_count },
     { "OPPLAYER8", RSPROT_REG_IN, rsprot_opplayer8_in, &rsprot_opplayer8_in_count },
     { "OPPLAYERT", RSPROT_REG_IN, rsprot_opplayert_in, &rsprot_opplayert_in_count },
+    { "OPPLAYERU", RSPROT_REG_IN, rsprot_opplayeru_in, &rsprot_opplayeru_in_count },
     { "OPWORLDENTITY1", RSPROT_REG_IN, rsprot_opworldentity1_in, &rsprot_opworldentity1_in_count },
     { "OPWORLDENTITY2", RSPROT_REG_IN, rsprot_opworldentity2_in, &rsprot_opworldentity2_in_count },
     { "OPWORLDENTITY3", RSPROT_REG_IN, rsprot_opworldentity3_in, &rsprot_opworldentity3_in_count },
@@ -705,6 +814,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "OPWORLDENTITY5", RSPROT_REG_IN, rsprot_opworldentity5_in, &rsprot_opworldentity5_in_count },
     { "OPWORLDENTITY6", RSPROT_REG_IN, rsprot_opworldentity6_in, &rsprot_opworldentity6_in_count },
     { "OPWORLDENTITYT", RSPROT_REG_IN, rsprot_opworldentityt_in, &rsprot_opworldentityt_in_count },
+    { "P_COUNTDIALOG", RSPROT_REG_OUT, rsprot_p_countdialog_out, &rsprot_p_countdialog_out_count },
     { "PACKET_GROUP_START", RSPROT_REG_OUT, rsprot_packet_group_start_out, &rsprot_packet_group_start_out_count },
     { "PLAYER_SPOTANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_player_spotanim_specific_out, &rsprot_player_spotanim_specific_out_count },
     { "PROJANIM_SPECIFIC", RSPROT_REG_OUT, rsprot_projanim_specific_out, &rsprot_projanim_specific_out_count },
@@ -712,6 +822,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "PROJANIM_SPECIFIC_V3", RSPROT_REG_OUT, rsprot_projanim_specific_v3_out, &rsprot_projanim_specific_v3_out_count },
     { "PROJANIM_SPECIFIC_V4", RSPROT_REG_OUT, rsprot_projanim_specific_v4_out, &rsprot_projanim_specific_v4_out_count },
     { "REBUILD_NORMAL", RSPROT_REG_OUT, rsprot_rebuild_normal_out, &rsprot_rebuild_normal_out_count },
+    { "REBUILD_NORMAL_RS", RSPROT_REG_OUT, rsprot_rebuild_normal_rs_out, &rsprot_rebuild_normal_rs_out_count },
     { "REBUILD_NORMAL_V1", RSPROT_REG_OUT, rsprot_rebuild_normal_v1_out, &rsprot_rebuild_normal_v1_out_count },
     { "REBUILD_NORMAL_V2", RSPROT_REG_OUT, rsprot_rebuild_normal_v2_out, &rsprot_rebuild_normal_v2_out_count },
     { "REBUILD_REGION", RSPROT_REG_OUT, rsprot_rebuild_region_out, &rsprot_rebuild_region_out_count },
@@ -723,6 +834,7 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "REBUILD_WORLDENTITY_V4", RSPROT_REG_OUT, rsprot_rebuild_worldentity_v4_out, &rsprot_rebuild_worldentity_v4_out_count },
     { "REFLECTION_CHECK_REPLY", RSPROT_REG_IN, rsprot_reflection_check_reply_in, &rsprot_reflection_check_reply_in_count },
     { "REFLECTION_CHECKER", RSPROT_REG_OUT, rsprot_reflection_checker_out, &rsprot_reflection_checker_out_count },
+    { "REPORT_ABUSE", RSPROT_REG_IN, rsprot_report_abuse_in, &rsprot_report_abuse_in_count },
     { "RESET_ANIMS", RSPROT_REG_OUT, rsprot_reset_anims_out, &rsprot_reset_anims_out_count },
     { "RESET_INTERACTION_MODE", RSPROT_REG_OUT, rsprot_reset_interaction_mode_out, &rsprot_reset_interaction_mode_out_count },
     { "RESUME_P_COUNTDIALOG", RSPROT_REG_IN, rsprot_resume_p_countdialog_in, &rsprot_resume_p_countdialog_in_count },
@@ -748,8 +860,10 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "SET_MAP_FLAG", RSPROT_REG_OUT, rsprot_set_map_flag_out, &rsprot_set_map_flag_out_count },
     { "SET_MAP_FLAG_V1", RSPROT_REG_OUT, rsprot_set_map_flag_v1_out, &rsprot_set_map_flag_v1_out_count },
     { "SET_MAP_FLAG_V2", RSPROT_REG_OUT, rsprot_set_map_flag_v2_out, &rsprot_set_map_flag_v2_out_count },
+    { "SET_MULTIWAY", RSPROT_REG_OUT, rsprot_set_multiway_out, &rsprot_set_multiway_out_count },
     { "SET_NPC_UPDATE_ORIGIN", RSPROT_REG_OUT, rsprot_set_npc_update_origin_out, &rsprot_set_npc_update_origin_out_count },
     { "SET_PLAYER_OP", RSPROT_REG_OUT, rsprot_set_player_op_out, &rsprot_set_player_op_out_count },
+    { "SET_PLAYER_OP_RS", RSPROT_REG_OUT, rsprot_set_player_op_rs_out, &rsprot_set_player_op_rs_out_count },
     { "SITE_SETTINGS", RSPROT_REG_OUT, rsprot_site_settings_out, &rsprot_site_settings_out_count },
     { "SOUND_AREA", RSPROT_REG_OUT, rsprot_sound_area_out, &rsprot_sound_area_out_count },
     { "SOUND_JINGLEEND", RSPROT_REG_IN, rsprot_sound_jingleend_in, &rsprot_sound_jingleend_in_count },
@@ -757,24 +871,36 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "TELEPORT", RSPROT_REG_IN, rsprot_teleport_in, &rsprot_teleport_in_count },
     { "TIMINGS", RSPROT_REG_IN, rsprot_timings_in, &rsprot_timings_in_count },
     { "TRIGGER_ONDIALOGABORT", RSPROT_REG_OUT, rsprot_trigger_ondialogabort_out, &rsprot_trigger_ondialogabort_out_count },
+    { "TUT_CLICKSIDE", RSPROT_REG_IN, rsprot_tut_clickside_in, &rsprot_tut_clickside_in_count },
+    { "TUT_FLASH", RSPROT_REG_OUT, rsprot_tut_flash_out, &rsprot_tut_flash_out_count },
+    { "TUT_OPEN", RSPROT_REG_OUT, rsprot_tut_open_out, &rsprot_tut_open_out_count },
     { "UNKNOWN_STRING", RSPROT_REG_OUT, rsprot_unknown_string_out, &rsprot_unknown_string_out_count },
+    { "UNSET_MAP_FLAG", RSPROT_REG_OUT, rsprot_unset_map_flag_out, &rsprot_unset_map_flag_out_count },
     { "UPDATE_FRIENDCHAT_CHANNEL_FULL_V1", RSPROT_REG_OUT, rsprot_update_friendchat_channel_full_v1_out, &rsprot_update_friendchat_channel_full_v1_out_count },
     { "UPDATE_FRIENDCHAT_CHANNEL_FULL_V2", RSPROT_REG_OUT, rsprot_update_friendchat_channel_full_v2_out, &rsprot_update_friendchat_channel_full_v2_out_count },
     { "UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER", RSPROT_REG_OUT, rsprot_update_friendchat_channel_singleuser_out, &rsprot_update_friendchat_channel_singleuser_out_count },
     { "UPDATE_FRIENDLIST", RSPROT_REG_OUT, rsprot_update_friendlist_out, &rsprot_update_friendlist_out_count },
+    { "UPDATE_FRIENDLIST_RS", RSPROT_REG_OUT, rsprot_update_friendlist_rs_out, &rsprot_update_friendlist_rs_out_count },
     { "UPDATE_IGNORELIST", RSPROT_REG_OUT, rsprot_update_ignorelist_out, &rsprot_update_ignorelist_out_count },
+    { "UPDATE_IGNORELIST_RS", RSPROT_REG_OUT, rsprot_update_ignorelist_rs_out, &rsprot_update_ignorelist_rs_out_count },
     { "UPDATE_INV_FULL", RSPROT_REG_OUT, rsprot_update_inv_full_out, &rsprot_update_inv_full_out_count },
+    { "UPDATE_INV_FULL_RS", RSPROT_REG_OUT, rsprot_update_inv_full_rs_out, &rsprot_update_inv_full_rs_out_count },
     { "UPDATE_INV_PARTIAL", RSPROT_REG_OUT, rsprot_update_inv_partial_out, &rsprot_update_inv_partial_out_count },
+    { "UPDATE_INV_PARTIAL_RS", RSPROT_REG_OUT, rsprot_update_inv_partial_rs_out, &rsprot_update_inv_partial_rs_out_count },
     { "UPDATE_INV_STOPTRANSMIT", RSPROT_REG_OUT, rsprot_update_inv_stoptransmit_out, &rsprot_update_inv_stoptransmit_out_count },
+    { "UPDATE_INV_STOPTRANSMIT_RS", RSPROT_REG_OUT, rsprot_update_inv_stoptransmit_rs_out, &rsprot_update_inv_stoptransmit_rs_out_count },
+    { "UPDATE_PID", RSPROT_REG_OUT, rsprot_update_pid_out, &rsprot_update_pid_out_count },
     { "UPDATE_PLAYER_MODEL_V1", RSPROT_REG_IN, rsprot_update_player_model_v1_in, &rsprot_update_player_model_v1_in_count },
     { "UPDATE_REBOOT_TIMER", RSPROT_REG_OUT, rsprot_update_reboot_timer_out, &rsprot_update_reboot_timer_out_count },
     { "UPDATE_REBOOT_TIMER_V1", RSPROT_REG_OUT, rsprot_update_reboot_timer_v1_out, &rsprot_update_reboot_timer_v1_out_count },
     { "UPDATE_REBOOT_TIMER_V2", RSPROT_REG_OUT, rsprot_update_reboot_timer_v2_out, &rsprot_update_reboot_timer_v2_out_count },
     { "UPDATE_RUNENERGY", RSPROT_REG_OUT, rsprot_update_runenergy_out, &rsprot_update_runenergy_out_count },
+    { "UPDATE_RUNENERGY_RS", RSPROT_REG_OUT, rsprot_update_runenergy_rs_out, &rsprot_update_runenergy_rs_out_count },
     { "UPDATE_RUNWEIGHT", RSPROT_REG_OUT, rsprot_update_runweight_out, &rsprot_update_runweight_out_count },
     { "UPDATE_SITESETTINGS", RSPROT_REG_OUT, rsprot_update_sitesettings_out, &rsprot_update_sitesettings_out_count },
     { "UPDATE_STAT", RSPROT_REG_OUT, rsprot_update_stat_out, &rsprot_update_stat_out_count },
     { "UPDATE_STAT_OLD", RSPROT_REG_OUT, rsprot_update_stat_old_out, &rsprot_update_stat_old_out_count },
+    { "UPDATE_STAT_RS", RSPROT_REG_OUT, rsprot_update_stat_rs_out, &rsprot_update_stat_rs_out_count },
     { "UPDATE_STAT_V1", RSPROT_REG_OUT, rsprot_update_stat_v1_out, &rsprot_update_stat_v1_out_count },
     { "UPDATE_STAT_V2", RSPROT_REG_OUT, rsprot_update_stat_v2_out, &rsprot_update_stat_v2_out_count },
     { "UPDATE_STOCKMARKET_SLOT_V1", RSPROT_REG_OUT, rsprot_update_stockmarket_slot_v1_out, &rsprot_update_stockmarket_slot_v1_out_count },
@@ -783,8 +909,11 @@ const RsprotRegistryEntry rsprot_registry[] = {
     { "UPDATE_TRADINGPOST_V2", RSPROT_REG_OUT, rsprot_update_tradingpost_v2_out, &rsprot_update_tradingpost_v2_out_count },
     { "UPDATE_UID192", RSPROT_REG_OUT, rsprot_update_uid192_out, &rsprot_update_uid192_out_count },
     { "UPDATE_ZONE_FULL_FOLLOWS", RSPROT_REG_OUT, rsprot_update_zone_full_follows_out, &rsprot_update_zone_full_follows_out_count },
+    { "UPDATE_ZONE_FULL_FOLLOWS_RS", RSPROT_REG_OUT, rsprot_update_zone_full_follows_rs_out, &rsprot_update_zone_full_follows_rs_out_count },
     { "UPDATE_ZONE_PARTIAL_ENCLOSED", RSPROT_REG_OUT, rsprot_update_zone_partial_enclosed_out, &rsprot_update_zone_partial_enclosed_out_count },
+    { "UPDATE_ZONE_PARTIAL_ENCLOSED_RS", RSPROT_REG_OUT, rsprot_update_zone_partial_enclosed_rs_out, &rsprot_update_zone_partial_enclosed_rs_out_count },
     { "UPDATE_ZONE_PARTIAL_FOLLOWS", RSPROT_REG_OUT, rsprot_update_zone_partial_follows_out, &rsprot_update_zone_partial_follows_out_count },
+    { "UPDATE_ZONE_PARTIAL_FOLLOWS_RS", RSPROT_REG_OUT, rsprot_update_zone_partial_follows_rs_out, &rsprot_update_zone_partial_follows_rs_out_count },
     { "URL_OPEN", RSPROT_REG_OUT, rsprot_url_open_out, &rsprot_url_open_out_count },
     { "VARCLAN", RSPROT_REG_OUT, rsprot_varclan_out, &rsprot_varclan_out_count },
     { "VARCLAN_DISABLE", RSPROT_REG_OUT, rsprot_varclan_disable_out, &rsprot_varclan_disable_out_count },

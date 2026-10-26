@@ -237,14 +237,22 @@ def load_table(path):
         rev = parse_rev(stem(path))
     except ValueError:
         raise ValueError("%s: a table is spec/tables/<revision>.ini (osrs239, rs245_2)" % path)
-    t = {"revision": rev, "server": [], "client": [], "zone_order": []}
+    t = {"revision": rev, "server": [], "client": [], "zone_order": [], "zone_index": "ordinal"}
     zones = []
     for name, rows in read_ini(path):
         if name == "table":
             for key, value in rows:
-                if key != "source":
+                if key == "source":
+                    t["source"] = value
+                elif key == "zone_index":
+                    # How UPDATE_ZONE_PARTIAL_ENCLOSED tags a sub-packet: by its
+                    # [zone_order] ordinal (OSRS) or by its top-level opcode
+                    # (LostCity).
+                    if value not in ("ordinal", "opcode"):
+                        fail(path, name, "zone_index is ordinal or opcode, not %r" % value)
+                    t["zone_index"] = value
+                else:
                     fail(path, name, "unknown key %r" % key)
-                t["source"] = value
         elif name in ("server", "client"):
             for key, value in rows:
                 parts = value.split()

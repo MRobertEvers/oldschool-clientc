@@ -48,6 +48,8 @@ void packet_loc_del_v13_out(RsprotExec *x, MsgLocDel *m);
 void packet_loc_del_v14_out(RsprotExec *x, MsgLocDel *m);
 /* v15 -- revs osrs239. */
 void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
+/* v16 -- revs rs245.2, rs254, rs289. */
+void packet_loc_del_v16_out(RsprotExec *x, MsgLocDel *m);
 
 /* Per-revision entry points: what revision R calls is packet_loc_del_<R>_out. */
 #define packet_loc_del_osrs221_out packet_loc_del_v1_out
@@ -71,6 +73,9 @@ void packet_loc_del_v15_out(RsprotExec *x, MsgLocDel *m);
 #define packet_loc_del_osrs239_out packet_loc_del_v15_out
 #define packet_loc_del_osrs240_out packet_loc_del_v4_out
 #define packet_loc_del_osrs241_out packet_loc_del_v7_out
+#define packet_loc_del_rs245_2_out packet_loc_del_v16_out
+#define packet_loc_del_rs254_out packet_loc_del_v16_out
+#define packet_loc_del_rs289_out packet_loc_del_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_del_out[];

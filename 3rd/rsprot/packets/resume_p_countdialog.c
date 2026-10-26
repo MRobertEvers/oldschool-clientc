@@ -17,12 +17,22 @@ packet_resume_p_countdialog_v1_in(RsprotExec *x, MsgResumePCountDialog *m)
     RSPROT_U4_1234(x, m->count);
 }
 
+/* v2 -- revs rs245.2, rs254, rs289. */
+void
+packet_resume_p_countdialog_v2_in(RsprotExec *x, MsgResumePCountDialog *m)
+{
+    RSPROT_U4_1234(x, m->count);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no RESUME_P_COUNTDIALOG and
+ * 4 row(s) for 2 layout(s). A revision not listed has no RESUME_P_COUNTDIALOG and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_resume_p_countdialog_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_resume_p_countdialog_v1_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_resume_p_countdialog_v2_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_resume_p_countdialog_v2_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_resume_p_countdialog_v2_in },
 };
 
 const int rsprot_resume_p_countdialog_in_count =

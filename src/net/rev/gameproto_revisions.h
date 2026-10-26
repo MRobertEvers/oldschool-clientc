@@ -47,6 +47,11 @@ enum GameProtoRevision
      * RSProt codecs. GameProtoRevTable.number says which.
      */
     GAMEPROTO_REVISION_OSRS = 9,
+    /**
+     * A generated LostCity revision (src/net/rev/rs<N>/rs<N>_exec.c): the
+     * 2004 client's protocol, its layouts in RSProt's `rs` family.
+     */
+    GAMEPROTO_REVISION_RS = 10,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -263,6 +268,13 @@ struct GameProtoRevTable
      * framing -- opcode, length -- is proto_encode's (net/proto/proto_out.c).
      */
     int (*encode)(int out_name, struct ProtoOutArgs const* args, uint8_t* buf, int cap);
+
+    /**
+     * Whether `encode` has a codec for `out_name`. An opcode is not enough: a
+     * table may state a prot no layout here writes yet (OSRS OPLOCU), and a
+     * writer choosing between two packets must not choose that one.
+     */
+    int (*encodes)(int out_name);
 };
 
 struct GameProtoRevTable const*
@@ -274,9 +286,10 @@ GameProtoRev_LC254(void);
 struct GameProtoRevTable const*
 GameProtoRev_LC289(void);
 
-/** Resolve a revision by name: "lc254", "lc289", "lc245_2", or "osrs<N>" for a
- *  supported OSRS revision ("rsprox<N>" is the same table, the name replay
- *  manifests use); NULL when unknown. */
+/** Resolve a revision by name: "osrs<N>" or "rs245_2" / "rs254" / "rs289" (a
+ *  generated executor each), or a name manifests already carry -- "lc254",
+ *  "lc289", "lc245_2" for the rs ones, "rsprox<N>" for "osrs<N>"; NULL when
+ *  unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 
@@ -285,9 +298,15 @@ GameProtoRev_ByName(char const* name);
 struct GameProtoRevTable const*
 GameProtoRev_Osrs(int revision);
 
-/** The same, by its name ("osrs239"). */
+/** A generated revision by its name ("osrs239", "rs254"), or NULL. */
 struct GameProtoRevTable const*
-GameProtoRev_OsrsByName(char const* name);
+GameProtoRev_GeneratedByName(char const* name);
+
+/** Fill `rev`'s jag-archive checksums from the environment variable `env`:
+ *  nine comma-separated ints (the server instance's own; a boot that reads
+ *  its cache off the server reads them off the same server). */
+void
+GameProtoRev_JagChecksumsFromEnv(struct GameProtoRevTable const* rev, char const* env);
 
 /* Boot-time login-parameter injection from a boot manifest. The tables are
  * static non-const singletons; these cast the const away by design and MUST be

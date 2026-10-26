@@ -32,13 +32,27 @@ packet_cam_moveto_v2_out(RsprotExec *x, MsgCamMoveTo *m)
     RSPROT_U1(x, m->rate2);
 }
 
+/* v3 -- revs rs245.2, rs254, rs289. */
+void
+packet_cam_moveto_v3_out(RsprotExec *x, MsgCamMoveTo *m)
+{
+    RSPROT_U1(x, m->destination_x_in_build_area);
+    RSPROT_U1(x, m->destination_z_in_build_area);
+    RSPROT_U2_12(x, m->height);
+    RSPROT_U1(x, m->rate);
+    RSPROT_U1(x, m->rate2);
+}
+
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no CAM_MOVETO and
+ * 5 row(s) for 3 layout(s). A revision not listed has no CAM_MOVETO and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_moveto_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_cam_moveto_v1_out },
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_cam_moveto_v2_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_cam_moveto_v3_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_cam_moveto_v3_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_cam_moveto_v3_out },
 };
 
 const int rsprot_cam_moveto_out_count =

@@ -28,6 +28,8 @@ typedef struct MsgCamShake {
 void packet_cam_shake_v1_out(RsprotExec *x, MsgCamShake *m);
 /* v2 -- revs osrs223-241. */
 void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
+/* v3 -- revs rs245.2, rs254, rs289. */
+void packet_cam_shake_v3_out(RsprotExec *x, MsgCamShake *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_shake_<R>_out. */
 #define packet_cam_shake_osrs221_out packet_cam_shake_v1_out
@@ -51,6 +53,9 @@ void packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m);
 #define packet_cam_shake_osrs239_out packet_cam_shake_v2_out
 #define packet_cam_shake_osrs240_out packet_cam_shake_v2_out
 #define packet_cam_shake_osrs241_out packet_cam_shake_v2_out
+#define packet_cam_shake_rs245_2_out packet_cam_shake_v3_out
+#define packet_cam_shake_rs254_out packet_cam_shake_v3_out
+#define packet_cam_shake_rs289_out packet_cam_shake_v3_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_shake_out[];

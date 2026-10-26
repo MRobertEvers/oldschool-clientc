@@ -2140,3 +2140,405 @@ adapt_cam_rotateto_coordinate_v3(MsgCamRotateToCoordinateV3 const* m, struct Rev
     out->_cam_rotateto_coordinate.track_target = m->track_target;
     return 1;
 }
+
+/* ------------------------------------------------------------------ */
+/* LostCity (rs245.2, rs254, rs289)                                    */
+/* ------------------------------------------------------------------ */
+
+/*
+ * The 2004 protocol's messages, as the client's own reader mapped them
+ * (src/net/rev/gameproto_parse.c, which these replace) -- field for field, so
+ * a LostCity revision decodes into exactly the arm it always did.
+ */
+
+/* A newline-terminated string the codec borrowed: owned, NUL-terminated. */
+static char*
+dup_bytes(uint8_t const* bytes, int32_t len)
+{
+    char* out;
+
+    assert(len >= 0);
+    out = (char*)ToriMem_Alloc(ToriMem_Net(), (size_t)len + 1);
+    assert(out);
+    if( len > 0 )
+        memcpy(out, bytes, (size_t)len);
+    out[len] = '\0';
+    return out;
+}
+
+int
+adapt_if_openchat(MsgIfOpenchat const* m, struct RevPacket* out)
+{
+    out->_if_openchat.component_id = m->combined_id;
+    return 1;
+}
+
+int
+adapt_if_openmain(MsgIfOpenmain const* m, struct RevPacket* out)
+{
+    out->_if_openmain.component_id = m->combined_id;
+    return 1;
+}
+
+int
+adapt_if_openside(MsgIfOpenside const* m, struct RevPacket* out)
+{
+    out->_if_openside.component_id = m->combined_id;
+    return 1;
+}
+
+int
+adapt_if_openoverlay(MsgIfOpenoverlay const* m, struct RevPacket* out)
+{
+    out->_if_openoverlay.component_id = m->combined_id;
+    return 1;
+}
+
+int
+adapt_if_openmain_side(MsgIfOpenmainSide const* m, struct RevPacket* out)
+{
+    out->_if_openmain_side.main_component_id = m->main_combined_id;
+    out->_if_openmain_side.side_component_id = m->side_combined_id;
+    return 1;
+}
+
+int
+adapt_if_settab(MsgIfSettab const* m, struct RevPacket* out)
+{
+    out->_if_settab.component_id = m->combined_id;
+    out->_if_settab.tab_id = m->tab;
+    return 1;
+}
+
+int
+adapt_if_settab_active(MsgIfSettabActive const* m, struct RevPacket* out)
+{
+    out->_if_settab_active.tab_id = m->tab;
+    return 1;
+}
+
+int
+adapt_if_settext_rs(MsgIfSettextRs const* m, struct RevPacket* out)
+{
+    out->_if_settext.component_id = m->combined_id;
+    out->_if_settext.text = dup_bytes(m->text, m->text_length);
+    return 1;
+}
+
+int
+adapt_tut_flash(MsgTutFlash const* m, struct RevPacket* out)
+{
+    out->_tut_flash.tab = m->tab;
+    return 1;
+}
+
+int
+adapt_tut_open(MsgTutOpen const* m, struct RevPacket* out)
+{
+    out->_tut_open.component_id = m->combined_id;
+    return 1;
+}
+
+int
+adapt_update_pid(MsgUpdatePid const* m, struct RevPacket* out)
+{
+    out->_update_pid.local_player_index = m->index;
+    out->_update_pid.unused = m->members;
+    return 1;
+}
+
+int
+adapt_set_multiway(MsgSetMultiway const* m, struct RevPacket* out)
+{
+    out->_set_multiway.multiway = m->multiway;
+    return 1;
+}
+
+int
+adapt_last_login_info(MsgLastLoginInfo const* m, struct RevPacket* out)
+{
+    out->_last_login_info.last_ip = m->last_ip;
+    out->_last_login_info.days_since_login = m->days_since_login;
+    out->_last_login_info.days_since_recovery = m->days_since_recovery;
+    out->_last_login_info.unread_messages = m->unread_messages;
+    out->_last_login_info.member_warning = m->member_warning;
+    return 1;
+}
+
+/* No payload: it always clears (osrs230's SET_MAP_FLAG says 255,255). */
+int
+adapt_unset_map_flag(struct RevPacket* out)
+{
+    out->_set_map_flag.x = 255;
+    out->_set_map_flag.z = 255;
+    out->_set_map_flag.clear = 1;
+    return 1;
+}
+
+int
+adapt_update_stat_rs(MsgUpdateStatRs const* m, struct RevPacket* out)
+{
+    out->_update_stat.stat = m->stat;
+    out->_update_stat.xp = m->experience;
+    out->_update_stat.level = m->level;
+    return 1;
+}
+
+/* A whole percent; the raw field is OSRS's hundredths. */
+int
+adapt_update_runenergy_rs(MsgUpdateRunenergyRs const* m, struct RevPacket* out)
+{
+    out->_update_run_energy.run_energy = m->percent;
+    out->_update_run_energy.run_energy_raw = m->percent * 100;
+    return 1;
+}
+
+int
+adapt_chat_filter_settings_rs(MsgChatFilterSettingsRs const* m, struct RevPacket* out)
+{
+    out->_chat_filter_settings.chat_public_mode = m->public_chat_filter;
+    out->_chat_filter_settings.chat_private_mode = m->private_chat_filter;
+    out->_chat_filter_settings.chat_trade_mode = m->trade_chat_filter;
+    return 1;
+}
+
+int
+adapt_message_game_rs(MsgMessageGameRs const* m, struct RevPacket* out)
+{
+    out->_message_game.text = dup_bytes(m->text, m->text_length);
+    return 1;
+}
+
+int
+adapt_message_private_rs(MsgMessagePrivateRs const* m, struct RevPacket* out)
+{
+    out->_message_private.from = m->from37;
+    out->_message_private.message_id = m->message_id;
+    out->_message_private.staff_mod = m->staff_mod;
+    out->_message_private.text = unpack_text(m->text, m->text_length);
+    return out->_message_private.text != NULL;
+}
+
+/* The pre-V2 form: an id and nothing else, so the fades read zero ("switch
+ * immediately"). */
+int
+adapt_midi_song(MsgMidiSong const* m, struct RevPacket* out)
+{
+    out->_midi_song.id = m->id;
+    out->_midi_song.fade_out_ms = m->fade_out_speed * 20;
+    out->_midi_song.fade_in_ms = m->fade_in_speed * 20;
+    return 1;
+}
+
+int
+adapt_hint_arrow_rs(MsgHintArrowRs const* m, struct RevPacket* out)
+{
+    out->_hint_arrow.type = m->type;
+    out->_hint_arrow.id = m->id;
+    out->_hint_arrow.z = m->z;
+    out->_hint_arrow.height = m->height;
+    return 1;
+}
+
+int
+adapt_set_player_op_rs(MsgSetPlayerOpRs const* m, struct RevPacket* out)
+{
+    out->_set_player_op.slot = m->id;
+    out->_set_player_op.primary = m->priority;
+    out->_set_player_op.text = dup_bytes(m->op, m->op_length);
+    return 1;
+}
+
+int
+adapt_rebuild_normal_rs(MsgRebuildNormalRs const* m, struct RevPacket* out)
+{
+    out->_map_rebuild.zonex = m->zone_x;
+    out->_map_rebuild.zonez = m->zone_z;
+    return 1;
+}
+
+int
+adapt_friendlist_loaded_rs(MsgFriendlistLoadedRs const* m, struct RevPacket* out)
+{
+    out->_friendlist_loaded.status = m->status;
+    return 1;
+}
+
+int
+adapt_update_friendlist_rs(MsgUpdateFriendlistRs const* m, struct RevPacket* out)
+{
+    out->_update_friendlist.name37 = m->name37;
+    out->_update_friendlist.world = m->world;
+    return 1;
+}
+
+void
+prep_update_ignorelist_rs(MsgUpdateIgnoreListRs* m)
+{
+    static int64_t names[MSG_UPDATE_IGNORELIST_RS_MAX_NAMES];
+
+    m->names37 = names;
+}
+
+int
+adapt_update_ignorelist_rs(MsgUpdateIgnoreListRs const* m, struct RevPacket* out)
+{
+    struct PktUpdateIgnoreList* p = &out->_update_ignorelist;
+
+    p->count = m->count;
+    p->names37 = NULL;
+    if( m->count > 0 )
+    {
+        p->names37 = (int64_t*)ToriMem_Alloc(ToriMem_Net(), (size_t)m->count * sizeof(int64_t));
+        assert(p->names37);
+        memcpy(p->names37, m->names37, (size_t)m->count * sizeof(int64_t));
+    }
+    return 1;
+}
+
+void
+prep_update_inv_full_rs(MsgUpdateInvFullRs* m)
+{
+    static Rsprot_MsgUpdateInvFullRs_slotsElem slots[MSG_UPDATE_INV_FULL_RS_MAX_SLOTS];
+
+    m->slots = slots;
+}
+
+/* The component is the container's key; the wire's obj is id + 1, 0 empty, which
+ * the codec's transform has already undone. */
+int
+adapt_update_inv_full_rs(MsgUpdateInvFullRs const* m, struct RevPacket* out)
+{
+    struct PktUpdateInvFull* p = &out->_update_inv_full;
+
+    p->component_id = m->combined_id;
+    p->inv_id = -1;
+    p->size = m->capacity;
+    p->obj_ids = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)m->capacity * sizeof(int) + 1);
+    assert(p->obj_ids);
+    p->obj_counts = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)m->capacity * sizeof(int) + 1);
+    assert(p->obj_counts);
+    for( int i = 0; i < m->capacity; i++ )
+    {
+        p->obj_ids[i] = m->slots[i].id;
+        p->obj_counts[i] = m->slots[i].count;
+    }
+    return 1;
+}
+
+void
+prep_update_inv_partial_rs(MsgUpdateInvPartialRs* m)
+{
+    static Rsprot_MsgUpdateInvPartialRs_slotsElem slots[MSG_UPDATE_INV_PARTIAL_RS_MAX_SLOTS];
+
+    m->slots = slots;
+}
+
+int
+adapt_update_inv_partial_rs(MsgUpdateInvPartialRs const* m, struct RevPacket* out)
+{
+    struct PktUpdateInvPartial* p = &out->_update_inv_partial;
+
+    p->component_id = m->combined_id;
+    p->inv_id = -1;
+    p->count = m->count;
+    p->entries = (struct PktUpdateInvPartialEntry*)ToriMem_Alloc(
+        ToriMem_Net(), (size_t)m->count * sizeof(*p->entries) + 1);
+    assert(p->entries);
+    for( int i = 0; i < m->count; i++ )
+    {
+        p->entries[i].slot = m->slots[i].slot;
+        p->entries[i].obj_id = m->slots[i].id;
+        p->entries[i].count = m->slots[i].count;
+    }
+    return 1;
+}
+
+int
+adapt_update_inv_stoptransmit_rs(MsgUpdateInvStoptransmitRs const* m, struct RevPacket* out)
+{
+    out->_update_inv_stop_transmit.component_id = m->combined_id;
+    out->_update_inv_stop_transmit.inv_id = -1;
+    return 1;
+}
+
+/* LostCity's zone packets carry no level: -1 is "the player's current one". */
+int
+adapt_update_zone_partial_follows_rs(MsgUpdateZonePartialFollowsRs const* m, struct RevPacket* out)
+{
+    out->_update_zone_partial_follows.base_x = m->zone_x;
+    out->_update_zone_partial_follows.base_z = m->zone_z;
+    out->_update_zone_partial_follows.level = -1;
+    return 1;
+}
+
+int
+adapt_update_zone_full_follows_rs(MsgUpdateZoneFullFollowsRs const* m, struct RevPacket* out)
+{
+    out->_update_zone_full_follows.base_x = m->zone_x;
+    out->_update_zone_full_follows.base_z = m->zone_z;
+    out->_update_zone_full_follows.level = -1;
+    return 1;
+}
+
+int
+adapt_update_zone_partial_enclosed_rs(
+    MsgUpdateZonePartialEnclosedRs const* m, ProtoZoneSubFn zone, struct RevPacket* out)
+{
+    MsgDesktopUpdateZonePartialEnclosed header;
+
+    memset(&header, 0, sizeof(header));
+    header.zone_x = m->zone_x;
+    header.zone_z = m->zone_z;
+    header.payload = m->payload;
+    header.payload_length = m->payload_length;
+    if( !adapt_update_zone_partial_enclosed(&header, zone, out) )
+        return 0;
+    out->_update_zone_enclosed.level = -1;
+    return 1;
+}
+
+/* No op flags: all five set says the loctype's own menu stands. */
+int
+adapt_zone_loc_add_change_rs(MsgLocAddChangeRs const* m, struct PktZoneSubPacket* out)
+{
+    out->name = PKT_NAME_LOC_ADD_CHANGE;
+    out->_loc_add_change.op_flags = 0x1f;
+    out->_loc_add_change.pos = m->coord_in_zone_packed;
+    out->_loc_add_change.info = m->loc_properties_packed;
+    out->_loc_add_change.loc_id = m->id;
+    return 1;
+}
+
+/* Offsets from the source tile and a signed 16-bit target -- what
+ * PktMapProjAnim was written for. `dst_abs` stays 0 (the relative branch). */
+int
+adapt_zone_map_projanim_rs(MsgMapProjanimRs const* m, struct PktZoneSubPacket* out)
+{
+    struct PktMapProjAnim* p = &out->_map_projanim;
+
+    out->name = PKT_NAME_MAP_PROJANIM;
+    p->pos = m->coord_in_zone_packed;
+    p->dx_offset = m->delta_x;
+    p->dz_offset = m->delta_z;
+    p->target = m->target_index;
+    p->spotanim = m->id;
+    p->src_height = m->start_height;
+    p->dst_height = m->end_height;
+    p->start_delay = m->start_time;
+    p->end_delay = m->end_time;
+    p->peak = m->angle;
+    p->arc = m->progress;
+    return 1;
+}
+
+int
+adapt_zone_obj_reveal(MsgObjReveal const* m, struct PktZoneSubPacket* out)
+{
+    out->name = PKT_NAME_OBJ_REVEAL;
+    out->_obj_reveal.pos = m->coord_in_zone_packed;
+    out->_obj_reveal.obj_id = m->id;
+    out->_obj_reveal.count = m->quantity;
+    out->_obj_reveal.receiver = m->receiver;
+    return 1;
+}

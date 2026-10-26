@@ -400,6 +400,12 @@ rsprot_within(RsprotExec *x, int32_t i, int32_t cap)
 int
 rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap)
 {
+    return rsprot_more_but(x, count, i, cap, 0);
+}
+
+int
+rsprot_more_but(RsprotExec *x, int32_t *count, int32_t i, int32_t cap, int32_t keep)
+{
     switch (x->dir) {
     case RSPROT_ENCODE:
     case RSPROT_FILL:
@@ -408,9 +414,10 @@ rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap)
     case RSPROT_DECODE:
         if (x->error || x->buf->err)
             return 0;
-        if (rsprot_remaining(x) <= 0) {
-            /* The array ended because the payload did. Tell the caller how
-             * many arrived — nothing else on the wire says. */
+        if (rsprot_remaining(x) <= keep) {
+            /* The array ended because the payload did (bar the `keep` bytes of
+             * trailing fields). Tell the caller how many arrived — nothing
+             * else on the wire says. */
             *count = i;
             return 0;
         }
@@ -705,6 +712,34 @@ void
 rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name)
 {
     rsprot_xrest_but(x, value, length, 0, name);
+}
+
+void
+rsprot_xstrnl(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name)
+{
+    switch (x->dir) {
+    case RSPROT_ENCODE:
+        if (*length < 0 || (*length > 0 && memchr(*value, '\n', (size_t)*length))) {
+            rsprot_exec_fail(x, "newline string carries its terminator");
+            return;
+        }
+        rsprot_pstrnl(x->buf, *value, *length);
+        break;
+    case RSPROT_DECODE:
+        *value = rsprot_gstrnl(x->buf, length);
+        if (!*value)
+            rsprot_exec_fail(x, "malformed string");
+        trace_bytes(x, RSPROT_TRACE_STR, -1, *value, *value ? *length : -1, name);
+        break;
+    case RSPROT_DESCRIBE:
+        record(x, name, RSPROT_FIELD_STR, RSPROT_PRIM_U1, 0);
+        x->transferred++;
+        break;
+    case RSPROT_FILL:
+        *value = (const uint8_t *)k_fill_string;
+        *length = (int32_t)(sizeof(k_fill_string) - 1);
+        break;
+    }
 }
 
 void

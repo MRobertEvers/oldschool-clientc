@@ -439,6 +439,9 @@ void rsprot_xclamp(
  * exceeding it fails the exec rather than writing past the end.
  */
 int rsprot_more(RsprotExec *x, int32_t *count, int32_t i, int32_t cap);
+/** rsprot_more for an array followed by `keep` bytes of fixed fields: on
+ *  decode it ends where those begin. */
+int rsprot_more_but(RsprotExec *x, int32_t *count, int32_t i, int32_t cap, int32_t keep);
 
 /**
  * Loop guard for an array the wire DOES count.
@@ -482,6 +485,14 @@ int32_t rsprot_xcount(
  *             does: the caller owns the storage
  */
 void rsprot_xrest(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name);
+
+/**
+ * A newline-terminated string, the 2004 protocol's text: `*length` bytes
+ * borrowed from the payload (no NUL after them -- the caller copies), the
+ * terminator consumed on decode and written on encode. A '\n' inside the
+ * value is the caller's bug on encode.
+ */
+void rsprot_xstrnl(RsprotExec *x, const uint8_t **value, int32_t *length, const char *name);
 
 /**
  * rsprot_xrest, leaving the last `keep` bytes for the fields after it:
@@ -577,6 +588,7 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #define RSPROT_WITHIN(x, i, cap) rsprot_within((x), (i), (cap))
 /* Loop condition for a count-less trailing array. See rsprot_more(). */
 #define RSPROT_MORE(x, f, i, cap) rsprot_more((x), &(f), (i), (cap))
+#define RSPROT_MORE_BUT(x, f, i, cap, keep) rsprot_more_but((x), &(f), (i), (cap), (keep))
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
 #define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2_12, &(f), (max), #f)
 /* A count the wire carries in a transformed byte or short:
@@ -584,6 +596,8 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #define RSPROT_COUNT_AS(x, prim, f, max) rsprot_xcount((x), RSPROT_PRIM_##prim, &(f), (max), #f)
 /* The rest of the payload, borrowed. See rsprot_xrest(). */
 #define RSPROT_REST(x, f, len) rsprot_xrest((x), &(f), &(len), #f)
+/* A newline-terminated string. See rsprot_xstrnl(). */
+#define RSPROT_STRNL(x, f, len) rsprot_xstrnl((x), &(f), &(len), #f)
 #define RSPROT_REST_BUT(x, f, len, keep) rsprot_xrest_but((x), &(f), &(len), (keep), #f)
 #define RSPROT_BITS(x, width, f) rsprot_xbits((x), (width), &(f), #f)
 #define RSPROT_BRANCH(x, f) rsprot_branch((x), &(f))

@@ -57,11 +57,11 @@ main(void)
     uint8_t buf[512];
     int n;
 
-    ToriRS_Network_Init(&net, GameProtoRev_LC245_2(), TEST_RSA_E, TEST_RSA_N);
+    ToriRS_Network_Init(&net, GameProtoRev_RS245_2(), TEST_RSA_E, TEST_RSA_N);
     assert(net.rsa_ready);
     ToriRS_Network_SetSeedFn(&net, fixed_seed, NULL);
 
-    MockServer_Init(&server, GameProtoRev_LC245_2(), server_seed, 2);
+    MockServer_Init(&server, GameProtoRev_RS245_2(), server_seed, 2);
     g_client_seed[2] = (int32_t)(server_seed >> 32);
     g_client_seed[3] = (int32_t)(server_seed & 0xFFFFFFFF);
 
@@ -86,7 +86,7 @@ main(void)
     /* Scripted VARP_SMALL(id=42, val=5). */
     {
         uint8_t body[3] = { 0x00, 0x2A, 0x05 };
-        int code = GameProtoRev_LC245_2()->packetin_wire(PKT_NAME_VARP_SMALL);
+        int code = GameProtoRev_RS245_2()->packetin_wire(PKT_NAME_VARP_SMALL);
         n = MockServer_Packet(&server, buf, sizeof(buf), code, body, sizeof(body));
         feed_recv(&net, buf, n);
     }
@@ -96,8 +96,8 @@ main(void)
      * the packet reaches the FIFO with the right type. */
     {
         uint8_t body[16];
-        int code = GameProtoRev_LC245_2()->packetin_wire(PKT_NAME_UPDATE_RUNENERGY);
-        int size = GameProtoRev_LC245_2()->packetin_size(code);
+        int code = GameProtoRev_RS245_2()->packetin_wire(PKT_NAME_UPDATE_RUNENERGY);
+        int size = GameProtoRev_RS245_2()->packetin_size(code);
         int blen = size > 0 ? size : 1;
         memset(body, 0, sizeof(body));
         body[0] = 55; /* run energy */

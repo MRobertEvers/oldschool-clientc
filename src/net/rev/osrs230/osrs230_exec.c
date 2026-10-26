@@ -4299,6 +4299,18 @@ exec_out(int out_name, struct ProtoOutArgs const* args, uint8_t* buf, int cap)
 }
 
 static int
+exec_has(int out_name)
+{
+    return out_name > 0 && out_name < PKTOUT_NAME_COUNT && k_out[out_name] != NULL;
+}
+
+static int
+appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)
+{
+    return PktPlayerAppearance_DecodeAs(o, APPEARANCE_ENC_V4, d, l);
+}
+
+static int
 pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)
 {
     return proto_info_player_read(player_info_osrs230, d, l, o);
@@ -4316,14 +4328,7 @@ ninfo_large(uint8_t const* d, int l, struct RsprotInfoList* o)
     return proto_info_npc_read(npc_info_large_v5_osrs230, d, l, o);
 }
 
-static int
-appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)
-{
-    return PktPlayerAppearance_DecodeAs(o, APPEARANCE_ENC_V4, d, l);
-}
-
 static struct GameProtoRevTable k_rev = {
-    .revision = GAMEPROTO_REVISION_OSRS,
     .name = "osrs230",
     .number = 230,
     .client_version = 230,
@@ -4334,14 +4339,17 @@ static struct GameProtoRevTable k_rev = {
     .packetout_size = out_size,
     .transport_kind = NET_TRANSPORT_TCP,
     .opcode_plaintext = 0,
-    /* pSmart1Or2: two bytes once a server opcode passes 0x7F. */
-    .opcode_smart2 = 1,
     .server_tick_ms = 600,
-    .component_id_bytes = 4,
     .login = &g_login_osrs_vtable,
-    .reconnect_kind = NET_RECONNECT_SEED,
     .parse_wire = exec_in,
     .encode = exec_out,
+    .encodes = exec_has,
+    .appearance_decode = appear,
+    .revision = GAMEPROTO_REVISION_OSRS,
+    /* pSmart1Or2: two bytes once a server opcode passes 0x7F. */
+    .opcode_smart2 = 1,
+    .component_id_bytes = 4,
+    .reconnect_kind = NET_RECONNECT_SEED,
     .player_info_read = pinfo,
     .npc_info_read = ninfo,
     .npc_info_read_large = ninfo_large,
@@ -4350,7 +4358,6 @@ static struct GameProtoRevTable k_rev = {
     .player_info_state_size = proto_info_state_size,
     .player_info_state_save = proto_info_state_save,
     .player_info_state_load = proto_info_state_load,
-    .appearance_decode = appear,
 };
 
 struct GameProtoRevTable const*

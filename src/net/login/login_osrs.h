@@ -2,7 +2,6 @@
 #define SRC_NET_LOGIN_LOGIN_OSRS_H
 
 /*
- * Revi/*
  * The OSRS login driver (client side): RSProx's ClientLoginHandler block,
  * which every OldSchool revision past the 232 serverVersion field writes the
  * same -- one header, one RSA block, one XTEA body -- and whose LoginResponse.Ok

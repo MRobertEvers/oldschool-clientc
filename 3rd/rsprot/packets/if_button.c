@@ -17,12 +17,22 @@ packet_if_button_v1_in(RsprotExec *x, MsgIf1Button *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
+/* v2 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_button_v2_in(RsprotExec *x, MsgIf1Button *m)
+{
+    RSPROT_U2_12(x, m->combined_id);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no IF_BUTTON and
+ * 4 row(s) for 2 layout(s). A revision not listed has no IF_BUTTON and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_button_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_button_v1_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_button_v2_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_button_v2_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_button_v2_in },
 };
 
 const int rsprot_if_button_in_count =

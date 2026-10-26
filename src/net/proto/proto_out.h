@@ -90,6 +90,21 @@ struct ProtoOutArgs
     char const* description;
     char const* instructions;
     char const* command;
+    /* LostCity's own: a waypoint walk (the start tile, then up to 24 signed
+     * deltas toward the destination), a name as base-37, the tutorial tab, a drag's mode, a
+     * report's rule, the character design. */
+    int32_t route_x;
+    int32_t route_z;
+    int32_t route_count;
+    int32_t route_dx[24];
+    int32_t route_dz[24];
+    int64_t name37;
+    int32_t tab;
+    int32_t mode;
+    int32_t reason;
+    int32_t gender;
+    int32_t idkit[7];
+    int32_t colours[5];
     /* Tails the caller encodes: packed chat text, a script trigger's args. */
     uint8_t const* huffman;
     int32_t huffman_length;
@@ -101,7 +116,7 @@ struct ProtoOutArgs
 int
 proto_out_speaks(struct GameProtoRevTable const* rev);
 
-/** 1 when `rev` sends a prot for `out_name`. */
+/** 1 when `rev` can write `out_name`: an opcode for it, and a codec. */
 int
 proto_out_has(struct GameProtoRevTable const* rev, int out_name);
 

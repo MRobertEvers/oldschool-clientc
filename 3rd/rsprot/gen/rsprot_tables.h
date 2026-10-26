@@ -31,6 +31,9 @@
 #include "osrs239_prot.h"
 #include "osrs240_prot.h"
 #include "osrs241_prot.h"
+#include "rs245_2_prot.h"
+#include "rs254_prot.h"
+#include "rs289_prot.h"
 
 /* clang-format off */
 static const RsprotRevTable rsprot_all_revisions[] = {
@@ -55,6 +58,9 @@ static const RsprotRevTable rsprot_all_revisions[] = {
     { { RSPROT_OSRS_ID(239) }, rsprot_osrs239_server, RSPROT_OSRS239_SERVER_COUNT, rsprot_osrs239_client, RSPROT_OSRS239_CLIENT_COUNT, rsprot_osrs239_zone_order, RSPROT_OSRS239_ZONE_COUNT },
     { { RSPROT_OSRS_ID(240) }, rsprot_osrs240_server, RSPROT_OSRS240_SERVER_COUNT, rsprot_osrs240_client, RSPROT_OSRS240_CLIENT_COUNT, rsprot_osrs240_zone_order, RSPROT_OSRS240_ZONE_COUNT },
     { { RSPROT_OSRS_ID(241) }, rsprot_osrs241_server, RSPROT_OSRS241_SERVER_COUNT, rsprot_osrs241_client, RSPROT_OSRS241_CLIENT_COUNT, rsprot_osrs241_zone_order, RSPROT_OSRS241_ZONE_COUNT },
+    { { RSPROT_RS_ID(245, 2) }, rsprot_rs245_2_server, RSPROT_RS245_2_SERVER_COUNT, rsprot_rs245_2_client, RSPROT_RS245_2_CLIENT_COUNT, rsprot_rs245_2_zone_order, RSPROT_RS245_2_ZONE_COUNT },
+    { { RSPROT_RS_ID(254, 0) }, rsprot_rs254_server, RSPROT_RS254_SERVER_COUNT, rsprot_rs254_client, RSPROT_RS254_CLIENT_COUNT, rsprot_rs254_zone_order, RSPROT_RS254_ZONE_COUNT },
+    { { RSPROT_RS_ID(289, 0) }, rsprot_rs289_server, RSPROT_RS289_SERVER_COUNT, rsprot_rs289_client, RSPROT_RS289_CLIENT_COUNT, rsprot_rs289_zone_order, RSPROT_RS289_ZONE_COUNT },
 };
 /* clang-format on */
 

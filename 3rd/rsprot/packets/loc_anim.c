@@ -190,8 +190,17 @@ packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m)
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
+/* v21 -- revs rs245.2, rs254, rs289. */
+void
+packet_loc_anim_v21_out(RsprotExec *x, MsgLocAnim *m)
+{
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U1(x, m->loc_properties_packed);
+    RSPROT_U2_12(x, m->id);
+}
+
 /*
- * 21 row(s) for 20 layout(s). A revision not listed has no LOC_ANIM and
+ * 24 row(s) for 21 layout(s). A revision not listed has no LOC_ANIM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_anim_out[] = {
@@ -216,6 +225,9 @@ const RsprotVersionRange rsprot_loc_anim_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_loc_anim_v18_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_loc_anim_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_loc_anim_v20_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_loc_anim_v21_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_loc_anim_v21_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_loc_anim_v21_out },
 };
 
 const int rsprot_loc_anim_out_count =

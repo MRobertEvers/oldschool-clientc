@@ -163,7 +163,7 @@ static int
 run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
 {
     return run_login_rev(
-        fragment_bytes, response_byte, GameProtoRev_LC245_2(), /* reconnect */ 0, NULL, out_lp);
+        fragment_bytes, response_byte, GameProtoRev_RS245_2(), /* reconnect */ 0, NULL, out_lp);
 }
 
 static void
@@ -205,7 +205,7 @@ test_login_rsa_positive_sign(void)
         0x6a, 0x27, 0xcd, 0x3b, 0x45, 0x70, 0x23, 0xf1,
         0x5d, 0xab, 0x2b, 0xad, 0x4d, 0xef, 0xdc, 0x6f, 0xbb
     };
-    struct GameProtoRevTable const* revisions[] = { GameProtoRev_LC245_2(), GameProtoRev_LC289() };
+    struct GameProtoRevTable const* revisions[] = { GameProtoRev_RS245_2(), GameProtoRev_RS289() };
     for( size_t i = 0; i < sizeof(revisions) / sizeof(revisions[0]); i++ )
     {
         struct LoginProto* lp = NULL;
@@ -237,10 +237,10 @@ test_reconnect_opcode_creds(void)
     struct LoginBlockCapture fresh;
     struct LoginBlockCapture again;
 
-    TEST_CHECK(run_login_rev(17, 2, GameProtoRev_LC245_2(), /* reconnect */ 0, &fresh, &lp));
+    TEST_CHECK(run_login_rev(17, 2, GameProtoRev_RS245_2(), /* reconnect */ 0, &fresh, &lp));
     loginproto_free(lp);
     lp = NULL;
-    TEST_CHECK(run_login_rev(17, 15, GameProtoRev_LC245_2(), /* reconnect */ 1, &again, &lp));
+    TEST_CHECK(run_login_rev(17, 15, GameProtoRev_RS245_2(), /* reconnect */ 1, &again, &lp));
     loginproto_free(lp);
 
     TEST_CHECK(fresh.len > 1 && fresh.len == again.len);
@@ -261,7 +261,7 @@ test_reconnect_opcode_creds(void)
 static void
 test_reconnect_opcode_none(void)
 {
-    struct GameProtoRevTable rev = *GameProtoRev_LC245_2();
+    struct GameProtoRevTable rev = *GameProtoRev_RS245_2();
     struct LoginProto* lp = NULL;
     struct LoginBlockCapture block;
 
@@ -290,7 +290,7 @@ test_packet_framing(void)
     int32_t seed[4] = { 1, 2, 3, 4 };
     struct Isaac* enc = isaac_new(seed, 4);
     struct Isaac* dec = isaac_new(seed, 4);
-    struct GameProtoRevTable const* rev = GameProtoRev_LC245_2();
+    struct GameProtoRevTable const* rev = GameProtoRev_RS245_2();
     struct PacketBuffer pb;
     packetbuffer_init(&pb, dec, rev);
 
@@ -339,7 +339,7 @@ test_packet_varu16(void)
     int32_t seed[4] = { 9, 8, 7, 6 };
     struct Isaac* enc = isaac_new(seed, 4);
     struct Isaac* dec = isaac_new(seed, 4);
-    struct GameProtoRevTable const* rev = GameProtoRev_LC245_2();
+    struct GameProtoRevTable const* rev = GameProtoRev_RS245_2();
     struct PacketBuffer pb;
     packetbuffer_init(&pb, dec, rev);
 
@@ -448,7 +448,7 @@ test_lc_inv_full_size_is_two_bytes(void)
         0x05, 0xf7, 0xff,       /* obj id+1 = 1527 -> 1526, count escape... */
         0x00, 0x00, 0x03, 0xe8, /* ...1000 */
     };
-    struct GameProtoRevTable const* rev = GameProtoRev_LC289();
+    struct GameProtoRevTable const* rev = GameProtoRev_RS289();
     struct RevPacket packet;
 
     memset(&packet, 0, sizeof(packet));
@@ -474,7 +474,7 @@ test_lc_inv_partial_slot_is_smart(void)
         0x05, 0x01, 0x0d, 0x02, /* slot 5, obj id+1 = 269 -> 268, count 2 */
         0x80, 0xc8, 0x00, 0xfb, 0x07, /* slot 200, obj id+1 = 251 -> 250, count 7 */
     };
-    struct GameProtoRevTable const* rev = GameProtoRev_LC289();
+    struct GameProtoRevTable const* rev = GameProtoRev_RS289();
     struct RevPacket packet;
 
     memset(&packet, 0, sizeof(packet));

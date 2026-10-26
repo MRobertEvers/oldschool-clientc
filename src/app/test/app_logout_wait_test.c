@@ -63,7 +63,7 @@ make_net_in_game(void)
     struct ToriRS_Network* net = calloc(1, sizeof(*net));
 
     TEST_ASSERT(net != NULL, "allocated the net fixture");
-    net->rev = GameProtoRev_LC254();
+    net->rev = GameProtoRev_RS254();
     net->state = TORIRS_NET_GAME;
     return net;
 }

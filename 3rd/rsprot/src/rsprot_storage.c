@@ -11,6 +11,9 @@
 #include "../packets/update_ignorelist.h"
 #include "../packets/update_inv_full.h"
 #include "../packets/update_inv_partial.h"
+#include "../packets/update_ignorelist_rs.h"
+#include "../packets/update_inv_full_rs.h"
+#include "../packets/update_inv_partial_rs.h"
 
 #include <assert.h>
 #include <string.h>
@@ -61,6 +64,12 @@ rsprot_storage_provide(char const* prot, void* msg, int side)
         ((MsgUpdateInvFull *)msg)->slots = POOL(MsgUpdateInvFullSlot, side);
     } else if (strcmp(prot, "UPDATE_INV_PARTIAL") == 0) {
         ((MsgUpdateInvPartial *)msg)->slots = POOL(MsgUpdateInvPartialSlot, side);
+    } else if (strcmp(prot, "UPDATE_INV_FULL_RS") == 0) {
+        ((MsgUpdateInvFullRs *)msg)->slots = POOL(Rsprot_MsgUpdateInvFullRs_slotsElem, side);
+    } else if (strcmp(prot, "UPDATE_INV_PARTIAL_RS") == 0) {
+        ((MsgUpdateInvPartialRs *)msg)->slots = POOL(Rsprot_MsgUpdateInvPartialRs_slotsElem, side);
+    } else if (strcmp(prot, "UPDATE_IGNORELIST_RS") == 0) {
+        ((MsgUpdateIgnoreListRs *)msg)->names37 = POOL(int64_t, side);
     } else if (strcmp(prot, "RUNCLIENTSCRIPT") == 0) {
         MsgRunClientScript *m = msg;
         memset(g_cs2_args[side], 0, sizeof(g_cs2_args[side]));

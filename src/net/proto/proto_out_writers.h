@@ -23,7 +23,7 @@
  *   sound_jingleend.h (MsgSoundJingleEnd): no argument for jingle
  *   teleport.h (MsgTeleport): no argument for oculus_sync_value, level
  *   timings.h (MsgTimings): no argument for connection_lost_duration, login_duration, unused_duration, client_state, unused1, login_count, unused2
- *   update_player_model_v1.h (MsgUpdatePlayerModelV1): no argument for body_type, ident_kit, colours
+ *   update_player_model_v1.h (MsgUpdatePlayerModelV1): no argument for body_type, ident_kit
  */
 
 #include <string.h>
@@ -36,29 +36,45 @@
 #include "packets/clansettings_full_request.h"
 #include "packets/clickworldmap.h"
 #include "packets/client_cheat.h"
+#include "packets/client_cheat_rs.h"
 #include "packets/close_modal.h"
+#include "packets/event_tracking.h"
 #include "packets/exit_freecam.h"
 #include "packets/friendchat_join_leave.h"
 #include "packets/friendchat_kick.h"
 #include "packets/friendchat_setrank.h"
 #include "packets/friendlist_add.h"
+#include "packets/friendlist_add_rs.h"
 #include "packets/friendlist_del.h"
+#include "packets/friendlist_del_rs.h"
+#include "packets/idk_savedesign.h"
 #include "packets/idle.h"
 #include "packets/if3_button.h"
 #include "packets/if_button.h"
 #include "packets/if_buttond.h"
+#include "packets/if_buttond_rs.h"
 #include "packets/if_buttont.h"
 #include "packets/if_buttonx.h"
 #include "packets/if_script_trigger.h"
 #include "packets/if_subop.h"
 #include "packets/ignorelist_add.h"
+#include "packets/ignorelist_add_rs.h"
 #include "packets/ignorelist_del.h"
+#include "packets/ignorelist_del_rs.h"
+#include "packets/inv_button.h"
 #include "packets/map_build_complete.h"
 #include "packets/message_private.h"
+#include "packets/message_private_in_rs.h"
 #include "packets/message_public.h"
+#include "packets/message_public_rs.h"
+#include "packets/move_click_rs.h"
 #include "packets/move_gameclick.h"
 #include "packets/move_minimapclick.h"
+#include "packets/move_minimapclick_rs.h"
 #include "packets/no_timeout.h"
+#include "packets/opheld.h"
+#include "packets/opheldt.h"
+#include "packets/opheldu.h"
 #include "packets/oploc1.h"
 #include "packets/oploc1_v1.h"
 #include "packets/oploc1_v2.h"
@@ -76,6 +92,7 @@
 #include "packets/oploc5_v2.h"
 #include "packets/oploc6.h"
 #include "packets/oploct.h"
+#include "packets/oplocu.h"
 #include "packets/opnpc1.h"
 #include "packets/opnpc1_v1.h"
 #include "packets/opnpc1_v2.h"
@@ -93,6 +110,7 @@
 #include "packets/opnpc5_v2.h"
 #include "packets/opnpc6.h"
 #include "packets/opnpct.h"
+#include "packets/opnpcu.h"
 #include "packets/opobj1.h"
 #include "packets/opobj1_v1.h"
 #include "packets/opobj1_v2.h"
@@ -110,6 +128,7 @@
 #include "packets/opobj5_v2.h"
 #include "packets/opobj6.h"
 #include "packets/opobjt.h"
+#include "packets/opobju.h"
 #include "packets/opplayer1.h"
 #include "packets/opplayer2.h"
 #include "packets/opplayer3.h"
@@ -119,6 +138,7 @@
 #include "packets/opplayer7.h"
 #include "packets/opplayer8.h"
 #include "packets/opplayert.h"
+#include "packets/opplayeru.h"
 #include "packets/opworldentity1.h"
 #include "packets/opworldentity2.h"
 #include "packets/opworldentity3.h"
@@ -127,6 +147,7 @@
 #include "packets/opworldentity6.h"
 #include "packets/opworldentityt.h"
 #include "packets/reflection_check_reply.h"
+#include "packets/report_abuse.h"
 #include "packets/resume_p_countdialog.h"
 #include "packets/resume_p_countdialog_long.h"
 #include "packets/resume_p_namedialog.h"
@@ -137,6 +158,7 @@
 #include "packets/send_snapshot.h"
 #include "packets/set_chatfiltersettings.h"
 #include "packets/set_heading.h"
+#include "packets/tut_clickside.h"
 #include "packets/window_status.h"
 
 /* clang-format off */
@@ -216,12 +238,30 @@ w_client_cheat(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_client_cheat_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgClientCheatRs* m = (MsgClientCheatRs*)msg;
+
+    m->copy = a->copy;
+    m->copy_length = a->copy_length;
+}
+
+static inline void
 w_close_modal(void* msg, struct ProtoOutArgs const* a)
 {
     MsgCloseModal* m = (MsgCloseModal*)msg;
 
     (void)m;
     (void)a;
+}
+
+static inline void
+w_event_tracking(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgEventTracking* m = (MsgEventTracking*)msg;
+
+    m->copy = a->copy;
+    m->copy_length = a->copy_length;
 }
 
 static inline void
@@ -268,11 +308,37 @@ w_friendlist_add(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_friendlist_add_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgFriendlistAddRs* m = (MsgFriendlistAddRs*)msg;
+
+    m->name37 = a->name37;
+}
+
+static inline void
 w_friendlist_del(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendListDel* m = (MsgFriendListDel*)msg;
 
     m->name = a->name;
+}
+
+static inline void
+w_friendlist_del_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgFriendlistDelRs* m = (MsgFriendlistDelRs*)msg;
+
+    m->name37 = a->name37;
+}
+
+static inline void
+w_idk_savedesign(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgIdkSavedesign* m = (MsgIdkSavedesign*)msg;
+
+    m->gender = a->gender;
+    memcpy(m->idkit, a->idkit, sizeof(m->idkit));
+    memcpy(m->colours, a->colours, sizeof(m->colours));
 }
 
 static inline void
@@ -313,6 +379,17 @@ w_if_buttond(void* msg, struct ProtoOutArgs const* a)
     m->target_combined_id = a->target_combined_id;
     m->selected_obj = a->selected_obj;
     m->target_obj = a->target_obj;
+}
+
+static inline void
+w_if_buttond_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgIfButtondRs* m = (MsgIfButtondRs*)msg;
+
+    m->combined_id = a->combined_id;
+    m->selected_sub = a->selected_sub;
+    m->target_sub = a->target_sub;
+    m->mode = a->mode;
 }
 
 static inline void
@@ -373,11 +450,37 @@ w_ignorelist_add(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_ignorelist_add_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgIgnorelistAddRs* m = (MsgIgnorelistAddRs*)msg;
+
+    m->name37 = a->name37;
+}
+
+static inline void
 w_ignorelist_del(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIgnoreListDel* m = (MsgIgnoreListDel*)msg;
 
     m->name = a->name;
+}
+
+static inline void
+w_ignorelist_del_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgIgnorelistDelRs* m = (MsgIgnorelistDelRs*)msg;
+
+    m->name37 = a->name37;
+}
+
+static inline void
+w_inv_button(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgInvButton* m = (MsgInvButton*)msg;
+
+    m->obj = a->obj;
+    m->sub = a->sub;
+    m->combined_id = a->combined_id;
 }
 
 static inline void
@@ -400,6 +503,16 @@ w_message_private(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_message_private_in_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgMessagePrivateInRs* m = (MsgMessagePrivateInRs*)msg;
+
+    m->name37 = a->name37;
+    m->copy = a->copy;
+    m->copy_length = a->copy_length;
+}
+
+static inline void
 w_message_public(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMessagePublic* m = (MsgMessagePublic*)msg;
@@ -411,6 +524,28 @@ w_message_public(void* msg, struct ProtoOutArgs const* a)
     m->huffman = a->huffman;
     m->huffman_length = a->huffman_length;
     m->clan_type = a->clan_type;
+}
+
+static inline void
+w_message_public_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgMessagePublicRs* m = (MsgMessagePublicRs*)msg;
+
+    m->copy = a->copy;
+    m->copy_length = a->copy_length;
+}
+
+static inline void
+w_move_click_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgMoveClickRs* m = (MsgMoveClickRs*)msg;
+
+    m->key_combination = a->key_combination;
+    m->route_x = a->route_x;
+    m->route_z = a->route_z;
+    memcpy(m->route_dx, a->route_dx, sizeof(m->route_dx));
+    memcpy(m->route_dz, a->route_dz, sizeof(m->route_dz));
+    m->route_count = a->route_count;
 }
 
 static inline void
@@ -444,12 +579,69 @@ w_move_minimapclick(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_move_minimapclick_rs(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgMoveMinimapclickRs* m = (MsgMoveMinimapclickRs*)msg;
+
+    m->key_combination = a->key_combination;
+    m->route_x = a->route_x;
+    m->route_z = a->route_z;
+    memcpy(m->route_dx, a->route_dx, sizeof(m->route_dx));
+    memcpy(m->route_dz, a->route_dz, sizeof(m->route_dz));
+    m->route_count = a->route_count;
+    m->minimap_width = a->minimap_width;
+    m->minimap_height = a->minimap_height;
+    m->camera_angle_y = a->camera_angle_y;
+    m->checkpoint1 = a->checkpoint1;
+    m->checkpoint2 = a->checkpoint2;
+    m->checkpoint3 = a->checkpoint3;
+    m->checkpoint4 = a->checkpoint4;
+    m->fine_x = a->fine_x;
+    m->fine_z = a->fine_z;
+    m->checkpoint5 = a->checkpoint5;
+}
+
+static inline void
 w_no_timeout(void* msg, struct ProtoOutArgs const* a)
 {
     MsgNoTimeout* m = (MsgNoTimeout*)msg;
 
     (void)m;
     (void)a;
+}
+
+static inline void
+w_opheld(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpheld* m = (MsgOpheld*)msg;
+
+    m->obj = a->obj;
+    m->sub = a->sub;
+    m->combined_id = a->combined_id;
+}
+
+static inline void
+w_opheldt(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpheldt* m = (MsgOpheldt*)msg;
+
+    m->obj = a->obj;
+    m->sub = a->sub;
+    m->combined_id = a->combined_id;
+    m->selected_combined_id = a->selected_combined_id;
+}
+
+static inline void
+w_opheldu(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpheldu* m = (MsgOpheldu*)msg;
+
+    m->obj = a->obj;
+    m->sub = a->sub;
+    m->combined_id = a->combined_id;
+    m->selected_obj = a->selected_obj;
+    m->selected_sub = a->selected_sub;
+    m->selected_combined_id = a->selected_combined_id;
 }
 
 static inline void
@@ -645,6 +837,19 @@ w_oploct(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_oplocu(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOplocu* m = (MsgOplocu*)msg;
+
+    m->x = a->x;
+    m->z = a->z;
+    m->id = a->id;
+    m->selected_obj = a->selected_obj;
+    m->selected_sub = a->selected_sub;
+    m->selected_combined_id = a->selected_combined_id;
+}
+
+static inline void
 w_opnpc1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc1* m = (MsgOpNpc1*)msg;
@@ -802,6 +1007,17 @@ w_opnpct(void* msg, struct ProtoOutArgs const* a)
     m->selected_obj = a->selected_obj;
     m->control_key = a->control_key;
     m->index = a->index;
+}
+
+static inline void
+w_opnpcu(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpnpcu* m = (MsgOpnpcu*)msg;
+
+    m->index = a->index;
+    m->selected_obj = a->selected_obj;
+    m->selected_sub = a->selected_sub;
+    m->selected_combined_id = a->selected_combined_id;
 }
 
 static inline void
@@ -999,6 +1215,19 @@ w_opobjt(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_opobju(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpobju* m = (MsgOpobju*)msg;
+
+    m->x = a->x;
+    m->z = a->z;
+    m->id = a->id;
+    m->selected_obj = a->selected_obj;
+    m->selected_sub = a->selected_sub;
+    m->selected_combined_id = a->selected_combined_id;
+}
+
+static inline void
 w_opplayer1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer1* m = (MsgOpPlayer1*)msg;
@@ -1084,6 +1313,17 @@ w_opplayert(void* msg, struct ProtoOutArgs const* a)
 }
 
 static inline void
+w_opplayeru(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgOpplayeru* m = (MsgOpplayeru*)msg;
+
+    m->index = a->index;
+    m->selected_obj = a->selected_obj;
+    m->selected_sub = a->selected_sub;
+    m->selected_combined_id = a->selected_combined_id;
+}
+
+static inline void
 w_opworldentity1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity1* m = (MsgOpWorldEntity1*)msg;
@@ -1156,6 +1396,16 @@ w_reflection_check_reply(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
     m->copy = a->copy;
     m->copy_length = a->copy_length;
+}
+
+static inline void
+w_report_abuse(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgReportAbuse* m = (MsgReportAbuse*)msg;
+
+    m->name37 = a->name37;
+    m->reason = a->reason;
+    m->mute = a->mute;
 }
 
 static inline void
@@ -1241,6 +1491,14 @@ w_set_heading(void* msg, struct ProtoOutArgs const* a)
     MsgSetHeading* m = (MsgSetHeading*)msg;
 
     m->heading = a->heading;
+}
+
+static inline void
+w_tut_clickside(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgTutClickside* m = (MsgTutClickside*)msg;
+
+    m->tab = a->tab;
 }
 
 static inline void

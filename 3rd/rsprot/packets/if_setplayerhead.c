@@ -45,8 +45,15 @@ packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m)
     RSPROT_COM_2143(x, m->combined_id);
 }
 
+/* v6 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_setplayerhead_v6_out(RsprotExec *x, MsgIfSetPlayerHead *m)
+{
+    RSPROT_U2_12(x, m->combined_id);
+}
+
 /*
- * 18 row(s) for 5 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
+ * 21 row(s) for 6 layout(s). A revision not listed has no IF_SETPLAYERHEAD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
@@ -68,6 +75,9 @@ const RsprotVersionRange rsprot_if_setplayerhead_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayerhead_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayerhead_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayerhead_v3_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setplayerhead_v6_out },
 };
 
 const int rsprot_if_setplayerhead_out_count =

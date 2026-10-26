@@ -30,13 +30,26 @@ packet_cam_shake_v2_out(RsprotExec *x, MsgCamShake *m)
     RSPROT_U1(x, m->rate);
 }
 
+/* v3 -- revs rs245.2, rs254, rs289. */
+void
+packet_cam_shake_v3_out(RsprotExec *x, MsgCamShake *m)
+{
+    RSPROT_U1(x, m->axis);
+    RSPROT_U1(x, m->random);
+    RSPROT_U1(x, m->amplitude);
+    RSPROT_U1(x, m->rate);
+}
+
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no CAM_SHAKE and
+ * 5 row(s) for 3 layout(s). A revision not listed has no CAM_SHAKE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_shake_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(222), (RsprotCodecFn)packet_cam_shake_v1_out },
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_shake_v2_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_cam_shake_v3_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_cam_shake_v3_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_cam_shake_v3_out },
 };
 
 const int rsprot_cam_shake_out_count =

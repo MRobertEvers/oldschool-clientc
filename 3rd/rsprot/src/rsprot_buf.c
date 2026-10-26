@@ -489,6 +489,29 @@ const char *rsprot_gjstr(RsprotBuf *b, int32_t *out_len)
 	return NULL;
 }
 
+const uint8_t *rsprot_gstrnl(RsprotBuf *b, int32_t *out_len)
+{
+	int32_t start = b->rpos;
+	int32_t i;
+
+	*out_len = 0;
+	for (i = start; i < b->wpos; i++) {
+		if (b->data[i] == '\n') {
+			b->rpos = i + 1;
+			*out_len = i - start;
+			return b->data + start;
+		}
+	}
+	b->err |= RSPROT_BUF_ERR_STRING;
+	return NULL;
+}
+
+void rsprot_pstrnl(RsprotBuf *b, const uint8_t *s, int32_t len)
+{
+	rsprot_pdata(b, s, len);
+	rsprot_p1(b, '\n');
+}
+
 const char *rsprot_gjstrnull(RsprotBuf *b, int32_t *out_len)
 {
 	if (out_len)

@@ -55,8 +55,11 @@ FIELD_RE = re.compile(r"^\s*(?:const\s+)?[\w ]+?\s*\**\s*(\w+)(?:\[\w+\])*;", re
 DECL_RE = re.compile(r"^(?:int|void)\n((?:adapt|prep)_\w+)\((.*?)\);", re.M | re.S)
 WRITER_RE = re.compile(r"^static (?:inline )?void\n(w_\w+)\(", re.M)
 
-APPEARANCE = {"v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6"}
-LOGIN = {"osrs": "g_login_osrs_vtable"}
+APPEARANCE = {"v4": "APPEARANCE_ENC_V4", "v5": "APPEARANCE_ENC_V5", "v6": "APPEARANCE_ENC_V6",
+              "classic": "APPEARANCE_ENC_CLASSIC", "classic_lc289": "APPEARANCE_ENC_CLASSIC_LC289"}
+# A login driver's vtable; `lc` is the classic handshake net.c drives itself
+# (net/login/login_lc.c), which a table states with no vtable.
+LOGIN = {"osrs": "&g_login_osrs_vtable", "lc": "NULL"}
 
 
 # --- inputs -----------------------------------------------------------------
@@ -147,6 +150,7 @@ class Gen:
         self.adapters = adapters
         self.writers = writers
         self.table = rsprot_spec.load_table(os.path.join(TABLES, rev + ".ini"))
+        self.family = self.table["revision"].family
         self.streams = stream_entries(rev)
         self.files = set()
         self.notes = []
@@ -174,10 +178,13 @@ class Gen:
                        "    packet_%s_%s_out(&x, &m);" % (f, self.rev)]
 
     def info_arm(self, prot, key, canon):
-        npc = self.conf["npc_info"].upper()
         if canon == "PLAYER_INFO":
             return ["    return adapt_player_info(data, len, out);"]
+        if self.family == "rs" and canon == "NPC_INFO":
+            # One npc stream, read by the revision's own reader (npc_stream).
+            return ["    return adapt_npc_info(data, len, out);"]
         if canon in ("NPC_INFO", "NPC_INFO_LARGE"):
+            npc = self.conf["npc_info"].upper()
             want = "NPC_INFO_%s_%s" % ("SMALL" if canon == "NPC_INFO" else "LARGE", npc)
             if key != want:
                 return None
@@ -226,8 +233,8 @@ class Gen:
             return None, None
         return canon, lines
 
-    def zone_case(self, ordinal, prot):
-        f = self.p.resolve(prot, None, "out", self.rev)
+    def zone_case(self, ordinal, prot, version=None):
+        f = self.p.resolve(prot, version, "out", self.rev)
         if f is None:
             return ["    case %d: /* %s: no codec at this revision */" % (ordinal, prot),
                     "        return 0;"]
@@ -289,14 +296,25 @@ class Gen:
                 name_wire.setdefault(canon, row[1])
             in_rows.append((row, canon if lines else None, fn))
 
-        zone = ["/* The revision's zone sub-packets, by the ordinal that leads each. */",
+        by_opcode = self.table["zone_index"] == "opcode"
+        zone = ["/* The revision's zone sub-packets, by the %s that leads each. */"
+                % ("top-level opcode" if by_opcode else "ordinal"),
                 "static int", "zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)", "{",
                 "    int ordinal;", "",
                 "    if( rsprot_buf_readable(c) <= 0 || c->err )", "        return -1;",
                 "    ordinal = rsprot_g1(c);", "    memset(out, 0, sizeof(*out));",
                 "    switch( ordinal )", "    {"]
-        for i, prot in enumerate(self.table["zone_order"]):
-            zone += self.zone_case(i, prot)
+        if by_opcode:
+            # A zone sub-packet is a top-level prot whose message has a zone
+            # adapter; LostCity leads each with that prot's own opcode.
+            for row in server:
+                version = row[3] if len(row) > 3 else None
+                f = self.p.resolve(row[0], version, "out", self.rev)
+                if f and "adapt_zone_" + f in self.adapters:
+                    zone += self.zone_case(row[1], row[0], version)
+        else:
+            for i, prot in enumerate(self.table["zone_order"]):
+                zone += self.zone_case(i, prot)
         zone += ["    default:", "        return 0;", "    }", "}", ""]
 
         out_arms = []
@@ -319,10 +337,11 @@ class Gen:
         if self.errors:
             raise SystemExit("%s:\n  %s" % (rev, "\n  ".join(self.errors)))
 
-        npc = self.conf["npc_info"]
-        for fn in ("player_info_" + rev, "npc_info_small_%s_%s" % (npc, rev), "npc_info_large_%s_%s" % (npc, rev)):
-            if fn not in self.streams:
-                raise SystemExit("%s: no stream entry %s" % (rev, fn))
+        if self.family == "osrs":
+            npc = self.conf["npc_info"]
+            for fn in ("player_info_" + rev, "npc_info_small_%s_%s" % (npc, rev), "npc_info_large_%s_%s" % (npc, rev)):
+                if fn not in self.streams:
+                    raise SystemExit("%s: no stream entry %s" % (rev, fn))
 
         o = ["/*",
              " * Revision %s: the client's protocol at this revision, as calls." % rev,
@@ -392,45 +411,69 @@ class Gen:
               "        return -1;",
               "    rsprot_buf_wrap(&b, buf, cap);",
               "    return k_out[out_name](args, &b) ? b.wpos : -1;", "}", "",
-              "static int", "pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
-              "    return proto_info_player_read(player_info_%s, d, l, o);" % rev, "}", "",
-              "static int", "ninfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
-              "    return proto_info_npc_read(npc_info_small_%s_%s, d, l, o);" % (npc, rev), "}", "",
-              "static int", "ninfo_large(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
-              "    return proto_info_npc_read(npc_info_large_%s_%s, d, l, o);" % (npc, rev), "}", "",
+              "static int",
+              "exec_has(int out_name)",
+              "{",
+              "    return out_name > 0 && out_name < PKTOUT_NAME_COUNT && k_out[out_name] != NULL;", "}", "",
               "static int", "appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)", "{",
-              "    return PktPlayerAppearance_DecodeAs(o, %s, d, l);" % APPEARANCE[self.conf["appearance"]], "}", "",
-              "static struct GameProtoRevTable k_rev = {",
-              "    .revision = GAMEPROTO_REVISION_OSRS,",
+              "    return PktPlayerAppearance_DecodeAs(o, %s, d, l);" % APPEARANCE[self.conf["appearance"]], "}", ""]
+        if self.family == "osrs":
+            o += ["static int", "pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
+                  "    return proto_info_player_read(player_info_%s, d, l, o);" % rev, "}", "",
+                  "static int", "ninfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
+                  "    return proto_info_npc_read(npc_info_small_%s_%s, d, l, o);" % (npc, rev), "}", "",
+                  "static int", "ninfo_large(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
+                  "    return proto_info_npc_read(npc_info_large_%s_%s, d, l, o);" % (npc, rev), "}", ""]
+            family = ["    .revision = GAMEPROTO_REVISION_OSRS,",
+                      "    /* pSmart1Or2: two bytes once a server opcode passes 0x7F. */",
+                      "    .opcode_smart2 = %d," % (1 if max(r[1] for r in server) >= 0x80 else 0),
+                      "    .component_id_bytes = 4,",
+                      "    .reconnect_kind = NET_RECONNECT_SEED,",
+                      "    .player_info_read = pinfo,",
+                      "    .npc_info_read = ninfo,",
+                      "    .npc_info_read_large = ninfo_large,",
+                      "    .player_info_set_local = proto_info_set_local,",
+                      "    .player_info_init = proto_info_init,",
+                      "    .player_info_state_size = proto_info_state_size,",
+                      "    .player_info_state_save = proto_info_state_save,",
+                      "    .player_info_state_load = proto_info_state_load,"]
+        else:
+            family = ["    .revision = GAMEPROTO_REVISION_RS,",
+                      "    /* One opcode byte, a 2-byte component id, and LostCity's re-login on",
+                      "     * opcode 18 with an otherwise identical block. */",
+                      "    .opcode_smart2 = 0,",
+                      "    .component_id_bytes = 0,",
+                      "    .reconnect_kind = NET_RECONNECT_CREDS,",
+                      "    .player_info_read = %s," % self.conf["player_stream"],
+                      "    .npc_info_read = %s," % self.conf["npc_stream"]]
+        jag = self.conf.get("jag_checksum")
+        o += ["static struct GameProtoRevTable k_rev = {",
               '    .name = "%s",' % rev,
               "    .number = %d," % n,
-              "    .client_version = %d," % n,
-              "    .packetin_size = in_size,",
+              "    .client_version = %d," % n]
+        if jag:
+            o += ["    .jag_checksum = { %s }," % jag]
+        o += ["    .packetin_size = in_size,",
               "    .packetin_code = in_code,",
               "    .packetin_wire = in_wire,",
               "    .packetout_code = out_code,",
               "    .packetout_size = out_size,",
               "    .transport_kind = NET_TRANSPORT_TCP,",
               "    .opcode_plaintext = 0,",
-              "    /* pSmart1Or2: two bytes once a server opcode passes 0x7F. */",
-              "    .opcode_smart2 = %d," % (1 if max(r[1] for r in server) >= 0x80 else 0),
               "    .server_tick_ms = 600,",
-              "    .component_id_bytes = 4,",
-              "    .login = &%s," % LOGIN[self.conf["login"]],
-              "    .reconnect_kind = NET_RECONNECT_SEED,",
+              "    .login = %s," % LOGIN[self.conf["login"]],
               "    .parse_wire = exec_in,",
               "    .encode = exec_out,",
-              "    .player_info_read = pinfo,",
-              "    .npc_info_read = ninfo,",
-              "    .npc_info_read_large = ninfo_large,",
-              "    .player_info_set_local = proto_info_set_local,",
-              "    .player_info_init = proto_info_init,",
-              "    .player_info_state_size = proto_info_state_size,",
-              "    .player_info_state_save = proto_info_state_save,",
-              "    .player_info_state_load = proto_info_state_load,",
-              "    .appearance_decode = appear,",
-              "};", "",
-              "struct GameProtoRevTable const*", "GameProtoRev_%s(void)" % R, "{", "    return &k_rev;", "}", ""]
+              "    .encodes = exec_has,",
+              "    .appearance_decode = appear,"] + family + ["};", ""]
+        o += ["struct GameProtoRevTable const*", "GameProtoRev_%s(void)" % R, "{"]
+        if self.conf.get("jag_env"):
+            # The server instance's CRCs, when the boot gives them (the env
+            # is read once; the table is the process's).
+            o += ["    static int loaded;", "",
+                  "    if( !loaded )", "    {", "        loaded = 1;",
+                  '        GameProtoRev_JagChecksumsFromEnv(&k_rev, "%s");' % self.conf["jag_env"], "    }"]
+        o += ["    return &k_rev;", "}", ""]
         return "\n".join(o)
 
 

@@ -154,7 +154,7 @@ test_net(void)
 {
     static struct ToriRS_Network net;
 
-    net.rev = GameProtoRev_LC254();
+    net.rev = GameProtoRev_RS254();
     return &net;
 }
 

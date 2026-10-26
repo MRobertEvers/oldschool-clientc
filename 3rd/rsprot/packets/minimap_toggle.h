@@ -19,6 +19,8 @@ typedef struct MsgMinimapToggle {
 
 /* v1 -- revs osrs221-241. */
 void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
+/* v2 -- revs rs245.2, rs254, rs289. */
+void packet_minimap_toggle_v2_out(RsprotExec *x, MsgMinimapToggle *m);
 
 /* Per-revision entry points: what revision R calls is packet_minimap_toggle_<R>_out. */
 #define packet_minimap_toggle_osrs221_out packet_minimap_toggle_v1_out
@@ -42,6 +44,9 @@ void packet_minimap_toggle_v1_out(RsprotExec *x, MsgMinimapToggle *m);
 #define packet_minimap_toggle_osrs239_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_osrs240_out packet_minimap_toggle_v1_out
 #define packet_minimap_toggle_osrs241_out packet_minimap_toggle_v1_out
+#define packet_minimap_toggle_rs245_2_out packet_minimap_toggle_v2_out
+#define packet_minimap_toggle_rs254_out packet_minimap_toggle_v2_out
+#define packet_minimap_toggle_rs289_out packet_minimap_toggle_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_minimap_toggle_out[];

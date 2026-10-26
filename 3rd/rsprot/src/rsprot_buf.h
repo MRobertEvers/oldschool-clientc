@@ -230,7 +230,13 @@ const char *rsprot_gjstr2(RsprotBuf *b, int32_t *out_len);
 
 /* `s` is NUL-terminated Cp1252. pjstrnull accepts NULL and writes only the
  * terminator. */
+/** A newline-terminated string (the 2004 protocol's text): borrowed, NOT
+ *  NUL-terminated -- `*out_len` bytes before the '\n', which is consumed.
+ *  NULL with RSPROT_BUF_ERR_STRING when no '\n' ends it. */
+const uint8_t *rsprot_gstrnl(RsprotBuf *b, int32_t *out_len);
 void rsprot_pjstr(RsprotBuf *b, const char *s);
+/** `len` bytes, then '\n'. */
+void rsprot_pstrnl(RsprotBuf *b, const uint8_t *s, int32_t len);
 void rsprot_pjstrnull(RsprotBuf *b, const char *s);
 void rsprot_pjstr2(RsprotBuf *b, const char *s);
 

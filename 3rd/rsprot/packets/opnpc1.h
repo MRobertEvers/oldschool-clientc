@@ -48,6 +48,8 @@ void packet_opnpc1_v13_in(RsprotExec *x, MsgOpNpc1 *m);
 void packet_opnpc1_v14_in(RsprotExec *x, MsgOpNpc1 *m);
 /* v15 -- revs osrs236. */
 void packet_opnpc1_v15_in(RsprotExec *x, MsgOpNpc1 *m);
+/* v16 -- revs rs245.2, rs254, rs289. */
+void packet_opnpc1_v16_in(RsprotExec *x, MsgOpNpc1 *m);
 
 /* Per-revision entry points: what revision R calls is packet_opnpc1_<R>_in. */
 #define packet_opnpc1_osrs221_in packet_opnpc1_v1_in
@@ -66,6 +68,9 @@ void packet_opnpc1_v15_in(RsprotExec *x, MsgOpNpc1 *m);
 #define packet_opnpc1_osrs234_in packet_opnpc1_v13_in
 #define packet_opnpc1_osrs235_in packet_opnpc1_v14_in
 #define packet_opnpc1_osrs236_in packet_opnpc1_v15_in
+#define packet_opnpc1_rs245_2_in packet_opnpc1_v16_in
+#define packet_opnpc1_rs254_in packet_opnpc1_v16_in
+#define packet_opnpc1_rs289_in packet_opnpc1_v16_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opnpc1_in[];

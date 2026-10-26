@@ -62,6 +62,8 @@ void packet_obj_count_v19_out(RsprotExec *x, MsgObjCount *m);
 void packet_obj_count_v20_out(RsprotExec *x, MsgObjCount *m);
 /* v21 -- revs osrs241. */
 void packet_obj_count_v21_out(RsprotExec *x, MsgObjCount *m);
+/* v22 -- revs rs245.2, rs254, rs289. */
+void packet_obj_count_v22_out(RsprotExec *x, MsgObjCount *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_count_<R>_out. */
 #define packet_obj_count_osrs221_out packet_obj_count_v1_out
@@ -85,6 +87,9 @@ void packet_obj_count_v21_out(RsprotExec *x, MsgObjCount *m);
 #define packet_obj_count_osrs239_out packet_obj_count_v19_out
 #define packet_obj_count_osrs240_out packet_obj_count_v20_out
 #define packet_obj_count_osrs241_out packet_obj_count_v21_out
+#define packet_obj_count_rs245_2_out packet_obj_count_v22_out
+#define packet_obj_count_rs254_out packet_obj_count_v22_out
+#define packet_obj_count_rs289_out packet_obj_count_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_count_out[];

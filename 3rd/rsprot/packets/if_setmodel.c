@@ -114,8 +114,16 @@ packet_if_setmodel_v13_out(RsprotExec *x, MsgIfSetModel *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
+/* v14 -- revs rs245.2, rs254, rs289. */
+void
+packet_if_setmodel_v14_out(RsprotExec *x, MsgIfSetModel *m)
+{
+    RSPROT_U2_12(x, m->combined_id);
+    RSPROT_U2_12(x, m->model);
+}
+
 /*
- * 16 row(s) for 13 layout(s). A revision not listed has no IF_SETMODEL and
+ * 19 row(s) for 14 layout(s). A revision not listed has no IF_SETMODEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setmodel_out[] = {
@@ -135,6 +143,9 @@ const RsprotVersionRange rsprot_if_setmodel_out[] = {
     { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_if_setmodel_v12_out },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(235), (RsprotCodecFn)packet_if_setmodel_v13_out },
     { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_if_setmodel_v12_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setmodel_v14_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setmodel_v14_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setmodel_v14_out },
 };
 
 const int rsprot_if_setmodel_out_count =

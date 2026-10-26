@@ -90,8 +90,15 @@ packet_opnpc2_v10_in(RsprotExec *x, MsgOpNpc2 *m)
     RSPROT_U1_NEG(x, m->control_key);
 }
 
+/* v11 -- revs rs245.2, rs254, rs289. */
+void
+packet_opnpc2_v11_in(RsprotExec *x, MsgOpNpc2 *m)
+{
+    RSPROT_U2_12(x, m->index);
+}
+
 /*
- * 14 row(s) for 10 layout(s). A revision not listed has no OPNPC2 and
+ * 17 row(s) for 11 layout(s). A revision not listed has no OPNPC2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opnpc2_in[] = {
@@ -109,6 +116,9 @@ const RsprotVersionRange rsprot_opnpc2_in[] = {
     { RSPROT_OSRS_ID(233), RSPROT_OSRS_ID(233), (RsprotCodecFn)packet_opnpc2_v10_in },
     { RSPROT_OSRS_ID(234), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_opnpc2_v1_in },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(236), (RsprotCodecFn)packet_opnpc2_v5_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opnpc2_v11_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opnpc2_v11_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opnpc2_v11_in },
 };
 
 const int rsprot_opnpc2_in_count =

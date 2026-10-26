@@ -18,12 +18,23 @@ packet_cam_reset_v1_out(RsprotExec *x, MsgCamReset *m)
     (void)m;
 }
 
+/* v2 -- revs rs245.2, rs254, rs289. */
+void
+packet_cam_reset_v2_out(RsprotExec *x, MsgCamReset *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no CAM_RESET and
+ * 4 row(s) for 2 layout(s). A revision not listed has no CAM_RESET and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_reset_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_reset_v1_out },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_cam_reset_v2_out },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_cam_reset_v2_out },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_cam_reset_v2_out },
 };
 
 const int rsprot_cam_reset_out_count =

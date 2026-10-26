@@ -138,8 +138,15 @@ packet_opplayer4_v16_in(RsprotExec *x, MsgOpPlayer4 *m)
     RSPROT_U1_SUB128(x, m->control_key);
 }
 
+/* v17 -- revs rs245.2, rs254, rs289. */
+void
+packet_opplayer4_v17_in(RsprotExec *x, MsgOpPlayer4 *m)
+{
+    RSPROT_U2_12(x, m->index);
+}
+
 /*
- * 20 row(s) for 16 layout(s). A revision not listed has no OPPLAYER4 and
+ * 23 row(s) for 17 layout(s). A revision not listed has no OPPLAYER4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opplayer4_in[] = {
@@ -163,6 +170,9 @@ const RsprotVersionRange rsprot_opplayer4_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opplayer4_v11_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opplayer4_v3_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opplayer4_v16_in },
+    { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_opplayer4_v17_in },
+    { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_opplayer4_v17_in },
+    { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_opplayer4_v17_in },
 };
 
 const int rsprot_opplayer4_in_count =
