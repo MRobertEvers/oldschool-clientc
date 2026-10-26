@@ -55,4 +55,18 @@ int rsprot_ffi_decode_fields(int revision, int client, const char *prot, const u
                              int len, int whole, uint8_t *out, int cap, int *consumed, char *err,
                              int err_cap);
 
+/*
+ * The chat Huffman codec (src/rsprot_compression.h). Load the table -- the
+ * cache's 256 bytes, one bit length per byte value -- once, before any decode;
+ * it is read-only after. Returns 0, or -1 for a table that is not 256 bytes.
+ */
+int rsprot_ffi_huffman_load(const uint8_t *table, int len);
+
+/*
+ * Decodes one Huffman-coded string, as the wire carries it (a smart length, then
+ * the codewords), into `out` as Cp1252 bytes (not terminated). Returns its length;
+ * -1 no table is loaded, -2 the string runs past `data` or does not fit `cap`.
+ */
+int rsprot_ffi_huffman_decode(const uint8_t *data, int len, uint8_t *out, int cap);
+
 #endif

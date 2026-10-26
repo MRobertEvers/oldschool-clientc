@@ -4,6 +4,7 @@
 #include "../gen/rsprot_tables.h"
 #include "../include/rsprot_exec.h"
 #include "../include/rsprot_registry.h"
+#include "../src/rsprot_compression.h"
 
 #include "pkt_codec_storage.h"
 
@@ -130,4 +131,38 @@ rsprot_ffi_decode_fields(int revision, int client, const char *prot, const uint8
                          int err_cap)
 {
     return decode(revision, client, prot, data, len, whole, 1, out, cap, consumed, err, err_cap);
+}
+
+static RsprotHuffman g_huffman;
+static int g_huffman_loaded;
+
+int
+rsprot_ffi_huffman_load(const uint8_t *table, int len)
+{
+    if (len != 256)
+        return -1;
+    if (g_huffman_loaded) {
+        rsprot_huffman_destroy(&g_huffman);
+        g_huffman_loaded = 0;
+    }
+    if (!rsprot_huffman_create(&g_huffman, table))
+        return -1;
+    g_huffman_loaded = 1;
+    return 0;
+}
+
+int
+rsprot_ffi_huffman_decode(const uint8_t *data, int len, uint8_t *out, int cap)
+{
+    RsprotBuf b;
+    int32_t n;
+
+    if (!g_huffman_loaded)
+        return -1;
+    rsprot_buf_wrap_read(&b, data, len);
+    /* `out` gets the terminator too. */
+    n = rsprot_huffman_decode(&g_huffman, &b, (char *)out, cap);
+    if (n < 0 || b.err)
+        return -2;
+    return n;
 }
