@@ -9,6 +9,7 @@
 #include "../streams/rsprot_info.h"
 
 #include "pkt_codec_storage.h"
+#include "../packets/reflection_check_reply_results.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -169,6 +170,74 @@ rsprot_ffi_huffman_decode(const uint8_t *data, int len, uint8_t *out, int cap)
     if (n < 0 || b.err)
         return -2;
     return n;
+}
+
+int
+rsprot_ffi_zone_decode(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
+                       int *consumed, const char **prot_out, char *err, int err_cap)
+{
+    const char *prot;
+    int used = 0;
+    int n;
+
+    if (len < 1)
+        return -1;
+    prot = rsprot_ffi_zone_prot(revision, data[0]);
+    if (!prot)
+        return -1;
+    *prot_out = prot;
+    n = decode(revision, 0, prot, data + 1, len - 1, 0, 0, out, cap, &used, err, err_cap);
+    *consumed = 1 + used;
+    return n;
+}
+
+/* CyclicRedundancyCheck.computeCrc32: CRC-32, reflected, 0xEDB88320. */
+static uint32_t
+crc32_of(const uint8_t *data, int len)
+{
+    uint32_t crc = 0xFFFFFFFFu;
+
+    for (int i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int k = 0; k < 8; k++)
+            crc = (crc >> 1) ^ (0xEDB88320u & (0u - (crc & 1u)));
+    }
+    return ~crc;
+}
+
+int
+rsprot_ffi_reflection_reply(const int32_t *check_ops, int count, const uint8_t *data, int len,
+                            uint8_t *out, int cap, char *err, int err_cap)
+{
+    static _Thread_local MsgReflectionCheckReplyResults m;
+    RsprotExec x;
+    RsprotBuf b;
+    RsprotTrace trace;
+
+    memset(&m, 0, sizeof(m));
+    if (count < 0 || count > MSG_REFLECTION_CHECKER_MAX_CHECKS)
+        return -1;
+    m.check_count = count;
+    memcpy(m.check_ops, check_ops, sizeof(int32_t) * (size_t)count);
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    trace.out = out;
+    trace.cap = cap;
+    rsprot_exec_trace(&x, &trace);
+    packet_reflection_check_reply_results_in(&x, &m);
+    if (!rsprot_exec_ok(&x) || b.err) {
+        if (err && err_cap > 0)
+            snprintf(err, (size_t)err_cap, "REFLECTION_CHECK_REPLY: %s",
+                     x.error_reason ? x.error_reason : "the payload ran out");
+        return -2;
+    }
+    /* checkCRC32: of everything before the CRC. */
+    if (crc32_of(data, len - 4) != (uint32_t)m.crc) {
+        if (err && err_cap > 0)
+            snprintf(err, (size_t)err_cap, "CRC mismatch!");
+        return -2;
+    }
+    return trace.overflow ? -3 : trace.len;
 }
 
 /* --- the info streams ------------------------------------------------------ */
@@ -359,6 +428,7 @@ trace_op(RsprotTrace *t, const RsprotInfoOp *op)
         rsprot_trace_prim(t, 0, op->we_move.dz, "dz");
         rsprot_trace_prim(t, 0, op->we_move.dangle, "dangle");
         rsprot_trace_prim(t, 0, op->we_move.teleport, "teleport");
+        rsprot_trace_prim(t, 0, op->we_move.move_speed, "move_speed");
         trace_we_ext(t, &op->we_move.ext);
         break;
     case RSPROT_OP_WE_ADD:
@@ -377,6 +447,7 @@ trace_op(RsprotTrace *t, const RsprotInfoOp *op)
         rsprot_trace_prim(t, 0, op->we_add.has_centre, "has_centre");
         rsprot_trace_prim(t, 0, op->we_add.centre_x, "centre_x");
         rsprot_trace_prim(t, 0, op->we_add.centre_z, "centre_z");
+        rsprot_trace_prim(t, 0, op->we_add.unknown, "unknown");
         trace_we_ext(t, &op->we_add.ext);
         break;
     default:

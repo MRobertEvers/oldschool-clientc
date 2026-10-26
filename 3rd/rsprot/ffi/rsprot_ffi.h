@@ -69,6 +69,24 @@ int rsprot_ffi_huffman_load(const uint8_t *table, int len);
  */
 int rsprot_ffi_huffman_decode(const uint8_t *data, int len, uint8_t *out, int cap);
 
+/*
+ * One sub-packet of an UPDATE_ZONE_PARTIAL_ENCLOSED payload at `data`: its
+ * ordinal byte, then the zone prot it names at `revision` (`*prot_out`, valid
+ * for the library's lifetime) decoded with its codec. `*consumed` is how far it
+ * reached, the ordinal included. Returns as rsprot_ffi_decode; -1 also for an
+ * ordinal the revision has no zone prot for.
+ */
+int rsprot_ffi_zone_decode(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
+                           int *consumed, const char **prot_out, char *err, int err_cap);
+
+/*
+ * REFLECTION_CHECK_REPLY's results (packets/reflection_check_reply_results.h),
+ * read against the `count` checks the request carried (`check_ops`, its
+ * opcodes), and the CRC that ends the payload verified (-2 on a mismatch).
+ */
+int rsprot_ffi_reflection_reply(const int32_t *check_ops, int count, const uint8_t *data, int len,
+                                uint8_t *out, int cap, char *err, int err_cap);
+
 /* --- the info streams ----------------------------------------------------
  *
  * Each read writes one trace into `out`: first what the stream says about its

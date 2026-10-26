@@ -483,6 +483,9 @@ typedef struct RsprotInfoWeMove
     int32_t dz;
     int32_t dangle;
     int32_t teleport;
+    /** V1-V2 only: the entity's move speed (`dangle` is then its angle, and
+     *  `dx` / `dz` whole tiles in fine units). */
+    int32_t move_speed;
     RsprotInfoWeExt ext;
 } RsprotInfoWeMove;
 
@@ -504,6 +507,8 @@ typedef struct RsprotInfoWeAdd
     int32_t has_centre;
     int32_t centre_x;
     int32_t centre_z;
+    /** V1-V2 only: the record's last g2 (RSProx's unknownProperty). */
+    int32_t unknown;
     RsprotInfoWeExt ext;
 } RsprotInfoWeAdd;
 

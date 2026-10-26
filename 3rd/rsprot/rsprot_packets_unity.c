@@ -285,6 +285,7 @@
 #include "packets/rebuild_worldentity_v3.c"
 #include "packets/rebuild_worldentity_v4.c"
 #include "packets/reflection_check_reply.c"
+#include "packets/reflection_check_reply_results.c"
 #include "packets/reflection_checker.c"
 #include "packets/reset_anims.c"
 #include "packets/reset_interaction_mode.c"

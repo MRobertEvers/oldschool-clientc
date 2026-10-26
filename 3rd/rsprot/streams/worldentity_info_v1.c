@@ -31,7 +31,7 @@ worldentity_info_v1(const uint8_t *data, int32_t len, RsprotInfoList *out)
         op->we_move.dx = rsprot_g1(&b) << 7;
         op->we_move.dz = rsprot_g1(&b) << 7;
         op->we_move.dangle = rsprot_g2(&b);
-        (void)rsprot_g1(&b); /* move speed */
+        op->we_move.move_speed = rsprot_g1(&b);
     }
     while (!b.err && rsprot_buf_readable(&b) >= 10) {
         int before = out->count;
@@ -45,7 +45,7 @@ worldentity_info_v1(const uint8_t *data, int32_t len, RsprotInfoList *out)
         op->we_add.x = rsprot_g1(&b) << 7;
         op->we_add.z = rsprot_g1(&b) << 7;
         op->we_add.angle = rsprot_g2(&b);
-        (void)rsprot_g2(&b); /* RSProx: unknownProperty */
+        op->we_add.unknown = rsprot_g2(&b); /* RSProx: unknownProperty */
         if (b.err)
             out->count = before;
     }
