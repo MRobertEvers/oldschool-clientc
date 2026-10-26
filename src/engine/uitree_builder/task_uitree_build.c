@@ -16,9 +16,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Same bound as the interface-open path: the two seeded containers (worn +
- * backpack) hold well under this many distinct objs at build time. */
-#define UITREE_BUILD_SEED_OBJ_MAX 32
+/* Same bound as the interface-open path: every worn + backpack slot holding a
+ * distinct obj. It was 32, under the 39 those two containers hold, and the
+ * assert guarding it compiles out of a release build: a 33rd obj overwrote
+ * seed_obj_count with an obj id, and the model load copied that many ints of
+ * whatever followed -- heap addresses loaded as obj ids on every replay of a
+ * full inventory. */
+#define UITREE_BUILD_SEED_OBJ_MAX \
+    (INV_MANAGER_DEFAULT_WORN_SLOTS + INV_MANAGER_DEFAULT_BACKPACK_SLOTS)
 
 /* Containers whose contents exist before any script runs, so their icons have
  * to be rasterized as part of the build rather than by an inv-transmit hook. */
@@ -68,7 +73,11 @@ collect_seed_objs(struct Task_UITreeBuild* self)
             }
             if( found )
                 continue;
-            assert(self->seed_obj_count < UITREE_BUILD_SEED_OBJ_MAX);
+            /* A container registered wider than its default: the prefetch
+             * stops here; bind_seed_obj_icons still binds what has landed and
+             * the inv-transmit hooks load the rest. */
+            if( self->seed_obj_count >= UITREE_BUILD_SEED_OBJ_MAX )
+                return;
             self->seed_obj_ids[self->seed_obj_count++] = oid;
         }
     }
