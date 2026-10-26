@@ -87,6 +87,16 @@ int rsprot_ffi_zone_decode(int revision, const uint8_t *data, int len, uint8_t *
 int rsprot_ffi_reflection_reply(const int32_t *check_ops, int count, const uint8_t *data, int len,
                                 uint8_t *out, int cap, char *err, int err_cap);
 
+/*
+ * A REBUILD_WORLDENTITY_V3 / V4 zone grid, whose size is the active world's
+ * (session state the codec carries as the grid's raw bytes): `count` zones
+ * (4 * width * length, in level / x / z order; -1 where none) into `zones`,
+ * then `key_count` XTEA keys (four ints each) into `keys`. Returns 1, or 0 when
+ * the bytes run out.
+ */
+int rsprot_ffi_zone_grid(const uint8_t *data, int len, int count, int key_count, int32_t *zones,
+                         int32_t *keys);
+
 /* --- the info streams ----------------------------------------------------
  *
  * Each read writes one trace into `out`: first what the stream says about its

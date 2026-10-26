@@ -4,6 +4,7 @@
 #include "../gen/rsprot_tables.h"
 #include "../include/rsprot_exec.h"
 #include "../include/rsprot_registry.h"
+#include "../include/rsprot_tails.h"
 #include "../src/rsprot_compression.h"
 #include "../include/rsprot_trace.h"
 #include "../streams/rsprot_info.h"
@@ -238,6 +239,23 @@ rsprot_ffi_reflection_reply(const int32_t *check_ops, int count, const uint8_t *
         return -2;
     }
     return trace.overflow ? -3 : trace.len;
+}
+
+int
+rsprot_ffi_zone_grid(const uint8_t *data, int len, int count, int key_count, int32_t *zones,
+                     int32_t *keys)
+{
+    RsprotExec x;
+    RsprotBuf b;
+
+    if (count < 0 || count > RSPROT_REGION_ZONES || key_count < 0 ||
+        key_count > RSPROT_REGION_KEYS_MAX)
+        return 0;
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    rsprot_tail_zone_grid(&x, zones, count);
+    rsprot_tail_xtea_keys(&x, keys, key_count);
+    return rsprot_exec_ok(&x) && !b.err;
 }
 
 /* --- the info streams ------------------------------------------------------ */
