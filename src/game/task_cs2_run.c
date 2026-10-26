@@ -351,6 +351,8 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEWID, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SET2DANGLE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELANIM, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELANGLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETARC, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELORTHOG, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETVFLIP, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETHFLIP, component_id);
@@ -380,6 +382,8 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEWID, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SET2DANGLE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELANIM, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELANGLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETARC, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELORTHOG, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETVFLIP, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETHFLIP, component_id);

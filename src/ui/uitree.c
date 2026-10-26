@@ -2199,9 +2199,37 @@ UITree_Free(struct UITree* tree)
     ToriMem_Free(ToriMem_Ui(), tree);
 }
 
-void
-UITree_Clear(struct UITree* tree)
+/* A tree root that is an interface group's pack root a script loaded and
+ * nothing has opened: task_cs2_run's speculative bake (or a root the
+ * spillover sweep hid), which sits at the root list with mount_hidden. */
+static bool
+uitree_root_is_unopened_group(
+    struct UITree const* tree,
+    int32_t root)
 {
+    struct UITreeComponent const* c = &tree->components[root];
+    return c->mount_hidden && c->component_id > 0 && (c->component_id & 0xffff) == 0;
+}
+
+static void
+uitree_live_register_subtree(
+    struct UITree* tree,
+    int32_t idx)
+{
+    uitree_live_register(tree, idx);
+    for( int32_t child = tree->components[idx].first_child; child >= 0;
+         child = tree->components[child].next_sibling )
+        uitree_live_register_subtree(tree, child);
+}
+
+static void
+uitree_clear(
+    struct UITree* tree,
+    bool keep_unopened_groups)
+{
+    int32_t kept_first = -1;
+    int32_t kept_last = -1;
+
     assert(tree);
 
     while( tree->root_index >= 0 )
@@ -2212,10 +2240,20 @@ UITree_Clear(struct UITree* tree)
             tree->last_root_index = tree->root_index;
         tree->components[root].next_sibling = -1;
         tree->components[root].parent = -1;
+        if( keep_unopened_groups && uitree_root_is_unopened_group(tree, root) )
+        {
+            if( kept_last >= 0 )
+                tree->components[kept_last].next_sibling = root;
+            else
+                kept_first = root;
+            kept_last = root;
+            continue;
+        }
         uitree_reclaim_subtree(tree, root);
     }
-    tree->root_index = -1;
-    tree->last_root_index = -1;
+    tree->root_index = kept_first;
+    tree->last_root_index = kept_last;
+    /* A kept group was never opened, so no mount record names it as a child. */
     tree->interface_parent_count = 0;
     tree->canvas_candidates_valid = 0;
     tree->generation++;
@@ -2223,11 +2261,25 @@ UITree_Clear(struct UITree* tree)
     UITree_ParkedEditsDrop(tree);
     /* Reclaim already unregistered each node; clear empties any leftover buckets. */
     uitree_all_sets_clear(tree);
+    for( int32_t root = kept_first; root >= 0; root = tree->components[root].next_sibling )
+        uitree_live_register_subtree(tree, root);
     /* A plugin layout's hold names NODES, and every one of them has just
      * stopped existing. Dropping it rather than releasing it is deliberate:
      * there is nothing left to restore, and the frame's provider is asked
      * again once the new tree is baked. */
     UITree_FrameForget(tree);
+}
+
+void
+UITree_Clear(struct UITree* tree)
+{
+    uitree_clear(tree, false);
+}
+
+void
+UITree_ClearKeepingUnopenedGroups(struct UITree* tree)
+{
+    uitree_clear(tree, true);
 }
 
 

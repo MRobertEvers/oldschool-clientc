@@ -2134,6 +2134,16 @@ UITree_WalkCountNodeVisit(struct UITree const* tree);
 void
 UITree_Clear(struct UITree* tree);
 
+/** UITree_Clear, except an interface group a script loaded and nothing has
+ *  opened (a speculative CS2 bake, still hidden at the root list) survives
+ *  with whatever the script wrote to it. The reference's IF_OPENTOP
+ *  (class415.method9502) sets the root and unloads no other group, so a
+ *  script that writes to an IfType before the server opens it -- Jagex's
+ *  motw_setmodel posing welcome_screen:model1 before the IF_OPENTOP that
+ *  precedes its IF_OPENSUB -- keeps its writes. */
+void
+UITree_ClearKeepingUnopenedGroups(struct UITree* tree);
+
 void
 UITree_MarkAllDirty(struct UITree* tree);
 

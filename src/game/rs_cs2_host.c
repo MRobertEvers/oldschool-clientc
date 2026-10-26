@@ -6401,10 +6401,10 @@ exec_widget_set_model_angle(
      * both landed drew the model at the .if's own zoom with no pitch and no
      * offsetY -- its feet on the box centre, high and small.
      *
-     * OPEN: this is not enough on its own. A replay of RSProx index 4310
-     * (TORIRS_MODEL_CLIP_DEBUG on a log build) shows the pose landing on the
-     * sub-mounted copy and still gone once IF_OPENSUB mounts the group: the
-     * model draws at zoom 1500, xan 0. Something between the two loses it.
+     * Two more pieces keep the pose: task_cs2_run must know this kind names
+     * a component (or the yield goes unserviced), and the IF_OPENTOP between
+     * the script and the IF_OPENSUB must keep the unopened group
+     * (UITree_ClearKeepingUnopenedGroups). Verified on RSProx index 4310.
      */
     if( idx < 0 )
         return rs_cs2_yield_if_group_missing(host, vm, component_id, exact_request);

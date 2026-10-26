@@ -44,7 +44,8 @@ app_open_tree(
     struct App* app,
     int interface_id,
     char const* layout_group,
-    char const* layout_group_exclude);
+    char const* layout_group_exclude,
+    bool keep_unopened_groups);
 static int
 Task_OpenSubRefresh_Run(
     struct ToriRS_Task* base,
@@ -911,7 +912,8 @@ app_open_tree(
     struct App* app,
     int interface_id,
     char const* layout_group,
-    char const* layout_group_exclude)
+    char const* layout_group_exclude,
+    bool keep_unopened_groups)
 {
     struct Task_AppBoot* task;
 
@@ -926,7 +928,14 @@ app_open_tree(
      * old 161 forest, and IF_OPENSUB targets for the new top race the boot. */
     if( app->tree && app->tree->root_index >= 0 )
     {
-        UITree_Clear(app->tree);
+        /* An IF_OPENTOP keeps the groups a script loaded that are not open
+         * yet: the reference's IF_OPENTOP unloads no group, and the welcome
+         * screen's model is posed by motw_setmodel before the IF_OPENTOP
+         * that precedes its IF_OPENSUB (UITree_ClearKeepingUnopenedGroups). */
+        if( keep_unopened_groups )
+            UITree_ClearKeepingUnopenedGroups(app->tree);
+        else
+            UITree_Clear(app->tree);
         app->host.inv_transmit_hook_count = 0;
         app->host.var_transmit_hook_count = 0;
         app->host.stat_transmit_hook_count = 0;
@@ -1066,7 +1075,7 @@ App_OpenRootInterface(
     /* Half a megabyte of simulation buffers that only the title screen wants,
      * and the tree that drew them is about to be cleared. */
     app_title_flames_stop(app);
-    app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP);
+    app_open_tree(app, interface_id, NULL, APP_TITLE_LAYOUT_GROUP, true);
 }
 
 int
@@ -1089,7 +1098,7 @@ App_OpenTitleScreen(struct App* app)
      * until a login succeeds. */
     app->screen = APP_SCREEN_TITLE;
     app->detached_parent_count = 0;
-    app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL);
+    app_open_tree(app, -1, APP_TITLE_LAYOUT_GROUP, NULL, false);
 }
 
 void
@@ -1108,7 +1117,7 @@ App_BootGameframeThenTitle(struct App* app)
      * warm caches. */
     app->screen = APP_SCREEN_BOOT;
     app->title_session.pending_after_boot = true;
-    app_open_tree(app, -1, NULL, APP_TITLE_LAYOUT_GROUP);
+    app_open_tree(app, -1, NULL, APP_TITLE_LAYOUT_GROUP, false);
 }
 
 /* The warm gameframe bake settled: swap to the title screen. Called from the

@@ -1568,12 +1568,62 @@ test_model_angle_before_open(void)
     fixture_free(&fx);
 }
 
+/*
+ * ...and the IF_OPENTOP that follows the script must not throw that copy away.
+ * The reference's IF_OPENTOP (class415.method9502) unloads no group, so the
+ * posed welcome_screen is still loaded when its IF_OPENSUB arrives.
+ */
+static void
+test_opentop_keeps_unopened_groups(void)
+{
+    struct UITree* tree = UITree_New(16);
+    int const model_id = (378 << 16) | 55;
+
+    printf("pump: an IF_OPENTOP rebuild keeps a group a script loaded but nobody opened\n");
+
+    struct UITreeNodeSpec frame = { .type = UIELEM_RS_LAYER, .component_id = 165 << 16,
+                                    .width = 200, .height = 200 };
+    (void)UITree_Push(tree, -1, &frame);
+    struct UITreeNodeSpec root = { .type = UIELEM_RS_LAYER, .component_id = 378 << 16,
+                                   .width = 200, .height = 200 };
+    int32_t const root_idx = UITree_Push(tree, -1, &root);
+    (void)UITree_SetMountHiddenAt(tree, root_idx, 1);
+    struct UITreeNodeSpec spec = { .type = UIELEM_RS_MODEL, .component_id = model_id,
+                                   .width = 100, .height = 100 };
+    spec.u.rs_model.gamecache_model_id = -1;
+    spec.u.rs_model.active_model_id = -1;
+    spec.u.rs_model.zoom = 1500;
+    int32_t const idx = UITree_Push(tree, root_idx, &spec);
+    (void)UITree_SetModelPoseAt(tree, idx, 0, 80, 2023, 1954, 0, 2000);
+
+    UITree_ClearKeepingUnopenedGroups(tree);
+
+    CHECK(UITree_FindByComponentId(tree, 165 << 16) < 0, "the old gameframe is reclaimed");
+    CHECK(UITree_FindByComponentId(tree, model_id) == idx, "the unopened group survives");
+    CHECK(UITree_GroupPresent(tree, 378), "the kept group still answers as baked");
+    CHECK(
+        tree->components[idx].u.rs_model.zoom == 2000 &&
+            tree->components[idx].u.rs_model.y_offset == 80,
+        "the script's pose survives: zoom=%d yoff=%d",
+        tree->components[idx].u.rs_model.zoom,
+        tree->components[idx].u.rs_model.y_offset);
+    bool in_models = false;
+    for( int i = 0; i < tree->models.count; i++ )
+        in_models |= tree->models.slots[i] == idx;
+    CHECK(in_models, "the kept model node is registered again");
+
+    UITree_Clear(tree);
+    CHECK(UITree_FindByComponentId(tree, model_id) < 0, "a plain clear still takes everything");
+    UITree_Free(tree);
+}
+
 int
 main(void)
 {
     printf("TEST: RS_CS2_PumpTransmits — the transmit dirty-flag guard\n");
 
     test_model_angle_before_open();
+    test_opentop_keeps_unopened_groups();
 
     test_queued_callback_identity();
     test_queued_widget_operations();
