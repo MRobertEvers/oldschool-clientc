@@ -142,7 +142,8 @@ struct RSCache_Dat2Defaults
     int ramps[RSCACHE_DAT2_DEFAULTS_RAMP_ROWS][RSCACHE_DAT2_DEFAULTS_RAMP_STOPS];
     int has_ramps;
 
-    /** Opcode 5: two model ids, int32. */
+    /** Opcode 5: two model ids, int32 (rev 239+). Opcode 4 carries the same
+     *  two as bigsmarts before that; `opcode_order` says which. */
     int model_ids[RSCACHE_DAT2_DEFAULTS_MODEL_COUNT];
     int has_models;
 

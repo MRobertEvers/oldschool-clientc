@@ -73,6 +73,7 @@ opcode_bound(int opcode)
         return RSCACHE_DAT2_DEFAULTS_SPRITE_COUNT * 4;
     case 3:
         return RSCACHE_DAT2_DEFAULTS_RAMP_ROWS * RSCACHE_DAT2_DEFAULTS_RAMP_STOPS * 3;
+    case 4:
     case 5:
         return RSCACHE_DAT2_DEFAULTS_MODEL_COUNT * 4;
     case 6:
@@ -162,6 +163,23 @@ RSCache_Dat2DefaultsDecode(
             out->has_ramps = 1;
             break;
 
+        case 4:
+            /* The same two model ids before rev 239, as bigsmarts: cache.osrs235's
+             * record ends `04 8000e022 8000e023 00`, the 57378/57379 that opcode 5
+             * carries from 239 on. The rev-239 client reads opcode 4 as nothing
+             * (class11.method235's `case 4: default: break;`) and stops at the
+             * next 0, which is why 239's record moved them to opcode 5. Declining
+             * the record here left every sprite slot unbound -- the compass
+             * among them, missing from every rev-235 replay. */
+            for( int i = 0; i < RSCACHE_DAT2_DEFAULTS_MODEL_COUNT; i++ )
+            {
+                if( !bigsmart_fits(&buffer) )
+                    return 0;
+                out->model_ids[i] = gbigsmart(&buffer);
+            }
+            out->has_models = 1;
+            break;
+
         case 5:
             if( remaining(&buffer) < RSCACHE_DAT2_DEFAULTS_MODEL_COUNT * 4u )
                 return 0;
@@ -239,6 +257,11 @@ RSCache_Dat2DefaultsEncode(
                 for( int stop = 0; stop < RSCACHE_DAT2_DEFAULTS_RAMP_STOPS; stop++ )
                     p3(&buffer, defaults->ramps[row][stop]);
             }
+            break;
+
+        case 4:
+            for( int j = 0; j < RSCACHE_DAT2_DEFAULTS_MODEL_COUNT; j++ )
+                pbigsmart(&buffer, defaults->model_ids[j]);
             break;
 
         case 5:

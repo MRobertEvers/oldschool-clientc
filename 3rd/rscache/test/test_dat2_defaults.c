@@ -41,6 +41,21 @@ static const uint8_t k_osrs239_group3[] = {
     0x00,
 };
 
+/* cache.osrs235, idx17 group 3, complete: osrs239's record with the two model
+ * ids on opcode 4 as bigsmarts, and different ramps. */
+static const uint8_t k_osrs235_group3[] = {
+    0x01, 0x00, 0x01, 0x39,
+    0x02, 0x00, 0xa9, 0x01, 0xa8, 0x01, 0x3d, 0x01, 0xb7, 0x01, 0xb8, 0x01, 0xb9,
+    0x01, 0xa6, 0x01, 0x2b, 0x01, 0x2c, 0x01, 0x3c, 0x01, 0xa7,
+    0x03,
+    0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0x00, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+    /* opcode 4: two bigsmart model ids, long form (both over 32767) */
+    0x04, 0x80, 0x00, 0xe0, 0x22, 0x80, 0x00, 0xe0, 0x23,
+    0x00,
+};
+
 /* cache.rs727_preeoc, idx28 group 3, first 47 bytes. */
 static const uint8_t k_rs727_group3_head[] = {
     0x03, 0x06, 0x01, 0x00, 0x00, 0xff, 0xec, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -94,6 +109,28 @@ test_osrs239_record(void)
 
     RSCACHE_CHECK(RSCache_Dat2DefaultsRoundTrips(
         &rec, k_osrs239_group3, (int)sizeof(k_osrs239_group3)) == 1);
+}
+
+static void
+test_osrs235_record(void)
+{
+    struct RSCache_Dat2Defaults rec;
+
+    RSCACHE_TEST_GROUP("osrs235 idx17 group 3 (models on opcode 4) decodes and re-encodes exactly");
+
+    /* Declining this record unbound every sprite slot: no compass in any
+     * rev-235 replay. */
+    RSCACHE_CHECK(RSCache_Dat2DefaultsDecode(
+        k_osrs235_group3, (int)sizeof(k_osrs235_group3), &rec) == 1);
+    RSCACHE_CHECK_EQ(rec.consumed, (int)sizeof(k_osrs235_group3));
+    RSCACHE_CHECK_EQ(rec.opcode_count, 4);
+    RSCACHE_CHECK_EQ(rec.opcode_order[3], 4);
+    RSCACHE_CHECK_EQ(rec.sprite_ids[0], 169);
+    RSCACHE_CHECK_EQ(rec.has_models, 1);
+    RSCACHE_CHECK_EQ(rec.model_ids[0], 57378);
+    RSCACHE_CHECK_EQ(rec.model_ids[1], 57379);
+    RSCACHE_CHECK(RSCache_Dat2DefaultsRoundTrips(
+        &rec, k_osrs235_group3, (int)sizeof(k_osrs235_group3)) == 1);
 }
 
 static void
@@ -169,6 +206,7 @@ main(void)
 {
     printf("dat2 defaults tests\n");
     test_osrs239_record();
+    test_osrs235_record();
     test_rs727_declines();
     test_trailing_bytes_decline();
     test_colours();
