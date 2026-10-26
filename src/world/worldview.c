@@ -15,6 +15,7 @@ WorldviewRegistry_Init(struct WorldviewRegistry* reg)
     for( int i = 0; i < WORLDVIEW_MAX; i++ )
     {
         reg->views[i].id = i;
+        reg->views[i].wire_id = WORLDVIEW_WIRE_ROOT;
         reg->views[i].parent_id = WORLDVIEW_PARENT_NONE;
     }
 }
@@ -50,12 +51,14 @@ WorldviewRegistry_RegisterRoot(
     assert(!view->live);
     view->world = world;
     view->builder = builder;
+    view->wire_id = WORLDVIEW_WIRE_ROOT;
     view->base_x = 0;
     view->base_z = 0;
     view->size_x_tiles = 0;
     view->size_z_tiles = 0;
     /* The root rides in nothing, so it has no level within a carrier. */
     view->parent_level = 0;
+    view->level = 0;
     view->parent_id = WORLDVIEW_PARENT_NONE;
     view->live = true;
     view->owns = false;
@@ -66,6 +69,7 @@ struct Worldview*
 WorldviewRegistry_Register(
     struct WorldviewRegistry* reg,
     int id,
+    int wire_id,
     struct World* world,
     struct WorldBuilder* builder,
     int base_x,
@@ -80,6 +84,10 @@ WorldviewRegistry_Register(
     /* id 0 goes through RegisterRoot — its ownership rule is different. */
     assert(id > WORLDVIEW_ROOT);
     assert(id < WORLDVIEW_MAX);
+    assert(wire_id != WORLDVIEW_WIRE_ROOT);
+    /* Two live views under one wire id would make every later address of it
+     * ambiguous; the spawn path despawns the old one first. */
+    assert(WorldviewRegistry_SlotForWire(reg, wire_id) == WORLDVIEW_SLOT_NONE);
     assert(world);
     assert(builder);
     /* Sub-world sizes come off the wire as zone nibbles × 8 tiles. */
@@ -92,13 +100,15 @@ WorldviewRegistry_Register(
     assert(!view->live);
     view->world = world;
     view->builder = builder;
+    view->wire_id = wire_id;
     view->base_x = base_x;
     view->base_z = base_z;
     view->size_x_tiles = size_x_tiles;
     view->size_z_tiles = size_z_tiles;
-    /* The spawn record carries no level; SET_ACTIVE_WORLD does, and it
-     * arrives with the rebuild. Surface plane until then. */
+    /* The caller (App_WevSpawn) sets the carrier's level from the parent's;
+     * the view's own level arrives with its first SET_ACTIVE_WORLD. */
     view->parent_level = 0;
+    view->level = 0;
     view->parent_id = parent_id;
     view->live = true;
     view->owns = true;
@@ -124,11 +134,13 @@ WorldviewRegistry_Release(
     World_Free(view->world);
     view->world = NULL;
     view->builder = NULL;
+    view->wire_id = WORLDVIEW_WIRE_ROOT;
     view->base_x = 0;
     view->base_z = 0;
     view->size_x_tiles = 0;
     view->size_z_tiles = 0;
     view->parent_level = 0;
+    view->level = 0;
     view->parent_id = WORLDVIEW_PARENT_NONE;
     view->live = false;
     view->owns = false;
@@ -155,6 +167,34 @@ WorldviewRegistry_IsLive(
     assert(id >= 0);
     assert(id < WORLDVIEW_MAX);
     return reg->views[id].live;
+}
+
+int
+WorldviewRegistry_SlotForWire(
+    struct WorldviewRegistry const* reg,
+    int wire_id)
+{
+    assert(reg);
+    if( wire_id == WORLDVIEW_WIRE_ROOT )
+        return reg->views[WORLDVIEW_ROOT].live ? WORLDVIEW_ROOT : WORLDVIEW_SLOT_NONE;
+    for( int id = WORLDVIEW_ROOT + 1; id < WORLDVIEW_MAX; id++ )
+    {
+        if( reg->views[id].live && reg->views[id].wire_id == wire_id )
+            return id;
+    }
+    return WORLDVIEW_SLOT_NONE;
+}
+
+int
+WorldviewRegistry_FreeSlot(struct WorldviewRegistry const* reg)
+{
+    assert(reg);
+    for( int id = WORLDVIEW_ROOT + 1; id < WORLDVIEW_MAX; id++ )
+    {
+        if( !reg->views[id].live )
+            return id;
+    }
+    return WORLDVIEW_SLOT_NONE;
 }
 
 int

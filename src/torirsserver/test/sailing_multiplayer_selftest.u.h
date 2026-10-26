@@ -705,40 +705,47 @@ done:
     srv->world_random.engine = saved_rng;
 }
 
-/* Exhaust every actual published identity and keep non-boat instances usable. */
+/* Exhaust every deck window -- the hull pool's binding resource now that the
+ * wire id no longer has to fit a client view table -- and keep non-boat
+ * instances usable. */
 static void
 selftest_sailing_capacity(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 {
-    int handles[TORIRSSERVER_WEV_VIEW_MAX] = {0};
+    /* The ids outnumber the windows; the windows are what run out. */
+    enum { CAP = TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX };
+    _Static_assert(CAP <= TORIRSSERVER_WEV_VIEW_MAX, "every deck window can be given a wire id");
+    _Static_assert(TORIRSSERVER_WEV_VIEW_MAX < 64, "the id set below holds one bit per id");
+    int handles[CAP] = {0};
     int other_instances[TORIRSSERVER_PLAYER_MAX] = {0};
     int before = ToriRSServer_MapInstanceLiveCount();
-    unsigned views = 0, windows = 0;
+    uint64_t views = 0;
+    unsigned windows = 0;
     SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 0, "capacity fixture starts with no live hulls");
-    for( int i = 0; i < TORIRSSERVER_WEV_VIEW_MAX; ++i )
+    for( int i = 0; i < CAP; ++i )
     {
         handles[i] = ToriRSServer_VesselSpawn(srv, 1, 1, 3, 0, 3072, 3160, 0);
         struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handles[i]);
         SELFTEST_CHECK(vessel && vessel->view_id > 0 && vessel->deck_window > 0,
-                       "live hull %d reserves a visible view and an independent deck window", i + 1);
+                       "live hull %d reserves a world-entity id and an independent deck window", i + 1);
         if( vessel )
         {
-            unsigned view = 1u << vessel->view_id;
+            uint64_t view = 1ull << vessel->view_id;
             unsigned window = 1u << (vessel->deck_window - TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE);
-            SELFTEST_CHECK(!(views & view) && !(windows & window), "hull %d owns unique view/window resources", i + 1);
+            SELFTEST_CHECK(!(views & view) && !(windows & window), "hull %d owns unique id/window resources", i + 1);
             views |= view; windows |= window;
         }
     }
-    SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 15 && ToriRSServer_MapInstanceLiveCount() == before + 15,
-                   "fifteen real vessel instances coexist within the sixteen-view client bound");
+    SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == CAP && ToriRSServer_MapInstanceLiveCount() == before + CAP,
+                   "a real vessel instance per deck window coexists");
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; ++i )
     {
         other_instances[i] = ToriRSServer_MapInstanceAlloc(ToriRSServer_WorldCacheDir(), 1, 1);
-        SELFTEST_CHECK(other_instances[i] > 0, "player activity instance %d remains available alongside fifteen boats", i + 1);
+        SELFTEST_CHECK(other_instances[i] > 0, "player activity instance %d remains available alongside every boat", i + 1);
     }
     int allocated = ToriRSServer_MapInstanceLiveCount();
     SELFTEST_CHECK(ToriRSServer_VesselSpawn(srv, 1, 1, 3, 0, 3072, 3160, 0) == 0,
-                   "sixteenth hull is rejected cleanly before acquiring any deck resource");
-    SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 15 && ToriRSServer_MapInstanceLiveCount() == allocated,
+                   "a hull past the last deck window is rejected cleanly before acquiring any deck resource");
+    SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == CAP && ToriRSServer_MapInstanceLiveCount() == allocated,
                    "refused spawn leaks neither a hull nor a private map instance");
     if( srv->wire->revision >= 239 )
     {
@@ -750,12 +757,12 @@ selftest_sailing_capacity(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         ToriRSServer_CaptureEnd(srv);
         int at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_WORLDENTITY_INFO, 0);
         SELFTEST_CHECK(at >= 0 && !capture.overflow && !capture.packets[at].truncated,
-                       "all fifteen world-entity spawns fit a complete actual packet");
+                       "every world-entity spawn fits a complete actual packet");
         if( at >= 0 )
         {
             selftest_wev_decode(capture.packets[at].data, capture.packets[at].len, &decoded);
-            SELFTEST_CHECK(decoded.spawn_count == 15 && decoded.trailing == 0 && player->wev_tracked_count == 15,
-                           "the packet publishes all fifteen actual views, with no invisible hull");
+            SELFTEST_CHECK(decoded.spawn_count == CAP && decoded.trailing == 0 && player->wev_tracked_count == CAP,
+                           "the packet publishes every live hull, with no invisible hull");
         }
     }
     if( handles[7] )
@@ -768,7 +775,7 @@ selftest_sailing_capacity(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         SELFTEST_CHECK(replacement && replacement->view_id == view && replacement->serial != serial && replacement->deck_window > 0,
                        "freeing one hull permits a visible replacement with a new serial");
     }
-    for( int i = 0; i < TORIRSSERVER_WEV_VIEW_MAX; ++i )
+    for( int i = 0; i < CAP; ++i )
         if( handles[i] ) ToriRSServer_VesselFree(srv, handles[i]);
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; ++i )
         if( other_instances[i] ) ToriRSServer_WorldMapInstanceFree(srv, other_instances[i]);

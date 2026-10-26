@@ -23,7 +23,7 @@ enum ToriRS_FramePassKind
 
 /** Views the frame can hold transforms for; matches PAINTER_MAX_WORLD_VIEWS
  * and WORLDVIEW_MAX, and doubles as the descent depth cap. */
-#define TORIRS_FRAME_MAX_VIEWS 16
+#define TORIRS_FRAME_MAX_VIEWS 64
 /** Slots in the emit loop's lookahead ring; a power of two, and more than
  *  the deepest prefetch pipeline reaches (cur..cur+4). */
 #define TORIRS_FRAME_LOOKAHEAD_RING 8

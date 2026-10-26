@@ -783,9 +783,8 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                     SELFTEST_CHECK(spawn->view_id == boat->view_id,
                                    "the trailer names the hull's view id %d, got %d",
                                    boat->view_id, spawn->view_id);
-                    SELFTEST_CHECK(spawn->view_id >= 1 && spawn->view_id <= 15,
-                                   "which has to be a registry slot the client will accept, "
-                                   "got %d",
+                    SELFTEST_CHECK(spawn->view_id >= 1 && spawn->view_id <= TORIRSSERVER_WEV_VIEW_MAX,
+                                   "which is a world-entity id (0 is the root), got %d",
                                    spawn->view_id);
                     SELFTEST_CHECK(spawn->zones_x == 1 && spawn->zones_z == 2,
                                    "the size nibbles are the deck's zone counts, x first, "
@@ -796,10 +795,25 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                    spawn->config_id);
                     SELFTEST_CHECK(spawn->priority == boat->priority,
                                    "as does the priority group, got %d", spawn->priority);
-                    SELFTEST_CHECK(spawn->fine_x == boat->fine_x && spawn->fine_z == boat->fine_z,
-                                   "the trailer's transform is the ABSOLUTE position "
-                                   "(%d,%d), got (%d,%d)",
-                                   boat->fine_x, boat->fine_z, spawn->fine_x, spawn->fine_z);
+                    {
+                        /* Fine units from the RECIPIENT's build-area origin,
+                         * as Jagex's server sends it (RSProx 4281). */
+                        int const pid = wev_cap.packets[at].recipient_pid;
+                        struct ToriRSServerPlayer* to =
+                            pid >= 0 && pid < TORIRSSERVER_PLAYER_MAX && srv->players[pid].active
+                                ? &srv->players[pid]
+                                : NULL;
+                        int ox = to ? ToriRSServer_SceneOrigin(to->zone_x) * 128 : 0;
+                        int oz = to ? ToriRSServer_SceneOrigin(to->zone_z) * 128 : 0;
+
+                        SELFTEST_CHECK(to != NULL, "the spawn has a recipient");
+                        SELFTEST_CHECK(spawn->fine_x == boat->fine_x - ox &&
+                                           spawn->fine_z == boat->fine_z - oz,
+                                       "the trailer's transform is the position from the "
+                                       "recipient's build-area origin (%d,%d), got (%d,%d)",
+                                       boat->fine_x - ox, boat->fine_z - oz, spawn->fine_x,
+                                       spawn->fine_z);
+                    }
                     SELFTEST_CHECK(spawn->fine_y == 0, "with no height, got %d", spawn->fine_y);
                     SELFTEST_CHECK(spawn->angle == (boat->angle & 0x7ff),
                                    "and the hull's yaw, got %d", spawn->angle);

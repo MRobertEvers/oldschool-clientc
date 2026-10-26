@@ -133,6 +133,14 @@ gameproto_free(struct RevPacket* p)
         p->_update_tradingpost.offers = NULL;
         p->_update_tradingpost.count = 0;
         break;
+    case PKT_NAME_WORLDENTITY_INFO:
+        ToriMem_Free(ToriMem_Net(), p->_worldentity_info.updates);
+        ToriMem_Free(ToriMem_Net(), p->_worldentity_info.spawns);
+        p->_worldentity_info.updates = NULL;
+        p->_worldentity_info.spawns = NULL;
+        p->_worldentity_info.count = 0;
+        p->_worldentity_info.spawn_count = 0;
+        break;
     case PKT_NAME_UNKNOWN_STRING:
     case PKT_NAME_SITE_SETTINGS:
         ToriMem_Free(ToriMem_Net(), p->_text.text);

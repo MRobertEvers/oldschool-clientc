@@ -452,9 +452,11 @@ painter_command_element_id(struct PaintersElementCommand const* cmd)
         (int)cmd->_entity._bf_entity));
 }
 
-/** Registry bound of nested world views, matching WORLDVIEW_MAX and the
- *  reference class61 table of 16. Also the descent depth cap. */
-#define PAINTER_MAX_WORLD_VIEWS 16
+/** Registry bound of nested world views, matching WORLDVIEW_MAX (local
+ *  view slots; the deob's class61 table is a 16-bucket hash, not a bound).
+ *  Also the descent depth cap. At most 64: the bucket painter keeps one bit
+ *  per live view in a uint64_t. */
+#define PAINTER_MAX_WORLD_VIEWS 64
 
 /**
  * One nested world view as the parent painter sees it: which painter to descend

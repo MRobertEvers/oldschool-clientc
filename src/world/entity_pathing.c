@@ -186,6 +186,21 @@ World_CoordStep(
 }
 
 void
+World_DirectionDelta(
+    int direction,
+    int* dx,
+    int* dz)
+{
+    struct World_StepCoord step = { 0 };
+
+    assert(dx);
+    assert(dz);
+    World_CoordStep(&step, direction);
+    *dx = step.x;
+    *dz = step.z;
+}
+
+void
 World_EntityPathingPushXZ(
     struct WorldEntityFacet_Pathing* pathing,
     int x,

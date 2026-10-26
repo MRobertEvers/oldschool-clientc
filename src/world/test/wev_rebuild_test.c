@@ -876,9 +876,10 @@ test_raft_deck_rebuild(char const* cache_dir)
         ToriDraw_SceneElementIsLive(scene, root_entity_element),
         "despawning the boat leaves the mainland's entity element alone");
 
-    /* OQ4: a loaded104-tile root plus all15 real-cache small decks must fit
-     * simultaneously. Castle template zones are denser than the sailing hull
-     * templates, and retain both real terrain and real scenery in every view. */
+    /* OQ4: a loaded 104-tile root plus a real-cache small deck in every view
+     * slot must fit simultaneously. Castle template zones are denser than the
+     * sailing hull templates, and retain both real terrain and real scenery
+     * in every view. */
     {
         struct WorldviewRegistry registry;
         struct PoolSnapshot decks[WORLDVIEW_MAX];
@@ -892,21 +893,22 @@ test_raft_deck_rebuild(char const* cache_dir)
             struct WorldBuilder* builder=id==1 ? boat_builder:WorldBuilder_New(world,provider,scene,&varp);
             WorldBuilder_SetSceneView(builder,id);
             int base=RAFT_BASE_TILE+id*16;
-            WorldviewRegistry_Register(&registry,id,world,builder,base,RAFT_BASE_TILE,8,8,0);
+            /* A wire id that is not the slot, as a live server's are. */
+            WorldviewRegistry_Register(&registry,id,1000+id,world,builder,base,RAFT_BASE_TILE,8,8,0);
             run_task(queue,io,px,CreateTask_WorldLoad(provider,builder,queue,chunks,1,
                 base/8,RAFT_BASE_TILE/8,8,zones,NULL,NULL));
             TEST_WEVR_ASSERT(world->load_complete && world->entities.terrain.active_count>0 &&
-                world->entities.scenery.active_count>0,"each of15 actual-cache decks finished terrain and loc loading");
+                world->entities.scenery.active_count>0,"every actual-cache deck finished terrain and loc loading");
             pool_snapshot_take(&decks[id],scene,TORIDRAW_SCENE_POOL_STATIC_VIEW(id));
-            TEST_WEVR_ASSERT(decks[id].count>0,"all15 static deck pools contain real geometry");
+            TEST_WEVR_ASSERT(decks[id].count>0,"every static deck pool contains real geometry");
             total+=decks[id].count;
             pool_snapshot_assert_intact(&root_static,scene,"maximum deck loading preserves the full root scene");
             for(int prior=1;prior<id;++prior)
                 pool_snapshot_assert_intact(&decks[prior],scene,"later deck allocation cannot overwrite an earlier view");
         }
         for(int id=0;id<WORLDVIEW_MAX;++id)
-            TEST_WEVR_ASSERT(WorldviewRegistry_IsLive(&registry,id),"all16 registry slots coexist");
-        TEST_WEVR_ASSERT(total<TORIDRAW_SCENE_MAX_ELEMENTS,"root plus15 decks leaves element capacity for dynamics");
+            TEST_WEVR_ASSERT(WorldviewRegistry_IsLive(&registry,id),"every registry slot coexists");
+        TEST_WEVR_ASSERT(total<TORIDRAW_SCENE_MAX_ELEMENTS,"root plus every deck leaves element capacity for dynamics");
         int actor=ToriDraw_SceneElementAddPool(scene,TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(1));
         TEST_WEVR_ASSERT(actor>=0,"dynamic actor still allocates at maximum view count");
         int highwater=ToriDraw_SceneElementSlotCount(scene);
@@ -929,14 +931,15 @@ test_raft_deck_rebuild(char const* cache_dir)
             for(int other=1;other<id;++other)
                 pool_snapshot_assert_intact(&decks[other],scene,"despawn keeps every remaining deck intact");
             pool_snapshot_assert_intact(&root_static,scene,"maximum occupancy despawn keeps root geometry intact");
-            TEST_WEVR_ASSERT(ToriDraw_SceneElementIsLive(scene,actor),"actor evicted to root survives all15 deck despawns");
+            TEST_WEVR_ASSERT(ToriDraw_SceneElementIsLive(scene,actor),"actor evicted to root survives every deck despawn");
             WorldviewRegistry_Release(&registry,id);
             pool_snapshot_free(&decks[id]);
         }
         ToriDraw_SceneElementRemove(scene,actor);
         WorldviewRegistry_Free(&registry); /* root is borrowed */
         boat_builder=NULL;boat_world=NULL;
-        printf("ok - maximum16 views: root +15 actual-cache decks hold %d static elements; one actor migrated all15 pools; isolated despawn PASS\n",total);
+        printf("ok - maximum %d views: root + %d actual-cache decks hold %d static elements; one actor migrated every pool; isolated despawn PASS\n",
+            WORLDVIEW_MAX,WORLDVIEW_MAX-1,total);
     }
 
     pool_snapshot_free(&boat_deck);

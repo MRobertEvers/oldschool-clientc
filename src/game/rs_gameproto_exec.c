@@ -1224,10 +1224,10 @@ exec_worldentity_info(
     assert(pkt);
     view = app->active_world;
     /* The count is WIRE data: a count past the view's actual list is a
-     * malformed or misaddressed packet (parse can bound it against 15, not
-     * against client state), and indexing the list with it walks past live
-     * entries — refuse the packet, don't assert (NDEBUG turns the assert
-     * into the OOB walk itself). */
+     * malformed or misaddressed packet (parse cannot bound it against client
+     * state), and indexing the list with it walks past live entries — refuse
+     * the packet, don't assert (NDEBUG turns the assert into the OOB walk
+     * itself). */
     if( pkt->count > Wevs_ViewListCount(&app->wevs, view) )
     {
         TORIRS_LOG(
@@ -1291,18 +1291,32 @@ exec_worldentity_info(
     for( int i = 0; i < despawn_count; i++ )
         App_WevDespawn(app, despawn_ids[i]);
 
+    /*
+     * The trailer's position is fine units from the PARENT view's build-area
+     * origin (scene-local, as the deob keeps it: a rebuild shifts every
+     * class467 by the base delta, client.java's method10438(-dx << 7, ...)).
+     * A Wev's transform is absolute root-world fine units, which a rebuild
+     * leaves alone for the same reason -- so the origin is added once, here,
+     * against the base the parent has when the packet lands. Moves are deltas
+     * and need nothing.
+     */
+    struct World const* parent = WorldviewRegistry_Get(&app->worldviews, view)->world;
+    int const origin_fx = parent->_base_tile_x * 128;
+    int const origin_fz = parent->_base_tile_z * 128;
+
     for( int i = 0; i < pkt->spawn_count; i++ )
     {
         struct PktWevSpawn const* sp = &pkt->spawns[i];
         struct Wev* wev;
+        int live;
 
-        /* A spawn naming an id that is already live replaces it (the deob
-         * despawns before re-adding; a repeat-spawn that skipped this would
-         * overwrite the view's owned world/builder and grow the parent list
-         * past its bound in release builds). */
-        if( sp->id > WORLDVIEW_ROOT && sp->id < WORLDVIEW_MAX &&
-            Wevs_IsLive(&app->wevs, sp->id) )
-            App_WevDespawn(app, sp->id);
+        /* `sp->id` is the server's world-entity id, not a view slot. A spawn
+         * naming one that is already live replaces it (the deob despawns
+         * before re-adding; a repeat-spawn that skipped this would leave two
+         * views answering to one id). */
+        live = WorldviewRegistry_SlotForWire(&app->worldviews, sp->id);
+        if( live > WORLDVIEW_ROOT )
+            App_WevDespawn(app, live);
         wev = App_WevSpawn(
             app,
             sp->id,
@@ -1310,8 +1324,8 @@ exec_worldentity_info(
             sp->size_x_tiles,
             sp->size_z_tiles,
             sp->priority_group,
-            sp->x,
-            sp->z,
+            origin_fx + sp->x,
+            origin_fz + sp->z,
             sp->angle,
             (unsigned)sp->op_mask);
         if( !wev )
@@ -2650,7 +2664,12 @@ RS_GameProto_Exec(
                            p->entity_mode);
                 break;
             }
-            if( p->world_id == -2 )
+            /* The id arrives as the wire's unsigned u16: the deob reads it
+             * as a short, so -2 (every view) is 65534 here and -1 is 65535. */
+            int const world_id = (int16_t)p->world_id;
+            int slot;
+
+            if( world_id == -2 )
             {
                 /* class61.method1414: the defaults; a reset of them is moot. */
                 if( !reset )
@@ -2658,14 +2677,22 @@ RS_GameProto_Exec(
                     app->interaction_default_tile = p->tile_mode;
                     app->interaction_default_entity = p->entity_mode;
                 }
+                break;
             }
-            else if( p->world_id >= 0 && p->world_id < WORLDVIEW_MAX )
+            /* The root's id is the revision's: -1 before 237, 0 from it (the
+             * same move SET_ACTIVE_WORLD's adapter folds). */
+            assert(app->net);
+            assert(app->net->rev);
+            slot = WorldviewRegistry_SlotForWire(
+                &app->worldviews,
+                (world_id == 0 && app->net->rev->number >= 237) ? WORLDVIEW_WIRE_ROOT : world_id);
+            if( slot != WORLDVIEW_SLOT_NONE )
             {
-                app->interaction_tile[p->world_id] = (int8_t)(reset ? -1 : p->tile_mode);
-                app->interaction_entity[p->world_id] = (int8_t)(reset ? -1 : p->entity_mode);
+                app->interaction_tile[slot] = (int8_t)(reset ? -1 : p->tile_mode);
+                app->interaction_entity[slot] = (int8_t)(reset ? -1 : p->entity_mode);
             }
             else
-                TORIRS_LOG("exec: interaction mode for world %d refused\n", p->world_id);
+                TORIRS_LOG("exec: interaction mode for world %d refused\n", world_id);
         }
         break;
     case PKT_NAME_NPC_HEADICON_SPECIFIC:
@@ -2951,19 +2978,20 @@ RS_GameProto_Exec(
         {
             int world_id = packet->_set_active_world.world_id;
             int level = packet->_set_active_world.level;
+            int slot = WorldviewRegistry_SlotForWire(&ctx->app->worldviews, world_id);
 
-            if( world_id < 0 || world_id >= WORLDVIEW_MAX ||
-                !WorldviewRegistry_IsLive(&ctx->app->worldviews, world_id) )
+            if( slot == WORLDVIEW_SLOT_NONE )
             {
-                TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, view %d not live\n", world_id);
+                TORIRS_LOG("exec: SET_ACTIVE_WORLD refused, world %d not live\n", world_id);
                 break;
             }
-            ctx->app->active_world = world_id;
-            /* The deob snapshots the plane alongside the id; nothing consumes
-             * it at C0 but dropping it here would strand the wire field. It
-             * feeds per-frame height sampling later, so clamp it to the
-             * heightmap's planes. */
+            ctx->app->active_world = slot;
+            /* The deob snapshots the plane alongside the id, and writes it onto
+             * the addressed view itself (class100.field1400), where it outlives
+             * the tick fence's return to the root. Clamped to the heightmap's
+             * planes: it feeds height sampling. */
             ctx->app->active_world_level = level < 0 ? 0 : (level > 3 ? 3 : level);
+            WorldviewRegistry_Get(&ctx->app->worldviews, slot)->level = ctx->app->active_world_level;
         }
         break;
     case PKT_NAME_WORLDENTITY_INFO:

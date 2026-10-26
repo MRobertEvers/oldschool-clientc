@@ -498,7 +498,8 @@ test_nesting_to_the_registry_bound(void)
 {
     printf("test_nesting_to_the_registry_bound\n");
 
-    /* root + views 1..15 == PAINTER_MAX_WORLD_VIEWS contexts on the stack. */
+    /* root + views 1..PAINTER_MAX_WORLD_VIEWS-1 == PAINTER_MAX_WORLD_VIEWS
+     * contexts on the stack. */
     struct Painter* p[PAINTER_MAX_WORLD_VIEWS];
     struct PaintersBuffer* buf = make_buffer();
 
@@ -544,8 +545,8 @@ test_nesting_to_the_registry_bound(void)
         "the innermost view is strictly inside the outermost");
 
     struct PaintersBuffer* refused = make_buffer();
-    painter_add_world_entity(p[15],0,7,7,1,0,1,1);
-    painter_set_world_entity_view(p[15],1,p[1],0,0,0);
+    painter_add_world_entity(p[PAINTER_MAX_WORLD_VIEWS-1],0,7,7,1,0,1,1);
+    painter_set_world_entity_view(p[PAINTER_MAX_WORLD_VIEWS-1],1,p[1],0,0,0);
     painter_paint_bucket(p[0],refused,0,0,0);
     expect(markers_balanced(refused,&max_depth), "capacity refusal is balanced");
     expect(max_depth==PAINTER_MAX_WORLD_VIEWS, "the refused empty pair can sit at capacity");

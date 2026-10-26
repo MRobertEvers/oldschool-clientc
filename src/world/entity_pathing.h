@@ -20,6 +20,14 @@ enum World_PathingJump
     WORLD_PATHING_JUMP_WALK,
 };
 
+/** The tile delta of one step in `direction` (0..7, the entity-info
+ *  stream's WALKDIR / RUNDIR numbering): the same table PushStep walks. */
+void
+World_DirectionDelta(
+    int direction,
+    int* dx,
+    int* dz);
+
 void
 World_EntityPathingPushXZ(
     struct WorldEntityFacet_Pathing* pathing,

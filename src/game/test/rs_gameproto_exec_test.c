@@ -485,19 +485,40 @@ main(void)
         assert(p._set_active_world.world_id == 666);
         assert(p._set_active_world.level == 1);
 
-        /* Root re-select, the id every SERVER_TICK_END implies. */
+        /* Root re-select, the id every SERVER_TICK_END implies: 0 on the
+         * wire from 237, folded to the canonical WORLDVIEW_WIRE_ROOT. */
         uint8_t const root_wire[3] = { 0x00, 0x00, 0x00 };
         memset(&p, 0, sizeof(p));
         assert(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_SET_ACTIVE_WORLD), root_wire, 3, &p) > 0);
-        assert(p._set_active_world.world_id == 0);
+        assert(p._set_active_world.world_id == WORLDVIEW_WIRE_ROOT);
         assert(p._set_active_world.level == 0);
         printf("ok - SET_ACTIVE_WORLD decodes id then plane\n");
     }
 
-    /* Exec half: the packet arms the worldview cursor (id AND plane), and the
-     * tick fence disarms it back to the root. The registry holds dummy
-     * world/builder pointers — the handler only checks liveness, and nothing
-     * here dereferences or frees them. */
+    /* Before 237 the root went out as -1 and a hull could be id 0 (RSProx
+     * 4281, rev 235, spawns one): the same three bytes mean a hull there. */
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_Osrs(235);
+        struct RevPacket p;
+        uint8_t const root_wire[3] = { 0xFF, 0xFF, 0x00 };
+        uint8_t const hull0_wire[3] = { 0x00, 0x00, 0x01 };
+
+        assert(rev);
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_SET_ACTIVE_WORLD), root_wire, 3, &p) > 0);
+        assert(p._set_active_world.world_id == WORLDVIEW_WIRE_ROOT);
+        memset(&p, 0, sizeof(p));
+        assert(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_SET_ACTIVE_WORLD), hull0_wire, 3, &p) > 0);
+        assert(p._set_active_world.world_id == 0);
+        assert(p._set_active_world.level == 1);
+        printf("ok - SET_ACTIVE_WORLD before 237: root -1, hull 0 is a hull\n");
+    }
+
+    /* Exec half: the packet arms the worldview cursor (slot AND plane), and
+     * the tick fence disarms it back to the root. The wire id is the server's
+     * global hull index; the cursor is the local slot it was registered in.
+     * The registry holds dummy world/builder pointers — the handler only
+     * checks liveness, and nothing here dereferences or frees them. */
     {
         struct App* app = calloc(1, sizeof(*app));
         struct RevPacket p;
@@ -513,6 +534,7 @@ main(void)
         WorldviewRegistry_Register(
             &app->worldviews,
             3,
+            2009,
             (struct World*)dummy_world,
             (struct WorldBuilder*)dummy_builder,
             6400,
@@ -524,11 +546,35 @@ main(void)
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
-        p._set_active_world.world_id = 3;
+        p._set_active_world.world_id = 2009;
         p._set_active_world.level = 1;
         RS_GameProto_Exec(&ctx, &p);
         assert(app->active_world == 3);
         assert(app->active_world_level == 1);
+
+        /* The slot number is not a wire id: naming it is naming a hull that
+         * does not exist, refused with the cursor left where it was. */
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
+        p._set_active_world.world_id = 3;
+        p._set_active_world.level = 2;
+        RS_GameProto_Exec(&ctx, &p);
+        assert(app->active_world == 3);
+        assert(app->active_world_level == 1);
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
+        p._set_active_world.world_id = WORLDVIEW_WIRE_ROOT;
+        p._set_active_world.level = 0;
+        RS_GameProto_Exec(&ctx, &p);
+        assert(app->active_world == WORLDVIEW_ROOT);
+
+        memset(&p, 0, sizeof(p));
+        p.packet_type = PKT_NAME_SET_ACTIVE_WORLD;
+        p._set_active_world.world_id = 2009;
+        p._set_active_world.level = 1;
+        RS_GameProto_Exec(&ctx, &p);
+        assert(app->active_world == 3);
 
         memset(&p, 0, sizeof(p));
         p.packet_type = PKT_NAME_SERVER_TICK_END;

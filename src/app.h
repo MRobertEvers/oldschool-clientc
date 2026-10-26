@@ -4218,9 +4218,10 @@ App_ActiveWorldview(struct App* app);
 /**
  * Spawn one world entity from the WORLDENTITY_INFO new-entity trailer
  * (SAILING_PLAN C1): builds the entity's own (World, WorldBuilder) pair over
- * the App's shared scene, registers it as view `id` under the active-world
- * cursor's view, and creates the Wev at the trailer's absolute transform
- * (fine units / 0..2047). `config_id` must name a loaded WevConfig — a spawn
+ * the App's shared scene, registers it in a free view slot under the server's
+ * id `wire_id` (WorldviewRegistry_SlotForWire finds it again) beneath the
+ * active-world cursor's view, and creates the Wev at the trailer's absolute
+ * transform (fine units / 0..2047). `config_id` must name a loaded WevConfig — a spawn
  * for a config the cache does not carry is a protocol violation and asserts.
  * Requires a fully-booted App (scene + provider live); a harness App without
  * them asserts rather than half-spawning.
@@ -4228,7 +4229,7 @@ App_ActiveWorldview(struct App* app);
 struct Wev*
 App_WevSpawn(
     struct App* app,
-    int id,
+    int wire_id,
     int config_id,
     int size_x_tiles,
     int size_z_tiles,

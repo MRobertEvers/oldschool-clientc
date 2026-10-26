@@ -40,14 +40,16 @@ struct ToriRSServerVessel;
 #define TORIRSSERVER_VESSEL_MAX 32
 
 /**
- * World-view ids a vessel can be given on the wire, 1..15.
+ * World-entity ids a vessel can be given on the wire, 1..TORIRSSERVER_VESSEL_MAX.
  *
- * WORLDENTITY_INFO's id IS the client's world-view id (src/world/worldview.h
- * has 16 views and view 0 is the root), so the wire cannot name more than 15
- * live entities however many hull slots the server pool holds. A spawn beyond
- * that bound is rejected before acquiring any private map or collision window.
+ * As Jagex's server does, the id is the hull's one global index, shared by
+ * every observer, and 0 is the root (rev 237+). It is NOT the client's view
+ * slot: the client maps ids to its own slots (src/world/worldview.h,
+ * WorldviewRegistry_SlotForWire), so the only bound is the hull pool itself.
+ * It used to be 15 because the client indexed views by this id; a recorded
+ * Salvaging spot has 25 hulls in view at once (RSProx 4281).
  */
-#define TORIRSSERVER_WEV_VIEW_MAX 15
+#define TORIRSSERVER_WEV_VIEW_MAX TORIRSSERVER_VESSEL_MAX
 /** One deck's npc list (a world entity's NPC_INFO): its captain's crew and a
  *  few passengers. */
 #define TORIRSSERVER_DECK_NPC_MAX 64
@@ -155,17 +157,16 @@ struct ToriRSServerVessel
     int index;
 
     /**
-     * The client world-view id this live hull is published under, 1..15.
-     *
-     * Distinct from `index` on purpose: the vessel pool is 32 deep and the
-     * wire's registry is 15, so a 1:1 mapping would put ids on the wire the
-     * client rejects as malformed (its decoder refuses id > 16 outright).
+     * The world-entity id this live hull is published under on the wire,
+     * 1..TORIRSSERVER_WEV_VIEW_MAX, taken lowest-free: one global id every
+     * observer sees, as Jagex's are. The client maps it to a view slot of
+     * its own, so it is an identity, never a client array index.
      */
     int view_id;
 
     /**
      * A number no other hull has ever carried, handed out at spawn and never
-     * recycled — unlike `index` (a pool slot) and `view_id` (15 of them, taken
+     * recycled — unlike `index` (a pool slot) and `view_id` (taken
      * lowest-free).
      *
      * Both of those come back around, and a free followed by a spawn inside one

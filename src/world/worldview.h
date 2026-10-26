@@ -10,30 +10,56 @@ struct WorldBuilder;
  * Multi-world views for OSRS world entities (sailing) — see docs/SAILING.md §5.
  *
  * A Worldview is one drawable map view: the root scene, or the small stationary
- * rectangle of map a boat's deck lives on (deob class100 + the class61 registry
- * of 16). Every view pairs a World simulation with the WorldBuilder that keeps
- * it in sync with the shared ToriDraw scene. The registry indexes views by the
- * wire's world-entity id: id 0 is always the root, ids 1..15 are spawned by
- * WORLDENTITY_INFO (later phase) and addressed by SET_ACTIVE_WORLD and the
- * per-view rebuild.
+ * rectangle of map a boat's deck lives on (deob class100 + the class61
+ * registry). Every view pairs a World simulation with the WorldBuilder that
+ * keeps it in sync with the shared ToriDraw scene.
+ *
+ * The registry indexes views by a local SLOT, not by the wire's world-entity
+ * id. Slot 0 is always the root; slots 1..WORLDVIEW_MAX-1 are handed out to
+ * WORLDENTITY_INFO spawns, and each remembers the wire id it was spawned
+ * under (WorldviewRegistry_SlotForWire). The wire's ids are global indices
+ * the server shares between every observer -- RSProx 4281 (rev 235) spawns
+ * 250 distinct hulls with ids 0..4090 -- so they cannot be array indices.
  *
  * Named Worldview, not WorldEntity_*: this codebase already uses that prefix
  * for ordinary in-world entities (entity_facets.h).
  */
 
-/** Deob class61 registers all views in one table of 16. */
-#define WORLDVIEW_MAX 16
+/**
+ * Local view slots, the root included.
+ *
+ * The deob has no such bound: class61 keeps its views in a NodeHashTable of
+ * 16 BUCKETS keyed by id (class622(16)), and the root view's entity table is
+ * one of 32 buckets (class100's class622(32)). A busy Salvaging spot already
+ * has 25 hulls in view at once (RSProx 4281), so this is sized well past
+ * that; the scene's one-byte pool tag caps it at TORIDRAW_SCENE_POOL_VIEW_MAX.
+ */
+#define WORLDVIEW_MAX 64
 
-/** The root (main-world) view id — always live once registered. */
+/** The root (main-world) view slot — always live once registered. */
 #define WORLDVIEW_ROOT 0
+
+/**
+ * The root's wire id as the packet layer hands it over, whatever the
+ * revision wrote: up to 236 the root went out as -1 and a hull could be id 0;
+ * 237 made the root 0 (RSProx SetActiveWorldV2Decoder). The adapters
+ * normalise to this so a hull's id 0 never reads as the root.
+ */
+#define WORLDVIEW_WIRE_ROOT (-1)
+
+/** WorldviewRegistry_SlotForWire / _FreeSlot: no such view, no free slot. */
+#define WORLDVIEW_SLOT_NONE (-1)
 
 /** parent_id of the root: it hangs under nothing. */
 #define WORLDVIEW_PARENT_NONE (-1)
 
 struct Worldview
 {
-    /** Registry slot == the wire's world-entity id. */
+    /** Registry slot (local; never on the wire). */
     int id;
+    /** The world-entity id the server spawned this view under;
+     *  WORLDVIEW_WIRE_ROOT for the root. Meaningful only while live. */
+    int wire_id;
     struct World* world;
     struct WorldBuilder* builder;
     /**
@@ -50,7 +76,8 @@ struct Worldview
     int size_z_tiles;
     /**
      * The level this view's carrier occupies in its PARENT world — the level
-     * its pseudo-loc is registered on, off SET_ACTIVE_WORLD's level byte.
+     * its pseudo-loc is registered on: the parent view's own `level` when the
+     * spawn record executes under the parent's cursor.
      *
      * NOT the plane the deck sits on inside this view's own world: that is
      * `WevConfig.plane`, a coordinate in the staging region the deck is
@@ -60,10 +87,19 @@ struct Worldview
      * (app.c, `app_world_roof_check`) — the loc paints every frame and is
      * culled every frame.
      *
-     * 0 until the first REBUILD_WORLDENTITY lands, which is both the common
-     * case (a hull floats on the surface plane) and the only safe guess.
+     * Set at the spawn (App_WevSpawn), never by the deck's own
+     * SET_ACTIVE_WORLD: that names the DECK's plane (`level` below).
      */
     int parent_level;
+    /**
+     * This view's OWN level (deob class100.field1400): what the last
+     * SET_ACTIVE_WORLD addressing it named, and kept after the tick fence
+     * puts the cursor back on the root. Jagex names a deck's own plane for
+     * the deck (01 in RSProx 4281) and the root's plane for the root (00);
+     * root-world judgments read the root's (Statics.java's
+     * method109(field3266, .., field3266.field1400)).
+     */
+    int level;
     /** View this one is drawn inside (deob field5700); WORLDVIEW_PARENT_NONE
      * for the root. */
     int parent_id;
@@ -103,14 +139,17 @@ WorldviewRegistry_RegisterRoot(
     struct WorldBuilder* builder);
 
 /**
- * Register a non-root view. Takes OWNERSHIP of `world`/`builder`: both are
- * freed when the view is released. `parent_id` must name a live view (a boat
- * hangs under the root; a nested entity under its boat).
+ * Register a non-root view in slot `id` (one WorldviewRegistry_FreeSlot gave
+ * out) under the server's world-entity id `wire_id`, which must not already
+ * name a live view. Takes OWNERSHIP of `world`/`builder`: both are freed when
+ * the view is released. `parent_id` must name a live view (a boat hangs under
+ * the root; a nested entity under its boat).
  */
 struct Worldview*
 WorldviewRegistry_Register(
     struct WorldviewRegistry* reg,
     int id,
+    int wire_id,
     struct World* world,
     struct WorldBuilder* builder,
     int base_x,
@@ -145,6 +184,23 @@ bool
 WorldviewRegistry_IsLive(
     struct WorldviewRegistry const* reg,
     int id);
+
+/**
+ * The live view the server knows as `wire_id` (WORLDVIEW_WIRE_ROOT is the
+ * root, slot 0), or WORLDVIEW_SLOT_NONE. Unknown is an answer here: the id is
+ * wire data, and the caller decides whether naming a dead view is refused.
+ * A linear walk of WORLDVIEW_MAX slots, which is cheaper than any table a
+ * 16-bit id space would need.
+ */
+int
+WorldviewRegistry_SlotForWire(
+    struct WorldviewRegistry const* reg,
+    int wire_id);
+
+/** The lowest slot no live view holds, or WORLDVIEW_SLOT_NONE when every one
+ * of WORLDVIEW_MAX-1 is taken. */
+int
+WorldviewRegistry_FreeSlot(struct WorldviewRegistry const* reg);
 
 /**
  * Which view's staging rectangle holds an absolute root tile, and where the

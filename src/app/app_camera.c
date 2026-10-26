@@ -465,8 +465,12 @@ app_cinema_level(struct App* app)
     int world_idx;
     struct WorldEntity_Player* player;
 
+    /* Aboard: the ROOT view's own level (deob field3266.field1400, which
+     * Statics.java's root-world height samples read), what Jagex's
+     * SET_ACTIVE_WORLD for the root names while the player stands on a deck
+     * (00 in RSProx 4281, where the deck's own is 01). */
     if( app->aboard_view != WORLDVIEW_ROOT && Wevs_IsLive(&app->wevs, app->aboard_view) )
-        return Wevs_Get(&app->wevs, app->aboard_view)->parent_level;
+        return WorldviewRegistry_Get(&app->worldviews, WORLDVIEW_ROOT)->level;
     if( !RS_EntitySync_FindPlayer(
             &app->esync,
             app->esync.local_pid >= 0 ? app->esync.local_pid : 2047,

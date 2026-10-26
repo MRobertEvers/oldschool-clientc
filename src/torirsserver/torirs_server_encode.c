@@ -521,9 +521,10 @@ ToriRSServer_SendSetActiveWorldId(
     const struct ToriRSServerWire* wire = wire_for(player);
 
     assert(player);
-    /* 0 is the root; 1..15 are the world-entity registry. An id outside that
-     * is a server bug, and the client asserts on it (rs_gameproto_exec.c
-     * WorldviewRegistry_Get) — stop here instead. */
+    /* 0 is the root (the wire's root from 237); 1..TORIRSSERVER_WEV_VIEW_MAX
+     * are the hulls' global world-entity ids. An id outside that is a server
+     * bug, and the client refuses a SET_ACTIVE_WORLD naming no live hull — stop
+     * here instead. */
     assert(world_id >= 0);
     assert(world_id <= TORIRSSERVER_WEV_VIEW_MAX);
 
@@ -535,10 +536,18 @@ ToriRSServer_SendSetActiveWorldId(
     flush(player, &buf, OP_SET_ACTIVE_WORLD, 0);
 }
 
+/*
+ * The level byte is the ADDRESSED view's own level (deob
+ * class100.field1400), as Jagex's server sends it: a deck is named with its
+ * own plane (ToriRSServer_VesselDeckPlane; 01 in RSProx 4281) and the root
+ * with the plane its observer is seen on in the root -- for a rider, the
+ * hull's, which `obs_level` already carries (00 in 4281, with the rider on
+ * the deck's level 1).
+ */
 void
 ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player)
 {
-    ToriRSServer_SendSetActiveWorldId(player, 0, player->level);
+    ToriRSServer_SendSetActiveWorldId(player, 0, player->obs_level);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1506,9 +1515,24 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
                 &buf, ((zones_x & 0xf) << 4) | (zones_z & 0xf), vessel->priority,
                 vessel->config_id);
         }
-        /* The absolute transform is the same 4-axis bitfield applied to
-         * (0,0,0,0), so the "delta" here is the position itself. */
-        wev_put_transform(&buf, vessel->fine_x, 0, vessel->fine_z, vessel->angle & 0x7ff);
+        /* The spawn transform is the same 4-axis bitfield applied to
+         * (0,0,0,0), so the "delta" here is the position itself -- in fine
+         * units from THIS observer's build-area origin, as Jagex's server
+         * sends it (RSProx 4281: hulls at 6176,6400 in a scene based at
+         * 1864,2096). The client keeps it scene-local and shifts it on every
+         * rebuild (deob client.java, class467.method10438), so the moves that
+         * follow stay plain deltas. */
+        {
+            int const origin_fx = ToriRSServer_SceneOrigin(player->zone_x) * 128;
+            int const origin_fz = ToriRSServer_SceneOrigin(player->zone_z) * 128;
+
+            wev_put_transform(
+                &buf,
+                vessel->fine_x - origin_fx,
+                0,
+                vessel->fine_z - origin_fz,
+                vessel->angle & 0x7ff);
+        }
         pl->wev_op_mask(&buf, TORIRSSERVER_WEV_OP_MASK_ALL);
 
         kept_ids[kept_count] = vessel->view_id;
@@ -1552,7 +1576,7 @@ ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player)
         for( int i = 0; i < spawning_count; i++ )
         {
             ToriRSServer_SendSetActiveWorldId(
-                player, spawning[i]->view_id, spawning[i]->level);
+                player, spawning[i]->view_id, ToriRSServer_VesselDeckPlane(spawning[i]));
             ToriRSServer_SendRebuildWorldEntity(player, spawning[i]);
         }
         ToriRSServer_SendSetActiveWorld(player);
@@ -7210,7 +7234,7 @@ npc_info_encode_deck(
     int* tracked_generation = player->deck_tracked_generation[view];
     int const tracked_count = player->deck_tracked_count[view];
 
-    ToriRSServer_SendSetActiveWorldId(player, view, vessel->level);
+    ToriRSServer_SendSetActiveWorldId(player, view, ToriRSServer_VesselDeckPlane(vessel));
     open_packet(&buf, 4);
     rsab_p1(&buf, origin_x);
     rsab_p1(&buf, origin_z);

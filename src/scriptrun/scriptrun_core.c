@@ -1626,23 +1626,39 @@ core_message(
 
 /* ------------------------------------------------------- world entities */
 
-/* SET_ACTIVE_WORLD: wire data, so a dead or out-of-range view is refused
- * (the client logs and keeps its cursor), never asserted. */
+/* The live slot the server knows as `wire_id` (-1 is the root, slot 0), or
+ * -1: WorldviewRegistry_SlotForWire's answer, over this core's views. */
+static int
+core_view_for_wire(
+    struct ScriptrunCore const* core,
+    int wire_id)
+{
+    if( wire_id == -1 )
+        return 0;
+    for( int id = 1; id < SCRIPTRUN_VIEWS; id++ )
+        if( core->views[id].live && core->views[id].wire_id == wire_id )
+            return id;
+    return -1;
+}
+
+/* SET_ACTIVE_WORLD: wire data, so a dead view is refused (the client logs and
+ * keeps its cursor), never asserted. */
 static void
 core_set_active_world(
     struct ScriptrunCore* core,
     struct PktSetActiveWorld const* pkt)
 {
-    if( pkt->world_id < 0 || pkt->world_id >= SCRIPTRUN_VIEWS ||
-        (pkt->world_id > 0 && !core->views[pkt->world_id].live) )
+    int slot = core_view_for_wire(core, pkt->world_id);
+
+    if( slot < 0 )
     {
         core->wev_refused++;
         return;
     }
-    core->active_world = pkt->world_id;
+    core->active_world = slot;
     core->active_world_level = pkt->level < 0 ? 0 : (pkt->level > 3 ? 3 : pkt->level);
-    if( pkt->world_id > 0 )
-        core->views[pkt->world_id].level = core->active_world_level;
+    if( slot > 0 )
+        core->views[slot].level = core->active_world_level;
 }
 
 static void
@@ -1711,26 +1727,39 @@ core_worldentity_info(
     {
         struct PktWevSpawn const* sp = &pkt->spawns[i];
         struct ScriptrunView* v;
+        int slot;
 
-        if( sp->id <= 0 || sp->id >= SCRIPTRUN_VIEWS || sp->size_x_tiles <= 0 ||
-            sp->size_z_tiles <= 0 || core->view_list_count >= SCRIPTRUN_VIEWS - 1 )
+        if( sp->id == -1 || sp->size_x_tiles <= 0 || sp->size_z_tiles <= 0 )
         {
             core->wev_refused++;
             continue;
         }
-        if( core->views[sp->id].live )
-            core_view_despawn(core, sp->id);
-        v = &core->views[sp->id];
+        slot = core_view_for_wire(core, sp->id);
+        if( slot > 0 )
+            core_view_despawn(core, slot);
+        slot = 1;
+        while( slot < SCRIPTRUN_VIEWS && core->views[slot].live )
+            slot++;
+        if( slot == SCRIPTRUN_VIEWS )
+        {
+            core->wev_refused++;
+            continue;
+        }
+        v = &core->views[slot];
         v->live = 1;
+        v->wire_id = sp->id;
         v->config_id = sp->config_id;
         v->size_x = sp->size_x_tiles;
         v->size_z = sp->size_z_tiles;
         v->priority_group = sp->priority_group;
-        v->fine_x = sp->x;
-        v->fine_z = sp->z;
+        /* Fine units from the build area's origin on the wire (deob class467
+         * keeps them scene-local); kept absolute here, as the client's Wev
+         * transform is (rs_gameproto_exec.c exec_worldentity_info). */
+        v->fine_x = core_base_x(core) * 128 + sp->x;
+        v->fine_z = core_base_z(core) * 128 + sp->z;
         v->angle = sp->angle & 0x7ff;
         v->op_mask = sp->has_op_mask ? sp->op_mask : PKT_WEV_OP_MASK_ALL;
-        core->view_list[core->view_list_count++] = sp->id;
+        core->view_list[core->view_list_count++] = slot;
     }
 }
 

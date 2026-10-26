@@ -500,6 +500,53 @@ player_ensure_now(struct Task_ExecPlayerInfo* self)
     entity_debug_log("entity_sync: player %d spawned (world idx %d)\n", self->cur_pid, idx);
 }
 
+/* The wire's absolute tile for the player at `idx` (entity_facets.h
+ * abs_x/abs_z): placed by a coordinate op, moved by a delta or a step. The
+ * per-tick view membership is computed from it (app_wev_route_actors). */
+static void
+player_abs_place(
+    struct World* world,
+    int idx,
+    int abs_x,
+    int abs_z)
+{
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+
+    if( !player )
+        return;
+    player->view_placement.abs_x = abs_x;
+    player->view_placement.abs_z = abs_z;
+    player->view_placement.has_abs = 1;
+}
+
+static void
+player_abs_move(
+    struct World* world,
+    int idx,
+    int dx,
+    int dz)
+{
+    struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+
+    if( !player || !player->view_placement.has_abs )
+        return;
+    player->view_placement.abs_x += dx;
+    player->view_placement.abs_z += dz;
+}
+
+static void
+player_abs_step(
+    struct World* world,
+    int idx,
+    int direction)
+{
+    int dx;
+    int dz;
+
+    World_DirectionDelta(direction, &dx, &dz);
+    player_abs_move(world, idx, dx, dz);
+}
+
 /* Apply one non-target op that needs no cache IO. Returns a PlayerOpNeed for
  * the ops the protothread must await loads for. */
 static enum PlayerOpNeed
@@ -518,13 +565,22 @@ player_apply_op(
     {
     case RSPROT_OP_WALKDIR:
         World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_WALK, (int)op->value);
+        player_abs_step(world, idx, (int)op->value);
         break;
     case RSPROT_OP_RUNDIR:
         World_PlayerPathPushStep(world, idx, WORLD_PATHSTEP_RUN, (int)op->value);
+        player_abs_step(world, idx, (int)op->value);
         break;
     case RSPROT_OP_LOCAL_XZLEVEL:
     {
         struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
+        /* Scene-local: the scene's south-west corner is the rebuild's centre
+         * zone less its six zones of margin. */
+        player_abs_place(
+            world,
+            idx,
+            (app->rebuild_zone_x - 6) * 8 + op->xz_level.x,
+            (app->rebuild_zone_z - 6) * 8 + op->xz_level.z);
         World_PlayerPathJump(
             world,
             idx,
@@ -555,6 +611,8 @@ player_apply_op(
         int next_z;
         int home_view = App_WevHomeViewForAbsTile(
             app, op->xz_level.x, op->xz_level.z, &next_x, &next_z);
+
+        player_abs_place(world, idx, op->xz_level.x, op->xz_level.z);
 
         if( home_view == 0 )
         {
@@ -621,6 +679,7 @@ player_apply_op(
         player_local_tile(self, &lx, &lz, &llevel);
         World_PlayerPathJump(
             world, idx, op->delta_xz.jump, lx + op->delta_xz.dx, lz + op->delta_xz.dz);
+        player_abs_move(world, idx, op->delta_xz.dx, op->delta_xz.dz);
         break;
     }
     case RSPROT_OP_APPEARANCE:

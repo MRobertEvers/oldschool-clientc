@@ -211,6 +211,22 @@ struct WorldEntityFacet_ViewPlacement
      * (docs/SAILING.md §5.1: actors carry view-local fine coordinates).
      */
     int home_view;
+    /**
+     * The wire's absolute tile for this actor (deob class286 field3805 /
+     * field3807), kept through every coordinate op the entity-info stream
+     * applies: a placement sets it, a delta or a step moves it. `has_abs` is
+     * 0 until the first placement.
+     *
+     * Membership is recomputed from it EVERY tick (deob class109.method3807 →
+     * method3823: each view's rectangle tested against each player), not only
+     * when a coordinate arrives: a recorder logs in standing on a deck whose
+     * view spawns later in the same tick (RSProx 4281), and stands still from
+     * then on. The route queue cannot answer the question -- its uint8_t
+     * tiles truncate a deck coordinate taken root-relative.
+     */
+    int abs_x;
+    int abs_z;
+    int has_abs;
 };
 
 struct WorldEntityFacet_OrientationPYR

@@ -98,11 +98,12 @@ int main(void)
     assert(next_model(&frame,&flat));
     assert(ToriDraw_ModelRead(flat.u.model.model)->vertices_y[1] == 20);
     ToriRS_FrameEnd(&frame);
-    /* Root +15 valid views, followed by an empty refused cycle. The painter
-     * may emit that pair at capacity; the emitter must not push frame17. */
-    struct PaintersElementCommand deep[33]={0};
+    /* Root + every valid view, followed by an empty refused cycle. The
+     * painter may emit that pair at capacity; the emitter must not push one
+     * frame past TORIRS_FRAME_MAX_VIEWS. */
+    struct PaintersElementCommand deep[2*TORIRS_FRAME_MAX_VIEWS+1]={0};
     int n=0;
-    for(int id=1;id<16;++id)
+    for(int id=1;id<TORIRS_FRAME_MAX_VIEWS;++id)
     {
         deep[n]._bf_kind=PNTR_CMD_BEGIN_WORLD;deep[n++]._entity._bf_entity=id;
         ToriRS_FrameSetViewXform(&frame,id,&deck,0,0,0,0,0,0);
@@ -110,11 +111,11 @@ int main(void)
     deep[n]._bf_kind=PNTR_CMD_BEGIN_WORLD;deep[n++]._entity._bf_entity=1;
     deep[n]._bf_kind=PNTR_CMD_END_WORLD;deep[n++]._entity._bf_entity=1;
     deep[n]._bf_kind=PNTR_CMD_ELEMENT;deep[n++]._entity._bf_entity=element;
-    for(int id=15;id>0;--id)
+    for(int id=TORIRS_FRAME_MAX_VIEWS-1;id>0;--id)
     {deep[n]._bf_kind=PNTR_CMD_END_WORLD;deep[n++]._entity._bf_entity=id;}
-    assert(n==33);painters.commands=deep;painters.command_count=n;
+    assert(n==2*TORIRS_FRAME_MAX_VIEWS+1);painters.commands=deep;painters.command_count=n;
     ToriRS_FrameBegin(&frame);
-    assert(next_model(&frame,&normal) && normal.u.model.pick_view==15);
+    assert(next_model(&frame,&normal) && normal.u.model.pick_view==TORIRS_FRAME_MAX_VIEWS-1);
     assert(!next_model(&frame,&normal) && frame.view_depth==0);
     ToriRS_FrameEnd(&frame);
     /* The alternate terrain handle must flatten without borrowing mutable

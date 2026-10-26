@@ -826,12 +826,13 @@ struct PktSetNpcUpdateOrigin
 };
 
 /* SET_ACTIVE_WORLD: the world view + plane the following entity/zone packets
- * address (rev 239+). world_id 0 is the root world; non-zero ids name a
- * WORLDENTITY_INFO-spawned view. SERVER_TICK_END resets the exec cursor to
- * root. */
+ * address. world_id is the server's world-entity id, normalised by the
+ * adapter so the root is WORLDVIEW_WIRE_ROOT (-1) at every revision (237 moved
+ * the wire's root from -1 to 0; before it a hull could be id 0). The exec maps
+ * it to a local view slot. SERVER_TICK_END resets the exec cursor to root. */
 struct PktSetActiveWorld
 {
-    int world_id; /* g2: world-entity/view id, 0 = root */
+    int world_id; /* g2s: world-entity id, -1 = root */
     int level;    /* g1: plane the addressed view draws */
 };
 
@@ -840,10 +841,11 @@ struct PktSetActiveWorld
  * entries walk the ACTIVE view's entity list in list order, then a trailer
  * of new-entity spawns runs while bytes remain. SAILING.md §5.4.
  *
- * At most 15 entities can exist client-side (16 world views, id 0 = root),
- * so a count or spawn run past that is a malformed frame, dropped at parse.
+ * Neither list has a protocol bound short of the frame itself (a g1 count; a
+ * trailer that runs while bytes remain), and a busy world sends 25 hulls a
+ * tick (RSProx 4281), so both arrays are owned heap payloads sized to the
+ * frame; gameproto_free releases them.
  */
-#define PKT_WEV_INFO_MAX 15
 
 /* Wire movement ops. */
 #define PKT_WEV_OP_DESPAWN 0
@@ -905,9 +907,10 @@ struct PktWevSpawn
 struct PktWorldEntityInfo
 {
     int count; /* entities that remain, in list order */
-    struct PktWevUpdate updates[PKT_WEV_INFO_MAX];
+    struct PktWevUpdate* updates; /* `count` records; NULL when 0 */
     int spawn_count;
-    struct PktWevSpawn spawns[PKT_WEV_INFO_MAX];
+    struct PktWevSpawn* spawns; /* `spawn_count` records, each `id` the
+                                 * server's world-entity id; NULL when 0 */
 };
 
 /**
@@ -1027,8 +1030,11 @@ struct PktPacketGroupStart
 };
 
 /* SET_INTERACTION_MODE / RESET_INTERACTION_MODE (deob class61 method1382 /
- * method1412): a world view's tile and entity interaction modes. World -2 is
- * every view (method1414, the defaults); a reset carries modes -1. */
+ * method1412): a world view's tile and entity interaction modes. world_id is
+ * the wire's UNSIGNED u16 world-entity id, as read: 65534 (-2 as a short) is
+ * every view (method1414, the defaults), and the root is the revision's own
+ * (65535 before 237, 0 from it) -- the exec resolves both. A reset carries
+ * modes -1. */
 struct PktInteractionMode
 {
     int world_id;

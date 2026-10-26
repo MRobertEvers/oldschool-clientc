@@ -687,9 +687,10 @@ struct BucketPaintStack
 {
     struct BucketPaintFrame frames[PAINTER_MAX_WORLD_VIEWS];
     int depth;
-    /** One bit per live view id. */
-    uint32_t view_ids;
+    /** One bit per live view id (PAINTER_MAX_WORLD_VIEWS fits in 64). */
+    uint64_t view_ids;
 };
+_Static_assert(PAINTER_MAX_WORLD_VIEWS <= 64, "BucketPaintStack.view_ids holds one bit per view");
 
 /**
  * The shared write cursor. One PaintersBuffer serves the whole stack, so the
@@ -794,13 +795,13 @@ bucket_descend(
             break;
         }
     }
-    int refused = !view->active || (stack->view_ids & (1u << view_id)) ||
+    int refused = !view->active || (stack->view_ids & (1ull << view_id)) ||
                   painter_on_stack || depth + 1 >= PAINTER_MAX_WORLD_VIEWS;
 
     PAINTER_DBG_WEV_REQUEST(
         view_id,
         view->active,
-        (stack->view_ids & (1u << view_id)) ? 1 : 0,
+        (stack->view_ids & (1ull << view_id)) ? 1 : 0,
         painter_on_stack,
         depth,
         view->camera_sx,
@@ -815,7 +816,7 @@ bucket_descend(
     if( !refused )
     {
         stack->depth = depth + 1;
-        stack->view_ids |= (1u << view_id);
+        stack->view_ids |= (1ull << view_id);
         stack->frames[depth + 1] = (struct BucketPaintFrame){
             .painter = view->painter,
             .camera_sx = view->camera_sx,
@@ -838,7 +839,7 @@ bucket_descend(
             stack);
         PAINTER_DBG_WEDGE_RESUME(saved);
 
-        stack->view_ids &= ~(1u << view_id);
+        stack->view_ids &= ~(1ull << view_id);
         stack->depth = depth;
 
         PAINTER_DBG_WEV_DONE(view_id, (int)(cursor->cur - cursor->base));
@@ -1776,7 +1777,7 @@ painter_paint_bucket(
 
     struct BucketPaintStack stack;
     stack.depth = 0;
-    stack.view_ids = 1u; /* view 0 (the root) is always on the stack */
+    stack.view_ids = 1ull; /* view 0 (the root) is always on the stack */
     stack.frames[0] = (struct BucketPaintFrame){
         .painter = painter,
         .camera_sx = camera_sx,

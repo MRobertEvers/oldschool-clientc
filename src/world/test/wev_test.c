@@ -48,18 +48,27 @@
 /* WORLDENTITY_INFO parse: the 2-bit-per-axis delta reader              */
 /* ------------------------------------------------------------------ */
 
+/* Free what the last parse allocated (struct PktWorldEntityInfo owns its
+ * arrays) and clear the packet for the next one. */
+static void
+wev_packet_reset(struct RevPacket* p)
+{
+    gameproto_free(p);
+    memset(p, 0, sizeof(*p));
+}
+
 static void
 test_parse_deltas(void)
 {
     struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
-    struct RevPacket p;
+    struct RevPacket p = { 0 };
 
     /* Op 2 (enqueue), mask 0x61 = dx:i8 | dz:i16<<4 | dangle:i8<<6.
      * dx = 5, dz = 0xFED4 = -300, dangle = 0xF8 = -8; updateFlags 0x1 with
      * seq 0x0102 = 258, delay 7. Hand-laid, read back exactly. */
     uint8_t move[] = { 0x01, 0x02, 0x61, 0x05, 0xFE, 0xD4, 0xF8, 0x01, 0x01, 0x02, 0x07 };
 
-    memset(&p, 0, sizeof(p));
+    wev_packet_reset(&p);
     TEST_WEV_ASSERT(
         rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), move, (int)sizeof(move), &p),
         "enqueue-op packet parses");
@@ -76,7 +85,7 @@ test_parse_deltas(void)
     TEST_WEV_ASSERT(p._worldentity_info.spawn_count == 0, "no spawn trailer");
 
     /* A byte short must fail as a whole, not apply a half-read update. */
-    memset(&p, 0, sizeof(p));
+    wev_packet_reset(&p);
     TEST_WEV_ASSERT(
         !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), move, (int)sizeof(move) - 1, &p),
         "truncated enqueue packet rejected");
@@ -87,7 +96,7 @@ test_parse_deltas(void)
 
         memcpy(padded, move, sizeof(move));
         padded[sizeof(move)] = 0x00;
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), padded, (int)sizeof(padded), &p),
             "trailing garbage rejected");
@@ -97,7 +106,7 @@ test_parse_deltas(void)
     {
         uint8_t snap[] = { 0x01, 0x03, 0x03, 0x00, 0x01, 0x00, 0x00, 0x00 };
 
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), snap, (int)sizeof(snap), &p),
             "snap-op packet parses");
@@ -120,7 +129,7 @@ test_parse_deltas(void)
     {
         uint8_t mixed[] = { 0x02, 0x00, 0x01, 0x01, 0xFF, 0xFF, 0x00 };
 
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), mixed, (int)sizeof(mixed), &p),
             "despawn + flags-only packet parses");
@@ -139,7 +148,7 @@ test_parse_deltas(void)
     {
         uint8_t opmask[] = { 0x01, 0x01, 0x03, 0x61, 0x01, 0x02, 0x07 };
 
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), opmask, (int)sizeof(opmask), &p),
             "flags 0x3 packet parses");
@@ -150,21 +159,43 @@ test_parse_deltas(void)
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].seq_delay == 7, "seq delay last");
     }
 
-    /* An op past 3 and a count past the registry are protocol violations the
-     * parse layer rejects whole. */
+    /* An op past 3, and a count whose records the frame does not hold, are
+     * protocol violations the parse layer rejects whole. */
     {
         uint8_t bad_op[] = { 0x01, 0x04, 0x00 };
-        uint8_t bad_count[] = { 0x10 };
+        uint8_t short_count[] = { 0x10 };
 
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_op, (int)sizeof(bad_op), &p),
             "op 4 rejected");
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
-            !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_count, (int)sizeof(bad_count), &p),
-            "count 16 rejected");
+            !rev->parse_wire(
+                rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), short_count, (int)sizeof(short_count), &p),
+            "count 16 with no records rejected");
     }
+
+    /* A busy world is not a violation: RSProx 4281 (a Salvaging spot) moves 25
+     * hulls every tick, `19 01 00 01 00 ...`. A 15-entity bound used to drop
+     * that whole frame, the recorder's own boat with it. */
+    {
+        uint8_t busy[1 + 25 * 2];
+
+        busy[0] = 25;
+        for( int i = 0; i < 25; i++ )
+        {
+            busy[1 + i * 2] = 0x01; /* op 1: flags only */
+            busy[2 + i * 2] = 0x00; /* no flags */
+        }
+        wev_packet_reset(&p);
+        TEST_WEV_ASSERT(
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), busy, (int)sizeof(busy), &p),
+            "25 hulls parse");
+        TEST_WEV_ASSERT(p._worldentity_info.count == 25, "every record kept");
+        TEST_WEV_ASSERT(p._worldentity_info.updates[24].op == PKT_WEV_OP_FLAGS, "the last one too");
+    }
+    wev_packet_reset(&p);
 
     printf("ok - WORLDENTITY_INFO delta reader (i8/i16/i32, signs, seq, bounds)\n");
 }
@@ -173,7 +204,7 @@ static void
 test_parse_spawn_trailer(void)
 {
     struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
-    struct RevPacket p;
+    struct RevPacket p = { 0 };
 
     /*
      * count 0, then two trailer records in the deob's field order (id g2be,
@@ -199,7 +230,7 @@ test_parse_spawn_trailer(void)
         0x34, 0x74, 0x05,                   /* flag payload: seq, delay */
     };
 
-    memset(&p, 0, sizeof(p));
+    wev_packet_reset(&p);
     TEST_WEV_ASSERT(
         rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), body, (int)sizeof(body), &p),
         "spawn trailer parses");
@@ -230,25 +261,25 @@ test_parse_spawn_trailer(void)
         "flags 0x1 leaves the op mask at its default");
 
     /* Truncating the last delta byte must reject the whole packet. */
-    memset(&p, 0, sizeof(p));
+    wev_packet_reset(&p);
     TEST_WEV_ASSERT(
         !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), body, (int)sizeof(body) - 1, &p),
         "truncated spawn trailer rejected");
 
-    /* Id 0 (the root) can never spawn as a world entity, but the decode
-     * carries what the wire says: the view layer refuses it (App_WevSpawn),
-     * one spawn at a time, as it refuses ids past its registry -- which Jagex
-     * does send, so a decode that dropped the frame would lose real ones. */
+    /* Id 0 is a real hull before 237 (RSProx 4281 spawns one), and the decode
+     * carries what the wire says either way: ids are the server's global
+     * indices, mapped to view slots by the exec, never bounded here. */
     {
         uint8_t bad_id[] = { 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x01, 0x00 };
 
-        memset(&p, 0, sizeof(p));
+        wev_packet_reset(&p);
         TEST_WEV_ASSERT(
             rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_id, (int)sizeof(bad_id), &p),
             "a spawn naming id 0 decodes");
         TEST_WEV_ASSERT(p._worldentity_info.spawn_count == 1 && p._worldentity_info.spawns[0].id == 0,
                         "with its id as the wire states it");
     }
+    wev_packet_reset(&p);
 
     printf("ok - WORLDENTITY_INFO spawn trailer (sizes, absolute transform, seq)\n");
 }

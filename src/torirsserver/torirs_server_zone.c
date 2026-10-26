@@ -2096,7 +2096,7 @@ deck_zone_flush_one(struct ToriRSServerPlayer* player, struct ToriRSServerVessel
                         continue;
                     if( !sandwich_open )
                     {
-                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, ToriRSServer_VesselDeckPlane(deck));
                         sandwich_open = 1;
                     }
                     /* View-relative: inside the sandwich the client resolves
@@ -2118,7 +2118,7 @@ deck_zone_flush_one(struct ToriRSServerPlayer* player, struct ToriRSServerVessel
                 {
                     if( !sandwich_open )
                     {
-                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, ToriRSServer_VesselDeckPlane(deck));
                         sandwich_open = 1;
                     }
                     ToriRSServer_SendZoneEnclosedAt(player, zone_x, zone_z, level,
@@ -2144,7 +2144,7 @@ deck_zone_flush_one(struct ToriRSServerPlayer* player, struct ToriRSServerVessel
                     else continue; /* Already in the shared blob. */
                     if( !sandwich_open )
                     {
-                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, deck->level);
+                        ToriRSServer_SendSetActiveWorldId(player, deck->view_id, ToriRSServer_VesselDeckPlane(deck));
                         sandwich_open = 1;
                     }
                     if( ToriRSServer_ZoneSubStandalone(srv->wire, event->kind) )
@@ -2174,17 +2174,19 @@ static void
 deck_zone_flush(struct ToriRSServerPlayer* player)
 {
     struct ToriRSServer* srv = player->world;
-    unsigned live_views = 0;
+    /* One bit per view id, 1..TORIRSSERVER_WEV_VIEW_MAX. */
+    uint64_t live_views = 0;
+    _Static_assert(TORIRSSERVER_WEV_VIEW_MAX < 64, "live_views holds one bit per view id");
     for( int i = 0; i < player->wev_tracked_count; ++i )
     {
         int view = player->wev_view_ids[i];
         struct ToriRSServerVessel* deck = ToriRSServer_VesselByView(srv, view);
         if( !deck || deck->serial != player->wev_serials[i] ) continue;
-        live_views |= 1u << view;
+        live_views |= 1ull << view;
         deck_zone_flush_one(player, deck);
     }
     for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; ++view )
-        if( !(live_views & (1u << view)) ) player->deck_zone_serials[view] = 0;
+        if( !(live_views & (1ull << view)) ) player->deck_zone_serials[view] = 0;
 }
 
 /*

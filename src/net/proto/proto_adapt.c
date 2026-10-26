@@ -112,22 +112,52 @@ we_ext(
  * The stream's list into the canonical arm, which was shaped by 239+ (struct
  * PktWorldEntityInfo): V3 / V4 spawns carry no config id or priority (-1 here,
  * which the executor refuses to spawn) and their level and V4's centre offsets
- * have no field. 1 when the stream read whole and fits the arm.
+ * have no field. 1 when the stream read whole.
+ *
+ * Both arrays are sized to the frame, not to the client: a busy world sends
+ * 25 hulls a tick (RSProx 4281), and a bound here refused the WHOLE frame --
+ * the player's own boat with the rest -- so the client never learned a hull
+ * existed. What the client cannot host is refused one hull at a time where the
+ * view is built (App_WevSpawn). On a 0 return the caller's gameproto_free
+ * releases whatever was allocated.
  */
 int
 adapt_worldentity_info(RsprotWorldEntityInfoReadFn read, uint8_t const* data, int len, struct RevPacket* out)
 {
-    /* A g1 count of entries and spawns of at least ten bytes each: the arm's
-     * fifteen run out long before these do. */
+    /* A g1 count of entries plus spawns of at least ten bytes each. */
     static RsprotInfoOp ops[512];
     static uint8_t bytes[1];
     struct PktWorldEntityInfo* p = &out->_worldentity_info;
     RsprotInfoList list;
+    int spawns = 0;
 
     assert(read);
     memset(p, 0, sizeof(*p));
     rsprot_info_list_init(&list, ops, (int)(sizeof(ops) / sizeof(ops[0])), bytes, sizeof(bytes));
     read(data, len, &list);
+    if( !rsprot_info_list_complete(&list) )
+        return 0;
+    for( int i = 0; i < list.count; i++ )
+    {
+        if( ops[i].kind == RSPROT_OP_WE_COUNT )
+            p->count = (int)ops[i].value;
+        else if( ops[i].kind == RSPROT_OP_WE_ADD )
+            spawns++;
+    }
+    if( p->count > 0 )
+    {
+        p->updates = (struct PktWevUpdate*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)p->count * sizeof(*p->updates));
+        assert(p->updates);
+        memset(p->updates, 0, (size_t)p->count * sizeof(*p->updates));
+    }
+    if( spawns > 0 )
+    {
+        p->spawns = (struct PktWevSpawn*)ToriMem_Alloc(
+            ToriMem_Net(), (size_t)spawns * sizeof(*p->spawns));
+        assert(p->spawns);
+        memset(p->spawns, 0, (size_t)spawns * sizeof(*p->spawns));
+    }
     for( int i = 0; i < list.count; i++ )
     {
         RsprotInfoOp const* l = &ops[i];
@@ -136,20 +166,15 @@ adapt_worldentity_info(RsprotWorldEntityInfoReadFn read, uint8_t const* data, in
 
         switch( l->kind )
         {
-        case RSPROT_OP_WE_COUNT:
-            /* At most 15 entities exist client-side: a longer list is a
-             * malformed frame (struct PktWorldEntityInfo). */
-            if( l->value > PKT_WEV_INFO_MAX )
-                return 0;
-            p->count = (int)l->value;
-            break;
         case RSPROT_OP_WE_REMOVE:
+            assert(l->who < p->count);
             p->updates[l->who].op = PKT_WEV_OP_DESPAWN;
             p->updates[l->who].op_mask = PKT_WEV_OP_MASK_ALL;
             p->updates[l->who].seq_id = -1;
             break;
         case RSPROT_OP_WE_IDLE:
         case RSPROT_OP_WE_MOVE:
+            assert(l->who < p->count);
             u = &p->updates[l->who];
             u->op = l->kind == RSPROT_OP_WE_IDLE ? PKT_WEV_OP_FLAGS
                     : l->we_move.teleport        ? PKT_WEV_OP_SNAP
@@ -162,12 +187,8 @@ adapt_worldentity_info(RsprotWorldEntityInfoReadFn read, uint8_t const* data, in
                    &u->seq_id, &u->seq_delay);
             break;
         case RSPROT_OP_WE_ADD:
-            if( p->spawn_count >= PKT_WEV_INFO_MAX )
-                return 0;
-            /* An id or size this client cannot host is still the wire's:
-             * the spawn is refused one entity at a time where the view is
-             * built (App_WevSpawn), not by dropping the frame -- Jagex sends
-             * world-entity ids past our 15-view registry. */
+            /* `who` is the server's global world-entity id (0..4095 in the
+             * recordings), not a view slot: the exec maps it. */
             sp = &p->spawns[p->spawn_count++];
             sp->id = l->who;
             sp->config_id = l->we_add.id;
@@ -185,7 +206,7 @@ adapt_worldentity_info(RsprotWorldEntityInfoReadFn read, uint8_t const* data, in
             break;
         }
     }
-    return rsprot_info_list_complete(&list);
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -566,25 +587,29 @@ adapt_update_stockmarket_slot_v1(MsgUpdateStockmarketSlotV1 const* m, struct Rev
     return 1;
 }
 
-/* 227-228's form names the root by a type byte. The canonical struct says
- * root with 0. */
+/* 227-228's form names the root by a type byte; the index beside it is a
+ * world-entity id, 0 included. The canonical struct says root with
+ * WORLDVIEW_WIRE_ROOT (-1). */
 int
 adapt_set_active_world_v1(MsgSetActiveWorldV1 const* m, struct RevPacket* out)
 {
-    out->_set_active_world.world_id = m->type == 0 ? 0 : m->index;
+    out->_set_active_world.world_id = m->type == 0 ? -1 : m->index;
     out->_set_active_world.level = m->active_level;
     return 1;
 }
 
-/* 229+ name it by index: -1 for the root below 237 and 0 from it (RSProx
- * SetActiveWorldV2 folds 0 to -1). Both fold to the canonical 0. */
+/* 229+ name it by index: -1 for the root below 237, where a hull can be id 0
+ * (RSProx 4281, rev 235, spawns one), and 0 from 237, where the root took that
+ * id (RSProx SetActiveWorldV2Decoder: "237 made toplevel/root world into id
+ * 0"). Both fold to the canonical -1, so a rev-235 hull 0 is never the root. */
 int
 adapt_set_active_world_v2(int revision, MsgSetActiveWorldV2 const* m, struct RevPacket* out)
 {
     int index = (int16_t)m->index;
 
-    (void)revision;
-    out->_set_active_world.world_id = index < 0 ? 0 : index;
+    if( revision >= 237 && index == 0 )
+        index = -1;
+    out->_set_active_world.world_id = index;
     out->_set_active_world.level = m->active_level;
     return 1;
 }

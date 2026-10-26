@@ -182,12 +182,15 @@ struct ScriptrunLoc
  */
 enum
 {
-    SCRIPTRUN_VIEWS = 16, /* WORLDVIEW_MAX: id 0 is the root */
+    SCRIPTRUN_VIEWS = 64, /* WORLDVIEW_MAX: local slots, slot 0 is the root */
 };
 
 struct ScriptrunView
 {
     int live;
+    /* The server's world-entity id; the array index is a local slot, as the
+     * client's WorldviewRegistry keeps it (worldview.h). */
+    int wire_id;
     int config_id;
     int size_x, size_z; /* deck extent, tiles */
     int priority_group;

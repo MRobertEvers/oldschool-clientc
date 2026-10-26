@@ -378,7 +378,7 @@ app_wev_debug_enabled(void)
 struct Wev*
 App_WevSpawn(
     struct App* app,
-    int id,
+    int wire_id,
     int config_id,
     int size_x_tiles,
     int size_z_tiles,
@@ -391,14 +391,15 @@ App_WevSpawn(
     struct World* world;
     struct WorldBuilder* builder;
     struct WevConfig const* config;
+    int id;
 
     assert(app);
     if( app_wev_debug_enabled() )
         fprintf(
             stderr,
-            "wev: SPAWN id=%d config=%d size=%dx%d prio=%d fine=%d,%d angle=%d "
+            "wev: SPAWN wire=%d config=%d size=%dx%d prio=%d fine=%d,%d angle=%d "
             "op_mask=0x%x\n",
-            id,
+            wire_id,
             config_id,
             size_x_tiles,
             size_z_tiles,
@@ -420,21 +421,34 @@ App_WevSpawn(
      * the config table (or the rebuild's 13x13 descriptor grid, one packet
      * later) out of bounds. Refusing returns NULL; the exec skips the
      * spawn. */
-    if( id <= WORLDVIEW_ROOT || id >= WORLDVIEW_MAX ||
-        !WevConfigTable_Has(&app->wev_configs, config_id) || size_x_tiles <= 0 ||
-        size_z_tiles <= 0 || size_x_tiles / 8 > WORLD_INSTANCE_ZONES ||
+    if( wire_id == WORLDVIEW_WIRE_ROOT || !WevConfigTable_Has(&app->wev_configs, config_id) ||
+        size_x_tiles <= 0 || size_z_tiles <= 0 || size_x_tiles / 8 > WORLD_INSTANCE_ZONES ||
         size_z_tiles / 8 > WORLD_INSTANCE_ZONES )
     {
         fprintf(
             stderr,
-            "wev: SPAWN refused id=%d config=%d size=%dx%d (bad wire values)\n",
-            id,
+            "wev: SPAWN refused wire=%d config=%d size=%dx%d (bad wire values)\n",
+            wire_id,
             config_id,
             size_x_tiles,
             size_z_tiles);
         return NULL;
     }
     config = WevConfigTable_Get(&app->wev_configs, config_id);
+    /* The wire id is the server's global index for the hull; the view lives
+     * in whichever local slot is free. Every slot taken is more hulls in view
+     * than this client holds -- wire data past our capacity, refused loudly
+     * one hull at a time rather than by dropping the whole frame. */
+    id = WorldviewRegistry_FreeSlot(&app->worldviews);
+    if( id == WORLDVIEW_SLOT_NONE )
+    {
+        fprintf(
+            stderr,
+            "wev: SPAWN refused wire=%d: all %d view slots are live\n",
+            wire_id,
+            WORLDVIEW_MAX - 1);
+        return NULL;
+    }
 
     /*
      * Recon OQ4: element ids are scene-global — every view's terrain and
@@ -502,10 +516,34 @@ App_WevSpawn(
      * in base_x/base_z. Until then the view's membership box sits at (0,0)
      * with only its size known. */
     WorldviewRegistry_Register(
-        &app->worldviews, id, world, builder, 0, 0, size_x_tiles, size_z_tiles, app->active_world);
+        &app->worldviews,
+        id,
+        wire_id,
+        world,
+        builder,
+        0,
+        0,
+        size_x_tiles,
+        size_z_tiles,
+        app->active_world);
 
-    return Wevs_Spawn(
-        &app->wevs, id, app->active_world, config, config_id, x, z, angle, priority_group, op_mask);
+    {
+        struct Wev* wev = Wevs_Spawn(
+            &app->wevs, id, app->active_world, config, config_id, x, z, angle, priority_group,
+            op_mask);
+        /* The carrier floats on its parent's level: the spawn record executes
+         * under the parent's cursor, and the parent's own level (deob
+         * class100.field1400) is what that cursor's SET_ACTIVE_WORLD named.
+         * Mirrored onto the Wev for its height sampling (Wevs_UpdateHeights,
+         * in wev.c, has no worldview.h). */
+        int const parent_level =
+            WorldviewRegistry_Get(&app->worldviews, app->active_world)->level;
+
+        WorldviewRegistry_Get(&app->worldviews, id)->parent_level = parent_level;
+        if( wev )
+            wev->parent_level = parent_level;
+        return wev;
+    }
 }
 
 void
@@ -544,6 +582,12 @@ App_WevDespawn(
     RS_EntitySync_ClearViewNpcs(&app->esync, app->world, id);
 
     Wevs_Despawn(&app->wevs, id);
+    /* The slot goes back to the pool and the next hull it is given is a
+     * different world-entity: the modes SET_INTERACTION_MODE gave this one
+     * must not carry over to it (the deob keys them by the wire id, which
+     * leaves with the hull). */
+    app->interaction_tile[id] = -1;
+    app->interaction_entity[id] = -1;
 
     view = WorldviewRegistry_Get(&app->worldviews, id);
     /* The scene outlives the view. Freeing the World reclaims the deck's
@@ -1286,6 +1330,38 @@ app_wev_route_actors(struct App* app)
 
         if( !player || player->element_id < 0 )
             continue;
+        /*
+         * Membership, recomputed every tick from the wire's absolute tile
+         * (deob class109.method3807 → method3823: every view's rectangle
+         * against every player). A coordinate is only rebased when it ARRIVES
+         * (task_exec_entity_info.c), and the view that holds it may not exist
+         * yet: RSProx 4281 logs in standing on a deck whose hull spawns, and
+         * whose deck rebuilds, later in the same tick -- and the recorder then
+         * stands still for six hours. A rectangle that appears, moves or goes
+         * away under a still actor re-homes it here, as it does in the deob.
+         */
+        if( player->view_placement.has_abs )
+        {
+            int local_x;
+            int local_z;
+            int want = WorldviewRegistry_HomeViewForAbsTile(
+                &app->worldviews,
+                player->view_placement.abs_x,
+                player->view_placement.abs_z,
+                &local_x,
+                &local_z);
+
+            if( want != player->view_placement.home_view )
+            {
+                if( want == WORLDVIEW_ROOT )
+                {
+                    local_x = player->view_placement.abs_x - (app->rebuild_zone_x - 6) * 8;
+                    local_z = player->view_placement.abs_z - (app->rebuild_zone_z - 6) * 8;
+                }
+                player->view_placement.home_view = want;
+                World_PlayerPathJump(world, pi, true, local_x, local_z);
+            }
+        }
         if( player->view_placement.home_view != 0 &&
             !WorldviewRegistry_IsLive(&app->worldviews, player->view_placement.home_view) )
             /* Their hull despawned. The stored view-local coordinates mean
