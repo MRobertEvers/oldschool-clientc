@@ -12,6 +12,7 @@
  */
 
 #include "game/rs_cs2_host.h"
+#include "net/rev/revpacket.h"
 #include "mem/torirs_mem.h"
 
 #include "cs2vm2/cs2_opcode.h"
@@ -33,120 +34,51 @@ script_error(int opcode, char const* why)
 
 /* ---- the list ---------------------------------------------------------------- */
 
-struct MarketReader
-{
-    uint8_t const* data;
-    int length;
-    int position;
-    bool failed;
-};
-
-static int
-g1(struct MarketReader* r)
-{
-    if( r->failed || r->position + 1 > r->length )
-    {
-        r->failed = true;
-        return 0;
-    }
-    return r->data[r->position++];
-}
-
-static int
-g2(struct MarketReader* r)
-{
-    int const hi = g1(r);
-    return (hi << 8) | g1(r);
-}
-
-static int
-g4(struct MarketReader* r)
-{
-    uint32_t const hi = (uint32_t)g2(r);
-    uint32_t const lo = (uint32_t)g2(r);
-    return (int)((hi << 16) | lo);
-}
-
-static int64_t
-g8(struct MarketReader* r)
-{
-    uint64_t const hi = (uint32_t)g4(r);
-    uint64_t const lo = (uint32_t)g4(r);
-    return (int64_t)((hi << 32) | lo);
-}
-
-static void
-gjstr(struct MarketReader* r, char* out, int cap)
-{
-    int written = 0;
-    for( ;; )
-    {
-        int const c = g1(r);
-        if( r->failed || c == 0 )
-            break;
-        if( written + 1 < cap )
-            out[written++] = (char)c;
-    }
-    out[written] = '\0';
-}
-
-bool
+/* The list the decoded UPDATE_TRADINGPOST carries (_V1 and _V2 alike: RSProt
+ * reads both, proto_adapt.c fills one struct). Replaces the list whole. */
+void
 RS_CS2Host_ApplyTradingPost(
     struct RS_CS2Host* host,
-    uint8_t const* data,
-    int length,
+    struct PktUpdateTradingPost const* list,
     int64_t now_ms)
 {
     assert(host);
-    assert(data || length == 0);
+    assert(list);
     struct RS_CS2TradingPost* const post = &host->trading_post;
-    struct MarketReader r = { data, length, 0, false };
 
-    bool const present = g1(&r) == 1;
-    if( r.failed )
-        return false;
-    if( !present )
+    if( !list->present )
     {
         post->present = false;
         post->count = 0;
-        return true;
+        return;
     }
-
-    int64_t const server_ms = g8(&r);
-    int const obj = g2(&r);
-    bool const sell = g1(&r) == 1;
-    int const count = g2(&r);
-    if( r.failed )
-        return false;
 
     struct RS_CS2TradingPostOffer* const offers =
-        count > 0 ? ToriMem_Alloc(ToriMem_Script(), (size_t)count * sizeof(offers[0])) : NULL;
-    assert(count == 0 || offers);
-    for( int i = 0; i < count; i++ )
+        list->count > 0 ? ToriMem_Alloc(ToriMem_Script(), (size_t)list->count * sizeof(offers[0]))
+                        : NULL;
+    assert(list->count == 0 || offers);
+    for( int i = 0; i < list->count; i++ )
     {
+        struct PktTradingPostOffer const* in = &list->offers[i];
         struct RS_CS2TradingPostOffer* const offer = &offers[i];
-        gjstr(&r, offer->name, sizeof(offer->name));
-        gjstr(&r, offer->previous_name, sizeof(offer->previous_name));
-        offer->world = g2(&r);
-        offer->time_ms = g8(&r);
-        offer->price = g4(&r);
-        offer->count = g4(&r);
-    }
-    if( r.failed )
-    {
-        ToriMem_Free(ToriMem_Script(), offers);
-        return false;
+        snprintf(offer->name, sizeof(offer->name), "%s", in->name);
+        snprintf(offer->previous_name, sizeof(offer->previous_name), "%s", in->previous_name);
+        offer->world = in->world;
+        offer->time_ms = in->time_ms;
+        /* The 239 client's price is an int; 241 widened the wire, not the
+         * commands that read it. No offer is worth more than a stack of coins. */
+        offer->price = (int)in->price;
+        offer->count = in->count;
     }
 
     ToriMem_Free(ToriMem_Script(), post->offers);
     post->offers = offers;
-    post->count = count;
-    post->cap = count;
+    post->count = list->count;
+    post->cap = list->count;
     post->present = true;
-    post->obj = obj;
-    post->sell = sell;
-    post->clock_offset_ms = now_ms - server_ms;
-    return true;
+    post->obj = list->obj;
+    post->sell = list->sell != 0;
+    post->clock_offset_ms = now_ms - list->server_ms;
 }
 
 /* ---- sorting ------------------------------------------------------------------ */

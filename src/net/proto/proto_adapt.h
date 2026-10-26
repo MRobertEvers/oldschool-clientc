@@ -214,6 +214,25 @@
 #include "packets/update_zone_full_follows_rs.h"
 #include "packets/update_zone_partial_enclosed_rs.h"
 #include "packets/update_zone_partial_follows_rs.h"
+#include "packets/send_ping.h"
+#include "packets/chat_filter_settings_privatechat.h"
+#include "packets/unknown_string.h"
+#include "packets/reflection_checker.h"
+#include "packets/logout_withreason.h"
+#include "packets/packet_group_start.h"
+#include "packets/set_interaction_mode.h"
+#include "packets/reset_interaction_mode.h"
+#include "packets/npc_headicon_specific.h"
+#include "packets/obj_add_specific.h"
+#include "packets/obj_del_specific.h"
+#include "packets/obj_count_specific.h"
+#include "packets/site_settings.h"
+#include "packets/clear_entities.h"
+#include "packets/zbuf.h"
+#include "packets/logout_transfer.h"
+#include "packets/group_full.h"
+#include "packets/update_stockmarket_slot_v2.h"
+#include "packets/update_tradingpost_v2.h"
 
 #include <stdint.h>
 
@@ -389,7 +408,47 @@ adapt_clansettings_full(uint8_t const* data, int len, struct RevPacket* out);
 int
 adapt_clansettings_delta(uint8_t const* data, int len, struct RevPacket* out);
 int
-adapt_update_tradingpost_v1(uint8_t const* data, int len, struct RevPacket* out);
+adapt_update_tradingpost_v1(MsgUpdateTradingpostV1 const* m, struct RevPacket* out);
+int
+adapt_update_tradingpost_v2(MsgUpdateTradingpostV2 const* m, struct RevPacket* out);
+int
+adapt_update_stockmarket_slot_v2(MsgUpdateStockmarketSlotV2 const* m, struct RevPacket* out);
+
+/* --- the prots a replay used to drop ---------------------------------------- */
+int
+adapt_send_ping(MsgSendPing const* m, struct RevPacket* out);
+int
+adapt_chat_filter_settings_privatechat(MsgChatFilterSettingsPrivateChat const* m, struct RevPacket* out);
+int
+adapt_unknown_string(MsgUnknownString const* m, struct RevPacket* out);
+int
+adapt_reflection_checker(MsgReflectionChecker const* m, struct RevPacket* out);
+int
+adapt_logout_withreason(MsgLogoutWithReason const* m, struct RevPacket* out);
+int
+adapt_packet_group_start(MsgPacketGroupStart const* m, struct RevPacket* out);
+int
+adapt_set_interaction_mode(MsgSetInteractionMode const* m, struct RevPacket* out);
+int
+adapt_reset_interaction_mode(MsgResetInteractionMode const* m, struct RevPacket* out);
+int
+adapt_npc_headicon_specific(MsgNpcHeadIconSpecific const* m, struct RevPacket* out);
+int
+adapt_obj_add_specific(MsgObjAddSpecific const* m, struct RevPacket* out);
+int
+adapt_obj_del_specific(MsgObjDelSpecific const* m, struct RevPacket* out);
+int
+adapt_obj_count_specific(MsgObjCountSpecific const* m, struct RevPacket* out);
+int
+adapt_site_settings(MsgSiteSettings const* m, struct RevPacket* out);
+int
+adapt_clear_entities(MsgClearEntities const* m, struct RevPacket* out);
+int
+adapt_zbuf(MsgZBuf const* m, struct RevPacket* out);
+int
+adapt_logout_transfer(MsgLogoutTransfer const* m, struct RevPacket* out);
+int
+adapt_group_full(uint8_t const* data, int len, struct RevPacket* out);
 
 /* --- camera ---------------------------------------------------------------- */
 

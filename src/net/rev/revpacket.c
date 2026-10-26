@@ -123,10 +123,24 @@ gameproto_free(struct RevPacket* p)
     case PKT_NAME_CLANCHANNEL_DELTA:
     case PKT_NAME_CLANSETTINGS_FULL:
     case PKT_NAME_CLANSETTINGS_DELTA:
-    case PKT_NAME_UPDATE_TRADINGPOST:
+    case PKT_NAME_GROUP_FULL:
         ToriMem_Free(ToriMem_Net(), p->_raw_payload.data);
         p->_raw_payload.data = NULL;
         p->_raw_payload.length = 0;
+        break;
+    case PKT_NAME_UPDATE_TRADINGPOST:
+        ToriMem_Free(ToriMem_Net(), p->_update_tradingpost.offers);
+        p->_update_tradingpost.offers = NULL;
+        p->_update_tradingpost.count = 0;
+        break;
+    case PKT_NAME_UNKNOWN_STRING:
+    case PKT_NAME_SITE_SETTINGS:
+        ToriMem_Free(ToriMem_Net(), p->_text.text);
+        p->_text.text = NULL;
+        break;
+    case PKT_NAME_LOGOUT_TRANSFER:
+        ToriMem_Free(ToriMem_Net(), p->_logout_transfer.host);
+        p->_logout_transfer.host = NULL;
         break;
     case PKT_NAME_MESSAGE_CLANCHANNEL:
     case PKT_NAME_MESSAGE_CLANCHANNEL_SYSTEM:

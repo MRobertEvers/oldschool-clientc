@@ -573,6 +573,61 @@ menu_npc_row_count(struct UIMinimenu const* menu)
     return n;
 }
 
+/* SET_INTERACTION_MODE on the root view (deob Statics.method6243 over
+ * class500): entity mode 2 leaves an npc its Examine and drops its ops, mode 0
+ * leaves it nothing, and tile mode 0 takes "Walk here" away. */
+static int
+interaction_menu_rows(int tile_mode, int entity_mode, bool* has_talk, bool* has_examine,
+                      bool* has_walk)
+{
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct World* world = World_TestMakeReady(104);
+    int n0 = World_NpcSpawn(world, 101, 500, 0, 25, 25, 1, idle);
+    struct WorldEntity_NPC* npc = World_EntityPoolGet(&world->entities.npc, n0);
+    snprintf(npc->name, sizeof(npc->name), "Goblin");
+    snprintf(npc->actions[0].name, sizeof(npc->actions[0].name), "Talk-to");
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 101, WORLD_PICK_NPC, 25, 25, 0, 0);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    RS_Minimenu_SetInteractionModes(&ctx.selection, tile_mode, entity_mode, true);
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+    *has_talk = menu_has_substr(&menu, "Talk-to @yel@Goblin");
+    *has_examine = menu_has_substr(&menu, "Examine @yel@Goblin");
+    *has_walk = menu_has_substr(&menu, "Walk here");
+    World_Free(world);
+    return 0;
+}
+
+static void
+test_interaction_modes_filter_root_rows(void)
+{
+    bool talk;
+    bool examine;
+    bool walk;
+
+    printf("TEST: interaction modes filter the root view's rows\n");
+    interaction_menu_rows(1, 1, &talk, &examine, &walk);
+    TEST_ASSERT(talk && examine && walk, "the default mode offers everything");
+    interaction_menu_rows(1, 2, &talk, &examine, &walk);
+    TEST_ASSERT(!talk && examine, "entity mode 2: Examine, no ops");
+    interaction_menu_rows(1, 0, &talk, &examine, &walk);
+    TEST_ASSERT(!talk && !examine, "entity mode 0: nothing");
+    interaction_menu_rows(1, 3, &talk, &examine, &walk);
+    TEST_ASSERT(talk && examine, "entity mode 3, standing on the root: everything");
+    interaction_menu_rows(0, 1, &talk, &examine, &walk);
+    TEST_ASSERT(!walk && talk, "tile mode 0: no Walk here, ops unchanged");
+}
+
 static void
 test_local_player_pick_expands_stacked_npcs(void)
 {
@@ -1847,6 +1902,7 @@ main(void)
     test_if3_target_row_after_reset_sits_at_slot_four();
     test_player_get_by_element_id();
     test_local_player_pick_expands_stacked_npcs();
+    test_interaction_modes_filter_root_rows();
     test_other_player_stack_rows();
     test_target_mask_gates_the_armed_player_row();
     test_local_player_pick_expands_ground_items();

@@ -609,6 +609,8 @@ App_Init(
     UIInvDrag_Reset(&app->inv_drag);
     app->reboot_timer = 0;
     app->multiway = 0;
+    App_InteractionModesReset(app);
+    app->server_zbuf = -1;
     app->minimap_state = 0;
     app->cam_unlock = 0;
     memset(&app->welcome, 0, sizeof(app->welcome));

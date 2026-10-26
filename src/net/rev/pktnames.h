@@ -263,7 +263,7 @@ enum GameProtoPktName
     /* g1 slot, g1s status, g2 obj, g4 price, g4 count, g4 completed count,
      * g4 completed gold; status 0 is an empty slot and the rest is padding. */
     PKT_NAME_UPDATE_STOCKMARKET_SLOT,
-    /* Raw: the trading-post offer list (RS_CS2Host_ApplyTradingPost). */
+    /* The trading-post offer list (struct PktUpdateTradingPost). */
     PKT_NAME_UPDATE_TRADINGPOST,
     /* One boolean each (RSProt HideNpcOps/HideLocOps/HideObjOpsEncoder): while
      * set, that kind's world menu offers only Examine -- no ops, no "Use ...
@@ -306,6 +306,24 @@ enum GameProtoPktName
 
     /* The eye eased along an arc (struct PktCamMoveToArc). Appended likewise. */
     PKT_NAME_CAM_MOVETO_ARC,
+
+    /* Appended likewise: the prots a replay used to frame and drop. */
+    PKT_NAME_SEND_PING,              /* struct PktSendPing: answered by SEND_PING_REPLY */
+    PKT_NAME_UNKNOWN_STRING,         /* struct PktText: kept, as the client keeps it */
+    PKT_NAME_REFLECTION_CHECKER,     /* no payload kept: a JVM probe this client cannot run */
+    PKT_NAME_LOGOUT_WITHREASON,      /* struct PktLogoutWithReason */
+    PKT_NAME_PACKET_GROUP_START,     /* struct PktPacketGroupStart */
+    PKT_NAME_SET_INTERACTION_MODE,   /* struct PktInteractionMode */
+    PKT_NAME_RESET_INTERACTION_MODE, /* struct PktInteractionMode, modes -1 */
+    PKT_NAME_NPC_HEADICON_SPECIFIC,  /* struct PktNpcHeadiconSpecific */
+    PKT_NAME_OBJ_ADD_SPECIFIC,       /* struct PktObjSpecific */
+    PKT_NAME_OBJ_DEL_SPECIFIC,       /* struct PktObjSpecific */
+    PKT_NAME_OBJ_COUNT_SPECIFIC,     /* struct PktObjSpecific */
+    PKT_NAME_SITE_SETTINGS,          /* struct PktText */
+    PKT_NAME_CLEAR_ENTITIES,         /* no payload */
+    PKT_NAME_ZBUF,                   /* struct PktZBuf */
+    PKT_NAME_LOGOUT_TRANSFER,        /* struct PktLogoutTransfer */
+    PKT_NAME_GROUP_FULL,             /* struct PktRawPayload */
 
     PKT_NAME_COUNT
 };
@@ -482,6 +500,9 @@ enum GameProtoPktOutName
     PKTOUT_NAME_CLANCHANNEL_KICKUSER,
     PKTOUT_NAME_AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL,
     PKTOUT_NAME_AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL,
+
+    /* The answer to SEND_PING: its two values back, with the frame rate. */
+    PKTOUT_NAME_SEND_PING_REPLY,
 
     PKTOUT_NAME_COUNT
 };

@@ -110,6 +110,12 @@ struct ProtoOutArgs
     int32_t huffman_length;
     uint8_t const* copy;
     int32_t copy_length;
+    /* SEND_PING_REPLY: the ping's two values back, with the frame rate and
+     * the share of time spent collecting garbage (none here). */
+    int32_t value1;
+    int32_t value2;
+    int32_t fps;
+    int32_t gc_percent_time;
 };
 
 /** 1 when `rev` writes its client packets through an executor (proto_encode). */

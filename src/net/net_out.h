@@ -49,6 +49,17 @@ int
 net_out_map_build_complete(
     struct GameProtoRevTable const* rev, struct Isaac* random_out, uint8_t* buf, int cap);
 
+/** SEND_PING_REPLY: the ping's two values back, with the frame rate. */
+int
+net_out_send_ping_reply(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int value1,
+    int value2,
+    int fps);
+
 /** WINDOW_STATUS: Display layout mode 0/1/2 + canvas size; encoded per revision. */
 int
 net_out_window_status(

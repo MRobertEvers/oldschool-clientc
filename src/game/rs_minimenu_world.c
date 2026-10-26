@@ -190,6 +190,58 @@ npc_attack_row_deprioritizes(
            npc->combat_level > viewer_combat_level;
 }
 
+/*
+ * SET_INTERACTION_MODE's entity filter (deob Statics.method6243 over class500).
+ * Each entity mode is four masks -- loc, obj, npc, player (class500.field5959 /
+ * 5954 / 5955 / 5956) -- tested against the row's world: an op row by
+ * method11030 (1 root, 8 a hull's world else 32, 128 the local player's
+ * world), an Examine by method11025 (2 root, 16 a hull's world else 64, 256 the
+ * local player's world). This fills the ROOT view's answers.
+ */
+static int const k_interaction_masks[4][4] = {
+    { 0, 0, 0, 0 },         /* class500.field5952 */
+    { 507, 507, 507, 507 }, /* field5949, the default */
+    { 338, 338, 338, 507 }, /* field5950 */
+    { 499, 499, 499, 507 }, /* field5951 */
+};
+
+void
+RS_Minimenu_SetInteractionModes(
+    struct RS_MinimenuSelection* sel,
+    int tile_mode,
+    int entity_mode,
+    bool local_on_root)
+{
+    int const op_bits = 1 | 32 | (local_on_root ? 128 : 0);
+    int const examine_bits = 2 | 64 | (local_on_root ? 256 : 0);
+
+    assert(sel);
+    assert(tile_mode >= 0 && tile_mode <= 2);
+    assert(entity_mode >= 0 && entity_mode <= 3);
+    /* class108: tile mode 1 adds "Walk here"; 2 is the sail-heading control,
+     * 0 nothing. */
+    sel->root_walk_denied = tile_mode != 1;
+    for( int kind = 0; kind < 4; kind++ )
+    {
+        sel->root_ops_denied[kind] = (k_interaction_masks[entity_mode][kind] & op_bits) == 0;
+        sel->root_examine_denied[kind] =
+            (k_interaction_masks[entity_mode][kind] & examine_bits) == 0;
+    }
+}
+
+static bool
+interaction_allows(
+    struct RS_MinimenuSelection const* sel,
+    int view_id,
+    enum RS_MinimenuInteractionKind kind,
+    bool examine)
+{
+    assert(sel);
+    if( view_id != 0 )
+        return true;
+    return examine ? !sel->root_examine_denied[kind] : !sel->root_ops_denied[kind];
+}
+
 static void
 add_npc_rows(
     struct UIMinimenu* menu,
@@ -212,6 +264,8 @@ add_npc_rows(
 
     if( npc->multinpc_hidden )
         return;
+    bool const ops_ok = interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_NPC, false);
+    bool const examine_ok = interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_NPC, true);
 
     /* Colour the level by its distance from the local player's combat level
      * (reference addNpcOptions:9695 — `name + combatColourCode(localPlayer,
@@ -230,9 +284,9 @@ add_npc_rows(
 
     /* Hidden ops (sel->hide_npc_ops): Examine alone, and nothing at all while a
      * spell is armed (deob Statics npc builder; RS_MinimenuSelection). */
-    if( sel->hide_npc_ops )
+    if( sel->hide_npc_ops || !ops_ok )
     {
-        if( sel->mode == RS_MINIMENU_SELECT_TARGET )
+        if( sel->mode == RS_MINIMENU_SELECT_TARGET || !examine_ok )
             return;
         snprintf(text, sizeof(text), "Examine @yel@%s", tooltip);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
@@ -285,6 +339,8 @@ add_npc_rows(
         }
     }
 
+    if( !examine_ok )
+        return;
     snprintf(text, sizeof(text), "Examine @yel@%s", tooltip);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
 }
@@ -603,12 +659,15 @@ add_scenery_rows(
         .view_id = picked->view_id,
     };
 
-    /* Hidden ops (sel->hide_loc_ops): the deob's `!hidden &&` guards skip the
+    bool const hide_ops =
+        sel->hide_loc_ops || !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_LOC, false);
+
+    /* Hidden ops (sel->hide_loc_ops, or an interaction mode): the deob's `!hidden &&` guards skip the
      * Use row, the target row and every op; with a spell armed nothing is
      * added, otherwise the menu falls through to Examine (class108). */
-    if( sel->hide_loc_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
+    if( hide_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
         return;
-    if( !sel->hide_loc_ops &&
+    if( !hide_ops &&
         add_world_select_row(
             menu, sel, pick, "@cya@", name, 0x4, REVCONFIG_MINIMENU_USEHELD_ONLOC,
             REVCONFIG_MINIMENU_TGT_LOC) )
@@ -617,7 +676,7 @@ add_scenery_rows(
     if( WorldEntity_SceneryDebugEnabled() )
         add_scenery_debug_row(menu, world, scenery);
 
-    for( int i = 4; i >= 0 && !sel->hide_loc_ops; i-- )
+    for( int i = 4; i >= 0 && !hide_ops; i-- )
     {
         if( scenery->info->actions[i].name[0] == '\0' )
             continue;
@@ -626,6 +685,8 @@ add_scenery_rows(
         UIMinimenu_AddOption(menu, text, oploc_action_for_slot(i), i, pick);
     }
 
+    if( !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_LOC, true) )
+        return;
     snprintf(text, sizeof(text), "Examine @cya@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC6, 0, pick);
 
@@ -678,17 +739,20 @@ add_obj_rows(
         .view_id = picked->view_id,
     };
 
-    /* Hidden ops (sel->hide_obj_ops): as for locs, Examine alone, or nothing
+    bool const hide_ops =
+        sel->hide_obj_ops || !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_OBJ, false);
+
+    /* Hidden ops (sel->hide_obj_ops, or an interaction mode): as for locs, Examine alone, or nothing
      * while a spell is armed (class108's `!Statics.field4203` guards). */
-    if( sel->hide_obj_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
+    if( hide_ops && sel->mode == RS_MINIMENU_SELECT_TARGET )
         return;
-    if( !sel->hide_obj_ops &&
+    if( !hide_ops &&
         add_world_select_row(
             menu, sel, pick, "@lre@", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
             REVCONFIG_MINIMENU_TGT_OBJ) )
         return;
 
-    for( int i = 4; i >= 0 && !sel->hide_obj_ops; i-- )
+    for( int i = 4; i >= 0 && !hide_ops; i-- )
     {
         if( stack->actions[i].name[0] != '\0' )
         {
@@ -702,6 +766,8 @@ add_obj_rows(
         }
     }
 
+    if( !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_OBJ, true) )
+        return;
     snprintf(text, sizeof(text), "Examine @lre@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
 }
@@ -881,6 +947,8 @@ add_player_rows(
         return;
 
     sel = &ctx->selection;
+    if( !interaction_allows(sel, picked->view_id, RS_MINIMENU_INTERACTION_PLAYER, false) )
+        return;
     viewer_combat_level = world_local_combat_level(world);
     viewer_team = world_local_team(world);
     if( player->combat_level > 0 && viewer_combat_level >= 0 )
@@ -1144,7 +1212,7 @@ RS_Minimenu_AddWorldRows(
                     lp ? (int)lp->draw_position.z : -1);
                 UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_WALK, 0, pick);
             }
-            else
+            else if( terrain->view_id != 0 || !ctx->selection.root_walk_denied )
                 UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
 
             /* Loc editor: the ground is selectable too, and by the same
@@ -1182,7 +1250,10 @@ RS_Minimenu_AddWorldRows(
                 pick.tertiary_id = ctx->ground_fallback_z;
                 pick.quaternary_id = ctx->ground_fallback_level;
             }
-            UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
+            /* SET_INTERACTION_MODE: the root offers "Walk here" in tile mode 1
+             * only (deob class108; 2 is the sail-heading control, 0 nothing). */
+            if( !ctx->selection.root_walk_denied )
+                UIMinimenu_AddOption(menu, "Walk here", REVCONFIG_MINIMENU_WALK, 0, pick);
         }
     }
 

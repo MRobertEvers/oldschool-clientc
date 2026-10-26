@@ -19,7 +19,6 @@
  *   hiscore_request.h (MsgHiscoreRequest): no argument for request_id
  *   if_crmview_op.h (MsgIfCrmViewOp): no argument for server_target, behaviour2, behaviour3, behaviour1
  *   membership_promotion_eligibility.h (MsgMembershipPromotionEligibility): no argument for eligible_for_introductory_price, eligible_for_trial_purchase
- *   send_ping_reply.h (MsgSendPingReply): no argument for fps, gc_percent_time, value1, value2
  *   sound_jingleend.h (MsgSoundJingleEnd): no argument for jingle
  *   teleport.h (MsgTeleport): no argument for oculus_sync_value, level
  *   timings.h (MsgTimings): no argument for connection_lost_duration, login_duration, unused_duration, client_state, unused1, login_count, unused2
@@ -155,6 +154,7 @@
 #include "packets/resume_p_stringdialog.h"
 #include "packets/resume_pausebutton.h"
 #include "packets/rseven_status.h"
+#include "packets/send_ping_reply.h"
 #include "packets/send_snapshot.h"
 #include "packets/set_chatfiltersettings.h"
 #include "packets/set_heading.h"
@@ -1463,6 +1463,17 @@ w_rseven_status(void* msg, struct ProtoOutArgs const* a)
     MsgRSevenStatus* m = (MsgRSevenStatus*)msg;
 
     m->packed = a->packed;
+}
+
+static inline void
+w_send_ping_reply(void* msg, struct ProtoOutArgs const* a)
+{
+    MsgSendPingReply* m = (MsgSendPingReply*)msg;
+
+    m->fps = a->fps;
+    m->gc_percent_time = a->gc_percent_time;
+    m->value1 = a->value1;
+    m->value2 = a->value2;
 }
 
 static inline void

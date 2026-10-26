@@ -2240,15 +2240,14 @@ RS_CS2Host_ExecMarketOp(
     struct CS2VM2_Thread* vm,
     struct CS2VM_HostSignatureArgs const* args);
 
-/** UPDATE_TRADINGPOST: g1 present; when 1, g8 server clock, g2 obj, g1 sell,
- *  g2 count, then per offer gjstr name, gjstr previous name, g2 world, g8 time,
- *  g4 price, g4 count. False when the payload does not decode, which leaves
- *  the list as it was. */
-bool
+struct PktUpdateTradingPost;
+
+/** UPDATE_TRADINGPOST, decoded (struct PktUpdateTradingPost): the offer list
+ *  replaces the one held, or `present` 0 drops it. */
+void
 RS_CS2Host_ApplyTradingPost(
     struct RS_CS2Host* host,
-    uint8_t const* data,
-    int length,
+    struct PktUpdateTradingPost const* list,
     int64_t now_ms);
 
 /** A login succeeded: drop the friends chat, both clans and the Grand Exchange

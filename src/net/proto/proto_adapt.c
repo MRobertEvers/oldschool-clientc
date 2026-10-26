@@ -1059,8 +1059,280 @@ adapt_clansettings_delta(uint8_t const* data, int len, struct RevPacket* out)
     return take_raw(data, len, out);
 }
 
+/* The offer list into the canonical arm: the store's (RS_CS2Host_ApplyTradingPost)
+ * only reader. A name longer than the slot is cut, as the store always did. */
+static void
+tradingpost_offer(
+    struct PktTradingPostOffer* o,
+    char const* name,
+    char const* previous_name,
+    int world,
+    int64_t time_ms,
+    int64_t price,
+    int count)
+{
+    snprintf(o->name, sizeof(o->name), "%s", name ? name : "");
+    snprintf(o->previous_name, sizeof(o->previous_name), "%s", previous_name ? previous_name : "");
+    o->world = world;
+    o->time_ms = time_ms;
+    o->price = price;
+    o->count = count;
+}
+
+static void
+tradingpost_alloc(struct PktUpdateTradingPost* p, int count)
+{
+    p->count = count;
+    if( count == 0 )
+        return;
+    p->offers = ToriMem_Calloc(ToriMem_Net(), (size_t)count, sizeof(*p->offers));
+    assert(p->offers);
+}
+
 int
-adapt_update_tradingpost_v1(uint8_t const* data, int len, struct RevPacket* out)
+adapt_update_tradingpost_v1(MsgUpdateTradingpostV1 const* m, struct RevPacket* out)
+{
+    struct PktUpdateTradingPost* p = &out->_update_tradingpost;
+
+    memset(p, 0, sizeof(*p));
+    p->present = m->set == 1;
+    if( !p->present )
+        return 1;
+    p->server_ms = m->age;
+    p->obj = m->obj;
+    p->sell = m->status == 1;
+    tradingpost_alloc(p, m->offer_count);
+    for( int i = 0; i < m->offer_count; i++ )
+    {
+        MsgUpdateTradingpostV1Offer const* o = &m->offers[i];
+        tradingpost_offer(&p->offers[i], o->name, o->previous_name, o->world, o->time, o->price,
+                          o->count);
+    }
+    return 1;
+}
+
+/* 241's: the same list, its prices eight bytes wide. */
+int
+adapt_update_tradingpost_v2(MsgUpdateTradingpostV2 const* m, struct RevPacket* out)
+{
+    struct PktUpdateTradingPost* p = &out->_update_tradingpost;
+
+    memset(p, 0, sizeof(*p));
+    p->present = m->has_update == 1;
+    if( !p->present )
+        return 1;
+    p->server_ms = m->age;
+    p->obj = m->obj;
+    p->sell = m->status == 1;
+    tradingpost_alloc(p, m->offer_count);
+    for( int i = 0; i < m->offer_count; i++ )
+    {
+        MsgTradingPostOffer const* o = &m->offers[i];
+        tradingpost_offer(&p->offers[i], o->name, o->previous_name, o->world, o->time, o->price,
+                          o->count);
+    }
+    return 1;
+}
+
+/* 241's slot: `first_state & 7 == 7` escapes into a versioned form whose
+ * status follows; otherwise first_state is the status and the money fields are
+ * four unsigned bytes (RSProx UpdateStockMarketSlotV2Decoder). */
+int
+adapt_update_stockmarket_slot_v2(MsgUpdateStockmarketSlotV2 const* m, struct RevPacket* out)
+{
+    struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
+    int const versioned = (m->first_state & 7) == 7;
+
+    memset(p, 0, sizeof(*p));
+    p->slot = m->slot;
+    p->status = (int8_t)(versioned ? m->status : m->first_state);
+    if( p->status == 0 )
+        return 1;
+    p->obj = m->obj;
+    p->count = m->count;
+    p->completed_count = m->completed_count;
+    if( versioned && m->version >= 2 )
+    {
+        p->price = m->price;
+        p->completed_gold = m->completed_gold;
+    }
+    else
+    {
+        p->price = (uint32_t)m->price32;
+        p->completed_gold = (uint32_t)m->completed_gold32;
+    }
+    return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* The prots a replay used to frame and drop                           */
+/* ------------------------------------------------------------------ */
+
+int
+adapt_send_ping(MsgSendPing const* m, struct RevPacket* out)
+{
+    out->_send_ping.value1 = m->value1;
+    out->_send_ping.value2 = m->value2;
+    return 1;
+}
+
+/* The private filter in a packet of its own (deob class243.field2939, the only
+ * writer of the filter chat_getfilter_private reads). Public and trade are
+ * absent (-1), so CHAT_FILTER_SETTINGS' executor leaves them standing. */
+int
+adapt_chat_filter_settings_privatechat(MsgChatFilterSettingsPrivateChat const* m, struct RevPacket* out)
+{
+    out->_chat_filter_settings.chat_public_mode = -1;
+    out->_chat_filter_settings.chat_trade_mode = -1;
+    out->_chat_filter_settings.chat_private_mode = m->private_chat_filter;
+    return 1;
+}
+
+int
+adapt_unknown_string(MsgUnknownString const* m, struct RevPacket* out)
+{
+    out->_text.text = dup_borrowed(m->string ? m->string : "");
+    return 1;
+}
+
+int
+adapt_site_settings(MsgSiteSettings const* m, struct RevPacket* out)
+{
+    out->_text.text = dup_borrowed(m->settings ? m->settings : "");
+    return 1;
+}
+
+/* A JVM reflection probe: the reference client answers it by looking members
+ * up in its own classes. Decoded so the frame is accounted for; nothing here
+ * can answer it truthfully, so nothing is kept. */
+int
+adapt_reflection_checker(MsgReflectionChecker const* m, struct RevPacket* out)
+{
+    (void)m;
+    (void)out;
+    return 1;
+}
+
+int
+adapt_logout_withreason(MsgLogoutWithReason const* m, struct RevPacket* out)
+{
+    out->_logout_withreason.reason = m->reason;
+    return 1;
+}
+
+int
+adapt_packet_group_start(MsgPacketGroupStart const* m, struct RevPacket* out)
+{
+    out->_packet_group_start.length = m->length;
+    return 1;
+}
+
+int
+adapt_set_interaction_mode(MsgSetInteractionMode const* m, struct RevPacket* out)
+{
+    out->_interaction_mode.world_id = m->world_id;
+    out->_interaction_mode.tile_mode = m->tile_interaction_mode;
+    out->_interaction_mode.entity_mode = m->entity_interaction_mode;
+    return 1;
+}
+
+int
+adapt_reset_interaction_mode(MsgResetInteractionMode const* m, struct RevPacket* out)
+{
+    out->_interaction_mode.world_id = m->world_id;
+    out->_interaction_mode.tile_mode = -1;
+    out->_interaction_mode.entity_mode = -1;
+    return 1;
+}
+
+/* The sprite index is a signed short on the wire's side (deob `(short)`). */
+int
+adapt_npc_headicon_specific(MsgNpcHeadIconSpecific const* m, struct RevPacket* out)
+{
+    out->_npc_headicon_specific.npc_index = m->index;
+    out->_npc_headicon_specific.slot = m->head_icon_slot;
+    out->_npc_headicon_specific.group = m->sprite_group;
+    out->_npc_headicon_specific.index = (int16_t)m->sprite_index;
+    return 1;
+}
+
+/* A CoordGrid: level << 28 | x << 14 | z, absolute. */
+static void
+obj_specific_coord(struct PktObjSpecific* p, int32_t packed)
+{
+    p->level = (packed >> 28) & 0x3;
+    p->x = (packed >> 14) & 0x3fff;
+    p->z = packed & 0x3fff;
+}
+
+int
+adapt_obj_add_specific(MsgObjAddSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjSpecific* p = &out->_obj_specific;
+
+    memset(p, 0, sizeof(*p));
+    obj_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->count = m->quantity;
+    p->time_until_public = m->time_until_public;
+    p->time_until_despawn = m->time_until_despawn;
+    p->ownership_type = m->ownership_type;
+    p->never_becomes_public = m->never_becomes_public;
+    return 1;
+}
+
+int
+adapt_obj_del_specific(MsgObjDelSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjSpecific* p = &out->_obj_specific;
+
+    memset(p, 0, sizeof(*p));
+    obj_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->count = m->quantity;
+    return 1;
+}
+
+int
+adapt_obj_count_specific(MsgObjCountSpecific const* m, struct RevPacket* out)
+{
+    struct PktObjSpecific* p = &out->_obj_specific;
+
+    memset(p, 0, sizeof(*p));
+    obj_specific_coord(p, m->coord_grid_packed);
+    p->obj_id = m->id;
+    p->old_count = m->old_quantity;
+    p->count = m->new_quantity;
+    return 1;
+}
+
+int
+adapt_clear_entities(MsgClearEntities const* m, struct RevPacket* out)
+{
+    (void)m;
+    (void)out;
+    return 1;
+}
+
+int
+adapt_zbuf(MsgZBuf const* m, struct RevPacket* out)
+{
+    out->_zbuf.enabled = m->enabled != 0;
+    return 1;
+}
+
+int
+adapt_logout_transfer(MsgLogoutTransfer const* m, struct RevPacket* out)
+{
+    out->_logout_transfer.host = dup_borrowed(m->host ? m->host : "");
+    out->_logout_transfer.world_id = m->id;
+    out->_logout_transfer.properties = m->properties;
+    return 1;
+}
+
+/* The group's shared storage, read against client state by its store. */
+int
+adapt_group_full(uint8_t const* data, int len, struct RevPacket* out)
 {
     return take_raw(data, len, out);
 }

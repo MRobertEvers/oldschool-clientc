@@ -115,6 +115,11 @@ app_minimenu_selection(struct App const* app)
         sel.hide_loc_ops = app->world->hidden_ops.loc;
         sel.hide_obj_ops = app->world->hidden_ops.obj;
     }
+    RS_Minimenu_SetInteractionModes(
+        &sel,
+        App_InteractionTileMode(app, WORLDVIEW_ROOT),
+        App_InteractionEntityMode(app, WORLDVIEW_ROOT),
+        app->aboard_view == WORLDVIEW_ROOT);
     return sel;
 }
 

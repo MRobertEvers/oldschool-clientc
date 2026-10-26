@@ -680,6 +680,158 @@ exec_map_anim_specific(
     exec_zone_sub_packet_at(ctx, PKT_NAME_MAP_ANIM, &sub, &at);
 }
 
+/*
+ * OBJ_ADD_SPECIFIC / OBJ_DEL_SPECIFIC / OBJ_COUNT_SPECIFIC: a ground obj for
+ * this player only, at an ABSOLUTE tile with no zone header. Played through
+ * the zone OBJ arms with the zone the tile is in as their base, like
+ * MAP_ANIM_SPECIFIC, so a stack the server owns per player stacks, counts and
+ * despawns exactly as a public one does; queued while the world is loading.
+ */
+static void
+exec_obj_specific(
+    struct RS_GameProtoCtx const* ctx,
+    enum GameProtoPktName name,
+    struct PktObjSpecific const* pkt)
+{
+    struct App* app = ctx->app;
+    union
+    {
+        struct PktObjAdd add;
+        struct PktObjDel del;
+        struct PktObjCount count;
+    } sub;
+    enum GameProtoPktName sub_name;
+    struct ZoneAt at;
+    int local_x;
+    int local_z;
+    int pos;
+
+    assert(pkt);
+    if( !app || !app->world )
+        return;
+    local_x = pkt->x - app->world->_base_tile_x;
+    local_z = pkt->z - app->world->_base_tile_z;
+    /* Wire data: a stack outside the scene is a lagging or confused server,
+     * refused rather than written past the map. */
+    if( local_x < 0 || local_z < 0 || local_x >= app->world->_scene_size ||
+        local_z >= app->world->_scene_size )
+    {
+        TORIRS_LOG("exec: obj specific at %d,%d is outside the scene\n", pkt->x, pkt->z);
+        return;
+    }
+    pos = ((local_x & 7) << 4) | (local_z & 7);
+    memset(&sub, 0, sizeof(sub));
+    if( name == PKT_NAME_OBJ_ADD_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_ADD;
+        sub.add.pos = pos;
+        sub.add.obj_id = pkt->obj_id;
+        sub.add.count = pkt->count;
+        sub.add.time_until_public = pkt->time_until_public;
+        sub.add.time_until_despawn = pkt->time_until_despawn;
+        sub.add.ownership_type = pkt->ownership_type;
+        sub.add.never_becomes_public = pkt->never_becomes_public;
+    }
+    else if( name == PKT_NAME_OBJ_DEL_SPECIFIC )
+    {
+        sub_name = PKT_NAME_OBJ_DEL;
+        sub.del.pos = pos;
+        sub.del.obj_id = pkt->obj_id;
+    }
+    else
+    {
+        assert(name == PKT_NAME_OBJ_COUNT_SPECIFIC);
+        sub_name = PKT_NAME_OBJ_COUNT;
+        sub.count.pos = pos;
+        sub.count.obj_id = pkt->obj_id;
+        sub.count.old_count = pkt->old_count;
+        sub.count.new_count = pkt->count;
+    }
+    at.base_x = local_x & ~7;
+    at.base_z = local_z & ~7;
+    at.level = pkt->level;
+    at.view = WORLDVIEW_ROOT;
+    if( !app->world->load_complete )
+    {
+        zone_pending_push_at(app, sub_name, &sub, &at);
+        return;
+    }
+    if( app->pending_zone_count > 0 )
+        RS_GameProto_FlushPendingZone(ctx);
+    exec_zone_sub_packet_at(ctx, sub_name, &sub, &at);
+}
+
+/*
+ * CLEAR_ENTITIES: every npc and world entity of the active world goes, and the
+ * active world is the root again; players stay, their own stream moves them
+ * (RSProx ClearEntities). The npc list is the POSITIONAL one NPC_INFO
+ * addresses, so it empties with them, or the next update would read its
+ * records against npcs that are gone.
+ */
+static void
+exec_clear_entities(struct App* app)
+{
+    int const view = app->active_world;
+
+    while( Wevs_ViewListCount(&app->wevs, view) > 0 )
+        App_WevDespawn(app, Wevs_ViewListAt(&app->wevs, view, 0)->id);
+    if( view == WORLDVIEW_ROOT )
+    {
+        for( int i = 0; i < app->esync.active_npc_count; i++ )
+            RS_EntitySync_RemoveNpc(&app->esync, app->world, app->esync.active_npcs[i]);
+        app->esync.active_npc_count = 0;
+    }
+    else
+        RS_EntitySync_ClearViewNpcs(&app->esync, app->world, view);
+    app->active_world = WORLDVIEW_ROOT;
+    app->active_world_level = 0;
+    app->need_redraw = 1;
+}
+
+/*
+ * NPC_HEADICON_SPECIFIC: one slot of one npc's head icons, for this player
+ * (deob class86.method2936). The first write copies the type's icons in
+ * (`new class629(type)`); an npc this client does not track is skipped, as the
+ * reference's lookup misses.
+ */
+static void
+exec_npc_headicon_specific(
+    struct App* app,
+    struct PktNpcHeadiconSpecific const* pkt)
+{
+    struct World* world = app->world;
+    int group[WORLD_NPC_HEADICON_SLOTS];
+    int index[WORLD_NPC_HEADICON_SLOTS];
+    struct WorldEntity_NPC* npc;
+    int idx;
+
+    if( pkt->slot < 0 || pkt->slot >= WORLD_NPC_HEADICON_SLOTS )
+    {
+        TORIRS_LOG("exec: NPC_HEADICON_SPECIFIC slot %d refused\n", pkt->slot);
+        return;
+    }
+    if( !world || !RS_EntitySync_FindNpc(&app->esync, pkt->npc_index, &idx, NULL) )
+        return;
+    npc = World_EntityPoolAt(&world->entities.npc, idx);
+    for( int i = 0; i < WORLD_NPC_HEADICON_SLOTS; i++ )
+    {
+        group[i] = npc->headicon_custom ? npc->headicon_group[i] : -1;
+        index[i] = npc->headicon_custom ? npc->headicon_index[i] : -1;
+    }
+    if( !npc->headicon_custom )
+    {
+        struct ToriRS_Npctype* type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+        if( type )
+        {
+            group[0] = type->head_icon_group;
+            index[0] = type->head_icon_index;
+        }
+    }
+    group[pkt->slot] = pkt->group;
+    index[pkt->slot] = pkt->index;
+    World_NpcSetHeadiconCustom(world, idx, true, group, index);
+}
+
 static void
 exec_zone_sub_packet_at(
     struct RS_GameProtoCtx const* ctx,
@@ -2295,13 +2447,17 @@ RS_GameProto_Exec(
              * chose Show friends, and then fed that stale 0 back to the server
              * on their next filter change.
              */
-            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
-                packet->_chat_filter_settings.chat_public_mode;
+            /* CHAT_FILTER_SETTINGS_PRIVATECHAT arrives through this arm with
+             * only the private mode present. */
+            if( packet->_chat_filter_settings.chat_public_mode >= 0 )
+                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PUBLIC] =
+                    packet->_chat_filter_settings.chat_public_mode;
             if( packet->_chat_filter_settings.chat_private_mode >= 0 )
                 ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_PRIVATE] =
                     packet->_chat_filter_settings.chat_private_mode;
-            ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
-                packet->_chat_filter_settings.chat_trade_mode;
+            if( packet->_chat_filter_settings.chat_trade_mode >= 0 )
+                ctx->app->slots.chat_filter_mode[RS_UI_CHAT_FILTER_TRADE] =
+                    packet->_chat_filter_settings.chat_trade_mode;
             /* Script 681 reads these back through chat_getfilter_private before
              * it will send a private message, so a change has to reach the CS2
              * side the same way a friend-list change does. */
@@ -2423,6 +2579,122 @@ RS_GameProto_Exec(
             ctx->app->need_redraw = 1;
         }
         break;
+    /* ---- the prots a replay used to drop ---- */
+    case PKT_NAME_SEND_PING:
+        if( ctx->app )
+            App_SendPingReply(ctx->app, packet->_send_ping.value1, packet->_send_ping.value2);
+        break;
+    case PKT_NAME_UNKNOWN_STRING:
+        if( ctx->app )
+            snprintf(ctx->app->unknown_string, sizeof(ctx->app->unknown_string), "%s",
+                     packet->_text.text);
+        break;
+    case PKT_NAME_SITE_SETTINGS:
+        if( ctx->app )
+            snprintf(ctx->app->site_settings, sizeof(ctx->app->site_settings), "%s",
+                     packet->_text.text);
+        break;
+    case PKT_NAME_REFLECTION_CHECKER:
+        /* The reference answers by reflecting over its own JVM classes. There
+         * is nothing here to reflect over, so no answer is sent: a fabricated
+         * one would claim classes this client does not have. */
+        break;
+    case PKT_NAME_PACKET_GROUP_START:
+        /* The reference holds the frame until the group's bytes are all in, so
+         * the group applies together (client.java, var3.field1554). This
+         * client applies a whole read's packets before it draws, so a group
+         * that arrived together already applies together. */
+        break;
+    case PKT_NAME_LOGOUT_WITHREASON:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            char key[48];
+            char const* line[3];
+
+            exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
+            App_Logout(app);
+            /* What the login screen says, by reason (deob Statics.method7871:
+             * 1 kicked, 2 the servers updating) -- the profile's words. */
+            for( int i = 0; i < 3; i++ )
+            {
+                snprintf(key, sizeof(key), "logout_reason_%d_line%d",
+                         packet->_logout_withreason.reason, i + 1);
+                line[i] = RS_LoginReplies_String(&app->login_replies, key);
+            }
+            RS_Title_SetMessages(&app->title, line[0], line[1], line[2]);
+            RS_Title_SetScreen(&app->title, RS_TITLE_INFO);
+        }
+        break;
+    case PKT_NAME_LOGOUT_TRANSFER:
+        /* The session continues on another world (deob: the client reconnects
+         * there). The connection that follows -- a replay's next session, a
+         * live server's hop -- is the transport's; nothing here ends it. */
+        TORIRS_LOG("exec: LOGOUT_TRANSFER to world %d (%s)\n", packet->_logout_transfer.world_id,
+                   packet->_logout_transfer.host);
+        break;
+    case PKT_NAME_SET_INTERACTION_MODE:
+    case PKT_NAME_RESET_INTERACTION_MODE:
+        if( ctx->app )
+        {
+            struct App* app = ctx->app;
+            struct PktInteractionMode const* p = &packet->_interaction_mode;
+            int const reset = packet->packet_type == PKT_NAME_RESET_INTERACTION_MODE;
+
+            /* Wire data, guarded like SET_ACTIVE_WORLD's: a mode the tables do
+             * not have, or a view past the registry, is refused. */
+            if( !reset && (p->tile_mode < 0 || p->tile_mode > 2 || p->entity_mode < 0 ||
+                           p->entity_mode > 3) )
+            {
+                TORIRS_LOG("exec: interaction modes %d/%d refused\n", p->tile_mode,
+                           p->entity_mode);
+                break;
+            }
+            if( p->world_id == -2 )
+            {
+                /* class61.method1414: the defaults; a reset of them is moot. */
+                if( !reset )
+                {
+                    app->interaction_default_tile = p->tile_mode;
+                    app->interaction_default_entity = p->entity_mode;
+                }
+            }
+            else if( p->world_id >= 0 && p->world_id < WORLDVIEW_MAX )
+            {
+                app->interaction_tile[p->world_id] = (int8_t)(reset ? -1 : p->tile_mode);
+                app->interaction_entity[p->world_id] = (int8_t)(reset ? -1 : p->entity_mode);
+            }
+            else
+                TORIRS_LOG("exec: interaction mode for world %d refused\n", p->world_id);
+        }
+        break;
+    case PKT_NAME_NPC_HEADICON_SPECIFIC:
+        if( ctx->app )
+            exec_npc_headicon_specific(ctx->app, &packet->_npc_headicon_specific);
+        break;
+    case PKT_NAME_OBJ_ADD_SPECIFIC:
+    case PKT_NAME_OBJ_DEL_SPECIFIC:
+    case PKT_NAME_OBJ_COUNT_SPECIFIC:
+        exec_obj_specific(ctx, packet->packet_type, &packet->_obj_specific);
+        break;
+    case PKT_NAME_CLEAR_ENTITIES:
+        if( ctx->app )
+            exec_clear_entities(ctx->app);
+        break;
+    case PKT_NAME_ZBUF:
+        if( ctx->app )
+        {
+            ctx->app->server_zbuf = packet->_zbuf.enabled;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_GROUP_FULL:
+        /* The group-ironman shared storage (deob class603.method13001). Its
+         * readers are the group storage clientscript commands, which this
+         * client does not implement; the payload is decoded and kept no
+         * further until they are. */
+        break;
+
     /* deob client.java: Statics.field2218 / field3892 / field4203 = the byte as a
      * boolean; the world menu builders read them (rs_minimenu_world.c). */
     case PKT_NAME_HIDENPCOPS:
@@ -2769,11 +3041,8 @@ RS_GameProto_Exec(
     case PKT_NAME_UPDATE_TRADINGPOST:
         if( ctx->app )
         {
-            struct PktRawPayload const* p = &packet->_raw_payload;
-            if( !RS_CS2Host_ApplyTradingPost(
-                    &ctx->app->host, p->data, p->length, ctx->app->host.client.now_ms) )
-                TORIRS_ERR(
-                    "gameproto_exec: UPDATE_TRADINGPOST did not decode (%d bytes)\n", p->length);
+            RS_CS2Host_ApplyTradingPost(
+                &ctx->app->host, &packet->_update_tradingpost, ctx->app->host.client.now_ms);
             ctx->app->host.active_offers_transmit_dirty = 1;
         }
         break;

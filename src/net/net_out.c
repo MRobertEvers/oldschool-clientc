@@ -165,6 +165,27 @@ net_out_window_status(
     return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_WINDOW_STATUS, &a);
 }
 
+int
+net_out_send_ping_reply(
+    struct GameProtoRevTable const* rev,
+    struct Isaac* random_out,
+    uint8_t* buf,
+    int cap,
+    int value1,
+    int value2,
+    int fps)
+{
+    struct ProtoOutArgs a = { 0 };
+
+    a.value1 = value1;
+    a.value2 = value2;
+    a.fps = fps;
+    /* The share of time the reference's JVM spent collecting garbage: this
+     * client has no collector. */
+    a.gc_percent_time = 0;
+    return proto_encode(rev, random_out, buf, cap, PKTOUT_NAME_SEND_PING_REPLY, &a);
+}
+
 /* -- interface ---------------------------------------------------------- */
 
 int

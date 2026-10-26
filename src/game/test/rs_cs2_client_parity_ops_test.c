@@ -30,6 +30,7 @@
 #include "engine/torirs_types.h"
 #include "game/rs_clientop.h"
 #include "game/rs_cs2_host.h"
+#include "net/rev/revpacket.h"
 #include "game/rs_clan.h"
 #include "game/rs_social.h"
 #include "inv/inv_manager.h"
@@ -624,22 +625,13 @@ test_trading_post(void)
 
     fixture_init(&fx);
     fx.host.map_world = 302;
-    uint8_t payload[256];
-    int n = 0;
-#define P1(v) (payload[n++] = (uint8_t)(v))
-#define P2(v) (P1((v) >> 8), P1(v))
-#define P4(v) (P2((int)((uint32_t)(v) >> 16)), P2(v))
-#define P8(v) (P4((int)((uint64_t)(v) >> 32)), P4((int)(v)))
-#define PSTR(t) do { for( char const* c_ = (t); *c_; c_++ ) P1(*c_); P1(0); } while( 0 )
-    P1(1);
-    P8(1000000);
-    P2(995);
-    P1(1);
-    P2(3);
-    PSTR("carl"); PSTR(""); P2(301); P8(1000000 - 61000); P4(5); P4(100);
-    PSTR("anna"); PSTR("old"); P2(302); P8(1000000); P4(9); P4(50);
-    PSTR("bert"); PSTR(""); P2(303); P8(1000000); P4(5); P4(75);
-    CHECK(RS_CS2Host_ApplyTradingPost(&fx.host, payload, n, 5000), "the list decodes");
+    struct PktTradingPostOffer offers[3] = {
+        { "carl", "", 301, 1000000 - 61000, 5, 100 },
+        { "anna", "old", 302, 1000000, 9, 50 },
+        { "bert", "", 303, 1000000, 5, 75 },
+    };
+    struct PktUpdateTradingPost list = { 1, 1000000, 995, 1, 3, offers };
+    RS_CS2Host_ApplyTradingPost(&fx.host, &list, 5000);
 
     fx.host.client.now_ms = 5000 + 3723000; /* 1h 2m 3s after the list arrived */
     struct Step const read[] = {
@@ -678,15 +670,10 @@ test_trading_post(void)
     struct Step const outside[] = { INT(3), OP(CS2_OP_TRADINGPOST_GETOFFERWORLD) };
     CHECK(run(&fx, outside, 2) == CS2VM_EXECNO_ERROR, "an index past the list aborts");
 
-    P1(0);
-    CHECK(RS_CS2Host_ApplyTradingPost(&fx.host, payload + n - 1, 1, 5000), "absent decodes");
+    struct PktUpdateTradingPost const absent = { 0 };
+    RS_CS2Host_ApplyTradingPost(&fx.host, &absent, 5000);
     struct Step const total[] = { OP(CS2_OP_TRADINGPOST_GETTOTALOFFERS) };
     CHECK(run(&fx, total, 1) == CS2VM_EXECNO_DONE && pop_int(&fx) == 0, "no list is zero offers");
-#undef P1
-#undef P2
-#undef P4
-#undef P8
-#undef PSTR
     fixture_free(&fx);
 }
 

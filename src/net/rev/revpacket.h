@@ -973,10 +973,107 @@ struct PktUpdateStockmarketSlot
     int slot;   /* 0..7 */
     int status; /* signed byte: & 7 state, & 8 sell; 0 = empty */
     int obj;
-    int price;
+    int64_t price; /* 4 bytes before 241's version-2 slot, 8 from it */
     int count;
     int completed_count;
-    int completed_gold;
+    int64_t completed_gold;
+};
+
+/* UPDATE_TRADINGPOST (_V1, _V2): the trading-post offer list. `offers` is
+ * heap, freed by gameproto_free. V2 widened the price to 8 bytes. */
+struct PktTradingPostOffer
+{
+    char name[32];
+    char previous_name[32];
+    int world;
+    int64_t time_ms; /* server clock */
+    int64_t price;
+    int count;
+};
+
+struct PktUpdateTradingPost
+{
+    int present; /* 0: no list (the client's null list) */
+    int64_t server_ms;
+    int obj;
+    int sell;
+    int count;
+    struct PktTradingPostOffer* offers;
+};
+
+/* SEND_PING: two values the reply returns. */
+struct PktSendPing
+{
+    int value1;
+    int value2;
+};
+
+/* UNKNOWN_STRING, SITE_SETTINGS: one string, heap, freed by gameproto_free. */
+struct PktText
+{
+    char* text;
+};
+
+/* LOGOUT_WITHREASON: 1 kicked, 2 updating (RSProx LogoutWithReason). */
+struct PktLogoutWithReason
+{
+    int reason;
+};
+
+/* PACKET_GROUP_START: the bytes of packets that follow and are one group. */
+struct PktPacketGroupStart
+{
+    int length;
+};
+
+/* SET_INTERACTION_MODE / RESET_INTERACTION_MODE (deob class61 method1382 /
+ * method1412): a world view's tile and entity interaction modes. World -2 is
+ * every view (method1414, the defaults); a reset carries modes -1. */
+struct PktInteractionMode
+{
+    int world_id;
+    int tile_mode;   /* class481: 0 none, 1 walk here, 2 set heading */
+    int entity_mode; /* class500: 0..3 */
+};
+
+/* NPC_HEADICON_SPECIFIC: one head-icon slot of one npc, for this player
+ * (deob class86.method2936). */
+struct PktNpcHeadiconSpecific
+{
+    int npc_index; /* server slot */
+    int slot;
+    int group;
+    int index; /* signed short: -1 none */
+};
+
+/* OBJ_ADD_SPECIFIC / OBJ_DEL_SPECIFIC / OBJ_COUNT_SPECIFIC: a ground obj for
+ * this player only, at an ABSOLUTE tile rather than a zone offset. */
+struct PktObjSpecific
+{
+    int x;
+    int z;
+    int level;
+    int obj_id;
+    int count;     /* add: the stack; count: the new quantity */
+    int old_count; /* count only */
+    int time_until_public;
+    int time_until_despawn;
+    int ownership_type;
+    int never_becomes_public;
+};
+
+/* ZBUF: the server's choice of depth buffering. */
+struct PktZBuf
+{
+    int enabled;
+};
+
+/* LOGOUT_TRANSFER: the session moves to another world. `host` is heap. */
+struct PktLogoutTransfer
+{
+    char* host;
+    int world_id;
+    int properties;
 };
 
 struct PktFriendListLoaded
@@ -1390,6 +1487,16 @@ struct RevPacket
         struct PktRawPayload _raw_payload;
         struct PktMessageClanChannel _message_clanchannel;
         struct PktUpdateStockmarketSlot _update_stockmarket_slot;
+        struct PktUpdateTradingPost _update_tradingpost;
+        struct PktSendPing _send_ping;
+        struct PktText _text;
+        struct PktLogoutWithReason _logout_withreason;
+        struct PktPacketGroupStart _packet_group_start;
+        struct PktInteractionMode _interaction_mode;
+        struct PktNpcHeadiconSpecific _npc_headicon_specific;
+        struct PktObjSpecific _obj_specific;
+        struct PktZBuf _zbuf;
+        struct PktLogoutTransfer _logout_transfer;
     };
 };
 

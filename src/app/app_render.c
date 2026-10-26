@@ -666,9 +666,14 @@ App_Render(
      * player picked or the offscreen frame under a GPU depth renderer. */
     ToriPlatform_Renderer_Soft3D_SetDepth(app->soft, app->world_render_mode == TORIRS_WORLD_DEPTH);
     /* Only the software renderer's own frame: a GPU renderer's offscreen frame
-     * keeps its own world mode. */
-    ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
-        app->soft, app->software_rszbuffer && app->world_render_mode == TORIRS_WORLD_PAINTER);
+     * keeps its own world mode. The server's ZBUF, once sent, decides for the
+     * session; until then the renderer the player launched does. */
+    {
+        bool const rszbuffer =
+            app->server_zbuf >= 0 ? app->server_zbuf != 0 : app->software_rszbuffer;
+        ToriPlatform_Renderer_Soft3D_SetRsZBuffer(
+            app->soft, rszbuffer && app->world_render_mode == TORIRS_WORLD_PAINTER);
+    }
 
     if( !App_BuildFrame(app, &frame, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H) )
     {

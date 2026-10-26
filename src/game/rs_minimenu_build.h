@@ -79,7 +79,34 @@ struct RS_MinimenuSelection
     bool hide_npc_ops;
     bool hide_loc_ops;
     bool hide_obj_ops;
+    /** What the ROOT view's SET_INTERACTION_MODE modes deny, filled by
+     *  RS_Minimenu_SetInteractionModes. All false -- a zeroed selection -- is
+     *  the reference's default (tile mode 1, entity mode 1): nothing denied.
+     *  Deck rows are not filtered: the deob's filter also reads the hull's
+     *  WorldEntityConfig flags, which this port does not carry yet. */
+    bool root_walk_denied;
+    bool root_ops_denied[4];     /* enum RS_MinimenuInteractionKind */
+    bool root_examine_denied[4]; /* enum RS_MinimenuInteractionKind */
 };
+
+/** The row kinds SET_INTERACTION_MODE filters, in class500's mask order. */
+enum RS_MinimenuInteractionKind
+{
+    RS_MINIMENU_INTERACTION_LOC = 0,
+    RS_MINIMENU_INTERACTION_OBJ,
+    RS_MINIMENU_INTERACTION_NPC,
+    RS_MINIMENU_INTERACTION_PLAYER,
+};
+
+/** Fill `sel`'s root denials from the root view's tile mode (class481: 0..2)
+ *  and entity mode (class500: 0..3), and whether the local player stands in
+ *  the root view (deob class108 / Statics.method6243). */
+void
+RS_Minimenu_SetInteractionModes(
+    struct RS_MinimenuSelection* sel,
+    int tile_mode,
+    int entity_mode,
+    bool local_on_root);
 
 struct Wevs;
 

@@ -118,6 +118,13 @@ App_NoteFrameDrawn(struct App* app)
     assert(app);
 
     app->frames_rendered++;
+    app->fps_window_frames++;
+    if( app->last_frame_ms - app->fps_window_start_ms >= 1000 )
+    {
+        app->fps = app->fps_window_frames;
+        app->fps_window_frames = 0;
+        app->fps_window_start_ms = app->last_frame_ms;
+    }
 }
 
 uint64_t

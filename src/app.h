@@ -2452,6 +2452,11 @@ struct App
      *  differences: the loop runs at the pacer's rate whether or not a frame
      *  is drawn, so counting iterations measures the pacer, not the screen. */
     uint64_t frames_rendered;
+    /* Frames drawn in the last whole second (the reference's fps, which
+     * SEND_PING_REPLY reports), counted by App_NoteFrameDrawn. */
+    int fps;
+    int fps_window_frames;
+    uint64_t fps_window_start_ms;
     /**
      * Render skip: the frame loop still runs input, net, the logic tick and
      * the plugins, but App_Render and the present are skipped unless a frame
@@ -2833,6 +2838,26 @@ struct App
     int player_attack_option;
     int npc_attack_option;
     int multiway; /* SET_MULTIWAY: 1 = in a multi-combat zone */
+    /*
+     * SET_INTERACTION_MODE / RESET_INTERACTION_MODE (deob class61): what a
+     * click may do in each world view. The tile mode (class481: 0 nothing, 1
+     * "Walk here", 2 the sail-heading control) and the entity mode (class500:
+     * 0 nothing, 1 everything, 2 examine and player ops, 3 everything) a view
+     * was given, or -1 for the defaults, which world -2 sets. A logout puts
+     * them back to 1/1 (class61.method1386). See App_InteractionMode*.
+     */
+    int interaction_default_tile;
+    int interaction_default_entity;
+    int8_t interaction_tile[WORLDVIEW_MAX];
+    int8_t interaction_entity[WORLDVIEW_MAX];
+    /* ZBUF: the server's depth-buffer choice for this session, -1 when it has
+     * made none. The software renderer's world honours it (app_render.c); the
+     * GPU renderers fix their depth mode at launch. */
+    int server_zbuf;
+    /* UNKNOWN_STRING (deob client.field772) and SITE_SETTINGS (the string the
+     * client hands its site-settings store): kept as the client keeps them. */
+    char unknown_string[256];
+    char site_settings[1024];
     /** MINIMAP_TOGGLE state; see enum AppMinimapState. */
     int minimap_state;
     /** CAM_UNLOCK: nonzero widens the orbit camera's pitch limits to the
@@ -3641,6 +3666,24 @@ App_Shutdown(struct App* app);
  * only in what happens next. */
 void
 App_NetSessionReset(struct App* app);
+
+/** SET/RESET_INTERACTION_MODE state back to the reference's boot value (1/1,
+ *  no view set): App_Init and every session end. */
+void
+App_InteractionModesReset(struct App* app);
+
+/** SEND_PING_REPLY with the ping's two values and this client's frame rate. */
+void
+App_SendPingReply(
+    struct App* app,
+    int value1,
+    int value2);
+
+/** The tile / entity interaction mode world view `view` answers with. */
+int
+App_InteractionTileMode(struct App const* app, int view);
+int
+App_InteractionEntityMode(struct App const* app, int view);
 
 /**
  * End the session on purpose and go back to the login screen.

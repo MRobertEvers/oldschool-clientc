@@ -140,7 +140,42 @@ App_NetSessionReset(struct App* app)
      * ends is the same state before that session's first packet, and cannot
      * race the login burst that refills them. */
     RS_CS2Host_ResetSocialForLogin(&app->host);
+    /* The reference's logout reset (Statics.method11277 -> class61.method1386)
+     * puts every interaction mode back, and the server's per-session choices
+     * (ZBUF) end with the session. */
+    App_InteractionModesReset(app);
+    app->server_zbuf = -1;
     app->need_redraw = 1;
+}
+
+void
+App_InteractionModesReset(struct App* app)
+{
+    assert(app);
+    app->interaction_default_tile = 1;
+    app->interaction_default_entity = 1;
+    memset(app->interaction_tile, -1, sizeof(app->interaction_tile));
+    memset(app->interaction_entity, -1, sizeof(app->interaction_entity));
+}
+
+int
+App_InteractionTileMode(struct App const* app, int view)
+{
+    assert(app);
+    assert(view >= 0);
+    assert(view < WORLDVIEW_MAX);
+    return app->interaction_tile[view] >= 0 ? app->interaction_tile[view]
+                                            : app->interaction_default_tile;
+}
+
+int
+App_InteractionEntityMode(struct App const* app, int view)
+{
+    assert(app);
+    assert(view >= 0);
+    assert(view < WORLDVIEW_MAX);
+    return app->interaction_entity[view] >= 0 ? app->interaction_entity[view]
+                                              : app->interaction_default_entity;
 }
 
 void
@@ -872,6 +907,19 @@ app_send_close_modal(void* user)
     struct App* app = (struct App*)user;
     APP_NET_SEND(
         app, net_out_close_modal(app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf)));
+}
+
+/* SEND_PING's answer (deob class243.field3049's handler). */
+void
+App_SendPingReply(
+    struct App* app,
+    int value1,
+    int value2)
+{
+    APP_NET_SEND(
+        app,
+        net_out_send_ping_reply(
+            app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), value1, value2, app->fps));
 }
 
 /* Server ack after a REBUILD_NORMAL-driven world load finishes. */
