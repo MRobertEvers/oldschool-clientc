@@ -628,6 +628,17 @@ struct PktCamRotateToCoordinate
     int track_target;
 };
 
+/*
+ * CAM_TARGET: what the camera follows. `type` is the wire's: 0 a player, 1 an
+ * npc, 2 a world entity at every version; `index` is the target's slot, -1 for
+ * none (V3 / V4 say that with 65535).
+ */
+struct PktCamTarget
+{
+    int type;
+    int index;
+};
+
 struct PktCamShake
 {
     int axis;      /* g1 */
@@ -886,18 +897,30 @@ struct PktWorldEntityInfo
  * dimensions the server took from the view's spawn-time size and did NOT put
  * on the wire, so the grid cannot be read until the view is known. The arm
  * keeps the whole payload (`data`, heap, freed by gameproto_free) and the
- * codec that reads it (`prot` at `rev_id`, an RsprotRev id); the exec layer
- * reruns it with the view's size (PktRebuildWev_DecodeZones).
+ * revision's codec that reads it (`codec`, the packet's `version`); the exec
+ * layer reruns it with the view's size (PktRebuildWev_DecodeZones).
  */
+struct RsprotExec;
+
 struct PktRebuildWev
 {
     int base_x;
     int base_z;
     int length; /* the whole payload */
     uint8_t* data;
-    char const* prot; /* the RSProt codec that reads `data` (static) */
-    uint32_t rev_id;  /* the revision it reads it at (RsprotRev.id) */
+    int version; /* REBUILD_WORLDENTITY_V<version>: 2, 3 or 4 */
+    void (*codec)(struct RsprotExec* x, void* msg);
 };
+
+/** The grid, once the active view's size is known: the kept codec rerun over
+ *  the payload (net/proto/proto_adapt.c), restrided onto the 13x13 instance
+ *  array, -1 (no zone) as 0. 1 when it read whole. */
+int
+PktRebuildWev_DecodeZones(
+    struct PktRebuildWev const* p,
+    int zones_x,
+    int zones_z,
+    int32_t* out_zones);
 
 /*
  * A packet carried as its bytes, for a store that decodes it with client state
@@ -1302,6 +1325,7 @@ struct RevPacket
         struct PktCamMoveToCycles _cam_moveto_cycles;
         struct PktCamRotateToCoordinate _cam_rotateto_coordinate;
         struct PktCamShake _cam_shake;
+        struct PktCamTarget _cam_target;
         struct PktIfOpenMain _if_openmain;
         struct PktIfOpenSide _if_openside;
         struct PktIfOpenOverlay _if_openoverlay;

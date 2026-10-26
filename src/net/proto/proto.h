@@ -2,6 +2,12 @@
 #define SRC_NET_REV_RSPROX_RSPROX_REV_H
 
 /*
+ * SUPERSEDED. The client's OSRS revisions are the generated executors
+ * (src/net/rev/osrs<N>/osrs<N>_exec.c, GameProtoRev_Osrs). This module --
+ * proto_rev.c, proto_in.c, proto_canon.c -- is kept only as the reference
+ * net/test/proto_diff.c checks those executors against (GameProtoRev_Rsprox),
+ * and goes when that check has served.
+ *
  * The data-driven OSRS revisions, 227-241 ("rsprox<N>").
  *
  * Every other module under net/rev/ is a revision written by hand: its own

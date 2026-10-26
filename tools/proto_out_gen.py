@@ -7,9 +7,10 @@
 One writer per client -> server packet file in 3rd/rsprot/packets/ (the
 message an `_in` codec takes): it fills that message from struct ProtoOutArgs
 (src/net/proto/proto_out.h), whose fields are named after RSProt's, so each
-writer is `m->f = a->f` for every field f. A message with a field the
-arguments do not carry gets no writer and is listed; proto_encode asserts if a
-revision ever needs one, rather than sending a field it never set.
+writer is `m->f = a->f` for every field f. Each revision's executor
+(tools/rev_exec_gen.py) calls the writer for the file its client prot runs.
+A message with a field the arguments do not carry gets no writer and is
+listed; that revision's executor then has no arm for it.
 """
 import argparse
 import os
@@ -23,7 +24,6 @@ OUT = os.path.join(ROOT, "src", "net", "proto", "proto_out_writers.h")
 
 STRUCT_RE = re.compile(r"typedef struct (\w+) \{(.*?)\} (\w+);", re.S)
 IN_FN_RE = re.compile(r"void packet_\w+_in\(RsprotExec \*x, (\w+) \*m\);")
-BIND_RE = re.compile(r"^/\* rsprot-bind: (\w+) \*/$", re.M)
 TABLE_RE = re.compile(r"extern const RsprotVersionRange rsprot_(\w+)_in\[\];")
 FIELD_RE = re.compile(r"^\s*((?:const\s+)?[\w ]+?\s*\**)\s*(\w+)(\[\w+\])?;", re.M)
 
@@ -40,7 +40,6 @@ def args_fields():
 def generate():
     args = args_fields()
     writers = []
-    rows = []
     skipped = []
     for name in sorted(os.listdir(PACKETS)):
         if not name.endswith(".h"):
@@ -88,13 +87,9 @@ def generate():
             skipped.append("%s (%s): no argument for %s" % (name, msg, ", ".join(missing)))
             continue
         fn = "w_" + name[:-2]
-        writers += ["static void", "%s(void* msg, struct ProtoOutArgs const* a)" % fn, "{",
+        writers += ["static inline void", "%s(void* msg, struct ProtoOutArgs const* a)" % fn, "{",
                     "    %s* m = (%s*)msg;" % (msg, msg), ""] + (lines or ["    (void)m;", "    (void)a;"]) + ["}", ""]
-        includes = name
-        for table in tables:
-            for prot in BIND_RE.findall(text) or [table.upper()]:
-                rows.append('    { "%s", %s },' % (prot, fn))
-        writers.insert(0, '#include "packets/%s"' % includes)
+        writers.insert(0, '#include "packets/%s"' % name)
     incs = sorted(l for l in writers if l.startswith("#include"))
     body = [l for l in writers if not l.startswith("#include")]
     out = ["/*",
@@ -104,11 +99,7 @@ def generate():
            " *",
            " * Files with no writer (a field the arguments do not carry):"]
     out += [" *   " + s for s in skipped] + [" */", "", "#include <string.h>", ""]
-    out += incs + ["", "/* clang-format off */"] + body
-    out += ["struct ProtoOutWriter", "{", "    char const* prot;",
-            "    void (*fill)(void* msg, struct ProtoOutArgs const* a);", "};", "",
-            "static struct ProtoOutWriter const k_proto_out_writers[] = {"] + rows + ["};",
-                                                                                "/* clang-format on */", ""]
+    out += incs + ["", "/* clang-format off */"] + body + ["/* clang-format on */", ""]
     return "\n".join(out)
 
 

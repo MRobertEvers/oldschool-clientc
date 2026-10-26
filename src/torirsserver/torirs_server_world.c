@@ -8686,7 +8686,7 @@ handle_opobju(
 /*
  * `opplayeru` / `applayeru` are deliberately absent, and this is the reason.
  *
- * rev-230 assigns no OPPLAYERU wire opcode — `src/net/rev/osrs230/packetout.h`
+ * rev-230 assigns no OPPLAYERU wire opcode — `src/torirsserver/wire/osrs230/packetout.h`
  * has rows for OPHELDU, OPNPCU, OPLOCU and OPOBJU and none for the player form,
  * so `net_out_opplayeru` cannot encode anything this revision could carry. There
  * is no packet to route. Five of the reference's 546 uses are the two player

@@ -26,48 +26,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-int
-osrs239_parse(
-    struct GameProtoRevTable const* rev,
-    int pkt_name,
-    uint8_t const* data,
-    int len,
-    struct RevPacket* out);
-
-/*
- * osrs239_parse delegates unhandled packet names to the rev-230 reader and
- * initialises player info elsewhere. Neither is on the path for the three music
- * prots -- they return from osrs239_parse's own switch -- so linking the whole
- * chain in would drag the entity decoder and the cache buffer along for nothing.
- *
- * These abort rather than no-op: if a future change routes one of these packets
- * through the fallback, the test must fail loudly instead of quietly measuring
- * the wrong reader.
- */
-int
-osrs230_parse(
-    struct GameProtoRevTable const* rev,
-    int pkt_name,
-    uint8_t const* data,
-    int len,
-    struct RevPacket* out)
+/* The client's 239 executor (src/net/rev/osrs239/), by canonical name: the
+ * revision's own codec for whichever prot carries it. */
+static int
+osrs239_parse(void const* unused, int pkt_name, uint8_t const* data, int len, struct RevPacket* out)
 {
-    (void)rev;
-    (void)data;
-    (void)len;
-    (void)out;
-    printf("  FAIL: packet name %d fell through to the rev-230 reader\n", pkt_name);
-    abort();
-}
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
 
-void
-osrs239_playerinfo_init(void);
-
-void
-osrs239_playerinfo_init(void)
-{
-    printf("  FAIL: player info init reached from a music packet\n");
-    abort();
+    (void)unused;
+    return rev->parse_wire(rev, rev->packetin_wire(pkt_name), data, len, out);
 }
 
 static int g_failures;

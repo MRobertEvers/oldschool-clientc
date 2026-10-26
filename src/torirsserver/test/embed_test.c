@@ -86,6 +86,10 @@ struct Peer
 {
     struct ToriRS_Network net;
     int client_id;
+    /** This peer's player table (the revision's PLAYER_INFO state): one table
+     *  serves the process, so each peer's is loaded before anything that
+     *  decodes for it and saved after, as scriptrun's bots do. */
+    void* player_table;
 
     /** Pid this client was told about in a new-player record, or -1. */
     int saw_pid;
@@ -729,6 +733,7 @@ pump(
             origin_z = ToriRSServer_SceneOrigin(self->zone_z);
         }
 
+        peer->net.rev->player_info_state_load(peer->player_table);
         while( (got = ToriRSServer_EmbedRead(embed, peer->client_id, inbound,
                                          (int)sizeof(inbound))) > 0 )
             ToriRS_Network_HandleCmd(&peer->net, TORIRS_CMD_NET_RECV, inbound, got);
@@ -761,6 +766,7 @@ pump(
                 absorb_zone(peer, &packet, origin_x, origin_z);
             gameproto_free(&packet);
         }
+        peer->net.rev->player_info_state_save(peer->player_table);
     }
 }
 
@@ -774,14 +780,16 @@ peer_login(
     memset(peer, 0, sizeof(*peer));
     peer->client_id = client_id;
     peer->saw_pid = -1;
-    /* 0 is a real pid (alice's), so "no UPDATE_PID yet" needs its own value. */
+    /* 0 is a real pid (alice's), so "no slot yet" needs its own value. */
     peer->my_pid = -1;
     /* 0 is a real FRIENDLIST_LOADED status ("loading"), so "none yet" needs its
      * own value or the check below would pass before the packet existed. */
     peer->saw_friendlist_loaded = -1;
 
-    ToriRS_Network_Init(&peer->net, GameProtoRev_OSRS230(), TORIRSSERVER_RSA_PUBLIC_EXPONENT,
+    ToriRS_Network_Init(&peer->net, GameProtoRev_OSRS239(), TORIRSSERVER_RSA_PUBLIC_EXPONENT,
                         TORIRSSERVER_RSA_PUBLIC_MODULUS);
+    peer->player_table = calloc(1, peer->net.rev->player_info_state_size());
+    assert(peer->player_table);
     ToriRS_Network_SetSeedFn(&peer->net, seed_fn, NULL);
     /* The host:port is inert here — there is nothing to dial — but the client's
      * login machine wants one, and passing a real-looking value keeps this path
@@ -798,8 +806,8 @@ peer_login(
 }
 
 /** Send a real MOVE_GAMECLICK: the same encoder app.c uses for a ground click,
- *  through the same ISAAC stream. osrs230's body is a fixed 5-byte destination
- *  (ctrl, x, z) — no waypoints. A zero scene base makes the coordinate absolute. */
+ *  through the same ISAAC stream. OSRS names the destination only (the server
+ *  paths). A zero scene base makes the coordinate absolute. */
 static void
 peer_walk_to(
     struct Peer* peer,
@@ -1139,17 +1147,16 @@ main(void)
          * same "the revision has no writer" path `ToriRSServer_SendMidiSongStop`
          * takes, and by the same design `ToriRSServer_SendMidiJingle` copies it
          * from: returning rather than flushing a short body that would
-         * desynchronise the stream. `ToriRSServer_EmbedStart(NULL)` defaults to
-         * osrs230 (see its own comment), so this check only means something
-         * under `TORIRSSERVER_REV=osrs239`, which is the revision the bug this test
-         * exists for is actually about.
+         * desynchronise the stream. The check means something at osrs239, the
+         * embed's default wire and the revision the bug this test exists for is
+         * about; a TORIRSSERVER_REV naming another skips it.
          */
         const char* rev_env = getenv("TORIRSSERVER_REV");
 
-        if( !rev_env || strcmp(rev_env, "osrs239") != 0 )
+        if( rev_env && rev_env[0] && strcmp(rev_env, "osrs239") != 0 )
         {
-            printf("embed: SKIP  MIDI_JINGLE wire check — osrs230 has no MIDI_JINGLE "
-                   "writer; rerun with TORIRSSERVER_REV=osrs239\n");
+            printf("embed: SKIP  MIDI_JINGLE wire check — it is osrs239's; rerun "
+                   "without TORIRSSERVER_REV\n");
         }
         else
         {
@@ -2047,6 +2054,7 @@ main(void)
                   "on the same tile alice's door swung to");
 
             ToriRS_Network_Free(&peers[2].net);
+            free(peers[2].player_table);
         }
     }
 
@@ -2363,6 +2371,7 @@ main(void)
             check(rejoin >= 0, "the embed reopened a client for bob");
             if( rejoin >= 0 )
             {
+                free(peers[1].player_table);
                 peer_login(&peers[1], rejoin, seed_b, "bob");
                 peers[0].saw_friend_count = 0;
                 peer_reset_game(&peers[0]);
@@ -2391,6 +2400,8 @@ main(void)
 
     ToriRS_Network_Free(&peers[0].net);
     ToriRS_Network_Free(&peers[1].net);
+    free(peers[0].player_table);
+    free(peers[1].player_table);
     ToriRSServer_EmbedStop(embed);
 
     printf("embed: %s\n", g_failures ? "FAILURES" : "all checks passed");

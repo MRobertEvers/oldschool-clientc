@@ -4,7 +4,7 @@
 #include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
 #include "game/rs_entity_sync.h"
 #include "net/wordpack.h"
-#include "net/rev/gameproto_parse.h"
+#include "net/rev/gameproto_parse.h" /* gameproto_free */
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -14,8 +14,7 @@
 #include "world/entity_player.h"
 #include "world/world.h"
 #include "net/net_capture.h"
-#include "net/proto/proto_in_adapt.h"
-#include "net/rev/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
+#include "torirsserver/wire/osrs241/packetin.h" /* the opcode names, for the wirelog's every-packet line */
 
 #include <assert.h>
 #include <stdio.h>
@@ -1800,6 +1799,7 @@ core_rebuild(
 static void
 core_packet(
     struct ScriptrunCore* core,
+    int wire,
     int pkt_name,
     const uint8_t* payload,
     int len);
@@ -2030,23 +2030,21 @@ core_wirelog(
 void
 ScriptrunCore_Packet(
     struct ScriptrunCore* core,
-    int pkt_name,
+    int wire,
     const uint8_t* payload,
     int len)
 {
     /* TORIRS_SCRIPTRUN_CAPTURE: what the sink handed over, as a recording. */
     static struct NetCapture capture;
-    int wire;
 
     assert(core);
+    assert(wire >= 0);
     assert(len >= 0);
-    wire = core->rev->packetin_wire(pkt_name);
-    if( wire >= 0 )
-        net_capture_server(&capture, "TORIRS_SCRIPTRUN_CAPTURE", core->rev, wire, payload, len);
+    net_capture_server(&capture, "TORIRS_SCRIPTRUN_CAPTURE", core->rev, wire, payload, len);
     core->packets++;
     if( core->player_decoder_state )
         core->rev->player_info_state_load(core->player_decoder_state);
-    core_packet(core, pkt_name, payload, len);
+    core_packet(core, wire, core->rev->packetin_code(wire), payload, len);
     if( core->player_decoder_state )
         core->rev->player_info_state_save(core->player_decoder_state);
 }
@@ -2054,12 +2052,12 @@ ScriptrunCore_Packet(
 static void
 core_packet(
     struct ScriptrunCore* core,
+    int wire,
     int pkt_name,
     const uint8_t* payload,
     int len)
 {
     struct RevPacket packet;
-    uint8_t* data;
     int parsed;
 
     core_wirelog_every(core, pkt_name, len);
@@ -2075,37 +2073,16 @@ core_packet(
         return;
     }
 
-    /* gameproto_parse reads from a mutable buffer. */
-    data = ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)(len > 0 ? len : 1));
-    assert(data);
-    if( len > 0 )
-        memcpy(data, payload, (size_t)len);
-    /* net/net.c's three parsers, in its order: the generated rsprot codecs,
-     * the revision's own overrides, then the shared parser. */
+    /* By wire opcode, as net/net.c decodes: the prot at that opcode, its
+     * RSProt codec, its adapter (net/proto/). */
     memset(&packet, 0, sizeof(packet));
     packet.packet_type = pkt_name;
-    {
-        int via = 0;
-        parsed = proto_decode_name(core->rev, pkt_name, data, len, &packet);
-        if( parsed < 0 && core->rev->parse )
-        {
-            via = 1;
-            parsed = core->rev->parse(core->rev, pkt_name, data, len, &packet);
-        }
-        if( parsed < 0 )
-        {
-            via = 2;
-            parsed = gameproto_parse(core->rev, (enum GameProtoPktName)pkt_name, data, len, &packet);
-        }
-        if( getenv("TORIRS_SCRIPTRUN_DEBUG") && pkt_name == PKT_NAME_REBUILD_NORMAL )
-            fprintf(stderr, "scriptrun: REBUILD_NORMAL len %d parsed %d via %s\n", len, parsed,
-                    via == 0 ? "rsprot" : via == 1 ? "rev" : "gameproto");
-    }
+    assert(core->rev->parse_wire);
+    parsed = core->rev->parse_wire(core->rev, wire, payload, len, &packet);
     if( parsed <= 0 )
     {
         core->unhandled++;
         gameproto_free(&packet);
-        ToriMem_Free(ToriMem_ServerPlayers(), data);
         return;
     }
     core_wirelog(core, pkt_name, &packet);
@@ -2442,7 +2419,6 @@ core_packet(
         break;
     }
     gameproto_free(&packet);
-    ToriMem_Free(ToriMem_ServerPlayers(), data);
 }
 
 /* ------------------------------------------------------------- readers */

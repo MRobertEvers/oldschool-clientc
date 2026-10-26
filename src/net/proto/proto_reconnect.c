@@ -16,48 +16,33 @@
  * whole under it up to the next RECONNECT; otherwise RSProx's rule stands, and
  * the line says so.
  */
-#include "proto.h"
-
 #include "net/rsprox_recording.h"
-#include "rsprot_exec.h"
-#include "rsprot_registry.h"
-
-#include "packets/cam_target_v2.h"
-#include "packets/cam_target_v3.h"
-#include "packets/cam_target_v4.h"
+#include "net/rev/gameproto_parse.h" /* gameproto_free */
+#include "net/rev/gameproto_revisions.h"
+#include "streams/rsprot_info.h"
 
 #include <assert.h>
 #include <string.h>
 
 #include "log/torirs_log.h"
 
-/* The player a CAM_TARGET_V2 / V3 / V4 targets, or -1 when it targets
- * anything else (type 0 is a player in all three). */
+/* The player the camera targets at frame `fr`, or -1 when it is not a
+ * CAM_TARGET or targets anything else (type 0 is a player at every version). */
 static int
-camera_player(int revision, char const* prot, uint8_t const* data, int len)
+camera_player(struct GameProtoRevTable const* rev, struct RsproxRecording const* rec,
+              struct RsproxRecordingFrame const* fr)
 {
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
-    union
-    {
-        MsgCamTargetV2 v2;
-        MsgCamTargetV3 v3;
-        MsgCamTargetV4 v4;
-    } m;
-    RsprotExec x;
-    RsprotBuf b;
+    struct RevPacket pkt;
+    int index = -1;
 
-    assert(fn);
-    memset(&m, 0, sizeof(m));
-    rsprot_buf_wrap_read(&b, data, len);
-    rsprot_exec_decode(&x, &b);
-    fn(&x, &m);
-    if( !rsprot_exec_ok(&x) || b.err || m.v2.type != 0 )
+    if( rev->packetin_code(fr->opcode) != PKT_NAME_CAM_TARGET )
         return -1;
-    if( strcmp(prot, "CAM_TARGET_V2") == 0 )
-        return m.v2.index;
-    if( strcmp(prot, "CAM_TARGET_V3") == 0 )
-        return m.v3.target_index == 65535 ? -1 : m.v3.target_index;
-    return m.v4.value == 65535 ? -1 : m.v4.value;
+    memset(&pkt, 0, sizeof(pkt));
+    if( rev->parse_wire(rev, fr->opcode, rec->data + fr->offset, (int)fr->length, &pkt) == 1 &&
+        pkt.packet_type == PKT_NAME_CAM_TARGET && pkt._cam_target.type == 0 )
+        index = pkt._cam_target.index;
+    gameproto_free(&pkt);
+    return index;
 }
 
 /* Whether PLAYER_INFO reads whole from `from` up to `to` with the table
@@ -98,7 +83,6 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec)
 {
-    struct ProtoRev const* r = proto_rev_state(rev);
     int current = rec->local_player_index;
     int moved = 0;
 
@@ -116,14 +100,10 @@ rsprox_recording_resolve_reconnects(
         for( int k = f + 1; k < next && camera < 0; k++ )
         {
             struct RsproxRecordingFrame const* fr = &rec->frames[k];
-            RsprotProtDef const* d;
 
             if( fr->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
                 continue;
-            d = proto_server_prot(r, fr->opcode);
-            if( d && strncmp(rsprot_prot_version(d), "CAM_TARGET_V", 12) == 0 )
-                camera = camera_player(rec->revision, rsprot_prot_version(d), rec->data + fr->offset,
-                                       (int)fr->length);
+            camera = camera_player(rev, rec, fr);
         }
         re->reconnect_index = current;
         if( camera <= 0 || camera == current )

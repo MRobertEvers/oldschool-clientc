@@ -31,7 +31,7 @@ from pathlib import Path
 CHAT_ENTER = Path("scripts/chatdefault_onkey.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
-PACKET_TABLE = Path("src/net/rev/osrs239/packetout.h")
+PACKET_TABLE = Path("src/torirsserver/wire/osrs239/packetout.h")
 # The cheat dispatch lives in the world, the ::~crystal_set assertions in the
 # self-test that was split out of it. Both halves are read as one text, world
 # first, so the ordering check below still means what it did.

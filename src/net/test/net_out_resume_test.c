@@ -15,7 +15,6 @@ main(void)
     };
     uint8_t packet[64] = { 0 };
     struct Isaac* random = isaac_new(NULL, 0);
-    struct Isaac* random230 = NULL;
     {
         /* Rev239 Statics.method9637/13196: native customisation passes a
          * row id independently of its child, using signed varints. */
@@ -79,23 +78,7 @@ main(void)
         }
     }
 
-    /* Rev 230 uses the mock-local three-way convention. */
-    random230 = isaac_new(NULL, 0);
-    for( int mode = 0; mode <= 2; mode++ )
-    {
-        memset(packet, 0, sizeof(packet));
-        length = net_out_window_status(
-            GameProtoRev_OSRS230(), random230, packet, (int)sizeof(packet), mode, 765, 503);
-        if( length != 6 || packet[1] != mode )
-        {
-            fprintf(stderr, "WINDOW_STATUS changed rev230 layout %d encoding\n", mode);
-            isaac_free(random230);
-            isaac_free(random);
-            return 1;
-        }
-    }
-    isaac_free(random230);
     isaac_free(random);
-    puts("net-out-resume: rev239 buttons and revision-specific window status bytes passed");
+    puts("net-out-resume: rev239 buttons and window status bytes passed");
     return 0;
 }

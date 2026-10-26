@@ -61,7 +61,7 @@ test_parse_deltas(void)
 
     memset(&p, 0, sizeof(p));
     TEST_WEV_ASSERT(
-        rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, move, (int)sizeof(move), &p),
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), move, (int)sizeof(move), &p),
         "enqueue-op packet parses");
     TEST_WEV_ASSERT(p._worldentity_info.count == 1, "one update");
     TEST_WEV_ASSERT(p._worldentity_info.updates[0].op == PKT_WEV_OP_ENQUEUE, "op is enqueue");
@@ -78,7 +78,7 @@ test_parse_deltas(void)
     /* A byte short must fail as a whole, not apply a half-read update. */
     memset(&p, 0, sizeof(p));
     TEST_WEV_ASSERT(
-        !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, move, (int)sizeof(move) - 1, &p),
+        !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), move, (int)sizeof(move) - 1, &p),
         "truncated enqueue packet rejected");
 
     /* A trailing byte is a malformed spawn trailer, also a whole-packet drop. */
@@ -89,7 +89,7 @@ test_parse_deltas(void)
         padded[sizeof(move)] = 0x00;
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, padded, (int)sizeof(padded), &p),
+            !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), padded, (int)sizeof(padded), &p),
             "trailing garbage rejected");
     }
 
@@ -99,7 +99,7 @@ test_parse_deltas(void)
 
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, snap, (int)sizeof(snap), &p),
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), snap, (int)sizeof(snap), &p),
             "snap-op packet parses");
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].op == PKT_WEV_OP_SNAP, "op is snap");
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].dx == 65536, "dx i32 be");
@@ -122,7 +122,7 @@ test_parse_deltas(void)
 
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, mixed, (int)sizeof(mixed), &p),
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), mixed, (int)sizeof(mixed), &p),
             "despawn + flags-only packet parses");
         TEST_WEV_ASSERT(p._worldentity_info.count == 2, "two updates");
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].op == PKT_WEV_OP_DESPAWN, "op 0");
@@ -141,7 +141,7 @@ test_parse_deltas(void)
 
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, opmask, (int)sizeof(opmask), &p),
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), opmask, (int)sizeof(opmask), &p),
             "flags 0x3 packet parses");
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].has_op_mask == 1, "bit 0x2 announces mask");
         TEST_WEV_ASSERT(p._worldentity_info.updates[0].op_mask == 31, "(128 - 97) & 0xFF");
@@ -158,11 +158,11 @@ test_parse_deltas(void)
 
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, bad_op, (int)sizeof(bad_op), &p),
+            !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_op, (int)sizeof(bad_op), &p),
             "op 4 rejected");
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, bad_count, (int)sizeof(bad_count), &p),
+            !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_count, (int)sizeof(bad_count), &p),
             "count 16 rejected");
     }
 
@@ -201,7 +201,7 @@ test_parse_spawn_trailer(void)
 
     memset(&p, 0, sizeof(p));
     TEST_WEV_ASSERT(
-        rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, body, (int)sizeof(body), &p),
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), body, (int)sizeof(body), &p),
         "spawn trailer parses");
     TEST_WEV_ASSERT(p._worldentity_info.count == 0, "no updates");
     TEST_WEV_ASSERT(p._worldentity_info.spawn_count == 2, "two spawns");
@@ -232,17 +232,22 @@ test_parse_spawn_trailer(void)
     /* Truncating the last delta byte must reject the whole packet. */
     memset(&p, 0, sizeof(p));
     TEST_WEV_ASSERT(
-        !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, body, (int)sizeof(body) - 1, &p),
+        !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), body, (int)sizeof(body) - 1, &p),
         "truncated spawn trailer rejected");
 
-    /* Id 0 (the root) can never spawn as a world entity. */
+    /* Id 0 (the root) can never spawn as a world entity, but the decode
+     * carries what the wire says: the view layer refuses it (App_WevSpawn),
+     * one spawn at a time, as it refuses ids past its registry -- which Jagex
+     * does send, so a decode that dropped the frame would lose real ones. */
     {
         uint8_t bad_id[] = { 0x00, 0x00, 0x00, 0x00, 0x11, 0x00, 0x00, 0x01, 0x00 };
 
         memset(&p, 0, sizeof(p));
         TEST_WEV_ASSERT(
-            !rev->parse(rev, PKT_NAME_WORLDENTITY_INFO, bad_id, (int)sizeof(bad_id), &p),
-            "spawn id 0 rejected");
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_WORLDENTITY_INFO), bad_id, (int)sizeof(bad_id), &p),
+            "a spawn naming id 0 decodes");
+        TEST_WEV_ASSERT(p._worldentity_info.spawn_count == 1 && p._worldentity_info.spawns[0].id == 0,
+                        "with its id as the wire states it");
     }
 
     printf("ok - WORLDENTITY_INFO spawn trailer (sizes, absolute transform, seq)\n");

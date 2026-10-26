@@ -1,10 +1,11 @@
 /*
- * Decode RSProx recordings with the data-driven revision tables, packet by
- * packet, and say what does not decode.
+ * Decode RSProx recordings with the generated revision executors, packet by
+ * packet, and say what does not decode -- and check RSProt's own codecs over
+ * every prot, including those the client has no arm for.
  *
  *   make -C src rsprox-multirev-check RECORDINGS="a.bin.gz b.bin.gz ..."
  *
- * Every recording is framed with its header's revision (GameProtoRev_Rsprox):
+ * Every recording is framed with its header's revision (GameProtoRev_Osrs):
  * a frame that does not end at the end of the file fails the recording outright,
  * which is the strongest check there is on the prot tables -- one wrong size
  * shifts every packet after it. Then each server packet is decoded the way the
@@ -17,8 +18,9 @@
  *   WORLDENTITY_INFO_V*       through its reader; a stream that reads whole but
  *                             does not fit the canonical arm (over 15 entities)
  *                             is tallied as `arm` rather than failed
- *   a prot with a codec       through proto_validate, which also asks
- *                             that the codec consume the payload EXACTLY
+ *   a prot with a codec       through RSProt's registry at this revision
+ *                             (validate below), which also asks that the
+ *                             codec consume the payload EXACTLY
  *   everything               through the revision's parse_wire
  *
  * and tallied per prot. A prot with no canonical arm parses as dropped and is
@@ -36,7 +38,8 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/proto/proto_info.h"
 #include "net/rev/revpacket.h"
-#include "net/proto/proto.h"
+#include "rsprot_tables.h"
+#include "streams/worldentity_info.h"
 #include "net/rsprox_recording.h"
 #include "info_op_dump.h"
 #include "rsprot_storage.h"
@@ -196,11 +199,43 @@ explain_codec(int revision, char const* prot, uint8_t const* data, int len)
     printf("\n");
 }
 
+/* WORLDENTITY_INFO_V<n>'s revision -> reader lookup, by n. */
+static RsprotWorldEntityInfoReadFn (*const k_worldentity[8])(RsprotRev rev) = {
+    [3] = worldentity_info_v3_osrs, [4] = worldentity_info_v4_osrs, [5] = worldentity_info_v5_osrs,
+    [6] = worldentity_info_v6_osrs, [7] = worldentity_info_v7_osrs,
+};
+
+/* `d`'s codec at `revision` over the payload: 1 decoded and consumed it
+ * exactly, 0 did not, -1 RSProt has no codec for it there. */
+static int
+validate(int revision, RsprotProtDef const* d, uint8_t const* data, int len)
+{
+    static union
+    {
+        long double align;
+        uint8_t bytes[256 * 1024];
+    } scratch;
+    char const* prot = d->name;
+    RsprotCodecFn fn = rsprot_registry_resolve_def(d, RSPROT_REG_OUT, rsprot_osrs(revision), &prot);
+    RsprotExec x;
+    RsprotBuf b;
+
+    if( !fn )
+        return -1;
+    memset(&scratch, 0, sizeof(scratch));
+    rsprot_storage_provide(prot, &scratch, 0);
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    fn(&x, &scratch);
+    return rsprot_exec_ok(&x) && !b.err && b.rpos == len;
+}
+
 static int
 check_one(char const* path, int verbose)
 {
     struct RsproxRecording rec;
     struct GameProtoRevTable const* rev;
+    RsprotRevTable const* prots;
     char err[256];
     int failures = 0;
 
@@ -210,7 +245,8 @@ check_one(char const* path, int verbose)
         printf("FAIL %s: %s\n", path, err);
         return 1;
     }
-    rev = GameProtoRev_Rsprox(rec.revision);
+    rev = GameProtoRev_Osrs(rec.revision);
+    prots = rsprot_rev_table(rsprot_osrs(rec.revision));
     if( !rev )
     {
         printf("SKIP %s: revision %d is outside 227-241\n", path, rec.revision);
@@ -233,7 +269,7 @@ check_one(char const* path, int verbose)
         struct RsproxRecordingFrame const* fr = &rec.frames[f];
         uint8_t const* data = rec.data + fr->offset;
         int len = (int)fr->length;
-        RsprotProtDef const* d = proto_server_prot(proto_rev_state(rev), fr->opcode);
+        RsprotProtDef const* d = rsprot_find_server_by_opcode(prots, fr->opcode);
         struct Tally* t;
         struct RevPacket packet;
         RsprotNpcInfoReadFn npc_read;
@@ -308,7 +344,7 @@ check_one(char const* path, int verbose)
         {
             int v = d->name[strlen(d->name) - 1] - '0';
 
-            proto_rev_state(rev)->worldentity_read[v](data, len, &g_list);
+            k_worldentity[v](rsprot_osrs(rec.revision))(data, len, &g_list);
             ok = rsprot_info_list_complete(&g_list);
             if( ok && parsed <= 0 )
                 t->arm++;
@@ -326,7 +362,7 @@ check_one(char const* path, int verbose)
         }
         else
         {
-            ok = proto_validate(rev, d->name, data, len);
+            ok = validate(rec.revision, d, data, len);
             if( ok < 0 && packet.packet_type != PKT_NAME_NONE )
                 ok = parsed > 0; /* no codec: the special parse is the check */
             if( ok == 0 && getenv("MULTIREV_WHY") && t->failed < 2 )

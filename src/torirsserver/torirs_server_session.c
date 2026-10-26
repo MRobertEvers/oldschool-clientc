@@ -9,7 +9,7 @@
 #include "torirs_server_session.h"
 #include "mem/torirs_mem.h"
 
-#include "net/rev/osrs239/loginblock.h"
+#include "net/login/login_osrs_block.h"
 
 #include "js5/server/js5_server_cache.h"
 
@@ -21,7 +21,7 @@
 #include "torirs_server_auth.h"
 
 #include "net/isaac.h"
-#include "net/rev/osrs230/packetout.h"
+#include "torirsserver/wire/osrs230/packetout.h"
 #include "net/rsa.h"
 
 #include <rsareabuf.h>
@@ -539,14 +539,14 @@ step_login(
      * the RSA block, so everything below is shared and the two places that
      * care read `reconnect`.
      */
-    if( session->in[0] != OSRS239_LOGIN_GAMELOGIN &&
-        session->in[0] != OSRS239_LOGIN_GAMERECONNECT )
+    if( session->in[0] != OSRS_LOGIN_GAMELOGIN &&
+        session->in[0] != OSRS_LOGIN_GAMERECONNECT )
     {
         fprintf(stderr, "torirsserver: expected opcode 16 or 18, got %d\n", session->in[0]);
         session->state = TORIRSSERVER_SESSION_DEAD;
         return 1;
     }
-    session->reconnect = session->in[0] == OSRS239_LOGIN_GAMERECONNECT;
+    session->reconnect = session->in[0] == OSRS_LOGIN_GAMERECONNECT;
     if( session->reconnect && !login_is_239(srv) )
     {
         /*
@@ -580,7 +580,7 @@ step_login(
      * size two bytes out of position — which surfaces as "rsa decrypt failed",
      * a message that points at the key rather than at the offset.
      *
-     * The layout for both is stated once in src/net/rev/osrs239/loginblock.h;
+     * The layout for both is stated once in src/net/login/login_osrs_block.h;
      * the client driver writes it from the same file.
      */
     rsab_wrap(&in, session->in + 3, (size_t)payload_len);
@@ -742,7 +742,7 @@ step_login(
         memset(pass, 0, sizeof(pass));
         if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE )
         {
-            uint8_t refused = OSRS239_LOGINRES_INVALID_USER_OR_PASS;
+            uint8_t refused = OSRS_LOGINRES_INVALID_USER_OR_PASS;
 
             fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
                     auth == TORIRSSERVER_AUTH_REFUSED ? "wrong password"
@@ -871,7 +871,7 @@ ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session)
      * the same number the GPI init block skipped and PLAYER_INFO keys on.
      */
     rsab_wrap(&out, body, sizeof(body));
-    rsab_p1(&out, OSRS239_LOGINRES_OK);
+    rsab_p1(&out, OSRS_LOGINRES_OK);
     rsab_p1(&out, 34 + 3);
     rsab_p1(&out, 0); /* no authenticator */
     rsab_p4(&out, 0); /* ...and no code */

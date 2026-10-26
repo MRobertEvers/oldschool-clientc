@@ -145,7 +145,7 @@ RsproxRecording_Index(
 /**
  * Put the local index each RECONNECT continues under into its frame's
  * reconnect_index (net/proto/proto_reconnect.c), with `rev` the
- * data-driven table for the recording's revision (GameProtoRev_Rsprox).
+ * generated table for the recording's revision (GameProtoRev_Osrs).
  * Returns how many moved the player to a new slot. Leaves the session's
  * player table as the last trial left it: the caller re-seeds before
  * decoding.

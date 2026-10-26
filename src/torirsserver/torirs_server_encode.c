@@ -27,13 +27,13 @@
 #include "mock239_playerinfo.h"
 
 #include "net/isaac.h"
-#include "net/rev/osrs239/loginblock.h"
+#include "net/login/login_osrs_block.h"
 #include "net/jbase37.h"
 #include "net/wordpack.h"
 
 /* The client's framing table, for the length check in ToriRSServer_Send. */
 #include "torirsserver/torirs_server_scene.h"
-#include "net/rev/osrs230/packetin.h"
+#include "torirsserver/wire/osrs230/packetin.h"
 /* The appearance vocabulary and every wire spelling of it — the writers below
  * choose an encoding, never a tag. */
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -64,7 +64,7 @@ static int v5_face_from_classic(
  * opcodes.
  *
  * These used to be literal rev-230 opcodes, one `enum` of 50 numbers, and that
- * was a second copy of what `src/net/rev/osrs230/packetin.h` already said. The
+ * was a second copy of what `src/torirsserver/wire/osrs230/packetin.h` already said. The
  * numbers now come from the wire adapter (torirs_server_wire.h) at send time, which
  * is what lets one build speak either revision -- and, less obviously, what
  * removes the chance of the two copies disagreeing.
@@ -411,7 +411,7 @@ ToriRSServer_Send(
      * it, handed over before the session check because its bots have no
      * session. Whole payloads, never cut, and in send order. */
     if( srv && srv->packet_sink )
-        srv->packet_sink(player, pkt_name, payload, len, srv->packet_sink_ctx);
+        srv->packet_sink(player, opcode, pkt_name, payload, len, srv->packet_sink_ctx);
 
     /*
      * No session is a world with no client — the selftest. Everything above
@@ -855,7 +855,7 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
     player->v5_last_level = player->level;
 
     rsab_wrap(&out, header, sizeof(header));
-    rsab_p1(&out, OSRS239_LOGINRES_RECONNECT_OK);
+    rsab_p1(&out, OSRS_LOGINRES_RECONNECT_OK);
     rsab_p2(&out, (int)rsab_len(&buf));
     if( ToriRSServer_SessionSend(player->session, header, (int)sizeof(header)) < 0 )
         return 0;

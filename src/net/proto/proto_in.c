@@ -697,8 +697,8 @@ parse_rebuild_wev(
     }
     /* The whole payload, and the codec that reads it: the exec layer decodes
      * the grid once it knows the view's size (PktRebuildWev_DecodeZones). */
-    p->prot = rsprot_registry_find(prot, RSPROT_REG_OUT)->prot;
-    p->rev_id = rsprot_osrs(revision).id;
+    p->version = prot[strlen(prot) - 1] - '0';
+    p->codec = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
     p->length = len;
     p->data = ToriMem_Alloc(ToriMem_Net(), (size_t)len);
     assert(p->data);

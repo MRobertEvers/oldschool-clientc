@@ -301,6 +301,9 @@ enum GameProtoPktName
      * it under the new. Appended likewise. */
     PKT_NAME_RECONNECT,
 
+    /* What the camera follows (struct PktCamTarget). Appended likewise. */
+    PKT_NAME_CAM_TARGET,
+
     PKT_NAME_COUNT
 };
 

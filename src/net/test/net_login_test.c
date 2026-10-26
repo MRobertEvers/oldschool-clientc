@@ -4,7 +4,7 @@
  * derived from the same fixed seed both ends.
  */
 #include "net/isaac.h"
-#include "net/loginproto.h"
+#include "net/login/login_lc.h"
 #include "net/packetbuffer.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/gameproto_parse.h"
@@ -388,8 +388,8 @@ test_osrs239_partial_empty_slot(void)
 
     memset(&packet, 0, sizeof(packet));
     packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
-    TEST_CHECK(rev->parse(
-        rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
+    TEST_CHECK(rev->parse_wire(
+        rev, rev->packetin_wire(PKT_NAME_UPDATE_INV_PARTIAL), body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_partial.component_id == -1);
     assert(packet._update_inv_partial.inv_id == 93);
     assert(packet._update_inv_partial.count == 2);
@@ -412,8 +412,8 @@ test_osrs239_partial_empty_slot(void)
             empty_body[6 + i * 3] = (uint8_t)i;
         memset(&packet, 0, sizeof(packet));
         packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
-        TEST_CHECK(rev->parse(
-            rev, PKT_NAME_UPDATE_INV_PARTIAL, empty_body, sizeof(empty_body), &packet) == 1);
+        TEST_CHECK(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_INV_PARTIAL), empty_body,
+                                   sizeof(empty_body), &packet) == 1);
         assert(packet._update_inv_partial.count == 28);
         for( int i = 0; i < 28; i++ )
         {

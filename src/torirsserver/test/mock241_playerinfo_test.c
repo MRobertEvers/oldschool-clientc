@@ -21,6 +21,9 @@
 #include "mem/torirs_mem.h"
 #include "torirsserver/mock239_playerinfo.h"
 #include "streams/rsprot_info.h"
+#include "net/proto/proto_info.h"
+#include "streams/npc_info.h"
+#include "streams/player_info.h"
 
 #include <rsareabuf.h>
 
@@ -29,9 +32,25 @@
 
 static int g_failures;
 
-void osrs241_playerinfo_set_local(int local_index);
-void osrs241_playerinfo_init(uint8_t const* data, int len);
-int osrs241_player_info_read(uint8_t const* data, int len, RsprotInfoList* out);
+/* The client's 241 readers: the revision's own stream entry points over the
+ * player table (net/proto/proto_info.c), as its executor binds them. */
+static void
+osrs241_playerinfo_set_local(int local_index)
+{
+    proto_info_set_local(local_index);
+}
+
+static void
+osrs241_playerinfo_init(uint8_t const* data, int len)
+{
+    proto_info_init(data, len);
+}
+
+static int
+osrs241_player_info_read(uint8_t const* data, int len, RsprotInfoList* out)
+{
+    return proto_info_player_read(player_info_osrs241, data, len, out);
+}
 
 /* The readers write a list; these hand the test its ops, with the strings
  * in one arena the next read reuses. */

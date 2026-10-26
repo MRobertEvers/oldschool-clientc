@@ -8912,7 +8912,7 @@ main(
                  * changes and the recording does not state. Found with the
                  * data-driven table for the revision; it shares the session's
                  * player table, which the login resets before anything plays. */
-                rsprox_recording_resolve_reconnects(GameProtoRev_Rsprox(rsprox_replay_rec.revision),
+                rsprox_recording_resolve_reconnects(GameProtoRev_Osrs(rsprox_replay_rec.revision),
                                                     &rsprox_replay_rec);
                 sock = NetTransport_NewReplay(&rsprox_replay_rec, app.net->rev);
             }

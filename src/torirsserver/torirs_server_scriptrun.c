@@ -5331,6 +5331,7 @@ check_collision(
 static void
 scriptrun_sink(
     struct ToriRSServerPlayer* player,
+    int opcode,
     int pkt_name,
     const uint8_t* payload,
     int len,
@@ -5349,7 +5350,7 @@ scriptrun_sink(
         if( run->bots[i].player == player && run->bots[i].core )
         {
             int unhandled = run->bots[i].core->unhandled;
-            ScriptrunCore_Packet(run->bots[i].core, pkt_name, payload, len);
+            ScriptrunCore_Packet(run->bots[i].core, opcode, payload, len);
             if( debug )
             {
                 fprintf(stderr, "scriptrun: %s <- %s (%d bytes)%s", run->bots[i].name,

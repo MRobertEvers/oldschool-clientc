@@ -10,7 +10,7 @@
 /*
  * The wire opcodes that fan out. Everything else is identified by the canonical
  * name the 239 table already resolved, so only the ambiguous ones are numbers
- * here -- see src/net/rev/osrs239/packetout.h for the generated table.
+ * here -- see src/torirsserver/wire/osrs239/packetout.h for the generated table.
  */
 #define OSRS239_OP_IF_BUTTONX 47
 #define OSRS239_OP_IF_SUBOP 40

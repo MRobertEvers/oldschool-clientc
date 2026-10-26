@@ -9,7 +9,7 @@
 #include "proto.h"
 
 #include "gen/rsprot_tables.h"
-#include "net/loginproto_osrs241.h"
+#include "net/login/login_osrs.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "net/proto/proto_info.h"
 
@@ -265,7 +265,7 @@ build(int revision)
     /* The login block is RSProx's ClientLoginHandler at every revision here
      * (no branch after 232's serverVersion field), with the client version
      * this table states. */
-    t->login = &g_osrs241_login_vtable;
+    t->login = &g_login_osrs_vtable;
     t->reconnect_kind = NET_RECONNECT_SEED;
     t->parse_wire = proto_decode_wire;
     t->player_info_read = h->pinfo;

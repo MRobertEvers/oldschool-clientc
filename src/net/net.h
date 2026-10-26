@@ -16,8 +16,8 @@
 
 #include "cmd/cmdring.h"
 #include "isaac.h"
-#include "login_vtable.h"
-#include "loginproto.h"
+#include "net/login/login_vtable.h"
+#include "net/login/login_lc.h"
 #include "packetbuffer.h"
 #include "rev/gameproto_revisions.h"
 #include "rev/revpacket.h"

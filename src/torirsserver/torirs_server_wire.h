@@ -368,7 +368,7 @@ struct ToriRSServerWire
      *   239  the ORDINAL of RSProt's IndexedZoneProtEncoder enum -- neither the
      *        top-level opcode nor RSProt's own OldSchoolZoneProt id, both of
      *        which are different numbers that would decode as a different
-     *        sub-packet. See src/net/rev/osrs239/zoneprot.h.
+     *        sub-packet. See src/torirsserver/wire/osrs239/zoneprot.h.
      *
      * Getting this wrong is invisible at the frame level: the enclosed blob is
      * length-prefixed as a whole, so a wrong sub-code produces a well-formed
@@ -500,8 +500,9 @@ ToriRSServer_Wire241(void);
 const struct ToriRSServerWire*
 ToriRSServer_WireByName(char const* name);
 
-/** The default when nothing selects one: revision 230, the hybrid this repo's
- *  own client speaks and every existing test asserts against. */
+/** The default when nothing selects one: revision 239, the client's own
+ *  (src/net/rev/osrs239/). The osrs230 hybrid stays selectable by name for the
+ *  server's own self-tests; no client speaks it. */
 const struct ToriRSServerWire*
 ToriRSServer_WireDefault(void);
 

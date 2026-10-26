@@ -2,7 +2,7 @@
 """
 Generate a revision module's wire tables from RSProt.
 
-    tools/rsprot_gen_rev.py 239 --out src/net/rev/osrs239
+    tools/rsprot_gen_rev.py 239 --out src/torirsserver/wire/osrs239
 
 Writes `packetin.h` (server->client), `packetout.h` (client->server) and
 `zoneprot.h` (the UPDATE_ZONE_PARTIAL_ENCLOSED sub-packet index). Every prot the
@@ -354,7 +354,7 @@ BANNER = """/*
  *
  * Source: RSProt's prot table for revision {rev} (3rd/rsprot/spec/tables/osrs{rev}.ini,
  * ported from {src}).
- * Regenerate with:  tools/rsprot_gen_rev.py {rev}{extra} --out src/net/rev/osrs{rev}
+ * Regenerate with:  tools/rsprot_gen_rev.py {rev}{extra} --out src/torirsserver/wire/osrs{rev}
  */"""
 
 # Set by main(): the regenerate command's extra flags for the banner.

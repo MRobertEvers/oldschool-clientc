@@ -1,51 +1,39 @@
-# Every place the protocol module (net/proto/) and the hand-written revision
-# parsers it replaces decode a server packet differently -- read by
-# net/test/proto_diff.c. One line per <revision> <prot>, then why.
+# Every place the generated revision executors (src/net/rev/osrs<N>/) and the
+# data-driven module they replace (net/proto/proto_rev.c + proto_in.c, which
+# found each codec through RSProt's registry at run time) decode a server
+# packet differently -- read by net/test/proto_diff.c. One line per
+# <revision> <prot>, then why.
 #
-# Each was checked against the payload and RSProt's layout, and in every case
-# below the module is the one that agrees with the wire: the line records a
-# hand-path bug the module fixes, not a tolerance. A line here whose prot the
+# Each was checked against the payload and RSProt's layout; in every case below
+# the executor is the one that agrees with the wire. A line whose prot the
 # corpus sends without a difference fails the run (STALE): delete it.
 #
-# Corpus these were measured on (2026-10-26): 40 RSProx recordings at 239 and
-# 40 at 241 from the index, plus 8 codec-filled payloads per prot.
+# Corpus (2026-10-26): 40 RSProx recordings at 239 and 40 at 241, our scriptrun
+# captures at osrs239/241, and 8 codec-filled payloads per prot at 227-241.
 
-# --- the hand table names the prot PKT_NAME_NONE: dropped at framing --------
-osrs239 AMBIENTSOUND_START        hand table has no name for it, so every ambient-sound start is dropped at framing (4,844 in the corpus); the module decodes it
-osrs239 AMBIENTSOUND_STOP         as AMBIENTSOUND_START (7,538 dropped)
-osrs239 MIDI_SWAP                 hand table has no name for it: dropped at framing; the module decodes it
-osrs239 MIDI_SONG_WITHSECONDARY   hand table has no name for it: dropped at framing; the module decodes it
-osrs239 SOUND_AREA                the top-level prot has no name in the hand table (its zone sub-packet form agrees); the module decodes both
-osrs239 TRIGGER_ONDIALOGABORT     hand table has no name for it: dropped at framing (290 in the corpus); the module decodes it
-osrs239 NPC_INFO_LARGE_V5         hand table has no name for the extended-view npc stream at 239: 15,030 dropped at framing (npcs past 15 tiles never appear); the module reads it
-osrs241 AMBIENTSOUND_START        as at 239
-osrs241 AMBIENTSOUND_STOP         as at 239 (8,582 dropped)
-osrs241 MIDI_SWAP                 as at 239
-osrs241 MIDI_SONG_WITHSECONDARY   as at 239
-osrs241 SOUND_AREA                as at 239
-osrs241 TRIGGER_ONDIALOGABORT     as at 239 (93 dropped)
+# --- the module decoded a _V1 prot into the un-versioned message ------------
+osrs228 LOC_ADD_CHANGE_V1        the module ran the V1 codec over MsgLocAddChange, whose fields are in another order: id, coord, properties and op flags came out shuffled; the executor decodes MsgLocAddChangeV1
+osrs231 MAP_PROJANIM_V1          as LOC_ADD_CHANGE_V1: the V1 codec over MsgMapProjAnim's field order; the executor decodes MsgMapProjAnimV1
 
-# --- 239 sends two versions of these camera prots ----------------------------
-# RSProt's 239 table carries V2 and V3 of each; the hand table names
-# CAM_LOOKAT_V2 and CAM_MOVETO_V2 only, and neither version of the other two.
-osrs239 CAM_LOOKAT_V3              hand table names only the V2 opcode: V3 (88 in the corpus) is dropped; the module decodes both
-osrs239 CAM_MOVETO_V3              hand table names only the V2 opcode: V3 (88) is dropped; the module decodes both
-osrs239 CAM_MOVETO_CYCLES_V2       hand table names no CAM_MOVETO_CYCLES at 239: dropped; the module decodes it
-osrs239 CAM_MOVETO_CYCLES_V3       as CAM_MOVETO_CYCLES_V2 (23 dropped)
-osrs239 CAM_ROTATETO_COORDINATE_V2 hand table names no CAM_ROTATETO_COORDINATE at 239: dropped; the module decodes it
-osrs239 CAM_ROTATETO_COORDINATE_V3 as CAM_ROTATETO_COORDINATE_V2 (24 dropped)
-
-# --- the hand path reads the wrong layout ------------------------------------
-osrs239 MESSAGE_PRIVATE           gameproto_parse reads the 2004 layout (g8 base-37 sender, g4 id, g1 rank); RSProt's is a jstr sender, g2 world, g3 counter, g1 crown, then huffman text
-osrs241 MESSAGE_PRIVATE           as at 239 (10 real messages in the corpus decoded wrong)
-osrs239 SET_PLAYER_OP             gameproto_parse reads slot, primary flag, newline string; RSProt's 239 layout is U1 priority, U1_ADD128 slot, NUL string (756 in the corpus)
-osrs239 UPDATE_REBOOT_TIMER_V2    gameproto_parse reads g2 cycles at byte 0; the 239 layout is a jstr message, then U2 cycles
-osrs239 WORLDENTITY_INFO_V7       the hand reader rejects a V7 spawn record after a zero update count (5 real packets, 14-byte spawn); RSProt's V7 stream reads it
-osrs241 WORLDENTITY_INFO_V7       as at 239 (2 real packets)
-
-# --- the hand path reads a signed field unsigned (fuzz only) -----------------
-# Jagex's traffic agrees in every packet of the corpus; the codec-filled
-# payloads reach 0x8000 and up, where the sign shows.
-osrs239 SET_ACTIVE_WORLD_V2       hand reads the world index unsigned; RSProt's layout is I2 (signed), and the module maps a negative index to the root world
-osrs241 SET_ACTIVE_WORLD_V2       as at 239
-osrs239 REBUILD_NORMAL_V2         hand keeps world_area unsigned; the module reads it as RSProx's signed world id
+# --- CAM_TARGET has a canonical arm now (struct PktCamTarget) -------------
+# The module had no name for it and dropped it at framing; replay's world-hop
+# check (net/proto/proto_reconnect.c) now reads it through the executor.
+osrs227 CAM_TARGET_V2            the module dropped it (no canonical name); the executor decodes it
+osrs228 CAM_TARGET_V2            the module dropped it (no canonical name); the executor decodes it
+osrs229 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs230 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs231 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs232 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs233 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs234 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs235 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs236 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs237 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs238 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs238 CAM_TARGET_V4            the module dropped it (no canonical name); the executor decodes it
+osrs239 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs239 CAM_TARGET_V4            the module dropped it (no canonical name); the executor decodes it
+osrs240 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs240 CAM_TARGET_V4            the module dropped it (no canonical name); the executor decodes it
+osrs241 CAM_TARGET_V3            the module dropped it (no canonical name); the executor decodes it
+osrs241 CAM_TARGET_V4            the module dropped it (no canonical name); the executor decodes it

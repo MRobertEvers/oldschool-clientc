@@ -891,7 +891,6 @@ out_move(
     int trailer_len)
 {
     struct RSCache_Buffer b;
-    int dest_only;
 
     if( route_len < 1 )
         return -1;
@@ -906,18 +905,6 @@ out_move(
         a.key_combination = ctrl_held ? 1 : 0;
         return proto_encode(rev, random_out, buf, cap, out_name, &a);
     }
-    dest_only = rev->revision == GAMEPROTO_REVISION_OSRS230 &&
-                out_name == PKTOUT_NAME_MOVE_GAMECLICK && trailer_len == 0;
-    if( dest_only )
-    {
-        if( out_begin(rev, random_out, buf, cap, out_name, 5, &b) < 0 )
-            return -1;
-        p1(&b, ctrl_held ? 1 : 0);
-        p2(&b, base_x + route_x[0]);
-        p2(&b, base_z + route_z[0]);
-        return 1 + (int)b.position;
-    }
-
     {
         int buffer_size = route_len < 25 ? route_len : 25;
         int idx = route_len - 1;
@@ -1907,7 +1894,7 @@ net_out_message_private(
     /* The OSRS layout (MessagePrivateDecoder) with this project's packed text
      * in place of OSRS's Huffman, which the server reads back the same way --
      * not yet RSProt's: the text encoding moves on both ends at once. */
-    if( rev->revision == GAMEPROTO_REVISION_OSRS239 || rev->revision == GAMEPROTO_REVISION_OSRS241 )
+    if( rev->revision == GAMEPROTO_REVISION_OSRS )
     {
         char name[16];
         p2(&b, 0);

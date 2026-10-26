@@ -3,12 +3,10 @@
  * consecutive stream; recipient_pid keeps packets from the other clients out. */
 #include <rscache.h>
 
+#include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 
-void osrs239_playerinfo_set_local(int local_index);
-void osrs239_playerinfo_init(const uint8_t* data, int len);
-int osrs239_player_info_read(const uint8_t* data, int len, RsprotInfoList* out);
-int osrs239_npc_info_read(const uint8_t* data, int len, RsprotInfoList* out);
+/* The client's own 239 readers, through its revision table. */
 
 /* The readers write a list; these hand a check its ops, the strings in one
  * arena the next read reuses. */
@@ -20,7 +18,7 @@ osrs239_player_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* 
     RsprotInfoList list;
 
     rsprot_info_list_init(&list, ops, cap, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
-    return osrs239_player_info_read(data, len, &list);
+    return GameProtoRev_OSRS239()->player_info_read(data, len, &list);
 }
 
 static int
@@ -29,7 +27,7 @@ osrs239_npc_info_read_ops(const uint8_t* data, int len, struct RsprotInfoOp* ops
     RsprotInfoList list;
 
     rsprot_info_list_init(&list, ops, cap, g_selftest_info_bytes, (int)sizeof(g_selftest_info_bytes));
-    return osrs239_npc_info_read(data, len, &list);
+    return GameProtoRev_OSRS239()->npc_info_read(data, len, &list);
 }
 
 struct SailingClientProbe
@@ -101,8 +99,8 @@ sailing_client_seed(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
      * Seed exactly as REBUILD_LOGIN does, then use only real packet captures. */
     rsab_wrap(&buf, init, sizeof(init));
     mock239_playerinfo_write_init(&buf, index, coord);
-    osrs239_playerinfo_set_local(index);
-    osrs239_playerinfo_init(init, (int)rsab_len(&buf));
+    GameProtoRev_OSRS239()->player_info_set_local(index);
+    GameProtoRev_OSRS239()->player_info_init(init, (int)rsab_len(&buf));
     mock239_playerinfo_state_init(&viewer->v5_gpi, index, coord);
     memset(viewer->v5_player_generation, 0, sizeof(viewer->v5_player_generation));
     viewer->v5_playerinfo_sent = 0;

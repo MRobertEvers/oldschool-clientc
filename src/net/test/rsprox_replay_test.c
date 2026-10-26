@@ -318,7 +318,7 @@ map_built(
 static void
 test_replay_plays_a_recording(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
     struct Rec r = build_recording(rev);
     struct RsproxRecording rec;
     struct ToriRS_Network net;
@@ -334,7 +334,7 @@ test_replay_plays_a_recording(void)
     TEST_CHECK(rec.local_player_index == LOCAL_INDEX);
     TEST_CHECK(strcmp(rec.world_host, "oldschool331.runescape.com") == 0);
     TEST_CHECK(strcmp(rec.client_name, "RuneLite (Win)") == 0);
-    TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "rsprox241") == 0);
+    TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrs241") == 0);
     TEST_CHECK(RsproxRecording_Index(&rec, rev, err, sizeof(err)) == 0);
     /* Both client packets framed past, eight server packets kept. */
     TEST_CHECK(rec.frame_count == 8);
@@ -412,7 +412,7 @@ test_replay_plays_a_recording(void)
 static void
 test_replay_refuses_what_it_cannot_frame(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
     struct RsproxRecording rec;
     char err[256];
 
@@ -442,7 +442,7 @@ test_replay_refuses_what_it_cannot_frame(void)
 
         r.data[7] = 239;
         TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
-        TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "rsprox239") == 0);
+        TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrs239") == 0);
         RsproxRecording_Free(&rec);
     }
     {
@@ -481,7 +481,7 @@ w_pseudo(
 static void
 test_replay_reconnects_where_the_recording_did(void)
 {
-    struct GameProtoRevTable const* rev = GameProtoRev_Rsprox(241);
+    struct GameProtoRevTable const* rev = GameProtoRev_Osrs(241);
     struct Rec r;
     struct RsproxRecording rec;
     struct ToriRS_Network net;
@@ -524,7 +524,7 @@ test_replay_reconnects_where_the_recording_did(void)
     TEST_CHECK(rec.frames[5].opcode == RSPROX_RECORDING_RECONNECT);
     /* No camera names a player after it, so RSProx's rule stands: the
      * recording's own index. */
-    TEST_CHECK(rsprox_recording_resolve_reconnects(GameProtoRev_Rsprox(241), &rec) == 0);
+    TEST_CHECK(rsprox_recording_resolve_reconnects(GameProtoRev_Osrs(241), &rec) == 0);
     TEST_CHECK(rec.frames[5].reconnect_index == LOCAL_INDEX);
     /* A hop the resolver found, as the transport would carry it. */
     rec.frames[5].reconnect_index = 163;

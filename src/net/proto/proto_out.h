@@ -6,12 +6,13 @@
  *
  * A packet is described by what it means, in RSProt's own field names
  * (struct ProtoOutArgs): the tile and id an op targets, the component triple a
- * use-on carries, the text a chat line sends. proto_encode finds the prot the
- * revision sends for `out_name` (the row at the opcode its table names), runs
- * that prot's `_in` codec over a message filled from the arguments, and frames
- * it: the ISAAC-scrambled opcode, then the length the prot table's size says.
- * Field order, byte transforms and which version a revision sends are all
- * RSProt's; nothing here knows a revision.
+ * use-on carries, the text a chat line sends. proto_encode asks the revision's
+ * executor (src/net/rev/<rev>/<rev>_exec.c, its `encode` slot) to fill the
+ * prot's message from the arguments (w_<file>, proto_out_writers.h) and run the
+ * `_in` codec that revision carries, then frames it: the ISAAC-scrambled
+ * opcode, then the length the prot table's size says. Field order, byte
+ * transforms and which version a revision sends are all RSProt's; nothing here
+ * knows a revision.
  *
  * The one thing the arguments do not decide is what a packet's text or tail
  * bytes are: a chat line's packed text, a script trigger's arguments. The
@@ -96,7 +97,7 @@ struct ProtoOutArgs
     int32_t copy_length;
 };
 
-/** 1 when `rev` writes its client packets through RSProt (proto_encode). */
+/** 1 when `rev` writes its client packets through an executor (proto_encode). */
 int
 proto_out_speaks(struct GameProtoRevTable const* rev);
 

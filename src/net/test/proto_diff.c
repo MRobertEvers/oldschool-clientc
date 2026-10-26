@@ -1,31 +1,31 @@
 /*
- * The protocol module against the parsers it replaces, packet for packet.
+ * The generated revision executors against the module they replace, packet
+ * for packet.
  *
  *     make -C src test-proto-diff [CORPUS="a.bin.gz b.bin ..."] [FUZZ=8]
  *
- * For each revision with a hand-written table, every server payload in the
- * corpus is decoded twice: by that table's chain (net.c's order before the
- * protocol module: proto_decode_name, rev->parse, gameproto_parse) and by the
- * module (GameProtoRev_Rsprox's parse_wire), and the two RevPackets are
+ * For each OSRS revision, every server payload in the corpus is decoded twice:
+ * by the previous data-driven module (GameProtoRev_Rsprox: the prot looked up
+ * by opcode, its codec found through RSProt's registry at run time) and by the
+ * revision's generated executor (GameProtoRev_Osrs: src/net/rev/osrs<N>/,
+ * which calls the revision's codec by name), and the two RevPackets are
  * compared arm by arm -- owned arrays and strings by what they hold.
  *
  * The corpus is
- *   - RSProx recordings at a revision a hand table speaks (239, 241),
+ *   - RSProx recordings, each at its own revision,
  *   - our own captures (net/net_capture.h), framed by the table they name,
- *   - FUZZ seeds per prot: every server prot with a codec at the revision,
- *     its message FILLed and encoded by that codec. The module decodes it with
- *     the same codec, so this is the hand parsers checked against RSProt's
- *     transcription, prot by prot, including the ones no session sends.
+ *   - FUZZ seeds per prot at every revision: every server prot with a codec,
+ *     its message FILLed and encoded by that codec, so a prot no session sends
+ *     is still decoded both ways.
  *
  * Every disagreement must be listed in net/test/proto_diff_expected.txt with
- * the reason it is the hand parser's (or the module's) known difference. An
+ * the reason it is the module's (or the executor's) known difference. An
  * unlisted one fails the run, and so does a listed one the corpus exercised
  * that no longer differs: the ledger is kept honest both ways. A listed one
  * the corpus never sent is reported, not failed.
  */
 #include "net/net.h"
 #include "net/proto/proto.h"
-#include "net/proto/proto_in_adapt.h"
 #include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
@@ -160,11 +160,10 @@ same(struct RevPacket const* a, struct RevPacket const* b)
         break;
     }
     case PKT_NAME_REBUILD_WORLDENTITY:
+        /* The codec and its version compare as the arm's plain fields. */
         owned = a->_rebuild_wev.length == b->_rebuild_wev.length &&
-                blob_eq(a->_rebuild_wev.data, b->_rebuild_wev.data, (size_t)a->_rebuild_wev.length) &&
-                str_eq(a->_rebuild_wev.prot, b->_rebuild_wev.prot);
+                blob_eq(a->_rebuild_wev.data, b->_rebuild_wev.data, (size_t)a->_rebuild_wev.length);
         x._rebuild_wev.data = y._rebuild_wev.data = NULL;
-        x._rebuild_wev.prot = y._rebuild_wev.prot = NULL;
         break;
     case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_FULL:
     case PKT_NAME_UPDATE_FRIENDCHAT_CHANNEL_SINGLEUSER:
@@ -248,32 +247,8 @@ same(struct RevPacket const* a, struct RevPacket const* b)
 
 /* --- the two decoders ----------------------------------------------------- */
 
-/* net.c's chain before the protocol module, on a hand-written table. */
 static int
-decode_reference(
-    struct GameProtoRevTable const* rev, int wire, uint8_t const* data, int len, struct RevPacket* out)
-{
-    static uint8_t copy[1 << 17];
-    int name = rev->packetin_code(wire);
-    int parsed;
-
-    memset(out, 0, sizeof(*out));
-    if( name == PKT_NAME_NONE || len > (int)sizeof(copy) )
-        return 0;
-    /* gameproto_parse reads from a mutable buffer. */
-    memcpy(copy, data, (size_t)len);
-    out->packet_type = name;
-    parsed = proto_decode_name(rev, name, copy, len, out);
-    if( parsed < 0 && rev->parse )
-        parsed = rev->parse(rev, name, copy, len, out);
-    if( parsed < 0 )
-        parsed = gameproto_parse(rev, name, copy, len, out);
-    return parsed > 0;
-}
-
-static int
-decode_module(
-    struct GameProtoRevTable const* rev, int wire, uint8_t const* data, int len, struct RevPacket* out)
+decode(struct GameProtoRevTable const* rev, int wire, uint8_t const* data, int len, struct RevPacket* out)
 {
     memset(out, 0, sizeof(*out));
     return rev->parse_wire(rev, wire, data, len, out) > 0;
@@ -363,11 +338,11 @@ compare(
 {
     static struct RevPacket a;
     static struct RevPacket b;
-    RsprotProtDef const* d = proto_server_prot(proto_rev_state(mod), wire);
+    RsprotProtDef const* d = proto_server_prot(proto_rev_state(ref), wire);
     char prot[64];
     struct Key* k;
-    int pa = decode_reference(ref, wire, data, len, &a);
-    int pb = decode_module(mod, wire, data, len, &b);
+    int pa = decode(ref, wire, data, len, &a);
+    int pb = decode(mod, wire, data, len, &b);
 
     snprintf(prot, sizeof(prot), "%s", d ? d->name : "?");
     if( !d )
@@ -385,9 +360,9 @@ compare(
 
             l1[0] = l2[0] = '\0';
             if( pa )
-                hexline(l1, sizeof(l1), "hand", &a);
+                hexline(l1, sizeof(l1), "module", &a);
             if( pb )
-                hexline(l2, sizeof(l2), "module", &b);
+                hexline(l2, sizeof(l2), "exec", &b);
             char wire_hex[100];
             size_t n = 0;
 
@@ -395,7 +370,7 @@ compare(
             for( int i = 0; i < len && i < 30; i++ )
                 n += (size_t)snprintf(wire_hex + n, sizeof(wire_hex) - n, " %02x", data[i]);
             snprintf(k->example, sizeof(k->example),
-                     "%s, %d bytes: hand %s, module %s\n      wire%s\n      %s\n      %s", where, len,
+                     "%s, %d bytes: module %s, exec %s\n      wire%s\n      %s\n      %s", where, len,
                      pa ? "decoded" : "dropped", pb ? "decoded" : "dropped", wire_hex, l1, l2);
         }
     }
@@ -407,26 +382,8 @@ compare(
 
 /* --- corpora ------------------------------------------------------------- */
 
-struct Pair
-{
-    char const* name;
-    int revision;
-};
-
-/* The hand-written tables and the module revision each is checked against. */
-static struct Pair const k_pairs[] = {
-    { "osrs239", 239 },
-    { "osrs241", 241 },
-};
-
-static struct Pair const*
-pair_named(char const* name)
-{
-    for( size_t i = 0; i < sizeof(k_pairs) / sizeof(k_pairs[0]); i++ )
-        if( strcmp(k_pairs[i].name, name) == 0 )
-            return &k_pairs[i];
-    return NULL;
-}
+#define FIRST 227
+#define LAST 241
 
 static int
 run_recording(char const* path)
@@ -434,10 +391,9 @@ run_recording(char const* path)
     struct RsproxRecording rec;
     struct GameProtoRevTable const* ref;
     struct GameProtoRevTable const* mod;
-    struct Pair const* pair;
     char err[256];
     char where[300];
-    char ref_name[32];
+    char rev_name[32];
 
     memset(&rec, 0, sizeof(rec));
     if( RsproxRecording_OpenFile(&rec, path, err, sizeof(err)) != 0 )
@@ -446,27 +402,25 @@ run_recording(char const* path)
         return 1;
     }
     if( strncmp(rec.client_name, "torirs-capture:", 15) == 0 )
-        snprintf(ref_name, sizeof(ref_name), "%s", rec.client_name + 15);
+        snprintf(rev_name, sizeof(rev_name), "%s", rec.client_name + 15);
     else
-        snprintf(ref_name, sizeof(ref_name), "osrs%d", rec.revision);
-    pair = pair_named(ref_name);
-    if( !pair )
+        snprintf(rev_name, sizeof(rev_name), "osrs%d", rec.revision);
+    mod = GameProtoRev_OsrsByName(rev_name);
+    if( !mod )
     {
-        printf("skip %s: no hand-written table for %s\n", path, ref_name);
+        printf("skip %s: %s is not a supported OSRS revision\n", path, rev_name);
         RsproxRecording_Free(&rec);
         return 0;
     }
-    ref = GameProtoRev_ByName(pair->name);
-    mod = GameProtoRev_Rsprox(pair->revision);
+    ref = GameProtoRev_Rsprox(mod->number);
     assert(ref);
-    assert(mod);
     if( RsproxRecording_Index(&rec, mod, err, sizeof(err)) != 0 )
     {
         printf("FAIL %s: %s\n", path, err);
         RsproxRecording_Free(&rec);
         return 1;
     }
-    printf("%s: %s, %d server packets\n", path, pair->name, rec.frame_count);
+    printf("%s: %s, %d server packets\n", path, mod->name, rec.frame_count);
     for( int f = 0; f < rec.frame_count; f++ )
     {
         struct RsproxRecordingFrame const* fr = &rec.frames[f];
@@ -474,7 +428,7 @@ run_recording(char const* path)
         if( fr->opcode == RSPROX_RECORDING_RECONNECT || fr->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
             continue;
         snprintf(where, sizeof(where), "%s frame %d", path, f);
-        compare(pair->name, ref, mod, fr->opcode, rec.data + fr->offset, (int)fr->length, where);
+        compare(mod->name, ref, mod, fr->opcode, rec.data + fr->offset, (int)fr->length, where);
     }
     RsproxRecording_Free(&rec);
     return 0;
@@ -488,13 +442,13 @@ static union
 
 static uint8_t g_wire[256 * 1024];
 
-/* Every server prot with a codec at the pair's revision, FILLed and encoded. */
+/* Every server prot with a codec at `revision`, FILLed and encoded. */
 static void
-run_fuzz(struct Pair const* pair, int seeds)
+run_fuzz(int revision, int seeds)
 {
-    struct GameProtoRevTable const* ref = GameProtoRev_ByName(pair->name);
-    struct GameProtoRevTable const* mod = GameProtoRev_Rsprox(pair->revision);
-    RsprotRev rev = rsprot_osrs(pair->revision);
+    struct GameProtoRevTable const* ref = GameProtoRev_Rsprox(revision);
+    struct GameProtoRevTable const* mod = GameProtoRev_Osrs(revision);
+    RsprotRev rev = rsprot_osrs(revision);
     RsprotRevTable const* t = rsprot_rev_table(rev);
     int fed = 0;
 
@@ -532,11 +486,11 @@ run_fuzz(struct Pair const* pair, int seeds)
             if( d->size >= 0 && b.wpos != d->size )
                 continue;
             snprintf(where, sizeof(where), "fuzz seed %u", seed);
-            compare(pair->name, ref, mod, d->code, g_wire, b.wpos, where);
+            compare(mod->name, ref, mod, d->code, g_wire, b.wpos, where);
             fed++;
         }
     }
-    printf("fuzz %s: %d payloads\n", pair->name, fed);
+    printf("fuzz %s: %d payloads\n", mod->name, fed);
 }
 
 /* --- the report ------------------------------------------------------------ */
@@ -566,8 +520,8 @@ main(int argc, char** argv)
     for( int i = 1; i < argc; i++ )
         failures += run_recording(argv[i]);
     if( seeds > 0 )
-        for( size_t i = 0; i < sizeof(k_pairs) / sizeof(k_pairs[0]); i++ )
-            run_fuzz(&k_pairs[i], seeds);
+        for( int revision = FIRST; revision <= LAST; revision++ )
+            run_fuzz(revision, seeds);
 
     qsort(g_keys, (size_t)g_key_count, sizeof(g_keys[0]), cmp_key);
     printf("\n");

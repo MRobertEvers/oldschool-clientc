@@ -536,15 +536,13 @@ net_process_packets(struct ToriRS_Network* net)
         else
         {
             /*
-             * The parsers, tried in order, each returning <0 for "not mine".
+             * A generated revision (src/net/rev/<rev>/<rev>_exec.c) decodes by
+             * wire opcode through its executor and never answers "not mine".
+             * The LostCity tables, until they are generated too, try in order,
+             * each returning <0 for "not mine":
              *
-             *   0. rev->parse_wire -- by wire opcode, where a table needs it.
-             *   1. rsprot   — the generated per-layout codecs in
-             *                 3rd/rsprot/packets/, selected by (packet,
-             *                 revision). This is where packets are migrating
-             *                 TO; see net/proto/proto_in_adapt.h.
-             *   2. rev->parse — the hand-written per-revision overrides
-             *                 (osrs239_parse.c, osrs230_parse.c).
+             *   1. rsprot   — the bridge rows (net/proto/proto_in_adapt.h);
+             *   2. rev->parse — a hand-written per-revision override;
              *   3. gameproto_parse — the shared lc-style parser.
              *
              * rsprot goes first so that moving a packet across is adding one

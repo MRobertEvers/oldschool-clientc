@@ -6,11 +6,12 @@
  * `test_runclientscript_vararg`; this file starts where that one stops, at the
  * bytes, and ends where `App_RunClientScript` picks the struct up.
  *
- * Layout, from `ToriRSServer_SendRunClientscriptMixed` (`torirsserver/torirs_server_encode.c`):
+ * Layout, revision 239's (RSProt's RUNCLIENTSCRIPT, which the server writes
+ * through `torirsserver/mock239_runclientscript.c`):
  *
  *     p1 * argc      one type character per argument, in DECLARATION order
- *     p1             '\n'
- *     args           in REVERSE order: 's' -> jstr (newline-terminated),
+ *     p1             0
+ *     args           in REVERSE order: 's' -> jstr (NUL-terminated),
  *                    anything else -> p4
  *     p4             the clientscript id
  *
@@ -25,8 +26,9 @@
  * writes through a file-static arena and a `struct ToriRSServerPlayer`, so linking it
  * pulls in the whole server. The encoder's own output is asserted, byte by byte,
  * by ToriRSServer's `--selftest` (the skill guide's four-int payload); what is NOT
- * asserted anywhere else, and is asserted here, is that `osrs230_parse` reads
- * that layout back — including what it does when the payload does not fit.
+ * asserted anywhere else, and is asserted here, is that the client's 239
+ * executor reads that layout back -- including what it does when the payload
+ * does not fit.
  */
 
 #include "net/rev/gameproto_revisions.h"
@@ -39,14 +41,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* net/rev/osrs230/osrs230_parse.c */
-int
-osrs230_parse(
-    struct GameProtoRevTable const* rev,
-    int pkt_name,
-    uint8_t const* data,
-    int len,
-    struct RevPacket* out);
 
 static int g_fail = 0;
 
@@ -96,11 +90,11 @@ write_runclientscript(
     rsab_wrap(&buf, out, capacity);
     for( int i = 0; i < argc; i++ )
         rsab_p1(&buf, (uint8_t)types[i]);
-    rsab_p1(&buf, '\n');
+    rsab_p1(&buf, 0);
     for( int i = argc - 1; i >= 0; i-- )
     {
         if( types[i] == 's' )
-            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NEWLINE);
+            rsab_pjstr(&buf, strv && strv[i] ? strv[i] : "", RSAB_JSTR_NUL);
         else
             rsab_p4(&buf, intv ? intv[i] : 0);
     }
@@ -115,7 +109,11 @@ parse(uint8_t const* data, int len, struct RevPacket* out)
      * from the previous parse; zeroing over it would drop the block. */
     ToriMem_Free(ToriMem_Net(), out->_runclientscript);
     memset(out, 0, sizeof(*out));
-    return osrs230_parse(NULL, PKT_NAME_RUNCLIENTSCRIPT, data, len, out);
+    {
+        struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+
+        return rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_RUNCLIENTSCRIPT), data, len, out);
+    }
 }
 
 /*

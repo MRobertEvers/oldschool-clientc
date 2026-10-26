@@ -1,6 +1,7 @@
 #include "gameproto_revisions.h"
 
 #include <assert.h>
+#include <stddef.h>
 #include <string.h>
 
 /*
@@ -27,4 +28,37 @@ GameProtoRev_SetClientVersion(
     assert(rev && version > 0);
     struct GameProtoRevTable* mut = (struct GameProtoRevTable*)rev;
     mut->client_version = version;
+}
+
+static struct GameProtoRevTable const* (*const k_osrs[])(void) = {
+#define REV_FN(ID, NUMBER) GameProtoRev_##ID,
+    REV_LIST(REV_FN)
+#undef REV_FN
+};
+
+struct GameProtoRevTable const*
+GameProtoRev_Osrs(int revision)
+{
+    for( size_t i = 0; i < sizeof(k_osrs) / sizeof(k_osrs[0]); i++ )
+    {
+        struct GameProtoRevTable const* t = k_osrs[i]();
+
+        if( t->number == revision )
+            return t;
+    }
+    return NULL;
+}
+
+struct GameProtoRevTable const*
+GameProtoRev_OsrsByName(char const* name)
+{
+    assert(name);
+    for( size_t i = 0; i < sizeof(k_osrs) / sizeof(k_osrs[0]); i++ )
+    {
+        struct GameProtoRevTable const* t = k_osrs[i]();
+
+        if( strcmp(t->name, name) == 0 )
+            return t;
+    }
+    return NULL;
 }

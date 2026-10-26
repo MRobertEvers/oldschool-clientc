@@ -30,11 +30,10 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_INVALID = 0,
     GAMEPROTO_REVISION_LC254 = 1,
     GAMEPROTO_REVISION_LC245_2 = 2,
-    /* 3 was xrsps233, removed 2026-10-25. */
-    GAMEPROTO_REVISION_OSRS230 = 4,
-    GAMEPROTO_REVISION_OSRS239 = 5,
+    /* 3 was xrsps233, removed 2026-10-25. 4, 5 and 7 were the hand-written
+     * osrs230 / osrs239 / osrs241 tables, generated since 2026-10-26
+     * (GAMEPROTO_REVISION_OSRS). */
     GAMEPROTO_REVISION_LC289 = 6,
-    GAMEPROTO_REVISION_OSRS241 = 7,
     /**
      * One of the data-driven OSRS revisions, 227-241 (net/proto/): every
      * wire table, codec and info-stream layout comes from 3rd/rsprot's
@@ -42,6 +41,12 @@ enum GameProtoRevision
      * client_version and nothing else distinguishes them. Named "rsprox<N>".
      */
     GAMEPROTO_REVISION_RSPROX = 8,
+    /**
+     * A generated OSRS revision (src/net/rev/osrs<N>/osrs<N>_exec.c, from
+     * src/net/rev/revisions.ini): its executor calls the revision's own
+     * RSProt codecs. GameProtoRevTable.number says which.
+     */
+    GAMEPROTO_REVISION_OSRS = 9,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -108,9 +113,15 @@ struct PktPlayerAppearance;
 struct NetLoginVTable;
 struct NetOutVTable;
 
+struct ProtoOutArgs;
+
 struct GameProtoRevTable
 {
     enum GameProtoRevision revision;
+    /** The revision a generated table IS (239 for osrs239), whatever client
+     *  version a boot manifest restates (GameProtoRev_SetClientVersion); 0 on
+     *  a hand-written table. */
+    int number;
     char const* name;
     int client_version;
     /** Login-block CRCs of the 9 jag archives (server-build specific). */
@@ -244,6 +255,14 @@ struct GameProtoRevTable
         uint8_t const* data,
         int len,
         struct RevPacket* out);
+
+    /**
+     * Write `out_name`'s payload from `args` into `buf` with the revision's
+     * codec (a generated table's executor): the bytes written, or -1 when the
+     * revision sends no such packet or the payload does not fit `cap`. The
+     * framing -- opcode, length -- is proto_encode's (net/proto/proto_out.c).
+     */
+    int (*encode)(int out_name, struct ProtoOutArgs const* args, uint8_t* buf, int cap);
 };
 
 struct GameProtoRevTable const*
@@ -253,26 +272,25 @@ struct GameProtoRevTable const*
 GameProtoRev_LC254(void);
 
 struct GameProtoRevTable const*
-GameProtoRev_OSRS230(void);
-
-struct GameProtoRevTable const*
-GameProtoRev_OSRS239(void);
-
-/** A copy of the osrs239 table changed to revision 241's wire (RSProx). */
-struct GameProtoRevTable const*
-GameProtoRev_OSRS241(void);
-
-struct GameProtoRevTable const*
 GameProtoRev_LC289(void);
 
-/** Resolve a revision by name ("lc254", "lc289", "lc245_2",
- *  "osrs230", "osrs239", "osrs241"); NULL when unknown. */
+/** Resolve a revision by name: "lc254", "lc289", "lc245_2", or "osrs<N>" for a
+ *  supported OSRS revision ("rsprox<N>" is the same table, the name replay
+ *  manifests use); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 
-/** The data-driven table for OSRS revision `revision` (227-241), or NULL
- *  outside that span. Its name is "rsprox<N>"; GameProtoRev_ByName resolves
- *  that too. */
+/** OSRS revision `revision`'s generated table (src/net/rev/osrs<N>/), or NULL
+ *  when the client does not support it (src/net/rev/revisions.ini). */
+struct GameProtoRevTable const*
+GameProtoRev_Osrs(int revision);
+
+/** The same, by its name ("osrs239"). */
+struct GameProtoRevTable const*
+GameProtoRev_OsrsByName(char const* name);
+
+/** The previous data-driven module's table for `revision` (net/proto/proto_rev.c),
+ *  kept only to diff the generated executors against (net/test/proto_diff.c). */
 struct GameProtoRevTable const*
 GameProtoRev_Rsprox(int revision);
 
@@ -286,5 +304,8 @@ GameProtoRev_SetJagChecksums(struct GameProtoRevTable const* rev, int32_t const 
 
 void
 GameProtoRev_SetClientVersion(struct GameProtoRevTable const* rev, int version);
+
+/* Every supported OSRS revision's GameProtoRev_OSRS<N>(), and REV_LIST. */
+#include "net/rev/rev_list.h"
 
 #endif

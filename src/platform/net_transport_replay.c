@@ -64,7 +64,7 @@
 
 #include "log/torirs_log.h"
 
-/* rev 241's login prots and replies (net/rev/osrs241/loginblock.h). Stated
+/* rev 241's login prots and replies (net/login/login_osrs_block.h). Stated
  * here because this is the server side of them, which the client tree has no
  * header for. */
 #define REPLAY_LOGIN_INIT_GAME_CONNECTION 14

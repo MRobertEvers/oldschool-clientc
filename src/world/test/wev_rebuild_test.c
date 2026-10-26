@@ -156,14 +156,14 @@ test_parse_and_decode(void)
 
     memset(&p, 0, sizeof(p));
     TEST_WEVR_ASSERT(
-        rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, buf, len, &p), "raft packet parses");
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), buf, len, &p), "raft packet parses");
     /* The parse arms leave packet_type to the reader (net.c stamps it after a
      * successful parse); gameproto_free dispatches on it, so stamp it here the
      * same way. */
     p.packet_type = PKT_NAME_REBUILD_WORLDENTITY;
     TEST_WEVR_ASSERT(p._rebuild_wev.base_x == RAFT_BASE_TILE, "baseX carried");
     TEST_WEVR_ASSERT(p._rebuild_wev.base_z == RAFT_BASE_TILE, "baseZ carried");
-    TEST_WEVR_ASSERT(p._rebuild_wev.length == 4, "grid carried raw, header stripped");
+    TEST_WEVR_ASSERT(p._rebuild_wev.length == len, "the whole payload carried, with its codec");
     TEST_WEVR_ASSERT(p._rebuild_wev.data != NULL, "grid bytes copied out of the frame");
 
     /* Decode against the true view size: the one cell lands at index 0 of the
@@ -185,10 +185,10 @@ test_parse_and_decode(void)
 
     memset(&p, 0, sizeof(p));
     TEST_WEVR_ASSERT(
-        rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, buf, len - 1, &p),
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), buf, len - 1, &p),
         "parse cannot size-check the grid (dims are spawn-time state)");
     p.packet_type = PKT_NAME_REBUILD_WORLDENTITY;
-    TEST_WEVR_ASSERT(p._rebuild_wev.length == 3, "one grid byte lost");
+    TEST_WEVR_ASSERT(p._rebuild_wev.length == len - 1, "one grid byte lost");
     TEST_WEVR_ASSERT(
         !PktRebuildWev_DecodeZones(&p._rebuild_wev, 1, 1, zones), "short grid rejected at decode");
     gameproto_free(&p);
@@ -199,7 +199,7 @@ test_parse_and_decode(void)
         memcpy(padded, buf, sizeof(buf));
         memset(&p, 0, sizeof(p));
         TEST_WEVR_ASSERT(
-            rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, padded, len + 1, &p),
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), padded, len + 1, &p),
             "padded frame still parses");
         p.packet_type = PKT_NAME_REBUILD_WORLDENTITY;
         TEST_WEVR_ASSERT(
@@ -208,13 +208,13 @@ test_parse_and_decode(void)
         gameproto_free(&p);
     }
 
-    /* Header truncation and an impossible source-square count fail at parse. */
+    /* Header truncation fails at parse; the source-square count is a hint. */
     memset(&p, 0, sizeof(p));
     TEST_WEVR_ASSERT(
-        !rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, buf, 6, &p), "empty grid rejected");
+        !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), buf, 6, &p), "empty grid rejected");
     memset(&p, 0, sizeof(p));
     TEST_WEVR_ASSERT(
-        !rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, buf, 5, &p), "short header rejected");
+        !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), buf, 5, &p), "short header rejected");
     {
         uint8_t bad[16];
 
@@ -223,31 +223,40 @@ test_parse_and_decode(void)
         bad[5] = (uint8_t)((PKT_MAP_REBUILD_ZONES + 1) & 0xFF);
         memset(&p, 0, sizeof(p));
         TEST_WEVR_ASSERT(
-            !rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, bad, len, &p),
-            "source-square count past the grid rejected");
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), bad, len, &p),
+            "a source-square count past the grid is a hint, carried");
+        p.packet_type = PKT_NAME_REBUILD_WORLDENTITY;
+        gameproto_free(&p);
     }
 
     /* Stride check on a wider view: 2x1 zones, only cell (zx=1, zz=0) present
-     * — it must land at [1*13 + 0], not [1]. Grid built by hand, no header. */
+     * — it must land at [1*13 + 0], not [1]. Grid laid by hand after the raft
+     * packet's 6-byte header, then read through the 239 executor. */
     {
-        struct PktRebuildWev wide;
-        uint8_t grid[8];
+        struct RevPacket wp;
+        struct PktRebuildWev const* wide = &wp._rebuild_wev;
+        uint8_t frame[6 + 8];
+        uint8_t* grid = frame + 6;
         int bit_pos = 0;
 
-        memset(grid, 0, sizeof(grid));
+        memcpy(frame, buf, 6);
+        memset(grid, 0, 8);
         put_bits(grid, &bit_pos, 0, 1); /* level 0, (0,0): void */
         put_bits(grid, &bit_pos, 1, 1); /* level 0, (1,0): present */
         put_bits(grid, &bit_pos, v, 26);
         for( int i = 0; i < 6; i++ ) /* levels 1..3, both zones: void */
             put_bits(grid, &bit_pos, 0, 1);
 
-        memset(&wide, 0, sizeof(wide));
-        wide.data = grid;
-        wide.length = (bit_pos + 7) / 8;
-        TEST_WEVR_ASSERT(PktRebuildWev_DecodeZones(&wide, 2, 1, zones), "2x1 grid decodes");
+        memset(&wp, 0, sizeof(wp));
+        TEST_WEVR_ASSERT(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), frame,
+                                         6 + (bit_pos + 7) / 8, &wp),
+                         "2x1 frame parses");
+        wp.packet_type = PKT_NAME_REBUILD_WORLDENTITY;
+        TEST_WEVR_ASSERT(PktRebuildWev_DecodeZones(wide, 2, 1, zones), "2x1 grid decodes");
         TEST_WEVR_ASSERT(zones[13] == (int32_t)v, "zx=1 lands at the 13-stride cell");
         TEST_WEVR_ASSERT(zones[0] == 0, "zx=0 stays void");
         TEST_WEVR_ASSERT(zones[1] == 0, "the naive 2-stride cell stays void");
+        gameproto_free(&wp);
     }
 
     printf("ok - REBUILD_WORLDENTITY parse carry + view-sized grid decode\n");
@@ -721,7 +730,7 @@ test_raft_deck_rebuild(char const* cache_dir)
     len = build_raft_packet(buf, zone_descriptor(RAFT_SRC_ZONE, RAFT_SRC_ZONE, 0, 0));
     memset(&p, 0, sizeof(p));
     TEST_WEVR_ASSERT(
-        rev->parse(rev, PKT_NAME_REBUILD_WORLDENTITY, buf, len, &p), "raft packet parses");
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_WORLDENTITY), buf, len, &p), "raft packet parses");
     p.packet_type = PKT_NAME_REBUILD_WORLDENTITY; /* net.c stamps this in the live path */
     TEST_WEVR_ASSERT(PktRebuildWev_DecodeZones(&p._rebuild_wev, 1, 1, zones), "grid decodes");
 

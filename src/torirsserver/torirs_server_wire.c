@@ -7,11 +7,11 @@
 #include "mock239_runclientscript.h"
 #include "mock239_varp.h"
 
-#include "net/rev/osrs230/packetin.h"
-#include "net/rev/osrs230/packetout.h"
-#include "net/rev/osrs239/packetin.h"
-#include "net/rev/osrs239/packetout.h"
-#include "net/rev/osrs239/zoneprot.h"
+#include "torirsserver/wire/osrs230/packetin.h"
+#include "torirsserver/wire/osrs230/packetout.h"
+#include "torirsserver/wire/osrs239/packetin.h"
+#include "torirsserver/wire/osrs239/packetout.h"
+#include "torirsserver/wire/osrs239/zoneprot.h"
 
 #include "torirs_server_zone.h"
 
@@ -1788,7 +1788,7 @@ ToriRSServer_WireByName(char const* name)
 const struct ToriRSServerWire*
 ToriRSServer_WireDefault(void)
 {
-    return &k_wire_osrs230;
+    return &k_wire_osrs239;
 }
 
 /* ------------------------------------------------------------------ */

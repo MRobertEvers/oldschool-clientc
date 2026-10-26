@@ -5,9 +5,9 @@
 #include "torirs_server_scene.h"
 #include "torirs_server_zone.h"
 
-#include "net/rev/osrs241/packetin.h"
-#include "net/rev/osrs241/packetout.h"
-#include "net/rev/osrs241/zoneprot.h"
+#include "torirsserver/wire/osrs241/packetin.h"
+#include "torirsserver/wire/osrs241/packetout.h"
+#include "torirsserver/wire/osrs241/zoneprot.h"
 
 #include "rsprot_buf.h"
 #include "rsprot_exec.h"

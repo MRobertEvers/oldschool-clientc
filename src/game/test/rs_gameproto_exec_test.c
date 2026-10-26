@@ -409,7 +409,7 @@ main(void)
 
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
-            rev->parse(rev, PKT_NAME_REBUILD_REGION, body, sizeof(body), &p),
+            rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_REGION), body, sizeof(body), &p),
             "REBUILD_REGION_V2 must parse");
         assert(p._map_rebuild.zonez == 0x0123);
         assert(p._map_rebuild.zonex == 0x0234);
@@ -420,7 +420,7 @@ main(void)
 
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
-            !rev->parse(rev, PKT_NAME_REBUILD_REGION, body, (int)sizeof(body) - 1, &p),
+            !rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_REBUILD_REGION), body, (int)sizeof(body) - 1, &p),
             "truncated REBUILD_REGION_V2 must be rejected");
         assert(p._map_rebuild.zones == NULL);
         printf("ok - REBUILD_REGION_V2 parsed and bounds checked\n");
@@ -435,9 +435,9 @@ main(void)
         uint8_t partial[3] = { (uint8_t)(41 + 128), 55, (uint8_t)-1 };
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
-            rev->parse(
+            rev->parse_wire(
                 rev,
-                PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+                rev->packetin_wire(PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS),
                 partial,
                 (int)sizeof(partial),
                 &p),
@@ -449,8 +449,8 @@ main(void)
         uint8_t full[3] = { (uint8_t)(128 - 42), (uint8_t)-56, 2 };
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
-            rev->parse(
-                rev, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, full, (int)sizeof(full), &p),
+            rev->parse_wire(
+                rev, rev->packetin_wire(PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS), full, (int)sizeof(full), &p),
             "UPDATE_ZONE_FULL_FOLLOWS must parse");
         assert(p._update_zone_full_follows.base_z == 42);
         assert(p._update_zone_full_follows.base_x == 56);
@@ -459,9 +459,9 @@ main(void)
         uint8_t enclosed[3] = { (uint8_t)-3, (uint8_t)(43 + 128), (uint8_t)(57 + 128) };
         memset(&p, 0, sizeof(p));
         TEST_EXEC_ASSERT(
-            rev->parse(
+            rev->parse_wire(
                 rev,
-                PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+                rev->packetin_wire(PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED),
                 enclosed,
                 (int)sizeof(enclosed),
                 &p),

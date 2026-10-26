@@ -8,7 +8,7 @@
  * server sent its player, and nothing else: numbers, no scene, no models, no
  * interface tree. It is fed the payloads ToriRSServer_Send addresses to the
  * bot (struct ToriRSServer.packet_sink) and decodes them with the CLIENT's own
- * code: gameproto_parse for every packet, the revision's npc-info, player-info
+ * code: the revision's decode by wire opcode (net/proto/), its npc-info, player-info
  * and appearance decoders for the entity streams, and the client's world model
  * (world/world.c, game/rs_entity_sync.c) as the store, mutated through the same
  * World_* calls the client's apply makes.
@@ -399,11 +399,12 @@ ScriptrunCore_BeginTick(
     struct ScriptrunCore* core,
     int server_tick);
 
-/** One payload the server addressed to this bot, in send order. */
+/** One payload the server addressed to this bot, in send order, with the
+ *  wire opcode it was sent under. */
 void
 ScriptrunCore_Packet(
     struct ScriptrunCore* core,
-    int pkt_name,
+    int wire,
     const uint8_t* payload,
     int len);
 

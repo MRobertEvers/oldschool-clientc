@@ -92,19 +92,13 @@ GameProtoRev_ByName(char const* name)
         return GameProtoRev_LC289();
     if( strcmp(name, "lc245_2") == 0 )
         return GameProtoRev_LC245_2();
-    if( strcmp(name, "osrs230") == 0 )
-        return GameProtoRev_OSRS230();
-    if( strcmp(name, "osrs239") == 0 )
-        return GameProtoRev_OSRS239();
-    if( strcmp(name, "osrs241") == 0 )
-        return GameProtoRev_OSRS241();
     if( strncmp(name, "rsprox", 6) == 0 )
     {
         char* end = NULL;
         long revision = strtol(name + 6, &end, 10);
 
         if( end && *end == '\0' && end != name + 6 )
-            return GameProtoRev_Rsprox((int)revision);
+            return GameProtoRev_Osrs((int)revision);
     }
-    return NULL;
+    return GameProtoRev_OsrsByName(name);
 }

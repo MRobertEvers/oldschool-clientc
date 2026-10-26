@@ -9,6 +9,7 @@
  * exists for exactly this pair of files.
  */
 #include "torirs_server.h"
+#include "net/rev/gameproto_revisions.h"
 #include "mem/torirs_mem.h"
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
@@ -4636,16 +4637,15 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
 /* The ToA Apmeken / Ba-Ba engine commands                              */
 /* ------------------------------------------------------------------ */
 
-/* osrs239_parse.c: the CLIENT's own reader, so a packet is checked against
- * the decoder written from RSProt rather than against this writer. */
-struct GameProtoRevTable;
-int
-osrs239_parse(
-    struct GameProtoRevTable const* rev,
-    int pkt_name,
-    uint8_t const* data,
-    int len,
-    struct RevPacket* out);
+/* The CLIENT's own 239 executor (src/net/rev/osrs239/), so a packet is
+ * checked against the revision's RSProt codec rather than against this writer. */
+static int
+client239_decode(int pkt_name, uint8_t const* data, int len, struct RevPacket* out)
+{
+    struct GameProtoRevTable const* rev = GameProtoRev_OSRS239();
+
+    return rev->parse_wire(rev, rev->packetin_wire(pkt_name), data, len, out);
+}
 
 /* Records of `pkt_name` inside the PARTIAL_ENCLOSED blobs sent to `pid`. */
 static int
@@ -4918,8 +4918,8 @@ selftest_apmeng_engine(
             memset(&out, 0, sizeof(out));
             SELFTEST_CHECK(packet->len == 8, "apmeng: MAP_ANIM_SPECIFIC is 8 bytes, got %d",
                            packet->len);
-            SELFTEST_CHECK(osrs239_parse(NULL, PKT_NAME_MAP_ANIM_SPECIFIC, packet->data,
-                                         packet->len, &out),
+            SELFTEST_CHECK(client239_decode(PKT_NAME_MAP_ANIM_SPECIFIC, packet->data,
+                                            packet->len, &out) == 1,
                            "apmeng: the client's decoder reads it");
             SELFTEST_CHECK(out._map_anim_specific.id == sight &&
                                out._map_anim_specific.x == want_x &&
@@ -63770,7 +63770,7 @@ ToriRSServer_WorldSelftest(void)
         /*
          * Revision-gated, and the gate is the assertion.
          *
-         * Revision 230 has no HINT_ARROW at all -- `net/rev/osrs230/packetin.h`
+         * Revision 230 has no HINT_ARROW at all -- `torirsserver/wire/osrs230/packetin.h`
          * maps it to `PKT_NAME_NONE` where 239 gives it opcode 50 -- so `flush`
          * correctly drops the packet and the four opcodes are a no-op there.
          * That is the truthful state and not a bug, so this skips rather than

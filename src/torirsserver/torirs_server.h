@@ -5427,6 +5427,7 @@ struct ToriRSServer
      */
     void (*packet_sink)(
         struct ToriRSServerPlayer* player,
+        int opcode,
         int pkt_name,
         const uint8_t* payload,
         int len,

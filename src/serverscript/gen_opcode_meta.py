@@ -1770,7 +1770,7 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
 # The reference has one IF_BUTTON (147) because a 2004 interface component has
 # one action. A rev-230 component has up to ten and the packet says which:
 # IF_BUTTON1..IF_BUTTON10 are ten distinct opcodes on the wire
-# (src/net/rev/osrs230/packetout.h), all ten of which this server collapsed
+# (src/torirsserver/wire/osrs230/packetout.h), all ten of which this server collapsed
 # into the single trigger. Content could not tell "View <skill> guide" (op 2)
 # from "Toggle <skill> XP" (op 1) on the *same* component, and there is no
 # `last_verb` command in the reference to read the index out of either — the

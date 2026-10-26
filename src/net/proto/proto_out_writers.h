@@ -140,7 +140,7 @@
 #include "packets/window_status.h"
 
 /* clang-format off */
-static void
+static inline void
 w_affinedclansettings_addbanned_fromchannel(void* msg, struct ProtoOutArgs const* a)
 {
     MsgAffinedClanSettingsAddBannedFromChannel* m = (MsgAffinedClanSettingsAddBannedFromChannel*)msg;
@@ -150,7 +150,7 @@ w_affinedclansettings_addbanned_fromchannel(void* msg, struct ProtoOutArgs const
     m->name = a->name;
 }
 
-static void
+static inline void
 w_affinedclansettings_setmuted_fromchannel(void* msg, struct ProtoOutArgs const* a)
 {
     MsgAffinedClanSettingsSetMutedFromChannel* m = (MsgAffinedClanSettingsSetMutedFromChannel*)msg;
@@ -161,7 +161,7 @@ w_affinedclansettings_setmuted_fromchannel(void* msg, struct ProtoOutArgs const*
     m->name = a->name;
 }
 
-static void
+static inline void
 w_bug_report(void* msg, struct ProtoOutArgs const* a)
 {
     MsgBugReport* m = (MsgBugReport*)msg;
@@ -171,7 +171,7 @@ w_bug_report(void* msg, struct ProtoOutArgs const* a)
     m->instructions = a->instructions;
 }
 
-static void
+static inline void
 w_clanchannel_full_request(void* msg, struct ProtoOutArgs const* a)
 {
     MsgClanChannelFullRequest* m = (MsgClanChannelFullRequest*)msg;
@@ -179,7 +179,7 @@ w_clanchannel_full_request(void* msg, struct ProtoOutArgs const* a)
     m->clan_id = a->clan_id;
 }
 
-static void
+static inline void
 w_clanchannel_kickuser(void* msg, struct ProtoOutArgs const* a)
 {
     MsgClanChannelKickUser* m = (MsgClanChannelKickUser*)msg;
@@ -189,7 +189,7 @@ w_clanchannel_kickuser(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_clansettings_full_request(void* msg, struct ProtoOutArgs const* a)
 {
     MsgClanSettingsFullRequest* m = (MsgClanSettingsFullRequest*)msg;
@@ -197,7 +197,7 @@ w_clansettings_full_request(void* msg, struct ProtoOutArgs const* a)
     m->clan_id = a->clan_id;
 }
 
-static void
+static inline void
 w_clickworldmap(void* msg, struct ProtoOutArgs const* a)
 {
     MsgClickworldmap* m = (MsgClickworldmap*)msg;
@@ -205,7 +205,7 @@ w_clickworldmap(void* msg, struct ProtoOutArgs const* a)
     m->packed = a->packed;
 }
 
-static void
+static inline void
 w_client_cheat(void* msg, struct ProtoOutArgs const* a)
 {
     MsgClientCheat* m = (MsgClientCheat*)msg;
@@ -215,7 +215,7 @@ w_client_cheat(void* msg, struct ProtoOutArgs const* a)
     m->autocomplete = a->autocomplete;
 }
 
-static void
+static inline void
 w_close_modal(void* msg, struct ProtoOutArgs const* a)
 {
     MsgCloseModal* m = (MsgCloseModal*)msg;
@@ -224,7 +224,7 @@ w_close_modal(void* msg, struct ProtoOutArgs const* a)
     (void)a;
 }
 
-static void
+static inline void
 w_exit_freecam(void* msg, struct ProtoOutArgs const* a)
 {
     MsgExitFreecam* m = (MsgExitFreecam*)msg;
@@ -233,7 +233,7 @@ w_exit_freecam(void* msg, struct ProtoOutArgs const* a)
     (void)a;
 }
 
-static void
+static inline void
 w_friendchat_join_leave(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendchatJoinLeave* m = (MsgFriendchatJoinLeave*)msg;
@@ -242,7 +242,7 @@ w_friendchat_join_leave(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_friendchat_kick(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendChatKick* m = (MsgFriendChatKick*)msg;
@@ -250,7 +250,7 @@ w_friendchat_kick(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_friendchat_setrank(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendChatSetRank* m = (MsgFriendChatSetRank*)msg;
@@ -259,7 +259,7 @@ w_friendchat_setrank(void* msg, struct ProtoOutArgs const* a)
     m->rank = a->rank;
 }
 
-static void
+static inline void
 w_friendlist_add(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendListAdd* m = (MsgFriendListAdd*)msg;
@@ -267,7 +267,7 @@ w_friendlist_add(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_friendlist_del(void* msg, struct ProtoOutArgs const* a)
 {
     MsgFriendListDel* m = (MsgFriendListDel*)msg;
@@ -275,7 +275,7 @@ w_friendlist_del(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_idle(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIdle* m = (MsgIdle*)msg;
@@ -284,7 +284,7 @@ w_idle(void* msg, struct ProtoOutArgs const* a)
     (void)a;
 }
 
-static void
+static inline void
 w_if3_button(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIf3Button* m = (MsgIf3Button*)msg;
@@ -294,7 +294,7 @@ w_if3_button(void* msg, struct ProtoOutArgs const* a)
     m->obj = a->obj;
 }
 
-static void
+static inline void
 w_if_button(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIf1Button* m = (MsgIf1Button*)msg;
@@ -302,7 +302,7 @@ w_if_button(void* msg, struct ProtoOutArgs const* a)
     m->combined_id = a->combined_id;
 }
 
-static void
+static inline void
 w_if_buttond(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIfButtonD* m = (MsgIfButtonD*)msg;
@@ -315,7 +315,7 @@ w_if_buttond(void* msg, struct ProtoOutArgs const* a)
     m->target_obj = a->target_obj;
 }
 
-static void
+static inline void
 w_if_buttont(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIfButtonT* m = (MsgIfButtonT*)msg;
@@ -328,7 +328,7 @@ w_if_buttont(void* msg, struct ProtoOutArgs const* a)
     m->target_obj = a->target_obj;
 }
 
-static void
+static inline void
 w_if_buttonx(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIfButtonX* m = (MsgIfButtonX*)msg;
@@ -339,7 +339,7 @@ w_if_buttonx(void* msg, struct ProtoOutArgs const* a)
     m->op = a->op;
 }
 
-static void
+static inline void
 w_if_script_trigger(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIfScriptTrigger* m = (MsgIfScriptTrigger*)msg;
@@ -352,7 +352,7 @@ w_if_script_trigger(void* msg, struct ProtoOutArgs const* a)
     m->copy_length = a->copy_length;
 }
 
-static void
+static inline void
 w_if_subop(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIfSubOp* m = (MsgIfSubOp*)msg;
@@ -364,7 +364,7 @@ w_if_subop(void* msg, struct ProtoOutArgs const* a)
     m->subop = a->subop;
 }
 
-static void
+static inline void
 w_ignorelist_add(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIgnoreListAdd* m = (MsgIgnoreListAdd*)msg;
@@ -372,7 +372,7 @@ w_ignorelist_add(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_ignorelist_del(void* msg, struct ProtoOutArgs const* a)
 {
     MsgIgnoreListDel* m = (MsgIgnoreListDel*)msg;
@@ -380,7 +380,7 @@ w_ignorelist_del(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_map_build_complete(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMapBuildComplete* m = (MsgMapBuildComplete*)msg;
@@ -389,7 +389,7 @@ w_map_build_complete(void* msg, struct ProtoOutArgs const* a)
     (void)a;
 }
 
-static void
+static inline void
 w_message_private(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMessagePrivateClient* m = (MsgMessagePrivateClient*)msg;
@@ -399,7 +399,7 @@ w_message_private(void* msg, struct ProtoOutArgs const* a)
     m->huffman_length = a->huffman_length;
 }
 
-static void
+static inline void
 w_message_public(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMessagePublic* m = (MsgMessagePublic*)msg;
@@ -413,7 +413,7 @@ w_message_public(void* msg, struct ProtoOutArgs const* a)
     m->clan_type = a->clan_type;
 }
 
-static void
+static inline void
 w_move_gameclick(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMoveGameClick* m = (MsgMoveGameClick*)msg;
@@ -423,7 +423,7 @@ w_move_gameclick(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_move_minimapclick(void* msg, struct ProtoOutArgs const* a)
 {
     MsgMoveMinimapClick* m = (MsgMoveMinimapClick*)msg;
@@ -443,7 +443,7 @@ w_move_minimapclick(void* msg, struct ProtoOutArgs const* a)
     m->checkpoint5 = a->checkpoint5;
 }
 
-static void
+static inline void
 w_no_timeout(void* msg, struct ProtoOutArgs const* a)
 {
     MsgNoTimeout* m = (MsgNoTimeout*)msg;
@@ -452,7 +452,7 @@ w_no_timeout(void* msg, struct ProtoOutArgs const* a)
     (void)a;
 }
 
-static void
+static inline void
 w_oploc1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc1* m = (MsgOpLoc1*)msg;
@@ -463,7 +463,7 @@ w_oploc1(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_oploc1_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc1V1* m = (MsgOpLoc1V1*)msg;
@@ -474,7 +474,7 @@ w_oploc1_v1(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_oploc1_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc1V2* m = (MsgOpLoc1V2*)msg;
@@ -486,7 +486,7 @@ w_oploc1_v2(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_oploc2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc2* m = (MsgOpLoc2*)msg;
@@ -497,7 +497,7 @@ w_oploc2(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_oploc2_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc2V1* m = (MsgOpLoc2V1*)msg;
@@ -508,7 +508,7 @@ w_oploc2_v1(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_oploc2_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc2V2* m = (MsgOpLoc2V2*)msg;
@@ -520,7 +520,7 @@ w_oploc2_v2(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_oploc3(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc3* m = (MsgOpLoc3*)msg;
@@ -531,7 +531,7 @@ w_oploc3(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_oploc3_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc3V1* m = (MsgOpLoc3V1*)msg;
@@ -542,7 +542,7 @@ w_oploc3_v1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_oploc3_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc3V2* m = (MsgOpLoc3V2*)msg;
@@ -554,7 +554,7 @@ w_oploc3_v2(void* msg, struct ProtoOutArgs const* a)
     m->subop = a->subop;
 }
 
-static void
+static inline void
 w_oploc4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc4* m = (MsgOpLoc4*)msg;
@@ -565,7 +565,7 @@ w_oploc4(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_oploc4_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc4V1* m = (MsgOpLoc4V1*)msg;
@@ -576,7 +576,7 @@ w_oploc4_v1(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_oploc4_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc4V2* m = (MsgOpLoc4V2*)msg;
@@ -588,7 +588,7 @@ w_oploc4_v2(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_oploc5(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc5* m = (MsgOpLoc5*)msg;
@@ -599,7 +599,7 @@ w_oploc5(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_oploc5_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc5V1* m = (MsgOpLoc5V1*)msg;
@@ -610,7 +610,7 @@ w_oploc5_v1(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_oploc5_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc5V2* m = (MsgOpLoc5V2*)msg;
@@ -622,7 +622,7 @@ w_oploc5_v2(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_oploc6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLoc6* m = (MsgOpLoc6*)msg;
@@ -630,7 +630,7 @@ w_oploc6(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_oploct(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpLocT* m = (MsgOpLocT*)msg;
@@ -644,7 +644,7 @@ w_oploct(void* msg, struct ProtoOutArgs const* a)
     m->selected_sub = a->selected_sub;
 }
 
-static void
+static inline void
 w_opnpc1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc1* m = (MsgOpNpc1*)msg;
@@ -653,7 +653,7 @@ w_opnpc1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc1_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc1V1* m = (MsgOpNpc1V1*)msg;
@@ -662,7 +662,7 @@ w_opnpc1_v1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc1_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc1V2* m = (MsgOpNpc1V2*)msg;
@@ -672,7 +672,7 @@ w_opnpc1_v2(void* msg, struct ProtoOutArgs const* a)
     m->subop = a->subop;
 }
 
-static void
+static inline void
 w_opnpc2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc2* m = (MsgOpNpc2*)msg;
@@ -681,7 +681,7 @@ w_opnpc2(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc2_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc2V1* m = (MsgOpNpc2V1*)msg;
@@ -690,7 +690,7 @@ w_opnpc2_v1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc2_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc2V2* m = (MsgOpNpc2V2*)msg;
@@ -700,7 +700,7 @@ w_opnpc2_v2(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc3(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc3* m = (MsgOpNpc3*)msg;
@@ -709,7 +709,7 @@ w_opnpc3(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc3_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc3V1* m = (MsgOpNpc3V1*)msg;
@@ -718,7 +718,7 @@ w_opnpc3_v1(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc3_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc3V2* m = (MsgOpNpc3V2*)msg;
@@ -728,7 +728,7 @@ w_opnpc3_v2(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc4* m = (MsgOpNpc4*)msg;
@@ -737,7 +737,7 @@ w_opnpc4(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc4_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc4V1* m = (MsgOpNpc4V1*)msg;
@@ -746,7 +746,7 @@ w_opnpc4_v1(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opnpc4_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc4V2* m = (MsgOpNpc4V2*)msg;
@@ -756,7 +756,7 @@ w_opnpc4_v2(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc5(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc5* m = (MsgOpNpc5*)msg;
@@ -765,7 +765,7 @@ w_opnpc5(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc5_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc5V1* m = (MsgOpNpc5V1*)msg;
@@ -774,7 +774,7 @@ w_opnpc5_v1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc5_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc5V2* m = (MsgOpNpc5V2*)msg;
@@ -784,7 +784,7 @@ w_opnpc5_v2(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opnpc6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpc6* m = (MsgOpNpc6*)msg;
@@ -792,7 +792,7 @@ w_opnpc6(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opnpct(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpNpcT* m = (MsgOpNpcT*)msg;
@@ -804,7 +804,7 @@ w_opnpct(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opobj1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj1* m = (MsgOpObj1*)msg;
@@ -815,7 +815,7 @@ w_opobj1(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_opobj1_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj1V1* m = (MsgOpObj1V1*)msg;
@@ -826,7 +826,7 @@ w_opobj1_v1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opobj1_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj1V2* m = (MsgOpObj1V2*)msg;
@@ -838,7 +838,7 @@ w_opobj1_v2(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_opobj2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj2* m = (MsgOpObj2*)msg;
@@ -849,7 +849,7 @@ w_opobj2(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_opobj2_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj2V1* m = (MsgOpObj2V1*)msg;
@@ -860,7 +860,7 @@ w_opobj2_v1(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_opobj2_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj2V2* m = (MsgOpObj2V2*)msg;
@@ -872,7 +872,7 @@ w_opobj2_v2(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_opobj3(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj3* m = (MsgOpObj3*)msg;
@@ -883,7 +883,7 @@ w_opobj3(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opobj3_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj3V1* m = (MsgOpObj3V1*)msg;
@@ -894,7 +894,7 @@ w_opobj3_v1(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_opobj3_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj3V2* m = (MsgOpObj3V2*)msg;
@@ -906,7 +906,7 @@ w_opobj3_v2(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opobj4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj4* m = (MsgOpObj4*)msg;
@@ -917,7 +917,7 @@ w_opobj4(void* msg, struct ProtoOutArgs const* a)
     m->x = a->x;
 }
 
-static void
+static inline void
 w_opobj4_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj4V1* m = (MsgOpObj4V1*)msg;
@@ -928,7 +928,7 @@ w_opobj4_v1(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opobj4_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj4V2* m = (MsgOpObj4V2*)msg;
@@ -940,7 +940,7 @@ w_opobj4_v2(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opobj5(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj5* m = (MsgOpObj5*)msg;
@@ -951,7 +951,7 @@ w_opobj5(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opobj5_v1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj5V1* m = (MsgOpObj5V1*)msg;
@@ -962,7 +962,7 @@ w_opobj5_v1(void* msg, struct ProtoOutArgs const* a)
     m->z = a->z;
 }
 
-static void
+static inline void
 w_opobj5_v2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj5V2* m = (MsgOpObj5V2*)msg;
@@ -974,7 +974,7 @@ w_opobj5_v2(void* msg, struct ProtoOutArgs const* a)
     m->subop = a->subop;
 }
 
-static void
+static inline void
 w_opobj6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObj6* m = (MsgOpObj6*)msg;
@@ -984,7 +984,7 @@ w_opobj6(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opobjt(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpObjT* m = (MsgOpObjT*)msg;
@@ -998,7 +998,7 @@ w_opobjt(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer1* m = (MsgOpPlayer1*)msg;
@@ -1007,7 +1007,7 @@ w_opplayer1(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer2* m = (MsgOpPlayer2*)msg;
@@ -1016,7 +1016,7 @@ w_opplayer2(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opplayer3(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer3* m = (MsgOpPlayer3*)msg;
@@ -1025,7 +1025,7 @@ w_opplayer3(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer4* m = (MsgOpPlayer4*)msg;
@@ -1034,7 +1034,7 @@ w_opplayer4(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer5(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer5* m = (MsgOpPlayer5*)msg;
@@ -1043,7 +1043,7 @@ w_opplayer5(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer6* m = (MsgOpPlayer6*)msg;
@@ -1052,7 +1052,7 @@ w_opplayer6(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opplayer7(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer7* m = (MsgOpPlayer7*)msg;
@@ -1061,7 +1061,7 @@ w_opplayer7(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opplayer8(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayer8* m = (MsgOpPlayer8*)msg;
@@ -1070,7 +1070,7 @@ w_opplayer8(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opplayert(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpPlayerT* m = (MsgOpPlayerT*)msg;
@@ -1083,7 +1083,7 @@ w_opplayert(void* msg, struct ProtoOutArgs const* a)
     m->selected_combined_id = a->selected_combined_id;
 }
 
-static void
+static inline void
 w_opworldentity1(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity1* m = (MsgOpWorldEntity1*)msg;
@@ -1092,7 +1092,7 @@ w_opworldentity1(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opworldentity2(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity2* m = (MsgOpWorldEntity2*)msg;
@@ -1101,7 +1101,7 @@ w_opworldentity2(void* msg, struct ProtoOutArgs const* a)
     m->index = a->index;
 }
 
-static void
+static inline void
 w_opworldentity3(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity3* m = (MsgOpWorldEntity3*)msg;
@@ -1110,7 +1110,7 @@ w_opworldentity3(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opworldentity4(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity4* m = (MsgOpWorldEntity4*)msg;
@@ -1119,7 +1119,7 @@ w_opworldentity4(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opworldentity5(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity5* m = (MsgOpWorldEntity5*)msg;
@@ -1128,7 +1128,7 @@ w_opworldentity5(void* msg, struct ProtoOutArgs const* a)
     m->control_key = a->control_key;
 }
 
-static void
+static inline void
 w_opworldentity6(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntity6* m = (MsgOpWorldEntity6*)msg;
@@ -1136,7 +1136,7 @@ w_opworldentity6(void* msg, struct ProtoOutArgs const* a)
     m->id = a->id;
 }
 
-static void
+static inline void
 w_opworldentityt(void* msg, struct ProtoOutArgs const* a)
 {
     MsgOpWorldEntityT* m = (MsgOpWorldEntityT*)msg;
@@ -1148,7 +1148,7 @@ w_opworldentityt(void* msg, struct ProtoOutArgs const* a)
     m->selected_obj = a->selected_obj;
 }
 
-static void
+static inline void
 w_reflection_check_reply(void* msg, struct ProtoOutArgs const* a)
 {
     MsgReflectionCheckReply* m = (MsgReflectionCheckReply*)msg;
@@ -1158,7 +1158,7 @@ w_reflection_check_reply(void* msg, struct ProtoOutArgs const* a)
     m->copy_length = a->copy_length;
 }
 
-static void
+static inline void
 w_resume_p_countdialog(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePCountDialog* m = (MsgResumePCountDialog*)msg;
@@ -1166,7 +1166,7 @@ w_resume_p_countdialog(void* msg, struct ProtoOutArgs const* a)
     m->count = a->count;
 }
 
-static void
+static inline void
 w_resume_p_countdialog_long(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePCountDialogLong* m = (MsgResumePCountDialogLong*)msg;
@@ -1174,7 +1174,7 @@ w_resume_p_countdialog_long(void* msg, struct ProtoOutArgs const* a)
     m->count = a->count_long;
 }
 
-static void
+static inline void
 w_resume_p_namedialog(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePNameDialog* m = (MsgResumePNameDialog*)msg;
@@ -1182,7 +1182,7 @@ w_resume_p_namedialog(void* msg, struct ProtoOutArgs const* a)
     m->name = a->name;
 }
 
-static void
+static inline void
 w_resume_p_objdialog(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePObjDialog* m = (MsgResumePObjDialog*)msg;
@@ -1190,7 +1190,7 @@ w_resume_p_objdialog(void* msg, struct ProtoOutArgs const* a)
     m->obj = a->obj;
 }
 
-static void
+static inline void
 w_resume_p_stringdialog(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePStringDialog* m = (MsgResumePStringDialog*)msg;
@@ -1198,7 +1198,7 @@ w_resume_p_stringdialog(void* msg, struct ProtoOutArgs const* a)
     m->string = a->string;
 }
 
-static void
+static inline void
 w_resume_pausebutton(void* msg, struct ProtoOutArgs const* a)
 {
     MsgResumePauseButton* m = (MsgResumePauseButton*)msg;
@@ -1207,7 +1207,7 @@ w_resume_pausebutton(void* msg, struct ProtoOutArgs const* a)
     m->sub = a->sub;
 }
 
-static void
+static inline void
 w_rseven_status(void* msg, struct ProtoOutArgs const* a)
 {
     MsgRSevenStatus* m = (MsgRSevenStatus*)msg;
@@ -1215,7 +1215,7 @@ w_rseven_status(void* msg, struct ProtoOutArgs const* a)
     m->packed = a->packed;
 }
 
-static void
+static inline void
 w_send_snapshot(void* msg, struct ProtoOutArgs const* a)
 {
     MsgSendSnapshot* m = (MsgSendSnapshot*)msg;
@@ -1225,7 +1225,7 @@ w_send_snapshot(void* msg, struct ProtoOutArgs const* a)
     m->mute = a->mute;
 }
 
-static void
+static inline void
 w_set_chatfiltersettings(void* msg, struct ProtoOutArgs const* a)
 {
     MsgSetChatFilterSettings* m = (MsgSetChatFilterSettings*)msg;
@@ -1235,7 +1235,7 @@ w_set_chatfiltersettings(void* msg, struct ProtoOutArgs const* a)
     m->trade_chat_filter = a->trade_chat_filter;
 }
 
-static void
+static inline void
 w_set_heading(void* msg, struct ProtoOutArgs const* a)
 {
     MsgSetHeading* m = (MsgSetHeading*)msg;
@@ -1243,7 +1243,7 @@ w_set_heading(void* msg, struct ProtoOutArgs const* a)
     m->heading = a->heading;
 }
 
-static void
+static inline void
 w_window_status(void* msg, struct ProtoOutArgs const* a)
 {
     MsgWindowStatus* m = (MsgWindowStatus*)msg;
@@ -1253,131 +1253,4 @@ w_window_status(void* msg, struct ProtoOutArgs const* a)
     m->frame_height = a->frame_height;
 }
 
-struct ProtoOutWriter
-{
-    char const* prot;
-    void (*fill)(void* msg, struct ProtoOutArgs const* a);
-};
-
-static struct ProtoOutWriter const k_proto_out_writers[] = {
-    { "AFFINEDCLANSETTINGS_ADDBANNED_FROMCHANNEL", w_affinedclansettings_addbanned_fromchannel },
-    { "AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL", w_affinedclansettings_setmuted_fromchannel },
-    { "BUG_REPORT", w_bug_report },
-    { "CLANCHANNEL_FULL_REQUEST", w_clanchannel_full_request },
-    { "CLANCHANNEL_KICKUSER", w_clanchannel_kickuser },
-    { "CLANSETTINGS_FULL_REQUEST", w_clansettings_full_request },
-    { "CLICKWORLDMAP", w_clickworldmap },
-    { "CLIENT_CHEAT", w_client_cheat },
-    { "CLOSE_MODAL", w_close_modal },
-    { "EXIT_FREECAM", w_exit_freecam },
-    { "FRIENDCHAT_JOIN_LEAVE", w_friendchat_join_leave },
-    { "FRIENDCHAT_KICK", w_friendchat_kick },
-    { "FRIENDCHAT_SETRANK", w_friendchat_setrank },
-    { "FRIENDLIST_ADD", w_friendlist_add },
-    { "FRIENDLIST_DEL", w_friendlist_del },
-    { "IDLE", w_idle },
-    { "IF_BUTTON1", w_if3_button },
-    { "IF_BUTTON2", w_if3_button },
-    { "IF_BUTTON3", w_if3_button },
-    { "IF_BUTTON4", w_if3_button },
-    { "IF_BUTTON5", w_if3_button },
-    { "IF_BUTTON6", w_if3_button },
-    { "IF_BUTTON7", w_if3_button },
-    { "IF_BUTTON8", w_if3_button },
-    { "IF_BUTTON9", w_if3_button },
-    { "IF_BUTTON10", w_if3_button },
-    { "IF_BUTTON", w_if_button },
-    { "IF_BUTTOND", w_if_buttond },
-    { "IF_BUTTONT", w_if_buttont },
-    { "IF_BUTTONX", w_if_buttonx },
-    { "IF_SCRIPT_TRIGGER", w_if_script_trigger },
-    { "IF_SUBOP", w_if_subop },
-    { "IGNORELIST_ADD", w_ignorelist_add },
-    { "IGNORELIST_DEL", w_ignorelist_del },
-    { "MAP_BUILD_COMPLETE", w_map_build_complete },
-    { "MESSAGE_PRIVATE", w_message_private },
-    { "MESSAGE_PUBLIC", w_message_public },
-    { "MOVE_GAMECLICK", w_move_gameclick },
-    { "MOVE_MINIMAPCLICK", w_move_minimapclick },
-    { "NO_TIMEOUT", w_no_timeout },
-    { "OPLOC1", w_oploc1 },
-    { "OPLOC1_V1", w_oploc1_v1 },
-    { "OPLOC1_V2", w_oploc1_v2 },
-    { "OPLOC2", w_oploc2 },
-    { "OPLOC2_V1", w_oploc2_v1 },
-    { "OPLOC2_V2", w_oploc2_v2 },
-    { "OPLOC3", w_oploc3 },
-    { "OPLOC3_V1", w_oploc3_v1 },
-    { "OPLOC3_V2", w_oploc3_v2 },
-    { "OPLOC4", w_oploc4 },
-    { "OPLOC4_V1", w_oploc4_v1 },
-    { "OPLOC4_V2", w_oploc4_v2 },
-    { "OPLOC5", w_oploc5 },
-    { "OPLOC5_V1", w_oploc5_v1 },
-    { "OPLOC5_V2", w_oploc5_v2 },
-    { "OPLOC6", w_oploc6 },
-    { "OPLOCT", w_oploct },
-    { "OPNPC1", w_opnpc1 },
-    { "OPNPC1_V1", w_opnpc1_v1 },
-    { "OPNPC1_V2", w_opnpc1_v2 },
-    { "OPNPC2", w_opnpc2 },
-    { "OPNPC2_V1", w_opnpc2_v1 },
-    { "OPNPC2_V2", w_opnpc2_v2 },
-    { "OPNPC3", w_opnpc3 },
-    { "OPNPC3_V1", w_opnpc3_v1 },
-    { "OPNPC3_V2", w_opnpc3_v2 },
-    { "OPNPC4", w_opnpc4 },
-    { "OPNPC4_V1", w_opnpc4_v1 },
-    { "OPNPC4_V2", w_opnpc4_v2 },
-    { "OPNPC5", w_opnpc5 },
-    { "OPNPC5_V1", w_opnpc5_v1 },
-    { "OPNPC5_V2", w_opnpc5_v2 },
-    { "OPNPC6", w_opnpc6 },
-    { "OPNPCT", w_opnpct },
-    { "OPOBJ1", w_opobj1 },
-    { "OPOBJ1_V1", w_opobj1_v1 },
-    { "OPOBJ1_V2", w_opobj1_v2 },
-    { "OPOBJ2", w_opobj2 },
-    { "OPOBJ2_V1", w_opobj2_v1 },
-    { "OPOBJ2_V2", w_opobj2_v2 },
-    { "OPOBJ3", w_opobj3 },
-    { "OPOBJ3_V1", w_opobj3_v1 },
-    { "OPOBJ3_V2", w_opobj3_v2 },
-    { "OPOBJ4", w_opobj4 },
-    { "OPOBJ4_V1", w_opobj4_v1 },
-    { "OPOBJ4_V2", w_opobj4_v2 },
-    { "OPOBJ5", w_opobj5 },
-    { "OPOBJ5_V1", w_opobj5_v1 },
-    { "OPOBJ5_V2", w_opobj5_v2 },
-    { "OPOBJ6", w_opobj6 },
-    { "OPOBJT", w_opobjt },
-    { "OPPLAYER1", w_opplayer1 },
-    { "OPPLAYER2", w_opplayer2 },
-    { "OPPLAYER3", w_opplayer3 },
-    { "OPPLAYER4", w_opplayer4 },
-    { "OPPLAYER5", w_opplayer5 },
-    { "OPPLAYER6", w_opplayer6 },
-    { "OPPLAYER7", w_opplayer7 },
-    { "OPPLAYER8", w_opplayer8 },
-    { "OPPLAYERT", w_opplayert },
-    { "OPWORLDENTITY1", w_opworldentity1 },
-    { "OPWORLDENTITY2", w_opworldentity2 },
-    { "OPWORLDENTITY3", w_opworldentity3 },
-    { "OPWORLDENTITY4", w_opworldentity4 },
-    { "OPWORLDENTITY5", w_opworldentity5 },
-    { "OPWORLDENTITY6", w_opworldentity6 },
-    { "OPWORLDENTITYT", w_opworldentityt },
-    { "REFLECTION_CHECK_REPLY", w_reflection_check_reply },
-    { "RESUME_P_COUNTDIALOG", w_resume_p_countdialog },
-    { "RESUME_P_COUNTDIALOG_LONG", w_resume_p_countdialog_long },
-    { "RESUME_P_NAMEDIALOG", w_resume_p_namedialog },
-    { "RESUME_P_OBJDIALOG", w_resume_p_objdialog },
-    { "RESUME_P_STRINGDIALOG", w_resume_p_stringdialog },
-    { "RESUME_PAUSEBUTTON", w_resume_pausebutton },
-    { "RSEVEN_STATUS", w_rseven_status },
-    { "SEND_SNAPSHOT", w_send_snapshot },
-    { "SET_CHATFILTERSETTINGS", w_set_chatfiltersettings },
-    { "SET_HEADING", w_set_heading },
-    { "WINDOW_STATUS", w_window_status },
-};
 /* clang-format on */

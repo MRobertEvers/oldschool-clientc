@@ -379,8 +379,8 @@ RsproxRecording_RevName(struct RsproxRecording const* rec)
     static char names[RSPROX_RECORDING_REV_LAST - RSPROX_RECORDING_REV_FIRST + 1][16];
 
     assert(rec);
-    /* Every revision plays on the data-driven family's table (net/proto/),
-     * which is generated from the same RSProx that wrote the recording. The
+    /* Every revision plays on its generated executor (src/net/rev/osrs<N>/),
+     * whose codecs RSProt states from the same RSProx that wrote it. The
      * cache is this tree's rev 241, so an older recording's ids can name
      * different things than they did when it was recorded (seq 579 is an axe
      * special here): the packets decode exactly, the content they point at may
@@ -390,7 +390,7 @@ RsproxRecording_RevName(struct RsproxRecording const* rec)
     {
         char* name = names[rec->revision - RSPROX_RECORDING_REV_FIRST];
 
-        snprintf(name, sizeof(names[0]), "rsprox%d", rec->revision);
+        snprintf(name, sizeof(names[0]), "osrs%d", rec->revision);
         return name;
     }
 }

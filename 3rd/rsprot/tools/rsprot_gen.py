@@ -641,6 +641,37 @@ def unity_c(files):
     return "\n".join(out)
 
 
+# --- entry points against range tables -------------------------------------
+
+RANGE_ROW_RE = re.compile(r"\{ RSPROT_OSRS_ID\((\d+)\), RSPROT_OSRS_ID\((\d+)\), \(RsprotCodecFn\)(packet_\w+) \}")
+
+
+def entry_point_problems(files):
+    """Every packet header -- generated or hand-written -- must define
+    packet_<f>_osrs<N>_<dir> for exactly the revisions its range table covers,
+    as the version that table names: a revision's executor calls the entry
+    point, and the registry reads the table, so the two may not disagree."""
+    revs = sorted(int(m.group(1)) for m in (re.match(r"osrs(\d+)_prot\.h$", n)
+                                           for n in listing(files, "gen", ".h")) if m)
+    out = []
+    for name in listing(files, "packets", ".c"):
+        f = name[:-2]
+        c = on_disk_or(files, "packets/%s.c" % f)
+        h = on_disk_or(files, "packets/%s.h" % f)
+        for m in re.finditer(r"const RsprotVersionRange rsprot_(\w+)_(out|in)\[\] = \{(.*?)\n\};", c, re.S):
+            snake, d, body = m.groups()
+            want = set()
+            for lo, hi, fn in RANGE_ROW_RE.findall(body):
+                want |= set((r, fn) for r in revs if int(lo) <= r <= int(hi))
+            have = set((int(r), fn) for r, fn in re.findall(
+                r"^#define packet_%s_osrs(\d+)_%s (\w+)$" % (snake, d), h, re.M))
+            for r, fn in sorted(want - have):
+                out.append("packets/%s.h: no packet_%s_osrs%d_%s (its range table calls %s)" % (f, snake, r, d, fn))
+            for r, fn in sorted(have - want):
+                out.append("packets/%s.h: packet_%s_osrs%d_%s -> %s, which its range table does not say" % (f, snake, r, d, fn))
+    return out
+
+
 # --- the driver -------------------------------------------------------------
 
 FAMILIES = [packet_files, table_files, stream_files]
@@ -671,7 +702,10 @@ def main():
             with open(path, "w") as f:
                 f.write(text)
             print("wrote " + rel)
-    if args.check and stale:
+    problems = entry_point_problems({})
+    for p in problems:
+        print("entry: " + p)
+    if (args.check and stale) or problems:
         sys.exit(1)
 
 
