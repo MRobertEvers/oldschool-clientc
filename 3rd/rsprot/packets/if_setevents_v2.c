@@ -14,121 +14,121 @@
 void
 packet_if_setevents_v2_v1_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U4_ALT3(x, m->events1);
-    RSPROT_U4_ALT3(x, m->events2);
-    RSPROT_U2(x, m->end);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->start);
+    RSPROT_U4_2143(x, m->events1);
+    RSPROT_U4_2143(x, m->events2);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->start);
 }
 
 /* v2 -- revs 232. */
 void
 packet_if_setevents_v2_v2_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->end);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U4(x, m->events2);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->events1);
+    RSPROT_U2_12_ADD128(x, m->end);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U4_1234(x, m->events2);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_4321(x, m->events1);
 }
 
 /* v3 -- revs 233. */
 void
 packet_if_setevents_v2_v3_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->events1);
-    RSPROT_U2(x, m->end);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->events2);
+    RSPROT_U4_3412(x, m->events1);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_2143(x, m->events2);
 }
 
 /* v4 -- revs 234. */
 void
 packet_if_setevents_v2_v4_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U4(x, m->events1);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->events2);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U4_1234(x, m->events1);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_2143(x, m->events2);
 }
 
 /* v5 -- revs 235. */
 void
 packet_if_setevents_v2_v5_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->events1);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->events2);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U2(x, m->end);
+    RSPROT_U4_3412(x, m->events1);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_2143(x, m->events2);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U2_12(x, m->end);
 }
 
 /* v6 -- revs 236. */
 void
 packet_if_setevents_v2_v6_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2(x, m->start);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U4_ALT3(x, m->events2);
-    RSPROT_U4(x, m->events1);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U4_2143(x, m->events2);
+    RSPROT_U4_1234(x, m->events1);
 }
 
 /* v7 -- revs 237. */
 void
 packet_if_setevents_v2_v7_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U2_ALT1(x, m->start);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U4_ALT3(x, m->events1);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->events2);
+    RSPROT_U2_21(x, m->start);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U4_2143(x, m->events1);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_3412(x, m->events2);
 }
 
 /* v8 -- revs 238. */
 void
 packet_if_setevents_v2_v8_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U4(x, m->events1);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->events2);
-    RSPROT_U2_ALT1(x, m->start);
+    RSPROT_U4_1234(x, m->events1);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_2143(x, m->events2);
+    RSPROT_U2_21(x, m->start);
 }
 
 /* v9 -- revs 239. */
 void
 packet_if_setevents_v2_v9_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->end);
-    RSPROT_U4(x, m->events2);
-    RSPROT_U4_ALT2(x, m->events1);
-    RSPROT_U2(x, m->start);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->end);
+    RSPROT_U4_1234(x, m->events2);
+    RSPROT_U4_3412(x, m->events1);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v10 -- revs 240. */
 void
 packet_if_setevents_v2_v10_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->events1);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U4_ALT1(x, m->events2);
-    RSPROT_U2_ALT1(x, m->end);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_2143(x, m->events1);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U4_4321(x, m->events2);
+    RSPROT_U2_21(x, m->end);
 }
 
 /* v11 -- revs 241. */
 void
 packet_if_setevents_v2_v11_out(RsprotExec *x, MsgIfSetEventsV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->events1);
-    RSPROT_U2_ALT3(x, m->end);
-    RSPROT_U2_ALT1(x, m->start);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->events2);
+    RSPROT_U4_3412(x, m->events1);
+    RSPROT_U2_21_ADD128(x, m->end);
+    RSPROT_U2_21(x, m->start);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_4321(x, m->events2);
 }
 
 /*

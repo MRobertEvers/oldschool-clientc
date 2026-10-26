@@ -14,7 +14,7 @@
 void
 packet_detect_modified_client_v1_in(RsprotExec *x, MsgDetectModifiedClient *m)
 {
-    RSPROT_U4(x, m->code);
+    RSPROT_U4_1234(x, m->code);
 }
 
 /*

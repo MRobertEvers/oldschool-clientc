@@ -14,128 +14,128 @@
 void
 packet_resume_pausebutton_v1_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->sub);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->sub);
 }
 
 /* v2 -- revs 222, 238. */
 void
 packet_resume_pausebutton_v2_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->sub);
 }
 
 /* v3 -- revs 223. */
 void
 packet_resume_pausebutton_v3_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
 }
 
 /* v4 -- revs 224, 237. */
 void
 packet_resume_pausebutton_v4_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v5 -- revs 225, 232. */
 void
 packet_resume_pausebutton_v5_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_resume_pausebutton_v6_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
 }
 
 /* v7 -- revs 227. */
 void
 packet_resume_pausebutton_v7_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_resume_pausebutton_v8_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
 }
 
 /* v9 -- revs 229. */
 void
 packet_resume_pausebutton_v9_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_resume_pausebutton_v10_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_resume_pausebutton_v11_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v12 -- revs 233. */
 void
 packet_resume_pausebutton_v12_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v13 -- revs 234. */
 void
 packet_resume_pausebutton_v13_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v14 -- revs 235, 241. */
 void
 packet_resume_pausebutton_v14_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v15 -- revs 236. */
 void
 packet_resume_pausebutton_v15_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v16 -- revs 239. */
 void
 packet_resume_pausebutton_v16_in(RsprotExec *x, MsgResumePauseButton *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
 }
 
 /*

@@ -14,35 +14,35 @@
 void
 packet_if_setplayerhead_v1_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
-    RSPROT_U4_ALT2(x, m->combined_id);
+    RSPROT_U4_3412(x, m->combined_id);
 }
 
 /* v2 -- revs 222, 224-225, 228, 236, 239. */
 void
 packet_if_setplayerhead_v2_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v3 -- revs 223, 227, 229, 232, 241. */
 void
 packet_if_setplayerhead_v3_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v4 -- revs 226, 230, 233-235, 237, 240. */
 void
 packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v5 -- revs 231, 238. */
 void
 packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /*

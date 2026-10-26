@@ -15,46 +15,46 @@ void
 packet_if_setplayermodel_self_v1_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
     RSPROT_BOOL(x, m->copy_objs);
-    RSPROT_U4_ALT3(x, m->combined_id);
+    RSPROT_U4_2143(x, m->combined_id);
 }
 
 /* v2 -- revs 222, 228, 230, 240. */
 void
 packet_if_setplayermodel_self_v2_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_U1_ALT3(x, m->copy_objs);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->copy_objs);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setplayermodel_self_v3_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_U1_ALT1(x, m->copy_objs);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->copy_objs);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v4 -- revs 224, 238. */
 void
 packet_if_setplayermodel_self_v4_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->copy_objs);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->copy_objs);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setplayermodel_self_v5_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U1_ALT2(x, m->copy_objs);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->copy_objs);
 }
 
 /* v6 -- revs 226-227. */
 void
 packet_if_setplayermodel_self_v6_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
     RSPROT_BOOL(x, m->copy_objs);
 }
 
@@ -62,8 +62,8 @@ packet_if_setplayermodel_self_v6_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 void
 packet_if_setplayermodel_self_v7_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->copy_objs);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->copy_objs);
 }
 
 /* v8 -- revs 231. */
@@ -71,15 +71,15 @@ void
 packet_if_setplayermodel_self_v8_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
     RSPROT_BOOL(x, m->copy_objs);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v9 -- revs 232. */
 void
 packet_if_setplayermodel_self_v9_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->copy_objs);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->copy_objs);
 }
 
 /* v10 -- revs 233. */
@@ -87,47 +87,47 @@ void
 packet_if_setplayermodel_self_v10_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
     RSPROT_BOOL(x, m->copy_objs);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v11 -- revs 234. */
 void
 packet_if_setplayermodel_self_v11_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->copy_objs);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->copy_objs);
 }
 
 /* v12 -- revs 235, 239. */
 void
 packet_if_setplayermodel_self_v12_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_U1_ALT3(x, m->copy_objs);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->copy_objs);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v13 -- revs 236. */
 void
 packet_if_setplayermodel_self_v13_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U1_ALT2(x, m->copy_objs);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->copy_objs);
 }
 
 /* v14 -- revs 237. */
 void
 packet_if_setplayermodel_self_v14_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_U1_ALT1(x, m->copy_objs);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->copy_objs);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v15 -- revs 241. */
 void
 packet_if_setplayermodel_self_v15_out(RsprotExec *x, MsgIfSetPlayerModelSelf *m)
 {
-    RSPROT_U1_ALT2(x, m->copy_objs);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->copy_objs);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /*

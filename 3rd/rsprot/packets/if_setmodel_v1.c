@@ -14,8 +14,8 @@
 void
 packet_if_setmodel_v1_v1_out(RsprotExec *x, MsgIfSetModelV1 *m)
 {
-    RSPROT_U2_ALT3(x, m->model);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->model);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /*

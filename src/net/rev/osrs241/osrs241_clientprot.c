@@ -7,7 +7,7 @@
 
 /*
  * The byte transforms are rsprot_buf's, not restated here: `G2_ALT3` is
- * rsprot_p2_alt3 / rsprot_g2_alt3, the same functions every generated codec
+ * rsprot_p2_21_add128 / rsprot_g2_21_add128, the same functions every generated codec
  * runs, so a 241 client prot and a 241 server prot mean the same thing by
  * "Alt3".
  */
@@ -22,21 +22,21 @@ static const struct
     cp_get_fn get;
 } k_access[] = {
     [OSRS241_CP_G1] = { 1, rsprot_p1, rsprot_g1 },
-    [OSRS241_CP_G1_ALT1] = { 1, rsprot_p1_alt1, rsprot_g1_alt1 },
-    [OSRS241_CP_G1_ALT2] = { 1, rsprot_p1_alt2, rsprot_g1_alt2 },
-    [OSRS241_CP_G1_ALT3] = { 1, rsprot_p1_alt3, rsprot_g1_alt3 },
-    [OSRS241_CP_G2] = { 2, rsprot_p2, rsprot_g2 },
-    [OSRS241_CP_G2_ALT1] = { 2, rsprot_p2_alt1, rsprot_g2_alt1 },
-    [OSRS241_CP_G2_ALT2] = { 2, rsprot_p2_alt2, rsprot_g2_alt2 },
-    [OSRS241_CP_G2_ALT3] = { 2, rsprot_p2_alt3, rsprot_g2_alt3 },
-    [OSRS241_CP_G3] = { 3, rsprot_p3, rsprot_g3 },
-    [OSRS241_CP_G3_ALT1] = { 3, rsprot_p3_alt1, rsprot_g3_alt1 },
-    [OSRS241_CP_G3_ALT2] = { 3, rsprot_p3_alt2, rsprot_g3_alt2 },
-    [OSRS241_CP_G3_ALT3] = { 3, rsprot_p3_alt3, rsprot_g3_alt3 },
-    [OSRS241_CP_G4] = { 4, rsprot_p4, rsprot_g4 },
-    [OSRS241_CP_G4_ALT1] = { 4, rsprot_p4_alt1, rsprot_g4_alt1 },
-    [OSRS241_CP_G4_ALT2] = { 4, rsprot_p4_alt2, rsprot_g4_alt2 },
-    [OSRS241_CP_G4_ALT3] = { 4, rsprot_p4_alt3, rsprot_g4_alt3 },
+    [OSRS241_CP_G1_ALT1] = { 1, rsprot_p1_add128, rsprot_g1_add128 },
+    [OSRS241_CP_G1_ALT2] = { 1, rsprot_p1_neg, rsprot_g1_neg },
+    [OSRS241_CP_G1_ALT3] = { 1, rsprot_p1_sub128, rsprot_g1_sub128 },
+    [OSRS241_CP_G2] = { 2, rsprot_p2_12, rsprot_g2_12 },
+    [OSRS241_CP_G2_ALT1] = { 2, rsprot_p2_21, rsprot_g2_21 },
+    [OSRS241_CP_G2_ALT2] = { 2, rsprot_p2_12_add128, rsprot_g2_12_add128 },
+    [OSRS241_CP_G2_ALT3] = { 2, rsprot_p2_21_add128, rsprot_g2_21_add128 },
+    [OSRS241_CP_G3] = { 3, rsprot_p3_123, rsprot_g3_123 },
+    [OSRS241_CP_G3_ALT1] = { 3, rsprot_p3_321, rsprot_g3_321 },
+    [OSRS241_CP_G3_ALT2] = { 3, rsprot_p3_132, rsprot_g3_132 },
+    [OSRS241_CP_G3_ALT3] = { 3, rsprot_p3_213, rsprot_g3_213 },
+    [OSRS241_CP_G4] = { 4, rsprot_p4_1234, rsprot_g4_1234 },
+    [OSRS241_CP_G4_ALT1] = { 4, rsprot_p4_4321, rsprot_g4_4321 },
+    [OSRS241_CP_G4_ALT2] = { 4, rsprot_p4_3412, rsprot_g4_3412 },
+    [OSRS241_CP_G4_ALT3] = { 4, rsprot_p4_2143, rsprot_g4_2143 },
 };
 
 int

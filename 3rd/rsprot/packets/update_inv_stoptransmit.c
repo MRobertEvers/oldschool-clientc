@@ -14,28 +14,28 @@
 void
 packet_update_inv_stoptransmit_v1_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
-    RSPROT_U2_ALT3(x, m->inventory_id);
+    RSPROT_U2_21_ADD128(x, m->inventory_id);
 }
 
 /* v2 -- revs 222-223, 225, 228, 238-239, 241. */
 void
 packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
-    RSPROT_U2_ALT2(x, m->inventory_id);
+    RSPROT_U2_12_ADD128(x, m->inventory_id);
 }
 
 /* v3 -- revs 224, 227, 230, 232, 236. */
 void
 packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_U2_12(x, m->inventory_id);
 }
 
 /* v4 -- revs 235, 237, 240. */
 void
 packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
 {
-    RSPROT_U2_ALT1(x, m->inventory_id);
+    RSPROT_U2_21(x, m->inventory_id);
 }
 
 /*

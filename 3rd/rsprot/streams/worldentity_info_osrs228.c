@@ -46,8 +46,8 @@ worldentity_info_osrs228_v4_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
     a->level = rsprot_g1s(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     a->has_centre = 1;
-    a->centre_x = rsprot_g2s(b);
-    a->centre_z = rsprot_g2s(b);
+    a->centre_x = rsprot_g2s_12(b);
+    a->centre_z = rsprot_g2s_12(b);
 }
 
 static const WorldEntityInfoV4 k_worldentity_info_osrs228_v4 = {

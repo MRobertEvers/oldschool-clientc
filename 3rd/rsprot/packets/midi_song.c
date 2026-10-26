@@ -14,55 +14,55 @@
 void
 packet_midi_song_v1_out(RsprotExec *x, MsgMidiSong *m)
 {
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
 }
 
 /* v2 -- revs 222. */
 void
 packet_midi_song_v2_out(RsprotExec *x, MsgMidiSong *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2(x, m->fade_in_speed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_12(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
 }
 
 /* v3 -- revs 223. */
 void
 packet_midi_song_v3_out(RsprotExec *x, MsgMidiSong *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
 }
 
 /* v4 -- revs 224. */
 void
 packet_midi_song_v4_out(RsprotExec *x, MsgMidiSong *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_midi_song_v5_out(RsprotExec *x, MsgMidiSong *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
 }
 
 /*

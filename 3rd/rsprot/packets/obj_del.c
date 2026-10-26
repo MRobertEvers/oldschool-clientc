@@ -14,72 +14,72 @@
 void
 packet_obj_del_v1_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_obj_del_v2_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_obj_del_v3_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_obj_del_v4_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v5 -- revs 225. */
 void
 packet_obj_del_v5_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT2(x, m->quantity);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_3412(x, m->quantity);
 }
 
 /* v6 -- revs 226. */
 void
 packet_obj_del_v6_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v7 -- revs 227. */
 void
 packet_obj_del_v7_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U4(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U4_1234(x, m->quantity);
 }
 
 /* v8 -- revs 228, 232. */
 void
 packet_obj_del_v8_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4(x, m->quantity);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_1234(x, m->quantity);
 }
 
 /* v9 -- revs 229. */
@@ -87,62 +87,62 @@ void
 packet_obj_del_v9_out(RsprotExec *x, MsgObjDel *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v10 -- revs 230, 236. */
 void
 packet_obj_del_v10_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_obj_del_v11_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT2(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_3412(x, m->quantity);
 }
 
 /* v12 -- revs 233. */
 void
 packet_obj_del_v12_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v13 -- revs 234. */
 void
 packet_obj_del_v13_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v14 -- revs 235. */
 void
 packet_obj_del_v14_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v15 -- revs 237. */
 void
 packet_obj_del_v15_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v16 -- revs 238. */
@@ -150,35 +150,35 @@ void
 packet_obj_del_v16_out(RsprotExec *x, MsgObjDel *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4_ALT2(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_3412(x, m->quantity);
 }
 
 /* v17 -- revs 239. */
 void
 packet_obj_del_v17_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT2(x, m->quantity);
+    RSPROT_U4_3412(x, m->quantity);
 }
 
 /* v18 -- revs 240. */
 void
 packet_obj_del_v18_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_1234(x, m->quantity);
 }
 
 /* v19 -- revs 241. */
 void
 packet_obj_del_v19_out(RsprotExec *x, MsgObjDel *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U4(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U4_1234(x, m->quantity);
 }
 
 /*

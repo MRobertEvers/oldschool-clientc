@@ -14,150 +14,150 @@
 void
 packet_teleport_v1_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U2_21(x, m->z);
 }
 
 /* v2 -- revs 222. */
 void
 packet_teleport_v2_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U2(x, m->x);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v3 -- revs 223. */
 void
 packet_teleport_v3_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
 }
 
 /* v4 -- revs 224. */
 void
 packet_teleport_v4_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+    RSPROT_U1_ADD128(x, m->level);
 }
 
 /* v5 -- revs 225. */
 void
 packet_teleport_v5_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->z);
 }
 
 /* v6 -- revs 226. */
 void
 packet_teleport_v6_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v7 -- revs 227. */
 void
 packet_teleport_v7_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->level);
 }
 
 /* v8 -- revs 228. */
 void
 packet_teleport_v8_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U1_NEG(x, m->level);
 }
 
 /* v9 -- revs 229. */
 void
 packet_teleport_v9_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
 }
 
 /* v10 -- revs 230. */
 void
 packet_teleport_v10_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v11 -- revs 231. */
 void
 packet_teleport_v11_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
 }
 
 /* v12 -- revs 232. */
 void
 packet_teleport_v12_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U2(x, m->x);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v13 -- revs 233. */
 void
 packet_teleport_v13_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U4(x, m->oculus_sync_value);
-    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U4_1234(x, m->oculus_sync_value);
+    RSPROT_U2_12_ADD128(x, m->z);
 }
 
 /* v14 -- revs 234. */
 void
 packet_teleport_v14_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U1_ADD128(x, m->level);
 }
 
 /* v15 -- revs 235. */
 void
 packet_teleport_v15_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U4_ALT2(x, m->oculus_sync_value);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U4_3412(x, m->oculus_sync_value);
+    RSPROT_U1_ADD128(x, m->level);
 }
 
 /* v16 -- revs 236. */
@@ -165,18 +165,18 @@ void
 packet_teleport_v16_in(RsprotExec *x, MsgTeleport *m)
 {
     RSPROT_U1(x, m->level);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v17 -- revs 237. */
 void
 packet_teleport_v17_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U4_ALT1(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U4_4321(x, m->oculus_sync_value);
     RSPROT_U1(x, m->level);
 }
 
@@ -184,40 +184,40 @@ packet_teleport_v17_in(RsprotExec *x, MsgTeleport *m)
 void
 packet_teleport_v18_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v19 -- revs 239. */
 void
 packet_teleport_v19_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U4(x, m->oculus_sync_value);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U4_1234(x, m->oculus_sync_value);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v20 -- revs 240. */
 void
 packet_teleport_v20_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U4(x, m->oculus_sync_value);
-    RSPROT_U2(x, m->z);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U4_1234(x, m->oculus_sync_value);
+    RSPROT_U2_12(x, m->z);
 }
 
 /* v21 -- revs 241. */
 void
 packet_teleport_v21_in(RsprotExec *x, MsgTeleport *m)
 {
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U4_ALT3(x, m->oculus_sync_value);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+    RSPROT_U1_NEG(x, m->level);
 }
 
 /*

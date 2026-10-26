@@ -14,104 +14,104 @@
 void
 packet_event_camera_position_v1_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2_ALT1(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_21(x, m->angle_y);
 }
 
 /* v2 -- revs 222. */
 void
 packet_event_camera_position_v2_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT3(x, m->angle_x);
-    RSPROT_U2_ALT2(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
 }
 
 /* v3 -- revs 223, 230, 234. */
 void
 packet_event_camera_position_v3_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT3(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
 }
 
 /* v4 -- revs 224, 227. */
 void
 packet_event_camera_position_v4_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
 }
 
 /* v5 -- revs 226. */
 void
 packet_event_camera_position_v5_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_12(x, m->angle_y);
 }
 
 /* v6 -- revs 228. */
 void
 packet_event_camera_position_v6_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->angle_x);
 }
 
 /* v7 -- revs 229. */
 void
 packet_event_camera_position_v7_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2(x, m->angle_y);
-    RSPROT_U2_ALT1(x, m->angle_x);
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
 }
 
 /* v8 -- revs 231. */
 void
 packet_event_camera_position_v8_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2_ALT3(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
 }
 
 /* v9 -- revs 233. */
 void
 packet_event_camera_position_v9_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_12(x, m->angle_y);
 }
 
 /* v10 -- revs 235. */
 void
 packet_event_camera_position_v10_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2(x, m->angle_y);
-    RSPROT_U2_ALT3(x, m->angle_x);
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
 }
 
 /* v11 -- revs 236, 239, 241. */
 void
 packet_event_camera_position_v11_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2_ALT3(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
 }
 
 /* v12 -- revs 238. */
 void
 packet_event_camera_position_v12_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2_ALT1(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_21(x, m->angle_y);
 }
 
 /* v13 -- revs 240. */
 void
 packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *m)
 {
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2_ALT2(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
 }
 
 /*

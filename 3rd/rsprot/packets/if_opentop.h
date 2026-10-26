@@ -30,7 +30,7 @@
  *     13 contiguous revision runs
  *      4 distinct layouts
  *
- * It cycles p2 / p2Alt3 / p2Alt1 / p2Alt2 and revisits each of them, so the
+ * It cycles p2 / p2_21_add128 / p2_21 / p2_12_add128 and revisits each of them, so the
  * naive "one row per run" scheme would emit thirteen codec bodies for four
  * layouts, and "increment the version on every change" would hand the same
  * bytes four different numbers.
@@ -75,12 +75,12 @@ typedef struct MsgIfOpenTop
 
 /* v1 — revs 221, 225, 236.            IfOpenTopEncoder: p2(interfaceId)     */
 void packet_if_opentop_v1_out(RsprotExec *x, MsgIfOpenTop *m);
-/* v2 — revs 222, 226, 235, 238.       IfOpenTopEncoder: p2Alt3(interfaceId) */
+/* v2 — revs 222, 226, 235, 238.       IfOpenTopEncoder: p2_21_add128(interfaceId) */
 void packet_if_opentop_v2_out(RsprotExec *x, MsgIfOpenTop *m);
 /* v3 — revs 223-224, 227-230,
- *             232-234, 237.           IfOpenTopEncoder: p2Alt1(interfaceId) */
+ *             232-234, 237.           IfOpenTopEncoder: p2_21(interfaceId) */
 void packet_if_opentop_v3_out(RsprotExec *x, MsgIfOpenTop *m);
-/* v4 — revs 231, 239.                 IfOpenTopEncoder: p2Alt2(interfaceId) */
+/* v4 — revs 231, 239.                 IfOpenTopEncoder: p2_12_add128(interfaceId) */
 void packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m);
 
 /*

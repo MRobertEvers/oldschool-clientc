@@ -14,10 +14,10 @@
 void
 packet_loc_add_change_v1_v1_out(RsprotExec *x, MsgLocAddChangeV1 *m)
 {
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
 }
 
 /*

@@ -9,7 +9,7 @@ void
 packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m)
 {
     RSPROT_COUNT(x, m->checks_count, MSG_REFLECTION_CHECKER_MAX_CHECKS);
-    RSPROT_U4(x, m->id);
+    RSPROT_U4_1234(x, m->id);
     for (int32_t i = 0; i < m->checks_count; i++) {
         MsgReflectionCheck *c = &m->checks[i];
         int32_t op;
@@ -23,7 +23,7 @@ packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m)
         RSPROT_JSTR(x, c->class_name);
         RSPROT_JSTR(x, c->member);
         if (op == 1)
-            RSPROT_U4(x, c->value);
+            RSPROT_U4_1234(x, c->value);
         if (op == 3 || op == 4) {
             RSPROT_COUNT(x, c->param_count, MSG_REFLECTION_CHECKER_MAX_PARAMS);
             for (int32_t j = 0; j < c->param_count; j++)
@@ -32,7 +32,7 @@ packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m)
         }
         if (op == 3) {
             for (int32_t j = 0; j < c->param_count; j++) {
-                RSPROT_U4(x, c->param_sizes[j]);
+                RSPROT_U4_1234(x, c->param_sizes[j]);
                 RSPROT_DATA(x, c->param_values[j], c->param_sizes[j]);
             }
         }

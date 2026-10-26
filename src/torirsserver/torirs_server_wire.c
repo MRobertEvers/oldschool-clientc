@@ -1017,7 +1017,7 @@ w239_midi_song(
 
 /*
  * MidiSongStopEncoder v12. Both fields are p2Alt3, which is the writer side of
- * the two `RSProt_BufferG2Le_add128` reads the client's own parse does
+ * the two `rsprot_g2_21_add128` reads the client's own parse does
  * (osrs239_parse.c, PKT_NAME_MIDI_SONG_STOP) — so the pair is confirmed from
  * both ends rather than transcribed once.
  *

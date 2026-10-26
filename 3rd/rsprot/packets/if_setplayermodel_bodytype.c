@@ -14,56 +14,56 @@
 void
 packet_if_setplayermodel_bodytype_v1_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT3(x, m->body_type);
-    RSPROT_U4_ALT2(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->body_type);
+    RSPROT_U4_3412(x, m->combined_id);
 }
 
 /* v2 -- revs 222, 228. */
 void
 packet_if_setplayermodel_bodytype_v2_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->body_type);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->body_type);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setplayermodel_bodytype_v3_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->body_type);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->body_type);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_setplayermodel_bodytype_v4_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT3(x, m->body_type);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->body_type);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setplayermodel_bodytype_v5_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT3(x, m->body_type);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->body_type);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v6 -- revs 226, 232. */
 void
 packet_if_setplayermodel_bodytype_v6_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT2(x, m->body_type);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->body_type);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v7 -- revs 227, 240. */
 void
 packet_if_setplayermodel_bodytype_v7_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT1(x, m->body_type);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->body_type);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v8 -- revs 229. */
@@ -71,62 +71,62 @@ void
 packet_if_setplayermodel_bodytype_v8_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
     RSPROT_U1(x, m->body_type);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v9 -- revs 230, 234. */
 void
 packet_if_setplayermodel_bodytype_v9_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT1(x, m->body_type);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->body_type);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v10 -- revs 231, 233. */
 void
 packet_if_setplayermodel_bodytype_v10_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->body_type);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->body_type);
 }
 
 /* v11 -- revs 235. */
 void
 packet_if_setplayermodel_bodytype_v11_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->body_type);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->body_type);
 }
 
 /* v12 -- revs 236. */
 void
 packet_if_setplayermodel_bodytype_v12_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT2(x, m->body_type);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->body_type);
 }
 
 /* v13 -- revs 237. */
 void
 packet_if_setplayermodel_bodytype_v13_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_U1_ALT2(x, m->body_type);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->body_type);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v14 -- revs 238. */
 void
 packet_if_setplayermodel_bodytype_v14_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U1_ALT2(x, m->body_type);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->body_type);
 }
 
 /* v15 -- revs 239. */
 void
 packet_if_setplayermodel_bodytype_v15_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
     RSPROT_U1(x, m->body_type);
 }
 
@@ -135,7 +135,7 @@ void
 packet_if_setplayermodel_bodytype_v16_out(RsprotExec *x, MsgIfSetPlayerModelBodyType *m)
 {
     RSPROT_U1(x, m->body_type);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /*

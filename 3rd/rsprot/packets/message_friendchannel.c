@@ -6,9 +6,9 @@ void
 packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel *m)
 {
     RSPROT_JSTR(x, m->sender);
-    RSPROT_U8(x, m->channel_name);
-    RSPROT_U2(x, m->world_id);
-    RSPROT_U3(x, m->world_message_counter);
+    RSPROT_U8_12345678(x, m->channel_name);
+    RSPROT_U2_12(x, m->world_id);
+    RSPROT_U3_123(x, m->world_message_counter);
     RSPROT_U1(x, m->chat_crown_type);
     RSPROT_REST(x, m->huffman, m->huffman_length);
 }

@@ -14,8 +14,8 @@
 void
 packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
-    RSPROT_U2(x, m->base_x);
-    RSPROT_U2(x, m->base_z);
+    RSPROT_U2_12(x, m->base_x);
+    RSPROT_U2_12(x, m->base_z);
     RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
     if (m->size_x_zones > 0 && m->size_z_zones > 0 &&
         rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {
@@ -30,8 +30,8 @@ packet_rebuild_worldentity_v3_v1_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 void
 packet_rebuild_worldentity_v3_v2_out(RsprotExec *x, MsgRebuildWorldEntityV3 *m)
 {
-    RSPROT_U2(x, m->base_x);
-    RSPROT_U2(x, m->base_z);
+    RSPROT_U2_12(x, m->base_x);
+    RSPROT_U2_12(x, m->base_z);
     RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
     if (m->size_x_zones > 0 && m->size_z_zones > 0 &&
         rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {

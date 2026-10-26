@@ -14,17 +14,17 @@
 void
 packet_move_gameclick_v1_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12(x, m->x);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->z);
 }
 
 /* v2 -- revs 222, 227. */
 void
 packet_move_gameclick_v2_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->key_combination);
 }
 
@@ -32,9 +32,9 @@ packet_move_gameclick_v2_in(RsprotExec *x, MsgMoveGameClick *m)
 void
 packet_move_gameclick_v3_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v4 -- revs 224. */
@@ -42,26 +42,26 @@ void
 packet_move_gameclick_v4_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v5 -- revs 225. */
 void
 packet_move_gameclick_v5_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v6 -- revs 226. */
 void
 packet_move_gameclick_v6_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U1_ALT1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U1_ADD128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
 }
 
 /* v7 -- revs 228. */
@@ -69,43 +69,43 @@ void
 packet_move_gameclick_v7_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v8 -- revs 229. */
 void
 packet_move_gameclick_v8_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v9 -- revs 230. */
 void
 packet_move_gameclick_v9_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
 }
 
 /* v10 -- revs 231. */
 void
 packet_move_gameclick_v10_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U1_ALT2(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U1_NEG(x, m->key_combination);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
 }
 
 /* v11 -- revs 232. */
 void
 packet_move_gameclick_v11_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->key_combination);
 }
 
@@ -114,35 +114,35 @@ void
 packet_move_gameclick_v12_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
 }
 
 /* v13 -- revs 234. */
 void
 packet_move_gameclick_v13_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->z);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v14 -- revs 235. */
 void
 packet_move_gameclick_v14_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v15 -- revs 236. */
 void
 packet_move_gameclick_v15_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT3(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
 }
 
 /* v16 -- revs 237. */
@@ -150,44 +150,44 @@ void
 packet_move_gameclick_v16_in(RsprotExec *x, MsgMoveGameClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->z);
 }
 
 /* v17 -- revs 238. */
 void
 packet_move_gameclick_v17_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT2(x, m->key_combination);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_NEG(x, m->key_combination);
 }
 
 /* v18 -- revs 239. */
 void
 packet_move_gameclick_v18_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U1_ALT3(x, m->key_combination);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_SUB128(x, m->key_combination);
 }
 
 /* v19 -- revs 240. */
 void
 packet_move_gameclick_v19_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT2(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v20 -- revs 241. */
 void
 packet_move_gameclick_v20_in(RsprotExec *x, MsgMoveGameClick *m)
 {
-    RSPROT_U1_ALT1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U1_ADD128(x, m->key_combination);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /*

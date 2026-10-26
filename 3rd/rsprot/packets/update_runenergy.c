@@ -14,7 +14,7 @@
 void
 packet_update_runenergy_v1_out(RsprotExec *x, MsgUpdateRunEnergy *m)
 {
-    RSPROT_U2(x, m->runenergy);
+    RSPROT_U2_12(x, m->runenergy);
 }
 
 /*

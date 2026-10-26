@@ -304,7 +304,7 @@ rsab_psmarts(
  * `_alt1`/`_alt2`/`_alt3` are ordinals: nothing in `rsab_p4_alt2` says which
  * four bytes come out, so checking a call site means reading the
  * implementation. These names say it, using the scheme
- * `docs/BUFFER_ACCESSOR_AUDIT.md` derives and `3rd/rsprot/src/rsprot_buffer.h`
+ * `docs/BUFFER_ACCESSOR_AUDIT.md` derives and `3rd/rsprot/src/rsprot_buf.h`
  * documents in full — digits are byte significance in write order, 1 = most
  * significant, `be`/`le` when the order is standard, and a transform suffix
  * (`add128` / `neg` / `sub128`) when the value is biased rather than permuted.

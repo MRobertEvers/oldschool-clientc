@@ -14,12 +14,12 @@ packet_group_var_v1_out(RsprotExec *x, MsgGroupVar *m)
         int32_t type;
 
         RSPROT_U1(x, u->index);
-        RSPROT_U4(x, u->packed);
+        RSPROT_U4_1234(x, u->packed);
         type = (int32_t)(((uint32_t)RSPROT_BRANCH(x, u->packed) >> 16) & 0x3);
         if (type == 0)
-            RSPROT_U4(x, u->int_value);
+            RSPROT_U4_1234(x, u->int_value);
         else if (type == 1)
-            RSPROT_U8(x, u->long_value);
+            RSPROT_U8_12345678(x, u->long_value);
         else if (type == 2)
             RSPROT_JSTR(x, u->string_value);
         else

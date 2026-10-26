@@ -8,11 +8,11 @@ packet_update_stockmarket_slot_v1_v1_out(RsprotExec *x, MsgUpdateStockmarketSlot
     RSPROT_U1(x, m->slot);
     RSPROT_U1(x, m->status);
     if (RSPROT_BRANCH(x, m->status) != 0) {
-        RSPROT_U2(x, m->obj);
-        RSPROT_U4(x, m->price);
-        RSPROT_U4(x, m->count);
-        RSPROT_U4(x, m->completed_count);
-        RSPROT_U4(x, m->completed_gold);
+        RSPROT_U2_12(x, m->obj);
+        RSPROT_U4_1234(x, m->price);
+        RSPROT_U4_1234(x, m->count);
+        RSPROT_U4_1234(x, m->completed_count);
+        RSPROT_U4_1234(x, m->completed_gold);
     } else {
         /* The prot is 20 bytes either way: a reset pads (RSProt skipWrite(18)). */
         RSPROT_DATA(x, m->padding, 18);

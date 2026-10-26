@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "rsprot_buffer.h"
+#include "rsprot_buf.h"
 #include "rsbuffer.h"
 #include "rsprot_exec.h"
 
@@ -61,18 +61,18 @@
  * the packet) rather than applying half-decoded state.
  */
 /*
- * The byte cursor is RSProt_Buffer's.
+ * The byte cursor is RsprotBuf's.
  *
  * This file used to define a private `struct Cur` and seventeen readers over
  * it — g1, g1_alt1..3, g2, g2_alt1..3, g3, g3_alt2, g4, g4_alt1..3, g1b,
  * gsmart1or2, gjstr_nul. Every one had a counterpart in the buffer library and
  * was a separate place for a byte order to be wrong; `gsmart1or2` alone was one
  * of five copies of that encoding in src/net. See
- * `docs/BUFFER_ACCESSOR_AUDIT.md` and `3rd/rsprot/src/rsprot_buffer.h`.
+ * `docs/BUFFER_ACCESSOR_AUDIT.md` and `3rd/rsprot/src/rsprot_buf.h`.
  *
  * The names now carry the byte order instead of an `alt` ordinal, so a call
  * site states what it reads: `g4_alt3` was the 2,1,4,3 permutation and is
- * spelled `RSProt_BufferG4_2143`. The comment that used to sit on that reader —
+ * spelled `rsprot_g4_2143`. The comment that used to sit on that reader —
  * warning that swapping its two low bytes yields a combined id of
  * (interface, child << 8), which names a component the interface does not have,
  * so IF_OPENSUB skips it and IF_SETEVENTS arms nothing — is now a property of a
@@ -94,7 +94,7 @@ sign24(int v)
  * (SAILING.md §5.4). Big-endian, signed. */
 static int
 wev_delta(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     int code)
 {
     switch( code & 3 )
@@ -102,11 +102,11 @@ wev_delta(
     case 0:
         return 0;
     case 1:
-        return (int8_t)RSProt_BufferG1(c);
+        return (int8_t)rsprot_g1(c);
     case 2:
-        return (int16_t)RSProt_BufferG2Be(c);
+        return (int16_t)rsprot_g2_12(c);
     default:
-        return (int32_t)RSProt_BufferG4Be(c);
+        return (int32_t)rsprot_g4_1234(c);
     }
 }
 
@@ -140,7 +140,7 @@ wev_flag_payload_defaults(
 
 static int
 wev_read_flag_payload(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     unsigned flags,
     int* out_has_op_mask,
     int* out_op_mask,
@@ -158,16 +158,16 @@ wev_read_flag_payload(
      */
     if( flags & 0x1 )
     {
-        int seq = rsprot_g2(c);
+        int seq = rsprot_g2_12(c);
 
         *out_has_seq = 1;
         *out_seq_id = (seq == 65535) ? -1 : seq;
-        *out_seq_delay = rsprot_g1_alt2(c);
+        *out_seq_delay = rsprot_g1_neg(c);
     }
     if( flags & 0x2 )
     {
         *out_has_op_mask = 1;
-        *out_op_mask = rsprot_g1_alt2(c);
+        *out_op_mask = rsprot_g1_neg(c);
     }
     return c->err ? 0 : 1;
 }
@@ -182,7 +182,7 @@ wev_read_flag_payload(
  * string), or NULL on overrun.
  */
 static char*
-gjstr_nul(RSProt_Buffer* c)
+gjstr_nul(RsprotBuf* c)
 {
     int start = c->rpos;
     int end = start;
@@ -247,7 +247,7 @@ osrs241_zone_name(int ordinal)
  * A zone sub-packet is decoded from the ENCLOSED stream's shared cursor rather
  * than from a payload of its own, which is why this does not go through
  * `rsprot_bridge_parse` like a top-level packet. It does not need to:
- * `RSProt_Buffer` IS `RsprotBuf`, so an executor can run a codec against this
+ * `RsprotBuf` IS `RsprotBuf`, so an executor can run a codec against this
  * cursor in place and the reads advance it exactly as the hand-written ones
  * did. That is the whole reason the buffer types were unified.
  *
@@ -262,7 +262,7 @@ osrs241_zone_name(int ordinal)
  * without knowing this record's length.
  */
 static int
-zone_run(RSProt_Buffer* c, RsprotVersionRange const* ranges, int count, void* msg)
+zone_run(RsprotBuf* c, RsprotVersionRange const* ranges, int count, void* msg)
 {
     RsprotExec x;
     RsprotCodecFn fn = rsprot_version_pick(ranges, count, 241);
@@ -282,7 +282,7 @@ zone_run(RSProt_Buffer* c, RsprotVersionRange const* ranges, int count, void* ms
 
 static int
 osrs241_read_zone_sub(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     enum GameProtoPktName name,
     struct PktZoneSubPacket* out)
 {
@@ -570,8 +570,8 @@ osrs241_parse(
     int len,
     struct RevPacket* out)
 {
-    RSProt_Buffer c;
-    RSProt_BufferWrapRead(&c, data, len);
+    RsprotBuf c;
+    rsprot_buf_wrap_read(&c, data, len);
 
     switch( pkt_name )
     {
@@ -646,7 +646,7 @@ osrs241_parse(
 
     /*
      * The audio packets below are transcribed from RSProx's osrs-241 decoders
-     * and written with RSProt's own accessor names (rsprot_g2_alt3 is g2Alt3),
+     * and written with RSProt's own accessor names (rsprot_g2_21_add128 is g2Alt3),
      * so each line reads against its Kotlin original. Every one of them moved
      * between 239 and 241.
      *
@@ -660,12 +660,12 @@ osrs241_parse(
         int fade_in_speed;
         int fade_out_speed;
 
-        p->secondary_id = rsprot_g2_alt2(&c);
-        (void)rsprot_g2_alt2(&c); /* fade-out delay */
-        fade_in_speed = rsprot_g2_alt3(&c);
-        (void)rsprot_g2(&c); /* fade-in delay */
-        p->primary_id = rsprot_g2_alt3(&c);
-        fade_out_speed = rsprot_g2_alt3(&c);
+        p->secondary_id = rsprot_g2_12_add128(&c);
+        (void)rsprot_g2_12_add128(&c); /* fade-out delay */
+        fade_in_speed = rsprot_g2_21_add128(&c);
+        (void)rsprot_g2_12(&c); /* fade-in delay */
+        p->primary_id = rsprot_g2_21_add128(&c);
+        fade_out_speed = rsprot_g2_21_add128(&c);
         if( p->primary_id == 65535 )
             p->primary_id = -1;
         if( p->secondary_id == 65535 )
@@ -686,10 +686,10 @@ osrs241_parse(
     {
         struct PktMidiSwap* p = &out->_midi_swap;
 
-        (void)rsprot_g2(&c); /* fade-in delay */
-        (void)rsprot_g2(&c); /* fade-out delay */
-        p->fade_out_ms = rsprot_g2_alt2(&c) * 20;
-        p->fade_in_ms = rsprot_g2(&c) * 20;
+        (void)rsprot_g2_12(&c); /* fade-in delay */
+        (void)rsprot_g2_12(&c); /* fade-out delay */
+        p->fade_out_ms = rsprot_g2_12_add128(&c) * 20;
+        p->fade_in_ms = rsprot_g2_12(&c) * 20;
         return c.err ? 0 : 1;
     }
 
@@ -701,8 +701,8 @@ osrs241_parse(
     case PKT_NAME_MIDI_SONG_STOP:
     {
         struct PktMidiSongStop* p = &out->_midi_song_stop;
-        (void)rsprot_g2_alt3(&c); /* fade-out delay */
-        p->fade_out_ms = rsprot_g2_alt2(&c) * 20;
+        (void)rsprot_g2_21_add128(&c); /* fade-out delay */
+        p->fade_out_ms = rsprot_g2_12_add128(&c) * 20;
         return c.err ? 0 : 1;
     }
 
@@ -715,8 +715,8 @@ osrs241_parse(
     case PKT_NAME_AMBIENTSOUND_START:
     {
         struct PktAmbientSoundStart* p = &out->_ambientsound_start;
-        p->id = rsprot_g2(&c);
-        p->fade_ms = rsprot_g1_alt1(&c) * 20;
+        p->id = rsprot_g2_12(&c);
+        p->fade_ms = rsprot_g1_add128(&c) * 20;
         return c.err ? 0 : 1;
     }
 
@@ -724,7 +724,7 @@ osrs241_parse(
     case PKT_NAME_AMBIENTSOUND_STOP:
     {
         struct PktAmbientSoundStop* p = &out->_ambientsound_stop;
-        p->fade_ms = rsprot_g1_alt2(&c) != 0 ? 500 : 0;
+        p->fade_ms = rsprot_g1_neg(&c) != 0 ? 500 : 0;
         return c.err ? 0 : 1;
     }
 
@@ -741,7 +741,7 @@ osrs241_parse(
         struct PktSetPlayerOp* p = &out->_set_player_op;
 
         memset(p, 0, sizeof(*p));
-        p->slot = rsprot_g1_alt3(&c);
+        p->slot = rsprot_g1_sub128(&c);
         p->text = gjstr_nul(&c);
         p->primary = rsprot_g1(&c);
         if( c.err || !p->text )
@@ -762,7 +762,7 @@ osrs241_parse(
         char* message = gjstr_nul(&c);
 
         ToriMem_Free(ToriMem_Net(), message);
-        out->_update_reboot_timer.ticks = rsprot_g2_alt2(&c);
+        out->_update_reboot_timer.ticks = rsprot_g2_12_add128(&c);
         return c.err ? 0 : 1;
     }
 
@@ -770,8 +770,8 @@ osrs241_parse(
      * the layout ToriRSServer_SendSetActiveWorld writes and the world
      * selftest pins byte-for-byte. */
     case PKT_NAME_SET_ACTIVE_WORLD:
-        out->_set_active_world.world_id = RSProt_BufferG2Be(&c);
-        out->_set_active_world.level = RSProt_BufferG1(&c);
+        out->_set_active_world.world_id = rsprot_g2_12(&c);
+        out->_set_active_world.level = rsprot_g1(&c);
         return c.err ? 0 : 1;
 
     /*
@@ -797,14 +797,14 @@ osrs241_parse(
         struct PktWorldEntityInfo* p = &out->_worldentity_info;
 
         memset(p, 0, sizeof(*p));
-        p->count = RSProt_BufferG1(&c);
+        p->count = rsprot_g1(&c);
         if( c.err || p->count > PKT_WEV_INFO_MAX )
             return 0;
         for( int i = 0; i < p->count; i++ )
         {
             struct PktWevUpdate* u = &p->updates[i];
 
-            u->op = RSProt_BufferG1(&c);
+            u->op = rsprot_g1(&c);
             if( c.err || u->op > PKT_WEV_OP_SNAP )
                 return 0;
             u->update_flags = 0;
@@ -816,14 +816,14 @@ osrs241_parse(
                 continue;
             if( u->op == PKT_WEV_OP_ENQUEUE || u->op == PKT_WEV_OP_SNAP )
             {
-                int mask = RSProt_BufferG1(&c);
+                int mask = rsprot_g1(&c);
 
                 u->dx = wev_delta(&c, mask & 3);
                 u->dy = wev_delta(&c, (mask >> 2) & 3);
                 u->dz = wev_delta(&c, (mask >> 4) & 3);
                 u->dangle = wev_delta(&c, (mask >> 6) & 3);
             }
-            u->update_flags = (unsigned)RSProt_BufferG1(&c);
+            u->update_flags = (unsigned)rsprot_g1(&c);
             if( c.err )
                 return 0;
             if( !wev_read_flag_payload(
@@ -852,15 +852,15 @@ osrs241_parse(
              * size. 239 put the config id LAST of the five and read the flags
              * plain, the size g1Alt2 and the priority g1Alt1.
              */
-            s->id = rsprot_g2(&c);
+            s->id = rsprot_g2_12(&c);
             /* Id 0 is the root view and 16+ is past the registry: a frame
              * naming either is malformed, not a state to spawn. */
             if( c.err || s->id <= 0 || s->id > PKT_WEV_INFO_MAX )
                 return 0;
-            s->config_id = rsprot_g2s_alt1(&c);
-            s->update_flags = (unsigned)rsprot_g1_alt3(&c);
-            s->priority_group = rsprot_g1_alt2(&c);
-            size_byte = rsprot_g1_alt3(&c);
+            s->config_id = rsprot_g2s_21(&c);
+            s->update_flags = (unsigned)rsprot_g1_sub128(&c);
+            s->priority_group = rsprot_g1_neg(&c);
+            size_byte = rsprot_g1_sub128(&c);
             s->size_x_tiles = ((size_byte >> 4) & 0xF) * 8;
             s->size_z_tiles = (size_byte & 0xF) * 8;
             /* A zero nibble is a zero-tile view — nothing can live in it. */
@@ -868,7 +868,7 @@ osrs241_parse(
                 return 0;
             /* The absolute transform arrives as the same 4-axis bitfield
              * applied to (0,0,0,0). */
-            mask = RSProt_BufferG1(&c);
+            mask = rsprot_g1(&c);
             s->x = wev_delta(&c, mask & 3);
             s->y = wev_delta(&c, (mask >> 2) & 3);
             s->z = wev_delta(&c, (mask >> 4) & 3);
@@ -922,7 +922,7 @@ osrs241_parse(
             return 0;
         while( c.rpos < len && !c.err )
         {
-            int ordinal = RSProt_BufferG1(&c);
+            int ordinal = rsprot_g1(&c);
             enum GameProtoPktName sub = osrs241_zone_name(ordinal);
 
             if( enc->count == cap )
@@ -1065,9 +1065,9 @@ osrs241_parse(
         int source_square_count;
 
         memset(p, 0, sizeof(*p));
-        p->base_x = RSProt_BufferG2Be(&c);
-        p->base_z = RSProt_BufferG2Be(&c);
-        source_square_count = RSProt_BufferG2Be(&c);
+        p->base_x = rsprot_g2_12(&c);
+        p->base_z = rsprot_g2_12(&c);
+        source_square_count = rsprot_g2_12(&c);
         if( c.err || source_square_count < 0 ||
             source_square_count > PKT_MAP_REBUILD_ZONES )
             return 0;
@@ -1121,21 +1121,21 @@ osrs241_parse(
         struct RSCache_Buffer text_buffer;
 
         memset(p, 0, sizeof(*p));
-        p->clan_type = RSProt_BufferG1s(&c);
+        p->clan_type = rsprot_g1s(&c);
         p->crown = -1;
         if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
         {
             int32_t sender_length = 0;
-            char const* sender = RSProt_BufferGJStr(&c, &sender_length);
+            char const* sender = rsprot_gjstr(&c, &sender_length);
             if( c.err || !sender || sender_length >= (int)sizeof(p->sender) )
                 return 0;
             memcpy(p->sender, sender, (size_t)sender_length);
             p->sender[sender_length] = '\0';
         }
-        p->world = RSProt_BufferG2Be(&c);
-        p->counter = RSProt_BufferG3Be(&c);
+        p->world = rsprot_g2_12(&c);
+        p->counter = rsprot_g3_123(&c);
         if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
-            p->crown = RSProt_BufferG1(&c);
+            p->crown = rsprot_g1(&c);
         if( c.err || c.rpos > len )
             return 0;
         RSCache_BufferInit(&text_buffer, (uint8_t*)data + c.rpos, len - c.rpos);
@@ -1149,16 +1149,16 @@ osrs241_parse(
         struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
 
         memset(p, 0, sizeof(*p));
-        p->slot = RSProt_BufferG1(&c);
-        p->status = RSProt_BufferG1s(&c);
+        p->slot = rsprot_g1(&c);
+        p->status = rsprot_g1s(&c);
         /* An empty slot's remaining 18 bytes are padding. */
         if( p->status != 0 )
         {
-            p->obj = RSProt_BufferG2Be(&c);
-            p->price = RSProt_BufferG4Be(&c);
-            p->count = RSProt_BufferG4Be(&c);
-            p->completed_count = RSProt_BufferG4Be(&c);
-            p->completed_gold = RSProt_BufferG4Be(&c);
+            p->obj = rsprot_g2_12(&c);
+            p->price = rsprot_g4_1234(&c);
+            p->count = rsprot_g4_1234(&c);
+            p->completed_count = rsprot_g4_1234(&c);
+            p->completed_gold = rsprot_g4_1234(&c);
         }
         return c.err ? 0 : 1;
     }
@@ -1182,7 +1182,7 @@ osrs241_parse(
  * of byte orders did not become how the wrong one gets picked.
  *
  * It is gone because the readers are: every order lives in
- * `3rd/rsprot/src/rsprot_buffer.h`, complete at all four widths, whether this
+ * `3rd/rsprot/src/rsprot_buf.h`, complete at all four widths, whether this
  * file calls it or not. A set that cannot be half-present needs nothing to
  * keep it alive.
  */

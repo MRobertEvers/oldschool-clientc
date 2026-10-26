@@ -14,126 +14,126 @@
 void
 packet_loc_merge_v1_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT3(x, m->min_x);
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->max_x);
-    RSPROT_U2_ALT1(x, m->start);
-    RSPROT_U2_ALT1(x, m->end);
+    RSPROT_U1_SUB128(x, m->min_x);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U1_SUB128(x, m->max_x);
+    RSPROT_U2_21(x, m->start);
+    RSPROT_U2_21(x, m->end);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->max_z);
+    RSPROT_U1_NEG(x, m->max_z);
 }
 
 /* v2 -- revs 222. */
 void
 packet_loc_merge_v2_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->max_x);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT2(x, m->end);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U2_ALT2(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_x);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->end);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U2_12_ADD128(x, m->start);
     RSPROT_U1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT1(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->max_z);
 }
 
 /* v3 -- revs 223. */
 void
 packet_loc_merge_v3_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->max_x);
-    RSPROT_U2(x, m->end);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->max_x);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v4 -- revs 224. */
 void
 packet_loc_merge_v4_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U2(x, m->end);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U2_12(x, m->end);
     RSPROT_U1(x, m->min_z);
-    RSPROT_U1_ALT2(x, m->min_x);
+    RSPROT_U1_NEG(x, m->min_x);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U2(x, m->index);
-    RSPROT_U2_ALT2(x, m->start);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->start);
 }
 
 /* v5 -- revs 225. */
 void
 packet_loc_merge_v5_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2_ALT1(x, m->start);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->max_x);
+    RSPROT_U2_21(x, m->start);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->max_x);
     RSPROT_U1(x, m->min_z);
-    RSPROT_U1_ALT2(x, m->max_z);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
 /* v6 -- revs 226. */
 void
 packet_loc_merge_v6_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U1_ALT2(x, m->max_z);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->max_x);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->end);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U1_NEG(x, m->max_z);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->max_x);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->end);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v7 -- revs 227. */
 void
 packet_loc_merge_v7_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2(x, m->start);
-    RSPROT_U1_ALT3(x, m->max_z);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_U1_SUB128(x, m->max_z);
     RSPROT_U1(x, m->min_z);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->min_x);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->min_x);
 }
 
 /* v8 -- revs 228. */
 void
 packet_loc_merge_v8_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U1_ALT1(x, m->max_x);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->end);
-    RSPROT_U2(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U1_ADD128(x, m->max_x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->end);
+    RSPROT_U2_12(x, m->start);
     RSPROT_U1(x, m->min_z);
     RSPROT_U1(x, m->loc_properties_packed);
 }
@@ -142,96 +142,96 @@ packet_loc_merge_v8_out(RsprotExec *x, MsgLocMerge *m)
 void
 packet_loc_merge_v9_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->max_z);
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U1_ALT2(x, m->min_x);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U1_SUB128(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U1_NEG(x, m->min_x);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U2(x, m->end);
+    RSPROT_U2_12(x, m->end);
 }
 
 /* v10 -- revs 230. */
 void
 packet_loc_merge_v10_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->max_x);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U1_ALT1(x, m->max_z);
+    RSPROT_U1_ADD128(x, m->max_x);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_z);
     RSPROT_U1(x, m->min_x);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->index);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U2(x, m->end);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U2_12(x, m->end);
 }
 
 /* v11 -- revs 231. */
 void
 packet_loc_merge_v11_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->min_x);
+    RSPROT_U1_ADD128(x, m->min_x);
     RSPROT_U1(x, m->loc_properties_packed);
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->min_z);
-    RSPROT_U2(x, m->end);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2(x, m->start);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_U2_21_ADD128(x, m->index);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U1_ALT3(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->max_z);
 }
 
 /* v12 -- revs 232. */
 void
 packet_loc_merge_v12_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U2(x, m->end);
-    RSPROT_U2_ALT3(x, m->start);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U2_21_ADD128(x, m->start);
     RSPROT_U1(x, m->min_x);
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U1_ALT3(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U1_SUB128(x, m->max_z);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v13 -- revs 233. */
 void
 packet_loc_merge_v13_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->max_z);
-    RSPROT_U1_ALT2(x, m->min_x);
-    RSPROT_U2(x, m->start);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->max_x);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT3(x, m->end);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->max_z);
+    RSPROT_U1_NEG(x, m->min_x);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U1_SUB128(x, m->max_x);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->end);
 }
 
 /* v14 -- revs 234. */
 void
 packet_loc_merge_v14_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->id);
     RSPROT_U1(x, m->min_x);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U2_ALT2(x, m->end);
-    RSPROT_U1_ALT2(x, m->max_x);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U2_12_ADD128(x, m->end);
+    RSPROT_U1_NEG(x, m->max_x);
 }
 
 /* v15 -- revs 235. */
@@ -239,63 +239,63 @@ void
 packet_loc_merge_v15_out(RsprotExec *x, MsgLocMerge *m)
 {
     RSPROT_U1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT1(x, m->min_z);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT3(x, m->max_z);
-    RSPROT_U1_ALT3(x, m->min_x);
-    RSPROT_U2(x, m->end);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->max_x);
+    RSPROT_U1_ADD128(x, m->min_z);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->max_z);
+    RSPROT_U1_SUB128(x, m->min_x);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->max_x);
 }
 
 /* v16 -- revs 236. */
 void
 packet_loc_merge_v16_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT3(x, m->min_z);
-    RSPROT_U1_ALT2(x, m->max_x);
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U2(x, m->end);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U2_ALT1(x, m->start);
+    RSPROT_U1_SUB128(x, m->min_z);
+    RSPROT_U1_NEG(x, m->max_x);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21(x, m->start);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT3(x, m->min_x);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->min_x);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
 /* v17 -- revs 237. */
 void
 packet_loc_merge_v17_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT1(x, m->min_x);
-    RSPROT_U2_ALT2(x, m->start);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->end);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT2(x, m->max_z);
+    RSPROT_U1_ADD128(x, m->min_x);
+    RSPROT_U2_12_ADD128(x, m->start);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->end);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_NEG(x, m->max_z);
     RSPROT_U1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U1_ALT1(x, m->max_x);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U1_ADD128(x, m->max_x);
 }
 
 /* v18 -- revs 238. */
 void
 packet_loc_merge_v18_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT2(x, m->min_z);
-    RSPROT_U2_ALT1(x, m->start);
-    RSPROT_U1_ALT1(x, m->max_z);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U1_NEG(x, m->min_z);
+    RSPROT_U2_21(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_z);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->index);
     RSPROT_U1(x, m->max_x);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT3(x, m->end);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->min_x);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->end);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->min_x);
 }
 
 /* v19 -- revs 239. */
@@ -303,15 +303,15 @@ void
 packet_loc_merge_v19_out(RsprotExec *x, MsgLocMerge *m)
 {
     RSPROT_U1(x, m->min_x);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U2_21(x, m->index);
     RSPROT_U1(x, m->loc_properties_packed);
     RSPROT_U1(x, m->min_z);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2(x, m->end);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U1_ALT1(x, m->max_x);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->max_z);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_ADD128(x, m->max_x);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->max_z);
 }
 
 /* v20 -- revs 240. */
@@ -319,31 +319,31 @@ void
 packet_loc_merge_v20_out(RsprotExec *x, MsgLocMerge *m)
 {
     RSPROT_U1(x, m->min_z);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->end);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U1_ALT2(x, m->max_z);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_NEG(x, m->max_z);
     RSPROT_U1(x, m->min_x);
-    RSPROT_U1_ALT2(x, m->max_x);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->max_x);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v21 -- revs 241. */
 void
 packet_loc_merge_v21_out(RsprotExec *x, MsgLocMerge *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->max_z);
-    RSPROT_U2(x, m->end);
-    RSPROT_U1_ALT1(x, m->min_x);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U2_ALT3(x, m->start);
-    RSPROT_U1_ALT3(x, m->max_x);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT1(x, m->min_z);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U1_ADD128(x, m->min_x);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_SUB128(x, m->max_x);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->min_z);
 }
 
 /*

@@ -14,136 +14,136 @@
 void
 packet_midi_jingle_v1_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3(x, m->length_in_millis);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U3_123(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_midi_jingle_v2_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT3(x, m->length_in_millis);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_213(x, m->length_in_millis);
 }
 
 /* v3 -- revs 223. */
 void
 packet_midi_jingle_v3_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U3_ALT2(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U3_132(x, m->length_in_millis);
 }
 
 /* v4 -- revs 224. */
 void
 packet_midi_jingle_v4_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3_ALT2(x, m->length_in_millis);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U3_132(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v5 -- revs 225, 240. */
 void
 packet_midi_jingle_v5_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U3_ALT1(x, m->length_in_millis);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U3_321(x, m->length_in_millis);
 }
 
 /* v6 -- revs 226, 233. */
 void
 packet_midi_jingle_v6_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U3_ALT3(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U3_213(x, m->length_in_millis);
 }
 
 /* v7 -- revs 227. */
 void
 packet_midi_jingle_v7_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3_ALT2(x, m->length_in_millis);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U3_132(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_midi_jingle_v8_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3_ALT1(x, m->length_in_millis);
-    RSPROT_U2(x, m->id);
+    RSPROT_U3_321(x, m->length_in_millis);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v9 -- revs 230. */
 void
 packet_midi_jingle_v9_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3_ALT1(x, m->length_in_millis);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U3_321(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v10 -- revs 231. */
 void
 packet_midi_jingle_v10_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U3_ALT3(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U3_213(x, m->length_in_millis);
 }
 
 /* v11 -- revs 232. */
 void
 packet_midi_jingle_v11_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3(x, m->length_in_millis);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_123(x, m->length_in_millis);
 }
 
 /* v12 -- revs 234. */
 void
 packet_midi_jingle_v12_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3(x, m->length_in_millis);
-    RSPROT_U2(x, m->id);
+    RSPROT_U3_123(x, m->length_in_millis);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v13 -- revs 235. */
 void
 packet_midi_jingle_v13_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U3_ALT2(x, m->length_in_millis);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U3_132(x, m->length_in_millis);
 }
 
 /* v14 -- revs 236. */
 void
 packet_midi_jingle_v14_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U3_ALT1(x, m->length_in_millis);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U3_321(x, m->length_in_millis);
 }
 
 /* v15 -- revs 238. */
 void
 packet_midi_jingle_v15_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U3(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U3_123(x, m->length_in_millis);
 }
 
 /* v16 -- revs 239. */
 void
 packet_midi_jingle_v16_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3(x, m->length_in_millis);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U3_123(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v17 -- revs 241. */
 void
 packet_midi_jingle_v17_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U3_ALT1(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U3_321(x, m->length_in_millis);
 }
 
 /*

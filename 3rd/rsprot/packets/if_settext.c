@@ -14,7 +14,7 @@
 void
 packet_if_settext_v1_out(RsprotExec *x, MsgIfSetText *m)
 {
-    RSPROT_U4_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->combined_id);
     RSPROT_JSTR(x, m->text);
 }
 
@@ -23,14 +23,14 @@ void
 packet_if_settext_v2_out(RsprotExec *x, MsgIfSetText *m)
 {
     RSPROT_JSTR(x, m->text);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v3 -- revs 223, 228. */
 void
 packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_2143(x, m->combined_id);
     RSPROT_JSTR(x, m->text);
 }
 
@@ -38,7 +38,7 @@ packet_if_settext_v3_out(RsprotExec *x, MsgIfSetText *m)
 void
 packet_if_settext_v4_out(RsprotExec *x, MsgIfSetText *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
     RSPROT_JSTR(x, m->text);
 }
 
@@ -47,7 +47,7 @@ void
 packet_if_settext_v5_out(RsprotExec *x, MsgIfSetText *m)
 {
     RSPROT_JSTR(x, m->text);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v6 -- revs 226, 230, 235-236, 239. */
@@ -55,14 +55,14 @@ void
 packet_if_settext_v6_out(RsprotExec *x, MsgIfSetText *m)
 {
     RSPROT_JSTR(x, m->text);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v7 -- revs 232, 240. */
 void
 packet_if_settext_v7_out(RsprotExec *x, MsgIfSetText *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
     RSPROT_JSTR(x, m->text);
 }
 
@@ -71,7 +71,7 @@ void
 packet_if_settext_v8_out(RsprotExec *x, MsgIfSetText *m)
 {
     RSPROT_JSTR(x, m->text);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /*

@@ -15,23 +15,23 @@ void
 packet_cam_target_v4_v1_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
     RSPROT_U1(x, m->type);
-    RSPROT_U4_ALT1(x, m->value);
+    RSPROT_U4_4321(x, m->value);
 }
 
 /* v2 -- revs 239. */
 void
 packet_cam_target_v4_v2_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
-    RSPROT_U4(x, m->value);
-    RSPROT_U1_ALT2(x, m->type);
+    RSPROT_U4_1234(x, m->value);
+    RSPROT_U1_NEG(x, m->type);
 }
 
 /* v3 -- revs 240. */
 void
 packet_cam_target_v4_v3_out(RsprotExec *x, MsgCamTargetV4 *m)
 {
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_U4_ALT3(x, m->value);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U4_2143(x, m->value);
 }
 
 /*

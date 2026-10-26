@@ -14,252 +14,252 @@
 void
 packet_if_buttont_v1_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT2(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2_ALT2(x, m->target_obj);
+    RSPROT_COM_3412(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->target_obj);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_buttont_v2_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_buttont_v3_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2_ALT2(x, m->target_sub);
-    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->target_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_buttont_v4_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->target_sub);
-    RSPROT_U2(x, m->target_obj);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_21(x, m->target_sub);
+    RSPROT_U2_12(x, m->target_obj);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_COM_4321(x, m->selected_combined_id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_buttont_v5_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_2143(x, m->target_combined_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_buttont_v6_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_buttont_v7_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT2(x, m->target_sub);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_U2_12_ADD128(x, m->target_sub);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_buttont_v8_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_COM_ALT2(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_COM_3412(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_12(x, m->selected_obj);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_buttont_v9_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->target_sub);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_COM_ALT3(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_21(x, m->target_sub);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_COM_2143(x, m->selected_combined_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_buttont_v10_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_U2_ALT1(x, m->target_obj);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_U2_ALT3(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_U2_21(x, m->target_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_buttont_v11_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U2_ALT2(x, m->target_sub);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2(x, m->target_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_12_ADD128(x, m->target_sub);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_12(x, m->target_obj);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_buttont_v12_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_COM_ALT2(x, m->target_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_COM_3412(x, m->target_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
 }
 
 /* v13 -- revs 233. */
 void
 packet_if_buttont_v13_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2(x, m->selected_obj);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->selected_obj);
 }
 
 /* v14 -- revs 234. */
 void
 packet_if_buttont_v14_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT1(x, m->target_sub);
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2_ALT2(x, m->target_obj);
+    RSPROT_U2_21(x, m->target_sub);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_12_ADD128(x, m->target_obj);
 }
 
 /* v15 -- revs 235. */
 void
 packet_if_buttont_v15_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT3(x, m->target_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->target_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM_ALT3(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_COM_2143(x, m->target_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_21(x, m->target_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_2143(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
 }
 
 /* v16 -- revs 236. */
 void
 packet_if_buttont_v16_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_COM_2143(x, m->target_combined_id);
 }
 
 /* v17 -- revs 237. */
 void
 packet_if_buttont_v17_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2(x, m->target_obj);
-    RSPROT_COM(x, m->target_combined_id);
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_12(x, m->target_obj);
+    RSPROT_COM_1234(x, m->target_combined_id);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
 }
 
 /* v18 -- revs 238. */
 void
 packet_if_buttont_v18_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM(x, m->target_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_U2_ALT3(x, m->target_obj);
+    RSPROT_COM_1234(x, m->target_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
 }
 
 /* v19 -- revs 239. */
 void
 packet_if_buttont_v19_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM(x, m->target_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2_ALT1(x, m->target_sub);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
+    RSPROT_COM_1234(x, m->target_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_21(x, m->target_sub);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
 }
 
 /* v20 -- revs 240. */
 void
 packet_if_buttont_v20_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_sub);
-    RSPROT_U2_ALT2(x, m->target_obj);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_COM_ALT3(x, m->target_combined_id);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_sub);
+    RSPROT_U2_12_ADD128(x, m->target_obj);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_COM_2143(x, m->target_combined_id);
 }
 
 /* v21 -- revs 241. */
 void
 packet_if_buttont_v21_in(RsprotExec *x, MsgIfButtonT *m)
 {
-    RSPROT_COM_ALT1(x, m->target_combined_id);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->target_obj);
-    RSPROT_U2(x, m->target_sub);
-    RSPROT_U2_ALT3(x, m->selected_sub);
+    RSPROT_COM_4321(x, m->target_combined_id);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->target_obj);
+    RSPROT_U2_12(x, m->target_sub);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
 /*

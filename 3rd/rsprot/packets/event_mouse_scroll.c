@@ -14,7 +14,7 @@
 void
 packet_event_mouse_scroll_v1_in(RsprotExec *x, MsgEventMouseScroll *m)
 {
-    RSPROT_I2(x, m->rotation);
+    RSPROT_I2_12(x, m->rotation);
 }
 
 /*

@@ -14,7 +14,7 @@
 void
 packet_set_interaction_mode_v1_out(RsprotExec *x, MsgSetInteractionMode *m)
 {
-    RSPROT_U2(x, m->world_id);
+    RSPROT_U2_12(x, m->world_id);
     RSPROT_U1(x, m->tile_interaction_mode);
     RSPROT_U1(x, m->entity_interaction_mode);
 }

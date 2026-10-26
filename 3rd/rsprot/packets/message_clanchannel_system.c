@@ -6,8 +6,8 @@ void
 packet_message_clanchannel_system_v1_out(RsprotExec *x, MsgMessageClanchannelSystem *m)
 {
     RSPROT_U1(x, m->clan_type);
-    RSPROT_U2(x, m->world_id);
-    RSPROT_U3(x, m->world_message_counter);
+    RSPROT_U2_12(x, m->world_id);
+    RSPROT_U3_123(x, m->world_message_counter);
     RSPROT_REST(x, m->huffman, m->huffman_length);
 }
 

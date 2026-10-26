@@ -19,8 +19,8 @@ packet_clanchannel_full_v1_out(RsprotExec *x, MsgClanchannelFull *m)
             rsprot_exec_fail(x, "CLANCHANNEL_FULL: neither base37 nor display names");
             return;
         }
-        RSPROT_U8(x, m->clan_hash);
-        RSPROT_U8(x, m->update_num);
+        RSPROT_U8_12345678(x, m->clan_hash);
+        RSPROT_U8_12345678(x, m->update_num);
         RSPROT_JSTR(x, m->clan_name);
         RSPROT_BOOL(x, m->discarded);
         RSPROT_U1(x, m->kick_rank);
@@ -28,11 +28,11 @@ packet_clanchannel_full_v1_out(RsprotExec *x, MsgClanchannelFull *m)
         RSPROT_COUNT2(x, m->member_count, MSG_CLANCHANNEL_FULL_MAX_MEMBERS);
         for (int32_t k = 0; k < m->member_count; k++) {
             if (RSPROT_BRANCH(x, m->flags) & 0x1)
-                RSPROT_U8(x, m->members[k].name37);
+                RSPROT_U8_12345678(x, m->members[k].name37);
             if (RSPROT_BRANCH(x, m->flags) & 0x2)
                 RSPROT_JSTR(x, m->members[k].name);
             RSPROT_U1(x, m->members[k].rank);
-            RSPROT_U2(x, m->members[k].world);
+            RSPROT_U2_12(x, m->members[k].world);
             if (versioned && RSPROT_BRANCH(x, m->version) >= 3)
                 RSPROT_BOOL(x, m->members[k].discarded);
         }

@@ -14,273 +14,273 @@
 void
 packet_oploct_v1_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->selected_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
 /* v2 -- revs 222. */
 void
 packet_oploct_v2_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
 }
 
 /* v3 -- revs 223. */
 void
 packet_oploct_v3_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2(x, m->z);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_oploct_v4_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v5 -- revs 225. */
 void
 packet_oploct_v5_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT1(x, m->selected_sub);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->selected_sub);
 }
 
 /* v6 -- revs 226. */
 void
 packet_oploct_v6_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT3(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
 /* v7 -- revs 227. */
 void
 packet_oploct_v7_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2(x, m->x);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v8 -- revs 228. */
 void
 packet_oploct_v8_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v9 -- revs 229. */
 void
 packet_oploct_v9_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->z);
 }
 
 /* v10 -- revs 230. */
 void
 packet_oploct_v10_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2(x, m->z);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_oploct_v11_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U2(x, m->z);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->z);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v12 -- revs 232. */
 void
 packet_oploct_v12_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U1_ALT3(x, m->control_key);
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_3412(x, m->selected_combined_id);
 }
 
 /* v13 -- revs 233. */
 void
 packet_oploct_v13_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2(x, m->selected_sub);
+    RSPROT_U2_12(x, m->selected_sub);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v14 -- revs 234. */
 void
 packet_oploct_v14_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
 }
 
 /* v15 -- revs 235. */
 void
 packet_oploct_v15_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->selected_obj);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->x);
     RSPROT_U1(x, m->control_key);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v16 -- revs 236. */
 void
 packet_oploct_v16_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_COM_ALT2(x, m->selected_combined_id);
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->selected_obj);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_COM_3412(x, m->selected_combined_id);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
 }
 
 /* v17 -- revs 237. */
 void
 packet_oploct_v17_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT3(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT3(x, m->selected_sub);
-    RSPROT_U2_ALT3(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_21_ADD128(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v18 -- revs 238. */
 void
 packet_oploct_v18_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U1_ALT3(x, m->control_key);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_U2_21(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v19 -- revs 239. */
 void
 packet_oploct_v19_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->selected_obj);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->selected_obj);
 }
 
 /* v20 -- revs 240. */
 void
 packet_oploct_v20_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2(x, m->x);
-    RSPROT_U2(x, m->id);
-    RSPROT_COM(x, m->selected_combined_id);
-    RSPROT_U2_ALT1(x, m->selected_sub);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2_ALT2(x, m->selected_obj);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->selected_sub);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
 }
 
 /* v21 -- revs 241. */
 void
 packet_oploct_v21_in(RsprotExec *x, MsgOpLocT *m)
 {
-    RSPROT_U2_ALT2(x, m->selected_sub);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->selected_sub);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2(x, m->selected_obj);
-    RSPROT_COM_ALT1(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12(x, m->selected_obj);
+    RSPROT_COM_4321(x, m->selected_combined_id);
 }
 
 /*

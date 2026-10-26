@@ -7,7 +7,7 @@
  *
  * A shape's fields come in the same order at every revision 223-241, so each
  * reader below is straight-line C. What a
- * revision changes is how each field is ENCODED -- g2 or g2Alt1 or g2Alt3 --
+ * revision changes is how each field is ENCODED -- g2 or g2_21 or g2_21_add128 --
  * and that is the block's encoding struct: one read function per field, filled
  * in by the revision's constants (<stream>_osrs<N>.c).
  *
@@ -22,7 +22,7 @@
 #include "rsprot_info.h"
 #include "rsprot_info_internal.h"
 
-/** One scalar read: rsprot_g1, rsprot_g2_alt1, rsprot_gsmart1or2, ... */
+/** One scalar read: rsprot_g1, rsprot_g2_21, rsprot_gsmart1or2, ... */
 typedef int32_t (*RsprotRead)(RsprotBuf *b);
 
 /** What every block reader is handed: the cursor, the op list, and the entity

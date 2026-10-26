@@ -18,7 +18,7 @@ packet_reflection_check_reply_results_in(RsprotExec *x, MsgReflectionCheckReplyR
         rsprot_exec_fail(x, "REFLECTION_CHECK_REPLY: more checks than a request carries");
         return;
     }
-    RSPROT_U4(x, m->id);
+    RSPROT_U4_1234(x, m->id);
     for (int32_t i = 0; i < m->check_count; i++) {
         MsgReflectionCheckResult *r = &m->results[i];
         int32_t op = m->check_ops[i];
@@ -28,10 +28,10 @@ packet_reflection_check_reply_results_in(RsprotExec *x, MsgReflectionCheckReplyR
             continue; /* the check threw */
         if (op == CHECK_GET_FIELD_VALUE || op == CHECK_GET_FIELD_MODIFIERS ||
             op == CHECK_GET_METHOD_MODIFIERS) {
-            RSPROT_U4(x, r->value);
+            RSPROT_U4_1234(x, r->value);
         } else if (op == CHECK_INVOKE_METHOD) {
             if (r->result == 1)
-                RSPROT_U8(x, r->number);
+                RSPROT_U8_12345678(x, r->number);
             else if (r->result == 2)
                 RSPROT_JSTR(x, r->text);
             else if (r->result != 0 && r->result != 4)
@@ -41,5 +41,5 @@ packet_reflection_check_reply_results_in(RsprotExec *x, MsgReflectionCheckReplyR
         }
     }
     RSPROT_REST_BUT(x, m->rest, m->rest_length, 4);
-    RSPROT_U4(x, m->crc);
+    RSPROT_U4_1234(x, m->crc);
 }

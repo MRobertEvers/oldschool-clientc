@@ -24,8 +24,8 @@ component(RsprotBuf *b, int code)
 {
     switch (code & 3) {
     case 1: return rsprot_g1s(b);
-    case 2: return rsprot_g2s(b);
-    case 3: return (int32_t)rsprot_g4(b);
+    case 2: return rsprot_g2s_12(b);
+    case 3: return (int32_t)rsprot_g4_1234(b);
     default: return 0;
     }
 }
@@ -69,7 +69,7 @@ static void
 spawn_one(RsprotBuf *b, RsprotInfoList *out, RsprotWeSpawnRead spawn)
 {
     int before = out->count;
-    int index = rsprot_g2(b);
+    int index = rsprot_g2_12(b);
     RsprotInfoOp *op = rsprot_info_emit(out, RSPROT_OP_WE_ADD);
 
     op->who = index;

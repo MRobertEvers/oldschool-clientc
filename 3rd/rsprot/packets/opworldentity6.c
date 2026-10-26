@@ -14,28 +14,28 @@
 void
 packet_opworldentity6_v1_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v2 -- revs 234, 239. */
 void
 packet_opworldentity6_v2_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v3 -- revs 235-237. */
 void
 packet_opworldentity6_v3_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v4 -- revs 238, 240-241. */
 void
 packet_opworldentity6_v4_in(RsprotExec *x, MsgOpWorldEntity6 *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /*

@@ -11,9 +11,9 @@ packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m)
         RSPROT_U1(x, m->moves[i].packed);
         if ((RSPROT_BRANCH(x, m->moves[i].packed) & 0xE0) == 0xE0) {
             RSPROT_U1(x, m->moves[i].time_lo);
-            RSPROT_U4(x, m->moves[i].position);
+            RSPROT_U4_1234(x, m->moves[i].position);
         } else if ((m->moves[i].packed & 0xC0) == 0xC0) {
-            RSPROT_U4(x, m->moves[i].position);
+            RSPROT_U4_1234(x, m->moves[i].position);
         } else if (m->moves[i].packed & 0x80) {
             RSPROT_U1(x, m->moves[i].dx);
             RSPROT_U1(x, m->moves[i].dy);

@@ -14,9 +14,9 @@
 void
 packet_varp_long_v1_out(RsprotExec *x, MsgVarpLong *m)
 {
-    RSPROT_U4_ALT3(x, m->high);
-    RSPROT_U4_ALT3(x, m->low);
-    RSPROT_U2(x, m->id);
+    RSPROT_U4_2143(x, m->high);
+    RSPROT_U4_2143(x, m->low);
+    RSPROT_U2_12(x, m->id);
 }
 
 /*

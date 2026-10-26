@@ -24,7 +24,7 @@ void
 packet_bug_report_v2_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
-    RSPROT_U1_ALT3(x, m->type);
+    RSPROT_U1_SUB128(x, m->type);
     RSPROT_JSTR(x, m->instructions);
 }
 
@@ -34,7 +34,7 @@ packet_bug_report_v3_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->description);
     RSPROT_JSTR(x, m->instructions);
-    RSPROT_U1_ALT3(x, m->type);
+    RSPROT_U1_SUB128(x, m->type);
 }
 
 /* v4 -- revs 241. */
@@ -42,7 +42,7 @@ void
 packet_bug_report_v4_in(RsprotExec *x, MsgBugReport *m)
 {
     RSPROT_JSTR(x, m->instructions);
-    RSPROT_U1_ALT2(x, m->type);
+    RSPROT_U1_NEG(x, m->type);
     RSPROT_JSTR(x, m->description);
 }
 

@@ -15,8 +15,8 @@ void
 packet_window_status_v1_in(RsprotExec *x, MsgWindowStatus *m)
 {
     RSPROT_U1(x, m->window_mode);
-    RSPROT_U2(x, m->frame_width);
-    RSPROT_U2(x, m->frame_height);
+    RSPROT_U2_12(x, m->frame_width);
+    RSPROT_U2_12(x, m->frame_height);
 }
 
 /*

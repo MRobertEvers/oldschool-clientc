@@ -15,43 +15,43 @@ void
 packet_update_stat_old_v1_out(RsprotExec *x, MsgUpdateStatOld *m)
 {
     RSPROT_U1(x, m->stat);
-    RSPROT_U4_ALT1(x, m->experience);
-    RSPROT_U1_ALT2(x, m->current_level);
+    RSPROT_U4_4321(x, m->experience);
+    RSPROT_U1_NEG(x, m->current_level);
 }
 
 /* v2 -- revs 222. */
 void
 packet_update_stat_old_v2_out(RsprotExec *x, MsgUpdateStatOld *m)
 {
-    RSPROT_U1_ALT1(x, m->stat);
-    RSPROT_U1_ALT2(x, m->current_level);
-    RSPROT_U4_ALT2(x, m->experience);
+    RSPROT_U1_ADD128(x, m->stat);
+    RSPROT_U1_NEG(x, m->current_level);
+    RSPROT_U4_3412(x, m->experience);
 }
 
 /* v3 -- revs 223. */
 void
 packet_update_stat_old_v3_out(RsprotExec *x, MsgUpdateStatOld *m)
 {
-    RSPROT_U4(x, m->experience);
-    RSPROT_U1_ALT3(x, m->current_level);
-    RSPROT_U1_ALT3(x, m->stat);
+    RSPROT_U4_1234(x, m->experience);
+    RSPROT_U1_SUB128(x, m->current_level);
+    RSPROT_U1_SUB128(x, m->stat);
 }
 
 /* v4 -- revs 224. */
 void
 packet_update_stat_old_v4_out(RsprotExec *x, MsgUpdateStatOld *m)
 {
-    RSPROT_U4(x, m->experience);
-    RSPROT_U1_ALT2(x, m->stat);
-    RSPROT_U1_ALT3(x, m->current_level);
+    RSPROT_U4_1234(x, m->experience);
+    RSPROT_U1_NEG(x, m->stat);
+    RSPROT_U1_SUB128(x, m->current_level);
 }
 
 /* v5 -- revs 225. */
 void
 packet_update_stat_old_v5_out(RsprotExec *x, MsgUpdateStatOld *m)
 {
-    RSPROT_U4_ALT2(x, m->experience);
-    RSPROT_U1_ALT2(x, m->current_level);
+    RSPROT_U4_3412(x, m->experience);
+    RSPROT_U1_NEG(x, m->current_level);
     RSPROT_U1(x, m->stat);
 }
 

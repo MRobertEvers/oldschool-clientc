@@ -22,8 +22,8 @@ worldentity_info_osrs229_v4_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
     a->level = rsprot_g1s(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     a->has_centre = 1;
-    a->centre_x = rsprot_g2s(b);
-    a->centre_z = rsprot_g2s(b);
+    a->centre_x = rsprot_g2s_12(b);
+    a->centre_z = rsprot_g2s_12(b);
 }
 
 static const WorldEntityInfoV4 k_worldentity_info_osrs229_v4 = {
@@ -43,7 +43,7 @@ worldentity_info_osrs229_v5_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
 {
     a->size_x = rsprot_g1(b) * 8;
     a->size_z = rsprot_g1(b) * 8;
-    a->id = rsprot_g2(b);
+    a->id = rsprot_g2_12(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     a->priority = rsprot_g1(b);
 }

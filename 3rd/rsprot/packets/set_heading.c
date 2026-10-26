@@ -14,21 +14,21 @@
 void
 packet_set_heading_v1_in(RsprotExec *x, MsgSetHeading *m)
 {
-    RSPROT_U1_ALT2(x, m->heading);
+    RSPROT_U1_NEG(x, m->heading);
 }
 
 /* v2 -- revs 227, 232-233, 235-236, 240-241. */
 void
 packet_set_heading_v2_in(RsprotExec *x, MsgSetHeading *m)
 {
-    RSPROT_U1_ALT1(x, m->heading);
+    RSPROT_U1_ADD128(x, m->heading);
 }
 
 /* v3 -- revs 228, 237. */
 void
 packet_set_heading_v3_in(RsprotExec *x, MsgSetHeading *m)
 {
-    RSPROT_U1_ALT3(x, m->heading);
+    RSPROT_U1_SUB128(x, m->heading);
 }
 
 /* v4 -- revs 230-231, 234, 239. */

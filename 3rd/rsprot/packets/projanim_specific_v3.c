@@ -14,71 +14,71 @@
 void
 packet_projanim_specific_v3_v1_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->end_height);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->end_height);
     RSPROT_U1(x, m->start_height);
-    RSPROT_U3(x, m->source_index);
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U1_ALT2(x, m->delta_x);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U1_ALT1(x, m->delta_z);
+    RSPROT_U3_123(x, m->source_index);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U1_NEG(x, m->delta_x);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U1_ADD128(x, m->delta_z);
 }
 
 /* v2 -- revs 227. */
 void
 packet_projanim_specific_v3_v2_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U3_ALT1(x, m->coord_in_build_area_packed);
+    RSPROT_U3_321(x, m->coord_in_build_area_packed);
     RSPROT_U1(x, m->delta_z);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2_ALT1(x, m->progress);
-    RSPROT_U1_ALT3(x, m->angle);
-    RSPROT_U1_ALT2(x, m->end_height);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_21(x, m->progress);
+    RSPROT_U1_SUB128(x, m->angle);
+    RSPROT_U1_NEG(x, m->end_height);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->delta_x);
-    RSPROT_U2_ALT1(x, m->end_time);
-    RSPROT_U1_ALT1(x, m->start_height);
+    RSPROT_U2_21(x, m->end_time);
+    RSPROT_U1_ADD128(x, m->start_height);
 }
 
 /* v3 -- revs 228. */
 void
 packet_projanim_specific_v3_v3_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT1(x, m->start_time);
-    RSPROT_U1_ALT2(x, m->delta_x);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U1_ALT1(x, m->end_height);
-    RSPROT_U1_ALT2(x, m->delta_z);
-    RSPROT_U2(x, m->end_time);
-    RSPROT_U1_ALT1(x, m->angle);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U1_ALT2(x, m->start_height);
-    RSPROT_U3_ALT2(x, m->source_index);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U1_NEG(x, m->delta_x);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U1_ADD128(x, m->end_height);
+    RSPROT_U1_NEG(x, m->delta_z);
+    RSPROT_U2_12(x, m->end_time);
+    RSPROT_U1_ADD128(x, m->angle);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U1_NEG(x, m->start_height);
+    RSPROT_U3_132(x, m->source_index);
 }
 
 /* v4 -- revs 229. */
 void
 packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U1_ALT2(x, m->start_height);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2_ALT3(x, m->end_time);
+    RSPROT_U1_NEG(x, m->start_height);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_21_ADD128(x, m->end_time);
     RSPROT_U1(x, m->delta_z);
-    RSPROT_U1_ALT2(x, m->end_height);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT3(x, m->source_index);
-    RSPROT_U2_ALT1(x, m->progress);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U1_ALT2(x, m->delta_x);
+    RSPROT_U1_NEG(x, m->end_height);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_213(x, m->source_index);
+    RSPROT_U2_21(x, m->progress);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U1_NEG(x, m->delta_x);
     RSPROT_U1(x, m->angle);
 }
 
@@ -86,36 +86,36 @@ packet_projanim_specific_v3_v4_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 void
 packet_projanim_specific_v3_v5_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT1(x, m->end_time);
-    RSPROT_U1_ALT3(x, m->angle);
-    RSPROT_U3_ALT1(x, m->target_index);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U1_ALT3(x, m->delta_z);
-    RSPROT_U1_ALT3(x, m->start_height);
-    RSPROT_U2(x, m->id);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->start_time);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21(x, m->end_time);
+    RSPROT_U1_SUB128(x, m->angle);
+    RSPROT_U3_321(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U1_SUB128(x, m->delta_z);
+    RSPROT_U1_SUB128(x, m->start_height);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_12_ADD128(x, m->start_time);
     RSPROT_U1(x, m->end_height);
-    RSPROT_U1_ALT1(x, m->delta_x);
+    RSPROT_U1_ADD128(x, m->delta_x);
 }
 
 /* v6 -- revs 231. */
 void
 packet_projanim_specific_v3_v6_out(RsprotExec *x, MsgProjAnimSpecificV3 *m)
 {
-    RSPROT_U1_ALT3(x, m->delta_x);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U1_ALT3(x, m->delta_z);
-    RSPROT_U1_ALT3(x, m->end_height);
-    RSPROT_U1_ALT1(x, m->start_height);
-    RSPROT_U3(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
-    RSPROT_U1_ALT1(x, m->angle);
+    RSPROT_U1_SUB128(x, m->delta_x);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U1_SUB128(x, m->delta_z);
+    RSPROT_U1_SUB128(x, m->end_height);
+    RSPROT_U1_ADD128(x, m->start_height);
+    RSPROT_U3_123(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U1_ADD128(x, m->angle);
 }
 
 /*

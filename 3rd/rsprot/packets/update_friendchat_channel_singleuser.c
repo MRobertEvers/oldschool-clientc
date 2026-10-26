@@ -6,7 +6,7 @@ void
 packet_update_friendchat_channel_singleuser_v1_out(RsprotExec *x, MsgUpdateFriendchatChannelSingleuser *m)
 {
     RSPROT_JSTR(x, m->name);
-    RSPROT_U2(x, m->world_id);
+    RSPROT_U2_12(x, m->world_id);
     RSPROT_I1(x, m->rank);
     if (RSPROT_BRANCH(x, m->rank) != -128)
         RSPROT_JSTR(x, m->world_name);

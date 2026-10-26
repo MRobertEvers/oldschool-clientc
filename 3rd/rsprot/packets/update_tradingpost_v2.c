@@ -12,8 +12,8 @@ packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
     RSPROT_U1(x, m->has_update);
     if (RSPROT_BRANCH(x, m->has_update) == 0)
         return;
-    RSPROT_U8(x, m->age);
-    RSPROT_U2(x, m->obj);
+    RSPROT_U8_12345678(x, m->age);
+    RSPROT_U2_12(x, m->obj);
     RSPROT_U1(x, m->status);
     RSPROT_COUNT2(x, m->offer_count, MSG_UPDATE_TRADINGPOST_V2_MAX_OFFERS);
     for (int32_t i = 0; i < m->offer_count; i++) {
@@ -21,10 +21,10 @@ packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
 
         RSPROT_JSTR(x, o->name);
         RSPROT_JSTR(x, o->previous_name);
-        RSPROT_U2(x, o->world);
-        RSPROT_U8(x, o->time);
-        RSPROT_U8(x, o->price);
-        RSPROT_U4(x, o->count);
+        RSPROT_U2_12(x, o->world);
+        RSPROT_U8_12345678(x, o->time);
+        RSPROT_U8_12345678(x, o->price);
+        RSPROT_U4_1234(x, o->count);
     }
 }
 

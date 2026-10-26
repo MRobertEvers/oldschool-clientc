@@ -25,8 +25,8 @@
  *
  *   - each block's flag bit, and the order the blocks are read in: a generated
  *     dispatch, one `if (flag & bit)` per block in wire order;
- *   - each field's byte transform (g2 / g2Alt1 / g2Alt2 / g2Alt3): the block's
- *     encoding struct, one read function per field;
+ *   - each field's byte order and transform (g2_12 / g2_21 / g2_12_add128 /
+ *     g2_21_add128): the block's encoding struct, one read function per field;
  *   - the order of a record's fields (the npc entering-view record, the world
  *     entity spawn): a generated record reader.
  *
@@ -66,33 +66,33 @@ typedef enum RsprotInfoPrim
 {
     RSPROT_IP_NONE = 0,
     RSPROT_IP_G1,
-    RSPROT_IP_G1_ALT1,
-    RSPROT_IP_G1_ALT2,
-    RSPROT_IP_G1_ALT3,
+    RSPROT_IP_G1_ADD128,
+    RSPROT_IP_G1_NEG,
+    RSPROT_IP_G1_SUB128,
     RSPROT_IP_G1S,
-    RSPROT_IP_G1S_ALT1,
-    RSPROT_IP_G1S_ALT2,
-    RSPROT_IP_G1S_ALT3,
-    RSPROT_IP_G2,
-    RSPROT_IP_G2_ALT1,
-    RSPROT_IP_G2_ALT2,
-    RSPROT_IP_G2_ALT3,
-    RSPROT_IP_G2S,
-    RSPROT_IP_G2S_ALT1,
-    RSPROT_IP_G2S_ALT2,
-    RSPROT_IP_G2S_ALT3,
-    RSPROT_IP_G4,
-    RSPROT_IP_G4_ALT1,
-    RSPROT_IP_G4_ALT2,
-    RSPROT_IP_G4_ALT3,
+    RSPROT_IP_G1S_ADD128,
+    RSPROT_IP_G1S_NEG,
+    RSPROT_IP_G1S_SUB128,
+    RSPROT_IP_G2_12,
+    RSPROT_IP_G2_21,
+    RSPROT_IP_G2_12_ADD128,
+    RSPROT_IP_G2_21_ADD128,
+    RSPROT_IP_G2S_12,
+    RSPROT_IP_G2S_21,
+    RSPROT_IP_G2S_12_ADD128,
+    RSPROT_IP_G2S_21_ADD128,
+    RSPROT_IP_G4_1234,
+    RSPROT_IP_G4_4321,
+    RSPROT_IP_G4_3412,
+    RSPROT_IP_G4_2143,
     RSPROT_IP_SMART,         /* gSmart1or2 */
     RSPROT_IP_SMARTNULL,     /* gSmart1or2null */
     RSPROT_IP_SMART2OR4NULL, /* gSmart2or4null */
     RSPROT_IP_JSTR,          /* gjstr */
     RSPROT_IP_DATA,          /* gdata and its three orders */
-    RSPROT_IP_DATA_ALT1,
-    RSPROT_IP_DATA_ALT2,
-    RSPROT_IP_DATA_ALT3,
+    RSPROT_IP_DATA_REV,
+    RSPROT_IP_DATA_ADD128,
+    RSPROT_IP_DATA_REV_ADD128,
     RSPROT_IP_COUNT
 } RsprotInfoPrim;
 

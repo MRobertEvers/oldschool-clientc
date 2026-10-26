@@ -14,10 +14,10 @@
 void
 packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->packed);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->packed);
     RSPROT_U1(x, m->code);
-    RSPROT_U2_ALT3(x, m->y);
+    RSPROT_U2_21_ADD128(x, m->y);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -28,10 +28,10 @@ packet_event_mouse_click_v2_v1_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2(x, m->packed);
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_U1_ALT2(x, m->code);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12(x, m->packed);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_U1_NEG(x, m->code);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -42,10 +42,10 @@ packet_event_mouse_click_v2_v2_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U1_ALT3(x, m->code);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT1(x, m->packed);
-    RSPROT_U2_ALT1(x, m->y);
+    RSPROT_U1_SUB128(x, m->code);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->packed);
+    RSPROT_U2_21(x, m->y);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -56,10 +56,10 @@ packet_event_mouse_click_v2_v3_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2(x, m->x);
-    RSPROT_U2(x, m->y);
-    RSPROT_U1_ALT1(x, m->code);
-    RSPROT_U2_ALT2(x, m->packed);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->y);
+    RSPROT_U1_ADD128(x, m->code);
+    RSPROT_U2_12_ADD128(x, m->packed);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -70,10 +70,10 @@ packet_event_mouse_click_v2_v4_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->code);
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT1(x, m->packed);
+    RSPROT_U1_NEG(x, m->code);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->packed);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -84,10 +84,10 @@ packet_event_mouse_click_v2_v5_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_U1_ALT2(x, m->code);
-    RSPROT_U2_ALT1(x, m->packed);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_U1_NEG(x, m->code);
+    RSPROT_U2_21(x, m->packed);
+    RSPROT_U2_12(x, m->x);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -98,10 +98,10 @@ packet_event_mouse_click_v2_v6_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->code);
-    RSPROT_U2(x, m->packed);
+    RSPROT_U2_12(x, m->packed);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -112,10 +112,10 @@ packet_event_mouse_click_v2_v7_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v8_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT3(x, m->packed);
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_U1_ALT3(x, m->code);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->packed);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U1_SUB128(x, m->code);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -127,9 +127,9 @@ void
 packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
     RSPROT_U1(x, m->code);
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_U2(x, m->packed);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->y);
+    RSPROT_U2_12(x, m->packed);
+    RSPROT_U2_21_ADD128(x, m->x);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
@@ -140,10 +140,10 @@ packet_event_mouse_click_v2_v9_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 void
 packet_event_mouse_click_v2_v10_in(RsprotExec *x, MsgEventMouseClickV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->packed);
-    RSPROT_U1_ALT2(x, m->code);
+    RSPROT_U2_21_ADD128(x, m->y);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->packed);
+    RSPROT_U1_NEG(x, m->code);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;

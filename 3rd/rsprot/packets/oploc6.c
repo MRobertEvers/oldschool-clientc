@@ -14,28 +14,28 @@
 void
 packet_oploc6_v1_in(RsprotExec *x, MsgOpLoc6 *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v2 -- revs 222, 226-227, 229, 231, 233-234, 239-240. */
 void
 packet_oploc6_v2_in(RsprotExec *x, MsgOpLoc6 *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v3 -- revs 223, 228, 235-236, 241. */
 void
 packet_oploc6_v3_in(RsprotExec *x, MsgOpLoc6 *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v4 -- revs 225, 232, 237. */
 void
 packet_oploc6_v4_in(RsprotExec *x, MsgOpLoc6 *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
 }
 
 /*

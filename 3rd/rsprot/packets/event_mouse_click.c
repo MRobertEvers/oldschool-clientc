@@ -14,11 +14,11 @@
 void
 packet_event_mouse_click_v1_in(RsprotExec *x, MsgEventMouseClick *m)
 {
-    RSPROT_U2(x, m->packed);
+    RSPROT_U2_12(x, m->packed);
     int32_t right_click = (m->packed & (0x1 != 0));
     int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
-    RSPROT_U2(x, m->x);
-    RSPROT_U2(x, m->y);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->y);
     m->last_transmitted_mouse_click = last_transmitted_mouse_click;
     m->right_click = right_click;
 }

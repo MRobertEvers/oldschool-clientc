@@ -14,10 +14,10 @@
 void
 packet_if_setevents_v1_v1_out(RsprotExec *x, MsgIfSetEventsV1 *m)
 {
-    RSPROT_U2(x, m->start);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->end);
-    RSPROT_U4(x, m->events);
+    RSPROT_U2_12(x, m->start);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U4_1234(x, m->events);
 }
 
 /*

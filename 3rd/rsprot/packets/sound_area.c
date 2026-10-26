@@ -14,48 +14,48 @@
 void
 packet_sound_area_v1_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->loops);
-    RSPROT_U1_ALT1(x, m->range);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT1(x, m->drop_off_range);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->loops);
+    RSPROT_U1_ADD128(x, m->range);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
 }
 
 /* v2 -- revs 222. */
 void
 packet_sound_area_v2_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->range);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->range);
     RSPROT_U1(x, m->drop_off_range);
-    RSPROT_U1_ALT2(x, m->delay);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_NEG(x, m->delay);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_sound_area_v3_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U1_ALT3(x, m->range);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->drop_off_range);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U1_SUB128(x, m->range);
+    RSPROT_U1_SUB128(x, m->delay);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_sound_area_v4_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT3(x, m->delay);
+    RSPROT_U1_SUB128(x, m->delay);
     RSPROT_U1(x, m->loops);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->drop_off_range);
+    RSPROT_U1_NEG(x, m->drop_off_range);
 }
 
 /* v5 -- revs 225. */
@@ -63,35 +63,35 @@ void
 packet_sound_area_v5_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1(x, m->range);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT3(x, m->drop_off_range);
-    RSPROT_U1_ALT3(x, m->loops);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->drop_off_range);
+    RSPROT_U1_SUB128(x, m->loops);
     RSPROT_U1(x, m->delay);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v6 -- revs 226. */
 void
 packet_sound_area_v6_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->loops);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->loops);
     RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->drop_off_range);
+    RSPROT_U1_NEG(x, m->drop_off_range);
     RSPROT_U1(x, m->delay);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v7 -- revs 227. */
 void
 packet_sound_area_v7_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->range);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->range);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->loops);
     RSPROT_U1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->delay);
+    RSPROT_U1_ADD128(x, m->delay);
 }
 
 /* v8 -- revs 228. */
@@ -99,11 +99,11 @@ void
 packet_sound_area_v8_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT2(x, m->range);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_NEG(x, m->range);
 }
 
 /* v9 -- revs 229. */
@@ -111,70 +111,70 @@ void
 packet_sound_area_v9_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1(x, m->loops);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->delay);
-    RSPROT_U1_ALT2(x, m->drop_off_range);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->range);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->delay);
+    RSPROT_U1_NEG(x, m->drop_off_range);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->range);
 }
 
 /* v10 -- revs 230. */
 void
 packet_sound_area_v10_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->range);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT1(x, m->drop_off_range);
-    RSPROT_U1_ALT3(x, m->loops);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->range);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
+    RSPROT_U1_SUB128(x, m->loops);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_sound_area_v11_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->loops);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT2(x, m->range);
-    RSPROT_U1_ALT1(x, m->drop_off_range);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->loops);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_NEG(x, m->range);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
 }
 
 /* v12 -- revs 232. */
 void
 packet_sound_area_v12_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U1_ALT2(x, m->loops);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->delay);
+    RSPROT_U1_NEG(x, m->loops);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->drop_off_range);
-    RSPROT_U1_ALT3(x, m->range);
+    RSPROT_U1_SUB128(x, m->range);
 }
 
 /* v13 -- revs 233. */
 void
 packet_sound_area_v13_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT3(x, m->drop_off_range);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U1_ALT1(x, m->range);
+    RSPROT_U1_SUB128(x, m->drop_off_range);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U1_ADD128(x, m->range);
     RSPROT_U1(x, m->delay);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v14 -- revs 234. */
 void
 packet_sound_area_v14_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT2(x, m->delay);
-    RSPROT_U1_ALT1(x, m->range);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->loops);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->delay);
+    RSPROT_U1_ADD128(x, m->range);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->loops);
     RSPROT_U1(x, m->drop_off_range);
 }
 
@@ -183,83 +183,83 @@ void
 packet_sound_area_v15_out(RsprotExec *x, MsgSoundArea *m)
 {
     RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->drop_off_range);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT3(x, m->loops);
-    RSPROT_U1_ALT3(x, m->delay);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->drop_off_range);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->loops);
+    RSPROT_U1_SUB128(x, m->delay);
 }
 
 /* v16 -- revs 236. */
 void
 packet_sound_area_v16_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT2(x, m->loops);
+    RSPROT_U1_NEG(x, m->loops);
     RSPROT_U1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->range);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->range);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v17 -- revs 237. */
 void
 packet_sound_area_v17_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->range);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->delay);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->range);
     RSPROT_U1(x, m->loops);
-    RSPROT_U1_ALT1(x, m->drop_off_range);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
 }
 
 /* v18 -- revs 238. */
 void
 packet_sound_area_v18_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->loops);
-    RSPROT_U1_ALT1(x, m->range);
-    RSPROT_U1_ALT1(x, m->delay);
-    RSPROT_U1_ALT2(x, m->drop_off_range);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->loops);
+    RSPROT_U1_ADD128(x, m->range);
+    RSPROT_U1_ADD128(x, m->delay);
+    RSPROT_U1_NEG(x, m->drop_off_range);
 }
 
 /* v19 -- revs 239. */
 void
 packet_sound_area_v19_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->drop_off_range);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->drop_off_range);
     RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->delay);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_NEG(x, m->delay);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v20 -- revs 240. */
 void
 packet_sound_area_v20_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->loops);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->range);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
+    RSPROT_U1_ADD128(x, m->loops);
+    RSPROT_U1_SUB128(x, m->delay);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->range);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v21 -- revs 241. */
 void
 packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m)
 {
-    RSPROT_U1_ALT1(x, m->drop_off_range);
-    RSPROT_U1_ALT1(x, m->loops);
+    RSPROT_U1_ADD128(x, m->drop_off_range);
+    RSPROT_U1_ADD128(x, m->loops);
     RSPROT_U1(x, m->range);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->delay);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->delay);
+    RSPROT_U2_12(x, m->id);
 }
 
 /*

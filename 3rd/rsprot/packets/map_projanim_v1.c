@@ -15,17 +15,17 @@ void
 packet_map_projanim_v1_v1_out(RsprotExec *x, MsgMapProjAnimV1 *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->delta_x);
+    RSPROT_U1_NEG(x, m->delta_x);
     RSPROT_U1(x, m->start_height);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->angle);
-    RSPROT_U2(x, m->progress);
-    RSPROT_U1_ALT1(x, m->end_height);
-    RSPROT_U1_ALT1(x, m->delta_z);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT2(x, m->end_time);
-    RSPROT_U3_ALT1(x, m->source_index);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->angle);
+    RSPROT_U2_12(x, m->progress);
+    RSPROT_U1_ADD128(x, m->end_height);
+    RSPROT_U1_ADD128(x, m->delta_z);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U2_12_ADD128(x, m->end_time);
+    RSPROT_U3_321(x, m->source_index);
 }
 
 /*

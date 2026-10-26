@@ -25,15 +25,15 @@ index_pair(RsprotBuf *b, uint8_t *indices, int32_t value[2])
 {
     *indices = (uint8_t)rsprot_g1(b);
     if ((*indices & 15) != 15)
-        value[0] = rsprot_g2(b);
+        value[0] = rsprot_g2_12(b);
     if (((*indices >> 4) & 15) != 15)
-        value[1] = rsprot_g2(b);
+        value[1] = rsprot_g2_12(b);
 }
 
 static void
 models(RsprotBuf *b, RsprotAppearanceObj *o, int wide)
 {
-    int32_t (*read)(RsprotBuf *) = wide ? rsprot_g4 : rsprot_g2;
+    int32_t (*read)(RsprotBuf *) = wide ? rsprot_g4_1234 : rsprot_g2_12;
 
     if ((o->flag & 0x4) != 0) {
         o->man_wear = read(b);
@@ -81,7 +81,7 @@ replacements(RsprotBuf *b, RsprotAppearanceReplacement *out)
 
     for (int32_t i = 0; i < n && !b->err; i++) {
         out[i].index = (uint8_t)rsprot_g1(b);
-        out[i].value = (uint16_t)rsprot_g2(b);
+        out[i].value = (uint16_t)rsprot_g2_12(b);
     }
     return (uint8_t)n;
 }
@@ -95,7 +95,7 @@ slot_v4(RsprotBuf *b, RsprotAppearanceObj *o)
         o->retexture_count = replacements(b, o->retextures);
     if ((o->flag & 0x10) != 0) {
         o->override_colour = (uint8_t)rsprot_g1(b);
-        o->colour = (uint16_t)rsprot_g2(b);
+        o->colour = (uint16_t)rsprot_g2_12(b);
     }
     models(b, o, 1);
 }
@@ -128,7 +128,7 @@ appearance_read(const uint8_t *data, int32_t len, RsprotAppearance *a,
             continue;
         a->kits[i] = (uint16_t)((flag << 8) + rsprot_g1(&b));
         if (i == 0 && a->kits[i] == 65535) {
-            a->npc_id = rsprot_g2(&b);
+            a->npc_id = rsprot_g2_12(&b);
             break;
         }
     }
@@ -140,18 +140,18 @@ appearance_read(const uint8_t *data, int32_t len, RsprotAppearance *a,
     }
     for (int i = 0; i < 5; i++)
         a->colours[i] = (uint8_t)rsprot_g1(&b);
-    a->ready_anim = (uint16_t)rsprot_g2(&b);
-    a->turn_anim = (uint16_t)rsprot_g2(&b);
-    a->walk_anim = (uint16_t)rsprot_g2(&b);
-    a->walk_back_anim = (uint16_t)rsprot_g2(&b);
-    a->walk_left_anim = (uint16_t)rsprot_g2(&b);
-    a->walk_right_anim = (uint16_t)rsprot_g2(&b);
-    a->run_anim = (uint16_t)rsprot_g2(&b);
+    a->ready_anim = (uint16_t)rsprot_g2_12(&b);
+    a->turn_anim = (uint16_t)rsprot_g2_12(&b);
+    a->walk_anim = (uint16_t)rsprot_g2_12(&b);
+    a->walk_back_anim = (uint16_t)rsprot_g2_12(&b);
+    a->walk_left_anim = (uint16_t)rsprot_g2_12(&b);
+    a->walk_right_anim = (uint16_t)rsprot_g2_12(&b);
+    a->run_anim = (uint16_t)rsprot_g2_12(&b);
     a->name = str(&b);
     a->combat_level = (uint8_t)rsprot_g1(&b);
-    a->skill_level = (uint16_t)rsprot_g2(&b);
+    a->skill_level = (uint16_t)rsprot_g2_12(&b);
     a->hidden = (uint8_t)rsprot_g1(&b);
-    a->customisation = (uint16_t)rsprot_g2(&b);
+    a->customisation = (uint16_t)rsprot_g2_12(&b);
     if (a->customisation > 0 && a->customisation != 32768) {
         for (int i = 0; i < RSPROT_APPEARANCE_SLOTS && !b.err; i++) {
             if (((a->customisation >> (12 - i)) & 1) != 0) {

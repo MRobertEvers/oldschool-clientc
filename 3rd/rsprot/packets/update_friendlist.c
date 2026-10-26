@@ -36,7 +36,7 @@ packet_update_friendlist_v1_out(RsprotExec *x, MsgUpdateFriendList *m)
         RSPROT_BOOL(x, e->added);
         RSPROT_JSTR(x, e->name);
         RSPROT_JSTR(x, e->previous_name);
-        RSPROT_U2(x, e->world_id);
+        RSPROT_U2_12(x, e->world_id);
         RSPROT_U1(x, e->rank);
         RSPROT_U1(x, e->properties);
         /* Online-only tail. `world_id` moved three fields ago, so this is an
@@ -44,7 +44,7 @@ packet_update_friendlist_v1_out(RsprotExec *x, MsgUpdateFriendList *m)
         if (RSPROT_BRANCH(x, e->world_id) > 0) {
             RSPROT_JSTR(x, e->world_name);
             RSPROT_U1(x, e->platform);
-            RSPROT_U4(x, e->world_flags);
+            RSPROT_U4_1234(x, e->world_flags);
         }
         RSPROT_JSTR(x, e->notes);
     }

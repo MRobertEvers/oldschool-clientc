@@ -19,8 +19,8 @@
  *     void
  *     packet_if_opensub_v13_out(RsprotExec* x, MsgIfOpenSub* m)
  *     {
- *         RSPROT_U2_ALT3(x, m->interface_id);
- *         RSPROT_COM_ALT3(x, m->dest_uid);
+ *         RSPROT_U2_21_ADD128(x, m->interface_id);
+ *         RSPROT_COM_2143(x, m->dest_uid);
  *         RSPROT_U1(x, m->type);
  *     }
  *
@@ -30,10 +30,12 @@
  * `docs/RSPROT_OSRS239_PORT.md` §5a records three of the first six
  * hand-transcribed writers being wrong, caught only by someone checking bytes.
  *
- * The names deliberately mirror JagByteBuf's, minus the direction: Kotlin's
- * `buffer.p2Alt3(message.interfaceId)` reads as `RSPROT_U2_ALT3(x, m->…)`. A
- * codec transcribed from RSProt should read line-for-line against its original,
- * which is the same argument `rsprot_buf.h` makes for keeping `g`/`p`/`Alt`.
+ * The names say the bytes. Digits are the value's bytes in wire order, 1 = most
+ * significant: `RSPROT_U2_21` is little-endian, `RSPROT_U4_3412` swaps the
+ * halves. Width 1 has no order, so its name is the transform (`U1_ADD128`,
+ * `U1_NEG`, `U1_SUB128`), and width 2 can carry both (`U2_12_ADD128`: high byte,
+ * then the low byte + 128). `rsprot_buf.h` has the table, with the Kotlin `Alt`
+ * each name replaces.
  *
  * ## The one rule
  *
@@ -98,32 +100,32 @@
  */
 #define RSPROT_PRIM_LIST(X)                                                                        \
     X(U1, u1, 8, 0)                                                                                \
-    X(U1_ALT1, u1_alt1, 8, 0)                                                                      \
-    X(U1_ALT2, u1_alt2, 8, 0)                                                                      \
-    X(U1_ALT3, u1_alt3, 8, 0)                                                                      \
+    X(U1_ADD128, u1_add128, 8, 0)                                                                      \
+    X(U1_NEG, u1_neg, 8, 0)                                                                      \
+    X(U1_SUB128, u1_sub128, 8, 0)                                                                      \
     X(I1, i1, 8, 1)                                                                                \
-    X(U2, u2, 16, 0)                                                                               \
-    X(U2_ALT1, u2_alt1, 16, 0)                                                                     \
-    X(U2_ALT2, u2_alt2, 16, 0)                                                                     \
-    X(U2_ALT3, u2_alt3, 16, 0)                                                                     \
-    X(I2, i2, 16, 1)                                                                               \
-    X(U3, u3, 24, 0)                                                                               \
-    X(U3_ALT1, u3_alt1, 24, 0)                                                                     \
-    X(U3_ALT2, u3_alt2, 24, 0)                                                                     \
-    X(U3_ALT3, u3_alt3, 24, 0)                                                                     \
-    X(U4, u4, 32, 1)                                                                               \
-    X(U4_ALT1, u4_alt1, 32, 1)                                                                     \
-    X(U4_ALT2, u4_alt2, 32, 1)                                                                     \
-    X(U4_ALT3, u4_alt3, 32, 1)                                                                     \
+    X(U2_12, u2_12, 16, 0)                                                                               \
+    X(U2_21, u2_21, 16, 0)                                                                     \
+    X(U2_12_ADD128, u2_12_add128, 16, 0)                                                                     \
+    X(U2_21_ADD128, u2_21_add128, 16, 0)                                                                     \
+    X(I2_12, i2_12, 16, 1)                                                                               \
+    X(U3_123, u3_123, 24, 0)                                                                               \
+    X(U3_321, u3_321, 24, 0)                                                                     \
+    X(U3_132, u3_132, 24, 0)                                                                     \
+    X(U3_213, u3_213, 24, 0)                                                                     \
+    X(U4_1234, u4_1234, 32, 1)                                                                               \
+    X(U4_4321, u4_4321, 32, 1)                                                                     \
+    X(U4_3412, u4_3412, 32, 1)                                                                     \
+    X(U4_2143, u4_2143, 32, 1)                                                                     \
     /* A packed (interface << 16) | child uid. Byte-identical to U4 by                             \
      * construction — RSProt's pCombinedId IS p4 — but a distinct row so a                         \
      * DESCRIBE dump says which of the two a field is. Not cosmetic: rev 230                       \
      * addresses a component with a bare 2-byte id and 239 with this, and the                      \
      * inbound translation this design replaces truncates one to the other. */                     \
-    X(COM, com, 32, 1)                                                                             \
-    X(COM_ALT1, com_alt1, 32, 1)                                                                   \
-    X(COM_ALT2, com_alt2, 32, 1)                                                                   \
-    X(COM_ALT3, com_alt3, 32, 1)                                                                   \
+    X(COM_1234, com_1234, 32, 1)                                                                             \
+    X(COM_4321, com_4321, 32, 1)                                                                   \
+    X(COM_3412, com_3412, 32, 1)                                                                   \
+    X(COM_2143, com_2143, 32, 1)                                                                   \
     /* Variable width. SMART is 1 byte over [0,127] and 2 over [0,32767];                          \
      * SMARTNULL adds a -1 encoding; SMART2OR4NULL is the wide form. FILL                          \
      * respects those ranges — the buffer latches a range error rather than                        \
@@ -144,7 +146,7 @@ typedef enum RsprotPrim
         RSPROT_PRIM_COUNT
 } RsprotPrim;
 
-/** "u2_alt2" etc., for traces and schema dumps. NULL on a bad index. */
+/** "u2_12_add128" etc., for traces and schema dumps. NULL on a bad index. */
 const char *rsprot_prim_name(RsprotPrim prim);
 
 /** Bytes this primitive always occupies, or 0 when the width depends on the
@@ -168,8 +170,8 @@ typedef enum RsprotStrKind
 typedef enum RsprotDataOrder
 {
     RSPROT_DATA_PLAIN = 0,
-    RSPROT_DATA_ALT1,
-    RSPROT_DATA_ALT2
+    RSPROT_DATA_REV,
+    RSPROT_DATA_ADD128
 } RsprotDataOrder;
 
 /* ------------------------------------------------------------------ */
@@ -526,27 +528,27 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #undef RSPROT_PRIM_DECL
 
 #define RSPROT_U1(x, f) rsprot_x_u1((x), &(f), #f)
-#define RSPROT_U1_ALT1(x, f) rsprot_x_u1_alt1((x), &(f), #f)
-#define RSPROT_U1_ALT2(x, f) rsprot_x_u1_alt2((x), &(f), #f)
-#define RSPROT_U1_ALT3(x, f) rsprot_x_u1_alt3((x), &(f), #f)
+#define RSPROT_U1_ADD128(x, f) rsprot_x_u1_add128((x), &(f), #f)
+#define RSPROT_U1_NEG(x, f) rsprot_x_u1_neg((x), &(f), #f)
+#define RSPROT_U1_SUB128(x, f) rsprot_x_u1_sub128((x), &(f), #f)
 #define RSPROT_I1(x, f) rsprot_x_i1((x), &(f), #f)
-#define RSPROT_U2(x, f) rsprot_x_u2((x), &(f), #f)
-#define RSPROT_U2_ALT1(x, f) rsprot_x_u2_alt1((x), &(f), #f)
-#define RSPROT_U2_ALT2(x, f) rsprot_x_u2_alt2((x), &(f), #f)
-#define RSPROT_U2_ALT3(x, f) rsprot_x_u2_alt3((x), &(f), #f)
-#define RSPROT_I2(x, f) rsprot_x_i2((x), &(f), #f)
-#define RSPROT_U3(x, f) rsprot_x_u3((x), &(f), #f)
-#define RSPROT_U3_ALT1(x, f) rsprot_x_u3_alt1((x), &(f), #f)
-#define RSPROT_U3_ALT2(x, f) rsprot_x_u3_alt2((x), &(f), #f)
-#define RSPROT_U3_ALT3(x, f) rsprot_x_u3_alt3((x), &(f), #f)
-#define RSPROT_U4(x, f) rsprot_x_u4((x), &(f), #f)
-#define RSPROT_U4_ALT1(x, f) rsprot_x_u4_alt1((x), &(f), #f)
-#define RSPROT_U4_ALT2(x, f) rsprot_x_u4_alt2((x), &(f), #f)
-#define RSPROT_U4_ALT3(x, f) rsprot_x_u4_alt3((x), &(f), #f)
-#define RSPROT_COM(x, f) rsprot_x_com((x), &(f), #f)
-#define RSPROT_COM_ALT1(x, f) rsprot_x_com_alt1((x), &(f), #f)
-#define RSPROT_COM_ALT2(x, f) rsprot_x_com_alt2((x), &(f), #f)
-#define RSPROT_COM_ALT3(x, f) rsprot_x_com_alt3((x), &(f), #f)
+#define RSPROT_U2_12(x, f) rsprot_x_u2_12((x), &(f), #f)
+#define RSPROT_U2_21(x, f) rsprot_x_u2_21((x), &(f), #f)
+#define RSPROT_U2_12_ADD128(x, f) rsprot_x_u2_12_add128((x), &(f), #f)
+#define RSPROT_U2_21_ADD128(x, f) rsprot_x_u2_21_add128((x), &(f), #f)
+#define RSPROT_I2_12(x, f) rsprot_x_i2_12((x), &(f), #f)
+#define RSPROT_U3_123(x, f) rsprot_x_u3_123((x), &(f), #f)
+#define RSPROT_U3_321(x, f) rsprot_x_u3_321((x), &(f), #f)
+#define RSPROT_U3_132(x, f) rsprot_x_u3_132((x), &(f), #f)
+#define RSPROT_U3_213(x, f) rsprot_x_u3_213((x), &(f), #f)
+#define RSPROT_U4_1234(x, f) rsprot_x_u4_1234((x), &(f), #f)
+#define RSPROT_U4_4321(x, f) rsprot_x_u4_4321((x), &(f), #f)
+#define RSPROT_U4_3412(x, f) rsprot_x_u4_3412((x), &(f), #f)
+#define RSPROT_U4_2143(x, f) rsprot_x_u4_2143((x), &(f), #f)
+#define RSPROT_COM_1234(x, f) rsprot_x_com_1234((x), &(f), #f)
+#define RSPROT_COM_4321(x, f) rsprot_x_com_4321((x), &(f), #f)
+#define RSPROT_COM_3412(x, f) rsprot_x_com_3412((x), &(f), #f)
+#define RSPROT_COM_2143(x, f) rsprot_x_com_2143((x), &(f), #f)
 #define RSPROT_SMART(x, f) rsprot_x_smart((x), &(f), #f)
 #define RSPROT_SMARTNULL(x, f) rsprot_x_smartnull((x), &(f), #f)
 #define RSPROT_SMART2OR4NULL(x, f) rsprot_x_smart2or4null((x), &(f), #f)
@@ -554,17 +556,17 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 #define RSPROT_VARINT2S(x, f) rsprot_x_varint2s((x), &(f), #f)
 #define RSPROT_BOOL(x, f) rsprot_x_boolean((x), &(f), #f)
 
-#define RSPROT_U8(x, f) rsprot_x8((x), &(f), #f)
+#define RSPROT_U8_12345678(x, f) rsprot_x8((x), &(f), #f)
 #define RSPROT_JSTR(x, f) rsprot_xstr((x), &(f), RSPROT_STR_PLAIN, #f)
 #define RSPROT_JSTRNULL(x, f) rsprot_xstr((x), &(f), RSPROT_STR_NULLABLE, #f)
 #define RSPROT_JSTR2(x, f) rsprot_xstr((x), &(f), RSPROT_STR_PREFIXED, #f)
 #define RSPROT_DATA(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_PLAIN, #f)
-#define RSPROT_DATA_ALT1(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_ALT1, #f)
-#define RSPROT_DATA_ALT2(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_ALT2, #f)
+#define RSPROT_DATA_REV(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_REV, #f)
+#define RSPROT_DATA_ADD128(x, f, len) rsprot_xdata((x), &(f), (len), RSPROT_DATA_ADD128, #f)
 /* A fixed value the layout pins. The name is the literal itself, since there is
  * no field to take one from: RSPROT_CONST(x, U1, 1) describes as "=1". */
 #define RSPROT_CONST(x, prim, v) rsprot_xconst((x), RSPROT_PRIM_##prim, (v), "=" #v)
-/* Wire carries `f + delta`. RSPROT_XFORM(x, U2_ALT1, m->obj_id, 1). */
+/* Wire carries `f + delta`. RSPROT_XFORM(x, U2_21, m->obj_id, 1). */
 #define RSPROT_XFORM(x, prim, f, delta)                                                            \
     rsprot_xform_add((x), RSPROT_PRIM_##prim, &(f), (delta), #f)
 /* Wire carries `min(src, cap)`; the full value lives in `src`. */
@@ -575,9 +577,9 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
 /* Loop condition for a count-less trailing array. See rsprot_more(). */
 #define RSPROT_MORE(x, f, i, cap) rsprot_more((x), &(f), (i), (cap))
 #define RSPROT_COUNT(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U1, &(f), (max), #f)
-#define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2, &(f), (max), #f)
+#define RSPROT_COUNT2(x, f, max) rsprot_xcount((x), RSPROT_PRIM_U2_12, &(f), (max), #f)
 /* A count the wire carries in a transformed byte or short:
- * RSPROT_COUNT_AS(x, U1_ALT3, m->retexture_count, 255). */
+ * RSPROT_COUNT_AS(x, U1_SUB128, m->retexture_count, 255). */
 #define RSPROT_COUNT_AS(x, prim, f, max) rsprot_xcount((x), RSPROT_PRIM_##prim, &(f), (max), #f)
 /* The rest of the payload, borrowed. See rsprot_xrest(). */
 #define RSPROT_REST(x, f, len) rsprot_xrest((x), &(f), &(len), #f)

@@ -14,7 +14,7 @@
 void
 packet_account_flags_v1_out(RsprotExec *x, MsgAccountFlags *m)
 {
-    RSPROT_U8(x, m->flags);
+    RSPROT_U8_12345678(x, m->flags);
 }
 
 /*

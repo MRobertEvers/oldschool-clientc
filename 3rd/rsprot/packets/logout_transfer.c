@@ -15,8 +15,8 @@ void
 packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m)
 {
     RSPROT_JSTR(x, m->host);
-    RSPROT_U2(x, m->id);
-    RSPROT_U4(x, m->properties);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_1234(x, m->properties);
 }
 
 /*

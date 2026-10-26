@@ -6,8 +6,8 @@ void
 packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 {
     RSPROT_U1(x, m->clan_type);
-    RSPROT_U8(x, m->clan_hash);
-    RSPROT_U8(x, m->update_num);
+    RSPROT_U8_12345678(x, m->clan_hash);
+    RSPROT_U8_12345678(x, m->update_num);
     for (int32_t i = 0; RSPROT_MORE(x, m->event_count, i, MSG_CLANCHANNEL_DELTA_MAX_EVENTS); i++) {
         MsgClanchannelDeltaEvent *e = &m->events[i];
 
@@ -23,18 +23,18 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
         case 1:
             RSPROT_U1(x, e->skip_a);
             RSPROT_JSTRNULL(x, e->name);
-            RSPROT_U2(x, e->world);
+            RSPROT_U2_12(x, e->world);
             RSPROT_U1(x, e->rank);
             break;
         case 2:
-            RSPROT_U2(x, e->index);
+            RSPROT_U2_12(x, e->index);
             RSPROT_U1(x, e->rank);
-            RSPROT_U2(x, e->world);
-            RSPROT_U8(x, e->skip8);
+            RSPROT_U2_12(x, e->world);
+            RSPROT_U8_12345678(x, e->skip8);
             RSPROT_JSTR(x, e->name);
             break;
         case 3:
-            RSPROT_U2(x, e->index);
+            RSPROT_U2_12(x, e->index);
             RSPROT_U1(x, e->skip_a);
             RSPROT_U1(x, e->skip_b);
             break;
@@ -48,10 +48,10 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
             break;
         case 5:
             RSPROT_U1(x, e->skip_a);
-            RSPROT_U2(x, e->index);
+            RSPROT_U2_12(x, e->index);
             RSPROT_U1(x, e->rank);
-            RSPROT_U2(x, e->world);
-            RSPROT_U8(x, e->skip8);
+            RSPROT_U2_12(x, e->world);
+            RSPROT_U8_12345678(x, e->skip8);
             RSPROT_JSTR(x, e->name);
             RSPROT_U1(x, e->skip_b);
             break;

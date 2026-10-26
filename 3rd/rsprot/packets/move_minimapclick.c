@@ -14,18 +14,18 @@
 void
 packet_move_minimapclick_v1_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12(x, m->x);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -33,18 +33,18 @@ packet_move_minimapclick_v1_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v2_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->key_combination);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -52,18 +52,18 @@ packet_move_minimapclick_v2_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v3_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -72,17 +72,17 @@ void
 packet_move_minimapclick_v4_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -90,18 +90,18 @@ packet_move_minimapclick_v4_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v5_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -109,18 +109,18 @@ packet_move_minimapclick_v5_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v6_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT2(x, m->z);
+    RSPROT_U1_ADD128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -129,17 +129,17 @@ void
 packet_move_minimapclick_v7_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -147,18 +147,18 @@ packet_move_minimapclick_v7_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v8_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -166,18 +166,18 @@ packet_move_minimapclick_v8_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v9_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -185,18 +185,18 @@ packet_move_minimapclick_v9_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v10_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT2(x, m->key_combination);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U1_NEG(x, m->key_combination);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -204,18 +204,18 @@ packet_move_minimapclick_v10_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v11_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->key_combination);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -224,17 +224,17 @@ void
 packet_move_minimapclick_v12_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -242,18 +242,18 @@ packet_move_minimapclick_v12_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v13_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->z);
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -261,18 +261,18 @@ packet_move_minimapclick_v13_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v14_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT3(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -280,18 +280,18 @@ packet_move_minimapclick_v14_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v15_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT3(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_SUB128(x, m->key_combination);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -300,17 +300,17 @@ void
 packet_move_minimapclick_v16_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
     RSPROT_U1(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_21(x, m->z);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -318,18 +318,18 @@ packet_move_minimapclick_v16_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v17_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT2(x, m->key_combination);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_NEG(x, m->key_combination);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -337,18 +337,18 @@ packet_move_minimapclick_v17_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v18_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U1_ALT3(x, m->key_combination);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_SUB128(x, m->key_combination);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -356,18 +356,18 @@ packet_move_minimapclick_v18_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT2(x, m->key_combination);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_NEG(x, m->key_combination);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 
@@ -375,18 +375,18 @@ packet_move_minimapclick_v19_in(RsprotExec *x, MsgMoveMinimapClick *m)
 void
 packet_move_minimapclick_v20_in(RsprotExec *x, MsgMoveMinimapClick *m)
 {
-    RSPROT_U1_ALT1(x, m->key_combination);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U1_ADD128(x, m->key_combination);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->x);
     RSPROT_U1(x, m->minimap_width);
     RSPROT_U1(x, m->minimap_height);
-    RSPROT_U2(x, m->camera_angle_y);
+    RSPROT_U2_12(x, m->camera_angle_y);
     RSPROT_U1(x, m->checkpoint1);
     RSPROT_U1(x, m->checkpoint2);
     RSPROT_U1(x, m->checkpoint3);
     RSPROT_U1(x, m->checkpoint4);
-    RSPROT_U2(x, m->fine_x);
-    RSPROT_U2(x, m->fine_z);
+    RSPROT_U2_12(x, m->fine_x);
+    RSPROT_U2_12(x, m->fine_z);
     RSPROT_U1(x, m->checkpoint5);
 }
 

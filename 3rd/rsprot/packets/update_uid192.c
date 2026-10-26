@@ -9,7 +9,7 @@ void
 packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m)
 {
     RSPROT_DATA(x, m->data, 24);
-    RSPROT_U4(x, m->crc);
+    RSPROT_U4_1234(x, m->crc);
 }
 
 const RsprotVersionRange rsprot_update_uid192_out[] = {

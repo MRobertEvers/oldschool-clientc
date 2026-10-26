@@ -14,187 +14,187 @@
 void
 packet_map_projanim_v2_v1_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->end_height);
-    RSPROT_U4(x, m->end_packed);
-    RSPROT_U2_ALT1(x, m->start_height);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2_ALT2(x, m->end_time);
+    RSPROT_U2_12_ADD128(x, m->end_height);
+    RSPROT_U4_1234(x, m->end_packed);
+    RSPROT_U2_21(x, m->start_height);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->end_time);
     RSPROT_U1(x, m->angle);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U3_ALT1(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U3_321(x, m->source_index);
 }
 
 /* v2 -- revs 232. */
 void
 packet_map_projanim_v2_v2_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT1(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->end_height);
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U4_ALT1(x, m->end_packed);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->start_time);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U4_4321(x, m->end_packed);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->start_time);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U3_ALT2(x, m->target_index);
+    RSPROT_U3_132(x, m->target_index);
 }
 
 /* v3 -- revs 233. */
 void
 packet_map_projanim_v2_v3_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT2(x, m->end_height);
-    RSPROT_U3(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U4_ALT3(x, m->end_packed);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U2_ALT1(x, m->start_height);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->end_height);
+    RSPROT_U3_123(x, m->source_index);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U4_2143(x, m->end_packed);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U2_21(x, m->start_height);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v4 -- revs 234. */
 void
 packet_map_projanim_v2_v4_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U2_ALT1(x, m->end_height);
-    RSPROT_U3_ALT1(x, m->target_index);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U4_ALT1(x, m->end_packed);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U2_ALT2(x, m->start_height);
-    RSPROT_U3_ALT1(x, m->source_index);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->start_time);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U2_21(x, m->end_height);
+    RSPROT_U3_321(x, m->target_index);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U4_4321(x, m->end_packed);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U2_12_ADD128(x, m->start_height);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v5 -- revs 235. */
 void
 packet_map_projanim_v2_v5_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2_ALT1(x, m->start_time);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->end_height);
-    RSPROT_U1_ALT1(x, m->angle);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U2_ALT1(x, m->progress);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U4_ALT3(x, m->end_packed);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U1_ADD128(x, m->angle);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U2_21(x, m->progress);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U4_2143(x, m->end_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v6 -- revs 236. */
 void
 packet_map_projanim_v2_v6_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2_ALT1(x, m->start_time);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U3_ALT3(x, m->source_index);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U3_213(x, m->source_index);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U2_ALT2(x, m->end_time);
-    RSPROT_U2_ALT1(x, m->end_height);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U2_12_ADD128(x, m->end_time);
+    RSPROT_U2_21(x, m->end_height);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->angle);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U4_ALT1(x, m->end_packed);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U4_4321(x, m->end_packed);
 }
 
 /* v7 -- revs 237. */
 void
 packet_map_projanim_v2_v7_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U3_ALT3(x, m->target_index);
+    RSPROT_U3_213(x, m->target_index);
     RSPROT_U1(x, m->angle);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT3(x, m->end_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->progress);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U2(x, m->end_height);
+    RSPROT_U4_2143(x, m->end_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U2_12(x, m->end_height);
 }
 
 /* v8 -- revs 238. */
 void
 packet_map_projanim_v2_v8_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U3_ALT1(x, m->source_index);
-    RSPROT_U4_ALT3(x, m->end_packed);
-    RSPROT_U2_ALT1(x, m->start_time);
-    RSPROT_U2_ALT1(x, m->start_height);
-    RSPROT_U1_ALT1(x, m->angle);
-    RSPROT_U2_ALT2(x, m->end_height);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT2(x, m->progress);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U4_2143(x, m->end_packed);
+    RSPROT_U2_21(x, m->start_time);
+    RSPROT_U2_21(x, m->start_height);
+    RSPROT_U1_ADD128(x, m->angle);
+    RSPROT_U2_12_ADD128(x, m->end_height);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->progress);
 }
 
 /* v9 -- revs 239. */
 void
 packet_map_projanim_v2_v9_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2(x, m->start_time);
+    RSPROT_U2_12(x, m->start_time);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->end_time);
-    RSPROT_U4_ALT1(x, m->end_packed);
-    RSPROT_U2_ALT3(x, m->end_height);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U3(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->end_time);
+    RSPROT_U4_4321(x, m->end_packed);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U3_123(x, m->target_index);
 }
 
 /* v10 -- revs 240. */
 void
 packet_map_projanim_v2_v10_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->angle);
-    RSPROT_U2_ALT3(x, m->end_height);
-    RSPROT_U3_ALT1(x, m->target_index);
-    RSPROT_U4(x, m->end_packed);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2(x, m->start_height);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U3(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->start_time);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->angle);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U3_321(x, m->target_index);
+    RSPROT_U4_1234(x, m->end_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->start_height);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U3_123(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->start_time);
 }
 
 /* v11 -- revs 241. */
 void
 packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->angle);
-    RSPROT_U2(x, m->id);
-    RSPROT_U3_ALT3(x, m->source_index);
-    RSPROT_U2_ALT3(x, m->start_time);
-    RSPROT_U2_ALT1(x, m->start_height);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->end_height);
-    RSPROT_U2_ALT2(x, m->progress);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2_ALT2(x, m->end_time);
-    RSPROT_U4_ALT3(x, m->end_packed);
+    RSPROT_U1_NEG(x, m->angle);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U3_213(x, m->source_index);
+    RSPROT_U2_21_ADD128(x, m->start_time);
+    RSPROT_U2_21(x, m->start_height);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->end_height);
+    RSPROT_U2_12_ADD128(x, m->progress);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_12_ADD128(x, m->end_time);
+    RSPROT_U4_2143(x, m->end_packed);
 }
 
 /*

@@ -122,9 +122,9 @@ rsprot_info_blob(RsprotInfoList *out, const uint8_t *src, int32_t len, int order
         return p;
     rsprot_buf_wrap_read(&b, src, len);
     switch (order) {
-    case RSPROT_IP_DATA_ALT1: rsprot_gdata_alt1(&b, p, len); break;
-    case RSPROT_IP_DATA_ALT2: rsprot_gdata_alt2(&b, p, len); break;
-    case RSPROT_IP_DATA_ALT3: rsprot_gdata_alt3(&b, p, len); break;
+    case RSPROT_IP_DATA_REV: rsprot_gdata_rev(&b, p, len); break;
+    case RSPROT_IP_DATA_ADD128: rsprot_gdata_add128(&b, p, len); break;
+    case RSPROT_IP_DATA_REV_ADD128: rsprot_gdata_rev_add128(&b, p, len); break;
     default: rsprot_gdata(&b, p, len); break;
     }
     return p;

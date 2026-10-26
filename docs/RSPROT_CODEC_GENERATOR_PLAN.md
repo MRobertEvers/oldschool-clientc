@@ -63,9 +63,9 @@ information, and the layout recovers it with a following 4-byte field. That is
 a **conditional escape**, and it is already expressible with what exists:
 
 ```c
-RSPROT_U1_ALT3(x, m->count_lo);                    /* transferred */
+RSPROT_U1_SUB128(x, m->count_lo);                    /* transferred */
 if (RSPROT_BRANCH(x, m->count_lo) == 255)
-    RSPROT_U4_ALT3(x, m->count);                   /* legal: branches on a
+    RSPROT_U4_2143(x, m->count);                   /* legal: branches on a
                                                       field already moved */
 ```
 

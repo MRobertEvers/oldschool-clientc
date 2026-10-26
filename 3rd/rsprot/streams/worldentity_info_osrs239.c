@@ -16,11 +16,11 @@ worldentity_info_osrs239_v7_ext_payload(RsprotBuf *b, int32_t flags, RsprotInfoW
     e->flags = flags;
     if (flags & 0x2) {
         e->has_ops = 1;
-        e->ops = rsprot_g1_alt3(b);
+        e->ops = rsprot_g1_sub128(b);
     }
     if (flags & 0x1) {
         e->has_sequence = 1;
-        e->sequence_id = rsprot_g2(b);
+        e->sequence_id = rsprot_g2_12(b);
         e->sequence_delay = rsprot_g1(b);
     }
 }
@@ -38,13 +38,13 @@ worldentity_info_osrs239_v7_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
 
     ext_flags = rsprot_g1(b);
     {
-        int32_t packed = rsprot_g1_alt2(b);
+        int32_t packed = rsprot_g1_neg(b);
 
         a->size_x = ((packed >> 4) & 0xf) * 8;
         a->size_z = (packed & 0xf) * 8;
     }
-    a->priority = rsprot_g1_alt1(b);
-    a->id = rsprot_g2s_alt1(b);
+    a->priority = rsprot_g1_add128(b);
+    a->id = rsprot_g2s_21(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     worldentity_info_osrs239_v7_ext_payload(b, ext_flags, &a->ext);
 }

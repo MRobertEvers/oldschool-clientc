@@ -14,7 +14,7 @@ packet_group_full_v1_out(RsprotExec *x, MsgGroupFull *m)
         RSPROT_U1(x, u->index);
         RSPROT_SMARTNULL(x, u->id);
         if (RSPROT_BRANCH(x, u->id) != -1) {
-            RSPROT_U8(x, u->uid);
+            RSPROT_U8_12345678(x, u->uid);
             RSPROT_REST(x, u->data, u->data_length);
         }
     }

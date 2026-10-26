@@ -30,22 +30,22 @@ worldentity_info_v1(const uint8_t *data, int32_t len, RsprotInfoList *out)
         /* Whole tiles, carried in fine units like the later versions'. */
         op->we_move.dx = rsprot_g1(&b) << 7;
         op->we_move.dz = rsprot_g1(&b) << 7;
-        op->we_move.dangle = rsprot_g2(&b);
+        op->we_move.dangle = rsprot_g2_12(&b);
         op->we_move.move_speed = rsprot_g1(&b);
     }
     while (!b.err && rsprot_buf_readable(&b) >= 10) {
         int before = out->count;
         RsprotInfoOp *op = rsprot_info_emit(out, RSPROT_OP_WE_ADD);
 
-        op->who = rsprot_g2(&b);
+        op->who = rsprot_g2_12(&b);
         op->we_add.id = -1;
         op->we_add.priority = -1;
         op->we_add.size_x = rsprot_g1(&b) * 8;
         op->we_add.size_z = rsprot_g1(&b) * 8;
         op->we_add.x = rsprot_g1(&b) << 7;
         op->we_add.z = rsprot_g1(&b) << 7;
-        op->we_add.angle = rsprot_g2(&b);
-        op->we_add.unknown = rsprot_g2(&b); /* RSProx: unknownProperty */
+        op->we_add.angle = rsprot_g2_12(&b);
+        op->we_add.unknown = rsprot_g2_12(&b); /* RSProx: unknownProperty */
         if (b.err)
             out->count = before;
     }

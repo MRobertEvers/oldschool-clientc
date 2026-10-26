@@ -14,19 +14,19 @@
 void
 packet_send_ping_reply_v1_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT3(x, m->fps);
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT2(x, m->value2);
+    RSPROT_U1_SUB128(x, m->fps);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_3412(x, m->value2);
 }
 
 /* v2 -- revs 222. */
 void
 packet_send_ping_reply_v2_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT2(x, m->fps);
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT2(x, m->value2);
+    RSPROT_U1_NEG(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_3412(x, m->value2);
     RSPROT_U1(x, m->gc_percent_time);
 }
 
@@ -34,18 +34,18 @@ packet_send_ping_reply_v2_in(RsprotExec *x, MsgSendPingReply *m)
 void
 packet_send_ping_reply_v3_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4(x, m->value2);
-    RSPROT_U1_ALT1(x, m->fps);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_ADD128(x, m->fps);
 }
 
 /* v4 -- revs 224. */
 void
 packet_send_ping_reply_v4_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT2(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
+    RSPROT_U4_3412(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
     RSPROT_U1(x, m->fps);
     RSPROT_U1(x, m->gc_percent_time);
 }
@@ -54,60 +54,60 @@ packet_send_ping_reply_v4_in(RsprotExec *x, MsgSendPingReply *m)
 void
 packet_send_ping_reply_v5_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT2(x, m->fps);
-    RSPROT_U4_ALT2(x, m->value1);
-    RSPROT_U4(x, m->value2);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
+    RSPROT_U1_NEG(x, m->fps);
+    RSPROT_U4_3412(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
 }
 
 /* v6 -- revs 226. */
 void
 packet_send_ping_reply_v6_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT2(x, m->value2);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_3412(x, m->value2);
     RSPROT_U1(x, m->gc_percent_time);
-    RSPROT_U1_ALT1(x, m->fps);
+    RSPROT_U1_ADD128(x, m->fps);
 }
 
 /* v7 -- revs 227. */
 void
 packet_send_ping_reply_v7_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
     RSPROT_U1(x, m->fps);
-    RSPROT_U4_ALT3(x, m->value1);
-    RSPROT_U4_ALT1(x, m->value2);
+    RSPROT_U4_2143(x, m->value1);
+    RSPROT_U4_4321(x, m->value2);
 }
 
 /* v8 -- revs 228. */
 void
 packet_send_ping_reply_v8_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT1(x, m->gc_percent_time);
-    RSPROT_U1_ALT1(x, m->fps);
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4(x, m->value2);
+    RSPROT_U1_ADD128(x, m->gc_percent_time);
+    RSPROT_U1_ADD128(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
 }
 
 /* v9 -- revs 229. */
 void
 packet_send_ping_reply_v9_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT1(x, m->fps);
-    RSPROT_U4_ALT3(x, m->value1);
-    RSPROT_U4_ALT1(x, m->value2);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
+    RSPROT_U1_ADD128(x, m->fps);
+    RSPROT_U4_2143(x, m->value1);
+    RSPROT_U4_4321(x, m->value2);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
 }
 
 /* v10 -- revs 230. */
 void
 packet_send_ping_reply_v10_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT1(x, m->value2);
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
-    RSPROT_U1_ALT3(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_4321(x, m->value2);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
+    RSPROT_U1_SUB128(x, m->fps);
 }
 
 /* v11 -- revs 231. */
@@ -115,29 +115,29 @@ void
 packet_send_ping_reply_v11_in(RsprotExec *x, MsgSendPingReply *m)
 {
     RSPROT_U1(x, m->gc_percent_time);
-    RSPROT_U1_ALT2(x, m->fps);
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT1(x, m->value2);
+    RSPROT_U1_NEG(x, m->fps);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_4321(x, m->value2);
 }
 
 /* v12 -- revs 232. */
 void
 packet_send_ping_reply_v12_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT2(x, m->value2);
-    RSPROT_U1_ALT1(x, m->fps);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_3412(x, m->value2);
+    RSPROT_U1_ADD128(x, m->fps);
 }
 
 /* v13 -- revs 233. */
 void
 packet_send_ping_reply_v13_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT3(x, m->fps);
-    RSPROT_U4_ALT3(x, m->value1);
-    RSPROT_U4(x, m->value2);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
+    RSPROT_U1_SUB128(x, m->fps);
+    RSPROT_U4_2143(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
 }
 
 /* v14 -- revs 234. */
@@ -145,48 +145,48 @@ void
 packet_send_ping_reply_v14_in(RsprotExec *x, MsgSendPingReply *m)
 {
     RSPROT_U1(x, m->gc_percent_time);
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT2(x, m->value2);
-    RSPROT_U1_ALT1(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_3412(x, m->value2);
+    RSPROT_U1_ADD128(x, m->fps);
 }
 
 /* v15 -- revs 235. */
 void
 packet_send_ping_reply_v15_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4(x, m->value2);
-    RSPROT_U1_ALT2(x, m->fps);
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_NEG(x, m->fps);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
 }
 
 /* v16 -- revs 236. */
 void
 packet_send_ping_reply_v16_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
-    RSPROT_U1_ALT1(x, m->gc_percent_time);
-    RSPROT_U1_ALT3(x, m->fps);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
+    RSPROT_U1_ADD128(x, m->gc_percent_time);
+    RSPROT_U1_SUB128(x, m->fps);
 }
 
 /* v17 -- revs 237. */
 void
 packet_send_ping_reply_v17_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT3(x, m->value1);
-    RSPROT_U4_ALT1(x, m->value2);
-    RSPROT_U1_ALT3(x, m->fps);
-    RSPROT_U1_ALT3(x, m->gc_percent_time);
+    RSPROT_U4_2143(x, m->value1);
+    RSPROT_U4_4321(x, m->value2);
+    RSPROT_U1_SUB128(x, m->fps);
+    RSPROT_U1_SUB128(x, m->gc_percent_time);
 }
 
 /* v18 -- revs 238. */
 void
 packet_send_ping_reply_v18_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
-    RSPROT_U1_ALT1(x, m->gc_percent_time);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
+    RSPROT_U1_ADD128(x, m->gc_percent_time);
     RSPROT_U1(x, m->fps);
 }
 
@@ -194,30 +194,30 @@ packet_send_ping_reply_v18_in(RsprotExec *x, MsgSendPingReply *m)
 void
 packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT3(x, m->value1);
-    RSPROT_U4(x, m->value2);
-    RSPROT_U1_ALT1(x, m->fps);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
+    RSPROT_U4_2143(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
+    RSPROT_U1_ADD128(x, m->fps);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
 }
 
 /* v20 -- revs 240. */
 void
 packet_send_ping_reply_v20_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U1_ALT1(x, m->fps);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
+    RSPROT_U1_ADD128(x, m->fps);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
 }
 
 /* v21 -- revs 241. */
 void
 packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m)
 {
-    RSPROT_U4_ALT1(x, m->value1);
-    RSPROT_U4_ALT3(x, m->value2);
-    RSPROT_U1_ALT3(x, m->fps);
-    RSPROT_U1_ALT2(x, m->gc_percent_time);
+    RSPROT_U4_4321(x, m->value1);
+    RSPROT_U4_2143(x, m->value2);
+    RSPROT_U1_SUB128(x, m->fps);
+    RSPROT_U1_NEG(x, m->gc_percent_time);
 }
 
 /*

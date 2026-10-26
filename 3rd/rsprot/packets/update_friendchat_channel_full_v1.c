@@ -7,7 +7,7 @@ packet_update_friendchat_channel_full_v1_v1_out(RsprotExec *x, MsgUpdateFriendch
 {
     for (int32_t i = 0; RSPROT_MORE(x, m->joined, i, 1); i++) {
         RSPROT_JSTR(x, m->channel_owner);
-        RSPROT_U8(x, m->channel_name);
+        RSPROT_U8_12345678(x, m->channel_name);
         RSPROT_U1(x, m->kick_rank);
         /* A negative count reads no entries, as RSProx's 0..<count does. */
         RSPROT_I1(x, m->entry_count);
@@ -17,7 +17,7 @@ packet_update_friendchat_channel_full_v1_v1_out(RsprotExec *x, MsgUpdateFriendch
         }
         for (int32_t k = 0; k < m->entry_count; k++) {
             RSPROT_JSTR(x, m->entries[k].name);
-            RSPROT_U2(x, m->entries[k].world_id);
+            RSPROT_U2_12(x, m->entries[k].world_id);
             RSPROT_I1(x, m->entries[k].rank);
             RSPROT_JSTR(x, m->entries[k].world_name);
         }

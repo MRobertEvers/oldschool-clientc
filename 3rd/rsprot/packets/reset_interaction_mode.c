@@ -14,7 +14,7 @@
 void
 packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m)
 {
-    RSPROT_U2(x, m->world_id);
+    RSPROT_U2_12(x, m->world_id);
 }
 
 /*

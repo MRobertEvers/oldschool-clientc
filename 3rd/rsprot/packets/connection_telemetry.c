@@ -14,13 +14,13 @@
 void
 packet_connection_telemetry_v1_in(RsprotExec *x, MsgConnectionTelemetry *m)
 {
-    RSPROT_U2(x, m->connection_lost_duration);
-    RSPROT_U2(x, m->login_duration);
-    RSPROT_U2(x, m->unused_duration);
-    RSPROT_U2(x, m->client_state);
-    RSPROT_U2(x, m->unused1);
-    RSPROT_U2(x, m->login_count);
-    RSPROT_U2(x, m->unused2);
+    RSPROT_U2_12(x, m->connection_lost_duration);
+    RSPROT_U2_12(x, m->login_duration);
+    RSPROT_U2_12(x, m->unused_duration);
+    RSPROT_U2_12(x, m->client_state);
+    RSPROT_U2_12(x, m->unused1);
+    RSPROT_U2_12(x, m->login_count);
+    RSPROT_U2_12(x, m->unused2);
 }
 
 /*

@@ -14,42 +14,42 @@
 void
 packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
-    RSPROT_U2_ALT1(x, m->target_offset_z);
-    RSPROT_U2_ALT2(x, m->target_height);
-    RSPROT_U4_ALT2(x, m->target_coord_packed);
-    RSPROT_U2(x, m->target_offset_x);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2_ALT1(x, m->freeze_duration);
-    RSPROT_U2(x, m->slot);
-    RSPROT_U1_ALT1(x, m->delete_on_freeze_end);
+    RSPROT_U2_21(x, m->target_offset_z);
+    RSPROT_U2_12_ADD128(x, m->target_height);
+    RSPROT_U4_3412(x, m->target_coord_packed);
+    RSPROT_U2_12(x, m->target_offset_x);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_21(x, m->freeze_duration);
+    RSPROT_U2_12(x, m->slot);
+    RSPROT_U1_ADD128(x, m->delete_on_freeze_end);
 }
 
 /* v2 -- revs 240. */
 void
 packet_scriptedproj_change_v2_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
-    RSPROT_U2_ALT3(x, m->freeze_duration);
-    RSPROT_U1_ALT1(x, m->delete_on_freeze_end);
-    RSPROT_U2_ALT2(x, m->target_offset_x);
-    RSPROT_U4(x, m->target_coord_packed);
-    RSPROT_U2_ALT1(x, m->target_offset_z);
-    RSPROT_U2_ALT3(x, m->target_height);
-    RSPROT_U2_ALT1(x, m->slot);
-    RSPROT_U3(x, m->target_index);
+    RSPROT_U2_21_ADD128(x, m->freeze_duration);
+    RSPROT_U1_ADD128(x, m->delete_on_freeze_end);
+    RSPROT_U2_12_ADD128(x, m->target_offset_x);
+    RSPROT_U4_1234(x, m->target_coord_packed);
+    RSPROT_U2_21(x, m->target_offset_z);
+    RSPROT_U2_21_ADD128(x, m->target_height);
+    RSPROT_U2_21(x, m->slot);
+    RSPROT_U3_123(x, m->target_index);
 }
 
 /* v3 -- revs 241. */
 void
 packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m)
 {
-    RSPROT_U2_ALT3(x, m->target_offset_x);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2(x, m->target_height);
-    RSPROT_U1_ALT2(x, m->delete_on_freeze_end);
-    RSPROT_U2_ALT1(x, m->slot);
-    RSPROT_U2_ALT3(x, m->freeze_duration);
-    RSPROT_U2_ALT3(x, m->target_offset_z);
-    RSPROT_U4_ALT2(x, m->target_coord_packed);
+    RSPROT_U2_21_ADD128(x, m->target_offset_x);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_12(x, m->target_height);
+    RSPROT_U1_NEG(x, m->delete_on_freeze_end);
+    RSPROT_U2_21(x, m->slot);
+    RSPROT_U2_21_ADD128(x, m->freeze_duration);
+    RSPROT_U2_21_ADD128(x, m->target_offset_z);
+    RSPROT_U4_3412(x, m->target_coord_packed);
 }
 
 /*

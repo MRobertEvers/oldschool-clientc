@@ -14,7 +14,7 @@
 void
 packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m)
 {
-    RSPROT_U4(x, m->jingle);
+    RSPROT_U4_1234(x, m->jingle);
 }
 
 /*

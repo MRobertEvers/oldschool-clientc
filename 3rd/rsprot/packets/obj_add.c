@@ -14,41 +14,41 @@
 void
 packet_obj_add_v1_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->time_until_public);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->time_until_public);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
     RSPROT_U1(x, m->ownership_type);
-    RSPROT_U1_ALT1(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->op_flags);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v2 -- revs 222. */
 void
 packet_obj_add_v2_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->ownership_type);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->op_flags);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->op_flags);
 }
 
 /* v3 -- revs 223. */
 void
 packet_obj_add_v3_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT1(x, m->time_until_despawn);
-    RSPROT_U1_ALT3(x, m->never_becomes_public);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U4_ALT3(x, m->quantity);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U1_SUB128(x, m->never_becomes_public);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U4_2143(x, m->quantity);
     RSPROT_U1(x, m->coord_in_zone_packed);
 }
 
@@ -56,111 +56,111 @@ packet_obj_add_v3_out(RsprotExec *x, MsgObjAdd *m)
 void
 packet_obj_add_v4_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT2(x, m->never_becomes_public);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U2_ALT1(x, m->time_until_public);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->ownership_type);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->never_becomes_public);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U2_21(x, m->time_until_public);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->ownership_type);
 }
 
 /* v5 -- revs 225. */
 void
 packet_obj_add_v5_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT1(x, m->time_until_despawn);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT1(x, m->time_until_public);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->time_until_public);
     RSPROT_BOOL(x, m->never_becomes_public);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT3(x, m->ownership_type);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->ownership_type);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v6 -- revs 226. */
 void
 packet_obj_add_v6_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->op_flags);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U2_ALT1(x, m->time_until_despawn);
-    RSPROT_U2_ALT1(x, m->time_until_public);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U2_21(x, m->time_until_public);
 }
 
 /* v7 -- revs 227. */
 void
 packet_obj_add_v7_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT1(x, m->ownership_type);
+    RSPROT_U1_ADD128(x, m->ownership_type);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->never_becomes_public);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->never_becomes_public);
 }
 
 /* v8 -- revs 228. */
 void
 packet_obj_add_v8_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U2_ALT3(x, m->time_until_public);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U1_ALT1(x, m->never_becomes_public);
-    RSPROT_U2(x, m->time_until_despawn);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_21_ADD128(x, m->time_until_public);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U1_ADD128(x, m->never_becomes_public);
+    RSPROT_U2_12(x, m->time_until_despawn);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v9 -- revs 229. */
 void
 packet_obj_add_v9_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U4(x, m->quantity);
+    RSPROT_U4_1234(x, m->quantity);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->time_until_despawn);
-    RSPROT_U1_ALT3(x, m->op_flags);
+    RSPROT_U2_21_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_SUB128(x, m->op_flags);
     RSPROT_U1(x, m->ownership_type);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT3(x, m->time_until_public);
-    RSPROT_U1_ALT1(x, m->never_becomes_public);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->time_until_public);
+    RSPROT_U1_ADD128(x, m->never_becomes_public);
 }
 
 /* v10 -- revs 230. */
 void
 packet_obj_add_v10_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->ownership_type);
-    RSPROT_U2_ALT3(x, m->time_until_public);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->time_until_public);
+    RSPROT_U4_4321(x, m->quantity);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->time_until_despawn);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->time_until_despawn);
 }
 
 /* v11 -- revs 231. */
 void
 packet_obj_add_v11_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->ownership_type);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U1_ALT3(x, m->never_becomes_public);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->ownership_type);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U1_SUB128(x, m->never_becomes_public);
     RSPROT_U1(x, m->op_flags);
 }
 
@@ -168,14 +168,14 @@ packet_obj_add_v11_out(RsprotExec *x, MsgObjAdd *m)
 void
 packet_obj_add_v12_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT1(x, m->time_until_public);
-    RSPROT_U2(x, m->time_until_despawn);
-    RSPROT_U1_ALT2(x, m->never_becomes_public);
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->ownership_type);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT3(x, m->quantity);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21(x, m->time_until_public);
+    RSPROT_U2_12(x, m->time_until_despawn);
+    RSPROT_U1_NEG(x, m->never_becomes_public);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->ownership_type);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U4_2143(x, m->quantity);
 }
 
 /* v13 -- revs 233. */
@@ -183,125 +183,125 @@ void
 packet_obj_add_v13_out(RsprotExec *x, MsgObjAdd *m)
 {
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U1_ALT2(x, m->ownership_type);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->time_until_despawn);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->time_until_public);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U1_NEG(x, m->ownership_type);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->time_until_public);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v14 -- revs 234. */
 void
 packet_obj_add_v14_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2(x, m->time_until_despawn);
-    RSPROT_U1_ALT2(x, m->ownership_type);
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT1(x, m->never_becomes_public);
-    RSPROT_U2_ALT2(x, m->time_until_public);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->time_until_despawn);
+    RSPROT_U1_NEG(x, m->ownership_type);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->never_becomes_public);
+    RSPROT_U2_12_ADD128(x, m->time_until_public);
 }
 
 /* v15 -- revs 235. */
 void
 packet_obj_add_v15_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT2(x, m->time_until_public);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT3(x, m->never_becomes_public);
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2(x, m->time_until_despawn);
+    RSPROT_U2_12_ADD128(x, m->time_until_public);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->never_becomes_public);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_12(x, m->time_until_despawn);
 }
 
 /* v16 -- revs 236. */
 void
 packet_obj_add_v16_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT1(x, m->time_until_public);
-    RSPROT_U1_ALT2(x, m->never_becomes_public);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT1(x, m->time_until_despawn);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21(x, m->time_until_public);
+    RSPROT_U1_NEG(x, m->never_becomes_public);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_21(x, m->time_until_despawn);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v17 -- revs 237. */
 void
 packet_obj_add_v17_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U2_ALT3(x, m->time_until_despawn);
-    RSPROT_U1_ALT1(x, m->ownership_type);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->time_until_public);
+    RSPROT_U2_21_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_ADD128(x, m->ownership_type);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->time_until_public);
 }
 
 /* v18 -- revs 238. */
 void
 packet_obj_add_v18_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->ownership_type);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->ownership_type);
 }
 
 /* v19 -- revs 239. */
 void
 packet_obj_add_v19_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2(x, m->time_until_public);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->time_until_public);
     RSPROT_U1(x, m->ownership_type);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2_ALT3(x, m->time_until_despawn);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_21_ADD128(x, m->time_until_despawn);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v20 -- revs 240. */
 void
 packet_obj_add_v20_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U2(x, m->time_until_despawn);
-    RSPROT_U2(x, m->time_until_public);
-    RSPROT_U4_ALT3(x, m->quantity);
+    RSPROT_U2_12(x, m->time_until_despawn);
+    RSPROT_U2_12(x, m->time_until_public);
+    RSPROT_U4_2143(x, m->quantity);
     RSPROT_BOOL(x, m->never_becomes_public);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->ownership_type);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->ownership_type);
 }
 
 /* v21 -- revs 241. */
 void
 packet_obj_add_v21_out(RsprotExec *x, MsgObjAdd *m)
 {
-    RSPROT_U1_ALT2(x, m->ownership_type);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT2(x, m->time_until_despawn);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->time_until_public);
-    RSPROT_U1_ALT3(x, m->never_becomes_public);
+    RSPROT_U1_NEG(x, m->ownership_type);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->time_until_despawn);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->time_until_public);
+    RSPROT_U1_SUB128(x, m->never_becomes_public);
 }
 
 /*

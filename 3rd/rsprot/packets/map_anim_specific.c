@@ -14,30 +14,30 @@
 void
 packet_map_anim_specific_v1_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U2_ALT3(x, m->delay);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->delay);
 }
 
 /* v2 -- revs 222. */
 void
 packet_map_anim_specific_v2_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT1(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT3(x, m->delay);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U3_321(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->delay);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_map_anim_specific_v3_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT1(x, m->delay);
-    RSPROT_U3_ALT1(x, m->coord_in_build_area_packed);
-    RSPROT_U1_ALT3(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->delay);
+    RSPROT_U3_321(x, m->coord_in_build_area_packed);
+    RSPROT_U1_SUB128(x, m->height);
 }
 
 /* v4 -- revs 224. */
@@ -45,88 +45,88 @@ void
 packet_map_anim_specific_v4_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
     RSPROT_U1(x, m->height);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT1(x, m->delay);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->delay);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
 /* v5 -- revs 225. */
 void
 packet_map_anim_specific_v5_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT2(x, m->height);
-    RSPROT_U2_ALT1(x, m->delay);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->height);
+    RSPROT_U2_21(x, m->delay);
 }
 
 /* v6 -- revs 226. */
 void
 packet_map_anim_specific_v6_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U2(x, m->delay);
-    RSPROT_U3_ALT1(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U2_12(x, m->delay);
+    RSPROT_U3_321(x, m->coord_in_build_area_packed);
 }
 
 /* v7 -- revs 227. */
 void
 packet_map_anim_specific_v7_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U1_ALT1(x, m->height);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->delay);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+    RSPROT_U1_ADD128(x, m->height);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->delay);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
 /* v8 -- revs 228. */
 void
 packet_map_anim_specific_v8_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
-    RSPROT_U2(x, m->delay);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U2(x, m->id);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12(x, m->delay);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_map_anim_specific_v9_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT1(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT3(x, m->delay);
+    RSPROT_U3_321(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->delay);
     RSPROT_U1(x, m->height);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_map_anim_specific_v10_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U2(x, m->delay);
-    RSPROT_U3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U2_12(x, m->delay);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_map_anim_specific_v11_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT1(x, m->height);
-    RSPROT_U2_ALT2(x, m->delay);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_ADD128(x, m->height);
+    RSPROT_U2_12_ADD128(x, m->delay);
 }
 
 /* v12 -- revs 232. */
 void
 packet_map_anim_specific_v12_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->delay);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->delay);
     RSPROT_U1(x, m->height);
 }
 
@@ -134,9 +134,9 @@ packet_map_anim_specific_v12_out(RsprotExec *x, MsgMapAnimSpecific *m)
 void
 packet_map_anim_specific_v13_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3(x, m->coord_in_build_area_packed);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT3(x, m->delay);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->delay);
     RSPROT_U1(x, m->height);
 }
 
@@ -144,80 +144,80 @@ packet_map_anim_specific_v13_out(RsprotExec *x, MsgMapAnimSpecific *m)
 void
 packet_map_anim_specific_v14_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->delay);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->height);
-    RSPROT_U3(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->delay);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->height);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
 }
 
 /* v15 -- revs 235. */
 void
 packet_map_anim_specific_v15_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U3_ALT3(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT3(x, m->delay);
-    RSPROT_U1_ALT3(x, m->height);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->delay);
+    RSPROT_U1_SUB128(x, m->height);
 }
 
 /* v16 -- revs 236. */
 void
 packet_map_anim_specific_v16_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->delay);
+    RSPROT_U2_12_ADD128(x, m->delay);
     RSPROT_U1(x, m->height);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
 /* v17 -- revs 237. */
 void
 packet_map_anim_specific_v17_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT1(x, m->delay);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_21(x, m->delay);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->height);
-    RSPROT_U3(x, m->coord_in_build_area_packed);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
 }
 
 /* v18 -- revs 238. */
 void
 packet_map_anim_specific_v18_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT3(x, m->delay);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->delay);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
 /* v19 -- revs 239. */
 void
 packet_map_anim_specific_v19_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U1_ALT2(x, m->height);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
-    RSPROT_U2_ALT2(x, m->delay);
+    RSPROT_U1_NEG(x, m->height);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
+    RSPROT_U2_12_ADD128(x, m->delay);
 }
 
 /* v20 -- revs 240. */
 void
 packet_map_anim_specific_v20_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT3(x, m->delay);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->delay);
     RSPROT_U1(x, m->height);
-    RSPROT_U3(x, m->coord_in_build_area_packed);
+    RSPROT_U3_123(x, m->coord_in_build_area_packed);
 }
 
 /* v21 -- revs 241. */
 void
 packet_map_anim_specific_v21_out(RsprotExec *x, MsgMapAnimSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2(x, m->delay);
-    RSPROT_U1_ALT3(x, m->height);
-    RSPROT_U3_ALT2(x, m->coord_in_build_area_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12(x, m->delay);
+    RSPROT_U1_SUB128(x, m->height);
+    RSPROT_U3_132(x, m->coord_in_build_area_packed);
 }
 
 /*

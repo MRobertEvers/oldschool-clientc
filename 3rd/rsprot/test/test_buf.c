@@ -34,21 +34,21 @@ static void test_bytes(void)
 
 	rsprot_buf_wrap(&b, mem, sizeof(mem));
 	rsprot_p1(&b, 0xAB);
-	rsprot_p1_alt1(&b, 10);
-	rsprot_p1_alt2(&b, 10);
-	rsprot_p1_alt3(&b, 10);
+	rsprot_p1_add128(&b, 10);
+	rsprot_p1_neg(&b, 10);
+	rsprot_p1_sub128(&b, 10);
 	rsprot_buf_wrap_read(&b, mem, b.wpos);
 	CHECK_EQ_I(rsprot_g1(&b), 0xAB, "g1");
-	CHECK_EQ_I(rsprot_g1_alt1(&b), 10, "g1alt1 roundtrip");
-	CHECK_EQ_I(rsprot_g1_alt2(&b), 10, "g1alt2 roundtrip");
-	CHECK_EQ_I(rsprot_g1_alt3(&b), 10, "g1alt3 roundtrip");
+	CHECK_EQ_I(rsprot_g1_add128(&b), 10, "g1alt1 roundtrip");
+	CHECK_EQ_I(rsprot_g1_neg(&b), 10, "g1alt2 roundtrip");
+	CHECK_EQ_I(rsprot_g1_sub128(&b), 10, "g1alt3 roundtrip");
 
-	/* Known byte for p1Alt1(10): 10 + 128 = 138 = 0x8A. */
-	CHECK_EQ_I(mem[1], 0x8A, "p1Alt1 byte value");
-	/* p1Alt2(10): -10 as unsigned byte = 246 = 0xF6. */
-	CHECK_EQ_I(mem[2], 0xF6, "p1Alt2 byte value");
-	/* p1Alt3(10): 128 - 10 = 118 = 0x76. */
-	CHECK_EQ_I(mem[3], 0x76, "p1Alt3 byte value");
+	/* Known byte for p1_add128(10): 10 + 128 = 138 = 0x8A. */
+	CHECK_EQ_I(mem[1], 0x8A, "p1_add128 byte value");
+	/* p1_neg(10): -10 as unsigned byte = 246 = 0xF6. */
+	CHECK_EQ_I(mem[2], 0xF6, "p1_neg byte value");
+	/* p1_sub128(10): 128 - 10 = 118 = 0x76. */
+	CHECK_EQ_I(mem[3], 0x76, "p1_sub128 byte value");
 }
 
 static void test_shorts(void)
@@ -61,26 +61,26 @@ static void test_shorts(void)
 	for (i = 0; i < 8; i++) {
 		int32_t v = vals[i];
 		rsprot_buf_wrap(&b, mem, sizeof(mem));
-		rsprot_p2(&b, v);
-		rsprot_p2_alt1(&b, v);
-		rsprot_p2_alt2(&b, v);
-		rsprot_p2_alt3(&b, v);
+		rsprot_p2_12(&b, v);
+		rsprot_p2_21(&b, v);
+		rsprot_p2_12_add128(&b, v);
+		rsprot_p2_21_add128(&b, v);
 		rsprot_buf_wrap_read(&b, mem, b.wpos);
-		CHECK_EQ_I(rsprot_g2(&b) & 0xFFFF, v & 0xFFFF, "g2 roundtrip");
-		CHECK_EQ_I(rsprot_g2_alt1(&b) & 0xFFFF, v & 0xFFFF, "g2alt1 roundtrip");
-		CHECK_EQ_I(rsprot_g2_alt2(&b) & 0xFFFF, v & 0xFFFF, "g2alt2 roundtrip");
-		CHECK_EQ_I(rsprot_g2_alt3(&b) & 0xFFFF, v & 0xFFFF, "g2alt3 roundtrip");
+		CHECK_EQ_I(rsprot_g2_12(&b) & 0xFFFF, v & 0xFFFF, "g2 roundtrip");
+		CHECK_EQ_I(rsprot_g2_21(&b) & 0xFFFF, v & 0xFFFF, "g2alt1 roundtrip");
+		CHECK_EQ_I(rsprot_g2_12_add128(&b) & 0xFFFF, v & 0xFFFF, "g2alt2 roundtrip");
+		CHECK_EQ_I(rsprot_g2_21_add128(&b) & 0xFFFF, v & 0xFFFF, "g2alt3 roundtrip");
 	}
 
-	/* IF_OPENSUB writes p2Alt3(interfaceId) per RSProt's encoder. Fixed
+	/* IF_OPENSUB writes p2_21_add128(interfaceId) per RSProt's encoder. Fixed
 	 * known value: interfaceId=596 -> bytes (0xD4+? ) check via roundtrip
 	 * above is sufficient; here just check the known encoding shape for a
-	 * small value transcribed from JagexByteBufExtensions.kt's p2Alt3. */
+	 * small value transcribed from JagexByteBufExtensions.kt's p2_21_add128. */
 	rsprot_buf_wrap(&b, mem, sizeof(mem));
-	rsprot_p2_alt3(&b, 5);
-	/* p2Alt3: writeByte(value + 128), writeByte(value >> 8) -> (133, 0) */
-	CHECK_EQ_I(mem[0], 133, "p2Alt3(5) byte0");
-	CHECK_EQ_I(mem[1], 0, "p2Alt3(5) byte1");
+	rsprot_p2_21_add128(&b, 5);
+	/* p2_21_add128: writeByte(value + 128), writeByte(value >> 8) -> (133, 0) */
+	CHECK_EQ_I(mem[0], 133, "p2_21_add128(5) byte0");
+	CHECK_EQ_I(mem[1], 0, "p2_21_add128(5) byte1");
 }
 
 static void test_mediums_and_ints(void)
@@ -93,15 +93,15 @@ static void test_mediums_and_ints(void)
 	for (i = 0; i < 6; i++) {
 		int32_t v = vals[i] & 0xFFFFFF;
 		rsprot_buf_wrap(&b, mem, sizeof(mem));
-		rsprot_p3(&b, v);
-		rsprot_p3_alt1(&b, v);
-		rsprot_p3_alt2(&b, v);
-		rsprot_p3_alt3(&b, v);
+		rsprot_p3_123(&b, v);
+		rsprot_p3_321(&b, v);
+		rsprot_p3_132(&b, v);
+		rsprot_p3_213(&b, v);
 		rsprot_buf_wrap_read(&b, mem, b.wpos);
-		CHECK_EQ_I(rsprot_g3(&b) & 0xFFFFFF, v, "g3 roundtrip");
-		CHECK_EQ_I(rsprot_g3_alt1(&b) & 0xFFFFFF, v, "g3alt1 roundtrip");
-		CHECK_EQ_I(rsprot_g3_alt2(&b) & 0xFFFFFF, v, "g3alt2 roundtrip");
-		CHECK_EQ_I(rsprot_g3_alt3(&b) & 0xFFFFFF, v, "g3alt3 roundtrip");
+		CHECK_EQ_I(rsprot_g3_123(&b) & 0xFFFFFF, v, "g3 roundtrip");
+		CHECK_EQ_I(rsprot_g3_321(&b) & 0xFFFFFF, v, "g3alt1 roundtrip");
+		CHECK_EQ_I(rsprot_g3_132(&b) & 0xFFFFFF, v, "g3alt2 roundtrip");
+		CHECK_EQ_I(rsprot_g3_213(&b) & 0xFFFFFF, v, "g3alt3 roundtrip");
 	}
 
 	{
@@ -109,15 +109,15 @@ static void test_mediums_and_ints(void)
 		for (i = 0; i < 5; i++) {
 			int32_t v = vals4[i];
 			rsprot_buf_wrap(&b, mem, sizeof(mem));
-			rsprot_p4(&b, v);
-			rsprot_p4_alt1(&b, v);
-			rsprot_p4_alt2(&b, v);
-			rsprot_p4_alt3(&b, v);
+			rsprot_p4_1234(&b, v);
+			rsprot_p4_4321(&b, v);
+			rsprot_p4_3412(&b, v);
+			rsprot_p4_2143(&b, v);
 			rsprot_buf_wrap_read(&b, mem, b.wpos);
-			CHECK_EQ_I(rsprot_g4(&b), v, "g4 roundtrip");
-			CHECK_EQ_I(rsprot_g4_alt1(&b), v, "g4alt1 roundtrip");
-			CHECK_EQ_I(rsprot_g4_alt2(&b), v, "g4alt2 roundtrip");
-			CHECK_EQ_I(rsprot_g4_alt3(&b), v, "g4alt3 roundtrip");
+			CHECK_EQ_I(rsprot_g4_1234(&b), v, "g4 roundtrip");
+			CHECK_EQ_I(rsprot_g4_4321(&b), v, "g4alt1 roundtrip");
+			CHECK_EQ_I(rsprot_g4_3412(&b), v, "g4alt2 roundtrip");
+			CHECK_EQ_I(rsprot_g4_2143(&b), v, "g4alt3 roundtrip");
 		}
 	}
 }
@@ -277,9 +277,9 @@ static void test_combined_id(void)
 	CHECK_EQ_I(rsprot_combined_component(c), -1, "combined -1 component");
 
 	rsprot_buf_wrap(&b, mem, sizeof(mem));
-	rsprot_pcombined_id_alt3(&b, rsprot_combined_id(100, 200));
+	rsprot_pcombined_id_2143(&b, rsprot_combined_id(100, 200));
 	rsprot_buf_wrap_read(&b, mem, b.wpos);
-	c = rsprot_gcombined_id_alt3(&b);
+	c = rsprot_gcombined_id_2143(&b);
 	CHECK_EQ_I(rsprot_combined_interface(c), 100, "combined alt3 roundtrip interface");
 	CHECK_EQ_I(rsprot_combined_component(c), 200, "combined alt3 roundtrip component");
 }
@@ -313,12 +313,12 @@ static void test_growable_alloc(void)
 
 	rsprot_buf_alloc(&b, 4);
 	for (i = 0; i < 1000; i++)
-		rsprot_p4(&b, i);
+		rsprot_p4_1234(&b, i);
 	CHECK(rsprot_buf_ok(&b), "grown buffer stays ok");
 	CHECK_EQ_I(b.wpos, 4000, "grown buffer wrote everything");
 	b.rpos = 0;
 	for (i = 0; i < 1000; i++)
-		CHECK_EQ_I(rsprot_g4(&b), i, "grown buffer round trip");
+		CHECK_EQ_I(rsprot_g4_1234(&b), i, "grown buffer round trip");
 	rsprot_buf_free(&b);
 }
 

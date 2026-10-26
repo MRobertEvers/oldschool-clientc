@@ -14,10 +14,10 @@
 void
 packet_oploc3_v1_v1_in(RsprotExec *x, MsgOpLoc3V1 *m)
 {
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /*

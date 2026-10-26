@@ -122,7 +122,7 @@ against the code mechanically rather than believed.
 
 ## 3. The libraries, built
 
-`3rd/rsprot/src/rsprot_buffer.h` — `RSProt_Buffer`, the net-stack counterpart
+`3rd/rsprot/src/rsprot_buf.h` — `RSProt_Buffer`, the net-stack counterpart
 to `RSCache_Buffer`. ~110 accessors under the scheme above. It is a typedef
 over `RsprotBuf`, not a second copy: one cursor, one error latch, one bit-mode
 implementation, two vocabularies over it. The `Alt`-spelled names in

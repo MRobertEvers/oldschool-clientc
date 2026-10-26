@@ -16,15 +16,15 @@ packet_update_zone_full_follows_v1_out(RsprotExec *x, MsgUpdateZoneFullFollows *
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->zone_x);
 }
 
 /* v2 -- revs 222. */
 void
 packet_update_zone_full_follows_v2_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
     RSPROT_U1(x, m->zone_z);
 }
 
@@ -32,63 +32,63 @@ packet_update_zone_full_follows_v2_out(RsprotExec *x, MsgUpdateZoneFullFollows *
 void
 packet_update_zone_full_follows_v3_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_z);
 }
 
 /* v4 -- revs 224. */
 void
 packet_update_zone_full_follows_v4_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
 }
 
 /* v5 -- revs 225. */
 void
 packet_update_zone_full_follows_v5_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
 }
 
 /* v6 -- revs 226. */
 void
 packet_update_zone_full_follows_v6_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT2(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_x);
 }
 
 /* v7 -- revs 227. */
 void
 packet_update_zone_full_follows_v7_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_ADD128(x, m->level);
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_x);
 }
 
 /* v8 -- revs 228. */
 void
 packet_update_zone_full_follows_v8_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_x);
 }
 
 /* v9 -- revs 229. */
 void
 packet_update_zone_full_follows_v9_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_x);
 }
 
 /* v10 -- revs 230. */
@@ -96,8 +96,8 @@ void
 packet_update_zone_full_follows_v10_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_z);
 }
 
 /* v11 -- revs 231. */
@@ -105,7 +105,7 @@ void
 packet_update_zone_full_follows_v11_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_x);
     RSPROT_U1(x, m->level);
 }
 
@@ -113,8 +113,8 @@ packet_update_zone_full_follows_v11_out(RsprotExec *x, MsgUpdateZoneFullFollows 
 void
 packet_update_zone_full_follows_v12_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
 }
 
@@ -123,16 +123,16 @@ void
 packet_update_zone_full_follows_v13_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->level);
 }
 
 /* v14 -- revs 234. */
 void
 packet_update_zone_full_follows_v14_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->zone_x);
     RSPROT_U1(x, m->level);
 }
 
@@ -140,8 +140,8 @@ packet_update_zone_full_follows_v14_out(RsprotExec *x, MsgUpdateZoneFullFollows 
 void
 packet_update_zone_full_follows_v15_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_x);
     RSPROT_U1(x, m->zone_z);
 }
 
@@ -149,35 +149,35 @@ packet_update_zone_full_follows_v15_out(RsprotExec *x, MsgUpdateZoneFullFollows 
 void
 packet_update_zone_full_follows_v16_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_NEG(x, m->level);
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_x);
 }
 
 /* v17 -- revs 237. */
 void
 packet_update_zone_full_follows_v17_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_SUB128(x, m->level);
 }
 
 /* v18 -- revs 238. */
 void
 packet_update_zone_full_follows_v18_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->zone_x);
 }
 
 /* v19 -- revs 239. */
 void
 packet_update_zone_full_follows_v19_out(RsprotExec *x, MsgUpdateZoneFullFollows *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_x);
     RSPROT_U1(x, m->level);
 }
 
@@ -187,7 +187,7 @@ packet_update_zone_full_follows_v20_out(RsprotExec *x, MsgUpdateZoneFullFollows 
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_SUB128(x, m->level);
 }
 
 /* v21 -- revs 241. */

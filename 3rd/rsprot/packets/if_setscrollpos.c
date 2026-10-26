@@ -14,120 +14,120 @@
 void
 packet_if_setscrollpos_v1_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_U2_ALT2(x, m->scroll_pos);
-    RSPROT_U4_ALT3(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->scroll_pos);
+    RSPROT_U4_2143(x, m->combined_id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setscrollpos_v2_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_U2_ALT1(x, m->scroll_pos);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21(x, m->scroll_pos);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v3 -- revs 223, 234. */
 void
 packet_if_setscrollpos_v3_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_U2(x, m->scroll_pos);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v4 -- revs 224, 233. */
 void
 packet_if_setscrollpos_v4_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->scroll_pos);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->scroll_pos);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setscrollpos_v5_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->scroll_pos);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->scroll_pos);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_setscrollpos_v6_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->scroll_pos);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->scroll_pos);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setscrollpos_v7_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_U2(x, m->scroll_pos);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_setscrollpos_v8_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->scroll_pos);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->scroll_pos);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_setscrollpos_v9_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2(x, m->scroll_pos);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
 }
 
 /* v10 -- revs 230, 239-240. */
 void
 packet_if_setscrollpos_v10_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->scroll_pos);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_setscrollpos_v11_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->scroll_pos);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_setscrollpos_v12_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->scroll_pos);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->scroll_pos);
 }
 
 /* v13 -- revs 235. */
 void
 packet_if_setscrollpos_v13_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->scroll_pos);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->scroll_pos);
 }
 
 /* v14 -- revs 236-237, 241. */
 void
 packet_if_setscrollpos_v14_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->scroll_pos);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21(x, m->scroll_pos);
 }
 
 /* v15 -- revs 238. */
 void
 packet_if_setscrollpos_v15_out(RsprotExec *x, MsgIfSetScrollPos *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->scroll_pos);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->scroll_pos);
 }
 
 /*

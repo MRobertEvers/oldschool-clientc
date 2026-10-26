@@ -14,7 +14,7 @@
 void
 packet_resume_p_countdialog_v1_in(RsprotExec *x, MsgResumePCountDialog *m)
 {
-    RSPROT_U4(x, m->count);
+    RSPROT_U4_1234(x, m->count);
 }
 
 /*

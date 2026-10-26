@@ -15,7 +15,7 @@ void
 packet_affinedclansettings_setmuted_fromchannel_v1_in(RsprotExec *x, MsgAffinedClanSettingsSetMutedFromChannel *m)
 {
     RSPROT_U1(x, m->clan_id);
-    RSPROT_U2(x, m->member_index);
+    RSPROT_U2_12(x, m->member_index);
     RSPROT_U1(x, m->muted);
     RSPROT_JSTR(x, m->name);
 }

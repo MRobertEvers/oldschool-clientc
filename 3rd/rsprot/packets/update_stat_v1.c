@@ -15,8 +15,8 @@ void
 packet_update_stat_v1_v1_out(RsprotExec *x, MsgUpdateStatV1 *m)
 {
     RSPROT_U1(x, m->current_level);
-    RSPROT_U4_ALT3(x, m->experience);
-    RSPROT_U1_ALT3(x, m->stat);
+    RSPROT_U4_2143(x, m->experience);
+    RSPROT_U1_SUB128(x, m->stat);
 }
 
 /*

@@ -14,9 +14,9 @@
 void
 packet_cam_rotateby_v1_out(RsprotExec *x, MsgCamRotateBy *m)
 {
-    RSPROT_U2(x, m->yaw);
-    RSPROT_U2(x, m->pitch);
-    RSPROT_U2(x, m->cycles);
+    RSPROT_U2_12(x, m->yaw);
+    RSPROT_U2_12(x, m->pitch);
+    RSPROT_U2_12(x, m->cycles);
     RSPROT_U1(x, m->easing_id);
 }
 

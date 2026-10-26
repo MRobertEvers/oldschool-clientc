@@ -14,120 +14,120 @@
 void
 packet_varp_large_v1_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4_ALT1(x, m->value);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->value);
 }
 
 /* v2 -- revs 222, 225. */
 void
 packet_varp_large_v2_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4_ALT2(x, m->value);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_3412(x, m->value);
 }
 
 /* v3 -- revs 223. */
 void
 packet_varp_large_v3_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4_ALT2(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_3412(x, m->value);
 }
 
 /* v4 -- revs 224, 234, 240. */
 void
 packet_varp_large_v4_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4_ALT1(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->value);
 }
 
 /* v5 -- revs 226, 228. */
 void
 packet_varp_large_v5_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U4(x, m->value);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_1234(x, m->value);
 }
 
 /* v6 -- revs 227. */
 void
 packet_varp_large_v6_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4(x, m->value);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_1234(x, m->value);
 }
 
 /* v7 -- revs 229. */
 void
 packet_varp_large_v7_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U4(x, m->value);
-    RSPROT_U2(x, m->id);
+    RSPROT_U4_1234(x, m->value);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v8 -- revs 230. */
 void
 packet_varp_large_v8_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U4_ALT3(x, m->value);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_2143(x, m->value);
 }
 
 /* v9 -- revs 231. */
 void
 packet_varp_large_v9_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT2(x, m->value);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_3412(x, m->value);
 }
 
 /* v10 -- revs 232. */
 void
 packet_varp_large_v10_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U4_ALT3(x, m->value);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U4_2143(x, m->value);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v11 -- revs 233. */
 void
 packet_varp_large_v11_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_1234(x, m->value);
 }
 
 /* v12 -- revs 235, 237. */
 void
 packet_varp_large_v12_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT3(x, m->value);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_2143(x, m->value);
 }
 
 /* v13 -- revs 236. */
 void
 packet_varp_large_v13_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U4_ALT1(x, m->value);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_4321(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v14 -- revs 238. */
 void
 packet_varp_large_v14_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U4_ALT3(x, m->value);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_2143(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v15 -- revs 241. */
 void
 packet_varp_large_v15_out(RsprotExec *x, MsgVarpLarge *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4_ALT3(x, m->value);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_2143(x, m->value);
 }
 
 /*

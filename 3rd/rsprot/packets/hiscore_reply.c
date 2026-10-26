@@ -16,17 +16,17 @@ packet_hiscore_reply_v1_out(RsprotExec *x, MsgHiscoreReply *m)
         RSPROT_U1(x, m->version);
         RSPROT_COUNT(x, m->stat_count, MSG_HISCORE_REPLY_MAX_STATS);
         for (int32_t i = 0; i < m->stat_count; i++) {
-            RSPROT_U2(x, m->stats[i].id);
-            RSPROT_U4(x, m->stats[i].rank);
-            RSPROT_U4(x, m->stats[i].result);
+            RSPROT_U2_12(x, m->stats[i].id);
+            RSPROT_U4_1234(x, m->stats[i].rank);
+            RSPROT_U4_1234(x, m->stats[i].result);
         }
-        RSPROT_U4(x, m->overall_rank);
-        RSPROT_U8(x, m->overall_experience);
+        RSPROT_U4_1234(x, m->overall_rank);
+        RSPROT_U8_12345678(x, m->overall_experience);
         RSPROT_COUNT2(x, m->activity_count, MSG_HISCORE_REPLY_MAX_ACTIVITIES);
         for (int32_t i = 0; i < m->activity_count; i++) {
-            RSPROT_U2(x, m->activities[i].id);
-            RSPROT_U4(x, m->activities[i].rank);
-            RSPROT_U4(x, m->activities[i].result);
+            RSPROT_U2_12(x, m->activities[i].id);
+            RSPROT_U4_1234(x, m->activities[i].rank);
+            RSPROT_U4_1234(x, m->activities[i].result);
         }
     } else if (RSPROT_BRANCH(x, m->response_type) == 1) {
         RSPROT_JSTR(x, m->reason);

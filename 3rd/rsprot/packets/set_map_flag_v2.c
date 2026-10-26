@@ -14,7 +14,7 @@
 void
 packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m)
 {
-    RSPROT_U4(x, m->coord_grid_packed);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
 }
 
 /*

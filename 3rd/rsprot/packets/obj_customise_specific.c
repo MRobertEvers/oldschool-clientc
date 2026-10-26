@@ -14,140 +14,140 @@
 void
 packet_obj_customise_specific_v1_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->recol);
-    RSPROT_U2(x, m->retex_index);
-    RSPROT_U4(x, m->coord_grid_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->retex);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT2(x, m->model);
-    RSPROT_U2_ALT1(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->recol);
+    RSPROT_U2_12(x, m->retex_index);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->retex);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->model);
+    RSPROT_U2_21(x, m->recol_index);
 }
 
 /* v2 -- revs 233. */
 void
 packet_obj_customise_specific_v2_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2(x, m->recol_index);
-    RSPROT_U2_ALT2(x, m->retex_index);
-    RSPROT_U2_ALT3(x, m->model);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT1(x, m->recol);
-    RSPROT_U2_ALT3(x, m->retex);
+    RSPROT_U2_12(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->retex_index);
+    RSPROT_U2_21_ADD128(x, m->model);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21(x, m->recol);
+    RSPROT_U2_21_ADD128(x, m->retex);
 }
 
 /* v3 -- revs 234. */
 void
 packet_obj_customise_specific_v3_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->model);
-    RSPROT_U2_ALT2(x, m->recol);
-    RSPROT_U4_ALT3(x, m->coord_grid_packed);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT1(x, m->retex_index);
-    RSPROT_U2_ALT1(x, m->retex);
-    RSPROT_U2(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->model);
+    RSPROT_U2_12_ADD128(x, m->recol);
+    RSPROT_U4_2143(x, m->coord_grid_packed);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_21(x, m->retex_index);
+    RSPROT_U2_21(x, m->retex);
+    RSPROT_U2_12(x, m->recol_index);
 }
 
 /* v4 -- revs 235. */
 void
 packet_obj_customise_specific_v4_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->model);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U4_ALT2(x, m->coord_grid_packed);
-    RSPROT_U2_ALT1(x, m->recol);
-    RSPROT_U2(x, m->retex);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT3(x, m->retex_index);
-    RSPROT_U2_ALT2(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->model);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U4_3412(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->recol);
+    RSPROT_U2_12(x, m->retex);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->retex_index);
+    RSPROT_U2_12_ADD128(x, m->recol_index);
 }
 
 /* v5 -- revs 236. */
 void
 packet_obj_customise_specific_v5_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->retex_index);
-    RSPROT_U2_ALT3(x, m->retex);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT1(x, m->recol_index);
-    RSPROT_U2(x, m->model);
-    RSPROT_U2(x, m->recol);
-    RSPROT_U4_ALT2(x, m->coord_grid_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->retex_index);
+    RSPROT_U2_21_ADD128(x, m->retex);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->recol_index);
+    RSPROT_U2_12(x, m->model);
+    RSPROT_U2_12(x, m->recol);
+    RSPROT_U4_3412(x, m->coord_grid_packed);
+    RSPROT_U4_4321(x, m->quantity);
 }
 
 /* v6 -- revs 237. */
 void
 packet_obj_customise_specific_v6_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->recol_index);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U2(x, m->retex_index);
-    RSPROT_U2_ALT1(x, m->model);
-    RSPROT_U2_ALT3(x, m->recol);
-    RSPROT_U2(x, m->retex);
-    RSPROT_U4(x, m->coord_grid_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->recol_index);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U2_12(x, m->retex_index);
+    RSPROT_U2_21(x, m->model);
+    RSPROT_U2_21_ADD128(x, m->recol);
+    RSPROT_U2_12(x, m->retex);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v7 -- revs 238. */
 void
 packet_obj_customise_specific_v7_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->recol_index);
-    RSPROT_U2(x, m->recol);
-    RSPROT_U4(x, m->coord_grid_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->retex);
-    RSPROT_U2_ALT2(x, m->model);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT1(x, m->retex_index);
+    RSPROT_U2_21_ADD128(x, m->recol_index);
+    RSPROT_U2_12(x, m->recol);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->retex);
+    RSPROT_U2_12_ADD128(x, m->model);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21(x, m->retex_index);
 }
 
 /* v8 -- revs 239. */
 void
 packet_obj_customise_specific_v8_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->model);
-    RSPROT_U2(x, m->retex);
-    RSPROT_U2_ALT2(x, m->retex_index);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U4(x, m->coord_grid_packed);
-    RSPROT_U2_ALT2(x, m->recol);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2_ALT3(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->model);
+    RSPROT_U2_12(x, m->retex);
+    RSPROT_U2_12_ADD128(x, m->retex_index);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U2_12_ADD128(x, m->recol);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->recol_index);
 }
 
 /* v9 -- revs 240. */
 void
 packet_obj_customise_specific_v9_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->coord_grid_packed);
-    RSPROT_U2_ALT1(x, m->recol_index);
-    RSPROT_U2_ALT3(x, m->model);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U2_ALT1(x, m->retex_index);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->recol);
-    RSPROT_U2_ALT3(x, m->retex);
+    RSPROT_U4_2143(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->recol_index);
+    RSPROT_U2_21_ADD128(x, m->model);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->retex_index);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->recol);
+    RSPROT_U2_21_ADD128(x, m->retex);
 }
 
 /* v10 -- revs 241. */
 void
 packet_obj_customise_specific_v10_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U2_ALT3(x, m->recol);
-    RSPROT_U2_ALT3(x, m->retex);
-    RSPROT_U2_ALT2(x, m->retex_index);
-    RSPROT_U2_ALT3(x, m->recol_index);
-    RSPROT_U2_ALT2(x, m->model);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->recol);
+    RSPROT_U2_21_ADD128(x, m->retex);
+    RSPROT_U2_12_ADD128(x, m->retex_index);
+    RSPROT_U2_21_ADD128(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->model);
 }
 
 /*

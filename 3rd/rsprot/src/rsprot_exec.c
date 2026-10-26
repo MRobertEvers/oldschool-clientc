@@ -62,27 +62,27 @@ typedef struct RsprotPrimDef
 /* clang-format off */
 static const RsprotPrimDef k_prim[RSPROT_PRIM_COUNT] = {
     [RSPROT_PRIM_U1]            = { "u1",            rsprot_p1,               rsprot_g1,               1, 8,  0 },
-    [RSPROT_PRIM_U1_ALT1]       = { "u1_alt1",       rsprot_p1_alt1,          rsprot_g1_alt1,          1, 8,  0 },
-    [RSPROT_PRIM_U1_ALT2]       = { "u1_alt2",       rsprot_p1_alt2,          rsprot_g1_alt2,          1, 8,  0 },
-    [RSPROT_PRIM_U1_ALT3]       = { "u1_alt3",       rsprot_p1_alt3,          rsprot_g1_alt3,          1, 8,  0 },
+    [RSPROT_PRIM_U1_ADD128]       = { "u1_add128",       rsprot_p1_add128,          rsprot_g1_add128,          1, 8,  0 },
+    [RSPROT_PRIM_U1_NEG]       = { "u1_neg",       rsprot_p1_neg,          rsprot_g1_neg,          1, 8,  0 },
+    [RSPROT_PRIM_U1_SUB128]       = { "u1_sub128",       rsprot_p1_sub128,          rsprot_g1_sub128,          1, 8,  0 },
     [RSPROT_PRIM_I1]            = { "i1",            rsprot_p1,               rsprot_g1s,              1, 8,  1 },
-    [RSPROT_PRIM_U2]            = { "u2",            rsprot_p2,               rsprot_g2,               2, 16, 0 },
-    [RSPROT_PRIM_U2_ALT1]       = { "u2_alt1",       rsprot_p2_alt1,          rsprot_g2_alt1,          2, 16, 0 },
-    [RSPROT_PRIM_U2_ALT2]       = { "u2_alt2",       rsprot_p2_alt2,          rsprot_g2_alt2,          2, 16, 0 },
-    [RSPROT_PRIM_U2_ALT3]       = { "u2_alt3",       rsprot_p2_alt3,          rsprot_g2_alt3,          2, 16, 0 },
-    [RSPROT_PRIM_I2]            = { "i2",            rsprot_p2,               rsprot_g2s,              2, 16, 1 },
-    [RSPROT_PRIM_U3]            = { "u3",            rsprot_p3,               rsprot_g3,               3, 24, 0 },
-    [RSPROT_PRIM_U3_ALT1]       = { "u3_alt1",       rsprot_p3_alt1,          rsprot_g3_alt1,          3, 24, 0 },
-    [RSPROT_PRIM_U3_ALT2]       = { "u3_alt2",       rsprot_p3_alt2,          rsprot_g3_alt2,          3, 24, 0 },
-    [RSPROT_PRIM_U3_ALT3]       = { "u3_alt3",       rsprot_p3_alt3,          rsprot_g3_alt3,          3, 24, 0 },
-    [RSPROT_PRIM_U4]            = { "u4",            rsprot_p4,               rsprot_g4,               4, 32, 1 },
-    [RSPROT_PRIM_U4_ALT1]       = { "u4_alt1",       rsprot_p4_alt1,          rsprot_g4_alt1,          4, 32, 1 },
-    [RSPROT_PRIM_U4_ALT2]       = { "u4_alt2",       rsprot_p4_alt2,          rsprot_g4_alt2,          4, 32, 1 },
-    [RSPROT_PRIM_U4_ALT3]       = { "u4_alt3",       rsprot_p4_alt3,          rsprot_g4_alt3,          4, 32, 1 },
-    [RSPROT_PRIM_COM]           = { "com",           rsprot_pcombined_id,     rsprot_gcombined_id,     4, 32, 1 },
-    [RSPROT_PRIM_COM_ALT1]      = { "com_alt1",      rsprot_pcombined_id_alt1,rsprot_gcombined_id_alt1,4, 32, 1 },
-    [RSPROT_PRIM_COM_ALT2]      = { "com_alt2",      rsprot_pcombined_id_alt2,rsprot_gcombined_id_alt2,4, 32, 1 },
-    [RSPROT_PRIM_COM_ALT3]      = { "com_alt3",      rsprot_pcombined_id_alt3,rsprot_gcombined_id_alt3,4, 32, 1 },
+    [RSPROT_PRIM_U2_12]            = { "u2_12",            rsprot_p2_12,               rsprot_g2_12,               2, 16, 0 },
+    [RSPROT_PRIM_U2_21]       = { "u2_21",       rsprot_p2_21,          rsprot_g2_21,          2, 16, 0 },
+    [RSPROT_PRIM_U2_12_ADD128]       = { "u2_12_add128",       rsprot_p2_12_add128,          rsprot_g2_12_add128,          2, 16, 0 },
+    [RSPROT_PRIM_U2_21_ADD128]       = { "u2_21_add128",       rsprot_p2_21_add128,          rsprot_g2_21_add128,          2, 16, 0 },
+    [RSPROT_PRIM_I2_12]            = { "i2_12",            rsprot_p2_12,               rsprot_g2s_12,              2, 16, 1 },
+    [RSPROT_PRIM_U3_123]            = { "u3_123",            rsprot_p3_123,               rsprot_g3_123,               3, 24, 0 },
+    [RSPROT_PRIM_U3_321]       = { "u3_321",       rsprot_p3_321,          rsprot_g3_321,          3, 24, 0 },
+    [RSPROT_PRIM_U3_132]       = { "u3_132",       rsprot_p3_132,          rsprot_g3_132,          3, 24, 0 },
+    [RSPROT_PRIM_U3_213]       = { "u3_213",       rsprot_p3_213,          rsprot_g3_213,          3, 24, 0 },
+    [RSPROT_PRIM_U4_1234]            = { "u4_1234",            rsprot_p4_1234,               rsprot_g4_1234,               4, 32, 1 },
+    [RSPROT_PRIM_U4_4321]       = { "u4_4321",       rsprot_p4_4321,          rsprot_g4_4321,          4, 32, 1 },
+    [RSPROT_PRIM_U4_3412]       = { "u4_3412",       rsprot_p4_3412,          rsprot_g4_3412,          4, 32, 1 },
+    [RSPROT_PRIM_U4_2143]       = { "u4_2143",       rsprot_p4_2143,          rsprot_g4_2143,          4, 32, 1 },
+    [RSPROT_PRIM_COM_1234]           = { "com_1234",           rsprot_pcombined_id_1234,     rsprot_gcombined_id_1234,     4, 32, 1 },
+    [RSPROT_PRIM_COM_4321]      = { "com_4321",      rsprot_pcombined_id_4321,rsprot_gcombined_id_4321,4, 32, 1 },
+    [RSPROT_PRIM_COM_3412]      = { "com_3412",      rsprot_pcombined_id_3412,rsprot_gcombined_id_3412,4, 32, 1 },
+    [RSPROT_PRIM_COM_2143]      = { "com_2143",      rsprot_pcombined_id_2143,rsprot_gcombined_id_2143,4, 32, 1 },
     [RSPROT_PRIM_SMART]         = { "smart",         rsprot_psmart1or2,       rsprot_gsmart1or2,       0, 15, 0 },
     [RSPROT_PRIM_SMARTNULL]     = { "smartnull",     rsprot_psmart1or2null,   rsprot_gsmart1or2null,   0, 14, 0 },
     [RSPROT_PRIM_SMART2OR4NULL] = { "smart2or4null", rsprot_psmart2or4null,   rsprot_gsmart2or4null,   0, 14, 0 },
@@ -533,17 +533,17 @@ rsprot_x8(RsprotExec *x, int64_t *value, const char *name)
 {
     switch (x->dir) {
     case RSPROT_ENCODE:
-        rsprot_p8(x->buf, *value);
+        rsprot_p8_12345678(x->buf, *value);
         break;
     case RSPROT_DECODE:
-        *value = rsprot_g8(x->buf);
+        *value = rsprot_g8_12345678(x->buf);
         trace_long(x, *value, name);
         break;
     case RSPROT_DESCRIBE:
         /* Two u4 rows rather than one u8 row: the schema is a byte layout, and
          * "8 bytes big-endian" is exactly what two u4s say. */
-        record(x, name, RSPROT_FIELD_PRIM, RSPROT_PRIM_U4, 0);
-        record(x, name, RSPROT_FIELD_PRIM, RSPROT_PRIM_U4, 0);
+        record(x, name, RSPROT_FIELD_PRIM, RSPROT_PRIM_U4_1234, 0);
+        record(x, name, RSPROT_FIELD_PRIM, RSPROT_PRIM_U4_1234, 0);
         x->transferred++;
         break;
     case RSPROT_FILL:
@@ -657,11 +657,11 @@ rsprot_xdata(
         case RSPROT_DATA_PLAIN:
             rsprot_pdata(x->buf, *value, length);
             break;
-        case RSPROT_DATA_ALT1:
-            rsprot_pdata_alt1(x->buf, *value, length);
+        case RSPROT_DATA_REV:
+            rsprot_pdata_rev(x->buf, *value, length);
             break;
-        case RSPROT_DATA_ALT2:
-            rsprot_pdata_alt2(x->buf, *value, length);
+        case RSPROT_DATA_ADD128:
+            rsprot_pdata_add128(x->buf, *value, length);
             break;
         }
         break;

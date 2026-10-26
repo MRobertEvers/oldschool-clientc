@@ -14,252 +14,252 @@
 void
 packet_if_crmview_op_v1_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U2(x, m->sub);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_3412(x, m->behaviour1);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_crmview_op_v2_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT2(x, m->server_target);
-    RSPROT_U4_ALT2(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->behaviour3);
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->behaviour1);
+    RSPROT_U4_3412(x, m->server_target);
+    RSPROT_U4_3412(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->behaviour3);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_4321(x, m->behaviour1);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_crmview_op_v3_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4_ALT3(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->server_target);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_U4_ALT1(x, m->behaviour3);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_U4_2143(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->server_target);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->behaviour3);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_crmview_op_v4_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->server_target);
-    RSPROT_U4_ALT2(x, m->behaviour1);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->behaviour3);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->server_target);
+    RSPROT_U4_3412(x, m->behaviour1);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_4321(x, m->behaviour3);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_crmview_op_v5_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U2(x, m->sub);
-    RSPROT_U4(x, m->behaviour1);
-    RSPROT_U4_ALT1(x, m->behaviour2);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4(x, m->behaviour3);
-    RSPROT_U4_ALT1(x, m->server_target);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U4_1234(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->behaviour2);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_1234(x, m->behaviour3);
+    RSPROT_U4_4321(x, m->server_target);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_crmview_op_v6_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U4(x, m->behaviour1);
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->behaviour2);
-    RSPROT_U4_ALT1(x, m->behaviour3);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U4_1234(x, m->behaviour1);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_3412(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour3);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_crmview_op_v7_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT3(x, m->behaviour1);
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_U4_ALT3(x, m->behaviour2);
-    RSPROT_U4_ALT2(x, m->server_target);
+    RSPROT_U4_2143(x, m->behaviour1);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_U4_2143(x, m->behaviour2);
+    RSPROT_U4_3412(x, m->server_target);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_crmview_op_v8_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->behaviour3);
-    RSPROT_U4(x, m->server_target);
-    RSPROT_U4_ALT2(x, m->behaviour2);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_4321(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->server_target);
+    RSPROT_U4_3412(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_crmview_op_v9_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT3(x, m->behaviour2);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_2143(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_crmview_op_v10_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_U4(x, m->server_target);
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_U4_ALT2(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->server_target);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_U4_3412(x, m->behaviour2);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_crmview_op_v11_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT3(x, m->server_target);
-    RSPROT_U4(x, m->behaviour3);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->sub);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_U4_ALT2(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->server_target);
+    RSPROT_U4_1234(x, m->behaviour3);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_U4_3412(x, m->behaviour2);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_crmview_op_v12_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U4(x, m->behaviour1);
-    RSPROT_U4_ALT1(x, m->behaviour3);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U2(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U4_1234(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U2_12(x, m->sub);
 }
 
 /* v13 -- revs 233. */
 void
 packet_if_crmview_op_v13_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT3(x, m->behaviour1);
-    RSPROT_U4_ALT1(x, m->behaviour3);
-    RSPROT_U4_ALT2(x, m->behaviour2);
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->server_target);
+    RSPROT_U4_2143(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->behaviour3);
+    RSPROT_U4_3412(x, m->behaviour2);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_4321(x, m->server_target);
 }
 
 /* v14 -- revs 234. */
 void
 packet_if_crmview_op_v14_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->server_target);
-    RSPROT_U4_ALT1(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->behaviour1);
-    RSPROT_U4(x, m->behaviour3);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_3412(x, m->server_target);
+    RSPROT_U4_4321(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->behaviour1);
+    RSPROT_U4_1234(x, m->behaviour3);
 }
 
 /* v15 -- revs 235. */
 void
 packet_if_crmview_op_v15_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4_ALT3(x, m->behaviour3);
-    RSPROT_U4_ALT1(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->behaviour1);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_U4_2143(x, m->behaviour3);
+    RSPROT_U4_4321(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->behaviour1);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v16 -- revs 236. */
 void
 packet_if_crmview_op_v16_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v17 -- revs 237. */
 void
 packet_if_crmview_op_v17_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->behaviour1);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->behaviour3);
-    RSPROT_U4(x, m->server_target);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_3412(x, m->behaviour1);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->server_target);
 }
 
 /* v18 -- revs 238. */
 void
 packet_if_crmview_op_v18_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->behaviour2);
-    RSPROT_U4_ALT3(x, m->server_target);
-    RSPROT_U4(x, m->behaviour3);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4(x, m->behaviour1);
+    RSPROT_U4_4321(x, m->behaviour2);
+    RSPROT_U4_2143(x, m->server_target);
+    RSPROT_U4_1234(x, m->behaviour3);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_1234(x, m->behaviour1);
 }
 
 /* v19 -- revs 239. */
 void
 packet_if_crmview_op_v19_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4(x, m->server_target);
-    RSPROT_U4_ALT2(x, m->behaviour1);
-    RSPROT_U4_ALT2(x, m->behaviour3);
-    RSPROT_U4_ALT1(x, m->behaviour2);
-    RSPROT_U2_ALT1(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_1234(x, m->server_target);
+    RSPROT_U4_3412(x, m->behaviour1);
+    RSPROT_U4_3412(x, m->behaviour3);
+    RSPROT_U4_4321(x, m->behaviour2);
+    RSPROT_U2_21(x, m->sub);
 }
 
 /* v20 -- revs 240. */
 void
 packet_if_crmview_op_v20_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4_ALT1(x, m->behaviour1);
-    RSPROT_U4_ALT3(x, m->behaviour3);
-    RSPROT_U4(x, m->server_target);
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_4321(x, m->behaviour1);
+    RSPROT_U4_2143(x, m->behaviour3);
+    RSPROT_U4_1234(x, m->server_target);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v21 -- revs 241. */
 void
 packet_if_crmview_op_v21_in(RsprotExec *x, MsgIfCrmViewOp *m)
 {
-    RSPROT_U4_ALT1(x, m->server_target);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4_ALT2(x, m->behaviour1);
-    RSPROT_U4(x, m->behaviour2);
-    RSPROT_U4(x, m->behaviour3);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U4_4321(x, m->server_target);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_U4_3412(x, m->behaviour1);
+    RSPROT_U4_1234(x, m->behaviour2);
+    RSPROT_U4_1234(x, m->behaviour3);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*

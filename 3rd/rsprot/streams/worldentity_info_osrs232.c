@@ -15,7 +15,7 @@ worldentity_info_osrs232_v5_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
 {
     a->size_x = rsprot_g1(b) * 8;
     a->size_z = rsprot_g1(b) * 8;
-    a->id = rsprot_g2(b);
+    a->id = rsprot_g2_12(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     a->priority = rsprot_g1(b);
 }

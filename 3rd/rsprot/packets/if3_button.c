@@ -14,9 +14,9 @@
 void
 packet_if3_button_v1_in(RsprotExec *x, MsgIf3Button *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->sub);
-    RSPROT_U2(x, m->obj);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U2_12(x, m->obj);
 }
 
 /*

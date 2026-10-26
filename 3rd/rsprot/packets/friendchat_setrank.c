@@ -15,14 +15,14 @@ void
 packet_friendchat_setrank_v1_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
     RSPROT_JSTR(x, m->name);
-    RSPROT_U1_ALT1(x, m->rank);
+    RSPROT_U1_ADD128(x, m->rank);
 }
 
 /* v2 -- revs 222, 240. */
 void
 packet_friendchat_setrank_v2_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
-    RSPROT_U1_ALT2(x, m->rank);
+    RSPROT_U1_NEG(x, m->rank);
     RSPROT_JSTR(x, m->name);
 }
 
@@ -38,7 +38,7 @@ packet_friendchat_setrank_v3_in(RsprotExec *x, MsgFriendChatSetRank *m)
 void
 packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
-    RSPROT_U1_ALT3(x, m->rank);
+    RSPROT_U1_SUB128(x, m->rank);
     RSPROT_JSTR(x, m->name);
 }
 
@@ -46,7 +46,7 @@ packet_friendchat_setrank_v4_in(RsprotExec *x, MsgFriendChatSetRank *m)
 void
 packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
-    RSPROT_U1_ALT1(x, m->rank);
+    RSPROT_U1_ADD128(x, m->rank);
     RSPROT_JSTR(x, m->name);
 }
 
@@ -55,7 +55,7 @@ void
 packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m)
 {
     RSPROT_JSTR(x, m->name);
-    RSPROT_U1_ALT3(x, m->rank);
+    RSPROT_U1_SUB128(x, m->rank);
 }
 
 /* v7 -- revs 238, 241. */

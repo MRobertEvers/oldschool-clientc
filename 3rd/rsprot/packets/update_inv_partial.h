@@ -13,7 +13,7 @@
  *
  * Both encoders have an "empty slot" branch, and they are NOT the same shape:
  *
- *   FULL     if (obj == NULL) { p1Alt3(0); p2Alt1(0); continue }
+ *   FULL     if (obj == NULL) { p1_sub128(0); p2_21(0); continue }
  *            -- writes BOTH fields, identical to the general path for
  *               count=0/id=-1, so the branch is redundant and this codec drops
  *               it.

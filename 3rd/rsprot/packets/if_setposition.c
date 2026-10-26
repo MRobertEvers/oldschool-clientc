@@ -14,189 +14,189 @@
 void
 packet_if_setposition_v1_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2(x, m->y);
-    RSPROT_U4(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_12(x, m->y);
+    RSPROT_U4_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setposition_v2_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->x);
-    RSPROT_U2_ALT2(x, m->y);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setposition_v3_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_setposition_v4_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setposition_v5_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_setposition_v6_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setposition_v7_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_setposition_v8_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_setposition_v9_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_setposition_v10_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->x);
-    RSPROT_U2(x, m->y);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12(x, m->y);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_setposition_v11_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_setposition_v12_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2(x, m->y);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_12(x, m->y);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v13 -- revs 233. */
 void
 packet_if_setposition_v13_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2(x, m->y);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12(x, m->y);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v14 -- revs 234. */
 void
 packet_if_setposition_v14_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->y);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->y);
 }
 
 /* v15 -- revs 235. */
 void
 packet_if_setposition_v15_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->y);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
 }
 
 /* v16 -- revs 236. */
 void
 packet_if_setposition_v16_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_U2(x, m->x);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_U2_12(x, m->x);
 }
 
 /* v17 -- revs 237. */
 void
 packet_if_setposition_v17_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->y);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21(x, m->y);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v18 -- revs 238. */
 void
 packet_if_setposition_v18_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2(x, m->y);
-    RSPROT_U2(x, m->x);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12(x, m->y);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v19 -- revs 239. */
 void
 packet_if_setposition_v19_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->y);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->x);
 }
 
 /* v20 -- revs 240. */
 void
 packet_if_setposition_v20_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT2(x, m->x);
-    RSPROT_U2_ALT2(x, m->y);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v21 -- revs 241. */
 void
 packet_if_setposition_v21_out(RsprotExec *x, MsgIfSetPosition *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2_ALT3(x, m->y);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->y);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /*

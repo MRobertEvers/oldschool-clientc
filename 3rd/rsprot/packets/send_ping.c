@@ -14,8 +14,8 @@
 void
 packet_send_ping_v1_out(RsprotExec *x, MsgSendPing *m)
 {
-    RSPROT_U4(x, m->value1);
-    RSPROT_U4(x, m->value2);
+    RSPROT_U4_1234(x, m->value1);
+    RSPROT_U4_1234(x, m->value2);
 }
 
 /*

@@ -14,7 +14,7 @@
 void
 packet_update_runweight_v1_out(RsprotExec *x, MsgUpdateRunWeight *m)
 {
-    RSPROT_U2(x, m->runweight);
+    RSPROT_U2_12(x, m->runweight);
 }
 
 /*

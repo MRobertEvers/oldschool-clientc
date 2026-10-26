@@ -140,7 +140,7 @@ Known blockers, found in the surveys:
    - `REBUILD_WORLDENTITY_V4` (op 109) carries **neither an id nor a plane**.
      The vendored codec is exactly two fields —
      `3rd/rsprot/packets/rebuild_worldentity_v4.c`:
-     `RSPROT_U2(base_x); RSPROT_U2(base_z);` — followed by the same
+     `RSPROT_U2_12(base_x); RSPROT_U2_12(base_z);` — followed by the same
      `encodeRegionV2` zone-descriptor grid `REBUILD_REGION` uses. V3+ dropped
      the wire-carried view id (deob `field5861`).
 

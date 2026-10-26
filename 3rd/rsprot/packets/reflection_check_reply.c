@@ -14,7 +14,7 @@
 void
 packet_reflection_check_reply_v1_in(RsprotExec *x, MsgReflectionCheckReply *m)
 {
-    RSPROT_U4(x, m->id);
+    RSPROT_U4_1234(x, m->id);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 

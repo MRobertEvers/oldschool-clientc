@@ -14,16 +14,16 @@
 void
 packet_opworldentity2_v1_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v2 -- revs 234. */
 void
 packet_opworldentity2_v2_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v3 -- revs 235. */
@@ -31,55 +31,55 @@ void
 packet_opworldentity2_v3_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v4 -- revs 236. */
 void
 packet_opworldentity2_v4_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v5 -- revs 237. */
 void
 packet_opworldentity2_v5_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v6 -- revs 238. */
 void
 packet_opworldentity2_v6_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v7 -- revs 239. */
 void
 packet_opworldentity2_v7_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v8 -- revs 240. */
 void
 packet_opworldentity2_v8_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v9 -- revs 241. */
 void
 packet_opworldentity2_v9_in(RsprotExec *x, MsgOpWorldEntity2 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /*

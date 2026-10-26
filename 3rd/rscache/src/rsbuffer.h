@@ -370,7 +370,7 @@ RSCache_BufferWriteShortSmartAt(
  * path carries. See `docs/BUFFER_ACCESSOR_AUDIT.md`.
  *
  * Naming states the byte order rather than an `alt` ordinal, matching
- * `3rd/rsprot/src/rsprot_buffer.h`, which documents the scheme in full: digits
+ * `3rd/rsprot/src/rsprot_buf.h`, which documents the scheme in full: digits
  * are byte significance in write order (1 = most significant), `be`/`le` when
  * the order is standard, and a transform suffix when the value is biased rather
  * than permuted.

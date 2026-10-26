@@ -14,24 +14,24 @@
 void
 packet_ambientsound_start_v1_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
-    RSPROT_U1_ALT1(x, m->fade);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_ADD128(x, m->fade);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v2 -- revs 240. */
 void
 packet_ambientsound_start_v2_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->fade);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->fade);
 }
 
 /* v3 -- revs 241. */
 void
 packet_ambientsound_start_v3_out(RsprotExec *x, MsgAmbientSoundStart *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->fade);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->fade);
 }
 
 /*

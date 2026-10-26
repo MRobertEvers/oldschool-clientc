@@ -77,9 +77,14 @@ field = int32_t camera_locked_player_index
 [layout]
 revs = 223-228
 U1 = type
-U2 = index
-U2 = camera_locked_player_index
+U2_12 = index
+U2_12 = camera_locked_player_index
 ```
+
+A read's name is its bytes: `U2_12` is big-endian, `U2_21` little-endian,
+`U4_3412` swaps the halves, `U2_12_ADD128` sends the low byte + 128, and
+`U1_ADD128` / `U1_NEG` / `U1_SUB128` are the one-byte transforms
+(`src/rsprot_buf.h` has the table, and the Kotlin `Alt` each replaces).
 
 and a table row is `NAME = opcode size [the version it calls]`:
 

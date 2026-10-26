@@ -4,7 +4,7 @@
  * Every function here is transcribed one-for-one from
  * `buffer/src/main/kotlin/net/rsprot/buffer/extensions/JagexByteBufExtensions.kt`.
  * Where a Kotlin line reads `writeByte(value shr 8)` the C line reads
- * `put1(b, v >> 8)` in the same position. That is not stylistic: the alt
+ * `put1(b, v >> 8)` in the same position. That is not stylistic: the
  * orderings differ from each other by which byte goes where, several of them
  * round-trip correctly with the wrong neighbour's implementation for small
  * values, and the only cheap way to be sure a writer is right is to read it
@@ -135,8 +135,8 @@ static int32_t get1u(RsprotBuf *b)
 	return b->data[b->rpos++];
 }
 
-/* The signed read. Kotlin's `readByte()` is a signed 8-bit value and several
- * alt orderings negate it before masking; doing that on the unsigned value
+/* The signed read. Kotlin's `readByte()` is a signed 8-bit value and the neg
+ * and sub128 transforms negate it before masking; doing that on the unsigned value
  * gives a different answer for inputs above 0x7F. */
 static int32_t get1s(RsprotBuf *b)
 {
@@ -214,71 +214,71 @@ int32_t rsprot_g1(RsprotBuf *b) { return get1u(b); }
 int32_t rsprot_g1s(RsprotBuf *b) { return get1s(b); }
 void rsprot_p1(RsprotBuf *b, int32_t v) { put1(b, v); }
 
-int32_t rsprot_g1_alt1(RsprotBuf *b) { return (get1u(b) - HALF_UBYTE) & 0xFF; }
-int32_t rsprot_g1s_alt1(RsprotBuf *b) { return (int32_t)(int8_t)(get1u(b) - HALF_UBYTE); }
-void rsprot_p1_alt1(RsprotBuf *b, int32_t v) { put1(b, v + HALF_UBYTE); }
+int32_t rsprot_g1_add128(RsprotBuf *b) { return (get1u(b) - HALF_UBYTE) & 0xFF; }
+int32_t rsprot_g1s_add128(RsprotBuf *b) { return (int32_t)(int8_t)(get1u(b) - HALF_UBYTE); }
+void rsprot_p1_add128(RsprotBuf *b, int32_t v) { put1(b, v + HALF_UBYTE); }
 
-int32_t rsprot_g1_alt2(RsprotBuf *b) { return (-get1s(b)) & 0xFF; }
-int32_t rsprot_g1s_alt2(RsprotBuf *b) { return -get1s(b); }
-void rsprot_p1_alt2(RsprotBuf *b, int32_t v) { put1(b, -v); }
+int32_t rsprot_g1_neg(RsprotBuf *b) { return (-get1s(b)) & 0xFF; }
+int32_t rsprot_g1s_neg(RsprotBuf *b) { return -get1s(b); }
+void rsprot_p1_neg(RsprotBuf *b, int32_t v) { put1(b, -v); }
 
-int32_t rsprot_g1_alt3(RsprotBuf *b) { return (HALF_UBYTE - get1s(b)) & 0xFF; }
-int32_t rsprot_g1s_alt3(RsprotBuf *b) { return (int32_t)(int8_t)(HALF_UBYTE - get1s(b)); }
-void rsprot_p1_alt3(RsprotBuf *b, int32_t v) { put1(b, HALF_UBYTE - v); }
+int32_t rsprot_g1_sub128(RsprotBuf *b) { return (HALF_UBYTE - get1s(b)) & 0xFF; }
+int32_t rsprot_g1s_sub128(RsprotBuf *b) { return (int32_t)(int8_t)(HALF_UBYTE - get1s(b)); }
+void rsprot_p1_sub128(RsprotBuf *b, int32_t v) { put1(b, HALF_UBYTE - v); }
 
 /* --- 16-bit ------------------------------------------------------------- */
 
-int32_t rsprot_g2(RsprotBuf *b)
+int32_t rsprot_g2_12(RsprotBuf *b)
 {
 	int32_t hi = get1u(b);
 	return (hi << 8) | get1u(b);
 }
 
-int32_t rsprot_g2s(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2(b); }
+int32_t rsprot_g2s_12(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_12(b); }
 
-void rsprot_p2(RsprotBuf *b, int32_t v)
+void rsprot_p2_12(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 8);
 	put1(b, v);
 }
 
-int32_t rsprot_g2_alt1(RsprotBuf *b)
+int32_t rsprot_g2_21(RsprotBuf *b)
 {
 	int32_t lo = get1u(b);
 	return lo | (get1u(b) << 8);
 }
 
-int32_t rsprot_g2s_alt1(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_alt1(b); }
+int32_t rsprot_g2s_21(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_21(b); }
 
-void rsprot_p2_alt1(RsprotBuf *b, int32_t v)
+void rsprot_p2_21(RsprotBuf *b, int32_t v)
 {
 	put1(b, v);
 	put1(b, v >> 8);
 }
 
-int32_t rsprot_g2_alt2(RsprotBuf *b)
+int32_t rsprot_g2_12_add128(RsprotBuf *b)
 {
-	int32_t s = rsprot_g2(b);
+	int32_t s = rsprot_g2_12(b);
 	return (s & 0xFF00) | (((s & 0xFF) - HALF_UBYTE) & 0xFF);
 }
 
-int32_t rsprot_g2s_alt2(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_alt2(b); }
+int32_t rsprot_g2s_12_add128(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_12_add128(b); }
 
-void rsprot_p2_alt2(RsprotBuf *b, int32_t v)
+void rsprot_p2_12_add128(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 8);
 	put1(b, v + HALF_UBYTE);
 }
 
-int32_t rsprot_g2_alt3(RsprotBuf *b)
+int32_t rsprot_g2_21_add128(RsprotBuf *b)
 {
-	int32_t s = rsprot_g2(b);
+	int32_t s = rsprot_g2_12(b);
 	return ((((uint32_t)s >> 8) - HALF_UBYTE) & 0xFF) | ((s & 0xFF) << 8);
 }
 
-int32_t rsprot_g2s_alt3(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_alt3(b); }
+int32_t rsprot_g2s_21_add128(RsprotBuf *b) { return (int32_t)(int16_t)rsprot_g2_21_add128(b); }
 
-void rsprot_p2_alt3(RsprotBuf *b, int32_t v)
+void rsprot_p2_21_add128(RsprotBuf *b, int32_t v)
 {
 	put1(b, v + HALF_UBYTE);
 	put1(b, v >> 8);
@@ -289,62 +289,62 @@ void rsprot_p2_alt3(RsprotBuf *b, int32_t v)
 /* Sign-extend a 24-bit quantity. */
 static int32_t sx24(int32_t v) { return v > 0x7FFFFF ? v - 0x1000000 : v; }
 
-int32_t rsprot_g3(RsprotBuf *b)
+int32_t rsprot_g3_123(RsprotBuf *b)
 {
 	int32_t v = get1u(b) << 16;
 	v |= get1u(b) << 8;
 	return v | get1u(b);
 }
 
-int32_t rsprot_g3s(RsprotBuf *b) { return sx24(rsprot_g3(b)); }
+int32_t rsprot_g3s_123(RsprotBuf *b) { return sx24(rsprot_g3_123(b)); }
 
-void rsprot_p3(RsprotBuf *b, int32_t v)
+void rsprot_p3_123(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 16);
 	put1(b, v >> 8);
 	put1(b, v);
 }
 
-int32_t rsprot_g3_alt1(RsprotBuf *b)
+int32_t rsprot_g3_321(RsprotBuf *b)
 {
 	int32_t v = get1u(b);
 	v |= get1u(b) << 8;
 	return v | (get1u(b) << 16);
 }
 
-int32_t rsprot_g3s_alt1(RsprotBuf *b) { return sx24(rsprot_g3_alt1(b)); }
+int32_t rsprot_g3s_321(RsprotBuf *b) { return sx24(rsprot_g3_321(b)); }
 
-void rsprot_p3_alt1(RsprotBuf *b, int32_t v)
+void rsprot_p3_321(RsprotBuf *b, int32_t v)
 {
 	put1(b, v);
 	put1(b, v >> 8);
 	put1(b, v >> 16);
 }
 
-int32_t rsprot_g3_alt2(RsprotBuf *b)
+int32_t rsprot_g3_132(RsprotBuf *b)
 {
-	int32_t m = rsprot_g3(b);
+	int32_t m = rsprot_g3_123(b);
 	return ((m & 0xFF) << 8) | (((uint32_t)m >> 8) & 0xFF) | ((((uint32_t)m >> 16) & 0xFF) << 16);
 }
 
-int32_t rsprot_g3s_alt2(RsprotBuf *b) { return sx24(rsprot_g3_alt2(b)); }
+int32_t rsprot_g3s_132(RsprotBuf *b) { return sx24(rsprot_g3_132(b)); }
 
-void rsprot_p3_alt2(RsprotBuf *b, int32_t v)
+void rsprot_p3_132(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 16);
 	put1(b, v);
 	put1(b, v >> 8);
 }
 
-int32_t rsprot_g3_alt3(RsprotBuf *b)
+int32_t rsprot_g3_213(RsprotBuf *b)
 {
-	int32_t m = rsprot_g3(b);
+	int32_t m = rsprot_g3_123(b);
 	return (m & 0xFF) | ((((uint32_t)m >> 8) & 0xFF) << 16) | ((((uint32_t)m >> 16) & 0xFF) << 8);
 }
 
-int32_t rsprot_g3s_alt3(RsprotBuf *b) { return sx24(rsprot_g3_alt3(b)); }
+int32_t rsprot_g3s_213(RsprotBuf *b) { return sx24(rsprot_g3_213(b)); }
 
-void rsprot_p3_alt3(RsprotBuf *b, int32_t v)
+void rsprot_p3_213(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 8);
 	put1(b, v >> 16);
@@ -353,7 +353,7 @@ void rsprot_p3_alt3(RsprotBuf *b, int32_t v)
 
 /* --- 32-bit ------------------------------------------------------------- */
 
-int32_t rsprot_g4(RsprotBuf *b)
+int32_t rsprot_g4_1234(RsprotBuf *b)
 {
 	uint32_t v = (uint32_t)get1u(b) << 24;
 	v |= (uint32_t)get1u(b) << 16;
@@ -361,7 +361,7 @@ int32_t rsprot_g4(RsprotBuf *b)
 	return (int32_t)(v | (uint32_t)get1u(b));
 }
 
-void rsprot_p4(RsprotBuf *b, int32_t v)
+void rsprot_p4_1234(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 24);
 	put1(b, v >> 16);
@@ -369,7 +369,7 @@ void rsprot_p4(RsprotBuf *b, int32_t v)
 	put1(b, v);
 }
 
-int32_t rsprot_g4_alt1(RsprotBuf *b)
+int32_t rsprot_g4_4321(RsprotBuf *b)
 {
 	uint32_t v = (uint32_t)get1u(b);
 	v |= (uint32_t)get1u(b) << 8;
@@ -377,7 +377,7 @@ int32_t rsprot_g4_alt1(RsprotBuf *b)
 	return (int32_t)(v | ((uint32_t)get1u(b) << 24));
 }
 
-void rsprot_p4_alt1(RsprotBuf *b, int32_t v)
+void rsprot_p4_4321(RsprotBuf *b, int32_t v)
 {
 	put1(b, v);
 	put1(b, v >> 8);
@@ -385,7 +385,7 @@ void rsprot_p4_alt1(RsprotBuf *b, int32_t v)
 	put1(b, v >> 24);
 }
 
-int32_t rsprot_g4_alt2(RsprotBuf *b)
+int32_t rsprot_g4_3412(RsprotBuf *b)
 {
 	uint32_t v = (uint32_t)get1u(b) << 8;
 	v |= (uint32_t)get1u(b);
@@ -393,7 +393,7 @@ int32_t rsprot_g4_alt2(RsprotBuf *b)
 	return (int32_t)(v | ((uint32_t)get1u(b) << 16));
 }
 
-void rsprot_p4_alt2(RsprotBuf *b, int32_t v)
+void rsprot_p4_3412(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 8);
 	put1(b, v);
@@ -401,7 +401,7 @@ void rsprot_p4_alt2(RsprotBuf *b, int32_t v)
 	put1(b, v >> 16);
 }
 
-int32_t rsprot_g4_alt3(RsprotBuf *b)
+int32_t rsprot_g4_2143(RsprotBuf *b)
 {
 	uint32_t v = (uint32_t)get1u(b) << 16;
 	v |= (uint32_t)get1u(b) << 24;
@@ -409,7 +409,7 @@ int32_t rsprot_g4_alt3(RsprotBuf *b)
 	return (int32_t)(v | ((uint32_t)get1u(b) << 8));
 }
 
-void rsprot_p4_alt3(RsprotBuf *b, int32_t v)
+void rsprot_p4_2143(RsprotBuf *b, int32_t v)
 {
 	put1(b, v >> 16);
 	put1(b, v >> 24);
@@ -419,47 +419,47 @@ void rsprot_p4_alt3(RsprotBuf *b, int32_t v)
 
 /* --- 64-bit and IEEE ---------------------------------------------------- */
 
-int64_t rsprot_g8(RsprotBuf *b)
+int64_t rsprot_g8_12345678(RsprotBuf *b)
 {
-	uint64_t hi = (uint32_t)rsprot_g4(b);
-	uint64_t lo = (uint32_t)rsprot_g4(b);
+	uint64_t hi = (uint32_t)rsprot_g4_1234(b);
+	uint64_t lo = (uint32_t)rsprot_g4_1234(b);
 	return (int64_t)((hi << 32) | lo);
 }
 
-void rsprot_p8(RsprotBuf *b, int64_t v)
+void rsprot_p8_12345678(RsprotBuf *b, int64_t v)
 {
-	rsprot_p4(b, (int32_t)((uint64_t)v >> 32));
-	rsprot_p4(b, (int32_t)(uint64_t)v);
+	rsprot_p4_1234(b, (int32_t)((uint64_t)v >> 32));
+	rsprot_p4_1234(b, (int32_t)(uint64_t)v);
 }
 
-float rsprot_g4f(RsprotBuf *b)
+float rsprot_g4f_1234(RsprotBuf *b)
 {
-	int32_t bits = rsprot_g4(b);
+	int32_t bits = rsprot_g4_1234(b);
 	float f;
 	memcpy(&f, &bits, sizeof(f));
 	return f;
 }
 
-void rsprot_p4f(RsprotBuf *b, float v)
+void rsprot_p4f_1234(RsprotBuf *b, float v)
 {
 	int32_t bits;
 	memcpy(&bits, &v, sizeof(bits));
-	rsprot_p4(b, bits);
+	rsprot_p4_1234(b, bits);
 }
 
-double rsprot_g8d(RsprotBuf *b)
+double rsprot_g8d_12345678(RsprotBuf *b)
 {
-	int64_t bits = rsprot_g8(b);
+	int64_t bits = rsprot_g8_12345678(b);
 	double d;
 	memcpy(&d, &bits, sizeof(d));
 	return d;
 }
 
-void rsprot_p8d(RsprotBuf *b, double v)
+void rsprot_p8d_12345678(RsprotBuf *b, double v)
 {
 	int64_t bits;
 	memcpy(&bits, &v, sizeof(bits));
-	rsprot_p8(b, bits);
+	rsprot_p8_12345678(b, bits);
 }
 
 bool rsprot_gboolean(RsprotBuf *b) { return (get1u(b) & 0x1) != 0; }
@@ -540,7 +540,7 @@ int32_t rsprot_gsmart1or2(RsprotBuf *b)
 {
 	if (peek1u(b) < HALF_UBYTE)
 		return get1u(b);
-	return rsprot_g2(b) - 32768;
+	return rsprot_g2_12(b) - 32768;
 }
 
 void rsprot_psmart1or2(RsprotBuf *b, int32_t v)
@@ -548,7 +548,7 @@ void rsprot_psmart1or2(RsprotBuf *b, int32_t v)
 	if (v >= 0 && v <= 0x7F) {
 		put1(b, v);
 	} else if (v >= 0 && v <= 0x7FFF) {
-		rsprot_p2(b, 0x8000 | v);
+		rsprot_p2_12(b, 0x8000 | v);
 	} else {
 		b->err |= RSPROT_BUF_ERR_RANGE;
 	}
@@ -558,7 +558,7 @@ int32_t rsprot_gsmart1or2s(RsprotBuf *b)
 {
 	if (peek1u(b) < HALF_UBYTE)
 		return get1u(b) - 64;
-	return rsprot_g2(b) - 49152;
+	return rsprot_g2_12(b) - 49152;
 }
 
 void rsprot_psmart1or2s(RsprotBuf *b, int32_t v)
@@ -566,7 +566,7 @@ void rsprot_psmart1or2s(RsprotBuf *b, int32_t v)
 	if (v >= -0x40 && v <= 0x3F) {
 		put1(b, v + 0x40);
 	} else if (v >= -0x4000 && v <= 0x3FFF) {
-		rsprot_p2(b, 0x8000 | (v + 0x4000));
+		rsprot_p2_12(b, 0x8000 | (v + 0x4000));
 	} else {
 		b->err |= RSPROT_BUF_ERR_RANGE;
 	}
@@ -576,7 +576,7 @@ int32_t rsprot_gsmart1or2null(RsprotBuf *b)
 {
 	if (peek1u(b) < HALF_UBYTE)
 		return get1u(b) - 1;
-	return rsprot_g2(b) - 32769;
+	return rsprot_g2_12(b) - 32769;
 }
 
 void rsprot_psmart1or2null(RsprotBuf *b, int32_t v)
@@ -585,7 +585,7 @@ void rsprot_psmart1or2null(RsprotBuf *b, int32_t v)
 	if (v >= -1 && v < 0x7F) {
 		put1(b, v + 1);
 	} else if (v >= -1 && v < 0x7FFF) {
-		rsprot_p2(b, 0x8000 | (v + 1));
+		rsprot_p2_12(b, 0x8000 | (v + 1));
 	} else {
 		b->err |= RSPROT_BUF_ERR_RANGE;
 	}
@@ -617,16 +617,16 @@ void rsprot_psmart1or2extended(RsprotBuf *b, int32_t v)
 int32_t rsprot_gsmart2or4(RsprotBuf *b)
 {
 	if ((int8_t)peek1u(b) < 0)
-		return rsprot_g4(b) & 0x7FFFFFFF;
-	return rsprot_g2(b);
+		return rsprot_g4_1234(b) & 0x7FFFFFFF;
+	return rsprot_g2_12(b);
 }
 
 void rsprot_psmart2or4(RsprotBuf *b, int32_t v)
 {
 	if (v >= 0 && v <= 0x7FFF) {
-		rsprot_p2(b, v);
+		rsprot_p2_12(b, v);
 	} else if (v >= 0) {
-		rsprot_p4(b, (int32_t)(0x80000000u | (uint32_t)v));
+		rsprot_p4_1234(b, (int32_t)(0x80000000u | (uint32_t)v));
 	} else {
 		b->err |= RSPROT_BUF_ERR_RANGE;
 	}
@@ -636,8 +636,8 @@ int32_t rsprot_gsmart2or4null(RsprotBuf *b)
 {
 	int32_t num;
 	if ((int8_t)peek1u(b) < 0)
-		return rsprot_g4(b) & 0x7FFFFFFF;
-	num = rsprot_g2(b);
+		return rsprot_g4_1234(b) & 0x7FFFFFFF;
+	num = rsprot_g2_12(b);
 	return num == 32767 ? -1 : num;
 }
 
@@ -648,16 +648,16 @@ void rsprot_psmart2or4null(RsprotBuf *b, int32_t v)
 		return;
 	}
 	if (v == -1) {
-		rsprot_p2(b, 0x7FFF);
+		rsprot_p2_12(b, 0x7FFF);
 	} else if (v < 32767) {
-		rsprot_p2(b, v);
+		rsprot_p2_12(b, v);
 	} else {
 		/* RSProt writes the int and then adds 128 to the byte it just wrote,
 		 * rather than OR-ing 0x80 in first. For v <= 0x7FFFFFFF the two agree;
 		 * the add is transcribed rather than simplified because the difference
 		 * would only show for a value this encoding is not allowed to carry. */
 		int32_t at;
-		rsprot_p4(b, v);
+		rsprot_p4_1234(b, v);
 		at = b->wpos - 4;
 		if (at >= 0 && at < b->cap)
 			b->data[at] = (uint8_t)(b->data[at] + HALF_UBYTE);
@@ -775,7 +775,7 @@ void rsprot_pdata(RsprotBuf *b, const void *src, int32_t len)
 	b->wpos += len;
 }
 
-void rsprot_gdata_alt1(RsprotBuf *b, void *dest, int32_t len)
+void rsprot_gdata_rev(RsprotBuf *b, void *dest, int32_t len)
 {
 	uint8_t *d = (uint8_t *)dest;
 	int32_t i;
@@ -785,7 +785,7 @@ void rsprot_gdata_alt1(RsprotBuf *b, void *dest, int32_t len)
 		d[i] = b->data[b->rpos++];
 }
 
-void rsprot_pdata_alt1(RsprotBuf *b, const void *src, int32_t len)
+void rsprot_pdata_rev(RsprotBuf *b, const void *src, int32_t len)
 {
 	const uint8_t *s = (const uint8_t *)src;
 	int32_t i;
@@ -795,7 +795,7 @@ void rsprot_pdata_alt1(RsprotBuf *b, const void *src, int32_t len)
 		b->data[b->wpos++] = s[i];
 }
 
-void rsprot_gdata_alt2(RsprotBuf *b, void *dest, int32_t len)
+void rsprot_gdata_add128(RsprotBuf *b, void *dest, int32_t len)
 {
 	uint8_t *d = (uint8_t *)dest;
 	int32_t i;
@@ -805,7 +805,7 @@ void rsprot_gdata_alt2(RsprotBuf *b, void *dest, int32_t len)
 		d[i] = (uint8_t)(b->data[b->rpos++] - HALF_UBYTE);
 }
 
-void rsprot_pdata_alt2(RsprotBuf *b, const void *src, int32_t len)
+void rsprot_pdata_add128(RsprotBuf *b, const void *src, int32_t len)
 {
 	const uint8_t *s = (const uint8_t *)src;
 	int32_t i;
@@ -815,7 +815,7 @@ void rsprot_pdata_alt2(RsprotBuf *b, const void *src, int32_t len)
 		b->data[b->wpos++] = (uint8_t)(s[i] + HALF_UBYTE);
 }
 
-void rsprot_gdata_alt3(RsprotBuf *b, void *dest, int32_t len)
+void rsprot_gdata_rev_add128(RsprotBuf *b, void *dest, int32_t len)
 {
 	uint8_t *d = (uint8_t *)dest;
 	int32_t i;
@@ -825,7 +825,7 @@ void rsprot_gdata_alt3(RsprotBuf *b, void *dest, int32_t len)
 		d[i] = (uint8_t)(b->data[b->rpos++] - HALF_UBYTE);
 }
 
-void rsprot_pdata_alt3(RsprotBuf *b, const void *src, int32_t len)
+void rsprot_pdata_rev_add128(RsprotBuf *b, const void *src, int32_t len)
 {
 	const uint8_t *s = (const uint8_t *)src;
 	int32_t i;
@@ -837,15 +837,15 @@ void rsprot_pdata_alt3(RsprotBuf *b, const void *src, int32_t len)
 
 /* --- combined ids ------------------------------------------------------- */
 
-int32_t rsprot_gcombined_id(RsprotBuf *b) { return rsprot_g4(b); }
-int32_t rsprot_gcombined_id_alt1(RsprotBuf *b) { return rsprot_g4_alt1(b); }
-int32_t rsprot_gcombined_id_alt2(RsprotBuf *b) { return rsprot_g4_alt2(b); }
-int32_t rsprot_gcombined_id_alt3(RsprotBuf *b) { return rsprot_g4_alt3(b); }
+int32_t rsprot_gcombined_id_1234(RsprotBuf *b) { return rsprot_g4_1234(b); }
+int32_t rsprot_gcombined_id_4321(RsprotBuf *b) { return rsprot_g4_4321(b); }
+int32_t rsprot_gcombined_id_3412(RsprotBuf *b) { return rsprot_g4_3412(b); }
+int32_t rsprot_gcombined_id_2143(RsprotBuf *b) { return rsprot_g4_2143(b); }
 
-void rsprot_pcombined_id(RsprotBuf *b, int32_t c) { rsprot_p4(b, c); }
-void rsprot_pcombined_id_alt1(RsprotBuf *b, int32_t c) { rsprot_p4_alt1(b, c); }
-void rsprot_pcombined_id_alt2(RsprotBuf *b, int32_t c) { rsprot_p4_alt2(b, c); }
-void rsprot_pcombined_id_alt3(RsprotBuf *b, int32_t c) { rsprot_p4_alt3(b, c); }
+void rsprot_pcombined_id_1234(RsprotBuf *b, int32_t c) { rsprot_p4_1234(b, c); }
+void rsprot_pcombined_id_4321(RsprotBuf *b, int32_t c) { rsprot_p4_4321(b, c); }
+void rsprot_pcombined_id_3412(RsprotBuf *b, int32_t c) { rsprot_p4_3412(b, c); }
+void rsprot_pcombined_id_2143(RsprotBuf *b, int32_t c) { rsprot_p4_2143(b, c); }
 
 /* --- bit access --------------------------------------------------------- */
 
@@ -1001,7 +1001,7 @@ uint32_t rsprot_buf_add_crc32(RsprotBuf *b, int32_t start)
 		return 0;
 	}
 	checksum = rsprot_crc32(b->data + start, b->wpos - start);
-	rsprot_p4(b, (int32_t)checksum);
+	rsprot_p4_1234(b, (int32_t)checksum);
 	return checksum;
 }
 
@@ -1015,5 +1015,5 @@ bool rsprot_buf_check_crc32(RsprotBuf *b)
 	}
 	checksum = rsprot_crc32(b->data, length - 4);
 	b->rpos = length - 4;
-	return checksum == (uint32_t)rsprot_g4(b);
+	return checksum == (uint32_t)rsprot_g4_1234(b);
 }

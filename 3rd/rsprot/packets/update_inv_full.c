@@ -14,17 +14,17 @@
 void
 packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT1, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_ADD128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT2(x, slot->count);
+            RSPROT_U4_3412(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
     }
 }
 
@@ -32,17 +32,17 @@ packet_update_inv_full_v1_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v2_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT2(x, slot->count);
+            RSPROT_U4_3412(x, slot->count);
     }
 }
 
@@ -50,17 +50,17 @@ packet_update_inv_full_v2_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v3_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT3(x, slot->count);
+            RSPROT_U4_2143(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12, slot->id, 1);
     }
 }
 
@@ -68,17 +68,17 @@ packet_update_inv_full_v3_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v4_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
     }
 }
 
@@ -86,17 +86,17 @@ packet_update_inv_full_v4_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v5_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT2(x, slot->count);
+            RSPROT_U4_3412(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
     }
 }
 
@@ -104,17 +104,17 @@ packet_update_inv_full_v5_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v6_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT2(x, slot->count);
+            RSPROT_U4_3412(x, slot->count);
     }
 }
 
@@ -122,17 +122,17 @@ packet_update_inv_full_v6_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v7_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
         RSPROT_CLAMP(x, U1, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -140,17 +140,17 @@ packet_update_inv_full_v7_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v8_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT1, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_ADD128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT3(x, slot->count);
+            RSPROT_U4_2143(x, slot->count);
     }
 }
 
@@ -158,17 +158,17 @@ packet_update_inv_full_v8_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v9_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
         RSPROT_CLAMP(x, U1, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -176,17 +176,17 @@ packet_update_inv_full_v9_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v10_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT1(x, slot->count);
+            RSPROT_U4_4321(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12, slot->id, 1);
     }
 }
 
@@ -194,17 +194,17 @@ packet_update_inv_full_v10_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v11_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -212,17 +212,17 @@ packet_update_inv_full_v11_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v12_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT1(x, slot->count);
+            RSPROT_U4_4321(x, slot->count);
     }
 }
 
@@ -230,17 +230,17 @@ packet_update_inv_full_v12_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v13_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12_ADD128, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -248,17 +248,17 @@ packet_update_inv_full_v13_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v14_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
         RSPROT_CLAMP(x, U1, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT1(x, slot->count);
+            RSPROT_U4_4321(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
     }
 }
 
@@ -266,17 +266,17 @@ packet_update_inv_full_v14_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v15_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -284,17 +284,17 @@ packet_update_inv_full_v15_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v16_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT2, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_NEG, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12_ADD128, slot->id, 1);
     }
 }
 
@@ -302,17 +302,17 @@ packet_update_inv_full_v16_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v17_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT3, slot->id, 1);
+        RSPROT_XFORM(x, U2_21_ADD128, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
     }
 }
 
@@ -320,17 +320,17 @@ packet_update_inv_full_v17_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v18_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
         RSPROT_CLAMP(x, U1, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT3(x, slot->count);
+            RSPROT_U4_2143(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
     }
 }
 
@@ -338,17 +338,17 @@ packet_update_inv_full_v18_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v19_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT3(x, slot->count);
+            RSPROT_U4_2143(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
     }
 }
 
@@ -356,17 +356,17 @@ packet_update_inv_full_v19_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v20_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4(x, slot->count);
+            RSPROT_U4_1234(x, slot->count);
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12, slot->id, 1);
     }
 }
 
@@ -374,17 +374,17 @@ packet_update_inv_full_v20_out(RsprotExec *x, MsgUpdateInvFull *m)
 void
 packet_update_inv_full_v21_out(RsprotExec *x, MsgUpdateInvFull *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
     RSPROT_COUNT2(x, m->capacity, MSG_UPDATE_INV_FULL_MAX_SLOTS);
     for (int32_t i = 0; i < m->capacity; i++) {
         MsgUpdateInvFullSlot *slot = &m->slots[i];
         /* The wire carries id + 1: 0 is an empty slot, id -1 here. */
-        RSPROT_XFORM(x, U2_ALT1, slot->id, 1);
+        RSPROT_XFORM(x, U2_21, slot->id, 1);
         /* One byte, saturating at 255; at 255 the real count follows. */
-        RSPROT_CLAMP(x, U1_ALT3, slot->count_lo, slot->count, 255);
+        RSPROT_CLAMP(x, U1_SUB128, slot->count_lo, slot->count, 255);
         if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-            RSPROT_U4_ALT2(x, slot->count);
+            RSPROT_U4_3412(x, slot->count);
     }
 }
 

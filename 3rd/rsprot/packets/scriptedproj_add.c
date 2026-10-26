@@ -14,69 +14,69 @@
 void
 packet_scriptedproj_add_v1_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
-    RSPROT_U2_ALT1(x, m->source_offset_x);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2(x, m->target_offset_z);
-    RSPROT_U4_ALT3(x, m->target_coord_packed);
-    RSPROT_U2_ALT2(x, m->start_time);
-    RSPROT_U2(x, m->source_height);
-    RSPROT_U2_ALT1(x, m->curve_script_a);
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2(x, m->slot);
-    RSPROT_U2_ALT1(x, m->end_time);
+    RSPROT_U2_21(x, m->source_offset_x);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_12(x, m->target_offset_z);
+    RSPROT_U4_2143(x, m->target_coord_packed);
+    RSPROT_U2_12_ADD128(x, m->start_time);
+    RSPROT_U2_12(x, m->source_height);
+    RSPROT_U2_21(x, m->curve_script_a);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_12(x, m->slot);
+    RSPROT_U2_21(x, m->end_time);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2(x, m->target_offset_x);
-    RSPROT_U2_ALT1(x, m->curve_script_h);
-    RSPROT_U2_ALT3(x, m->source_offset_z);
-    RSPROT_U2_ALT1(x, m->target_height);
-    RSPROT_U3_ALT2(x, m->source_index);
-    RSPROT_U2_ALT1(x, m->curve_script_t);
+    RSPROT_U2_12(x, m->target_offset_x);
+    RSPROT_U2_21(x, m->curve_script_h);
+    RSPROT_U2_21_ADD128(x, m->source_offset_z);
+    RSPROT_U2_21(x, m->target_height);
+    RSPROT_U3_132(x, m->source_index);
+    RSPROT_U2_21(x, m->curve_script_t);
 }
 
 /* v2 -- revs 240. */
 void
 packet_scriptedproj_add_v2_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
-    RSPROT_U3_ALT3(x, m->target_index);
-    RSPROT_U2(x, m->target_height);
-    RSPROT_U2_ALT3(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->slot);
-    RSPROT_U2(x, m->source_offset_z);
-    RSPROT_U3_ALT1(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->curve_script_h);
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U2_ALT3(x, m->source_offset_x);
-    RSPROT_U2(x, m->source_height);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U4_ALT1(x, m->target_coord_packed);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT2(x, m->target_offset_z);
-    RSPROT_U2(x, m->target_offset_x);
-    RSPROT_U2_ALT1(x, m->curve_script_t);
-    RSPROT_U2_ALT3(x, m->curve_script_a);
+    RSPROT_U3_213(x, m->target_index);
+    RSPROT_U2_12(x, m->target_height);
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->slot);
+    RSPROT_U2_12(x, m->source_offset_z);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U2_12_ADD128(x, m->curve_script_h);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->source_offset_x);
+    RSPROT_U2_12(x, m->source_height);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U4_4321(x, m->target_coord_packed);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U2_12_ADD128(x, m->target_offset_z);
+    RSPROT_U2_12(x, m->target_offset_x);
+    RSPROT_U2_21(x, m->curve_script_t);
+    RSPROT_U2_21_ADD128(x, m->curve_script_a);
 }
 
 /* v3 -- revs 241. */
 void
 packet_scriptedproj_add_v3_out(RsprotExec *x, MsgScriptedProjAdd *m)
 {
-    RSPROT_U2(x, m->curve_script_a);
-    RSPROT_U3_ALT1(x, m->source_index);
-    RSPROT_U2_ALT2(x, m->source_offset_x);
-    RSPROT_U2_ALT3(x, m->target_offset_x);
-    RSPROT_U2(x, m->source_height);
-    RSPROT_U2_ALT2(x, m->target_height);
-    RSPROT_U2_ALT1(x, m->target_offset_z);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U3_ALT2(x, m->target_index);
-    RSPROT_U2(x, m->end_time);
-    RSPROT_U2_ALT3(x, m->slot);
-    RSPROT_U2(x, m->start_time);
-    RSPROT_U2_ALT2(x, m->source_offset_z);
-    RSPROT_U2_ALT3(x, m->curve_script_t);
-    RSPROT_U4_ALT1(x, m->target_coord_packed);
-    RSPROT_U2_ALT3(x, m->curve_script_h);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->curve_script_a);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U2_12_ADD128(x, m->source_offset_x);
+    RSPROT_U2_21_ADD128(x, m->target_offset_x);
+    RSPROT_U2_12(x, m->source_height);
+    RSPROT_U2_12_ADD128(x, m->target_height);
+    RSPROT_U2_21(x, m->target_offset_z);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_132(x, m->target_index);
+    RSPROT_U2_12(x, m->end_time);
+    RSPROT_U2_21_ADD128(x, m->slot);
+    RSPROT_U2_12(x, m->start_time);
+    RSPROT_U2_12_ADD128(x, m->source_offset_z);
+    RSPROT_U2_21_ADD128(x, m->curve_script_t);
+    RSPROT_U4_4321(x, m->target_coord_packed);
+    RSPROT_U2_21_ADD128(x, m->curve_script_h);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /*

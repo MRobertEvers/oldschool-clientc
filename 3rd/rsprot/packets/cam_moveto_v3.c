@@ -14,23 +14,23 @@
 void
 packet_cam_moveto_v3_v1_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
-    RSPROT_U2(x, m->z);
+    RSPROT_U2_12(x, m->z);
     RSPROT_BOOL(x, m->height_relative);
     RSPROT_U1(x, m->rate);
-    RSPROT_U2_ALT2(x, m->height);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U1_ALT1(x, m->rate2);
+    RSPROT_U2_12_ADD128(x, m->height);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U1_ADD128(x, m->rate2);
 }
 
 /* v2 -- revs 240. */
 void
 packet_cam_moveto_v3_v2_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
-    RSPROT_U1_ALT2(x, m->rate);
-    RSPROT_U2(x, m->z);
-    RSPROT_U1_ALT1(x, m->rate2);
-    RSPROT_U2_ALT1(x, m->height);
-    RSPROT_U2_ALT3(x, m->x);
+    RSPROT_U1_NEG(x, m->rate);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U1_ADD128(x, m->rate2);
+    RSPROT_U2_21(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->x);
     RSPROT_BOOL(x, m->height_relative);
 }
 
@@ -38,11 +38,11 @@ packet_cam_moveto_v3_v2_out(RsprotExec *x, MsgCamMoveToV3 *m)
 void
 packet_cam_moveto_v3_v3_out(RsprotExec *x, MsgCamMoveToV3 *m)
 {
-    RSPROT_U2(x, m->height);
-    RSPROT_U1_ALT3(x, m->rate);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT2(x, m->rate2);
+    RSPROT_U2_12(x, m->height);
+    RSPROT_U1_SUB128(x, m->rate);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_NEG(x, m->rate2);
     RSPROT_BOOL(x, m->height_relative);
 }
 

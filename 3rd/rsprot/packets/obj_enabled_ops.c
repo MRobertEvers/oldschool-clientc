@@ -14,36 +14,36 @@
 void
 packet_obj_enabled_ops_v1_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v2 -- revs 224. */
 void
 packet_obj_enabled_ops_v2_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v3 -- revs 225. */
 void
 packet_obj_enabled_ops_v3_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
 }
 
 /* v4 -- revs 226. */
 void
 packet_obj_enabled_ops_v4_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v5 -- revs 227. */
@@ -51,34 +51,34 @@ void
 packet_obj_enabled_ops_v5_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v6 -- revs 228. */
 void
 packet_obj_enabled_ops_v6_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v7 -- revs 229. */
 void
 packet_obj_enabled_ops_v7_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v8 -- revs 230. */
 void
 packet_obj_enabled_ops_v8_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->op_flags);
 }
 
@@ -86,7 +86,7 @@ packet_obj_enabled_ops_v8_out(RsprotExec *x, MsgObjEnabledOps *m)
 void
 packet_obj_enabled_ops_v9_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->op_flags);
 }
@@ -95,71 +95,71 @@ packet_obj_enabled_ops_v9_out(RsprotExec *x, MsgObjEnabledOps *m)
 void
 packet_obj_enabled_ops_v10_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v11 -- revs 233. */
 void
 packet_obj_enabled_ops_v11_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->op_flags);
 }
 
 /* v12 -- revs 234. */
 void
 packet_obj_enabled_ops_v12_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v13 -- revs 235. */
 void
 packet_obj_enabled_ops_v13_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v14 -- revs 236. */
 void
 packet_obj_enabled_ops_v14_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->op_flags);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v15 -- revs 237. */
 void
 packet_obj_enabled_ops_v15_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v16 -- revs 238. */
 void
 packet_obj_enabled_ops_v16_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v17 -- revs 239. */
 void
 packet_obj_enabled_ops_v17_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
     RSPROT_U1(x, m->op_flags);
 }
 
@@ -167,18 +167,18 @@ packet_obj_enabled_ops_v17_out(RsprotExec *x, MsgObjEnabledOps *m)
 void
 packet_obj_enabled_ops_v18_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
 }
 
 /* v19 -- revs 241. */
 void
 packet_obj_enabled_ops_v19_out(RsprotExec *x, MsgObjEnabledOps *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /*

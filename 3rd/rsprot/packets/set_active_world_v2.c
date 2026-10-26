@@ -19,7 +19,7 @@ packet_set_active_world_v2_v1_out(RsprotExec *x, MsgSetActiveWorldV2 *m)
      *   val world = session.getWorld(index)
      *   world.level = activeLevel
      */
-    RSPROT_I2(x, m->index);
+    RSPROT_I2_12(x, m->index);
     RSPROT_U1(x, m->active_level);
 }
 

@@ -11,11 +11,11 @@ packet_event_native_mouse_move_v1_in(RsprotExec *x, MsgEventNativeMouseMove *m)
         RSPROT_U1(x, m->moves[i].packed);
         if ((RSPROT_BRANCH(x, m->moves[i].packed) & 0xE0) == 0xE0) {
             RSPROT_U1(x, m->moves[i].time_lo);
-            RSPROT_I2(x, m->moves[i].y);
-            RSPROT_I2(x, m->moves[i].x);
+            RSPROT_I2_12(x, m->moves[i].y);
+            RSPROT_I2_12(x, m->moves[i].x);
         } else if ((m->moves[i].packed & 0xC0) == 0xC0) {
-            RSPROT_I2(x, m->moves[i].y);
-            RSPROT_I2(x, m->moves[i].x);
+            RSPROT_I2_12(x, m->moves[i].y);
+            RSPROT_I2_12(x, m->moves[i].x);
         } else if (m->moves[i].packed & 0x80) {
             RSPROT_U1(x, m->moves[i].dx);
             RSPROT_U1(x, m->moves[i].dy);

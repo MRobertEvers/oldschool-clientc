@@ -10,7 +10,7 @@ packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m)
 {
     for (int32_t i = 0; RSPROT_MORE(x, m->entries_count, i, MSG_OBJUNLOCK_UPDATE_MAX_ENTRIES); i++) {
         RSPROT_SMART(x, m->entries[i].delta);
-        RSPROT_U8(x, m->entries[i].bits);
+        RSPROT_U8_12345678(x, m->entries[i].bits);
     }
 }
 

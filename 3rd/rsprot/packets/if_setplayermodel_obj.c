@@ -14,144 +14,144 @@
 void
 packet_if_setplayermodel_obj_v1_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->obj);
+    RSPROT_U4_3412(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setplayermodel_obj_v2_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT1(x, m->obj);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U4_4321(x, m->obj);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v3 -- revs 223, 231. */
 void
 packet_if_setplayermodel_obj_v3_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_setplayermodel_obj_v4_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->obj);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_4321(x, m->obj);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setplayermodel_obj_v5_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT2(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_3412(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_setplayermodel_obj_v6_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_1234(x, m->obj);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setplayermodel_obj_v7_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT1(x, m->obj);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_setplayermodel_obj_v8_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4(x, m->obj);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_1234(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_setplayermodel_obj_v9_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT3(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_setplayermodel_obj_v10_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->obj);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_3412(x, m->obj);
 }
 
 /* v11 -- revs 232. */
 void
 packet_if_setplayermodel_obj_v11_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT2(x, m->obj);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_3412(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v12 -- revs 233, 241. */
 void
 packet_if_setplayermodel_obj_v12_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U4(x, m->obj);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_1234(x, m->obj);
 }
 
 /* v13 -- revs 234, 238. */
 void
 packet_if_setplayermodel_obj_v13_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_1234(x, m->obj);
 }
 
 /* v14 -- revs 235. */
 void
 packet_if_setplayermodel_obj_v14_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U4_1234(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v15 -- revs 236. */
 void
 packet_if_setplayermodel_obj_v15_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_4321(x, m->obj);
 }
 
 /* v16 -- revs 237. */
 void
 packet_if_setplayermodel_obj_v16_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT3(x, m->obj);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v17 -- revs 239. */
 void
 packet_if_setplayermodel_obj_v17_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT3(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
 }
 
 /* v18 -- revs 240. */
 void
 packet_if_setplayermodel_obj_v18_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
 {
-    RSPROT_U4_ALT3(x, m->obj);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*

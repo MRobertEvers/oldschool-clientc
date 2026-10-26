@@ -70,7 +70,7 @@ static inline void
 rsprot_tail_xtea_keys(RsprotExec *x, int32_t *keys, int32_t count)
 {
     for (int32_t i = 0; i < count * 4; i++)
-        rsprot_x_u4(x, &keys[i], "xtea_key");
+        rsprot_x_u4_1234(x, &keys[i], "xtea_key");
 }
 
 #endif

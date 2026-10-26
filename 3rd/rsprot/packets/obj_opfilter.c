@@ -15,17 +15,17 @@ void
 packet_obj_opfilter_v1_out(RsprotExec *x, MsgObjOpFilter *m)
 {
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v2 -- revs 222. */
 void
 packet_obj_opfilter_v2_out(RsprotExec *x, MsgObjOpFilter *m)
 {
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /*

@@ -14,7 +14,7 @@
 void
 packet_if_sethide_v1_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U4_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->combined_id);
     RSPROT_BOOL(x, m->hidden);
 }
 
@@ -22,15 +22,15 @@ packet_if_sethide_v1_out(RsprotExec *x, MsgIfSetHide *m)
 void
 packet_if_sethide_v2_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT2(x, m->hidden);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->hidden);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_sethide_v3_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_2143(x, m->combined_id);
     RSPROT_BOOL(x, m->hidden);
 }
 
@@ -38,23 +38,23 @@ packet_if_sethide_v3_out(RsprotExec *x, MsgIfSetHide *m)
 void
 packet_if_sethide_v4_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT1(x, m->hidden);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v5 -- revs 225, 240. */
 void
 packet_if_sethide_v5_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT3(x, m->hidden);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->hidden);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_sethide_v6_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
     RSPROT_BOOL(x, m->hidden);
 }
 
@@ -62,72 +62,72 @@ packet_if_sethide_v6_out(RsprotExec *x, MsgIfSetHide *m)
 void
 packet_if_sethide_v7_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT3(x, m->hidden);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->hidden);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v8 -- revs 228, 233. */
 void
 packet_if_sethide_v8_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT2(x, m->hidden);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->hidden);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_sethide_v9_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT1(x, m->hidden);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_sethide_v10_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->hidden);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->hidden);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_sethide_v11_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_U1_ALT1(x, m->hidden);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_sethide_v12_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->hidden);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
 }
 
 /* v13 -- revs 234. */
 void
 packet_if_sethide_v13_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT2(x, m->hidden);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_NEG(x, m->hidden);
 }
 
 /* v14 -- revs 236. */
 void
 packet_if_sethide_v14_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->hidden);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
 }
 
 /* v15 -- revs 237. */
 void
 packet_if_sethide_v15_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U1_ALT3(x, m->hidden);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U1_SUB128(x, m->hidden);
 }
 
 /* v16 -- revs 238. */
@@ -135,22 +135,22 @@ void
 packet_if_sethide_v16_out(RsprotExec *x, MsgIfSetHide *m)
 {
     RSPROT_BOOL(x, m->hidden);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v17 -- revs 239. */
 void
 packet_if_sethide_v17_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U1_ALT1(x, m->hidden);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U1_ADD128(x, m->hidden);
 }
 
 /* v18 -- revs 241. */
 void
 packet_if_sethide_v18_out(RsprotExec *x, MsgIfSetHide *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_COM_4321(x, m->combined_id);
     RSPROT_U1(x, m->hidden);
 }
 

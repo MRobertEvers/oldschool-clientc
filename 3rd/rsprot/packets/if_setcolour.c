@@ -14,112 +14,112 @@
 void
 packet_if_setcolour_v1_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U4_ALT1(x, m->combined_id);
-    RSPROT_U2(x, m->colour15_bit_packed);
+    RSPROT_U4_4321(x, m->combined_id);
+    RSPROT_U2_12(x, m->colour15_bit_packed);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setcolour_v2_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->colour15_bit_packed);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21(x, m->colour15_bit_packed);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setcolour_v3_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2_ALT2(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->colour15_bit_packed);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v4 -- revs 224, 227. */
 void
 packet_if_setcolour_v4_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->colour15_bit_packed);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->colour15_bit_packed);
 }
 
 /* v5 -- revs 225, 231. */
 void
 packet_if_setcolour_v5_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12(x, m->colour15_bit_packed);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v6 -- revs 226, 229, 234. */
 void
 packet_if_setcolour_v6_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->colour15_bit_packed);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->colour15_bit_packed);
 }
 
 /* v7 -- revs 228, 235. */
 void
 packet_if_setcolour_v7_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2_ALT2(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->colour15_bit_packed);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v8 -- revs 230. */
 void
 packet_if_setcolour_v8_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->colour15_bit_packed);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->colour15_bit_packed);
 }
 
 /* v9 -- revs 232, 241. */
 void
 packet_if_setcolour_v9_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->colour15_bit_packed);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->colour15_bit_packed);
 }
 
 /* v10 -- revs 233. */
 void
 packet_if_setcolour_v10_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2_ALT1(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21(x, m->colour15_bit_packed);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v11 -- revs 236. */
 void
 packet_if_setcolour_v11_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->colour15_bit_packed);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->colour15_bit_packed);
 }
 
 /* v12 -- revs 237, 239. */
 void
 packet_if_setcolour_v12_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12(x, m->colour15_bit_packed);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v13 -- revs 238. */
 void
 packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->colour15_bit_packed);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->colour15_bit_packed);
 }
 
 /* v14 -- revs 240. */
 void
 packet_if_setcolour_v14_out(RsprotExec *x, MsgIfSetColour *m)
 {
-    RSPROT_U2_ALT3(x, m->colour15_bit_packed);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->colour15_bit_packed);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /*

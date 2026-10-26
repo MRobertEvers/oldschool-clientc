@@ -18,15 +18,15 @@ packet_rebuild_normal_v1_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT2(x, m->world_area);
-    RSPROT_U2_ALT2(x, m->zone_x);
-    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_U2_12_ADD128(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
+    RSPROT_U2_21(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -38,15 +38,15 @@ packet_rebuild_normal_v2_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT1(x, m->zone_z);
-    RSPROT_U2_ALT3(x, m->world_area);
-    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_U2_21(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -58,15 +58,15 @@ packet_rebuild_normal_v3_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->world_area);
-    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_U2_12(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->world_area);
+    RSPROT_U2_21(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -78,15 +78,15 @@ packet_rebuild_normal_v4_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT2(x, m->world_area);
-    RSPROT_U2_ALT2(x, m->zone_x);
-    RSPROT_U2(x, m->zone_z);
+    RSPROT_U2_12_ADD128(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
+    RSPROT_U2_12(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -98,15 +98,15 @@ packet_rebuild_normal_v5_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT1(x, m->world_area);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U2_21(x, m->world_area);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_12_ADD128(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -118,15 +118,15 @@ packet_rebuild_normal_v6_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT1(x, m->zone_z);
-    RSPROT_U2(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_21(x, m->zone_z);
+    RSPROT_U2_12(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->world_area);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -138,15 +138,15 @@ packet_rebuild_normal_v7_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT3(x, m->zone_z);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_21_ADD128(x, m->zone_z);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->world_area);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -158,15 +158,15 @@ packet_rebuild_normal_v8_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_I2(x, m->world_area);
-    RSPROT_U2_ALT2(x, m->zone_x);
-    RSPROT_U2(x, m->zone_z);
+    RSPROT_I2_12(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
+    RSPROT_U2_12(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -178,15 +178,15 @@ packet_rebuild_normal_v9_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT3(x, m->world_area);
-    RSPROT_U2_ALT3(x, m->zone_x);
-    RSPROT_U2_ALT2(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->world_area);
+    RSPROT_U2_21_ADD128(x, m->zone_x);
+    RSPROT_U2_12_ADD128(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -198,15 +198,15 @@ packet_rebuild_normal_v10_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT1(x, m->world_area);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->zone_z);
+    RSPROT_U2_21(x, m->world_area);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->zone_z);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -218,15 +218,15 @@ packet_rebuild_normal_v11_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2_ALT1(x, m->world_area);
-    RSPROT_U2(x, m->zone_z);
-    RSPROT_U2(x, m->zone_x);
+    RSPROT_U2_21(x, m->world_area);
+    RSPROT_U2_12(x, m->zone_z);
+    RSPROT_U2_12(x, m->zone_x);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -238,15 +238,15 @@ packet_rebuild_normal_v12_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->zone_z);
-    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_12(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->world_area);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 
@@ -258,15 +258,15 @@ packet_rebuild_normal_v13_out(RsprotExec *x, MsgRebuildNormal *m)
      *   (caller) the login variant's player-info init block precedes this
      */
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 8);
-    RSPROT_U2(x, m->zone_z);
-    RSPROT_U2_ALT3(x, m->zone_x);
-    RSPROT_U2_ALT1(x, m->world_area);
+    RSPROT_U2_12(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->zone_x);
+    RSPROT_U2_21(x, m->world_area);
     RSPROT_COUNT2(x, m->xtea_count, 169);
     for (int32_t i = 0; i < m->xtea_count; i++) {
-        RSPROT_U4(x, m->keys[i][0]);
-        RSPROT_U4(x, m->keys[i][1]);
-        RSPROT_U4(x, m->keys[i][2]);
-        RSPROT_U4(x, m->keys[i][3]);
+        RSPROT_U4_1234(x, m->keys[i][0]);
+        RSPROT_U4_1234(x, m->keys[i][1]);
+        RSPROT_U4_1234(x, m->keys[i][2]);
+        RSPROT_U4_1234(x, m->keys[i][3]);
     }
 }
 

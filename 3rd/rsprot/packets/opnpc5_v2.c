@@ -14,9 +14,9 @@
 void
 packet_opnpc5_v2_v1_in(RsprotExec *x, MsgOpNpc5V2 *m)
 {
-    RSPROT_U1_ALT2(x, m->subop);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U1_NEG(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v2 -- revs 238. */
@@ -24,7 +24,7 @@ void
 packet_opnpc5_v2_v2_in(RsprotExec *x, MsgOpNpc5V2 *m)
 {
     RSPROT_U1(x, m->subop);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -32,9 +32,9 @@ packet_opnpc5_v2_v2_in(RsprotExec *x, MsgOpNpc5V2 *m)
 void
 packet_opnpc5_v2_v3_in(RsprotExec *x, MsgOpNpc5V2 *m)
 {
-    RSPROT_U1_ALT1(x, m->subop);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U1_ADD128(x, m->subop);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v4 -- revs 240. */
@@ -42,17 +42,17 @@ void
 packet_opnpc5_v2_v4_in(RsprotExec *x, MsgOpNpc5V2 *m)
 {
     RSPROT_U1(x, m->subop);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v5 -- revs 241. */
 void
 packet_opnpc5_v2_v5_in(RsprotExec *x, MsgOpNpc5V2 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U1_ALT2(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U1_NEG(x, m->subop);
 }
 
 /*

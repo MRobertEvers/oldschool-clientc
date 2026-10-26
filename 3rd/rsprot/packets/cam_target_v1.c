@@ -15,7 +15,7 @@ void
 packet_cam_target_v1_v1_out(RsprotExec *x, MsgCamTargetV1 *m)
 {
     RSPROT_U1(x, m->type);
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
 }
 
 /*

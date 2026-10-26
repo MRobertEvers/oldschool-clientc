@@ -11,18 +11,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "rsprot_buffer.h"
+#include "rsprot_buf.h"
 #include "log/torirs_log.h"
 
 /*
  * The byte cursor and its six readers used to live here: a private
  * `struct Osrs230Cursor` plus six readers spelled c_g1 / c_g1alt2 / c_g2 /
  * c_g4 / c_g4alt1 / c_gsmart. They
- * are RSProt_Buffer's, and now come from it — see
- * `3rd/rsprot/src/rsprot_buffer.h` and `docs/BUFFER_ACCESSOR_AUDIT.md`.
+ * are RsprotBuf's, and now come from it — see
+ * `3rd/rsprot/src/rsprot_buf.h` and `docs/BUFFER_ACCESSOR_AUDIT.md`.
  *
  * The names carry the byte order rather than an `alt` ordinal, so a call site
- * states what it reads: `RSProt_BufferG4Le` was little-endian, and says so now.
+ * states what it reads: `rsprot_g4_4321` was little-endian, and says so now.
  *
  * Same clamping contract as before — a read past the end latches an error and
  * returns 0 instead of running off the buffer, and the caller drops the packet
@@ -33,15 +33,15 @@
  *   p1Alt2 count (255 escapes to a p4Alt1 real count), p2 objId + 1. */
 static void
 osrs230_read_inv_slot(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     int* out_obj_id,
     int* out_count)
 {
-    int count = RSProt_BufferG1_neg(c);
+    int count = rsprot_g1_neg(c);
     if( count == 255 )
-        count = RSProt_BufferG4Le(c);
+        count = rsprot_g4_4321(c);
     *out_count = count;
-    *out_obj_id = RSProt_BufferG2Be(c) - 1;
+    *out_obj_id = rsprot_g2_12(c) - 1;
 }
 
 /*
@@ -77,15 +77,15 @@ osrs230_parse(
      */
     case PKT_NAME_RUNCLIENTSCRIPT:
     {
-        RSProt_Buffer cur;
-        RSProt_BufferWrapRead(&cur, data, len);
+        RsprotBuf cur;
+        rsprot_buf_wrap_read(&cur, data, len);
         char types[PKT_RUNCLIENTSCRIPT_ARG_MAX + 1];
         int argc = 0;
         int terminated = 0;
 
         for( ;; )
         {
-            int ch = RSProt_BufferG1(&cur);
+            int ch = rsprot_g1(&cur);
 
             if( cur.err )
                 break;
@@ -130,7 +130,7 @@ osrs230_parse(
                 int n = 0;
                 for( ;; )
                 {
-                    int ch = RSProt_BufferG1(&cur);
+                    int ch = rsprot_g1(&cur);
                     if( cur.err || ch == '\n' || ch == 0 )
                         break;
                     if( n < room )
@@ -140,10 +140,10 @@ osrs230_parse(
             }
             else
             {
-                p->intv[i] = RSProt_BufferG4Be(&cur);
+                p->intv[i] = rsprot_g4_1234(&cur);
             }
         }
-        p->script_id = RSProt_BufferG4Be(&cur);
+        p->script_id = rsprot_g4_1234(&cur);
         return cur.err ? 0 : 1;
     }
 
@@ -271,12 +271,12 @@ osrs230_parse(
      *   p1 size, id-then-count) does not fit here. */
     case PKT_NAME_UPDATE_INV_FULL:
     {
-        RSProt_Buffer cur;
-        RSProt_BufferWrapRead(&cur, data, len);
+        RsprotBuf cur;
+        rsprot_buf_wrap_read(&cur, data, len);
         int capacity;
-        out->_update_inv_full.component_id = RSProt_BufferG4Be(&cur);
-        out->_update_inv_full.inv_id = RSProt_BufferG2Be(&cur);
-        capacity = RSProt_BufferG2Be(&cur);
+        out->_update_inv_full.component_id = rsprot_g4_1234(&cur);
+        out->_update_inv_full.inv_id = rsprot_g2_12(&cur);
+        capacity = rsprot_g2_12(&cur);
         if( cur.err || capacity < 0 || capacity > 4096 )
             return 0;
         out->_update_inv_full.size = capacity;
@@ -308,12 +308,12 @@ osrs230_parse(
      * packet rather than write a mis-decoded slot into the container. */
     case PKT_NAME_UPDATE_INV_PARTIAL:
     {
-        RSProt_Buffer cur;
-        RSProt_BufferWrapRead(&cur, data, len);
+        RsprotBuf cur;
+        rsprot_buf_wrap_read(&cur, data, len);
         int max_entries;
         int written = 0;
-        out->_update_inv_partial.component_id = RSProt_BufferG4Be(&cur);
-        out->_update_inv_partial.inv_id = RSProt_BufferG2Be(&cur);
+        out->_update_inv_partial.component_id = rsprot_g4_1234(&cur);
+        out->_update_inv_partial.inv_id = rsprot_g2_12(&cur);
         out->_update_inv_partial.count = 0;
         out->_update_inv_partial.entries = NULL;
         if( cur.err )
@@ -325,7 +325,7 @@ osrs230_parse(
         while( cur.rpos < len && written < max_entries )
         {
             struct PktUpdateInvPartialEntry* entry = &out->_update_inv_partial.entries[written];
-            entry->slot = RSProt_BufferGSmart1or2(&cur);
+            entry->slot = rsprot_gsmart1or2(&cur);
             osrs230_read_inv_slot(&cur, &entry->obj_id, &entry->count);
             if( cur.err )
                 break;
@@ -370,13 +370,13 @@ osrs230_parse(
      * parser asserts the frame is fully consumed. */
     case PKT_NAME_UPDATE_STAT:
     {
-        RSProt_Buffer cur;
-        RSProt_BufferWrapRead(&cur, data, len);
+        RsprotBuf cur;
+        rsprot_buf_wrap_read(&cur, data, len);
         int base;
 
-        out->_update_stat.stat = RSProt_BufferG1(&cur);
-        base = RSProt_BufferG1(&cur);
-        out->_update_stat.xp = RSProt_BufferG4Be(&cur);
+        out->_update_stat.stat = rsprot_g1(&cur);
+        base = rsprot_g1(&cur);
+        out->_update_stat.xp = rsprot_g4_1234(&cur);
         /*
          * The BOOSTED level is what `.level` carries, not the base one.
          *
@@ -387,7 +387,7 @@ osrs230_parse(
          * hitpoints, which is the same number as the player's hitpoints; sending
          * the base here pins the orb at full health for the whole session.
          */
-        out->_update_stat.level = RSProt_BufferG1(&cur);
+        out->_update_stat.level = rsprot_g1(&cur);
         (void)base;
         return cur.err ? 0 : 1;
     }
@@ -425,16 +425,16 @@ osrs230_parse(
      */
     case PKT_NAME_MIDI_SONG:
     {
-        RSProt_Buffer cur;
+        RsprotBuf cur;
         int fade_out_speed;
         int fade_in_speed;
 
-        RSProt_BufferWrapRead(&cur, data, len);
-        (void)RSProt_BufferG2Be_add128(&cur); /* fade-out delay */
-        fade_out_speed = RSProt_BufferG2Be_add128(&cur);
-        (void)RSProt_BufferG2Be(&cur); /* fade-in delay */
-        out->_midi_song.id = RSProt_BufferG2Be(&cur);
-        fade_in_speed = RSProt_BufferG2Le_add128(&cur);
+        rsprot_buf_wrap_read(&cur, data, len);
+        (void)rsprot_g2_12_add128(&cur); /* fade-out delay */
+        fade_out_speed = rsprot_g2_12_add128(&cur);
+        (void)rsprot_g2_12(&cur); /* fade-in delay */
+        out->_midi_song.id = rsprot_g2_12(&cur);
+        fade_in_speed = rsprot_g2_21_add128(&cur);
         if( out->_midi_song.id == 65535 )
             out->_midi_song.id = -1;
         /* Speeds are client cycles; the player works in milliseconds. */

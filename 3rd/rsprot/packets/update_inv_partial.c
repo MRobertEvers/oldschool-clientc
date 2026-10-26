@@ -20,15 +20,15 @@
  *
  * `message.count` never reaches the wire, which is what makes the loop
  * count-less. Note also that the id here is p2 while UPDATE_INV_FULL's is
- * p2Alt1, and the count is p1/p4 against FULL's p1Alt3/p4Alt3 -- two packets
+ * p2_21, and the count is p1/p4 against FULL's p1_sub128/p4_2143 -- two packets
  * carrying the same three fields in four different byte orders.
  */
 
 void
 packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->inventory_id);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->inventory_id);
 
     for (int32_t i = 0;
          RSPROT_MORE(x, m->count, i, MSG_UPDATE_INV_PARTIAL_MAX_SLOTS);
@@ -37,14 +37,14 @@ packet_update_inv_partial_v1_out(RsprotExec *x, MsgUpdateInvPartial *m)
 
         RSPROT_SMART(x, slot->slot);
         /* id + 1, so 0 is "this slot is now empty". */
-        RSPROT_XFORM(x, U2, slot->id, 1);
+        RSPROT_XFORM(x, U2_12, slot->id, 1);
         /* Legal: `id` was transferred on the line above. An empty slot really
          * is shorter here -- no count follows -- so unlike UPDATE_INV_FULL this
          * branch is a layout and not a redundancy. */
         if (RSPROT_BRANCH(x, slot->id) != -1) {
             RSPROT_CLAMP(x, U1, slot->count_lo, slot->count, 255);
             if (RSPROT_BRANCH(x, slot->count_lo) == 255)
-                RSPROT_U4(x, slot->count);
+                RSPROT_U4_1234(x, slot->count);
         }
     }
 }

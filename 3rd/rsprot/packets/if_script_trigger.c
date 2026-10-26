@@ -14,10 +14,10 @@
 void
 packet_if_script_trigger_v1_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2(x, m->sub);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->obj);
-    RSPROT_U4_ALT1(x, m->crc);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->obj);
+    RSPROT_U4_4321(x, m->crc);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -25,10 +25,10 @@ packet_if_script_trigger_v1_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v2_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->obj);
-    RSPROT_U4_ALT3(x, m->crc);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_U4_2143(x, m->crc);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -36,10 +36,10 @@ packet_if_script_trigger_v2_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v3_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U4_ALT1(x, m->crc);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->obj);
-    RSPROT_U2_ALT2(x, m->sub);
+    RSPROT_U4_4321(x, m->crc);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->obj);
+    RSPROT_U2_12_ADD128(x, m->sub);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -47,10 +47,10 @@ packet_if_script_trigger_v3_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v4_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT2(x, m->sub);
-    RSPROT_U2(x, m->obj);
-    RSPROT_U4(x, m->crc);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->sub);
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_U4_1234(x, m->crc);
+    RSPROT_COM_3412(x, m->combined_id);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -58,10 +58,10 @@ packet_if_script_trigger_v4_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v5_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U4_ALT1(x, m->crc);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->obj);
+    RSPROT_U4_4321(x, m->crc);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21(x, m->obj);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -69,10 +69,10 @@ packet_if_script_trigger_v5_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v6_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT1(x, m->obj);
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->crc);
-    RSPROT_U2_ALT2(x, m->sub);
+    RSPROT_U2_21(x, m->obj);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U4_3412(x, m->crc);
+    RSPROT_U2_12_ADD128(x, m->sub);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -80,10 +80,10 @@ packet_if_script_trigger_v6_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v7_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->crc);
-    RSPROT_U2_ALT3(x, m->obj);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_4321(x, m->crc);
+    RSPROT_U2_21_ADD128(x, m->obj);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -91,10 +91,10 @@ packet_if_script_trigger_v7_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v8_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_U2_ALT2(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->crc);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_U2_12_ADD128(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_3412(x, m->crc);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -102,10 +102,10 @@ packet_if_script_trigger_v8_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v9_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U2_ALT3(x, m->sub);
-    RSPROT_U2(x, m->obj);
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U4_ALT1(x, m->crc);
+    RSPROT_U2_21_ADD128(x, m->sub);
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U4_4321(x, m->crc);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -113,10 +113,10 @@ packet_if_script_trigger_v9_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v10_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_U4_ALT2(x, m->crc);
-    RSPROT_U2(x, m->obj);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->sub);
+    RSPROT_U4_3412(x, m->crc);
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21(x, m->sub);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 
@@ -124,10 +124,10 @@ packet_if_script_trigger_v10_in(RsprotExec *x, MsgIfScriptTrigger *m)
 void
 packet_if_script_trigger_v11_in(RsprotExec *x, MsgIfScriptTrigger *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->obj);
-    RSPROT_U2_ALT1(x, m->sub);
-    RSPROT_U4_ALT2(x, m->crc);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21(x, m->obj);
+    RSPROT_U2_21(x, m->sub);
+    RSPROT_U4_3412(x, m->crc);
     RSPROT_REST(x, m->copy, m->copy_length);
 }
 

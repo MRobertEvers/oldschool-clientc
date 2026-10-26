@@ -14,14 +14,14 @@
 void
 packet_if_closesub_v1_out(RsprotExec *x, MsgIfCloseSub *m)
 {
-    RSPROT_U4(x, m->combined_id);
+    RSPROT_U4_1234(x, m->combined_id);
 }
 
 /* v2 -- revs 222-241. */
 void
 packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*

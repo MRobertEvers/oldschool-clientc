@@ -68,34 +68,34 @@ static void
 codec_all_prims(RsprotExec *x, MsgAllPrims *m)
 {
     RSPROT_U1(x, m->u1);
-    RSPROT_U1_ALT1(x, m->u1a1);
-    RSPROT_U1_ALT2(x, m->u1a2);
-    RSPROT_U1_ALT3(x, m->u1a3);
+    RSPROT_U1_ADD128(x, m->u1a1);
+    RSPROT_U1_NEG(x, m->u1a2);
+    RSPROT_U1_SUB128(x, m->u1a3);
     RSPROT_I1(x, m->i1);
-    RSPROT_U2(x, m->u2);
-    RSPROT_U2_ALT1(x, m->u2a1);
-    RSPROT_U2_ALT2(x, m->u2a2);
-    RSPROT_U2_ALT3(x, m->u2a3);
-    RSPROT_I2(x, m->i2);
-    RSPROT_U3(x, m->u3);
-    RSPROT_U3_ALT1(x, m->u3a1);
-    RSPROT_U3_ALT2(x, m->u3a2);
-    RSPROT_U3_ALT3(x, m->u3a3);
-    RSPROT_U4(x, m->u4);
-    RSPROT_U4_ALT1(x, m->u4a1);
-    RSPROT_U4_ALT2(x, m->u4a2);
-    RSPROT_U4_ALT3(x, m->u4a3);
-    RSPROT_COM(x, m->com);
-    RSPROT_COM_ALT1(x, m->coma1);
-    RSPROT_COM_ALT2(x, m->coma2);
-    RSPROT_COM_ALT3(x, m->coma3);
+    RSPROT_U2_12(x, m->u2);
+    RSPROT_U2_21(x, m->u2a1);
+    RSPROT_U2_12_ADD128(x, m->u2a2);
+    RSPROT_U2_21_ADD128(x, m->u2a3);
+    RSPROT_I2_12(x, m->i2);
+    RSPROT_U3_123(x, m->u3);
+    RSPROT_U3_321(x, m->u3a1);
+    RSPROT_U3_132(x, m->u3a2);
+    RSPROT_U3_213(x, m->u3a3);
+    RSPROT_U4_1234(x, m->u4);
+    RSPROT_U4_4321(x, m->u4a1);
+    RSPROT_U4_3412(x, m->u4a2);
+    RSPROT_U4_2143(x, m->u4a3);
+    RSPROT_COM_1234(x, m->com);
+    RSPROT_COM_4321(x, m->coma1);
+    RSPROT_COM_3412(x, m->coma2);
+    RSPROT_COM_2143(x, m->coma3);
     RSPROT_SMART(x, m->smart);
     RSPROT_SMARTNULL(x, m->smartnull);
     RSPROT_SMART2OR4NULL(x, m->smart24null);
     RSPROT_VARINT2(x, m->varint2);
     RSPROT_VARINT2S(x, m->varint2s);
     RSPROT_BOOL(x, m->boolean);
-    RSPROT_U8(x, m->u8);
+    RSPROT_U8_12345678(x, m->u8);
 }
 
 /**
@@ -127,21 +127,21 @@ codec_shapes(RsprotExec *x, MsgShapes *m)
      * real codecs use it. A tagged-union payload is exactly this. */
     switch (RSPROT_BRANCH(x, m->kind)) {
     case 0:
-        RSPROT_U2_ALT2(x, m->a);
+        RSPROT_U2_12_ADD128(x, m->a);
         break;
     case 1:
-        RSPROT_U4_ALT3(x, m->b);
-        RSPROT_U1_ALT1(x, m->c);
+        RSPROT_U4_2143(x, m->b);
+        RSPROT_U1_ADD128(x, m->c);
         break;
     default:
-        RSPROT_U2(x, m->a);
-        RSPROT_U2_ALT1(x, m->b);
+        RSPROT_U2_12(x, m->a);
+        RSPROT_U2_21(x, m->b);
         break;
     }
 
     int32_t n = RSPROT_COUNT(x, m->count, MSG_MAX_SLOTS);
     for (int32_t i = 0; i < n; i++) {
-        rsprot_x_u2_alt1(x, &m->slot_id[i], "slot_id");
+        rsprot_x_u2_21(x, &m->slot_id[i], "slot_id");
         rsprot_x_smart(x, &m->slot_qty[i], "slot_qty");
     }
 
@@ -362,7 +362,7 @@ test_describe_reports_the_layout(void)
     CHECK_EQ(schema.fields[0].prim, RSPROT_PRIM_U1);
     CHECK_EQ(schema.fields[0].offset, 0);
     CHECK(strcmp(schema.fields[0].name, "m->kind") == 0);
-    CHECK_EQ(schema.fields[1].prim, RSPROT_PRIM_U2_ALT2);
+    CHECK_EQ(schema.fields[1].prim, RSPROT_PRIM_U2_12_ADD128);
     CHECK_EQ(schema.fields[1].offset, 1);
     CHECK_EQ(schema.fields[2].offset, 3); /* count */
     CHECK_EQ(schema.fields[3].kind, RSPROT_FIELD_STR);
@@ -385,8 +385,8 @@ test_describe_reports_the_layout(void)
     memset(&f, 0, sizeof(f));
     rsprot_exec_describe(&x, &schema);
     rsprot_x_u1(&x, &f.a, "a");
-    rsprot_x_u2_alt2(&x, &f.b, "b");
-    rsprot_x_com_alt3(&x, &f.c, "c");
+    rsprot_x_u2_12_add128(&x, &f.b, "b");
+    rsprot_x_com_2143(&x, &f.c, "c");
     CHECK_EQ(rsprot_schema_fixed_size(&schema), 1 + 2 + 4);
 }
 
@@ -403,9 +403,9 @@ codec_branches_too_early(RsprotExec *x, MsgShapes *m)
     /* WRONG ON PURPOSE: `kind` has not been transferred, so decoding would
      * branch on uninitialised memory while encoding branches on a real value. */
     if (RSPROT_BRANCH(x, m->kind) == 1)
-        RSPROT_U4(x, m->b);
+        RSPROT_U4_1234(x, m->b);
     else
-        RSPROT_U2(x, m->a);
+        RSPROT_U2_12(x, m->a);
     RSPROT_U1(x, m->kind);
 }
 

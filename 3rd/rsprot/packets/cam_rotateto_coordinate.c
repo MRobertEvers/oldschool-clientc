@@ -16,8 +16,8 @@ packet_cam_rotateto_coordinate_v1_out(RsprotExec *x, MsgCamRotateToCoordinate *m
 {
     RSPROT_U1(x, m->destination_x_in_build_area);
     RSPROT_U1(x, m->destination_z_in_build_area);
-    RSPROT_U2(x, m->height);
-    RSPROT_U2(x, m->duration);
+    RSPROT_U2_12(x, m->height);
+    RSPROT_U2_12(x, m->duration);
     RSPROT_U1(x, m->function_id);
 }
 
@@ -27,8 +27,8 @@ packet_cam_rotateto_coordinate_v2_out(RsprotExec *x, MsgCamRotateToCoordinate *m
 {
     RSPROT_U1(x, m->destination_x_in_build_area);
     RSPROT_U1(x, m->destination_z_in_build_area);
-    RSPROT_U2(x, m->height);
-    RSPROT_U2(x, m->cycles);
+    RSPROT_U2_12(x, m->height);
+    RSPROT_U2_12(x, m->cycles);
     RSPROT_U1(x, m->easing_id);
 }
 

@@ -17,7 +17,7 @@ worldentity_info_osrs236_v6_ext_payload(RsprotBuf *b, int32_t flags, RsprotInfoW
     e->flags = flags;
     if (flags & 0x2) {
         e->has_sequence = 1;
-        e->sequence_id = rsprot_g2(b);
+        e->sequence_id = rsprot_g2_12(b);
         e->sequence_delay = rsprot_g1(b);
     }
     if (flags & 0x1) {
@@ -37,7 +37,7 @@ worldentity_info_osrs236_v6_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
 {
     a->size_x = rsprot_g1(b) * 8;
     a->size_z = rsprot_g1(b) * 8;
-    a->id = rsprot_g2(b);
+    a->id = rsprot_g2_12(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     a->priority = rsprot_g1(b);
     worldentity_info_osrs236_v6_ext(b, &a->ext);
@@ -62,8 +62,8 @@ worldentity_info_osrs236_v7_ext_payload(RsprotBuf *b, int32_t flags, RsprotInfoW
     e->flags = flags;
     if (flags & 0x2) {
         e->has_sequence = 1;
-        e->sequence_id = rsprot_g2_alt2(b);
-        e->sequence_delay = rsprot_g1_alt3(b);
+        e->sequence_id = rsprot_g2_12_add128(b);
+        e->sequence_delay = rsprot_g1_sub128(b);
     }
     if (flags & 0x1) {
         e->has_ops = 1;
@@ -89,8 +89,8 @@ worldentity_info_osrs236_v7_spawn(RsprotBuf *b, RsprotInfoWeAdd *a)
         a->size_z = (packed & 0xf) * 8;
     }
     ext_flags = rsprot_g1(b);
-    a->priority = rsprot_g1_alt2(b);
-    a->id = rsprot_g2s_alt2(b);
+    a->priority = rsprot_g1_neg(b);
+    a->id = rsprot_g2s_12_add128(b);
     rsprot_info_we_fine(b, &a->x, &a->y, &a->z, &a->angle);
     worldentity_info_osrs236_v7_ext_payload(b, ext_flags, &a->ext);
 }

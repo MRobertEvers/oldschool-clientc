@@ -7,8 +7,8 @@ packet_event_keyboard_v1_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT3(x, m->keys[i].key);
-        RSPROT_U3(x, m->keys[i].delta);
+        RSPROT_U1_SUB128(x, m->keys[i].key);
+        RSPROT_U3_123(x, m->keys[i].delta);
     }
 }
 
@@ -18,8 +18,8 @@ packet_event_keyboard_v2_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3(x, m->keys[i].delta);
-        RSPROT_U1_ALT1(x, m->keys[i].key);
+        RSPROT_U3_123(x, m->keys[i].delta);
+        RSPROT_U1_ADD128(x, m->keys[i].key);
     }
 }
 
@@ -29,8 +29,8 @@ packet_event_keyboard_v3_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT1(x, m->keys[i].key);
-        RSPROT_U3_ALT2(x, m->keys[i].delta);
+        RSPROT_U1_ADD128(x, m->keys[i].key);
+        RSPROT_U3_132(x, m->keys[i].delta);
     }
 }
 
@@ -40,8 +40,8 @@ packet_event_keyboard_v4_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3_ALT2(x, m->keys[i].delta);
-        RSPROT_U1_ALT1(x, m->keys[i].key);
+        RSPROT_U3_132(x, m->keys[i].delta);
+        RSPROT_U1_ADD128(x, m->keys[i].key);
     }
 }
 
@@ -52,7 +52,7 @@ packet_event_keyboard_v5_in(RsprotExec *x, MsgEventKeyboard *m)
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
         RSPROT_U1(x, m->keys[i].key);
-        RSPROT_U3(x, m->keys[i].delta);
+        RSPROT_U3_123(x, m->keys[i].delta);
     }
 }
 
@@ -62,8 +62,8 @@ packet_event_keyboard_v6_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT2(x, m->keys[i].key);
-        RSPROT_U3_ALT2(x, m->keys[i].delta);
+        RSPROT_U1_NEG(x, m->keys[i].key);
+        RSPROT_U3_132(x, m->keys[i].delta);
     }
 }
 
@@ -73,7 +73,7 @@ packet_event_keyboard_v7_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3(x, m->keys[i].delta);
+        RSPROT_U3_123(x, m->keys[i].delta);
         RSPROT_U1(x, m->keys[i].key);
     }
 }
@@ -84,7 +84,7 @@ packet_event_keyboard_v8_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3_ALT2(x, m->keys[i].delta);
+        RSPROT_U3_132(x, m->keys[i].delta);
         RSPROT_U1(x, m->keys[i].key);
     }
 }
@@ -96,7 +96,7 @@ packet_event_keyboard_v9_in(RsprotExec *x, MsgEventKeyboard *m)
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
         RSPROT_U1(x, m->keys[i].key);
-        RSPROT_U3_ALT3(x, m->keys[i].delta);
+        RSPROT_U3_213(x, m->keys[i].delta);
     }
 }
 
@@ -106,8 +106,8 @@ packet_event_keyboard_v10_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3_ALT1(x, m->keys[i].delta);
-        RSPROT_U1_ALT3(x, m->keys[i].key);
+        RSPROT_U3_321(x, m->keys[i].delta);
+        RSPROT_U1_SUB128(x, m->keys[i].key);
     }
 }
 
@@ -117,8 +117,8 @@ packet_event_keyboard_v11_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT2(x, m->keys[i].key);
-        RSPROT_U3(x, m->keys[i].delta);
+        RSPROT_U1_NEG(x, m->keys[i].key);
+        RSPROT_U3_123(x, m->keys[i].delta);
     }
 }
 
@@ -128,8 +128,8 @@ packet_event_keyboard_v12_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT2(x, m->keys[i].key);
-        RSPROT_U3_ALT3(x, m->keys[i].delta);
+        RSPROT_U1_NEG(x, m->keys[i].key);
+        RSPROT_U3_213(x, m->keys[i].delta);
     }
 }
 
@@ -139,8 +139,8 @@ packet_event_keyboard_v13_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3_ALT1(x, m->keys[i].delta);
-        RSPROT_U1_ALT2(x, m->keys[i].key);
+        RSPROT_U3_321(x, m->keys[i].delta);
+        RSPROT_U1_NEG(x, m->keys[i].key);
     }
 }
 
@@ -151,7 +151,7 @@ packet_event_keyboard_v14_in(RsprotExec *x, MsgEventKeyboard *m)
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
         RSPROT_U1(x, m->keys[i].key);
-        RSPROT_U3_ALT2(x, m->keys[i].delta);
+        RSPROT_U3_132(x, m->keys[i].delta);
     }
 }
 
@@ -161,8 +161,8 @@ packet_event_keyboard_v15_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U1_ALT2(x, m->keys[i].key);
-        RSPROT_U3_ALT1(x, m->keys[i].delta);
+        RSPROT_U1_NEG(x, m->keys[i].key);
+        RSPROT_U3_321(x, m->keys[i].delta);
     }
 }
 
@@ -172,7 +172,7 @@ packet_event_keyboard_v16_in(RsprotExec *x, MsgEventKeyboard *m)
 {
     /* Four bytes a key, to the end of the payload. */
     for (int32_t i = 0; RSPROT_MORE(x, m->key_count, i, MSG_EVENT_KEYBOARD_MAX); i++) {
-        RSPROT_U3_ALT1(x, m->keys[i].delta);
+        RSPROT_U3_321(x, m->keys[i].delta);
         RSPROT_U1(x, m->keys[i].key);
     }
 }

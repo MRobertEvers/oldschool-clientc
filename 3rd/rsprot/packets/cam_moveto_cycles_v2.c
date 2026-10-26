@@ -14,48 +14,48 @@
 void
 packet_cam_moveto_cycles_v2_v1_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
 {
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U2_21(x, m->x);
     RSPROT_BOOL(x, m->ignore_terrain);
     RSPROT_U1(x, m->easing_id);
-    RSPROT_U2_ALT1(x, m->cycles);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U2_21(x, m->cycles);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->height);
 }
 
 /* v2 -- revs 237. */
 void
 packet_cam_moveto_cycles_v2_v2_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
 {
-    RSPROT_U2(x, m->x);
-    RSPROT_U2_ALT3(x, m->cycles);
-    RSPROT_U2(x, m->z);
-    RSPROT_U2_ALT2(x, m->height);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_21_ADD128(x, m->cycles);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->height);
     RSPROT_U1(x, m->easing_id);
-    RSPROT_U1_ALT3(x, m->ignore_terrain);
+    RSPROT_U1_SUB128(x, m->ignore_terrain);
 }
 
 /* v3 -- revs 238. */
 void
 packet_cam_moveto_cycles_v2_v3_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->easing_id);
-    RSPROT_U2_ALT2(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT3(x, m->ignore_terrain);
-    RSPROT_U2_ALT2(x, m->height);
-    RSPROT_U2_ALT3(x, m->cycles);
+    RSPROT_U1_NEG(x, m->easing_id);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_SUB128(x, m->ignore_terrain);
+    RSPROT_U2_12_ADD128(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->cycles);
 }
 
 /* v4 -- revs 239. */
 void
 packet_cam_moveto_cycles_v2_v4_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->cycles);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT1(x, m->easing_id);
-    RSPROT_U2_ALT2(x, m->height);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U1_ALT3(x, m->ignore_terrain);
+    RSPROT_U2_21_ADD128(x, m->cycles);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_ADD128(x, m->easing_id);
+    RSPROT_U2_12_ADD128(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U1_SUB128(x, m->ignore_terrain);
 }
 
 /* v5 -- revs 240. */
@@ -63,11 +63,11 @@ void
 packet_cam_moveto_cycles_v2_v5_out(RsprotExec *x, MsgCamMoveToCyclesV2 *m)
 {
     RSPROT_U1(x, m->ignore_terrain);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT2(x, m->cycles);
-    RSPROT_U2_ALT1(x, m->height);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->cycles);
+    RSPROT_U2_21(x, m->height);
     RSPROT_U1(x, m->easing_id);
-    RSPROT_U2(x, m->x);
+    RSPROT_U2_12(x, m->x);
 }
 
 /*

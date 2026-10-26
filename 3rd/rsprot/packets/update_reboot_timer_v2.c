@@ -15,7 +15,7 @@ void
 packet_update_reboot_timer_v2_v1_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
-    RSPROT_U2_ALT2(x, m->game_cycles);
+    RSPROT_U2_12_ADD128(x, m->game_cycles);
 }
 
 /* v2 -- revs 237. */
@@ -23,14 +23,14 @@ void
 packet_update_reboot_timer_v2_v2_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
-    RSPROT_U2_ALT3(x, m->game_cycles);
+    RSPROT_U2_21_ADD128(x, m->game_cycles);
 }
 
 /* v3 -- revs 238. */
 void
 packet_update_reboot_timer_v2_v3_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
-    RSPROT_U2_ALT2(x, m->game_cycles);
+    RSPROT_U2_12_ADD128(x, m->game_cycles);
     RSPROT_JSTR(x, m->message);
 }
 
@@ -39,7 +39,7 @@ void
 packet_update_reboot_timer_v2_v4_out(RsprotExec *x, MsgUpdateRebootTimerV2 *m)
 {
     RSPROT_JSTR(x, m->message);
-    RSPROT_U2(x, m->game_cycles);
+    RSPROT_U2_12(x, m->game_cycles);
 }
 
 /*

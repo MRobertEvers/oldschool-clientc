@@ -14,144 +14,144 @@
 void
 packet_if_setnpchead_active_v1_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U4(x, m->combined_id);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U4_1234(x, m->combined_id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setnpchead_active_v2_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setnpchead_active_v3_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v4 -- revs 224, 239. */
 void
 packet_if_setnpchead_active_v4_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setnpchead_active_v5_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_setnpchead_active_v6_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->index);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setnpchead_active_v7_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_setnpchead_active_v8_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_setnpchead_active_v9_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v10 -- revs 230-231. */
 void
 packet_if_setnpchead_active_v10_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v11 -- revs 232. */
 void
 packet_if_setnpchead_active_v11_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v12 -- revs 233, 235. */
 void
 packet_if_setnpchead_active_v12_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v13 -- revs 234. */
 void
 packet_if_setnpchead_active_v13_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v14 -- revs 236. */
 void
 packet_if_setnpchead_active_v14_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v15 -- revs 237. */
 void
 packet_if_setnpchead_active_v15_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->index);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v16 -- revs 238. */
 void
 packet_if_setnpchead_active_v16_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v17 -- revs 240. */
 void
 packet_if_setnpchead_active_v17_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v18 -- revs 241. */
 void
 packet_if_setnpchead_active_v18_out(RsprotExec *x, MsgIfSetNpcHeadActive *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /*

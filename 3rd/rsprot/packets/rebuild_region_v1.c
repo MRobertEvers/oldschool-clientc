@@ -14,8 +14,8 @@
 void
 packet_rebuild_region_v1_v1_out(RsprotExec *x, MsgRebuildRegionV1 *m)
 {
-    RSPROT_U2_ALT1(x, m->zone_z);
-    RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_U2_21(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->zone_x);
     RSPROT_BOOL(x, m->reload);
     RSPROT_COUNT2(x, m->xtea_count, RSPROT_REGION_KEYS_MAX);
     rsprot_tail_zone_grid(x, m->zones, RSPROT_REGION_ZONES);

@@ -17,13 +17,13 @@ packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m)
             rsprot_exec_fail(x, "CLANSETTINGS_FULL: members need exactly one of hashes, names");
             return;
         }
-        RSPROT_U4(x, m->update_num);
-        RSPROT_U4(x, m->creation_time);
+        RSPROT_U4_1234(x, m->update_num);
+        RSPROT_U4_1234(x, m->creation_time);
         RSPROT_COUNT2(x, m->affined_member_count, MSG_CLANSETTINGS_FULL_MAX_MEMBERS);
         RSPROT_COUNT(x, m->banned_member_count, MSG_CLANSETTINGS_FULL_MAX_BANNED);
         RSPROT_JSTR(x, m->clan_name);
         if (RSPROT_BRANCH(x, m->version) >= 4)
-            RSPROT_U4(x, m->skip4);
+            RSPROT_U4_1234(x, m->skip4);
         RSPROT_U1(x, m->allow_unaffined);
         RSPROT_U1(x, m->talk_rank);
         RSPROT_U1(x, m->kick_rank);
@@ -31,33 +31,33 @@ packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m)
         RSPROT_U1(x, m->coinshare_rank);
         for (int32_t k = 0; k < m->affined_member_count; k++) {
             if (hashes)
-                RSPROT_U8(x, m->members[k].hash);
+                RSPROT_U8_12345678(x, m->members[k].hash);
             else
                 RSPROT_JSTRNULL(x, m->members[k].display_name);
             RSPROT_U1(x, m->members[k].rank);
             if (RSPROT_BRANCH(x, m->version) >= 2)
-                RSPROT_U4(x, m->members[k].extra_info);
+                RSPROT_U4_1234(x, m->members[k].extra_info);
             if (RSPROT_BRANCH(x, m->version) >= 5)
-                RSPROT_U2(x, m->members[k].join_rune_day);
+                RSPROT_U2_12(x, m->members[k].join_rune_day);
             if (RSPROT_BRANCH(x, m->version) >= 6)
                 RSPROT_U1(x, m->members[k].muted);
         }
         for (int32_t k = 0; k < m->banned_member_count; k++) {
             if (hashes)
-                RSPROT_U8(x, m->banned[k].hash);
+                RSPROT_U8_12345678(x, m->banned[k].hash);
             else
                 RSPROT_JSTRNULL(x, m->banned[k].display_name);
         }
         if (RSPROT_BRANCH(x, m->version) >= 3) {
             RSPROT_COUNT2(x, m->setting_count, MSG_CLANSETTINGS_FULL_MAX_SETTINGS);
             for (int32_t k = 0; k < m->setting_count; k++) {
-                RSPROT_U4(x, m->settings[k].header);
+                RSPROT_U4_1234(x, m->settings[k].header);
                 switch ((uint32_t)RSPROT_BRANCH(x, m->settings[k].header) >> 30) {
                 case 0:
-                    RSPROT_U4(x, m->settings[k].ival);
+                    RSPROT_U4_1234(x, m->settings[k].ival);
                     break;
                 case 1:
-                    RSPROT_U8(x, m->settings[k].lval);
+                    RSPROT_U8_12345678(x, m->settings[k].lval);
                     break;
                 case 2:
                     RSPROT_JSTR(x, m->settings[k].sval);

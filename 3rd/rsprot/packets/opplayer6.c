@@ -14,8 +14,8 @@
 void
 packet_opplayer6_v1_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v2 -- revs 222. */
@@ -23,15 +23,15 @@ void
 packet_opplayer6_v2_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v3 -- revs 223. */
 void
 packet_opplayer6_v3_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v4 -- revs 224. */
@@ -39,62 +39,62 @@ void
 packet_opplayer6_v4_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v5 -- revs 225, 234. */
 void
 packet_opplayer6_v5_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v6 -- revs 226, 230. */
 void
 packet_opplayer6_v6_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v7 -- revs 227. */
 void
 packet_opplayer6_v7_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v8 -- revs 228. */
 void
 packet_opplayer6_v8_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v9 -- revs 229. */
 void
 packet_opplayer6_v9_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v10 -- revs 231. */
 void
 packet_opplayer6_v10_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v11 -- revs 232. */
 void
 packet_opplayer6_v11_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -102,7 +102,7 @@ packet_opplayer6_v11_in(RsprotExec *x, MsgOpPlayer6 *m)
 void
 packet_opplayer6_v12_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -110,31 +110,31 @@ packet_opplayer6_v12_in(RsprotExec *x, MsgOpPlayer6 *m)
 void
 packet_opplayer6_v13_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v14 -- revs 236. */
 void
 packet_opplayer6_v14_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U1_ALT3(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v15 -- revs 237. */
 void
 packet_opplayer6_v15_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U1_ALT1(x, m->control_key);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
 }
 
 /* v16 -- revs 238. */
 void
 packet_opplayer6_v16_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U2_21(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -142,16 +142,16 @@ packet_opplayer6_v16_in(RsprotExec *x, MsgOpPlayer6 *m)
 void
 packet_opplayer6_v17_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v18 -- revs 240. */
 void
 packet_opplayer6_v18_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v19 -- revs 241. */
@@ -159,7 +159,7 @@ void
 packet_opplayer6_v19_in(RsprotExec *x, MsgOpPlayer6 *m)
 {
     RSPROT_U1(x, m->control_key);
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
 }
 
 /*

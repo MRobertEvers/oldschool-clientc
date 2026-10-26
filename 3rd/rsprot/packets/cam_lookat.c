@@ -16,7 +16,7 @@ packet_cam_lookat_v1_out(RsprotExec *x, MsgCamLookAt *m)
 {
     RSPROT_U1(x, m->destination_x_in_build_area);
     RSPROT_U1(x, m->destination_z_in_build_area);
-    RSPROT_U2(x, m->height);
+    RSPROT_U2_12(x, m->height);
     RSPROT_U1(x, m->speed);
     RSPROT_U1(x, m->acceleration);
 }
@@ -27,7 +27,7 @@ packet_cam_lookat_v2_out(RsprotExec *x, MsgCamLookAt *m)
 {
     RSPROT_U1(x, m->destination_x_in_build_area);
     RSPROT_U1(x, m->destination_z_in_build_area);
-    RSPROT_U2(x, m->height);
+    RSPROT_U2_12(x, m->height);
     RSPROT_U1(x, m->rate);
     RSPROT_U1(x, m->rate2);
 }

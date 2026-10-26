@@ -14,35 +14,35 @@
 void
 packet_if_clearinv_v1_out(RsprotExec *x, MsgIfClearInv *m)
 {
-    RSPROT_U4_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->combined_id);
 }
 
 /* v2 -- revs 222, 227, 230, 235-236. */
 void
 packet_if_clearinv_v2_out(RsprotExec *x, MsgIfClearInv *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v3 -- revs 223, 237, 240. */
 void
 packet_if_clearinv_v3_out(RsprotExec *x, MsgIfClearInv *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v4 -- revs 224-226, 228, 231, 233, 238, 241. */
 void
 packet_if_clearinv_v4_out(RsprotExec *x, MsgIfClearInv *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v5 -- revs 229, 232, 234, 239. */
 void
 packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /*

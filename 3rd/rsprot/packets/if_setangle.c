@@ -14,210 +14,210 @@
 void
 packet_if_setangle_v1_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_x);
-    RSPROT_U2_ALT1(x, m->zoom);
-    RSPROT_U2(x, m->angle_y);
-    RSPROT_U4(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_x);
+    RSPROT_U2_21(x, m->zoom);
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_U4_1234(x, m->combined_id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_setangle_v2_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT1(x, m->zoom);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_21(x, m->zoom);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_setangle_v3_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->angle_x);
-    RSPROT_U2(x, m->angle_y);
-    RSPROT_U2(x, m->zoom);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+    RSPROT_U2_12(x, m->angle_y);
+    RSPROT_U2_12(x, m->zoom);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_setangle_v4_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2(x, m->zoom);
-    RSPROT_U2_ALT3(x, m->angle_x);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->zoom);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setangle_v5_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT1(x, m->zoom);
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_21(x, m->zoom);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_setangle_v6_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2(x, m->zoom);
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2_ALT1(x, m->angle_y);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_12(x, m->zoom);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_21(x, m->angle_y);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setangle_v7_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT3(x, m->angle_x);
-    RSPROT_U2_ALT3(x, m->zoom);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->zoom);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_setangle_v8_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->zoom);
-    RSPROT_U2_ALT3(x, m->angle_x);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_setangle_v9_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->zoom);
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->angle_x);
+    RSPROT_U2_21(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->angle_x);
 }
 
 /* v10 -- revs 230. */
 void
 packet_if_setangle_v10_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT3(x, m->angle_x);
-    RSPROT_U2_ALT2(x, m->zoom);
-    RSPROT_U2_ALT1(x, m->angle_y);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_U2_21(x, m->angle_y);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_setangle_v11_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT3(x, m->zoom);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->angle_x);
-    RSPROT_COM_ALT2(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->zoom);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->angle_x);
+    RSPROT_COM_3412(x, m->combined_id);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_setangle_v12_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2(x, m->zoom);
-    RSPROT_U2(x, m->angle_x);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->zoom);
+    RSPROT_U2_12(x, m->angle_x);
 }
 
 /* v13 -- revs 233. */
 void
 packet_if_setangle_v13_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->zoom);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v14 -- revs 234. */
 void
 packet_if_setangle_v14_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT1(x, m->angle_y);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_U2_ALT3(x, m->zoom);
+    RSPROT_U2_21(x, m->angle_y);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->zoom);
 }
 
 /* v15 -- revs 235. */
 void
 packet_if_setangle_v15_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT1(x, m->zoom);
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT1(x, m->angle_x);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_21(x, m->zoom);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_21(x, m->angle_x);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v16 -- revs 236. */
 void
 packet_if_setangle_v16_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2_ALT1(x, m->zoom);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_21(x, m->zoom);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v17 -- revs 237. */
 void
 packet_if_setangle_v17_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT2(x, m->zoom);
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_12_ADD128(x, m->zoom);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_x);
 }
 
 /* v18 -- revs 238. */
 void
 packet_if_setangle_v18_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->zoom);
-    RSPROT_U2_ALT3(x, m->angle_y);
-    RSPROT_U2(x, m->angle_x);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->zoom);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
 }
 
 /* v19 -- revs 239. */
 void
 packet_if_setangle_v19_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2(x, m->zoom);
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2_ALT3(x, m->angle_y);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->zoom);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_21_ADD128(x, m->angle_y);
 }
 
 /* v20 -- revs 240. */
 void
 packet_if_setangle_v20_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2(x, m->angle_x);
-    RSPROT_U2(x, m->zoom);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_12(x, m->angle_x);
+    RSPROT_U2_12(x, m->zoom);
 }
 
 /* v21 -- revs 241. */
 void
 packet_if_setangle_v21_out(RsprotExec *x, MsgIfSetAngle *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->angle_x);
-    RSPROT_U2_ALT2(x, m->angle_y);
-    RSPROT_U2_ALT1(x, m->zoom);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+    RSPROT_U2_12_ADD128(x, m->angle_y);
+    RSPROT_U2_21(x, m->zoom);
 }
 
 /*

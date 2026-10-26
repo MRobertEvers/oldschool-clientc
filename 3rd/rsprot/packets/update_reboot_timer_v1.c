@@ -14,7 +14,7 @@
 void
 packet_update_reboot_timer_v1_v1_out(RsprotExec *x, MsgUpdateRebootTimerV1 *m)
 {
-    RSPROT_U2_ALT3(x, m->game_cycles);
+    RSPROT_U2_21_ADD128(x, m->game_cycles);
 }
 
 /*

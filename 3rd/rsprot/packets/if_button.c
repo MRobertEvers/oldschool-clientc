@@ -14,7 +14,7 @@
 void
 packet_if_button_v1_in(RsprotExec *x, MsgIf1Button *m)
 {
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*

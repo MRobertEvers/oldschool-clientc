@@ -1025,9 +1025,9 @@ bridge_varp_long(int revision, uint8_t const* data, int len, struct RevPacket* o
     (void)revision;
     RsprotBuf buf;
     rsprot_buf_wrap_read(&buf, data, len);
-    uint32_t high = (uint32_t)rsprot_g4_alt3(&buf);
-    uint32_t low = (uint32_t)rsprot_g4_alt3(&buf);
-    int id = rsprot_g2(&buf);
+    uint32_t high = (uint32_t)rsprot_g4_2143(&buf);
+    uint32_t low = (uint32_t)rsprot_g4_2143(&buf);
+    int id = rsprot_g2_12(&buf);
     if( buf.err )
         return 0;
     out->_varp_long.variable = id;

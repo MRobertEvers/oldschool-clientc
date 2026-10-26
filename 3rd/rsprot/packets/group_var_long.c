@@ -15,8 +15,8 @@ void
 packet_group_var_long_v1_out(RsprotExec *x, MsgGroupVarLong *m)
 {
     RSPROT_U1(x, m->update_index);
-    RSPROT_U4(x, m->update_packed_group_var);
-    RSPROT_U8(x, m->update_variable_value);
+    RSPROT_U4_1234(x, m->update_packed_group_var);
+    RSPROT_U8_12345678(x, m->update_variable_value);
 }
 
 /*

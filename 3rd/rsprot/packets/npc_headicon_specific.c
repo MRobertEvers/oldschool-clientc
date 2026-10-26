@@ -14,99 +14,99 @@
 void
 packet_npc_headicon_specific_v1_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U1_ALT2(x, m->head_icon_slot);
-    RSPROT_U4_ALT2(x, m->sprite_group);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U2(x, m->index);
+    RSPROT_U1_NEG(x, m->head_icon_slot);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v2 -- revs 222. */
 void
 packet_npc_headicon_specific_v2_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U4(x, m->sprite_group);
+    RSPROT_U2_21_ADD128(x, m->index);
+    RSPROT_U1_ADD128(x, m->head_icon_slot);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U4_1234(x, m->sprite_group);
 }
 
 /* v3 -- revs 223. */
 void
 packet_npc_headicon_specific_v3_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U4_ALT1(x, m->sprite_group);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U4_4321(x, m->sprite_group);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U1_ADD128(x, m->head_icon_slot);
 }
 
 /* v4 -- revs 224. */
 void
 packet_npc_headicon_specific_v4_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
-    RSPROT_U4_ALT3(x, m->sprite_group);
-    RSPROT_U2(x, m->sprite_index);
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
+    RSPROT_U4_2143(x, m->sprite_group);
+    RSPROT_U2_12(x, m->sprite_index);
+    RSPROT_U2_12_ADD128(x, m->index);
 }
 
 /* v5 -- revs 225. */
 void
 packet_npc_headicon_specific_v5_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->sprite_group);
-    RSPROT_U2(x, m->index);
-    RSPROT_U2_ALT2(x, m->sprite_index);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
+    RSPROT_U4_2143(x, m->sprite_group);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->sprite_index);
+    RSPROT_U1_ADD128(x, m->head_icon_slot);
 }
 
 /* v6 -- revs 226. */
 void
 packet_npc_headicon_specific_v6_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->sprite_group);
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT2(x, m->head_icon_slot);
-    RSPROT_U2_ALT1(x, m->sprite_index);
+    RSPROT_U4_2143(x, m->sprite_group);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_NEG(x, m->head_icon_slot);
+    RSPROT_U2_21(x, m->sprite_index);
 }
 
 /* v7 -- revs 227. */
 void
 packet_npc_headicon_specific_v7_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U4_ALT2(x, m->sprite_group);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U4_3412(x, m->sprite_group);
 }
 
 /* v8 -- revs 228. */
 void
 packet_npc_headicon_specific_v8_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4(x, m->sprite_group);
-    RSPROT_U2_ALT1(x, m->sprite_index);
+    RSPROT_U4_1234(x, m->sprite_group);
+    RSPROT_U2_21(x, m->sprite_index);
     RSPROT_U1(x, m->head_icon_slot);
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
 }
 
 /* v9 -- revs 229. */
 void
 packet_npc_headicon_specific_v9_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U2_12(x, m->index);
     RSPROT_U1(x, m->head_icon_slot);
-    RSPROT_U4_ALT3(x, m->sprite_group);
+    RSPROT_U4_2143(x, m->sprite_group);
 }
 
 /* v10 -- revs 230. */
 void
 packet_npc_headicon_specific_v10_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U4_ALT3(x, m->sprite_group);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U4_2143(x, m->sprite_group);
     RSPROT_U1(x, m->head_icon_slot);
 }
 
@@ -114,29 +114,29 @@ packet_npc_headicon_specific_v10_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 void
 packet_npc_headicon_specific_v11_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->sprite_group);
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U4_2143(x, m->sprite_group);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U1_ADD128(x, m->head_icon_slot);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v12 -- revs 232. */
 void
 packet_npc_headicon_specific_v12_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U2_ALT1(x, m->index);
-    RSPROT_U4_ALT2(x, m->sprite_group);
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
 }
 
 /* v13 -- revs 233. */
 void
 packet_npc_headicon_specific_v13_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U4_ALT3(x, m->sprite_group);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U4_2143(x, m->sprite_group);
+    RSPROT_U2_21(x, m->index);
     RSPROT_U1(x, m->head_icon_slot);
 }
 
@@ -144,80 +144,80 @@ packet_npc_headicon_specific_v13_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 void
 packet_npc_headicon_specific_v14_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4(x, m->sprite_group);
+    RSPROT_U4_1234(x, m->sprite_group);
     RSPROT_U1(x, m->head_icon_slot);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U2_ALT1(x, m->sprite_index);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U2_21(x, m->sprite_index);
 }
 
 /* v15 -- revs 235. */
 void
 packet_npc_headicon_specific_v15_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->sprite_group);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT2(x, m->head_icon_slot);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->head_icon_slot);
 }
 
 /* v16 -- revs 236. */
 void
 packet_npc_headicon_specific_v16_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2(x, m->sprite_index);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U2_12(x, m->sprite_index);
+    RSPROT_U2_21(x, m->index);
     RSPROT_U1(x, m->head_icon_slot);
-    RSPROT_U4_ALT1(x, m->sprite_group);
+    RSPROT_U4_4321(x, m->sprite_group);
 }
 
 /* v17 -- revs 237. */
 void
 packet_npc_headicon_specific_v17_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4(x, m->sprite_group);
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
-    RSPROT_U2_ALT3(x, m->sprite_index);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U4_1234(x, m->sprite_group);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
+    RSPROT_U2_21_ADD128(x, m->sprite_index);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v18 -- revs 238. */
 void
 packet_npc_headicon_specific_v18_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->sprite_group);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U2_21_ADD128(x, m->index);
     RSPROT_U1(x, m->head_icon_slot);
-    RSPROT_U2_ALT2(x, m->sprite_index);
+    RSPROT_U2_12_ADD128(x, m->sprite_index);
 }
 
 /* v19 -- revs 239. */
 void
 packet_npc_headicon_specific_v19_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
-    RSPROT_U2_ALT1(x, m->sprite_index);
-    RSPROT_U4_ALT3(x, m->sprite_group);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
+    RSPROT_U2_21(x, m->sprite_index);
+    RSPROT_U4_2143(x, m->sprite_group);
 }
 
 /* v20 -- revs 240. */
 void
 packet_npc_headicon_specific_v20_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->sprite_group);
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->head_icon_slot);
-    RSPROT_U2_ALT2(x, m->sprite_index);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->head_icon_slot);
+    RSPROT_U2_12_ADD128(x, m->sprite_index);
 }
 
 /* v21 -- revs 241. */
 void
 packet_npc_headicon_specific_v21_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U2_ALT2(x, m->sprite_index);
-    RSPROT_U4_ALT1(x, m->sprite_group);
-    RSPROT_U1_ALT1(x, m->head_icon_slot);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->sprite_index);
+    RSPROT_U4_4321(x, m->sprite_group);
+    RSPROT_U1_ADD128(x, m->head_icon_slot);
 }
 
 /*

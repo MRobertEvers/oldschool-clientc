@@ -14,8 +14,8 @@
 void
 packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT1(x, m->id);
-    RSPROT_U1_ALT3(x, m->priority);
+    RSPROT_U1_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -23,7 +23,7 @@ packet_set_player_op_v1_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v2_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT2(x, m->id);
+    RSPROT_U1_NEG(x, m->id);
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
@@ -33,16 +33,16 @@ void
 packet_set_player_op_v3_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT3(x, m->priority);
-    RSPROT_U1_ALT3(x, m->id);
+    RSPROT_U1_SUB128(x, m->priority);
+    RSPROT_U1_SUB128(x, m->id);
 }
 
 /* v4 -- revs 227. */
 void
 packet_set_player_op_v4_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT2(x, m->priority);
-    RSPROT_U1_ALT2(x, m->id);
+    RSPROT_U1_NEG(x, m->priority);
+    RSPROT_U1_NEG(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -52,7 +52,7 @@ packet_set_player_op_v5_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT1(x, m->id);
+    RSPROT_U1_ADD128(x, m->id);
 }
 
 /* v6 -- revs 229. */
@@ -60,15 +60,15 @@ void
 packet_set_player_op_v6_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT3(x, m->priority);
-    RSPROT_U1_ALT2(x, m->id);
+    RSPROT_U1_SUB128(x, m->priority);
+    RSPROT_U1_NEG(x, m->id);
 }
 
 /* v7 -- revs 230-231. */
 void
 packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT1(x, m->priority);
+    RSPROT_U1_ADD128(x, m->priority);
     RSPROT_U1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
@@ -77,8 +77,8 @@ packet_set_player_op_v7_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT1(x, m->priority);
-    RSPROT_U1_ALT3(x, m->id);
+    RSPROT_U1_ADD128(x, m->priority);
+    RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -86,8 +86,8 @@ packet_set_player_op_v8_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->priority);
+    RSPROT_U1_NEG(x, m->id);
+    RSPROT_U1_NEG(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -95,25 +95,25 @@ packet_set_player_op_v9_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v10_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT3(x, m->id);
+    RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT2(x, m->priority);
+    RSPROT_U1_NEG(x, m->priority);
 }
 
 /* v11 -- revs 236. */
 void
 packet_set_player_op_v11_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT3(x, m->priority);
+    RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT1(x, m->id);
+    RSPROT_U1_ADD128(x, m->id);
 }
 
 /* v12 -- revs 237. */
 void
 packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT2(x, m->priority);
+    RSPROT_U1_NEG(x, m->priority);
     RSPROT_U1(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
@@ -122,9 +122,9 @@ packet_set_player_op_v12_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v13_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT2(x, m->id);
+    RSPROT_U1_NEG(x, m->id);
     RSPROT_JSTR(x, m->op);
-    RSPROT_U1_ALT1(x, m->priority);
+    RSPROT_U1_ADD128(x, m->priority);
 }
 
 /* v14 -- revs 239. */
@@ -132,7 +132,7 @@ void
 packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
     RSPROT_U1(x, m->priority);
-    RSPROT_U1_ALT1(x, m->id);
+    RSPROT_U1_ADD128(x, m->id);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -140,8 +140,8 @@ packet_set_player_op_v14_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT3(x, m->id);
-    RSPROT_U1_ALT3(x, m->priority);
+    RSPROT_U1_SUB128(x, m->id);
+    RSPROT_U1_SUB128(x, m->priority);
     RSPROT_JSTR(x, m->op);
 }
 
@@ -149,7 +149,7 @@ packet_set_player_op_v15_out(RsprotExec *x, MsgSetPlayerOp *m)
 void
 packet_set_player_op_v16_out(RsprotExec *x, MsgSetPlayerOp *m)
 {
-    RSPROT_U1_ALT3(x, m->id);
+    RSPROT_U1_SUB128(x, m->id);
     RSPROT_JSTR(x, m->op);
     RSPROT_U1(x, m->priority);
 }

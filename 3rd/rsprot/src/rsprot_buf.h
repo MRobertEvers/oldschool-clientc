@@ -23,12 +23,33 @@
  *   and doubles on demand. Encoders should take a buf and not care which they
  *   were handed.
  *
- * Naming follows the wire, not C: `g` reads ("get"), `p` writes ("put"), the
- * digit is the byte width, `s` means signed, and `Alt1..Alt3` are the byte-order
- * / bias modifications the client applies. Those names are the whole point of
- * the port — an encoder transcribed from RSProt must read line-for-line against
- * its Kotlin original, and any renaming here would have to be undone mentally at
- * every one of the ~2,900 call sites the generator emits.
+ * ## The names say the bytes
+ *
+ * `g` reads ("get"), `p` writes ("put"), the digit after it is the width, `s`
+ * means signed. Then the suffix states what goes on the wire, so checking a
+ * codec against a capture never means reading an implementation:
+ *
+ * - Width 2, 3, 4 and 8: the value's bytes in wire order, 1 = most significant.
+ *   `g3_123` is big-endian, `g3_321` little-endian, `g4_3412` swaps the halves.
+ * - Width 1 has no order; its suffix is the transform the wire carries:
+ *   `p1_add128` sends v + 128, `p1_neg` -v, `p1_sub128` 128 - v.
+ * - Width 2 can be both: `p2_12_add128` sends [v >> 8, v + 128], `p2_21_add128`
+ *   sends [v + 128, v >> 8] -- the + 128 is always on the low byte.
+ * - Blobs: `gdata` forward, `_rev` reversed, `_add128` each byte + 128,
+ *   `_rev_add128` both.
+ *
+ * Each name was derived from the put1() sequence in rsprot_buf.c and
+ * test/test_buffer_names.c checks it against the bytes. RSProt's Kotlin spells
+ * these with an ordinal, `Alt1..Alt3`, that says nothing about the bytes; when
+ * porting from it:
+ *
+ *     Kotlin    width 1     width 2         width 3   width 4 / combined id
+ *     (none)    g1          g2_12           g3_123    g4_1234
+ *     Alt1      g1_add128   g2_21           g3_321    g4_4321
+ *     Alt2      g1_neg      g2_12_add128    g3_132    g4_3412
+ *     Alt3      g1_sub128   g2_21_add128    g3_213    g4_2143
+ *
+ * and gdataAlt1..3 are gdata_rev, gdata_add128, gdata_rev_add128.
  */
 
 #include <stdbool.h>
@@ -105,78 +126,78 @@ int32_t rsprot_g1(RsprotBuf *b);
 int32_t rsprot_g1s(RsprotBuf *b);
 void rsprot_p1(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g1_alt1(RsprotBuf *b);
-int32_t rsprot_g1s_alt1(RsprotBuf *b);
-void rsprot_p1_alt1(RsprotBuf *b, int32_t v);
+int32_t rsprot_g1_add128(RsprotBuf *b);
+int32_t rsprot_g1s_add128(RsprotBuf *b);
+void rsprot_p1_add128(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g1_alt2(RsprotBuf *b);
-int32_t rsprot_g1s_alt2(RsprotBuf *b);
-void rsprot_p1_alt2(RsprotBuf *b, int32_t v);
+int32_t rsprot_g1_neg(RsprotBuf *b);
+int32_t rsprot_g1s_neg(RsprotBuf *b);
+void rsprot_p1_neg(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g1_alt3(RsprotBuf *b);
-int32_t rsprot_g1s_alt3(RsprotBuf *b);
-void rsprot_p1_alt3(RsprotBuf *b, int32_t v);
+int32_t rsprot_g1_sub128(RsprotBuf *b);
+int32_t rsprot_g1s_sub128(RsprotBuf *b);
+void rsprot_p1_sub128(RsprotBuf *b, int32_t v);
 
 /* --- 16-bit ------------------------------------------------------------- */
 
-int32_t rsprot_g2(RsprotBuf *b);
-int32_t rsprot_g2s(RsprotBuf *b);
-void rsprot_p2(RsprotBuf *b, int32_t v);
+int32_t rsprot_g2_12(RsprotBuf *b);
+int32_t rsprot_g2s_12(RsprotBuf *b);
+void rsprot_p2_12(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g2_alt1(RsprotBuf *b);
-int32_t rsprot_g2s_alt1(RsprotBuf *b);
-void rsprot_p2_alt1(RsprotBuf *b, int32_t v);
+int32_t rsprot_g2_21(RsprotBuf *b);
+int32_t rsprot_g2s_21(RsprotBuf *b);
+void rsprot_p2_21(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g2_alt2(RsprotBuf *b);
-int32_t rsprot_g2s_alt2(RsprotBuf *b);
-void rsprot_p2_alt2(RsprotBuf *b, int32_t v);
+int32_t rsprot_g2_12_add128(RsprotBuf *b);
+int32_t rsprot_g2s_12_add128(RsprotBuf *b);
+void rsprot_p2_12_add128(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g2_alt3(RsprotBuf *b);
-int32_t rsprot_g2s_alt3(RsprotBuf *b);
-void rsprot_p2_alt3(RsprotBuf *b, int32_t v);
+int32_t rsprot_g2_21_add128(RsprotBuf *b);
+int32_t rsprot_g2s_21_add128(RsprotBuf *b);
+void rsprot_p2_21_add128(RsprotBuf *b, int32_t v);
 
 /* --- 24-bit ------------------------------------------------------------- */
 
-int32_t rsprot_g3(RsprotBuf *b);
-int32_t rsprot_g3s(RsprotBuf *b);
-void rsprot_p3(RsprotBuf *b, int32_t v);
+int32_t rsprot_g3_123(RsprotBuf *b);
+int32_t rsprot_g3s_123(RsprotBuf *b);
+void rsprot_p3_123(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g3_alt1(RsprotBuf *b);
-int32_t rsprot_g3s_alt1(RsprotBuf *b);
-void rsprot_p3_alt1(RsprotBuf *b, int32_t v);
+int32_t rsprot_g3_321(RsprotBuf *b);
+int32_t rsprot_g3s_321(RsprotBuf *b);
+void rsprot_p3_321(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g3_alt2(RsprotBuf *b);
-int32_t rsprot_g3s_alt2(RsprotBuf *b);
-void rsprot_p3_alt2(RsprotBuf *b, int32_t v);
+int32_t rsprot_g3_132(RsprotBuf *b);
+int32_t rsprot_g3s_132(RsprotBuf *b);
+void rsprot_p3_132(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g3_alt3(RsprotBuf *b);
-int32_t rsprot_g3s_alt3(RsprotBuf *b);
-void rsprot_p3_alt3(RsprotBuf *b, int32_t v);
+int32_t rsprot_g3_213(RsprotBuf *b);
+int32_t rsprot_g3s_213(RsprotBuf *b);
+void rsprot_p3_213(RsprotBuf *b, int32_t v);
 
 /* --- 32-bit ------------------------------------------------------------- */
 
-int32_t rsprot_g4(RsprotBuf *b);
-void rsprot_p4(RsprotBuf *b, int32_t v);
+int32_t rsprot_g4_1234(RsprotBuf *b);
+void rsprot_p4_1234(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g4_alt1(RsprotBuf *b);
-void rsprot_p4_alt1(RsprotBuf *b, int32_t v);
+int32_t rsprot_g4_4321(RsprotBuf *b);
+void rsprot_p4_4321(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g4_alt2(RsprotBuf *b);
-void rsprot_p4_alt2(RsprotBuf *b, int32_t v);
+int32_t rsprot_g4_3412(RsprotBuf *b);
+void rsprot_p4_3412(RsprotBuf *b, int32_t v);
 
-int32_t rsprot_g4_alt3(RsprotBuf *b);
-void rsprot_p4_alt3(RsprotBuf *b, int32_t v);
+int32_t rsprot_g4_2143(RsprotBuf *b);
+void rsprot_p4_2143(RsprotBuf *b, int32_t v);
 
 /* --- 64-bit and IEEE ---------------------------------------------------- */
 
-int64_t rsprot_g8(RsprotBuf *b);
-void rsprot_p8(RsprotBuf *b, int64_t v);
+int64_t rsprot_g8_12345678(RsprotBuf *b);
+void rsprot_p8_12345678(RsprotBuf *b, int64_t v);
 
-float rsprot_g4f(RsprotBuf *b);
-void rsprot_p4f(RsprotBuf *b, float v);
+float rsprot_g4f_1234(RsprotBuf *b);
+void rsprot_p4f_1234(RsprotBuf *b, float v);
 
-double rsprot_g8d(RsprotBuf *b);
-void rsprot_p8d(RsprotBuf *b, double v);
+double rsprot_g8d_12345678(RsprotBuf *b);
+void rsprot_p8d_12345678(RsprotBuf *b, double v);
 
 bool rsprot_gboolean(RsprotBuf *b);
 void rsprot_pboolean(RsprotBuf *b, bool v);
@@ -251,14 +272,14 @@ void rsprot_ptype(RsprotBuf *b, int32_t v);
 void rsprot_gdata(RsprotBuf *b, void *dest, int32_t len);
 void rsprot_pdata(RsprotBuf *b, const void *src, int32_t len);
 
-void rsprot_gdata_alt1(RsprotBuf *b, void *dest, int32_t len);
-void rsprot_pdata_alt1(RsprotBuf *b, const void *src, int32_t len);
+void rsprot_gdata_rev(RsprotBuf *b, void *dest, int32_t len);
+void rsprot_pdata_rev(RsprotBuf *b, const void *src, int32_t len);
 
-void rsprot_gdata_alt2(RsprotBuf *b, void *dest, int32_t len);
-void rsprot_pdata_alt2(RsprotBuf *b, const void *src, int32_t len);
+void rsprot_gdata_add128(RsprotBuf *b, void *dest, int32_t len);
+void rsprot_pdata_add128(RsprotBuf *b, const void *src, int32_t len);
 
-void rsprot_gdata_alt3(RsprotBuf *b, void *dest, int32_t len);
-void rsprot_pdata_alt3(RsprotBuf *b, const void *src, int32_t len);
+void rsprot_gdata_rev_add128(RsprotBuf *b, void *dest, int32_t len);
+void rsprot_pdata_rev_add128(RsprotBuf *b, const void *src, int32_t len);
 
 /* --- combined ids ------------------------------------------------------- */
 
@@ -285,15 +306,15 @@ static inline int32_t rsprot_combined_component(int32_t combined)
 	return v == 0xFFFF ? -1 : v;
 }
 
-int32_t rsprot_gcombined_id(RsprotBuf *b);
-int32_t rsprot_gcombined_id_alt1(RsprotBuf *b);
-int32_t rsprot_gcombined_id_alt2(RsprotBuf *b);
-int32_t rsprot_gcombined_id_alt3(RsprotBuf *b);
+int32_t rsprot_gcombined_id_1234(RsprotBuf *b);
+int32_t rsprot_gcombined_id_4321(RsprotBuf *b);
+int32_t rsprot_gcombined_id_3412(RsprotBuf *b);
+int32_t rsprot_gcombined_id_2143(RsprotBuf *b);
 
-void rsprot_pcombined_id(RsprotBuf *b, int32_t combined);
-void rsprot_pcombined_id_alt1(RsprotBuf *b, int32_t combined);
-void rsprot_pcombined_id_alt2(RsprotBuf *b, int32_t combined);
-void rsprot_pcombined_id_alt3(RsprotBuf *b, int32_t combined);
+void rsprot_pcombined_id_1234(RsprotBuf *b, int32_t combined);
+void rsprot_pcombined_id_4321(RsprotBuf *b, int32_t combined);
+void rsprot_pcombined_id_3412(RsprotBuf *b, int32_t combined);
+void rsprot_pcombined_id_2143(RsprotBuf *b, int32_t combined);
 
 /* --- bit access --------------------------------------------------------- */
 

@@ -19,7 +19,7 @@ packet_set_active_world_v1_v1_out(RsprotExec *x, MsgSetActiveWorldV1 *m)
      *   world.level = activeLevel
      */
     RSPROT_U1(x, m->type);
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
     RSPROT_U1(x, m->active_level);
 }
 

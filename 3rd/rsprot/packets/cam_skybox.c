@@ -14,21 +14,21 @@
 void
 packet_cam_skybox_v1_out(RsprotExec *x, MsgCamSkybox *m)
 {
-    RSPROT_U4_ALT3(x, m->model);
+    RSPROT_U4_2143(x, m->model);
 }
 
 /* v2 -- revs 239-240. */
 void
 packet_cam_skybox_v2_out(RsprotExec *x, MsgCamSkybox *m)
 {
-    RSPROT_U4_ALT2(x, m->model);
+    RSPROT_U4_3412(x, m->model);
 }
 
 /* v3 -- revs 241. */
 void
 packet_cam_skybox_v3_out(RsprotExec *x, MsgCamSkybox *m)
 {
-    RSPROT_U4_ALT1(x, m->model);
+    RSPROT_U4_4321(x, m->model);
 }
 
 /*

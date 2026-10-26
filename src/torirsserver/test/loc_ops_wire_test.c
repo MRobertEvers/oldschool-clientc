@@ -43,7 +43,7 @@
 #include "../torirs_server_zone.h"
 
 #include "packets/loc_add_change_v2.h"
-#include "rsprot_buffer.h"
+#include "rsprot_buf.h"
 #include "rsprot_exec.h"
 
 #include <stdio.h>
@@ -109,7 +109,7 @@ roundtrip(
     uint8_t bytes[512];
     Rsprot_MsgLocAddChangeV2_opsElem ops[256];
     MsgLocAddChangeV2 m;
-    RSProt_Buffer c;
+    RsprotBuf c;
     RsprotExec x;
     int props = ((event->shape & 0x1f) << 2) | (event->angle & 3);
     int written;
@@ -123,7 +123,7 @@ roundtrip(
 
     memset(&m, 0, sizeof(m));
     m.ops = ops;
-    RSProt_BufferWrapRead(&c, bytes, written);
+    rsprot_buf_wrap_read(&c, bytes, written);
     rsprot_exec_decode(&x, &c);
     packet_loc_add_change_v2_osrs239_out(&x, &m);
     if( !rsprot_exec_ok(&x) || c.err )

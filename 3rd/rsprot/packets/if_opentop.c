@@ -7,10 +7,10 @@
  *       game/outgoing/codec/interfaces/IfOpenTopEncoder.kt
  *
  *   rev 221 / 225 / 236                buffer.p2(message.interfaceId)
- *   rev 222 / 226 / 235 / 238          buffer.p2Alt3(message.interfaceId)
+ *   rev 222 / 226 / 235 / 238          buffer.p2_21_add128(message.interfaceId)
  *   rev 223-224 / 227-230 /
- *       232-234 / 237                  buffer.p2Alt1(message.interfaceId)
- *   rev 231 / 239                      buffer.p2Alt2(message.interfaceId)
+ *       232-234 / 237                  buffer.p2_21(message.interfaceId)
+ *   rev 231 / 239                      buffer.p2_12_add128(message.interfaceId)
  *
  * Read out of the vendored tree, not from memory.
  *
@@ -22,25 +22,25 @@
 void
 packet_if_opentop_v1_out(RsprotExec *x, MsgIfOpenTop *m)
 {
-    RSPROT_U2(x, m->interface_id);
+    RSPROT_U2_12(x, m->interface_id);
 }
 
 void
 packet_if_opentop_v2_out(RsprotExec *x, MsgIfOpenTop *m)
 {
-    RSPROT_U2_ALT3(x, m->interface_id);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
 }
 
 void
 packet_if_opentop_v3_out(RsprotExec *x, MsgIfOpenTop *m)
 {
-    RSPROT_U2_ALT1(x, m->interface_id);
+    RSPROT_U2_21(x, m->interface_id);
 }
 
 void
 packet_if_opentop_v4_out(RsprotExec *x, MsgIfOpenTop *m)
 {
-    RSPROT_U2_ALT2(x, m->interface_id);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
 }
 
 /*
@@ -67,7 +67,7 @@ const RsprotVersionRange rsprot_if_opentop_out[] = {
     { 237, 237, (RsprotCodecFn)packet_if_opentop_v3_out },
     { 238, 238, (RsprotCodecFn)packet_if_opentop_v2_out },
     { 239, 239, (RsprotCodecFn)packet_if_opentop_v4_out },
-    /* 240 (RSProx osrs-240, IfOpenTopDecoder): g2Alt3 -- v2, again. */
+    /* 240 (RSProx osrs-240, IfOpenTopDecoder): g2_21_add128 -- v2, again. */
     { 240, 240, (RsprotCodecFn)packet_if_opentop_v2_out },
     /* 241 (RSProx osrs-241, IfOpenTopDecoder): decode body unchanged from 239. */
     { 241, 241, (RsprotCodecFn)packet_if_opentop_v4_out },

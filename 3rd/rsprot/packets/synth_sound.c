@@ -14,9 +14,9 @@
 void
 packet_synth_sound_v1_out(RsprotExec *x, MsgSynthSound *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->loops);
-    RSPROT_U2(x, m->delay);
+    RSPROT_U2_12(x, m->delay);
 }
 
 /*

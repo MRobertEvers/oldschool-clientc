@@ -14,252 +14,252 @@
 void
 packet_midi_song_withsecondary_v1_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT2(x, m->primary_id);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_12(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_out_delay);
 }
 
 /* v2 -- revs 222. */
 void
 packet_midi_song_withsecondary_v2_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2_ALT2(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->primary_id);
-    RSPROT_U2(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->secondary_id);
+    RSPROT_U2_21(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_out_speed);
 }
 
 /* v3 -- revs 223. */
 void
 packet_midi_song_withsecondary_v3_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2(x, m->fade_out_delay);
-    RSPROT_U2_ALT2(x, m->secondary_id);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2(x, m->fade_in_speed);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2_ALT2(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_out_delay);
+    RSPROT_U2_12_ADD128(x, m->secondary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_midi_song_withsecondary_v4_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->primary_id);
-    RSPROT_U2_ALT2(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2(x, m->fade_out_delay);
-    RSPROT_U2_ALT1(x, m->secondary_id);
+    RSPROT_U2_21_ADD128(x, m->primary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_12(x, m->fade_out_delay);
+    RSPROT_U2_21(x, m->secondary_id);
 }
 
 /* v5 -- revs 225. */
 void
 packet_midi_song_withsecondary_v5_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_in_delay);
-    RSPROT_U2(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->primary_id);
 }
 
 /* v6 -- revs 226. */
 void
 packet_midi_song_withsecondary_v6_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2(x, m->primary_id);
-    RSPROT_U2_ALT1(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->primary_id);
+    RSPROT_U2_21(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
 }
 
 /* v7 -- revs 227. */
 void
 packet_midi_song_withsecondary_v7_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2_ALT1(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->primary_id);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
+    RSPROT_U2_12_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_out_delay);
 }
 
 /* v8 -- revs 228. */
 void
 packet_midi_song_withsecondary_v8_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT3(x, m->secondary_id);
-    RSPROT_U2_ALT3(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2_ALT2(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_midi_song_withsecondary_v9_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_out_speed);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->primary_id);
 }
 
 /* v10 -- revs 230. */
 void
 packet_midi_song_withsecondary_v10_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT2(x, m->primary_id);
-    RSPROT_U2(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_speed);
 }
 
 /* v11 -- revs 231. */
 void
 packet_midi_song_withsecondary_v11_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT2(x, m->primary_id);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
 }
 
 /* v12 -- revs 232. */
 void
 packet_midi_song_withsecondary_v12_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT1(x, m->fade_out_speed);
-    RSPROT_U2(x, m->fade_out_delay);
-    RSPROT_U2(x, m->primary_id);
-    RSPROT_U2(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2_ALT1(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_out_speed);
+    RSPROT_U2_12(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->secondary_id);
 }
 
 /* v13 -- revs 233. */
 void
 packet_midi_song_withsecondary_v13_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT2(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->primary_id);
-    RSPROT_U2(x, m->fade_in_speed);
-    RSPROT_U2(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_12_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->primary_id);
+    RSPROT_U2_12(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->secondary_id);
 }
 
 /* v14 -- revs 234. */
 void
 packet_midi_song_withsecondary_v14_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2(x, m->primary_id);
-    RSPROT_U2_ALT3(x, m->fade_out_delay);
-    RSPROT_U2_ALT2(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_12_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
 }
 
 /* v15 -- revs 235. */
 void
 packet_midi_song_withsecondary_v15_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->secondary_id);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2(x, m->primary_id);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->secondary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_12(x, m->primary_id);
 }
 
 /* v16 -- revs 236. */
 void
 packet_midi_song_withsecondary_v16_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT1(x, m->fade_in_speed);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->primary_id);
-    RSPROT_U2_ALT1(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
+    RSPROT_U2_21(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->primary_id);
+    RSPROT_U2_21(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_out_delay);
 }
 
 /* v17 -- revs 237. */
 void
 packet_midi_song_withsecondary_v17_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
-    RSPROT_U2_ALT2(x, m->secondary_id);
-    RSPROT_U2_ALT1(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->primary_id);
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12_ADD128(x, m->secondary_id);
+    RSPROT_U2_21(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->primary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
 }
 
 /* v18 -- revs 238. */
 void
 packet_midi_song_withsecondary_v18_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT3(x, m->primary_id);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2(x, m->secondary_id);
+    RSPROT_U2_21_ADD128(x, m->primary_id);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->secondary_id);
 }
 
 /* v19 -- revs 239. */
 void
 packet_midi_song_withsecondary_v19_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2(x, m->primary_id);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
-    RSPROT_U2_ALT1(x, m->secondary_id);
-    RSPROT_U2(x, m->fade_out_speed);
-    RSPROT_U2_ALT1(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
+    RSPROT_U2_21(x, m->secondary_id);
+    RSPROT_U2_12(x, m->fade_out_speed);
+    RSPROT_U2_21(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
 }
 
 /* v20 -- revs 240. */
 void
 packet_midi_song_withsecondary_v20_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2(x, m->fade_out_delay);
-    RSPROT_U2(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_in_speed);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
-    RSPROT_U2_ALT2(x, m->primary_id);
-    RSPROT_U2_ALT3(x, m->fade_in_delay);
+    RSPROT_U2_12(x, m->fade_out_delay);
+    RSPROT_U2_12(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_in_delay);
 }
 
 /* v21 -- revs 241. */
 void
 packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *m)
 {
-    RSPROT_U2_ALT2(x, m->secondary_id);
-    RSPROT_U2_ALT2(x, m->fade_out_delay);
-    RSPROT_U2_ALT3(x, m->fade_in_speed);
-    RSPROT_U2(x, m->fade_in_delay);
-    RSPROT_U2_ALT3(x, m->primary_id);
-    RSPROT_U2_ALT3(x, m->fade_out_speed);
+    RSPROT_U2_12_ADD128(x, m->secondary_id);
+    RSPROT_U2_12_ADD128(x, m->fade_out_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_12(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->primary_id);
+    RSPROT_U2_21_ADD128(x, m->fade_out_speed);
 }
 
 /*

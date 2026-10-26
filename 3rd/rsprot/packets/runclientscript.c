@@ -67,16 +67,16 @@ packet_runclientscript_v1_out(RsprotExec *x, MsgRunClientScript *m)
             RSPROT_JSTR(x, a->sval);
             break;
         case (char)MSG_RUNCLIENTSCRIPT_TYPE_LONG:
-            RSPROT_U8(x, a->lval);
+            RSPROT_U8_12345678(x, a->lval);
             break;
         default:
-            RSPROT_U4(x, a->ival);
+            RSPROT_U4_1234(x, a->ival);
             break;
         }
     }
 
     /* Last, after every argument. */
-    RSPROT_U4(x, m->id);
+    RSPROT_U4_1234(x, m->id);
 }
 
 const RsprotVersionRange rsprot_runclientscript_out[] = {

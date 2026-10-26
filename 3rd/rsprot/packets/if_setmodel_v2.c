@@ -14,40 +14,40 @@
 void
 packet_if_setmodel_v2_v1_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT1(x, m->model);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U4_4321(x, m->model);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v2 -- revs 238. */
 void
 packet_if_setmodel_v2_v2_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U4_ALT2(x, m->model);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U4_3412(x, m->model);
 }
 
 /* v3 -- revs 239. */
 void
 packet_if_setmodel_v2_v3_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->model);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_3412(x, m->model);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v4 -- revs 240. */
 void
 packet_if_setmodel_v2_v4_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT1(x, m->model);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U4_4321(x, m->model);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v5 -- revs 241. */
 void
 packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m)
 {
-    RSPROT_U4_ALT2(x, m->model);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U4_3412(x, m->model);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /*

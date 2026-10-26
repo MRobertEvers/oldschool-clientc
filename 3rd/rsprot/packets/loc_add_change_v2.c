@@ -15,32 +15,32 @@ void
 packet_loc_add_change_v2_v1_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);
+            RSPROT_XFORM(x, U1_ADD128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v2 -- revs 229. */
 void
 packet_loc_add_change_v2_v2_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->coord_in_zone_packed);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);
+            RSPROT_XFORM(x, U1_SUB128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
@@ -50,33 +50,33 @@ packet_loc_add_change_v2_v2_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 void
 packet_loc_add_change_v2_v3_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);
+            RSPROT_XFORM(x, U1_NEG, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
 }
 
 /* v4 -- revs 231. */
 void
 packet_loc_add_change_v2_v4_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);
+            RSPROT_XFORM(x, U1_SUB128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
@@ -86,35 +86,35 @@ packet_loc_add_change_v2_v4_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 void
 packet_loc_add_change_v2_v5_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->ops_count);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);
+            RSPROT_XFORM(x, U1_SUB128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT3(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
 }
 
 /* v6 -- revs 233. */
 void
 packet_loc_add_change_v2_v6_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);
+            RSPROT_XFORM(x, U1_SUB128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->id);
     RSPROT_U1(x, m->op_flags);
 }
 
@@ -122,9 +122,9 @@ packet_loc_add_change_v2_v6_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 void
 packet_loc_add_change_v2_v7_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->op_flags);
-    RSPROT_U2(x, m->id);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->op_flags);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
@@ -132,35 +132,35 @@ packet_loc_add_change_v2_v7_out(RsprotExec *x, MsgLocAddChangeV2 *m)
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT3(x, m->loc_properties_packed);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v8 -- revs 235. */
 void
 packet_loc_add_change_v2_v8_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT3, elem->key, -1);
+            RSPROT_XFORM(x, U1_SUB128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT2(x, m->loc_properties_packed);
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->loc_properties_packed);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v9 -- revs 236. */
 void
 packet_loc_add_change_v2_v9_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT3(x, m->ops_count);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U1_SUB128(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
@@ -169,7 +169,7 @@ packet_loc_add_change_v2_v9_out(RsprotExec *x, MsgLocAddChangeV2 *m)
         }
     }
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v10 -- revs 237. */
@@ -177,9 +177,9 @@ void
 packet_loc_add_change_v2_v10_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->op_flags);
+    RSPROT_U1_NEG(x, m->op_flags);
     RSPROT_U1(x, m->loc_properties_packed);
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
     RSPROT_U1(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
@@ -195,24 +195,24 @@ void
 packet_loc_add_change_v2_v11_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
     RSPROT_U1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT1(x, m->op_flags);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U1_ALT1(x, m->ops_count);
+    RSPROT_U1_ADD128(x, m->op_flags);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);
+            RSPROT_XFORM(x, U1_ADD128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
 }
 
 /* v12 -- revs 239. */
 void
 packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT1(x, m->ops_count);
+    RSPROT_U1_ADD128(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
@@ -220,27 +220,27 @@ packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m)
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U1_ALT3(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
-    RSPROT_U1_ALT2(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U1_SUB128(x, m->op_flags);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v13 -- revs 240. */
 void
 packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT3(x, m->op_flags);
+    RSPROT_U1_SUB128(x, m->op_flags);
     RSPROT_U1(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT1, elem->key, -1);
+            RSPROT_XFORM(x, U1_ADD128, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
     RSPROT_U1(x, m->coord_in_zone_packed);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->id);
     RSPROT_U1(x, m->loc_properties_packed);
 }
 
@@ -248,18 +248,18 @@ packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 void
 packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m)
 {
-    RSPROT_U1_ALT1(x, m->loc_properties_packed);
+    RSPROT_U1_ADD128(x, m->loc_properties_packed);
     RSPROT_U1(x, m->op_flags);
-    RSPROT_U1_ALT1(x, m->coord_in_zone_packed);
-    RSPROT_U1_ALT2(x, m->ops_count);
+    RSPROT_U1_ADD128(x, m->coord_in_zone_packed);
+    RSPROT_U1_NEG(x, m->ops_count);
     if ((!(m->ops_count == 0))) {
         for (int32_t rs_i_ops = 0; rs_i_ops < m->ops_count; rs_i_ops++) {
             Rsprot_MsgLocAddChangeV2_opsElem *elem = &m->ops[rs_i_ops];
-            RSPROT_XFORM(x, U1_ALT2, elem->key, -1);
+            RSPROT_XFORM(x, U1_NEG, elem->key, -1);
             RSPROT_JSTR(x, elem->value);
         }
     }
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
 }
 
 /*

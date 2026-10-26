@@ -14,9 +14,9 @@
 void
 packet_cam_lookat_eased_angle_relative_v1_out(RsprotExec *x, MsgCamLookAtEasedAngleRelative *m)
 {
-    RSPROT_U2(x, m->y_angle);
-    RSPROT_U2(x, m->x_angle);
-    RSPROT_U2(x, m->duration);
+    RSPROT_U2_12(x, m->y_angle);
+    RSPROT_U2_12(x, m->x_angle);
+    RSPROT_U2_12(x, m->duration);
     RSPROT_U1(x, m->function_id);
 }
 

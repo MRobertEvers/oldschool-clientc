@@ -15,7 +15,7 @@
 /** One struct for every version: the union of their fields. */
 typedef struct MsgSetPlayerOp {
 	int32_t id;
-	int32_t priority; /* RSProx: <g1Alt3> == 1 */
+	int32_t priority; /* RSProx: <g1_sub128> == 1 */
 	const char *op;
 } MsgSetPlayerOp;
 

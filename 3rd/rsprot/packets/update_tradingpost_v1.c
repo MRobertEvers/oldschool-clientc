@@ -8,17 +8,17 @@ packet_update_tradingpost_v1_v1_out(RsprotExec *x, MsgUpdateTradingpostV1 *m)
     RSPROT_U1(x, m->set);
     if (RSPROT_BRANCH(x, m->set) == 0)
         return;
-    RSPROT_U8(x, m->age);
-    RSPROT_U2(x, m->obj);
+    RSPROT_U8_12345678(x, m->age);
+    RSPROT_U2_12(x, m->obj);
     RSPROT_U1(x, m->status);
     RSPROT_COUNT2(x, m->offer_count, MSG_UPDATE_TRADINGPOST_V1_MAX_OFFERS);
     for (int32_t i = 0; i < m->offer_count; i++) {
         RSPROT_JSTR(x, m->offers[i].name);
         RSPROT_JSTR(x, m->offers[i].previous_name);
-        RSPROT_U2(x, m->offers[i].world);
-        RSPROT_U8(x, m->offers[i].time);
-        RSPROT_U4(x, m->offers[i].price);
-        RSPROT_U4(x, m->offers[i].count);
+        RSPROT_U2_12(x, m->offers[i].world);
+        RSPROT_U8_12345678(x, m->offers[i].time);
+        RSPROT_U4_1234(x, m->offers[i].price);
+        RSPROT_U4_1234(x, m->offers[i].count);
     }
 }
 

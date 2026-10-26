@@ -14,55 +14,55 @@
 void
 packet_opobj4_v2_v1_in(RsprotExec *x, MsgOpObj4V2 *m)
 {
-    RSPROT_U1_ALT3(x, m->subop);
-    RSPROT_U2_ALT1(x, m->x);
-    RSPROT_U2(x, m->z);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U2(x, m->id);
+    RSPROT_U1_SUB128(x, m->subop);
+    RSPROT_U2_21(x, m->x);
+    RSPROT_U2_12(x, m->z);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v2 -- revs 238. */
 void
 packet_opobj4_v2_v2_in(RsprotExec *x, MsgOpObj4V2 *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_NEG(x, m->control_key);
     RSPROT_U1(x, m->subop);
-    RSPROT_U2(x, m->x);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v3 -- revs 239. */
 void
 packet_opobj4_v2_v3_in(RsprotExec *x, MsgOpObj4V2 *m)
 {
-    RSPROT_U1_ALT3(x, m->subop);
-    RSPROT_U2(x, m->id);
-    RSPROT_U2(x, m->x);
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U1_SUB128(x, m->subop);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v4 -- revs 240. */
 void
 packet_opobj4_v2_v4_in(RsprotExec *x, MsgOpObj4V2 *m)
 {
-    RSPROT_U1_ALT2(x, m->subop);
-    RSPROT_U1_ALT3(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->z);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U2_ALT1(x, m->x);
+    RSPROT_U1_NEG(x, m->subop);
+    RSPROT_U1_SUB128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->z);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_21(x, m->x);
 }
 
 /* v5 -- revs 241. */
 void
 packet_opobj4_v2_v5_in(RsprotExec *x, MsgOpObj4V2 *m)
 {
-    RSPROT_U2_ALT1(x, m->z);
-    RSPROT_U2(x, m->x);
-    RSPROT_U1_ALT2(x, m->control_key);
-    RSPROT_U1_ALT1(x, m->subop);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U2_21(x, m->z);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U1_NEG(x, m->control_key);
+    RSPROT_U1_ADD128(x, m->subop);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /*

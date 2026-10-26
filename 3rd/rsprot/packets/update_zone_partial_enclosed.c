@@ -15,8 +15,8 @@ void
 packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -24,9 +24,9 @@ packet_update_zone_partial_enclosed_v1_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -34,9 +34,9 @@ packet_update_zone_partial_enclosed_v2_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v3_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_NEG(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -45,8 +45,8 @@ void
 packet_update_zone_partial_enclosed_v4_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -55,8 +55,8 @@ void
 packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -64,9 +64,9 @@ packet_update_zone_partial_enclosed_v5_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v6_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT2(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -75,8 +75,8 @@ void
 packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT3(x, m->level);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -84,9 +84,9 @@ packet_update_zone_partial_enclosed_v7_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->zone_x);
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -94,7 +94,7 @@ packet_update_zone_partial_enclosed_v8_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_x);
     RSPROT_U1(x, m->level);
     RSPROT_U1(x, m->zone_z);
     RSPROT_REST(x, m->payload, m->payload_length);
@@ -104,8 +104,8 @@ packet_update_zone_partial_enclosed_v9_out(RsprotExec *x, MsgDesktopUpdateZonePa
 void
 packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1_SUB128(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_z);
     RSPROT_U1(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
@@ -114,9 +114,9 @@ packet_update_zone_partial_enclosed_v10_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v11_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT1(x, m->level);
+    RSPROT_U1_ADD128(x, m->level);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_z);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -125,8 +125,8 @@ void
 packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_NEG(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -134,9 +134,9 @@ packet_update_zone_partial_enclosed_v12_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -144,9 +144,9 @@ packet_update_zone_partial_enclosed_v13_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v14_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT2(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->zone_z);
     RSPROT_U1(x, m->level);
-    RSPROT_U1_ALT3(x, m->zone_x);
+    RSPROT_U1_SUB128(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -155,8 +155,8 @@ void
 packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -164,9 +164,9 @@ packet_update_zone_partial_enclosed_v15_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT3(x, m->zone_x);
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT2(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_x);
+    RSPROT_U1_ADD128(x, m->zone_z);
+    RSPROT_U1_NEG(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -174,9 +174,9 @@ packet_update_zone_partial_enclosed_v16_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT1(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_z);
     RSPROT_U1(x, m->level);
-    RSPROT_U1_ALT2(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -184,9 +184,9 @@ packet_update_zone_partial_enclosed_v17_out(RsprotExec *x, MsgDesktopUpdateZoneP
 void
 packet_update_zone_partial_enclosed_v18_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
 {
-    RSPROT_U1_ALT2(x, m->level);
-    RSPROT_U1_ALT1(x, m->zone_z);
-    RSPROT_U1_ALT1(x, m->zone_x);
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U1_ADD128(x, m->zone_z);
+    RSPROT_U1_ADD128(x, m->zone_x);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
@@ -196,7 +196,7 @@ packet_update_zone_partial_enclosed_v19_out(RsprotExec *x, MsgDesktopUpdateZoneP
 {
     RSPROT_U1(x, m->zone_z);
     RSPROT_U1(x, m->zone_x);
-    RSPROT_U1_ALT3(x, m->level);
+    RSPROT_U1_SUB128(x, m->level);
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 

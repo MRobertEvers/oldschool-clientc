@@ -14,81 +14,81 @@
 void
 packet_if_opensub_v1_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_U2(x, m->interface_id);
-    RSPROT_U4_ALT1(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U2_12(x, m->interface_id);
+    RSPROT_U4_4321(x, m->destination_combined_id);
 }
 
 /* v2 -- revs 222. */
 void
 packet_if_opensub_v2_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U1_ALT2(x, m->type);
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_COM_ALT2(x, m->destination_combined_id);
+    RSPROT_U1_NEG(x, m->type);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_COM_3412(x, m->destination_combined_id);
 }
 
 /* v3 -- revs 223. */
 void
 packet_if_opensub_v3_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_U2_ALT1(x, m->interface_id);
-    RSPROT_COM(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U2_21(x, m->interface_id);
+    RSPROT_COM_1234(x, m->destination_combined_id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_opensub_v4_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT3(x, m->interface_id);
-    RSPROT_COM(x, m->destination_combined_id);
-    RSPROT_U1_ALT3(x, m->type);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
+    RSPROT_COM_1234(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_opensub_v5_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT3(x, m->interface_id);
-    RSPROT_COM_ALT2(x, m->destination_combined_id);
-    RSPROT_U1_ALT3(x, m->type);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
+    RSPROT_COM_3412(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
 }
 
 /* v6 -- revs 226. */
 void
 packet_if_opensub_v6_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_COM_ALT2(x, m->destination_combined_id);
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_U1_ALT1(x, m->type);
+    RSPROT_COM_3412(x, m->destination_combined_id);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_U1_ADD128(x, m->type);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_opensub_v7_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_COM_ALT2(x, m->destination_combined_id);
-    RSPROT_U1_ALT1(x, m->type);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_COM_3412(x, m->destination_combined_id);
+    RSPROT_U1_ADD128(x, m->type);
 }
 
 /* v8 -- revs 228. */
 void
 packet_if_opensub_v8_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_COM_ALT1(x, m->destination_combined_id);
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_U2_ALT1(x, m->interface_id);
+    RSPROT_COM_4321(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U2_21(x, m->interface_id);
 }
 
 /* v9 -- revs 229. */
 void
 packet_if_opensub_v9_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2(x, m->interface_id);
-    RSPROT_COM_ALT1(x, m->destination_combined_id);
-    RSPROT_U1_ALT1(x, m->type);
+    RSPROT_U2_12(x, m->interface_id);
+    RSPROT_COM_4321(x, m->destination_combined_id);
+    RSPROT_U1_ADD128(x, m->type);
 }
 
 /* v10 -- revs 230. */
@@ -96,34 +96,34 @@ void
 packet_if_opensub_v10_out(RsprotExec *x, MsgIfOpenSub *m)
 {
     RSPROT_U1(x, m->type);
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_COM_2143(x, m->destination_combined_id);
 }
 
 /* v11 -- revs 231. */
 void
 packet_if_opensub_v11_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_U1_ALT1(x, m->type);
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_U1_ADD128(x, m->type);
+    RSPROT_COM_2143(x, m->destination_combined_id);
 }
 
 /* v12 -- revs 232. */
 void
 packet_if_opensub_v12_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U1_ALT2(x, m->type);
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
-    RSPROT_U2_ALT1(x, m->interface_id);
+    RSPROT_U1_NEG(x, m->type);
+    RSPROT_COM_2143(x, m->destination_combined_id);
+    RSPROT_U2_21(x, m->interface_id);
 }
 
 /* v13 -- revs 233. */
 void
 packet_if_opensub_v13_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT3(x, m->interface_id);
-    RSPROT_COM_ALT1(x, m->destination_combined_id);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
+    RSPROT_COM_4321(x, m->destination_combined_id);
     RSPROT_U1(x, m->type);
 }
 
@@ -131,44 +131,44 @@ packet_if_opensub_v13_out(RsprotExec *x, MsgIfOpenSub *m)
 void
 packet_if_opensub_v14_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2(x, m->interface_id);
-    RSPROT_U1_ALT1(x, m->type);
-    RSPROT_COM(x, m->destination_combined_id);
+    RSPROT_U2_12(x, m->interface_id);
+    RSPROT_U1_ADD128(x, m->type);
+    RSPROT_COM_1234(x, m->destination_combined_id);
 }
 
 /* v15 -- revs 235, 238. */
 void
 packet_if_opensub_v15_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2(x, m->interface_id);
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_COM_ALT2(x, m->destination_combined_id);
+    RSPROT_U2_12(x, m->interface_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_COM_3412(x, m->destination_combined_id);
 }
 
 /* v16 -- revs 236. */
 void
 packet_if_opensub_v16_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
-    RSPROT_U1_ALT3(x, m->type);
-    RSPROT_U2(x, m->interface_id);
+    RSPROT_COM_2143(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U2_12(x, m->interface_id);
 }
 
 /* v17 -- revs 237. */
 void
 packet_if_opensub_v17_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
-    RSPROT_U1_ALT2(x, m->type);
-    RSPROT_U2(x, m->interface_id);
+    RSPROT_COM_2143(x, m->destination_combined_id);
+    RSPROT_U1_NEG(x, m->type);
+    RSPROT_U2_12(x, m->interface_id);
 }
 
 /* v18 -- revs 239. */
 void
 packet_if_opensub_v18_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_U2_ALT3(x, m->interface_id);
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
+    RSPROT_COM_2143(x, m->destination_combined_id);
     RSPROT_U1(x, m->type);
 }
 
@@ -177,17 +177,17 @@ void
 packet_if_opensub_v19_out(RsprotExec *x, MsgIfOpenSub *m)
 {
     RSPROT_U1(x, m->type);
-    RSPROT_U2_ALT3(x, m->interface_id);
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
+    RSPROT_U2_21_ADD128(x, m->interface_id);
+    RSPROT_COM_2143(x, m->destination_combined_id);
 }
 
 /* v20 -- revs 241. */
 void
 packet_if_opensub_v20_out(RsprotExec *x, MsgIfOpenSub *m)
 {
-    RSPROT_COM_ALT3(x, m->destination_combined_id);
-    RSPROT_U2_ALT2(x, m->interface_id);
-    RSPROT_U1_ALT1(x, m->type);
+    RSPROT_COM_2143(x, m->destination_combined_id);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+    RSPROT_U1_ADD128(x, m->type);
 }
 
 /*

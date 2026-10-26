@@ -14,7 +14,7 @@
 void
 packet_resume_p_objdialog_v1_in(RsprotExec *x, MsgResumePObjDialog *m)
 {
-    RSPROT_U2(x, m->obj);
+    RSPROT_U2_12(x, m->obj);
 }
 
 /*

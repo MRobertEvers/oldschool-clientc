@@ -5,28 +5,28 @@
 void
 packet_clickworldmap_v1_in(RsprotExec *x, MsgClickworldmap *m)
 {
-    RSPROT_U4_ALT2(x, m->packed);
+    RSPROT_U4_3412(x, m->packed);
 }
 
 /* v2 -- revs 224, 226, 230, 235, 238. */
 void
 packet_clickworldmap_v2_in(RsprotExec *x, MsgClickworldmap *m)
 {
-    RSPROT_U4_ALT3(x, m->packed);
+    RSPROT_U4_2143(x, m->packed);
 }
 
 /* v3 -- revs 225, 233, 236-237. */
 void
 packet_clickworldmap_v3_in(RsprotExec *x, MsgClickworldmap *m)
 {
-    RSPROT_U4(x, m->packed);
+    RSPROT_U4_1234(x, m->packed);
 }
 
 /* v4 -- revs 232, 234, 239-240. */
 void
 packet_clickworldmap_v4_in(RsprotExec *x, MsgClickworldmap *m)
 {
-    RSPROT_U4_ALT1(x, m->packed);
+    RSPROT_U4_4321(x, m->packed);
 }
 
 const RsprotVersionRange rsprot_clickworldmap_in[] = {

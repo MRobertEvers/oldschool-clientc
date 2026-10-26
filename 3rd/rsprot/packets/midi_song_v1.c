@@ -14,7 +14,7 @@
 void
 packet_midi_song_v1_v1_out(RsprotExec *x, MsgMidiSongV1 *m)
 {
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U2_21(x, m->id);
 }
 
 /*

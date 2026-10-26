@@ -14,81 +14,81 @@
 void
 packet_obj_del_specific_v1_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U2_ALT3(x, m->id);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U4_ALT2(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U4_3412(x, m->quantity);
 }
 
 /* v2 -- revs 233. */
 void
 packet_obj_del_specific_v2_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U2(x, m->id);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U2_12(x, m->id);
 }
 
 /* v3 -- revs 234. */
 void
 packet_obj_del_specific_v3_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
 }
 
 /* v4 -- revs 235. */
 void
 packet_obj_del_specific_v4_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->coord_grid_packed);
-    RSPROT_U4_ALT1(x, m->quantity);
-    RSPROT_U2_ALT2(x, m->id);
+    RSPROT_U4_2143(x, m->coord_grid_packed);
+    RSPROT_U4_4321(x, m->quantity);
+    RSPROT_U2_12_ADD128(x, m->id);
 }
 
 /* v5 -- revs 236. */
 void
 packet_obj_del_specific_v5_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U4_ALT3(x, m->coord_grid_packed);
-    RSPROT_U2_ALT1(x, m->id);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U4_2143(x, m->coord_grid_packed);
+    RSPROT_U2_21(x, m->id);
 }
 
 /* v6 -- revs 237. */
 void
 packet_obj_del_specific_v6_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT2(x, m->quantity);
-    RSPROT_U4_ALT2(x, m->coord_grid_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U4_3412(x, m->coord_grid_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /* v7 -- revs 238. */
 void
 packet_obj_del_specific_v7_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U2(x, m->id);
-    RSPROT_U4_ALT3(x, m->coord_grid_packed);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_2143(x, m->coord_grid_packed);
 }
 
 /* v8 -- revs 239. */
 void
 packet_obj_del_specific_v8_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U2_ALT2(x, m->id);
-    RSPROT_U4(x, m->quantity);
-    RSPROT_U4(x, m->coord_grid_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
 }
 
 /* v9 -- revs 240-241. */
 void
 packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m)
 {
-    RSPROT_U4_ALT3(x, m->quantity);
-    RSPROT_U4_ALT1(x, m->coord_grid_packed);
-    RSPROT_U2_ALT3(x, m->id);
+    RSPROT_U4_2143(x, m->quantity);
+    RSPROT_U4_4321(x, m->coord_grid_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
 }
 
 /*

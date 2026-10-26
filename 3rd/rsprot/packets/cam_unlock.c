@@ -14,7 +14,7 @@
 void
 packet_cam_unlock_v1_out(RsprotExec *x, MsgCamUnlock *m)
 {
-    RSPROT_U1_ALT1(x, m->unlock);
+    RSPROT_U1_ADD128(x, m->unlock);
 }
 
 /* v2 -- revs 239. */
@@ -28,7 +28,7 @@ packet_cam_unlock_v2_out(RsprotExec *x, MsgCamUnlock *m)
 void
 packet_cam_unlock_v3_out(RsprotExec *x, MsgCamUnlock *m)
 {
-    RSPROT_U1_ALT3(x, m->unlock);
+    RSPROT_U1_SUB128(x, m->unlock);
 }
 
 /*

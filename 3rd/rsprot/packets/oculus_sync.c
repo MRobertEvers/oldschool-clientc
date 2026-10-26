@@ -14,7 +14,7 @@
 void
 packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m)
 {
-    RSPROT_U4(x, m->value);
+    RSPROT_U4_1234(x, m->value);
 }
 
 /*

@@ -14,7 +14,7 @@
 void
 packet_ambientsound_stop_v1_out(RsprotExec *x, MsgAmbientSoundStop *m)
 {
-    RSPROT_U1_ALT3(x, m->fade);
+    RSPROT_U1_SUB128(x, m->fade);
 }
 
 /* v2 -- revs 239. */
@@ -28,7 +28,7 @@ packet_ambientsound_stop_v2_out(RsprotExec *x, MsgAmbientSoundStop *m)
 void
 packet_ambientsound_stop_v3_out(RsprotExec *x, MsgAmbientSoundStop *m)
 {
-    RSPROT_U1_ALT2(x, m->fade);
+    RSPROT_U1_NEG(x, m->fade);
 }
 
 /*

@@ -728,8 +728,8 @@ parse_message_private(RsprotBuf* c, uint8_t const* data, int len, struct RevPack
     char const* sender = rsprot_gjstr(c, &name_len);
 
     memset(p, 0, sizeof(*p));
-    (void)rsprot_g2(c); /* world */
-    p->message_id = rsprot_g3(c);
+    (void)rsprot_g2_12(c); /* world */
+    p->message_id = rsprot_g3_123(c);
     p->staff_mod = rsprot_g1(c);
     if( c->err || !sender )
         return 0;
@@ -760,8 +760,8 @@ parse_message_clanchannel(
         memcpy(p->sender, sender, (size_t)n);
         p->sender[n] = '\0';
     }
-    p->world = rsprot_g2(c);
-    p->counter = rsprot_g3(c);
+    p->world = rsprot_g2_12(c);
+    p->counter = rsprot_g3_123(c);
     if( !system )
         p->crown = rsprot_g1(c);
     if( c->err )
@@ -782,11 +782,11 @@ parse_stockmarket_slot(RsprotBuf* c, struct RevPacket* out)
     /* An empty slot's remaining 18 bytes are padding. */
     if( p->status != 0 )
     {
-        p->obj = rsprot_g2(c);
-        p->price = rsprot_g4(c);
-        p->count = rsprot_g4(c);
-        p->completed_count = rsprot_g4(c);
-        p->completed_gold = rsprot_g4(c);
+        p->obj = rsprot_g2_12(c);
+        p->price = rsprot_g4_1234(c);
+        p->count = rsprot_g4_1234(c);
+        p->completed_count = rsprot_g4_1234(c);
+        p->completed_gold = rsprot_g4_1234(c);
     }
     return !c->err;
 }

@@ -3,12 +3,12 @@
 
 #include <string.h>
 
-#include "rsprot_buffer.h"
+#include "rsprot_buf.h"
 
 /*
  * These used to be two private pointer-peeks — `g2(const uint8_t*)` and
  * `g4_le(const uint8_t*)` — reading a fixed offset with no cursor and no bounds
- * check. They are RSProt_Buffer's, and reading through a cursor is what makes
+ * check. They are RsprotBuf's, and reading through a cursor is what makes
  * the length check below load-bearing rather than advisory: a short payload
  * latches an error instead of reading past the end.
  *
@@ -24,20 +24,20 @@ mock239_if_button_decode(
     struct Mock239IfButton* out)
 {
     int expected = has_subop ? 10 : 9;
-    RSProt_Buffer b;
+    RsprotBuf b;
 
     if( payload_len != expected )
         return 0;
     assert(payload);
     assert(out);
     memset(out, 0, sizeof(*out));
-    RSProt_BufferWrapRead(&b, payload, payload_len);
-    out->component_id = RSProt_BufferG4Be(&b);
-    out->sub = (int16_t)RSProt_BufferG2Be(&b);
-    out->object_id = (uint16_t)RSProt_BufferG2Be(&b);
-    out->op = RSProt_BufferG1(&b);
-    out->subop = has_subop ? RSProt_BufferG1(&b) : -1;
-    if( !RSProt_BufferOk(&b) )
+    rsprot_buf_wrap_read(&b, payload, payload_len);
+    out->component_id = rsprot_g4_1234(&b);
+    out->sub = (int16_t)rsprot_g2_12(&b);
+    out->object_id = (uint16_t)rsprot_g2_12(&b);
+    out->op = rsprot_g1(&b);
+    out->subop = has_subop ? rsprot_g1(&b) : -1;
+    if( !rsprot_buf_ok(&b) )
         return 0;
     return out->op >= 1 && out->op <= 10;
 }
@@ -128,15 +128,15 @@ mock239_if_script_trigger_decode(
      * order used to be spelled out by hand here, a third private copy of an
      * encoding the buffer library already had. */
     {
-        RSProt_Buffer b;
+        RsprotBuf b;
 
-        RSProt_BufferWrapRead(&b, payload, payload_len);
-        child = (uint16_t)RSProt_BufferG2Le_add128(&b);
+        rsprot_buf_wrap_read(&b, payload, payload_len);
+        child = (uint16_t)rsprot_g2_21_add128(&b);
         out->child = (int16_t)child;
-        out->object_id = (uint16_t)RSProt_BufferG2Be(&b);
-        out->component_id = RSProt_BufferG4Le(&b);
-        out->crc = RSProt_BufferG4Le(&b);
-        if( !RSProt_BufferOk(&b) )
+        out->object_id = (uint16_t)rsprot_g2_12(&b);
+        out->component_id = rsprot_g4_4321(&b);
+        out->crc = rsprot_g4_4321(&b);
+        if( !rsprot_buf_ok(&b) )
             return 0;
     }
     /* The typed tail stays a borrowed pointer: it is handed to the caller as a
@@ -222,15 +222,15 @@ mock239_resume_count_long_decode(
     int payload_len,
     int64_t* out)
 {
-    RSProt_Buffer b;
+    RsprotBuf b;
 
     if( payload_len != 8 )
         return 0;
     assert(payload);
     assert(out);
-    RSProt_BufferWrapRead(&b, payload, payload_len);
-    *out = RSProt_BufferG8Be(&b);
-    return RSProt_BufferOk(&b);
+    rsprot_buf_wrap_read(&b, payload, payload_len);
+    *out = rsprot_g8_12345678(&b);
+    return rsprot_buf_ok(&b);
 }
 
 int
@@ -239,13 +239,13 @@ mock239_resume_object_decode(
     int payload_len,
     int32_t* out)
 {
-    RSProt_Buffer b;
+    RsprotBuf b;
 
     if( payload_len != 2 )
         return 0;
     assert(payload);
     assert(out);
-    RSProt_BufferWrapRead(&b, payload, payload_len);
-    *out = RSProt_BufferG2Be(&b);
-    return RSProt_BufferOk(&b);
+    rsprot_buf_wrap_read(&b, payload, payload_len);
+    *out = rsprot_g2_12(&b);
+    return rsprot_buf_ok(&b);
 }

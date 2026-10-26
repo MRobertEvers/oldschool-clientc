@@ -14,7 +14,7 @@
 void
 packet_opnpc2_v1_v1_in(RsprotExec *x, MsgOpNpc2V1 *m)
 {
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 

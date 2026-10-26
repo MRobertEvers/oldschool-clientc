@@ -14,120 +14,120 @@
 void
 packet_if_setanim_v1_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT1(x, m->anim);
-    RSPROT_U4_ALT1(x, m->combined_id);
+    RSPROT_U2_21(x, m->anim);
+    RSPROT_U4_4321(x, m->combined_id);
 }
 
 /* v2 -- revs 222, 230. */
 void
 packet_if_setanim_v2_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->anim);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->anim);
 }
 
 /* v3 -- revs 223, 228, 235. */
 void
 packet_if_setanim_v3_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT2(x, m->anim);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->anim);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v4 -- revs 224. */
 void
 packet_if_setanim_v4_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM_ALT3(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->anim);
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->anim);
 }
 
 /* v5 -- revs 225. */
 void
 packet_if_setanim_v5_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2(x, m->anim);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12(x, m->anim);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v6 -- revs 226, 238. */
 void
 packet_if_setanim_v6_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT2(x, m->anim);
-    RSPROT_COM_ALT3(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->anim);
+    RSPROT_COM_2143(x, m->combined_id);
 }
 
 /* v7 -- revs 227. */
 void
 packet_if_setanim_v7_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT3(x, m->anim);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->anim);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v8 -- revs 229. */
 void
 packet_if_setanim_v8_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT3(x, m->anim);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v9 -- revs 231. */
 void
 packet_if_setanim_v9_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM_ALT2(x, m->combined_id);
-    RSPROT_U2(x, m->anim);
+    RSPROT_COM_3412(x, m->combined_id);
+    RSPROT_U2_12(x, m->anim);
 }
 
 /* v10 -- revs 232. */
 void
 packet_if_setanim_v10_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2(x, m->anim);
-    RSPROT_COM_ALT1(x, m->combined_id);
+    RSPROT_U2_12(x, m->anim);
+    RSPROT_COM_4321(x, m->combined_id);
 }
 
 /* v11 -- revs 233, 239. */
 void
 packet_if_setanim_v11_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM_ALT1(x, m->combined_id);
-    RSPROT_U2_ALT1(x, m->anim);
+    RSPROT_COM_4321(x, m->combined_id);
+    RSPROT_U2_21(x, m->anim);
 }
 
 /* v12 -- revs 234. */
 void
 packet_if_setanim_v12_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_U2_ALT1(x, m->anim);
-    RSPROT_COM(x, m->combined_id);
+    RSPROT_U2_21(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
 }
 
 /* v13 -- revs 236. */
 void
 packet_if_setanim_v13_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->anim);
 }
 
 /* v14 -- revs 237, 240. */
 void
 packet_if_setanim_v14_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT2(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->anim);
 }
 
 /* v15 -- revs 241. */
 void
 packet_if_setanim_v15_out(RsprotExec *x, MsgIfSetAnim *m)
 {
-    RSPROT_COM(x, m->combined_id);
-    RSPROT_U2_ALT3(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_21_ADD128(x, m->anim);
 }
 
 /*

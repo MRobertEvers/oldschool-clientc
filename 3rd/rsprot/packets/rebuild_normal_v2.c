@@ -15,9 +15,9 @@ void
 packet_rebuild_normal_v2_v1_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2(x, m->world_area);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2_ALT1(x, m->zone_z);
+    RSPROT_U2_12(x, m->world_area);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_21(x, m->zone_z);
 }
 
 /* v2 -- revs 238. */
@@ -25,9 +25,9 @@ void
 packet_rebuild_normal_v2_v2_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2_ALT2(x, m->zone_z);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2_ALT3(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_z);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->world_area);
 }
 
 /* v3 -- revs 239. */
@@ -35,9 +35,9 @@ void
 packet_rebuild_normal_v2_v3_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2_ALT1(x, m->world_area);
-    RSPROT_U2_ALT2(x, m->zone_z);
-    RSPROT_U2_ALT2(x, m->zone_x);
+    RSPROT_U2_21(x, m->world_area);
+    RSPROT_U2_12_ADD128(x, m->zone_z);
+    RSPROT_U2_12_ADD128(x, m->zone_x);
 }
 
 /* v4 -- revs 240. */
@@ -45,9 +45,9 @@ void
 packet_rebuild_normal_v2_v4_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2_ALT3(x, m->zone_z);
-    RSPROT_U2_ALT3(x, m->world_area);
-    RSPROT_U2_ALT3(x, m->zone_x);
+    RSPROT_U2_21_ADD128(x, m->zone_z);
+    RSPROT_U2_21_ADD128(x, m->world_area);
+    RSPROT_U2_21_ADD128(x, m->zone_x);
 }
 
 /* v5 -- revs 241. */
@@ -55,9 +55,9 @@ void
 packet_rebuild_normal_v2_v5_out(RsprotExec *x, MsgRebuildNormalV2 *m)
 {
     rsprot_tail_gpi_init(x, &m->gpi_init, &m->gpi_init_length, 6);
-    RSPROT_U2(x, m->zone_z);
-    RSPROT_U2_ALT1(x, m->zone_x);
-    RSPROT_U2(x, m->world_area);
+    RSPROT_U2_12(x, m->zone_z);
+    RSPROT_U2_21(x, m->zone_x);
+    RSPROT_U2_12(x, m->world_area);
 }
 
 /*

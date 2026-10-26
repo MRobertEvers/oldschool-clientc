@@ -5,7 +5,7 @@
 void
 packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m)
 {
-    RSPROT_U2(x, m->id);
+    RSPROT_U2_12(x, m->id);
     RSPROT_REST(x, m->data, m->data_length);
 }
 

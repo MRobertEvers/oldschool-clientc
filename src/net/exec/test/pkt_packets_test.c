@@ -237,7 +237,7 @@ test_describe_distinguishes_the_versions(void)
     packet_if_opentop_v3_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(s.count, 1);
-    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT1);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_21);
     CHECK_EQ(s.fields[0].offset, 0);
     /* Cross-check against the revision's {opcode, size} table: IF_OPENTOP is
      * 2 bytes at both 230 and 239, and the codec agrees. */
@@ -247,7 +247,7 @@ test_describe_distinguishes_the_versions(void)
     packet_if_opentop_v4_out(&x, &m);
     CHECK(rsprot_exec_ok(&x));
     CHECK_EQ(s.count, 1);
-    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT2);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_12_ADD128);
     CHECK_EQ(rsprot_schema_fixed_size(&s), 2);
 
     /* All four layouts: same size, same field name, four different primitives
@@ -256,11 +256,11 @@ test_describe_distinguishes_the_versions(void)
 
     rsprot_exec_describe(&x, &s);
     packet_if_opentop_v1_out(&x, &m);
-    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_12);
 
     rsprot_exec_describe(&x, &s);
     packet_if_opentop_v2_out(&x, &m);
-    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_ALT3);
+    CHECK_EQ(s.fields[0].prim, RSPROT_PRIM_U2_21_ADD128);
 }
 
 int

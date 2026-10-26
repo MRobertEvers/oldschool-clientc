@@ -14,7 +14,7 @@
 void
 packet_opworldentity3_v1_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -22,31 +22,31 @@ packet_opworldentity3_v1_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 void
 packet_opworldentity3_v2_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /* v3 -- revs 235. */
 void
 packet_opworldentity3_v3_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT3(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_21_ADD128(x, m->index);
 }
 
 /* v4 -- revs 236. */
 void
 packet_opworldentity3_v4_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U1_ALT1(x, m->control_key);
-    RSPROT_U2_ALT1(x, m->index);
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_U2_21(x, m->index);
 }
 
 /* v5 -- revs 237. */
 void
 packet_opworldentity3_v5_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2_ALT2(x, m->index);
+    RSPROT_U2_12_ADD128(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -54,15 +54,15 @@ packet_opworldentity3_v5_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 void
 packet_opworldentity3_v6_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT3(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_SUB128(x, m->control_key);
 }
 
 /* v7 -- revs 240. */
 void
 packet_opworldentity3_v7_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2(x, m->index);
+    RSPROT_U2_12(x, m->index);
     RSPROT_U1(x, m->control_key);
 }
 
@@ -70,8 +70,8 @@ packet_opworldentity3_v7_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 void
 packet_opworldentity3_v8_in(RsprotExec *x, MsgOpWorldEntity3 *m)
 {
-    RSPROT_U2(x, m->index);
-    RSPROT_U1_ALT2(x, m->control_key);
+    RSPROT_U2_12(x, m->index);
+    RSPROT_U1_NEG(x, m->control_key);
 }
 
 /*

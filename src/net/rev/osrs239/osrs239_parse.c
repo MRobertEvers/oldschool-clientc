@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "rsprot_buffer.h"
+#include "rsprot_buf.h"
 #include "rsbuffer.h"
 #include "rsprot_exec.h"
 
@@ -66,18 +66,18 @@
  * the packet) rather than applying half-decoded state.
  */
 /*
- * The byte cursor is RSProt_Buffer's.
+ * The byte cursor is RsprotBuf's.
  *
  * This file used to define a private `struct Cur` and seventeen readers over
  * it — g1, g1_alt1..3, g2, g2_alt1..3, g3, g3_alt2, g4, g4_alt1..3, g1b,
  * gsmart1or2, gjstr_nul. Every one had a counterpart in the buffer library and
  * was a separate place for a byte order to be wrong; `gsmart1or2` alone was one
  * of five copies of that encoding in src/net. See
- * `docs/BUFFER_ACCESSOR_AUDIT.md` and `3rd/rsprot/src/rsprot_buffer.h`.
+ * `docs/BUFFER_ACCESSOR_AUDIT.md` and `3rd/rsprot/src/rsprot_buf.h`.
  *
  * The names now carry the byte order instead of an `alt` ordinal, so a call
  * site states what it reads: `g4_alt3` was the 2,1,4,3 permutation and is
- * spelled `RSProt_BufferG4_2143`. The comment that used to sit on that reader —
+ * spelled `rsprot_g4_2143`. The comment that used to sit on that reader —
  * warning that swapping its two low bytes yields a combined id of
  * (interface, child << 8), which names a component the interface does not have,
  * so IF_OPENSUB skips it and IF_SETEVENTS arms nothing — is now a property of a
@@ -99,7 +99,7 @@ sign24(int v)
  * (SAILING.md §5.4). Big-endian, signed. */
 static int
 wev_delta(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     int code)
 {
     switch( code & 3 )
@@ -107,11 +107,11 @@ wev_delta(
     case 0:
         return 0;
     case 1:
-        return (int8_t)RSProt_BufferG1(c);
+        return (int8_t)rsprot_g1(c);
     case 2:
-        return (int16_t)RSProt_BufferG2Be(c);
+        return (int16_t)rsprot_g2_12(c);
     default:
-        return (int32_t)RSProt_BufferG4Be(c);
+        return (int32_t)rsprot_g4_1234(c);
     }
 }
 
@@ -145,7 +145,7 @@ wev_flag_payload_defaults(
 
 static int
 wev_read_flag_payload(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     unsigned flags,
     int* out_has_op_mask,
     int* out_op_mask,
@@ -158,15 +158,15 @@ wev_read_flag_payload(
     if( flags & 0x2 )
     {
         *out_has_op_mask = 1;
-        *out_op_mask = RSProt_BufferG1_sub128(c);
+        *out_op_mask = rsprot_g1_sub128(c);
     }
     if( flags & 0x1 )
     {
-        int seq = RSProt_BufferG2Be(c);
+        int seq = rsprot_g2_12(c);
 
         *out_has_seq = 1;
         *out_seq_id = (seq == 65535) ? -1 : seq;
-        *out_seq_delay = RSProt_BufferG1(c);
+        *out_seq_delay = rsprot_g1(c);
     }
     return c->err ? 0 : 1;
 }
@@ -181,7 +181,7 @@ wev_read_flag_payload(
  * string), or NULL on overrun.
  */
 static char*
-gjstr_nul(RSProt_Buffer* c)
+gjstr_nul(RsprotBuf* c)
 {
     int start = c->rpos;
     int end = start;
@@ -245,7 +245,7 @@ osrs239_zone_name(int ordinal)
  * A zone sub-packet is decoded from the ENCLOSED stream's shared cursor rather
  * than from a payload of its own, which is why this does not go through
  * `rsprot_bridge_parse` like a top-level packet. It does not need to:
- * `RSProt_Buffer` IS `RsprotBuf`, so an executor can run a codec against this
+ * `RsprotBuf` IS `RsprotBuf`, so an executor can run a codec against this
  * cursor in place and the reads advance it exactly as the hand-written ones
  * did. That is the whole reason the buffer types were unified.
  *
@@ -260,7 +260,7 @@ osrs239_zone_name(int ordinal)
  * without knowing this record's length.
  */
 static int
-zone_run(RSProt_Buffer* c, RsprotVersionRange const* ranges, int count, void* msg)
+zone_run(RsprotBuf* c, RsprotVersionRange const* ranges, int count, void* msg)
 {
     RsprotExec x;
     RsprotCodecFn fn = rsprot_version_pick(ranges, count, 239);
@@ -280,7 +280,7 @@ zone_run(RSProt_Buffer* c, RsprotVersionRange const* ranges, int count, void* ms
 
 static int
 osrs239_read_zone_sub(
-    RSProt_Buffer* c,
+    RsprotBuf* c,
     enum GameProtoPktName name,
     struct PktZoneSubPacket* out)
 {
@@ -539,8 +539,8 @@ osrs239_parse(
     int len,
     struct RevPacket* out)
 {
-    RSProt_Buffer c;
-    RSProt_BufferWrapRead(&c, data, len);
+    RsprotBuf c;
+    rsprot_buf_wrap_read(&c, data, len);
 
     switch( pkt_name )
     {
@@ -624,12 +624,12 @@ osrs239_parse(
     case PKT_NAME_IF_SETEVENTS:
     {
         struct PktIfSetEvents* p = &out->_if_setevents;
-        p->to = (int16_t)RSProt_BufferG2Be_add128(&c);
-        p->events2 = (uint32_t)RSProt_BufferG4Be(&c);
-        p->events1 = (uint32_t)RSProt_BufferG4_3412(&c);
+        p->to = (int16_t)rsprot_g2_12_add128(&c);
+        p->events2 = (uint32_t)rsprot_g4_1234(&c);
+        p->events1 = (uint32_t)rsprot_g4_3412(&c);
         p->events = (int)(p->events1 | ((p->events2 & UINT32_C(0x3ff)) << 1));
-        p->from = (int16_t)RSProt_BufferG2Be(&c);
-        p->component_id = RSProt_BufferG4_2143(&c);
+        p->from = (int16_t)rsprot_g2_12(&c);
+        p->component_id = rsprot_g4_2143(&c);
         return c.err ? 0 : 1;
     }
 
@@ -639,10 +639,10 @@ osrs239_parse(
         int remaining;
 
         memset(p, 0, sizeof(*p));
-        p->root_interface_id = RSProt_BufferG2Be(&c);
+        p->root_interface_id = rsprot_g2_12(&c);
         if( p->root_interface_id == 65535 )
             p->root_interface_id = -1;
-        p->mount_count = RSProt_BufferG2Be(&c);
+        p->mount_count = rsprot_g2_12(&c);
         if( c.err || p->mount_count < 0 || p->mount_count > 4096 ||
             c.rpos + p->mount_count * 7 > len )
             return 0;
@@ -652,9 +652,9 @@ osrs239_parse(
         }
         for( int i = 0; i < p->mount_count; i++ )
         {
-            p->mounts[i].target_uid = RSProt_BufferG4Be(&c);
-            p->mounts[i].interface_id = RSProt_BufferG2Be(&c);
-            p->mounts[i].type = RSProt_BufferG1(&c);
+            p->mounts[i].target_uid = rsprot_g4_1234(&c);
+            p->mounts[i].interface_id = rsprot_g2_12(&c);
+            p->mounts[i].type = rsprot_g1(&c);
         }
         remaining = len - c.rpos;
         if( c.err || remaining < 0 || remaining % 16 != 0 )
@@ -671,11 +671,11 @@ osrs239_parse(
         }
         for( int i = 0; i < p->event_count; i++ )
         {
-            p->events[i].component_id = RSProt_BufferG4Be(&c);
-            p->events[i].from = (int16_t)RSProt_BufferG2Be(&c);
-            p->events[i].to = (int16_t)RSProt_BufferG2Be(&c);
-            p->events[i].events1 = (uint32_t)RSProt_BufferG4Be(&c);
-            p->events[i].events2 = (uint32_t)RSProt_BufferG4Be(&c);
+            p->events[i].component_id = rsprot_g4_1234(&c);
+            p->events[i].from = (int16_t)rsprot_g2_12(&c);
+            p->events[i].to = (int16_t)rsprot_g2_12(&c);
+            p->events[i].events1 = (uint32_t)rsprot_g4_1234(&c);
+            p->events[i].events2 = (uint32_t)rsprot_g4_1234(&c);
         }
         return c.err ? 0 : 1;
     }
@@ -685,7 +685,7 @@ osrs239_parse(
     case PKT_NAME_IF_OPENTOP:
     {
         struct PktIfOpenTop* p = &out->_if_opentop;
-        p->interface_id = RSProt_BufferG2Be_add128(&c);
+        p->interface_id = rsprot_g2_12_add128(&c);
         return c.err ? 0 : 1;
     }
 
@@ -700,9 +700,9 @@ osrs239_parse(
     case PKT_NAME_IF_OPENSUB:
     {
         struct PktIfOpenSub* p = &out->_if_opensub;
-        p->interface_id = RSProt_BufferG2Le_add128(&c);
-        p->target_uid = RSProt_BufferG4_2143(&c);
-        p->type = RSProt_BufferG1(&c);
+        p->interface_id = rsprot_g2_21_add128(&c);
+        p->target_uid = rsprot_g4_2143(&c);
+        p->type = rsprot_g1(&c);
         return c.err ? 0 : 1;
     }
 
@@ -710,95 +710,95 @@ osrs239_parse(
     case PKT_NAME_IF_CLOSESUB:
     {
         struct PktIfCloseSub* p = &out->_if_closesub;
-        p->target_uid = RSProt_BufferG4Be(&c);
+        p->target_uid = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
     }
 
     case PKT_NAME_IF_MOVESUB:
-        out->_if_movesub.dest_uid = RSProt_BufferG4Le(&c);
-        out->_if_movesub.source_uid = RSProt_BufferG4Be(&c);
+        out->_if_movesub.dest_uid = rsprot_g4_4321(&c);
+        out->_if_movesub.source_uid = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_CLEARINV:
-        out->_if_clearinv.component_id = RSProt_BufferG4_3412(&c);
+        out->_if_clearinv.component_id = rsprot_g4_3412(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETCOLOUR:
-        out->_if_setcolour.colour = RSProt_BufferG2Be(&c);
-        out->_if_setcolour.component_id = RSProt_BufferG4_3412(&c);
+        out->_if_setcolour.colour = rsprot_g2_12(&c);
+        out->_if_setcolour.component_id = rsprot_g4_3412(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETHIDE:
-        out->_if_sethide.component_id = RSProt_BufferG4_2143(&c);
-        out->_if_sethide.hide = RSProt_BufferG1_add128(&c);
+        out->_if_sethide.component_id = rsprot_g4_2143(&c);
+        out->_if_sethide.hide = rsprot_g1_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETMODEL:
-        out->_if_setmodel.model_id = RSProt_BufferG4_3412(&c);
-        out->_if_setmodel.component_id = RSProt_BufferG4Le(&c);
+        out->_if_setmodel.model_id = rsprot_g4_3412(&c);
+        out->_if_setmodel.component_id = rsprot_g4_4321(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETOBJECT:
-        out->_if_setobject.component_id = RSProt_BufferG4_3412(&c);
-        out->_if_setobject.obj_id = RSProt_BufferG2Be_add128(&c);
-        out->_if_setobject.zoom = RSProt_BufferG4Be(&c);
+        out->_if_setobject.component_id = rsprot_g4_3412(&c);
+        out->_if_setobject.obj_id = rsprot_g2_12_add128(&c);
+        out->_if_setobject.zoom = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETPOSITION:
-        out->_if_setposition.z = (int16_t)RSProt_BufferG2Le_add128(&c);
-        out->_if_setposition.component_id = RSProt_BufferG4_3412(&c);
-        out->_if_setposition.x = (int16_t)RSProt_BufferG2Le_add128(&c);
+        out->_if_setposition.z = (int16_t)rsprot_g2_21_add128(&c);
+        out->_if_setposition.component_id = rsprot_g4_3412(&c);
+        out->_if_setposition.x = (int16_t)rsprot_g2_21_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETROTATESPEED:
-        out->_if_setrotatespeed.y_speed = (int16_t)RSProt_BufferG2Be(&c);
-        out->_if_setrotatespeed.x_speed = (int16_t)RSProt_BufferG2Be_add128(&c);
-        out->_if_setrotatespeed.component_id = RSProt_BufferG4_2143(&c);
+        out->_if_setrotatespeed.y_speed = (int16_t)rsprot_g2_12(&c);
+        out->_if_setrotatespeed.x_speed = (int16_t)rsprot_g2_12_add128(&c);
+        out->_if_setrotatespeed.component_id = rsprot_g4_2143(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETANGLE:
-        out->_if_setangle.component_id = RSProt_BufferG4_2143(&c);
-        out->_if_setangle.zoom = RSProt_BufferG2Be(&c);
-        out->_if_setangle.angle_x = RSProt_BufferG2Be(&c);
-        out->_if_setangle.angle_y = RSProt_BufferG2Le_add128(&c);
+        out->_if_setangle.component_id = rsprot_g4_2143(&c);
+        out->_if_setangle.zoom = rsprot_g2_12(&c);
+        out->_if_setangle.angle_x = rsprot_g2_12(&c);
+        out->_if_setangle.angle_y = rsprot_g2_21_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
-        out->_if_setnpchead_active.index = RSProt_BufferG2Be_add128(&c);
-        out->_if_setnpchead_active.component_id = RSProt_BufferG4_3412(&c);
+        out->_if_setnpchead_active.index = rsprot_g2_12_add128(&c);
+        out->_if_setnpchead_active.component_id = rsprot_g4_3412(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR:
-        out->_if_setplayermodel.index = RSProt_BufferG1(&c);
-        out->_if_setplayermodel.value = RSProt_BufferG1(&c);
-        out->_if_setplayermodel.component_id = RSProt_BufferG4Be(&c);
+        out->_if_setplayermodel.index = rsprot_g1(&c);
+        out->_if_setplayermodel.value = rsprot_g1(&c);
+        out->_if_setplayermodel.component_id = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE:
-        out->_if_setplayermodel.component_id = RSProt_BufferG4_3412(&c);
+        out->_if_setplayermodel.component_id = rsprot_g4_3412(&c);
         out->_if_setplayermodel.index = -1;
-        out->_if_setplayermodel.value = RSProt_BufferG1(&c);
+        out->_if_setplayermodel.value = rsprot_g1(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETPLAYERMODEL_OBJ:
-        out->_if_setplayermodel.component_id = RSProt_BufferG4_3412(&c);
+        out->_if_setplayermodel.component_id = rsprot_g4_3412(&c);
         out->_if_setplayermodel.index = -1;
-        out->_if_setplayermodel.value = RSProt_BufferG4_2143(&c);
+        out->_if_setplayermodel.value = rsprot_g4_2143(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_IF_SETPLAYERMODEL_SELF:
-        out->_if_setplayermodel.value = RSProt_BufferG1_sub128(&c) != 0;
+        out->_if_setplayermodel.value = rsprot_g1_sub128(&c) != 0;
         out->_if_setplayermodel.index = -1;
-        out->_if_setplayermodel.component_id = RSProt_BufferG4Be(&c);
+        out->_if_setplayermodel.component_id = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
 
     /* VarpSmallEncoder: p1Alt1 value, p2Alt3 id. */
     case PKT_NAME_VARP_SMALL:
     {
         struct PktVarpSmall* p = &out->_varp_small;
-        int v = RSProt_BufferG1_add128(&c);
+        int v = rsprot_g1_add128(&c);
         p->value = v > 127 ? v - 256 : v;
-        p->variable = RSProt_BufferG2Le_add128(&c);
+        p->variable = rsprot_g2_21_add128(&c);
         return c.err ? 0 : 1;
     }
 
@@ -807,8 +807,8 @@ osrs239_parse(
     case PKT_NAME_VARP_LARGE:
     {
         struct PktVarpLarge* p = &out->_varp_large;
-        p->variable = RSProt_BufferG2Be_add128(&c);
-        p->value = RSProt_BufferG4Le(&c);
+        p->variable = rsprot_g2_12_add128(&c);
+        p->value = rsprot_g4_4321(&c);
         return c.err ? 0 : 1;
     }
 
@@ -823,10 +823,10 @@ osrs239_parse(
     case PKT_NAME_UPDATE_STAT:
     {
         struct PktUpdateStat* p = &out->_update_stat;
-        (void)RSProt_BufferG1(&c); /* invisibleBoostedLevel */
-        p->level = RSProt_BufferG1(&c);
-        p->stat = RSProt_BufferG1_add128(&c);
-        p->xp = RSProt_BufferG4_3412(&c);
+        (void)rsprot_g1(&c); /* invisibleBoostedLevel */
+        p->level = rsprot_g1(&c);
+        p->stat = rsprot_g1_add128(&c);
+        p->xp = rsprot_g4_3412(&c);
         return c.err ? 0 : 1;
     }
 
@@ -841,8 +841,8 @@ osrs239_parse(
     {
         struct PktMessageGame* p = &out->_message_game;
 
-        p->type = RSProt_BufferGSmart1or2(&c);
-        if( RSProt_BufferG1(&c) != 0 )
+        p->type = rsprot_gsmart1or2(&c);
+        if( rsprot_g1(&c) != 0 )
             p->name = gjstr_nul(&c);
         p->text = gjstr_nul(&c);
         if( c.err || !p->text )
@@ -864,7 +864,7 @@ osrs239_parse(
         struct PktIfSetText* p = &out->_if_settext;
 
         p->text = gjstr_nul(&c);
-        p->component_id = RSProt_BufferG4_3412(&c);
+        p->component_id = rsprot_g4_3412(&c);
         if( c.err || !p->text )
         {
             ToriMem_Free(ToriMem_Net(), p->text);
@@ -878,8 +878,8 @@ osrs239_parse(
     case PKT_NAME_IF_SETNPCHEAD:
     {
         struct PktIfSetNpcHead* p = &out->_if_setnpchead;
-        p->component_id = RSProt_BufferG4Be(&c);
-        p->npc_id = RSProt_BufferG2Le_add128(&c);
+        p->component_id = rsprot_g4_1234(&c);
+        p->npc_id = rsprot_g2_21_add128(&c);
         return c.err ? 0 : 1;
     }
 
@@ -887,8 +887,8 @@ osrs239_parse(
     case PKT_NAME_IF_SETANIM:
     {
         struct PktIfSetAnim* p = &out->_if_setanim;
-        p->component_id = RSProt_BufferG4Le(&c);
-        p->anim_id = RSProt_BufferG2Le(&c);
+        p->component_id = rsprot_g4_4321(&c);
+        p->anim_id = rsprot_g2_21(&c);
         return c.err ? 0 : 1;
     }
 
@@ -896,7 +896,7 @@ osrs239_parse(
     case PKT_NAME_IF_SETPLAYERHEAD:
     {
         struct PktIfSetPlayerHead* p = &out->_if_setplayerhead;
-        p->component_id = RSProt_BufferG4_3412(&c);
+        p->component_id = rsprot_g4_3412(&c);
         return c.err ? 0 : 1;
     }
 
@@ -905,8 +905,8 @@ osrs239_parse(
     case PKT_NAME_IF_SETSCROLLPOS:
     {
         struct PktIfSetScrollPos* p = &out->_if_setscrollpos;
-        p->component_id = RSProt_BufferG4_2143(&c);
-        p->pos = RSProt_BufferG2Be(&c);
+        p->component_id = rsprot_g4_2143(&c);
+        p->pos = rsprot_g2_12(&c);
         return c.err ? 0 : 1;
     }
 
@@ -921,7 +921,7 @@ osrs239_parse(
     case PKT_NAME_UNSET_MAP_FLAG:
     {
         struct PktSetMapFlag* p = &out->_set_map_flag;
-        int packed = RSProt_BufferG4Be(&c);
+        int packed = rsprot_g4_1234(&c);
 
         if( c.err )
             return 0;
@@ -942,8 +942,8 @@ osrs239_parse(
     case PKT_NAME_CHAT_FILTER_SETTINGS:
     {
         struct PktChatFilterSettings* p = &out->_chat_filter_settings;
-        p->chat_public_mode = RSProt_BufferG1_add128(&c);
-        p->chat_trade_mode = RSProt_BufferG1_sub128(&c);
+        p->chat_public_mode = rsprot_g1_add128(&c);
+        p->chat_trade_mode = rsprot_g1_sub128(&c);
         /*
          * ABSENT, not zero.
          *
@@ -974,9 +974,9 @@ osrs239_parse(
     case PKT_NAME_SYNTH_SOUND:
     {
         struct PktSynthSound* p = &out->_synth_sound;
-        p->id = RSProt_BufferG2Be(&c);
-        p->loops = RSProt_BufferG1(&c);
-        p->delay = RSProt_BufferG2Be(&c);
+        p->id = rsprot_g2_12(&c);
+        p->loops = rsprot_g1(&c);
+        p->delay = rsprot_g2_12(&c);
         return c.err ? 0 : 1;
     }
 
@@ -987,11 +987,11 @@ osrs239_parse(
         struct PktMidiSong* p = &out->_midi_song;
         int fade_in_speed;
         int fade_out_speed;
-        (void)RSProt_BufferG2Le(&c); /* fade-in delay */
-        (void)RSProt_BufferG2Be(&c); /* fade-out delay */
-        p->id = RSProt_BufferG2Le_add128(&c);
-        fade_in_speed = RSProt_BufferG2Be(&c);
-        fade_out_speed = RSProt_BufferG2Le_add128(&c);
+        (void)rsprot_g2_21(&c); /* fade-in delay */
+        (void)rsprot_g2_12(&c); /* fade-out delay */
+        p->id = rsprot_g2_21_add128(&c);
+        fade_in_speed = rsprot_g2_12(&c);
+        fade_out_speed = rsprot_g2_21_add128(&c);
         if( p->id == 65535 )
             p->id = -1;
         /* Speeds are client cycles; the player works in milliseconds.  Keep
@@ -1017,12 +1017,12 @@ osrs239_parse(
         int fade_in_speed;
         int fade_out_speed;
 
-        p->primary_id = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG2Le_add128(&c); /* fade-in delay */
-        p->secondary_id = RSProt_BufferG2Le(&c);
-        fade_out_speed = RSProt_BufferG2Be(&c);
-        (void)RSProt_BufferG2Le(&c); /* fade-out delay */
-        fade_in_speed = RSProt_BufferG2Le_add128(&c);
+        p->primary_id = rsprot_g2_12(&c);
+        (void)rsprot_g2_21_add128(&c); /* fade-in delay */
+        p->secondary_id = rsprot_g2_21(&c);
+        fade_out_speed = rsprot_g2_12(&c);
+        (void)rsprot_g2_21(&c); /* fade-out delay */
+        fade_in_speed = rsprot_g2_21_add128(&c);
         if( p->primary_id == 65535 )
             p->primary_id = -1;
         if( p->secondary_id == 65535 )
@@ -1043,10 +1043,10 @@ osrs239_parse(
     {
         struct PktMidiSwap* p = &out->_midi_swap;
 
-        p->fade_out_ms = RSProt_BufferG2Be(&c) * 20;
-        (void)RSProt_BufferG2Be(&c); /* fade-in delay */
-        p->fade_in_ms = RSProt_BufferG2Be_add128(&c) * 20;
-        (void)RSProt_BufferG2Be(&c); /* fade-out delay */
+        p->fade_out_ms = rsprot_g2_12(&c) * 20;
+        (void)rsprot_g2_12(&c); /* fade-in delay */
+        p->fade_in_ms = rsprot_g2_12_add128(&c) * 20;
+        (void)rsprot_g2_12(&c); /* fade-out delay */
         return c.err ? 0 : 1;
     }
 
@@ -1058,8 +1058,8 @@ osrs239_parse(
     case PKT_NAME_MIDI_SONG_STOP:
     {
         struct PktMidiSongStop* p = &out->_midi_song_stop;
-        (void)RSProt_BufferG2Le_add128(&c); /* fade-out delay */
-        p->fade_out_ms = RSProt_BufferG2Le_add128(&c) * 20;
+        (void)rsprot_g2_21_add128(&c); /* fade-out delay */
+        p->fade_out_ms = rsprot_g2_21_add128(&c) * 20;
         return c.err ? 0 : 1;
     }
 
@@ -1074,8 +1074,8 @@ osrs239_parse(
     case PKT_NAME_AMBIENTSOUND_START:
     {
         struct PktAmbientSoundStart* p = &out->_ambientsound_start;
-        p->fade_ms = RSProt_BufferG1_add128(&c) * 20;
-        p->id = RSProt_BufferG2Be(&c);
+        p->fade_ms = rsprot_g1_add128(&c) * 20;
+        p->id = rsprot_g2_12(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1083,7 +1083,7 @@ osrs239_parse(
     case PKT_NAME_AMBIENTSOUND_STOP:
     {
         struct PktAmbientSoundStop* p = &out->_ambientsound_stop;
-        p->fade_ms = RSProt_BufferG1(&c) != 0 ? 500 : 0;
+        p->fade_ms = rsprot_g1(&c) != 0 ? 500 : 0;
         return c.err ? 0 : 1;
     }
 
@@ -1105,9 +1105,9 @@ osrs239_parse(
         struct PktUpdateInvFull* p = &out->_update_inv_full;
         int capacity;
 
-        p->component_id = RSProt_BufferG4Be(&c);
-        p->inv_id = RSProt_BufferG2Be(&c);
-        capacity = RSProt_BufferG2Be(&c);
+        p->component_id = rsprot_g4_1234(&c);
+        p->inv_id = rsprot_g2_12(&c);
+        capacity = rsprot_g2_12(&c);
         if( c.err || capacity < 0 || capacity > 4096 )
             return 0;
         p->size = capacity;
@@ -1115,12 +1115,12 @@ osrs239_parse(
         p->obj_counts = (int*)ToriMem_Alloc(ToriMem_Net(), (size_t)capacity * sizeof(int));
         for( int i = 0; i < capacity; i++ )
         {
-            int count = RSProt_BufferG1_sub128(&c);
+            int count = rsprot_g1_sub128(&c);
 
             if( count == 255 )
-                count = RSProt_BufferG4_2143(&c);
+                count = rsprot_g4_2143(&c);
             p->obj_counts[i] = count;
-            p->obj_ids[i] = RSProt_BufferG2Le(&c) - 1;
+            p->obj_ids[i] = rsprot_g2_21(&c) - 1;
         }
         if( c.err )
         {
@@ -1140,8 +1140,8 @@ osrs239_parse(
         int max_entries;
         int written = 0;
 
-        p->component_id = RSProt_BufferG4Be(&c);
-        p->inv_id = RSProt_BufferG2Be(&c);
+        p->component_id = rsprot_g4_1234(&c);
+        p->inv_id = rsprot_g2_12(&c);
         p->count = 0;
         p->entries = NULL;
         if( c.err )
@@ -1155,15 +1155,15 @@ osrs239_parse(
             struct PktUpdateInvPartialEntry* entry = &p->entries[written];
             int count;
 
-            entry->slot = RSProt_BufferGSmart1or2(&c);
-            entry->obj_id = RSProt_BufferG2Be(&c) - 1;
+            entry->slot = rsprot_gsmart1or2(&c);
+            entry->obj_id = rsprot_g2_12(&c) - 1;
             if( entry->obj_id < 0 )
                 count = 0;
             else
             {
-                count = RSProt_BufferG1(&c);
+                count = rsprot_g1(&c);
                 if( count == 255 )
-                    count = RSProt_BufferG4Be(&c);
+                    count = rsprot_g4_1234(&c);
             }
             entry->count = count;
             if( c.err )
@@ -1194,7 +1194,7 @@ osrs239_parse(
      */
     case PKT_NAME_UPDATE_INV_STOP_TRANSMIT:
         out->_update_inv_stop_transmit.component_id = -1;
-        out->_update_inv_stop_transmit.inv_id = RSProt_BufferG2Be_add128(&c);
+        out->_update_inv_stop_transmit.inv_id = rsprot_g2_12_add128(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_FRIENDLIST_LOADED:
@@ -1212,17 +1212,17 @@ osrs239_parse(
         memset(p, 0, sizeof(*p));
         if( len == 0 )
             return 1;
-        (void)RSProt_BufferG1(&c); /* renamed */
+        (void)rsprot_g1(&c); /* renamed */
         name = gjstr_nul(&c);
         previous = gjstr_nul(&c);
-        p->world = RSProt_BufferG2Be(&c);
-        p->rank = RSProt_BufferG1(&c);
-        (void)RSProt_BufferG1(&c); /* flags */
+        p->world = rsprot_g2_12(&c);
+        p->rank = rsprot_g1(&c);
+        (void)rsprot_g1(&c); /* flags */
         if( p->world > 0 )
         {
             extra = gjstr_nul(&c);
-            (void)RSProt_BufferG1(&c);
-            (void)RSProt_BufferG4Be(&c);
+            (void)rsprot_g1(&c);
+            (void)rsprot_g4_1234(&c);
         }
         note = gjstr_nul(&c);
         if( !c.err && c.rpos == len && name && previous && note &&
@@ -1252,7 +1252,7 @@ osrs239_parse(
             char* previous;
             char* note;
 
-            (void)RSProt_BufferG1(&c); /* flags/renamed */
+            (void)rsprot_g1(&c); /* flags/renamed */
             name = gjstr_nul(&c);
             previous = gjstr_nul(&c);
             note = gjstr_nul(&c);
@@ -1279,16 +1279,16 @@ osrs239_parse(
     }
 
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
-        out->_set_npc_update_origin.x = RSProt_BufferG1(&c);
-        out->_set_npc_update_origin.z = RSProt_BufferG1(&c);
+        out->_set_npc_update_origin.x = rsprot_g1(&c);
+        out->_set_npc_update_origin.z = rsprot_g1(&c);
         return c.err ? 0 : 1;
 
     /* SetActiveWorldV2Encoder: p2 world-entity id (0 = root), p1 plane —
      * the layout ToriRSServer_SendSetActiveWorld writes and the world
      * selftest pins byte-for-byte. */
     case PKT_NAME_SET_ACTIVE_WORLD:
-        out->_set_active_world.world_id = RSProt_BufferG2Be(&c);
-        out->_set_active_world.level = RSProt_BufferG1(&c);
+        out->_set_active_world.world_id = rsprot_g2_12(&c);
+        out->_set_active_world.level = rsprot_g1(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_SERVER_TICK_END:
@@ -1317,14 +1317,14 @@ osrs239_parse(
         struct PktWorldEntityInfo* p = &out->_worldentity_info;
 
         memset(p, 0, sizeof(*p));
-        p->count = RSProt_BufferG1(&c);
+        p->count = rsprot_g1(&c);
         if( c.err || p->count > PKT_WEV_INFO_MAX )
             return 0;
         for( int i = 0; i < p->count; i++ )
         {
             struct PktWevUpdate* u = &p->updates[i];
 
-            u->op = RSProt_BufferG1(&c);
+            u->op = rsprot_g1(&c);
             if( c.err || u->op > PKT_WEV_OP_SNAP )
                 return 0;
             u->update_flags = 0;
@@ -1336,14 +1336,14 @@ osrs239_parse(
                 continue;
             if( u->op == PKT_WEV_OP_ENQUEUE || u->op == PKT_WEV_OP_SNAP )
             {
-                int mask = RSProt_BufferG1(&c);
+                int mask = rsprot_g1(&c);
 
                 u->dx = wev_delta(&c, mask & 3);
                 u->dy = wev_delta(&c, (mask >> 2) & 3);
                 u->dz = wev_delta(&c, (mask >> 4) & 3);
                 u->dangle = wev_delta(&c, (mask >> 6) & 3);
             }
-            u->update_flags = (unsigned)RSProt_BufferG1(&c);
+            u->update_flags = (unsigned)rsprot_g1(&c);
             if( c.err )
                 return 0;
             if( !wev_read_flag_payload(
@@ -1366,23 +1366,23 @@ osrs239_parse(
             if( p->spawn_count >= PKT_WEV_INFO_MAX )
                 return 0;
             s = &p->spawns[p->spawn_count];
-            s->id = RSProt_BufferG2Be(&c);
+            s->id = rsprot_g2_12(&c);
             /* Id 0 is the root view and 16+ is past the registry: a frame
              * naming either is malformed, not a state to spawn. */
             if( c.err || s->id <= 0 || s->id > PKT_WEV_INFO_MAX )
                 return 0;
-            s->update_flags = (unsigned)RSProt_BufferG1(&c);
-            size_byte = RSProt_BufferG1_neg(&c);
+            s->update_flags = (unsigned)rsprot_g1(&c);
+            size_byte = rsprot_g1_neg(&c);
             s->size_x_tiles = ((size_byte >> 4) & 0xF) * 8;
             s->size_z_tiles = (size_byte & 0xF) * 8;
             /* A zero nibble is a zero-tile view — nothing can live in it. */
             if( s->size_x_tiles == 0 || s->size_z_tiles == 0 )
                 return 0;
-            s->priority_group = RSProt_BufferG1_add128(&c);
-            s->config_id = RSProt_BufferG2sLe(&c);
+            s->priority_group = rsprot_g1_add128(&c);
+            s->config_id = rsprot_g2s_21(&c);
             /* The absolute transform arrives as the same 4-axis bitfield
              * applied to (0,0,0,0). */
-            mask = RSProt_BufferG1(&c);
+            mask = rsprot_g1(&c);
             s->x = wev_delta(&c, mask & 3);
             s->y = wev_delta(&c, (mask >> 2) & 3);
             s->z = wev_delta(&c, (mask >> 4) & 3);
@@ -1422,7 +1422,7 @@ osrs239_parse(
 
         for( ;; )
         {
-            int ch = RSProt_BufferG1(&c);
+            int ch = rsprot_g1(&c);
 
             if( c.err )
                 break;
@@ -1463,10 +1463,10 @@ osrs239_parse(
             }
             else
             {
-                p->intv[i] = RSProt_BufferG4Be(&c);
+                p->intv[i] = rsprot_g4_1234(&c);
             }
         }
-        p->script_id = RSProt_BufferG4Be(&c);
+        p->script_id = rsprot_g4_1234(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1487,18 +1487,18 @@ osrs239_parse(
     case PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS:
     {
         struct PktUpdateZoneFullFollows* p = &out->_update_zone_full_follows;
-        p->base_z = RSProt_BufferG1_sub128(&c);
-        p->base_x = RSProt_BufferG1_neg(&c);
-        p->level = RSProt_BufferG1(&c);
+        p->base_z = rsprot_g1_sub128(&c);
+        p->base_x = rsprot_g1_neg(&c);
+        p->level = rsprot_g1(&c);
         return c.err ? 0 : 1;
     }
 
     case PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS:
     {
         struct PktUpdateZonePartialFollows* p = &out->_update_zone_partial_follows;
-        p->base_z = RSProt_BufferG1_add128(&c);
-        p->base_x = RSProt_BufferG1(&c);
-        p->level = RSProt_BufferG1_neg(&c);
+        p->base_z = rsprot_g1_add128(&c);
+        p->base_x = rsprot_g1(&c);
+        p->level = rsprot_g1_neg(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1534,7 +1534,7 @@ osrs239_parse(
             return 0;
         while( c.rpos < len && !c.err )
         {
-            int ordinal = RSProt_BufferG1(&c);
+            int ordinal = rsprot_g1(&c);
             enum GameProtoPktName sub = osrs239_zone_name(ordinal);
 
             if( enc->count == cap )
@@ -1638,11 +1638,11 @@ osrs239_parse(
     case PKT_NAME_CAM_MOVETO:
     {
         struct PktCamMoveTo* p = &out->_cam_moveto;
-        p->local_x = RSProt_BufferG2Le(&c);
-        p->rate = RSProt_BufferG1_neg(&c);
-        p->height = RSProt_BufferG2Le(&c);
-        p->rate2 = RSProt_BufferG1_neg(&c);
-        p->local_z = RSProt_BufferG2Be(&c);
+        p->local_x = rsprot_g2_21(&c);
+        p->rate = rsprot_g1_neg(&c);
+        p->height = rsprot_g2_21(&c);
+        p->rate2 = rsprot_g1_neg(&c);
+        p->local_z = rsprot_g2_12(&c);
         p->absolute = 1;
         return c.err ? 0 : 1;
     }
@@ -1650,11 +1650,11 @@ osrs239_parse(
     case PKT_NAME_CAM_LOOKAT:
     {
         struct PktCamLookAt* p = &out->_cam_lookat;
-        p->local_z = RSProt_BufferG2Be(&c);
-        p->height = RSProt_BufferG2Be_add128(&c);
-        p->rate2 = RSProt_BufferG1(&c);
-        p->rate = RSProt_BufferG1_sub128(&c);
-        p->local_x = RSProt_BufferG2Le(&c);
+        p->local_z = rsprot_g2_12(&c);
+        p->height = rsprot_g2_12_add128(&c);
+        p->rate2 = rsprot_g1(&c);
+        p->rate = rsprot_g1_sub128(&c);
+        p->local_x = rsprot_g2_21(&c);
         p->absolute = 1;
         return c.err ? 0 : 1;
     }
@@ -1664,10 +1664,10 @@ osrs239_parse(
     case PKT_NAME_CAM_SHAKE:
     {
         struct PktCamShake* p = &out->_cam_shake;
-        p->axis = RSProt_BufferG1(&c);
-        p->amplitude = RSProt_BufferG1(&c);
-        p->frequency = RSProt_BufferG1(&c);
-        p->speed = RSProt_BufferG1(&c);
+        p->axis = rsprot_g1(&c);
+        p->amplitude = rsprot_g1(&c);
+        p->frequency = rsprot_g1(&c);
+        p->speed = rsprot_g1(&c);
         return c.err ? 0 : 1;
     }
 
@@ -1725,9 +1725,9 @@ osrs239_parse(
         int source_square_count;
 
         memset(p, 0, sizeof(*p));
-        p->base_x = RSProt_BufferG2Be(&c);
-        p->base_z = RSProt_BufferG2Be(&c);
-        source_square_count = RSProt_BufferG2Be(&c);
+        p->base_x = rsprot_g2_12(&c);
+        p->base_z = rsprot_g2_12(&c);
+        source_square_count = rsprot_g2_12(&c);
         if( c.err || source_square_count < 0 ||
             source_square_count > PKT_MAP_REBUILD_ZONES )
             return 0;
@@ -1781,21 +1781,21 @@ osrs239_parse(
         struct RSCache_Buffer text_buffer;
 
         memset(p, 0, sizeof(*p));
-        p->clan_type = RSProt_BufferG1s(&c);
+        p->clan_type = rsprot_g1s(&c);
         p->crown = -1;
         if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
         {
             int32_t sender_length = 0;
-            char const* sender = RSProt_BufferGJStr(&c, &sender_length);
+            char const* sender = rsprot_gjstr(&c, &sender_length);
             if( c.err || !sender || sender_length >= (int)sizeof(p->sender) )
                 return 0;
             memcpy(p->sender, sender, (size_t)sender_length);
             p->sender[sender_length] = '\0';
         }
-        p->world = RSProt_BufferG2Be(&c);
-        p->counter = RSProt_BufferG3Be(&c);
+        p->world = rsprot_g2_12(&c);
+        p->counter = rsprot_g3_123(&c);
         if( pkt_name == PKT_NAME_MESSAGE_CLANCHANNEL )
-            p->crown = RSProt_BufferG1(&c);
+            p->crown = rsprot_g1(&c);
         if( c.err || c.rpos > len )
             return 0;
         RSCache_BufferInit(&text_buffer, (uint8_t*)data + c.rpos, len - c.rpos);
@@ -1809,16 +1809,16 @@ osrs239_parse(
         struct PktUpdateStockmarketSlot* p = &out->_update_stockmarket_slot;
 
         memset(p, 0, sizeof(*p));
-        p->slot = RSProt_BufferG1(&c);
-        p->status = RSProt_BufferG1s(&c);
+        p->slot = rsprot_g1(&c);
+        p->status = rsprot_g1s(&c);
         /* An empty slot's remaining 18 bytes are padding. */
         if( p->status != 0 )
         {
-            p->obj = RSProt_BufferG2Be(&c);
-            p->price = RSProt_BufferG4Be(&c);
-            p->count = RSProt_BufferG4Be(&c);
-            p->completed_count = RSProt_BufferG4Be(&c);
-            p->completed_gold = RSProt_BufferG4Be(&c);
+            p->obj = rsprot_g2_12(&c);
+            p->price = rsprot_g4_1234(&c);
+            p->count = rsprot_g4_1234(&c);
+            p->completed_count = rsprot_g4_1234(&c);
+            p->completed_gold = rsprot_g4_1234(&c);
         }
         return c.err ? 0 : 1;
     }
@@ -1842,7 +1842,7 @@ osrs239_parse(
  * of byte orders did not become how the wrong one gets picked.
  *
  * It is gone because the readers are: every order lives in
- * `3rd/rsprot/src/rsprot_buffer.h`, complete at all four widths, whether this
+ * `3rd/rsprot/src/rsprot_buf.h`, complete at all four widths, whether this
  * file calls it or not. A set that cannot be half-present needs nothing to
  * keep it alive.
  */
