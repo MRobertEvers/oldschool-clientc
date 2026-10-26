@@ -26,6 +26,7 @@
 #include "packets/bug_report.h"
 #include "packets/cam_lookat.h"
 #include "packets/cam_moveto.h"
+#include "packets/cam_moveto_arc_v1.h"
 #include "packets/cam_moveto_cycles.h"
 #include "packets/cam_reset.h"
 #include "packets/cam_rotateto_coordinate.h"
@@ -1245,6 +1246,23 @@ in_cam_moveto_cycles(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_cam_moveto_cycles(&m, out);
+}
+
+/* CAM_MOVETO_ARC, opcode 32 */
+static int
+in_cam_moveto_arc(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamMoveToArcV1 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_moveto_arc_v1_osrs232_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_moveto_arc_v1(&m, out);
 }
 
 /* CAM_LOOKAT, opcode 67 */
@@ -3365,6 +3383,7 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [33] = in_cam_reset,
     [71] = in_cam_moveto,
     [79] = in_cam_moveto_cycles,
+    [32] = in_cam_moveto_arc,
     [67] = in_cam_lookat,
     [17] = in_cam_rotateto_coordinate,
     [90] = in_cam_target_v3,
@@ -3470,6 +3489,7 @@ static int16_t const k_in_name[TOP] = {
     [33] = PKT_NAME_CAM_RESET,
     [71] = PKT_NAME_CAM_MOVETO,
     [79] = PKT_NAME_CAM_MOVETO_CYCLES,
+    [32] = PKT_NAME_CAM_MOVETO_ARC,
     [67] = PKT_NAME_CAM_LOOKAT,
     [17] = PKT_NAME_CAM_ROTATETO_COORDINATE,
     [90] = PKT_NAME_CAM_TARGET,
@@ -3681,6 +3701,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_UPDATE_STAT] = 30,
     [PKT_NAME_OBJ_COUNT] = 31,
     [PKT_NAME_IF_SETROTATESPEED] = 32,
+    [PKT_NAME_CAM_MOVETO_ARC] = 33,
     [PKT_NAME_CAM_RESET] = 34,
     [PKT_NAME_HIDENPCOPS] = 35,
     [PKT_NAME_UPDATE_RUNWEIGHT] = 37,

@@ -2044,9 +2044,11 @@ RS_GameProto_Exec(
         if( ctx->app && ctx->app->world )
         {
             struct App* app = ctx->app;
-            /* Absolute world tiles, like the V3 pair. */
-            int cam_lx = packet->_cam_moveto_cycles.x - app->world->_base_tile_x;
-            int cam_lz = packet->_cam_moveto_cycles.z - app->world->_base_tile_z;
+            /* World tiles from v2 on; v0/v1 (222-236) send build-area tiles. */
+            int cam_lx = packet->_cam_moveto_cycles.x -
+                         (packet->_cam_moveto_cycles.absolute ? app->world->_base_tile_x : 0);
+            int cam_lz = packet->_cam_moveto_cycles.z -
+                         (packet->_cam_moveto_cycles.absolute ? app->world->_base_tile_z : 0);
             App_CinemaCameraMoveCycles(
                 app,
                 cam_lx,
@@ -2059,11 +2061,41 @@ RS_GameProto_Exec(
             exec_cam_script_record(
                 app,
                 APP_CAM_SCRIPT_OP_MOVETO_CYCLES,
-                packet->_cam_moveto_cycles.x,
-                packet->_cam_moveto_cycles.z,
+                cam_lx + app->world->_base_tile_x,
+                cam_lz + app->world->_base_tile_z,
                 packet->_cam_moveto_cycles.height,
                 packet->_cam_moveto_cycles.cycles,
                 packet->_cam_moveto_cycles.easing);
+            app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_CAM_MOVETO_ARC:
+        if( ctx->app && ctx->app->world )
+        {
+            struct App* app = ctx->app;
+            struct PktCamMoveToArc const* a = &packet->_cam_moveto_arc;
+            int base_x = a->absolute ? app->world->_base_tile_x : 0;
+            int base_z = a->absolute ? app->world->_base_tile_z : 0;
+
+            App_CinemaCameraMoveArc(
+                app,
+                a->x - base_x,
+                a->z - base_z,
+                a->via_x - base_x,
+                a->via_z - base_z,
+                a->height,
+                a->cycles,
+                a->ignore_terrain,
+                a->easing,
+                a->height_relative);
+            exec_cam_script_record(
+                app,
+                APP_CAM_SCRIPT_OP_MOVETO_ARC,
+                a->x - base_x + app->world->_base_tile_x,
+                a->z - base_z + app->world->_base_tile_z,
+                a->height,
+                a->cycles,
+                a->easing);
             app->need_redraw = 1;
         }
         break;
@@ -2071,8 +2103,10 @@ RS_GameProto_Exec(
         if( ctx->app && ctx->app->world )
         {
             struct App* app = ctx->app;
-            int cam_lx = packet->_cam_rotateto_coordinate.x - app->world->_base_tile_x;
-            int cam_lz = packet->_cam_rotateto_coordinate.z - app->world->_base_tile_z;
+            int cam_lx = packet->_cam_rotateto_coordinate.x -
+                         (packet->_cam_rotateto_coordinate.absolute ? app->world->_base_tile_x : 0);
+            int cam_lz = packet->_cam_rotateto_coordinate.z -
+                         (packet->_cam_rotateto_coordinate.absolute ? app->world->_base_tile_z : 0);
             App_CinemaCameraRotateCycles(
                 app,
                 cam_lx,
@@ -2084,8 +2118,8 @@ RS_GameProto_Exec(
             exec_cam_script_record(
                 app,
                 APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE,
-                packet->_cam_rotateto_coordinate.x,
-                packet->_cam_rotateto_coordinate.z,
+                cam_lx + app->world->_base_tile_x,
+                cam_lz + app->world->_base_tile_z,
                 packet->_cam_rotateto_coordinate.height,
                 packet->_cam_rotateto_coordinate.cycles,
                 packet->_cam_rotateto_coordinate.easing);

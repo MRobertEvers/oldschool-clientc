@@ -2014,6 +2014,12 @@ core_wirelog(
                 p->_cam_moveto_cycles.z, p->_cam_moveto_cycles.height, p->_cam_moveto_cycles.cycles,
                 p->_cam_moveto_cycles.ignore_terrain, p->_cam_moveto_cycles.easing);
         break;
+    case PKT_NAME_CAM_MOVETO_ARC:
+        fprintf(f, "%d\tcam_moveto_arc\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_moveto_arc.x,
+                p->_cam_moveto_arc.z, p->_cam_moveto_arc.via_x, p->_cam_moveto_arc.via_z,
+                p->_cam_moveto_arc.height, p->_cam_moveto_arc.cycles, p->_cam_moveto_arc.ignore_terrain,
+                p->_cam_moveto_arc.easing);
+        break;
     case PKT_NAME_CAM_ROTATETO_COORDINATE:
         fprintf(f, "%d\tcam_rotateto_coordinate\t%d\t%d\t%d\t%d\t%d\n", t, p->_cam_rotateto_coordinate.x,
                 p->_cam_rotateto_coordinate.z, p->_cam_rotateto_coordinate.height,

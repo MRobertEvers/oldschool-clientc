@@ -805,6 +805,7 @@ adapt_cam_moveto_cycles(MsgCamMoveToCycles const* m, struct RevPacket* out)
     out->_cam_moveto_cycles.cycles = m->cycles;
     out->_cam_moveto_cycles.ignore_terrain = m->ignore_terrain;
     out->_cam_moveto_cycles.easing = m->easing_id;
+    out->_cam_moveto_cycles.absolute = 0;
     return 1;
 }
 
@@ -817,6 +818,7 @@ adapt_cam_moveto_cycles_v1(MsgCamMoveToCyclesV1 const* m, struct RevPacket* out)
     out->_cam_moveto_cycles.cycles = m->cycles;
     out->_cam_moveto_cycles.ignore_terrain = m->ignore_terrain;
     out->_cam_moveto_cycles.easing = m->easing_id;
+    out->_cam_moveto_cycles.absolute = 0;
     return 1;
 }
 
@@ -829,6 +831,55 @@ adapt_cam_moveto_cycles_v2(MsgCamMoveToCyclesV2 const* m, struct RevPacket* out)
     out->_cam_moveto_cycles.cycles = m->cycles;
     out->_cam_moveto_cycles.ignore_terrain = m->ignore_terrain;
     out->_cam_moveto_cycles.easing = m->easing_id;
+    out->_cam_moveto_cycles.absolute = 1;
+    return 1;
+}
+
+/* CAM_MOVETO_ARC: v1 (222-236) carries build-area tiles in one byte each, v2
+ * and v3 world tiles; v3 adds a height relative to the previous move's. */
+int
+adapt_cam_moveto_arc_v1(MsgCamMoveToArcV1 const* m, struct RevPacket* out)
+{
+    out->_cam_moveto_arc.x = m->destination_x_in_build_area;
+    out->_cam_moveto_arc.z = m->destination_z_in_build_area;
+    out->_cam_moveto_arc.via_x = m->center_x_in_build_area;
+    out->_cam_moveto_arc.via_z = m->center_z_in_build_area;
+    out->_cam_moveto_arc.height = m->height;
+    out->_cam_moveto_arc.cycles = m->cycles;
+    out->_cam_moveto_arc.ignore_terrain = m->ignore_terrain;
+    out->_cam_moveto_arc.easing = m->easing_id;
+    out->_cam_moveto_arc.absolute = 0;
+    return 1;
+}
+
+int
+adapt_cam_moveto_arc_v2(MsgCamMoveToArcV2 const* m, struct RevPacket* out)
+{
+    out->_cam_moveto_arc.x = m->destination_x;
+    out->_cam_moveto_arc.z = m->destination_z;
+    out->_cam_moveto_arc.via_x = m->center_x;
+    out->_cam_moveto_arc.via_z = m->center_z;
+    out->_cam_moveto_arc.height = m->height;
+    out->_cam_moveto_arc.cycles = m->cycles;
+    out->_cam_moveto_arc.ignore_terrain = m->ignore_terrain;
+    out->_cam_moveto_arc.easing = m->easing_id;
+    out->_cam_moveto_arc.absolute = 1;
+    return 1;
+}
+
+int
+adapt_cam_moveto_arc_v3(MsgCamMoveToArcV3 const* m, struct RevPacket* out)
+{
+    out->_cam_moveto_arc.x = m->destination_x;
+    out->_cam_moveto_arc.z = m->destination_z;
+    out->_cam_moveto_arc.via_x = m->center_x;
+    out->_cam_moveto_arc.via_z = m->center_z;
+    out->_cam_moveto_arc.height = m->height;
+    out->_cam_moveto_arc.cycles = m->cycles;
+    out->_cam_moveto_arc.ignore_terrain = m->ignore_terrain;
+    out->_cam_moveto_arc.easing = m->easing_id;
+    out->_cam_moveto_arc.height_relative = m->height_relative;
+    out->_cam_moveto_arc.absolute = 1;
     return 1;
 }
 
@@ -840,6 +891,7 @@ adapt_cam_rotateto_coordinate(MsgCamRotateToCoordinate const* m, struct RevPacke
     out->_cam_rotateto_coordinate.height = m->height;
     out->_cam_rotateto_coordinate.cycles = m->cycles;
     out->_cam_rotateto_coordinate.easing = m->easing_id;
+    out->_cam_rotateto_coordinate.absolute = 0;
     return 1;
 }
 
@@ -851,6 +903,7 @@ adapt_cam_rotateto_coordinate_v1(MsgCamRotateToCoordinateV1 const* m, struct Rev
     out->_cam_rotateto_coordinate.height = m->height;
     out->_cam_rotateto_coordinate.cycles = m->cycles;
     out->_cam_rotateto_coordinate.easing = m->easing_id;
+    out->_cam_rotateto_coordinate.absolute = 0;
     return 1;
 }
 
@@ -862,6 +915,7 @@ adapt_cam_rotateto_coordinate_v2(MsgCamRotateToCoordinateV2 const* m, struct Rev
     out->_cam_rotateto_coordinate.height = m->height;
     out->_cam_rotateto_coordinate.cycles = m->cycles;
     out->_cam_rotateto_coordinate.easing = m->easing_id;
+    out->_cam_rotateto_coordinate.absolute = 1;
     return 1;
 }
 
@@ -2132,6 +2186,7 @@ adapt_cam_moveto_cycles_v3(MsgCamMoveToCyclesV3 const* m, struct RevPacket* out)
     out->_cam_moveto_cycles.ignore_terrain = m->ignore_terrain;
     out->_cam_moveto_cycles.easing = m->easing_id;
     out->_cam_moveto_cycles.height_relative = m->height_relative;
+    out->_cam_moveto_cycles.absolute = 1;
     return 1;
 }
 
@@ -2145,6 +2200,7 @@ adapt_cam_rotateto_coordinate_v3(MsgCamRotateToCoordinateV3 const* m, struct Rev
     out->_cam_rotateto_coordinate.easing = m->easing_id;
     out->_cam_rotateto_coordinate.height_relative = m->height_relative;
     out->_cam_rotateto_coordinate.track_target = m->track_target;
+    out->_cam_rotateto_coordinate.absolute = 1;
     return 1;
 }
 

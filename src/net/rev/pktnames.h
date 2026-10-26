@@ -304,6 +304,9 @@ enum GameProtoPktName
     /* What the camera follows (struct PktCamTarget). Appended likewise. */
     PKT_NAME_CAM_TARGET,
 
+    /* The eye eased along an arc (struct PktCamMoveToArc). Appended likewise. */
+    PKT_NAME_CAM_MOVETO_ARC,
+
     PKT_NAME_COUNT
 };
 

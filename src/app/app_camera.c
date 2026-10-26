@@ -8,6 +8,7 @@
  */
 
 #include "app/app_internal.h"
+#include "app/app_cam_arc.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -673,8 +674,37 @@ App_CinemaCameraMoveCycles(
     m->start_cycle = app_cam_cycle(app);
     m->duration = cycles;
     m->easing = easing;
+    m->arc = 0;
     m->active = 1;
     app->cam_script.scripted = 1;
+}
+
+/* CAM_MOVETO_ARC at arrival: the cycles move above, with x/z on the arc
+ * through the via tile (app/app_cam_arc.h, deob class561; client.java's
+ * class243.field3062/field3063 handlers build it as field3064's builds the
+ * cycles move). */
+void
+App_CinemaCameraMoveArc(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int via_local_x,
+    int via_local_z,
+    int height,
+    int cycles,
+    int ignore_terrain,
+    int easing,
+    int height_relative)
+{
+    struct App_CamMoveCycles* m = &app->cam_script.move_cycles;
+
+    assert(app);
+    App_CinemaCameraMoveCycles(
+        app, local_x, local_z, height, cycles, ignore_terrain, easing, height_relative);
+    if( !m->active )
+        return;
+    App_CamArcFit(&m->arc_path, m->x0, m->z0, via_local_x * 128 + 64, via_local_z * 128 + 64, m->x1, m->z1);
+    m->arc = 1;
 }
 
 /*
@@ -799,6 +829,8 @@ app_world_camera_cinema(struct App* app)
         double f = app_cam_ease(app_cam_cycle(app) - m->start_cycle, m->duration, m->easing);
         int x = m->x0 + (int)lround((m->x1 - m->x0) * f);
         int z = m->z0 + (int)lround((m->z1 - m->z0) * f);
+        if( m->arc )
+            App_CamArcAt(&m->arc_path, f, &x, &z);
         int y = m->y0 + (int)lround((m->y1 - m->y0) * f);
         app->frame_view->world_camera_pos.x = x;
         app->frame_view->world_camera_pos.z = z;

@@ -1,6 +1,7 @@
 #ifndef SRC_APP_H
 #define SRC_APP_H
 
+#include "app/app_cam_arc.h"
 #include "asyncio.h"
 #include "engine/async_pending.h"
 #include "engine/cache_provider.h"
@@ -738,6 +739,7 @@ enum App_CamScriptOp
     APP_CAM_SCRIPT_OP_RESET = 4,
     APP_CAM_SCRIPT_OP_MOVETO_CYCLES = 5,
     APP_CAM_SCRIPT_OP_ROTATETO_COORDINATE = 6,
+    APP_CAM_SCRIPT_OP_MOVETO_ARC = 7,
 };
 
 /** Size of App_CamScript.events: the camera packets the driver can read back.
@@ -2749,6 +2751,10 @@ struct App
             int x0, z0, y0, x1, z1, y1;
             int ignore_terrain;
             int start_cycle, duration, easing;
+            /** CAM_MOVETO_ARC (deob class561): x/z run along `arc_path`
+             *  (app/app_cam_arc.h); y eases as above. */
+            int arc;
+            struct App_CamArc arc_path;
         } move_cycles;
         /**
          * CAM_ROTATETO_COORDINATE: pitch and yaw eased to face a tile (deob
@@ -4326,6 +4332,21 @@ App_CinemaCameraMoveCycles(
     struct App* app,
     int local_x,
     int local_z,
+    int height,
+    int cycles,
+    int ignore_terrain,
+    int easing,
+    int height_relative);
+
+/** CAM_MOVETO_ARC, at arrival: CAM_MOVETO_CYCLES along the arc through the
+ *  scene-local `via` tile. */
+void
+App_CinemaCameraMoveArc(
+    struct App* app,
+    int local_x,
+    int local_z,
+    int via_local_x,
+    int via_local_z,
     int height,
     int cycles,
     int ignore_terrain,

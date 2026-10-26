@@ -609,6 +609,26 @@ struct PktCamMoveToCycles
     int ignore_terrain;  /* height above sea level rather than above the ground */
     int easing;
     int height_relative; /* relative to the previous move's height */
+    int absolute;        /* x/z are world tiles; 0: build-area tiles (one byte, 222-236's v1) */
+};
+
+/*
+ * CAM_MOVETO_ARC: CAM_MOVETO_CYCLES along the arc of the circle through the
+ * eye, `via` and the destination (deob class561, client.java's
+ * class243.field3062/field3063 handlers). Tiles as PktCamMoveToCycles's.
+ */
+struct PktCamMoveToArc
+{
+    int x;
+    int z;
+    int via_x; /* RSProt's center_x: a point the arc passes through */
+    int via_z;
+    int height;
+    int cycles;
+    int ignore_terrain;
+    int easing;
+    int height_relative;
+    int absolute;
 };
 
 /*
@@ -626,6 +646,7 @@ struct PktCamRotateToCoordinate
     int easing;
     int height_relative;
     int track_target;
+    int absolute; /* as PktCamMoveToCycles.absolute */
 };
 
 /*
@@ -1323,6 +1344,7 @@ struct RevPacket
         struct PktCamLookAt _cam_lookat;
         struct PktCamMoveTo _cam_moveto;
         struct PktCamMoveToCycles _cam_moveto_cycles;
+        struct PktCamMoveToArc _cam_moveto_arc;
         struct PktCamRotateToCoordinate _cam_rotateto_coordinate;
         struct PktCamShake _cam_shake;
         struct PktCamTarget _cam_target;

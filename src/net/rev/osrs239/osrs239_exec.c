@@ -28,6 +28,8 @@
 #include "packets/bug_report.h"
 #include "packets/cam_lookat_v2.h"
 #include "packets/cam_lookat_v3.h"
+#include "packets/cam_moveto_arc_v2.h"
+#include "packets/cam_moveto_arc_v3.h"
 #include "packets/cam_moveto_cycles_v2.h"
 #include "packets/cam_moveto_cycles_v3.h"
 #include "packets/cam_moveto_v2.h"
@@ -1236,6 +1238,40 @@ in_cam_moveto_cycles_v3(uint8_t const* data, int len, struct RevPacket* out)
     if( !rev_exec_whole(&x, &b, len) )
         return 0;
     return adapt_cam_moveto_cycles_v3(&m, out);
+}
+
+/* CAM_MOVETO_ARC_V2, opcode 129 */
+static int
+in_cam_moveto_arc_v2(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamMoveToArcV2 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_moveto_arc_v2_osrs239_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_moveto_arc_v2(&m, out);
+}
+
+/* CAM_MOVETO_ARC_V3, opcode 128 */
+static int
+in_cam_moveto_arc_v3(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCamMoveToArcV3 m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cam_moveto_arc_v3_osrs239_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cam_moveto_arc_v3(&m, out);
 }
 
 /* CAM_LOOKAT_V2, opcode 139 */
@@ -3467,6 +3503,8 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [147] = in_cam_moveto_v3,
     [134] = in_cam_moveto_cycles_v2,
     [130] = in_cam_moveto_cycles_v3,
+    [129] = in_cam_moveto_arc_v2,
+    [128] = in_cam_moveto_arc_v3,
     [139] = in_cam_lookat_v2,
     [144] = in_cam_lookat_v3,
     [141] = in_cam_rotateto_coordinate_v2,
@@ -3576,6 +3614,8 @@ static int16_t const k_in_name[TOP] = {
     [147] = PKT_NAME_CAM_MOVETO,
     [134] = PKT_NAME_CAM_MOVETO_CYCLES,
     [130] = PKT_NAME_CAM_MOVETO_CYCLES,
+    [129] = PKT_NAME_CAM_MOVETO_ARC,
+    [128] = PKT_NAME_CAM_MOVETO_ARC,
     [139] = PKT_NAME_CAM_LOOKAT,
     [144] = PKT_NAME_CAM_LOOKAT,
     [141] = PKT_NAME_CAM_ROTATETO_COORDINATE,
@@ -3870,6 +3910,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_CHAT_FILTER_SETTINGS] = 125,
     [PKT_NAME_REBUILD_REGION] = 126,
     [PKT_NAME_MESSAGE_CLANCHANNEL] = 128,
+    [PKT_NAME_CAM_MOVETO_ARC] = 130,
     [PKT_NAME_CAM_UNLOCK] = 132,
     [PKT_NAME_CAM_MOVETO_CYCLES] = 135,
     [PKT_NAME_AMBIENTSOUND_STOP] = 139,

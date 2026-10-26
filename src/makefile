@@ -3680,6 +3680,12 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_out_resume_test
 
+# CAM_MOVETO_ARC's path (app/app_cam_arc.h, deob class561): header-only.
+.PHONY: test-cam-arc
+test-cam-arc: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cam_arc_test app/test/cam_arc_test.c -lm
+	./$(OBJ_DIR)/cam_arc_test
+
 # Decode RSProx recordings at their own revision (227-241) with the generated
 # executors, packet by packet: `RECORDINGS="a.bin.gz b.bin.gz"`. Not a suite
 # test -- it needs recordings, which are not in the tree.

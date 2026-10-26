@@ -47,6 +47,9 @@
 #include "packets/cam_lookat_v2.h"
 #include "packets/cam_lookat_v3.h"
 #include "packets/cam_moveto.h"
+#include "packets/cam_moveto_arc_v1.h"
+#include "packets/cam_moveto_arc_v2.h"
+#include "packets/cam_moveto_arc_v3.h"
 #include "packets/cam_moveto_cycles.h"
 #include "packets/cam_moveto_cycles_v1.h"
 #include "packets/cam_moveto_cycles_v2.h"
@@ -414,6 +417,12 @@ int
 adapt_cam_moveto_cycles_v2(MsgCamMoveToCyclesV2 const* m, struct RevPacket* out);
 int
 adapt_cam_moveto_cycles_v3(MsgCamMoveToCyclesV3 const* m, struct RevPacket* out);
+int
+adapt_cam_moveto_arc_v1(MsgCamMoveToArcV1 const* m, struct RevPacket* out);
+int
+adapt_cam_moveto_arc_v2(MsgCamMoveToArcV2 const* m, struct RevPacket* out);
+int
+adapt_cam_moveto_arc_v3(MsgCamMoveToArcV3 const* m, struct RevPacket* out);
 int
 adapt_cam_rotateto_coordinate(MsgCamRotateToCoordinate const* m, struct RevPacket* out);
 int
