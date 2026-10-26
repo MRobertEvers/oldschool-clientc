@@ -6,7 +6,12 @@
 #
 #   make -C 3rd/rsprot            # compile the unity TU (syntax/warning gate)
 #   make -C 3rd/rsprot test       # unit tests
+#   make -C 3rd/rsprot lib        # build/librsprot.a, for a C host
+#   make -C 3rd/rsprot ffi        # build/librsprot_ffi.{dylib,so,dll}: ffi/rsprot_ffi.h
 #   make -C 3rd/rsprot clean
+#
+# A host that vendors the library (rsprox-index, rsprox-c) builds it with
+# these targets, CFLAGS=-O2 for a release.
 #
 # This build turns warnings on, same rationale as rscache's makefile: it is the
 # only place rsprot's own diagnostics are visible, since src/Makefile compiles
@@ -22,7 +27,7 @@ INCLUDES := -Iinclude -Isrc -Igen -I.
 WARNINGS := -Wall -Wextra -Wno-unused-parameter -Wno-pointer-sign
 
 CFLAGS ?= -std=c11 -g -O0 -fno-omit-frame-pointer
-CFLAGS += $(INCLUDES) $(WARNINGS) -MMD -MP
+override CFLAGS += $(INCLUDES) $(WARNINGS) -MMD -MP
 
 UNITY_OBJ   := $(BUILD)/rsprot_unity.o
 # rsprot_buf.c is its own object, not part of the unity TU -- see rsprot_unity.c.
@@ -31,13 +36,48 @@ EXEC_OBJS   := $(BUILD)/rsprot_exec.o $(BUILD)/rsprot_storage.o
 PACKETS_OBJ := $(BUILD)/rsprot_packets_unity.o
 LIB_OBJS    := $(UNITY_OBJ) $(BUF_OBJ) $(EXEC_OBJS) $(PACKETS_OBJ)
 
+LIB_A := $(BUILD)/librsprot.a
+
+UNAME := $(shell uname -s)
+ifeq ($(UNAME),Darwin)
+FFI_LIB := $(BUILD)/librsprot_ffi.dylib
+else ifneq (,$(findstring MINGW,$(UNAME))$(findstring MSYS,$(UNAME)))
+FFI_LIB := $(BUILD)/rsprot_ffi.dll
+else
+FFI_LIB := $(BUILD)/librsprot_ffi.so
+endif
+# The shared library's objects: the library's sources and the binding, PIC.
+FFI_SRCS := rsprot_unity.c src/rsprot_buf.c src/rsprot_exec.c src/rsprot_storage.c \
+            rsprot_packets_unity.c ffi/rsprot_ffi.c
+FFI_OBJS := $(patsubst %.c,$(BUILD)/pic/%.o,$(notdir $(FFI_SRCS)))
+
 TEST_SRCS := $(wildcard test/test_*.c)
 TEST_BINS := $(patsubst test/%.c,$(BUILD)/%,$(TEST_SRCS))
 
-.PHONY: all test clean
+.PHONY: all lib ffi test clean
 .DEFAULT_GOAL := all
 
 all: $(LIB_OBJS)
+
+lib: $(LIB_A)
+
+$(LIB_A): $(LIB_OBJS)
+	rm -f $@
+	ar rcs $@ $(LIB_OBJS)
+
+ffi: $(FFI_LIB)
+
+$(BUILD)/pic:
+	mkdir -p $@
+
+define PIC_RULE
+$(BUILD)/pic/$(notdir $(1:.c=.o)): $(1) | $(BUILD)/pic
+	$$(CC) $$(CFLAGS) -fPIC -w -c $$< -o $$@
+endef
+$(foreach src,$(FFI_SRCS),$(eval $(call PIC_RULE,$(src))))
+
+$(FFI_LIB): $(FFI_OBJS)
+	$(CC) -shared -o $@ $(FFI_OBJS)
 
 $(BUILD):
 	mkdir -p $(BUILD)
@@ -69,4 +109,4 @@ test: $(TEST_BINS)
 clean:
 	rm -rf $(BUILD)
 
--include $(wildcard $(BUILD)/*.d)
+-include $(wildcard $(BUILD)/*.d $(BUILD)/pic/*.d)

@@ -262,43 +262,306 @@ rsprot_ffi_zone_grid(const uint8_t *data, int len, int count, int key_count, int
 
 #define INFO_OPS 32768
 #define INFO_BYTES (1 << 20)
-#define INFO_BLOCKS (4 << 20)
 
-/* One read's op list and its block trace. */
+/* One read's op list. */
 static _Thread_local struct
 {
     RsprotInfoOp ops[INFO_OPS];
     uint8_t bytes[INFO_BYTES];
-    uint8_t blocks[INFO_BLOCKS];
 } g_info;
-
-static void
-info_begin(RsprotInfoList *list, RsprotTrace *blocks)
-{
-    rsprot_info_list_init(list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
-    memset(blocks, 0, sizeof(*blocks));
-    blocks->out = g_info.blocks;
-    blocks->cap = INFO_BLOCKS;
-    list->trace = blocks;
-}
 
 static const char *
 stop_reason(int reason)
 {
     switch (reason) {
     case RSPROT_STOP_ERROR: return "the payload ran out, or a bit section was malformed";
-    case RSPROT_STOP_ILLEGAL_FLAG: return "an extended-info flag RSProx throws on";
+    case RSPROT_STOP_ILLEGAL_FLAG: return "an extended-info flag with no layout";
     case RSPROT_STOP_BLOCK: return "an extended-info block did not read to its end";
     case RSPROT_STOP_TRAILING: return "bytes left over";
     default: return "stopped";
     }
 }
 
-/* The read is over: a stop is an error, else the block trace follows `head`. */
-static int
-info_end(const RsprotInfoList *list, RsprotTrace *head, const RsprotTrace *blocks,
-         const char *prot, int *blocks_at, char *err, int err_cap)
+#define I(name, v) rsprot_trace_prim(t, 0, (int32_t)(v), name)
+#define L(name, v) rsprot_trace_long(t, (int64_t)(v), name)
+
+static void
+s(RsprotTrace *t, const char *name, const char *v)
 {
+    rsprot_trace_bytes(t, RSPROT_TRACE_STR, 0, (const uint8_t *)v, v ? (int32_t)strlen(v) : -1,
+                       name);
+}
+
+static void
+ints(RsprotTrace *t, const char *name, const int32_t *v, int32_t n)
+{
+    for (int32_t i = 0; v && i < n; i++)
+        I(name, v[i]);
+}
+
+static void
+we_ext(RsprotTrace *t, const RsprotInfoWeExt *e)
+{
+    I("ext.flags", e->flags);
+    I("ext.has_sequence", e->has_sequence);
+    I("ext.sequence_id", e->sequence_id);
+    I("ext.sequence_delay", e->sequence_delay);
+    I("ext.has_ops", e->has_ops);
+    I("ext.ops", e->ops);
+}
+
+static void
+body(RsprotTrace *t, const RsprotInfoBodyCustom *b)
+{
+    I("reset", b->reset);
+    I("flag", b->flag);
+    I("model_count", b->model_count);
+    ints(t, "models", b->models, b->model_count);
+    I("recolour_count", b->recolour_count);
+    ints(t, "recolours", b->recolours, b->recolour_count);
+    I("retexture_count", b->retexture_count);
+    ints(t, "retextures", b->retextures, b->retexture_count);
+    I("mirror", b->mirror);
+    I("has_recolour_all", b->has_recolour_all);
+    I("recolour_all", b->recolour_all);
+    I("body_type", b->body_type);
+    I("identkit_count", b->identkit_count);
+    ints(t, "identkits", b->identkits, b->identkit_count);
+}
+
+/* One op: `#op` (its RsprotInfoOpKind), `who`, then every field of its union
+ * member under the field's name. */
+static void
+trace_op(RsprotTrace *t, const RsprotInfoOp *op)
+{
+    I("#op", op->kind);
+    I("who", op->who);
+    switch (op->kind) {
+    case RSPROT_OP_LOCAL_XZLEVEL:
+    case RSPROT_OP_ABS_XZLEVEL:
+        I("x", op->xz_level.x);
+        I("z", op->xz_level.z);
+        I("level", op->xz_level.level);
+        I("jump", op->xz_level.jump);
+        I("has_move_speed", op->xz_level.has_move_speed);
+        I("move_speed", op->xz_level.move_speed);
+        I("route_only", op->xz_level.route_only);
+        I("move", op->xz_level.move);
+        break;
+    case RSPROT_OP_DELTA_XZ:
+        I("dx", op->delta_xz.dx);
+        I("dz", op->delta_xz.dz);
+        I("jump", op->delta_xz.jump);
+        break;
+    case RSPROT_OP_LOW_RES_POS:
+        I("slot", op->low_res.slot);
+        I("opcode", op->low_res.opcode);
+        I("level", op->low_res.level);
+        I("x", op->low_res.x);
+        I("z", op->low_res.z);
+        break;
+    case RSPROT_OP_BLOCK:
+        I("kind", op->block.kind);
+        I("bit", op->block.bit);
+        break;
+    case RSPROT_OP_APPEARANCE:
+        rsprot_trace_bytes(t, RSPROT_TRACE_DATA, -1, op->appearance.appearance,
+                           op->appearance.appearance ? op->appearance.len : -1, "appearance");
+        break;
+    case RSPROT_OP_SEQUENCE:
+        I("sequence_id", op->sequence.sequence_id);
+        I("delay", op->sequence.delay);
+        break;
+    case RSPROT_OP_FACE_ENTITY:
+        I("entity_id", op->face_entity.entity_id);
+        I("fallback_angle", op->face_entity.fallback_angle);
+        I("has_fallback_angle", op->face_entity.has_fallback_angle);
+        I("instant", op->face_entity.instant);
+        I("movement_mode", op->face_entity.movement_mode);
+        I("modern", op->face_entity.modern);
+        I("target_type", op->face_entity.target_type);
+        I("target_index", op->face_entity.target_index);
+        break;
+    case RSPROT_OP_SAY:
+        s(t, "text", op->say.text);
+        break;
+    case RSPROT_OP_DAMAGE:
+    case RSPROT_OP_DAMAGE2:
+        I("damage_type", op->damage.damage_type);
+        I("damage", op->damage.damage);
+        I("soaked", op->damage.soaked);
+        I("soak_type", op->damage.soak_type);
+        I("soak_damage", op->damage.soak_damage);
+        I("health", op->damage.health);
+        I("total_health", op->damage.total_health);
+        I("delay", op->damage.delay);
+        I("slots", op->damage.slots);
+        break;
+    case RSPROT_OP_HEADBAR:
+        I("type", op->headbar.type);
+        I("duration", op->headbar.duration);
+        I("start_delay", op->headbar.start_delay);
+        I("start_fill", op->headbar.start_fill);
+        I("end_fill", op->headbar.end_fill);
+        I("remove", op->headbar.remove);
+        I("index", op->headbar.index);
+        break;
+    case RSPROT_OP_FACE_COORD:
+        I("x", op->face_coord.x);
+        I("z", op->face_coord.z);
+        I("instant", op->face_coord.instant);
+        I("movement_mode", op->face_coord.movement_mode);
+        I("modern", op->face_coord.modern);
+        I("tile_x", op->face_coord.tile_x);
+        I("tile_z", op->face_coord.tile_z);
+        I("size_x", op->face_coord.size_x);
+        I("size_z", op->face_coord.size_z);
+        break;
+    case RSPROT_OP_CHAT:
+        I("colour_effect", op->chat.colour_effect);
+        I("type", op->chat.type);
+        I("length", op->chat.length);
+        rsprot_trace_bytes(t, RSPROT_TRACE_DATA, -1, op->chat.data,
+                           op->chat.data ? op->chat.length : 0, "data");
+        I("autotyper", op->chat.autotyper);
+        I("pattern_count", op->chat.pattern_count);
+        for (int i = 0; i < op->chat.pattern_count; i++)
+            I("pattern", op->chat.pattern[i]);
+        break;
+    case RSPROT_OP_SPOTANIM:
+        I("slot", op->spotanim.slot);
+        I("spotanim_id", op->spotanim.spotanim_id);
+        I("height_delay", op->spotanim.height_delay);
+        I("loop", op->spotanim.loop);
+        I("has_loop", op->spotanim.has_loop);
+        I("single", op->spotanim.single);
+        break;
+    case RSPROT_OP_EXACT_MOVE:
+        I("start_x", op->exact_move.start_x);
+        I("start_z", op->exact_move.start_z);
+        I("end_x", op->exact_move.end_x);
+        I("end_z", op->exact_move.end_z);
+        I("start_cycle_delta", op->exact_move.start_cycle_delta);
+        I("end_cycle_delta", op->exact_move.end_cycle_delta);
+        I("facing", op->exact_move.facing);
+        I("facing_is_yaw", op->exact_move.facing_is_yaw);
+        I("relative", op->exact_move.relative);
+        break;
+    case RSPROT_OP_FACE_ANGLE:
+        I("angle", op->face_angle.angle);
+        I("instant", op->face_angle.instant);
+        I("spawn", op->face_angle.spawn);
+        I("movement_mode", op->face_angle.movement_mode);
+        I("modern", op->face_angle.modern);
+        break;
+    case RSPROT_OP_TINT:
+        I("start_cycle_delta", op->tint.start_cycle_delta);
+        I("end_cycle_delta", op->tint.end_cycle_delta);
+        I("hue", op->tint.hue);
+        I("saturation", op->tint.saturation);
+        I("lightness", op->tint.lightness);
+        I("weight", op->tint.weight);
+        break;
+    case RSPROT_OP_TRANSPARENCY:
+        I("start_cycle_delta", op->transparency.start_cycle_delta);
+        I("end_cycle_delta", op->transparency.end_cycle_delta);
+        I("from", op->transparency.from);
+        I("to", op->transparency.to);
+        I("use_start", op->transparency.use_start);
+        break;
+    case RSPROT_OP_CHANGE_TYPE:
+        I("npc_type", op->change_type.npc_type);
+        break;
+    case RSPROT_OP_NAME_CHANGE:
+        s(t, "name", op->name_change.name);
+        break;
+    case RSPROT_OP_BAS_CHANGE:
+        I("mask", op->bas_change.mask);
+        I("readyanim", op->bas_change.readyanim);
+        I("walkanim", op->bas_change.walkanim);
+        I("turnanim", op->bas_change.turnanim);
+        I("turnanim_r", op->bas_change.turnanim_r);
+        I("runanim", op->bas_change.runanim);
+        I("walkanim_b", op->bas_change.walkanim_b);
+        I("walkanim_r", op->bas_change.walkanim_r);
+        I("walkanim_l", op->bas_change.walkanim_l);
+        I("runanim_b", op->bas_change.runanim_b);
+        I("runanim_l", op->bas_change.runanim_l);
+        I("runanim_r", op->bas_change.runanim_r);
+        I("crawlanim", op->bas_change.crawlanim);
+        I("crawlanim_b", op->bas_change.crawlanim_b);
+        I("crawlanim_l", op->bas_change.crawlanim_l);
+        I("crawlanim_r", op->bas_change.crawlanim_r);
+        break;
+    case RSPROT_OP_HEADICON_CUSTOM:
+        I("mask", op->headicon.mask);
+        for (int i = 0; i < 8; i++) {
+            I("group", op->headicon.group[i]);
+            I("index", op->headicon.index[i]);
+        }
+        break;
+    case RSPROT_OP_BODY_CUSTOM:
+    case RSPROT_OP_HEAD_CUSTOM:
+        body(t, &op->body);
+        break;
+    case RSPROT_OP_NAME_EXTRAS:
+        s(t, "before_name", op->name_extras.before_name);
+        s(t, "after_name", op->name_extras.after_name);
+        s(t, "after_combat_level", op->name_extras.after_combat_level);
+        break;
+    case RSPROT_OP_FREEZE:
+        I("delay", op->freeze.delay);
+        I("duration", op->freeze.duration);
+        I("cancel", op->freeze.cancel);
+        break;
+    case RSPROT_OP_STOP:
+        I("reason", op->stop.reason);
+        I("rpos", op->stop.rpos);
+        I("flags", op->stop.flags);
+        I("kind", op->stop.kind);
+        I("block_flag", op->stop.block_flag);
+        break;
+    case RSPROT_OP_WE_IDLE:
+    case RSPROT_OP_WE_MOVE:
+        I("dx", op->we_move.dx);
+        I("dy", op->we_move.dy);
+        I("dz", op->we_move.dz);
+        I("dangle", op->we_move.dangle);
+        I("teleport", op->we_move.teleport);
+        I("move_speed", op->we_move.move_speed);
+        we_ext(t, &op->we_move.ext);
+        break;
+    case RSPROT_OP_WE_ADD:
+        I("id", op->we_add.id);
+        I("size_x", op->we_add.size_x);
+        I("size_z", op->we_add.size_z);
+        I("has_level", op->we_add.has_level);
+        I("level", op->we_add.level);
+        I("priority", op->we_add.priority);
+        I("x", op->we_add.x);
+        I("y", op->we_add.y);
+        I("z", op->we_add.z);
+        I("angle", op->we_add.angle);
+        I("has_centre", op->we_add.has_centre);
+        I("centre_x", op->we_add.centre_x);
+        I("centre_z", op->we_add.centre_z);
+        I("unknown", op->we_add.unknown);
+        we_ext(t, &op->we_add.ext);
+        break;
+    default:
+        /* The ops that carry only `value` (or nothing). */
+        L("value", op->value);
+        break;
+    }
+}
+
+/* The read is over: the ops into `out`, or why not. */
+static int
+info_end(const RsprotInfoList *list, uint8_t *out, int cap, const char *prot, char *err,
+         int err_cap)
+{
+    RsprotTrace t = { out, cap, 0, 0, 0, NULL, 0 };
+
     if (list->stopped) {
         const RsprotInfoStop *stop = &list->ops[list->count - 1].stop;
 
@@ -307,12 +570,15 @@ info_end(const RsprotInfoList *list, RsprotTrace *head, const RsprotTrace *block
                      stop_reason(stop->reason), stop->kind, stop->flags, stop->rpos);
         return -2;
     }
-    if (list->overflow || head->overflow || blocks->overflow || head->cap - head->len < blocks->len)
+    if (list->overflow)
         return -3;
-    *blocks_at = head->len;
-    memcpy(head->out + head->len, blocks->out, (size_t)blocks->len);
-    return head->len + blocks->len;
+    for (int i = 0; i < list->count; i++)
+        trace_op(&t, &list->ops[i]);
+    return t.overflow ? -3 : t.len;
 }
+
+#undef I
+#undef L
 
 void *
 rsprot_ffi_players_new(int local_index)
@@ -358,135 +624,26 @@ rsprot_ffi_players_seed(void *players, int32_t coord, const int32_t *positions)
 }
 
 int
-rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len,
-                       uint8_t *out, int cap, int *blocks_at, char *err, int err_cap)
+rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len, uint8_t *out,
+                       int cap, char *err, int err_cap)
 {
-    RsprotPlayerInfo *pi = players;
     RsprotPlayerInfoReadFn read = player_info_osrs(revision);
     RsprotInfoList list;
-    RsprotTrace blocks;
-    RsprotTrace head = { out, cap, 0, 0, 0, NULL, 0 };
 
-    assert(pi);
+    assert(players);
     if (!read)
         return -1;
-    info_begin(&list, &blocks);
-    read(pi, data, len, &list);
-    for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++) {
-        int type = pi->update_type[idx];
-        int low = type == RSPROT_PLAYER_LOW_RESOLUTION_MOVEMENT ||
-                  type == RSPROT_PLAYER_HIGH_RESOLUTION_TO_LOW_RESOLUTION;
-
-        if (type == RSPROT_PLAYER_LOW_RESOLUTION_IDLE)
-            continue;
-        rsprot_trace_prim(&head, 0, idx, "index");
-        rsprot_trace_prim(&head, 0, type, "type");
-        rsprot_trace_prim(&head, 0, low ? pi->low_res_pos[idx] : pi->coord[idx], "coord");
-    }
-    return info_end(&list, &head, &blocks, "PLAYER_INFO", blocks_at, err, err_cap);
-}
-
-static void
-trace_we_ext(RsprotTrace *t, const RsprotInfoWeExt *e)
-{
-    rsprot_trace_prim(t, 0, e->flags, "ext_flags");
-    rsprot_trace_prim(t, 0, e->has_sequence, "has_sequence");
-    rsprot_trace_prim(t, 0, e->sequence_id, "sequence_id");
-    rsprot_trace_prim(t, 0, e->sequence_delay, "sequence_delay");
-    rsprot_trace_prim(t, 0, e->has_ops, "has_ops");
-    rsprot_trace_prim(t, 0, e->ops, "ops");
-}
-
-/* One op of the movement half, by name; the extended-info ops are the block
- * trace's, and are left out. */
-static void
-trace_op(RsprotTrace *t, const RsprotInfoOp *op)
-{
-    switch (op->kind) {
-    case RSPROT_OP_SET_LOCAL_PLAYER:
-    case RSPROT_OP_ADD_NEW:
-    case RSPROT_OP_ADD_OLD:
-    case RSPROT_OP_SET_EXT:
-    case RSPROT_OP_CLEAR_OLD:
-    case RSPROT_OP_REMOVE_PID:
-    case RSPROT_OP_COUNT_RESET:
-    case RSPROT_OP_INFO:
-    case RSPROT_OP_WALKDIR:
-    case RSPROT_OP_RUNDIR:
-    case RSPROT_OP_CRAWLDIR:
-    case RSPROT_OP_NPCTYPE:
-    case RSPROT_OP_SPAWN_CYCLE:
-    case RSPROT_OP_WE_COUNT:
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_long(t, (int64_t)op->value, "value");
-        break;
-    case RSPROT_OP_DELTA_XZ:
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_prim(t, 0, op->delta_xz.dx, "dx");
-        rsprot_trace_prim(t, 0, op->delta_xz.dz, "dz");
-        rsprot_trace_prim(t, 0, op->delta_xz.jump, "jump");
-        break;
-    case RSPROT_OP_FACE_ANGLE:
-        /* Only the entering-view record's: a block's is in the block trace. */
-        if (!op->face_angle.spawn)
-            break;
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_prim(t, 0, op->face_angle.angle, "angle");
-        break;
-    case RSPROT_OP_WE_REMOVE:
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_prim(t, 0, op->who, "who");
-        break;
-    case RSPROT_OP_WE_IDLE:
-    case RSPROT_OP_WE_MOVE:
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_prim(t, 0, op->who, "who");
-        rsprot_trace_prim(t, 0, op->we_move.dx, "dx");
-        rsprot_trace_prim(t, 0, op->we_move.dy, "dy");
-        rsprot_trace_prim(t, 0, op->we_move.dz, "dz");
-        rsprot_trace_prim(t, 0, op->we_move.dangle, "dangle");
-        rsprot_trace_prim(t, 0, op->we_move.teleport, "teleport");
-        rsprot_trace_prim(t, 0, op->we_move.move_speed, "move_speed");
-        trace_we_ext(t, &op->we_move.ext);
-        break;
-    case RSPROT_OP_WE_ADD:
-        rsprot_trace_prim(t, 0, op->kind, "#op");
-        rsprot_trace_prim(t, 0, op->who, "who");
-        rsprot_trace_prim(t, 0, op->we_add.id, "id");
-        rsprot_trace_prim(t, 0, op->we_add.size_x, "size_x");
-        rsprot_trace_prim(t, 0, op->we_add.size_z, "size_z");
-        rsprot_trace_prim(t, 0, op->we_add.has_level, "has_level");
-        rsprot_trace_prim(t, 0, op->we_add.level, "level");
-        rsprot_trace_prim(t, 0, op->we_add.priority, "priority");
-        rsprot_trace_prim(t, 0, op->we_add.x, "x");
-        rsprot_trace_prim(t, 0, op->we_add.y, "y");
-        rsprot_trace_prim(t, 0, op->we_add.z, "z");
-        rsprot_trace_prim(t, 0, op->we_add.angle, "angle");
-        rsprot_trace_prim(t, 0, op->we_add.has_centre, "has_centre");
-        rsprot_trace_prim(t, 0, op->we_add.centre_x, "centre_x");
-        rsprot_trace_prim(t, 0, op->we_add.centre_z, "centre_z");
-        rsprot_trace_prim(t, 0, op->we_add.unknown, "unknown");
-        trace_we_ext(t, &op->we_add.ext);
-        break;
-    default:
-        break;
-    }
-}
-
-static int
-trace_ops(const RsprotInfoList *list, RsprotTrace *head)
-{
-    for (int i = 0; i < list->count; i++)
-        trace_op(head, &list->ops[i]);
-    return head->len;
+    rsprot_info_list_init(&list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
+    read(players, data, len, &list);
+    return info_end(&list, out, cap, "PLAYER_INFO", err, err_cap);
 }
 
 static _Thread_local RsprotFfiNpcLengths g_lengths;
 
 /* CUSTOM_TYPED: whose type the npc at list position `who` has, from the ops
- * read so far -- a newcomer's NPCTYPE, a CHANGE_TYPE in its own extended info,
- * or else its position in the previous packet's list -- then the host's counts
- * for it. */
+ * read so far -- a newcomer's NPCTYPE, a CHANGE_TYPE in its own extended info
+ * (as sent: 65535 is back to the spawned type), or else its position in the
+ * previous packet's list -- then the host's counts for it. */
 static int
 npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
 {
@@ -509,7 +666,6 @@ npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
         } else if (op->kind == RSPROT_OP_SET_EXT) {
             target = (int)op->value;
         } else if (op->kind == RSPROT_OP_CHANGE_TYPE && target == who) {
-            /* RSProx sets the id read, 65535 for "back to the spawned type". */
             type = op->change_type.npc_type == -1 ? 0xFFFF : op->change_type.npc_type;
         }
     }
@@ -520,13 +676,10 @@ npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
 
 int
 rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len,
-                    RsprotFfiNpcLengths lengths, uint8_t *out, int cap, int *blocks_at,
-                    char *err, int err_cap)
+                    RsprotFfiNpcLengths lengths, uint8_t *out, int cap, char *err, int err_cap)
 {
     RsprotNpcInfoReadFn read = NULL;
     RsprotInfoList list;
-    RsprotTrace blocks;
-    RsprotTrace head = { out, cap, 0, 0, 0, NULL, 0 };
 
     if (strcmp(prot, "NPC_INFO_SMALL_V4") == 0)
         read = npc_info_small_v4_osrs(revision);
@@ -542,22 +695,19 @@ rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len
         read = npc_info_large_v6_osrs(revision);
     if (!read)
         return -1;
-    info_begin(&list, &blocks);
+    rsprot_info_list_init(&list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
     g_lengths = lengths;
     read(data, len, lengths ? npc_lengths : NULL, &list, &list);
     g_lengths = NULL;
-    trace_ops(&list, &head);
-    return info_end(&list, &head, &blocks, prot, blocks_at, err, err_cap);
+    return info_end(&list, out, cap, prot, err, err_cap);
 }
 
 int
 rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data, int len,
-                            uint8_t *out, int cap, int *blocks_at, char *err, int err_cap)
+                            uint8_t *out, int cap, char *err, int err_cap)
 {
     RsprotWorldEntityInfoReadFn read = NULL;
     RsprotInfoList list;
-    RsprotTrace blocks;
-    RsprotTrace head = { out, cap, 0, 0, 0, NULL, 0 };
     static const struct
     {
         const char *prot;
@@ -577,23 +727,87 @@ rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data,
             read = k_versions[i].lookup(revision);
     if (!read)
         return -1;
-    info_begin(&list, &blocks);
+    rsprot_info_list_init(&list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
     read(data, len, &list);
-    trace_ops(&list, &head);
-    return info_end(&list, &head, &blocks, prot, blocks_at, err, err_cap);
+    return info_end(&list, out, cap, prot, err, err_cap);
+}
+
+/* A worn slot's obj customisation, every field under its name. */
+static void
+appearance_obj(RsprotTrace *t, const RsprotAppearanceObj *o)
+{
+#define I(name, v) rsprot_trace_prim(t, 0, (int32_t)(v), name)
+    I("flag", o->flag);
+    I("recolour_indices", o->recolour_indices);
+    I("recolour", o->recolour[0]);
+    I("recolour", o->recolour[1]);
+    I("retexture_indices", o->retexture_indices);
+    I("retexture", o->retexture[0]);
+    I("retexture", o->retexture[1]);
+    I("recolour_count", o->recolour_count);
+    for (int i = 0; i < o->recolour_count; i++) {
+        I("recolours.index", o->recolours[i].index);
+        I("recolours.value", o->recolours[i].value);
+    }
+    I("retexture_count", o->retexture_count);
+    for (int i = 0; i < o->retexture_count; i++) {
+        I("retextures.index", o->retextures[i].index);
+        I("retextures.value", o->retextures[i].value);
+    }
+    I("override_colour", o->override_colour);
+    I("colour", o->colour);
+    I("man_wear", o->man_wear);
+    I("woman_wear", o->woman_wear);
+    I("man_head", o->man_head);
+    I("woman_head", o->woman_head);
+#undef I
 }
 
 int
 rsprot_ffi_appearance(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
                       char *err, int err_cap)
 {
+    static _Thread_local RsprotAppearance a;
+    RsprotAppearanceReadFn read = rsprot_appearance_reader(revision);
     RsprotTrace t = { out, cap, 0, 0, 0, NULL, 0 };
 
-    if (!rsprot_info_appearance_trace(revision, data, len, &t)) {
+    if (!read)
+        return -1;
+    if (!read(data, len, &a)) {
         if (err && err_cap > 0)
             snprintf(err, (size_t)err_cap, "the appearance block did not read (%d bytes, rev %d)",
                      len, revision);
         return -2;
     }
+#define I(name, v) rsprot_trace_prim(&t, 0, (int32_t)(v), name)
+    I("gender", a.gender);
+    I("skull_icon", a.skull_icon);
+    I("overhead_icon", a.overhead_icon);
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS; i++)
+        I("kits", a.kits[i]);
+    I("npc_id", a.npc_id);
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS; i++)
+        I("interface_kits", a.interface_kits[i]);
+    for (int i = 0; i < 5; i++)
+        I("colours", a.colours[i]);
+    I("ready_anim", a.ready_anim);
+    I("turn_anim", a.turn_anim);
+    I("walk_anim", a.walk_anim);
+    I("walk_back_anim", a.walk_back_anim);
+    I("walk_left_anim", a.walk_left_anim);
+    I("walk_right_anim", a.walk_right_anim);
+    I("run_anim", a.run_anim);
+    s(&t, "name", a.name);
+    I("combat_level", a.combat_level);
+    I("skill_level", a.skill_level);
+    I("hidden", a.hidden);
+    I("customisation", a.customisation);
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS; i++)
+        appearance_obj(&t, &a.objs[i]);
+    s(&t, "before_name", a.before_name);
+    s(&t, "after_name", a.after_name);
+    s(&t, "after_combat_level", a.after_combat_level);
+    I("text_gender", a.text_gender);
+#undef I
     return t.overflow ? -3 : t.len;
 }

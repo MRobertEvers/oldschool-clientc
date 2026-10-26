@@ -643,6 +643,13 @@ player_apply_op(
             fprintf(core_wirelog_file(), "%d\tface_entity\t%d\n", core->tick, entity_id);
         if( op->face_entity.modern )
             World_PlayerBeginModernFacing(world, idx, op->face_entity.movement_mode);
+        /* A world entity has no registry here: the gamepack's missing-target
+         * path turns to the fallback angle. */
+        if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY && op->face_entity.modern )
+        {
+            World_PlayerFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
+            break;
+        }
         World_PlayerFaceEntityDetailed(
             world,
             idx,
@@ -695,19 +702,30 @@ player_apply_op(
         break;
     case RSPROT_OP_DAMAGE:
     case RSPROT_OP_DAMAGE2:
-        World_PlayerAddHitmarkTimed(
-            world,
-            idx,
-            op->damage.damage_type,
-            op->damage.damage,
-            op->damage.health,
-            op->damage.total_health,
-            op->damage.delay,
-            op->damage.slots,
-            WORLD_HITMARK_DEFAULT_DURATION,
-            WORLD_HITMARK_POLICY_DISCARD);
+        /* A soaked hit draws its soak as a second splat on the same delay; a
+         * delay-only hit (type -1) draws nothing. */
+        for( int part = 0; part < (op->damage.soaked ? 2 : 1); part++ )
+        {
+            int type = part ? op->damage.soak_type : op->damage.damage_type;
+            if( type < 0 )
+                continue;
+            World_PlayerAddHitmarkTimed(
+                world,
+                idx,
+                type,
+                part ? op->damage.soak_damage : op->damage.damage,
+                op->damage.health,
+                op->damage.total_health,
+                op->damage.delay,
+                part ? 0 : op->damage.slots,
+                WORLD_HITMARK_DEFAULT_DURATION,
+                WORLD_HITMARK_POLICY_DISCARD);
+        }
         break;
     case RSPROT_OP_HEADBAR:
+        /* The entity draws one bar: a block's first. */
+        if( op->headbar.index != 0 )
+            break;
         if( op->headbar.remove )
             World_PlayerClearHealthbar(world, idx);
         else
@@ -775,15 +793,15 @@ player_apply_op(
     case RSPROT_OP_TRANSPARENCY:
         if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
             fprintf(core_wirelog_file(), "%d\ttransparency\t%d\t%d\t%d\t%d\t%d\n", core->tick,
-                    op->transparency.start_cycle_delta, op->transparency.end_cycle_delta,
-                    op->transparency.from, op->transparency.to, op->transparency.use_start ? 1 : 0);
+                    (int16_t)op->transparency.start_cycle_delta, (int16_t)op->transparency.end_cycle_delta,
+                    (uint8_t)op->transparency.from, (uint8_t)op->transparency.to, op->transparency.use_start ? 1 : 0);
         World_PlayerSetTransparency(
             world,
             idx,
-            op->transparency.start_cycle_delta,
-            op->transparency.end_cycle_delta,
-            op->transparency.from,
-            op->transparency.to,
+            (int16_t)op->transparency.start_cycle_delta,
+            (int16_t)op->transparency.end_cycle_delta,
+            (uint8_t)op->transparency.from,
+            (uint8_t)op->transparency.to,
             op->transparency.use_start);
         break;
     default:
@@ -1152,6 +1170,14 @@ npc_apply_op(
             int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
             if( op->face_entity.modern )
                 World_NpcBeginModernFacing(world, idx, op->face_entity.movement_mode);
+            /* A world entity has no registry here: the gamepack's
+             * missing-target path turns to the fallback angle. */
+            if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY &&
+                op->face_entity.modern )
+            {
+                World_NpcFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
+                break;
+            }
             World_NpcFaceEntityDetailed(
                 world,
                 idx,
@@ -1168,7 +1194,8 @@ npc_apply_op(
                 World_NpcBeginModernFacing(world, idx, op->face_coord.movement_mode);
             World_NpcFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
             npc = World_EntityPoolAt(&world->entities.npc, idx);
-            if( op->face_coord.instant )
+            /* `instant` is as sent: it means nothing without a target. */
+            if( op->face_coord.instant && (op->face_coord.x != 0 || op->face_coord.z != 0) )
                 npc->facing.instant = true;
             npc->face_sent_x = op->face_coord.x;
             npc->face_sent_z = op->face_coord.z;
@@ -1183,21 +1210,28 @@ npc_apply_op(
             World_NpcSetChat(world, idx, op->say.text, 0, 0);
         break;
     case RSPROT_OP_DAMAGE:
-        if( idx >= 0 )
+        /* As the player's: a soak is a second splat, a type of -1 none. */
+        for( int part = 0; idx >= 0 && part < (op->damage.soaked ? 2 : 1); part++ )
+        {
+            int type = part ? op->damage.soak_type : op->damage.damage_type;
+            if( type < 0 )
+                continue;
             World_NpcAddHitmarkTimed(
                 world,
                 idx,
-                op->damage.damage_type,
-                op->damage.damage,
+                type,
+                part ? op->damage.soak_damage : op->damage.damage,
                 op->damage.health,
                 op->damage.total_health,
                 op->damage.delay,
-                op->damage.slots,
+                part ? 0 : op->damage.slots,
                 WORLD_HITMARK_DEFAULT_DURATION,
                 WORLD_HITMARK_POLICY_DISCARD);
+        }
         break;
     case RSPROT_OP_HEADBAR:
-        if( idx >= 0 )
+        /* The npc draws one bar: a block's first. */
+        if( idx >= 0 && op->headbar.index == 0 )
         {
             if( op->headbar.remove )
                 World_NpcClearHealthbar(world, idx);

@@ -2,11 +2,10 @@
 #define RSPROT_TRACE_H
 
 /*
- * Writing a trace (rsprot_exec.h, RsprotTrace): one entry per value read, in
- * wire order, under the reader's name for it. The codec executor
- * (src/net/exec/pkt_exec.c) and the info-stream block readers
- * (streams/rsprot_info_blocks.c) write the same entries, so a host reads both
- * with one parser.
+ * Writing a trace (rsprot_exec.h, RsprotTrace): one entry per value, in
+ * order, under a name for it. The codec executor (src/rsprot_exec.c) writes
+ * each field it reads, and the FFI each info op's fields (ffi/rsprot_ffi.c),
+ * so a host reads both with one parser.
  *
  * Every entry starts u8 tag, u8 name length, the name; then the tag's body
  * (RSPROT_TRACE_PRIM ... RSPROT_TRACE_BITS). An entry that does not fit sets

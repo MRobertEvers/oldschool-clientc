@@ -135,12 +135,12 @@ main(void)
         n = roundtrip(&server, &ext, ops, 64);
         t = find(ops, n, RSPROT_OP_TRANSPARENCY);
         x = find(ops, n, RSPROT_OP_EXACT_MOVE);
-        CHECK(t && t->transparency.start_cycle_delta == 30 && t->transparency.end_cycle_delta == 60 &&
-                  t->transparency.from == 0 && t->transparency.to == 255 &&
+        CHECK(t && (int16_t)t->transparency.start_cycle_delta == 30 && (int16_t)t->transparency.end_cycle_delta == 60 &&
+                  (uint8_t)t->transparency.from == 0 && (uint8_t)t->transparency.to == 255 &&
                   !t->transparency.use_start,
               "transparency start/end/from/to/use-start survive (%d %d %d %d %d)",
               t ? t->transparency.start_cycle_delta : -99, t ? t->transparency.end_cycle_delta : -99,
-              t ? t->transparency.from : -1, t ? t->transparency.to : -1,
+              t ? (uint8_t)t->transparency.from : -1, t ? (uint8_t)t->transparency.to : -1,
               t ? t->transparency.use_start : -1);
         CHECK(x && x->exact_move.start_x == -2 && x->exact_move.end_z == -5 &&
                   x->exact_move.facing == 1280,
@@ -161,8 +161,8 @@ main(void)
         ext.transparency_use_start = 1;
         n = roundtrip(&server, &ext, ops, 64);
         t = find(ops, n, RSPROT_OP_TRANSPARENCY);
-        CHECK(t && t->transparency.start_cycle_delta == 0 && t->transparency.end_cycle_delta == 30 &&
-                  t->transparency.from == 255 && t->transparency.to == 0 &&
+        CHECK(t && (int16_t)t->transparency.start_cycle_delta == 0 && (int16_t)t->transparency.end_cycle_delta == 30 &&
+                  (uint8_t)t->transparency.from == 255 && (uint8_t)t->transparency.to == 0 &&
                   t->transparency.use_start,
               "a transparency block alone (third flag byte) reads back");
 
@@ -170,7 +170,7 @@ main(void)
         ext.transparency_end_cycle = -1;
         n = roundtrip(&server, &ext, ops, 64);
         t = find(ops, n, RSPROT_OP_TRANSPARENCY);
-        CHECK(t && t->transparency.start_cycle_delta == -1 && t->transparency.end_cycle_delta == -1,
+        CHECK(t && (int16_t)t->transparency.start_cycle_delta == -1 && (int16_t)t->transparency.end_cycle_delta == -1,
               "the cycles are signed: (-1, -1) survives");
     }
 

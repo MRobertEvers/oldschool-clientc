@@ -55,8 +55,6 @@
 
 #include "../src/rsprot_buf.h"
 
-struct RsprotTrace;
-
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -211,8 +209,16 @@ typedef enum RsprotInfoOpKind
     RSPROT_OP_ABS_XZLEVEL,
     /** `delta`: a newcomer's offset from the local player / update origin. */
     RSPROT_OP_DELTA_XZ,
+    /** `low_res`: a slot's low-resolution position (the OSRS player stream):
+     *  where a slot leaving high resolution now is, or a low-resolution
+     *  update. Not for the executor, which keeps no low-resolution players. */
+    RSPROT_OP_LOW_RES_POS,
 
     /* --- extended info -------------------------------------------------- */
+    /** `block`: the extended-info block the ops up to the next BLOCK (or the
+     *  next target) were read from. Written first in every block, so a block
+     *  that writes no op -- an empty hit list -- is still in the list. */
+    RSPROT_OP_BLOCK,
     RSPROT_OP_APPEARANCE,
     RSPROT_OP_SEQUENCE,
     RSPROT_OP_FACE_ENTITY,
@@ -235,6 +241,12 @@ typedef enum RsprotInfoOpKind
     RSPROT_OP_BAS_CHANGE,
     RSPROT_OP_HEADICON_CUSTOM,
     RSPROT_OP_BODY_CUSTOM,
+    RSPROT_OP_HEAD_CUSTOM,     /* `body`: the chathead's customisation */
+    RSPROT_OP_MOVE_SPEED,      /* `value`: the slot's traversal from now (signed) */
+    RSPROT_OP_TEMP_MOVE_SPEED, /* `value`: this cycle's traversal (signed) */
+    RSPROT_OP_NAME_EXTRAS,
+    RSPROT_OP_RESET,  /* `value`: the player's reset block, as read */
+    RSPROT_OP_FREEZE, /* `freeze` */
 
     /* --- not for the executor ----------------------------------------------- */
     /** Last, and only when the read was not complete: why, and where
@@ -259,10 +271,31 @@ enum
     RSPROT_TRAVERSAL_SNAP = 127,
 };
 
+/** How an OSRS player slot came by its ABS_XZLEVEL: the high-resolution
+ *  movement opcode, or ADD for a slot entering high resolution. */
 enum
 {
-    RSPROT_BODY_CUSTOM_MODELS_MAX = 8
+    RSPROT_PLAYER_MOVE_ADD = 0,
+    RSPROT_PLAYER_MOVE_WALK = 1,
+    RSPROT_PLAYER_MOVE_RUN = 2,
+    RSPROT_PLAYER_MOVE_TELEPORT = 3,
 };
+
+/** The 238+ facing block's target types (FACE_ENTITY `target_type`). */
+enum
+{
+    RSPROT_FACE_TARGET_NONE = 0,
+    RSPROT_FACE_TARGET_NPC = 1,
+    RSPROT_FACE_TARGET_PLAYER = 2,
+    RSPROT_FACE_TARGET_WORLD_ENTITY = 3,
+};
+
+/*
+ * Every op carries what its block SENT: a field the executor wants converted
+ * (65535 as -1, half-tiles, a soak hit's two splats) is converted where the
+ * conversion keeps the value -- 65535 is still -1 and nothing else -- and kept
+ * as sent beside it where it would not.
+ */
 
 typedef struct RsprotInfoXZLevel
 {
@@ -280,6 +313,8 @@ typedef struct RsprotInfoXZLevel
      *  the exact move's tiles are relative to it -- but the actor neither snaps
      *  nor steps. */
     bool route_only;
+    /** The OSRS player stream: RSPROT_PLAYER_MOVE_*. */
+    uint8_t move;
 } RsprotInfoXZLevel;
 
 typedef struct RsprotInfoDeltaXZ
@@ -289,6 +324,25 @@ typedef struct RsprotInfoDeltaXZ
     bool jump;
 } RsprotInfoDeltaXZ;
 
+/** The 2048-slot table's low-resolution position: level and the 8-bit region
+ *  coordinates (a region is 64 tiles). */
+typedef struct RsprotInfoLowRes
+{
+    uint16_t slot;
+    /** 0: the slot left high resolution; 1 a level change, 2 a step to an
+     *  adjacent region, 3 a move to any region -- the low-resolution opcode. */
+    uint8_t opcode;
+    uint8_t level;
+    uint8_t x;
+    uint8_t z;
+} RsprotInfoLowRes;
+
+typedef struct RsprotInfoBlockMark
+{
+    uint8_t kind; /* RsprotInfoKind */
+    uint32_t bit; /* its flag bit */
+} RsprotInfoBlockMark;
+
 typedef struct RsprotInfoAppearance
 {
     const uint8_t* appearance; /* the list's bytes, natural order */
@@ -297,7 +351,7 @@ typedef struct RsprotInfoAppearance
 
 typedef struct RsprotInfoSequence
 {
-    int sequence_id; /* -1 = clear */
+    int sequence_id; /* -1 = clear (65535) */
     uint8_t delay;
 } RsprotInfoSequence;
 
@@ -306,10 +360,16 @@ typedef struct RsprotInfoFaceEntity
 {
     int32_t entity_id;
     uint16_t fallback_angle;
-    bool has_fallback_angle;
+    bool has_fallback_angle; /* false: the 238+ block's reset */
     bool instant;
     uint8_t movement_mode;
     bool modern; /* the 238+ facing block */
+    /** As sent. The older block: `target_type` 0 and its 24-bit index
+     *  (0x10000 + a player). The 238+ block: RSPROT_FACE_TARGET_* and the
+     *  index; a world entity is no entity here (`entity_id` -1): the
+     *  executor turns to the fallback angle. */
+    uint8_t target_type;
+    int32_t target_index;
 } RsprotInfoFaceEntity;
 
 typedef struct RsprotInfoSay
@@ -317,18 +377,24 @@ typedef struct RsprotInfoSay
     const char* text; /* the list's bytes */
 } RsprotInfoSay;
 
+/* One hit. A soaked hit is ONE op: the executor draws the soak as a second
+ * splat on the same delay. */
 typedef struct RsprotInfoDamage
 {
-    int damage_type;
-    int damage;
+    int damage_type; /* -1: a delay with no splat (the OSRS 0x7FFE) */
+    int damage;      /* -1 with it */
+    bool soaked;     /* the OSRS 0x7FFF form: a soak splat follows */
+    int soak_type;   /* -1 when not soaked */
+    int soak_damage;
     uint8_t health;
     uint8_t total_health;
     uint16_t delay;
-    uint16_t slots;
+    uint16_t slots; /* the 237+ hitmark block's limit; 0 where none is sent */
 } RsprotInfoDamage;
 
 /* Actor.method3504's six wire values, kept apart from a hitsplat: a bar can
- * update with no damage at all. `remove` drops this type. */
+ * update with no damage at all. `remove` drops this type. A block of several
+ * bars writes one op each, `index` its place in the block. */
 typedef struct RsprotInfoHeadbar
 {
     int type;
@@ -337,6 +403,7 @@ typedef struct RsprotInfoHeadbar
     uint8_t start_fill;
     uint8_t end_fill;
     bool remove;
+    uint8_t index;
 } RsprotInfoHeadbar;
 
 /** Half-tile coordinates; 0, 0 is no target. */
@@ -344,9 +411,15 @@ typedef struct RsprotInfoFaceCoord
 {
     int16_t x;
     int16_t z;
-    bool instant;
+    bool instant; /* as sent, target or not */
     uint8_t movement_mode;
     bool modern;
+    /** As sent: the tile (the older block's 0xFFFF is no target) and the
+     *  238+ block's size nibbles. */
+    int32_t tile_x;
+    int32_t tile_z;
+    uint8_t size_x;
+    uint8_t size_z;
 } RsprotInfoFaceCoord;
 
 typedef struct RsprotInfoChat
@@ -355,14 +428,21 @@ typedef struct RsprotInfoChat
     uint8_t type; /* staff-mod level */
     uint8_t length;
     const uint8_t* data; /* the list's bytes: wordpacked, natural order */
+    uint8_t autotyper;
+    /** A pattern colour (13..20) sends colour - 12 pattern bytes; 223-224's
+     *  older block sends none. */
+    uint8_t pattern_count;
+    uint8_t pattern[8];
 } RsprotInfoChat;
 
 typedef struct RsprotInfoSpotAnim
 {
     uint8_t slot;
-    int32_t spotanim_id;  /* -1 clears */
+    int32_t spotanim_id;  /* -1 clears (65535) */
     int32_t height_delay; /* height << 16 | cycle delay */
     bool loop;            /* 240+'s loop byte */
+    bool has_loop;        /* the block sends one */
+    bool single;          /* 223-224's npc block: one, with no count or slot */
 } RsprotInfoSpotAnim;
 
 typedef struct RsprotInfoExactMove
@@ -388,32 +468,35 @@ typedef struct RsprotInfoFaceAngle
 } RsprotInfoFaceAngle;
 
 /* The cycles relative to the client cycle the block lands on, then hue /
- * saturation / lightness / weight as SIGNED bytes: -1 leaves that channel, a
- * weight not > 0 draws no tint (class149.method5142). */
+ * saturation / lightness / weight, each as read -- some revisions send them
+ * signed and some unsigned. The executor takes the four as SIGNED bytes: -1
+ * leaves that channel, a weight not > 0 draws no tint (class149.method5142). */
 typedef struct RsprotInfoTint
 {
     uint16_t start_cycle_delta;
     uint16_t end_cycle_delta;
-    int8_t hue;
-    int8_t saturation;
-    int8_t lightness;
-    int8_t weight;
+    int32_t hue;
+    int32_t saturation;
+    int32_t lightness;
+    int32_t weight;
 } RsprotInfoTint;
 
-/* Signed cycle deltas from arrival, the alphas (0 opaque .. 255 gone), and
- * whether the fade starts from `from` rather than the alpha shown now. */
+/* The cycle deltas from arrival and the alphas, as read (signed or not by
+ * revision): the executor takes the deltas as signed shorts and the alphas as
+ * bytes (0 opaque .. 255 gone). `use_start`: the fade starts from `from`
+ * rather than the alpha shown now (non-zero). */
 typedef struct RsprotInfoTransparency
 {
-    int16_t start_cycle_delta;
-    int16_t end_cycle_delta;
-    uint8_t from;
-    uint8_t to;
-    bool use_start;
+    int32_t start_cycle_delta;
+    int32_t end_cycle_delta;
+    int32_t from;
+    int32_t to;
+    uint8_t use_start;
 } RsprotInfoTransparency;
 
 typedef struct RsprotInfoChangeType
 {
-    int npc_type; /* -1 = back to the spawned type */
+    int npc_type; /* -1 = back to the spawned type (65535) */
 } RsprotInfoChangeType;
 
 typedef struct RsprotInfoNameChange
@@ -446,22 +529,53 @@ typedef struct RsprotInfoBasChange
 } RsprotInfoBasChange;
 
 /* The eight overhead slots the npc draws instead of its type's. mask 0 = back
- * to the type's icons; an unset slot of a non-zero mask draws nothing. */
+ * to the type's icons; an unset slot of a non-zero mask draws nothing (-1). */
 typedef struct RsprotInfoHeadiconCustom
 {
     uint8_t mask;
     int32_t group[8];
-    int16_t index[8];
+    int32_t index[8];
 } RsprotInfoHeadiconCustom;
 
-/* The models the npc draws instead of its type's; `reset` = back to the
- * type's. Colours and textures are read and not carried. */
+/*
+ * A body (BODY_CUSTOM) or chathead (HEAD_CUSTOM) customisation. `flag` is the
+ * block's byte: 0x1 reset (nothing follows), 0x2 models, 0x4 recolours, 0x8
+ * retextures, 0x10 mirror, 0x20 a player composition (the counted forms).
+ * `reset` is the executor's reading: back to the type's models, which a block
+ * without 0x2 also means. The arrays are the list's; absent ones are empty.
+ */
 typedef struct RsprotInfoBodyCustom
 {
     bool reset;
-    uint8_t model_count;
-    int32_t models[RSPROT_BODY_CUSTOM_MODELS_MAX];
+    uint8_t flag;
+    int32_t model_count;
+    const int32_t* models; /* -1: no model (the older form's 65535) */
+    int32_t recolour_count;
+    const int32_t* recolours;
+    int32_t retexture_count;
+    const int32_t* retextures;
+    int32_t mirror;            /* the typed forms' byte (0x10); -1 when not sent */
+    bool has_recolour_all;     /* the V4 form sent a recolour-all */
+    int32_t recolour_all;      /* 65535 still sends the list */
+    int32_t body_type;         /* 0x20; -1 when not sent */
+    int32_t identkit_count;
+    const int32_t* identkits;
 } RsprotInfoBodyCustom;
+
+/** The player's name decorations, as sent. */
+typedef struct RsprotInfoNameExtras
+{
+    const char* before_name; /* the list's bytes */
+    const char* after_name;
+    const char* after_combat_level;
+} RsprotInfoNameExtras;
+
+typedef struct RsprotInfoFreeze
+{
+    int32_t delay;
+    int32_t duration;
+    int32_t cancel;
+} RsprotInfoFreeze;
 
 /** A world entity's extended info (V6+). `flags` is the raw byte. */
 typedef struct RsprotInfoWeExt
@@ -507,7 +621,7 @@ typedef struct RsprotInfoWeAdd
     int32_t has_centre;
     int32_t centre_x;
     int32_t centre_z;
-    /** V1-V2 only: the record's last g2 (RSProx's unknownProperty). */
+    /** V1-V2 only: the record's last g2. */
     int32_t unknown;
     RsprotInfoWeExt ext;
 } RsprotInfoWeAdd;
@@ -515,7 +629,7 @@ typedef struct RsprotInfoWeAdd
 typedef enum RsprotInfoStopReason
 {
     RSPROT_STOP_ERROR = 1,    /* the payload ran out, or a bit section was malformed */
-    RSPROT_STOP_ILLEGAL_FLAG, /* `flags` has a bit RSProx throws on */
+    RSPROT_STOP_ILLEGAL_FLAG, /* `flags` has a bit no layout exists for */
     RSPROT_STOP_BLOCK,        /* block `kind` (`block_flag`) did not read to its end */
     RSPROT_STOP_TRAILING,     /* everything read, and bytes are left */
 } RsprotInfoStopReason;
@@ -538,6 +652,8 @@ typedef struct RsprotInfoOp
         uint64_t value;
         RsprotInfoXZLevel xz_level;
         RsprotInfoDeltaXZ delta_xz;
+        RsprotInfoLowRes low_res;
+        RsprotInfoBlockMark block;
         RsprotInfoAppearance appearance;
         RsprotInfoSequence sequence;
         RsprotInfoFaceEntity face_entity;
@@ -556,6 +672,8 @@ typedef struct RsprotInfoOp
         RsprotInfoBasChange bas_change;
         RsprotInfoHeadiconCustom headicon;
         RsprotInfoBodyCustom body;
+        RsprotInfoNameExtras name_extras;
+        RsprotInfoFreeze freeze;
         RsprotInfoStop stop;
         RsprotInfoWeMove we_move;
         RsprotInfoWeAdd we_add;
@@ -577,15 +695,6 @@ typedef struct RsprotInfoList
     /** An op or a byte did not fit; the read carried on so a player table
      *  stayed in step, but the list is incomplete. */
     int overflow;
-    /**
-     * Optional: the extended-info blocks' reads, by name (rsprot_exec.h's
-     * RsprotTrace format), for a host that builds its own models from them.
-     * Each entity's blocks start with `#who` (the extended-info target, as
-     * SET_EXT / ADD_NEW name it) and `#flag` (its flag word), each block with
-     * `#block` (its RsprotInfoKind). Set it after rsprot_info_list_init; a
-     * reader keeps it.
-     */
-    struct RsprotTrace* trace;
 } RsprotInfoList;
 
 /** Arm `list` over the caller's arrays. A reader empties it before it writes. */
@@ -623,6 +732,10 @@ const char* rsprot_info_text(RsprotInfoList* out, const char* s, int32_t len);
  *  fit. */
 const uint8_t* rsprot_info_blob(RsprotInfoList* out, const uint8_t* src, int32_t len, int order);
 
+/** `n` zeroed ints in the arena, aligned. NULL for none, and NULL with
+ *  overflow when they do not fit. */
+int32_t* rsprot_info_ints(RsprotInfoList* out, int32_t n);
+
 /**
  * CUSTOM_TYPED / HEAD_CUSTOM_TYPED carry their recolour and retexture arrays
  * with no count: the length is the npc TYPE's (RSProx reads recoldest /
@@ -636,6 +749,107 @@ typedef int (*RsprotNpcTypeLengths)(
     int head,
     int* recolours,
     int* retextures);
+
+/* ------------------------------------------------------------------ */
+/* The appearance blob                                                 */
+/* ------------------------------------------------------------------ */
+
+/*
+ * PLAYER_INFO's appearance block -- the blob RSPROT_OP_APPEARANCE carries --
+ * read whole. Four versions over 223-241, which differ only in a worn slot's
+ * obj customisation:
+ *
+ *   v1 223-225  recolour / retexture: an index byte, then a g2 per index not 15
+ *   v2 226-236  v1, then the wear (0x4) and head (0x8) models, g2 each
+ *   v3 237-240  v2 with g4 models
+ *   v4 241      counted recolour / retexture lists of (g1 index, g2 value), a
+ *               colour override (0x10: g1 flag, g2 colour), g4 models
+ *
+ * Every value is as sent. The strings point into the blob, which holds them
+ * NUL-terminated: they live as long as it does.
+ */
+
+#define RSPROT_APPEARANCE_SLOTS 12
+#define RSPROT_APPEARANCE_REPLACEMENTS_MAX 255
+
+typedef struct RsprotAppearanceReplacement
+{
+    uint8_t index;
+    uint16_t value;
+} RsprotAppearanceReplacement;
+
+/** One worn slot's obj customisation. `flag`: 0x1 recolours, 0x2 retextures,
+ *  0x4 wear models, 0x8 head models, 0x10 (v4) a colour override. */
+typedef struct RsprotAppearanceObj
+{
+    uint8_t flag;
+    /* v1-v3: two indices in a byte (15: none), a value for each index sent;
+     * -1 where none was. */
+    uint8_t recolour_indices;
+    int32_t recolour[2];
+    uint8_t retexture_indices;
+    int32_t retexture[2];
+    /* v4: counted lists. */
+    uint8_t recolour_count;
+    RsprotAppearanceReplacement recolours[RSPROT_APPEARANCE_REPLACEMENTS_MAX];
+    uint8_t retexture_count;
+    RsprotAppearanceReplacement retextures[RSPROT_APPEARANCE_REPLACEMENTS_MAX];
+    uint8_t override_colour;
+    uint16_t colour;
+    /* v2+: -1 where not sent. */
+    int32_t man_wear;
+    int32_t woman_wear;
+    int32_t man_head;
+    int32_t woman_head;
+} RsprotAppearanceObj;
+
+typedef struct RsprotAppearance
+{
+    int8_t gender;
+    int8_t skull_icon;
+    int8_t overhead_icon;
+    /** Each worn slot's kit, (flag byte << 8) + its second byte; 0 for a flag
+     *  of 0, which sends no second byte. A first kit of 65535 is a transformed
+     *  player: `npc_id` follows and the rest are not sent (0). */
+    uint16_t kits[RSPROT_APPEARANCE_SLOTS];
+    int32_t npc_id; /* -1: not transformed */
+    /** The interface's kits, the same encoding. */
+    uint16_t interface_kits[RSPROT_APPEARANCE_SLOTS];
+    uint8_t colours[5];
+    uint16_t ready_anim;
+    uint16_t turn_anim;
+    uint16_t walk_anim;
+    uint16_t walk_back_anim;
+    uint16_t walk_left_anim;
+    uint16_t walk_right_anim;
+    uint16_t run_anim;
+    const char* name;
+    uint8_t combat_level;
+    uint16_t skill_level;
+    uint8_t hidden;
+    /** Bit (12 - slot) per customised slot, 0x8000 a forced refresh; no slot
+     *  follows when it is 0 or 0x8000 alone. */
+    uint16_t customisation;
+    RsprotAppearanceObj objs[RSPROT_APPEARANCE_SLOTS];
+    const char* before_name;
+    const char* after_name;
+    const char* after_combat_level;
+    int8_t text_gender;
+} RsprotAppearance;
+
+typedef int (*RsprotAppearanceReadFn)(
+    const uint8_t* data,
+    int32_t len,
+    RsprotAppearance* out);
+
+/** Each returns 1, or 0 when the blob is short or a string is unterminated. */
+int rsprot_appearance_v1(const uint8_t* data, int32_t len, RsprotAppearance* out);
+int rsprot_appearance_v2(const uint8_t* data, int32_t len, RsprotAppearance* out);
+int rsprot_appearance_v3(const uint8_t* data, int32_t len, RsprotAppearance* out);
+int rsprot_appearance_v4(const uint8_t* data, int32_t len, RsprotAppearance* out);
+
+/** The version `revision` sends; NULL outside 223-241. */
+RsprotAppearanceReadFn rsprot_appearance_reader(int revision);
 
 /* ------------------------------------------------------------------ */
 /* Readers                                                             */
@@ -656,21 +870,7 @@ typedef struct RsprotPlayerInfo
     /** Each slot's persistent traversal (the MOVE_SPEED block's; walk until
      *  one arrives): class95.field1344 in the reference. */
     int8_t move_speed[RSPROT_INFO_PLAYER_SLOTS];
-    /** What the last packet did to each slot (RsprotPlayerUpdate), as RSProx's
-     *  PlayerInfoClient classifies it. */
-    uint8_t update_type[RSPROT_INFO_PLAYER_SLOTS];
 } RsprotPlayerInfo;
-
-/** A slot's update in one PLAYER_INFO (PlayerInfoClient.UpdateType). */
-typedef enum RsprotPlayerUpdate
-{
-    RSPROT_PLAYER_LOW_RESOLUTION_IDLE = 0,
-    RSPROT_PLAYER_HIGH_RESOLUTION_IDLE,
-    RSPROT_PLAYER_LOW_RESOLUTION_TO_HIGH_RESOLUTION,
-    RSPROT_PLAYER_HIGH_RESOLUTION_MOVEMENT,
-    RSPROT_PLAYER_LOW_RESOLUTION_MOVEMENT,
-    RSPROT_PLAYER_HIGH_RESOLUTION_TO_LOW_RESOLUTION,
-} RsprotPlayerUpdate;
 
 /** A fresh table, owned by `local_index`. The table is the same at every
  *  revision; only the reader that walks it is per version. */
@@ -687,19 +887,6 @@ rsprot_player_info_init(
     const uint8_t* data,
     int32_t len);
 
-/**
- * PLAYER_INFO's appearance block -- the blob RSPROT_OP_APPEARANCE carries --
- * read field by field into `trace` (rsprot_exec.h's format) as RSProx's
- * PlayerInfoClient.decodeAppearance reads it at `revision`, under its
- * variables' names. Returns 1; 0 when the blob is short or the revision has no
- * layout.
- */
-int
-rsprot_info_appearance_trace(
-    int revision,
-    const uint8_t* data,
-    int32_t len,
-    struct RsprotTrace* trace);
 
 /** Parse a GPI init block: the local player's absolute coordinate and every
  *  other slot's 18-bit rough position (0 for slot 0 and the local slot).

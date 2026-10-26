@@ -6,14 +6,13 @@
  * the per-revision prot tables, and any packet decoded by its codec into a
  * trace of named values (rsprot_exec.h, RsprotTrace).
  *
- * Built as a shared library from the library and the host executor
- * (src/net/exec/pkt_exec.c, pkt_codec_storage.c). Every call is reentrant per
- * thread: message storage is thread-local.
+ * Built as a shared library from the library alone. Every call is reentrant
+ * per thread: message storage is thread-local.
  */
 
 #include <stdint.h>
 
-#define RSPROT_FFI_ABI 2
+#define RSPROT_FFI_ABI 3
 
 /** RSPROT_FFI_ABI, for a binding to check what it loaded. */
 int rsprot_ffi_abi(void);
@@ -99,11 +98,11 @@ int rsprot_ffi_zone_grid(const uint8_t *data, int len, int count, int key_count,
 
 /* --- the info streams ----------------------------------------------------
  *
- * Each read writes one trace into `out`: first what the stream says about its
- * entities, then -- from `*blocks_at` -- the extended-info blocks' reads by
- * name, each entity's opened by `#who` / `#flag` and each block by `#block`
- * (RsprotInfoList.trace). Returns the trace's length; -1 no reader carries the
- * prot at the revision, -2 the read stopped (`err` says why), -3 `out` is full.
+ * Each read writes its op list (streams/rsprot_info.h) into `out` as one trace:
+ * per op, `#op` (its RsprotInfoOpKind) and `who`, then every field of the op
+ * by its field name -- an array as one entry per element, under the array's
+ * name. Returns the trace's length; -1 no reader carries the prot at the
+ * revision, -2 the read stopped (`err` says why), -3 `out` is full.
  */
 
 /** A PLAYER_INFO table (RsprotPlayerInfo), owned by the local player. */
@@ -121,41 +120,35 @@ int rsprot_ffi_gpi(int local_index, const uint8_t *gpi, int len, int32_t *coord,
 /** Seed the table from a parsed GPI init block (rsprot_ffi_gpi). */
 void rsprot_ffi_players_seed(void *players, int32_t coord, const int32_t *positions);
 
-/*
- * PLAYER_INFO. The first part is one record per slot the packet did more than
- * leave in low resolution: `index`, `type` (RsprotPlayerUpdate) and `coord` --
- * the slot's absolute coordinate, or for the two low-resolution types its
- * rough position (level << 28 | x << 14 | z, 8-bit x and z).
- */
+/** PLAYER_INFO, on the table `players`. */
 int rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len,
-                           uint8_t *out, int cap, int *blocks_at, char *err, int err_cap);
+                           uint8_t *out, int cap, char *err, int err_cap);
 
 /**
  * An npc type's recolour / retexture counts, which CUSTOM_TYPED's arrays take
  * their length from: for `type`, or -- when the read has not named the npc's
  * type (it was in view before this packet, and has not transformed in it) --
  * for the npc at `old_position` in the host's list from the previous packet.
+ * A CHANGE_TYPE's `type` is as sent: 65535 is back to the spawned type.
  * Return 0 when unknown: the read stops there.
  */
 typedef int (*RsprotFfiNpcLengths)(int old_position, int type, int head, int *recolours,
                                    int *retextures);
 
-/*
- * NPC_INFO_SMALL / NPC_INFO_LARGE (`prot` its table name: NPC_INFO_LARGE_V5,
- * ...). The first part is the op list (rsprot_info.h), one `#op` entry (its
- * RsprotInfoOpKind) then its fields by name, the extended-info ops left out.
- */
+/** NPC_INFO_SMALL / NPC_INFO_LARGE (`prot` its table name: NPC_INFO_LARGE_V5,
+ *  ...). */
 int rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len,
-                        RsprotFfiNpcLengths lengths, uint8_t *out, int cap, int *blocks_at,
-                        char *err, int err_cap);
+                        RsprotFfiNpcLengths lengths, uint8_t *out, int cap, char *err,
+                        int err_cap);
 
-/** A player's appearance block (the PLAYER_INFO trace's `data` blob of an
- *  appearance `#block`), field by field: rsprot_info_appearance_trace. */
+/** An APPEARANCE op's blob, read by `revision`'s version (RsprotAppearance)
+ *  into a trace of its fields by name, the same way. -1 no version covers the
+ *  revision, -2 the blob did not read, -3 `out` is full. */
 int rsprot_ffi_appearance(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
                           char *err, int err_cap);
 
 /** WORLDENTITY_INFO_V1..V7, the same way. */
 int rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data, int len,
-                                uint8_t *out, int cap, int *blocks_at, char *err, int err_cap);
+                                uint8_t *out, int cap, char *err, int err_cap);
 
 #endif

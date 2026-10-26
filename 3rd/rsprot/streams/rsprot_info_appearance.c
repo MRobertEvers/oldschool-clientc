@@ -1,189 +1,206 @@
 /*
- * PLAYER_INFO's appearance block, field by field -- see
- * rsprot_info_appearance_trace in rsprot_info.h.
- *
- * Transcribed from RSProx's PlayerInfoClient.decodeAppearance, which has four
- * shapes over 223-241; they differ only in the per-slot obj customisation:
- *
- *   A 223-225  recolour / retexture: an index byte, then a g2 per index not 15
- *   B 226-236  A, then the wear (0x4) and head (0x8) models, g2 each
- *   C 237-240  B with g4 models
- *   D 241      counted recolour / retexture lists of (g1 index, g2 value),
- *              a colour override (0x10: g1 flag, g2 colour), g4 models
- *
- * The names are RSProx's variables'. Every value is as read (g1s signed).
+ * PLAYER_INFO's appearance blob, read whole -- see RsprotAppearance in
+ * rsprot_info.h. Transcribed from RSProx's PlayerInfoClient.decodeAppearance;
+ * the four versions differ only in a worn slot's obj customisation (slot_v1 ..
+ * slot_v4).
  */
 #include "rsprot_info.h"
 
-#include "../include/rsprot_trace.h"
-
 #include <assert.h>
+#include <string.h>
 
-typedef struct Appearance
-{
-    RsprotBuf *b;
-    RsprotTrace *t;
-} Appearance;
-
-static int32_t
-u1(Appearance *a, const char *name)
-{
-    int32_t v = rsprot_g1(a->b);
-
-    rsprot_trace_prim(a->t, 0, v, name);
-    return v;
-}
-
-static int32_t
-s1(Appearance *a, const char *name)
-{
-    int32_t v = rsprot_g1s(a->b);
-
-    rsprot_trace_prim(a->t, 0, v, name);
-    return v;
-}
-
-static int32_t
-u2(Appearance *a, const char *name)
-{
-    int32_t v = rsprot_g2(a->b);
-
-    rsprot_trace_prim(a->t, 0, v, name);
-    return v;
-}
-
-static int32_t
-u4(Appearance *a, const char *name)
-{
-    int32_t v = rsprot_g4(a->b);
-
-    rsprot_trace_prim(a->t, 0, v, name);
-    return v;
-}
-
-static void
-str(Appearance *a, const char *name)
+/* A string, pointing into the blob (which holds it NUL-terminated). */
+static const char *
+str(RsprotBuf *b)
 {
     int32_t n = 0;
-    const char *s = rsprot_gjstr(a->b, &n);
+    const char *s = rsprot_gjstr(b, &n);
 
-    rsprot_trace_bytes(a->t, RSPROT_TRACE_STR, 0, (const uint8_t *)s, s ? n : -1, name);
+    return s ? s : "";
 }
 
-/* A / B / C: an index byte; each nibble not 15 names a g2 that follows. */
+/* v1-v3: an index byte; each nibble not 15 names a g2 that follows. */
 static void
-index_pair(Appearance *a, const char *indices, const char *first, const char *second)
+index_pair(RsprotBuf *b, uint8_t *indices, int32_t value[2])
 {
-    int32_t v = u1(a, indices);
-
-    if ((v & 15) != 15)
-        u2(a, first);
-    if (((v >> 4) & 15) != 15)
-        u2(a, second);
+    *indices = (uint8_t)rsprot_g1(b);
+    if ((*indices & 15) != 15)
+        value[0] = rsprot_g2(b);
+    if (((*indices >> 4) & 15) != 15)
+        value[1] = rsprot_g2(b);
 }
 
 static void
-models(Appearance *a, int32_t flag, int wide)
+models(RsprotBuf *b, RsprotAppearanceObj *o, int wide)
 {
-    int32_t (*read)(Appearance *, const char *) = wide ? u4 : u2;
+    int32_t (*read)(RsprotBuf *) = wide ? rsprot_g4 : rsprot_g2;
 
-    if ((flag & 0x4) != 0) {
-        read(a, "man_wear");
-        read(a, "woman_wear");
+    if ((o->flag & 0x4) != 0) {
+        o->man_wear = read(b);
+        o->woman_wear = read(b);
     }
-    if ((flag & 0x8) != 0) {
-        read(a, "man_head");
-        read(a, "woman_head");
-    }
-}
-
-static void
-replacements(Appearance *a, const char *count, const char *index, const char *value)
-{
-    int32_t n = u1(a, count);
-
-    for (int32_t i = 0; i < n && !a->b->err; i++) {
-        u1(a, index);
-        u2(a, value);
+    if ((o->flag & 0x8) != 0) {
+        o->man_head = read(b);
+        o->woman_head = read(b);
     }
 }
 
 static void
-slot(Appearance *a, int revision)
+appearance_pairs(RsprotBuf *b, RsprotAppearanceObj *o)
 {
-    int32_t flag = u1(a, "slot_flag");
-
-    if (revision >= 241) {
-        if ((flag & 0x1) != 0)
-            replacements(a, "recolour_count", "recolour_index", "recolour_value");
-        if ((flag & 0x2) != 0)
-            replacements(a, "retexture_count", "retexture_index", "retexture_value");
-        if ((flag & 0x10) != 0) {
-            u1(a, "override_colour");
-            u2(a, "slot_colour");
-        }
-        models(a, flag, 1);
-        return;
-    }
-    if ((flag & 0x1) != 0)
-        index_pair(a, "recol_indices", "recol1", "recol2");
-    if ((flag & 0x2) != 0)
-        index_pair(a, "retex_indices", "retex1", "retex2");
-    if (revision >= 226)
-        models(a, flag, revision >= 237);
+    if ((o->flag & 0x1) != 0)
+        index_pair(b, &o->recolour_indices, o->recolour);
+    if ((o->flag & 0x2) != 0)
+        index_pair(b, &o->retexture_indices, o->retexture);
 }
 
-int
-rsprot_info_appearance_trace(int revision, const uint8_t *data, int32_t len, RsprotTrace *trace)
+static void
+slot_v1(RsprotBuf *b, RsprotAppearanceObj *o)
+{
+    appearance_pairs(b, o);
+}
+
+static void
+slot_v2(RsprotBuf *b, RsprotAppearanceObj *o)
+{
+    appearance_pairs(b, o);
+    models(b, o, 0);
+}
+
+static void
+slot_v3(RsprotBuf *b, RsprotAppearanceObj *o)
+{
+    appearance_pairs(b, o);
+    models(b, o, 1);
+}
+
+static uint8_t
+replacements(RsprotBuf *b, RsprotAppearanceReplacement *out)
+{
+    int32_t n = rsprot_g1(b);
+
+    for (int32_t i = 0; i < n && !b->err; i++) {
+        out[i].index = (uint8_t)rsprot_g1(b);
+        out[i].value = (uint16_t)rsprot_g2(b);
+    }
+    return (uint8_t)n;
+}
+
+static void
+slot_v4(RsprotBuf *b, RsprotAppearanceObj *o)
+{
+    if ((o->flag & 0x1) != 0)
+        o->recolour_count = replacements(b, o->recolours);
+    if ((o->flag & 0x2) != 0)
+        o->retexture_count = replacements(b, o->retextures);
+    if ((o->flag & 0x10) != 0) {
+        o->override_colour = (uint8_t)rsprot_g1(b);
+        o->colour = (uint16_t)rsprot_g2(b);
+    }
+    models(b, o, 1);
+}
+
+static int
+appearance_read(const uint8_t *data, int32_t len, RsprotAppearance *a,
+     void (*slot)(RsprotBuf *, RsprotAppearanceObj *))
 {
     RsprotBuf b;
-    Appearance a = { &b, trace };
-    int32_t customisation;
 
-    assert(trace);
-    if (revision < 223 || revision > 241)
-        return 0;
+    assert(data);
+    assert(a);
+    memset(a, 0, sizeof(*a));
+    a->npc_id = -1;
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS; i++) {
+        RsprotAppearanceObj *o = &a->objs[i];
+
+        o->recolour[0] = o->recolour[1] = -1;
+        o->retexture[0] = o->retexture[1] = -1;
+        o->man_wear = o->woman_wear = o->man_head = o->woman_head = -1;
+    }
     rsprot_buf_wrap_read(&b, data, len);
-    s1(&a, "gender");
-    s1(&a, "skull_icon");
-    s1(&a, "overhead_icon");
-    for (int i = 0; i < 12 && !b.err; i++) {
-        int32_t flag = u1(&a, "ident_flag");
-        int32_t extra;
+    a->gender = (int8_t)rsprot_g1s(&b);
+    a->skull_icon = (int8_t)rsprot_g1s(&b);
+    a->overhead_icon = (int8_t)rsprot_g1s(&b);
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS && !b.err; i++) {
+        int32_t flag = rsprot_g1(&b);
 
         if (flag == 0)
             continue;
-        extra = u1(&a, "ident_extra");
-        /* The first kit 65535: a transformed player, an npc id instead of kits. */
-        if (i == 0 && (flag << 8) + extra == 65535) {
-            u2(&a, "transformed_npc_id");
+        a->kits[i] = (uint16_t)((flag << 8) + rsprot_g1(&b));
+        if (i == 0 && a->kits[i] == 65535) {
+            a->npc_id = rsprot_g2(&b);
             break;
         }
     }
-    for (int i = 0; i < 12 && !b.err; i++)
-        if (u1(&a, "interface_value") != 0)
-            u1(&a, "interface_extra");
+    for (int i = 0; i < RSPROT_APPEARANCE_SLOTS && !b.err; i++) {
+        int32_t flag = rsprot_g1(&b);
+
+        if (flag != 0)
+            a->interface_kits[i] = (uint16_t)((flag << 8) + rsprot_g1(&b));
+    }
     for (int i = 0; i < 5; i++)
-        u1(&a, "colour");
-    u2(&a, "ready_anim");
-    u2(&a, "turn_anim");
-    u2(&a, "walk_anim");
-    u2(&a, "walk_anim_back");
-    u2(&a, "walk_anim_left");
-    u2(&a, "walk_anim_right");
-    u2(&a, "run_anim");
-    str(&a, "name");
-    u1(&a, "combat_level");
-    u2(&a, "skill_level");
-    u1(&a, "hidden");
-    customisation = u2(&a, "customisation_flag");
-    if (customisation > 0 && customisation != 32768)
-        for (int i = 0; i < 12 && !b.err; i++)
-            if (((customisation >> (12 - i)) & 1) != 0)
-                slot(&a, revision);
-    str(&a, "before_name");
-    str(&a, "after_name");
-    str(&a, "after_combat_level");
-    s1(&a, "text_gender");
+        a->colours[i] = (uint8_t)rsprot_g1(&b);
+    a->ready_anim = (uint16_t)rsprot_g2(&b);
+    a->turn_anim = (uint16_t)rsprot_g2(&b);
+    a->walk_anim = (uint16_t)rsprot_g2(&b);
+    a->walk_back_anim = (uint16_t)rsprot_g2(&b);
+    a->walk_left_anim = (uint16_t)rsprot_g2(&b);
+    a->walk_right_anim = (uint16_t)rsprot_g2(&b);
+    a->run_anim = (uint16_t)rsprot_g2(&b);
+    a->name = str(&b);
+    a->combat_level = (uint8_t)rsprot_g1(&b);
+    a->skill_level = (uint16_t)rsprot_g2(&b);
+    a->hidden = (uint8_t)rsprot_g1(&b);
+    a->customisation = (uint16_t)rsprot_g2(&b);
+    if (a->customisation > 0 && a->customisation != 32768) {
+        for (int i = 0; i < RSPROT_APPEARANCE_SLOTS && !b.err; i++) {
+            if (((a->customisation >> (12 - i)) & 1) != 0) {
+                a->objs[i].flag = (uint8_t)rsprot_g1(&b);
+                slot(&b, &a->objs[i]);
+            }
+        }
+    }
+    a->before_name = str(&b);
+    a->after_name = str(&b);
+    a->after_combat_level = str(&b);
+    a->text_gender = (int8_t)rsprot_g1s(&b);
     return !b.err;
+}
+
+int
+rsprot_appearance_v1(const uint8_t *data, int32_t len, RsprotAppearance *out)
+{
+    return appearance_read(data, len, out, slot_v1);
+}
+
+int
+rsprot_appearance_v2(const uint8_t *data, int32_t len, RsprotAppearance *out)
+{
+    return appearance_read(data, len, out, slot_v2);
+}
+
+int
+rsprot_appearance_v3(const uint8_t *data, int32_t len, RsprotAppearance *out)
+{
+    return appearance_read(data, len, out, slot_v3);
+}
+
+int
+rsprot_appearance_v4(const uint8_t *data, int32_t len, RsprotAppearance *out)
+{
+    return appearance_read(data, len, out, slot_v4);
+}
+
+RsprotAppearanceReadFn
+rsprot_appearance_reader(int revision)
+{
+    if (revision < 223 || revision > 241)
+        return NULL;
+    if (revision <= 225)
+        return rsprot_appearance_v1;
+    if (revision <= 236)
+        return rsprot_appearance_v2;
+    if (revision <= 240)
+        return rsprot_appearance_v3;
+    return rsprot_appearance_v4;
 }

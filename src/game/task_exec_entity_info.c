@@ -61,7 +61,7 @@ headbar_from_block(
 
 enum
 {
-    ENTITY_INFO_OPS_MAX = 2048,
+    ENTITY_INFO_OPS_MAX = 4096,
     /* The list's strings and blobs: no more than the payload (a var-short)
      * and a NUL per op. */
     ENTITY_INFO_BYTES_MAX = 65536 + ENTITY_INFO_OPS_MAX,
@@ -170,7 +170,7 @@ npc_trace(
  *
  * Both decoders below write into an ENTITY_INFO_OPS_MAX list (ops plus the
  * byte arena their strings and blobs live in) and drop it when the packet
- * finishes. That is ~200KB, and the server sends PLAYER_INFO and NPC_INFO on
+ * finishes. That is ~460KB, and the server sends PLAYER_INFO and NPC_INFO on
  * every tick, so keep one list per decoder on App and hand it back instead.
  * Nothing outlives the task: an op's text points into the arena.
  *
@@ -656,6 +656,13 @@ player_apply_op(
         int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
         if( op->face_entity.modern )
             World_PlayerBeginModernFacing(world, idx, op->face_entity.movement_mode);
+        /* A world entity has no registry here: the gamepack's missing-target
+         * path turns to the fallback angle. */
+        if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY && op->face_entity.modern )
+        {
+            World_PlayerFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
+            break;
+        }
         World_PlayerFaceEntityDetailed(
             world,
             idx,
@@ -671,7 +678,8 @@ player_apply_op(
         if( op->face_coord.modern )
             World_PlayerBeginModernFacing(world, idx, op->face_coord.movement_mode);
         World_PlayerFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
-        if( op->face_coord.instant )
+        /* `instant` is as sent: it means nothing without a target. */
+        if( op->face_coord.instant && (op->face_coord.x != 0 || op->face_coord.z != 0) )
         {
             struct WorldEntity_Player* player =
                 World_EntityPoolGet(&world->entities.player, idx);
@@ -739,23 +747,34 @@ player_apply_op(
         break;
     case RSPROT_OP_DAMAGE:
     case RSPROT_OP_DAMAGE2:
-        World_PlayerAddHitmarkTimed(
-            world,
-            idx,
-            op->damage.damage_type,
-            op->damage.damage,
-            op->damage.health,
-            op->damage.total_health,
-            op->damage.delay,
-            op->damage.slots,
-            /* Duration and slot-full policy are the hitsplat TYPE's, from the
-             * config group (opcodes 9 and 12) — not fixed client constants. The
-             * accessors fall back to the reference's own defaults (70, discard)
-             * when the cache has no record, which is what was hardcoded before. */
-            RS_Hitsplats_DurationFor(&self->app->hitsplats, op->damage.damage_type),
-            RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, op->damage.damage_type));
+        /* A soaked hit draws its soak as a second splat on the same delay; a
+         * delay-only hit (type -1) draws nothing. */
+        for( int part = 0; part < (op->damage.soaked ? 2 : 1); part++ )
+        {
+            int type = part ? op->damage.soak_type : op->damage.damage_type;
+            if( type < 0 )
+                continue;
+            World_PlayerAddHitmarkTimed(
+                world,
+                idx,
+                type,
+                part ? op->damage.soak_damage : op->damage.damage,
+                op->damage.health,
+                op->damage.total_health,
+                op->damage.delay,
+                part ? 0 : op->damage.slots,
+                /* Duration and slot-full policy are the hitsplat TYPE's, from
+                 * the config group (opcodes 9 and 12) — not fixed client
+                 * constants. The accessors fall back to the reference's own
+                 * defaults (70, discard) when the cache has no record. */
+                RS_Hitsplats_DurationFor(&self->app->hitsplats, type),
+                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, type));
+        }
         break;
     case RSPROT_OP_HEADBAR:
+        /* The entity draws one bar: a block's first. */
+        if( op->headbar.index != 0 )
+            break;
         if( op->headbar.remove )
             World_PlayerClearHealthbar(world, idx);
         else
@@ -827,17 +846,17 @@ player_apply_op(
     case RSPROT_OP_TINT:
         if( torirs_env_net_debug() )
             TORIRS_LOG("player_info: tint idx=%d cycles +%d..+%d hsl=%d,%d,%d weight=%d\n",
-                idx, op->tint.start_cycle_delta, op->tint.end_cycle_delta, op->tint.hue,
-                op->tint.saturation, op->tint.lightness, op->tint.weight);
+                idx, op->tint.start_cycle_delta, op->tint.end_cycle_delta, (int8_t)op->tint.hue,
+                (int8_t)op->tint.saturation, (int8_t)op->tint.lightness, (int8_t)op->tint.weight);
         World_PlayerSetTint(
             world,
             idx,
             op->tint.start_cycle_delta,
             op->tint.end_cycle_delta,
-            op->tint.hue,
-            op->tint.saturation,
-            op->tint.lightness,
-            op->tint.weight);
+            (int8_t)op->tint.hue,
+            (int8_t)op->tint.saturation,
+            (int8_t)op->tint.lightness,
+            (int8_t)op->tint.weight);
         break;
     case RSPROT_OP_FACE_ANGLE:
         if( op->face_angle.modern )
@@ -848,10 +867,10 @@ player_apply_op(
         World_PlayerSetTransparency(
             world,
             idx,
-            op->transparency.start_cycle_delta,
-            op->transparency.end_cycle_delta,
-            op->transparency.from,
-            op->transparency.to,
+            (int16_t)op->transparency.start_cycle_delta,
+            (int16_t)op->transparency.end_cycle_delta,
+            (uint8_t)op->transparency.from,
+            (uint8_t)op->transparency.to,
             op->transparency.use_start);
         break;
     default:
@@ -1456,6 +1475,14 @@ npc_apply_op(
             int entity_id = op->face_entity.entity_id == 65535 ? -1 : op->face_entity.entity_id;
             if( op->face_entity.modern )
                 World_NpcBeginModernFacing(world, idx, op->face_entity.movement_mode);
+            /* A world entity has no registry here: the gamepack's
+             * missing-target path turns to the fallback angle. */
+            if( op->face_entity.target_type == RSPROT_FACE_TARGET_WORLD_ENTITY &&
+                op->face_entity.modern )
+            {
+                World_NpcFaceAngle(world, idx, op->face_entity.fallback_angle, op->face_entity.instant);
+                break;
+            }
             World_NpcFaceEntityDetailed(
                 world,
                 idx,
@@ -1473,7 +1500,8 @@ npc_apply_op(
                 World_NpcBeginModernFacing(world, idx, op->face_coord.movement_mode);
             World_NpcFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);
             struct WorldEntity_NPC* npc = World_EntityPoolAt(&world->entities.npc, idx);
-            if( op->face_coord.instant )
+            /* `instant` is as sent: it means nothing without a target. */
+            if( op->face_coord.instant && (op->face_coord.x != 0 || op->face_coord.z != 0) )
                 npc->facing.instant = true;
             /* What the server SENT, kept past the turn that consumes
              * facing.square_x/z (WorldEntity_NPC.face_sent_x). */
@@ -1503,21 +1531,28 @@ npc_apply_op(
             World_NpcSetChat(world, idx, op->say.text, 0, 0);
         break;
     case RSPROT_OP_DAMAGE:
-        if( idx >= 0 )
+        /* As the player's: a soak is a second splat, a type of -1 none. */
+        for( int part = 0; idx >= 0 && part < (op->damage.soaked ? 2 : 1); part++ )
+        {
+            int type = part ? op->damage.soak_type : op->damage.damage_type;
+            if( type < 0 )
+                continue;
             World_NpcAddHitmarkTimed(
                 world,
                 idx,
-                op->damage.damage_type,
-                op->damage.damage,
+                type,
+                part ? op->damage.soak_damage : op->damage.damage,
                 op->damage.health,
                 op->damage.total_health,
                 op->damage.delay,
-                op->damage.slots,
-                RS_Hitsplats_DurationFor(&self->app->hitsplats, op->damage.damage_type),
-                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, op->damage.damage_type));
+                part ? 0 : op->damage.slots,
+                RS_Hitsplats_DurationFor(&self->app->hitsplats, type),
+                RS_Hitsplats_SlotPolicyFor(&self->app->hitsplats, type));
+        }
         break;
     case RSPROT_OP_HEADBAR:
-        if( idx >= 0 )
+        /* The npc draws one bar: a block's first. */
+        if( idx >= 0 && op->headbar.index == 0 )
         {
             if( op->headbar.remove )
                 World_NpcClearHealthbar(world, idx);
@@ -1655,20 +1690,20 @@ npc_apply_op(
                 idx,
                 op->tint.start_cycle_delta,
                 op->tint.end_cycle_delta,
-                op->tint.hue,
-                op->tint.saturation,
-                op->tint.lightness,
-                op->tint.weight);
+                (int8_t)op->tint.hue,
+                (int8_t)op->tint.saturation,
+                (int8_t)op->tint.lightness,
+                (int8_t)op->tint.weight);
         break;
     case RSPROT_OP_TRANSPARENCY:
         if( idx >= 0 )
             World_NpcSetTransparency(
                 world,
                 idx,
-                op->transparency.start_cycle_delta,
-                op->transparency.end_cycle_delta,
-                op->transparency.from,
-                op->transparency.to,
+                (int16_t)op->transparency.start_cycle_delta,
+                (int16_t)op->transparency.end_cycle_delta,
+                (uint8_t)op->transparency.from,
+                (uint8_t)op->transparency.to,
                 op->transparency.use_start);
         break;
     case RSPROT_OP_BAS_CHANGE:

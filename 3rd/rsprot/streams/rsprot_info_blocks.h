@@ -12,8 +12,8 @@
  * and that is the block's encoding struct: one read function per field, filled
  * in by the revision's constants (<stream>_osrs<N>.c).
  *
- * Every reader writes the executor's ops for its block (rsprot_info.h) and
- * returns 0 -- with what it wrote retracted and a STOP written -- when the
+ * Every reader writes a BLOCK op, then the ops for its block (rsprot_info.h),
+ * and returns 0 -- with what it wrote retracted and a STOP written -- when the
  * block did not read to its end. The conversions from wire values to the
  * executor's (65535 is -1, the facing block's kinds, a pathing entity's
  * 0x10000 + player as 32768 + player) are the reference client's, as the
