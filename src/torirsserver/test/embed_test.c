@@ -171,7 +171,7 @@ struct Peer
      * packet and then it is the client's. Recorded from the first byte rather
      * than from a reset, since the arming happens inside the login burst.
      */
-    int saw_setevents[192];
+    int saw_setevents[1024];
     int saw_setevents_count;
     int saw_setevents_overflow;
 
@@ -398,7 +398,7 @@ absorb_player_info(
         case RSPROT_OP_ADD_NEW:
             local = 0;
             target = (int)op->value;
-            peer->saw_pid = target;
+            peer->saw_pid = ToriRSServer_WirePlayerPid(target);
             if( next_count < (int)(sizeof(next) / sizeof(next[0])) )
                 next[next_count++] = target;
             break;
@@ -428,8 +428,8 @@ absorb_player_info(
 
                 peer->saw_appearance++;
                 memset(&decoded, 0, sizeof(decoded));
-                if( PktPlayerAppearance_Decode(&decoded, op->appearance.appearance,
-                                               op->appearance.len) )
+                if( peer->net.rev->appearance_decode(op->appearance.appearance,
+                                                     op->appearance.len, &decoded) )
                     snprintf(peer->saw_name, sizeof(peer->saw_name), "%s", decoded.name);
             }
             break;
@@ -747,8 +747,22 @@ pump(
                 absorb_player_info(peer, packet._player_info.data, packet._player_info.length);
             else if( packet.packet_type == PKT_NAME_NPC_INFO )
                 absorb_npc_info(peer, packet._npc_info.data, packet._npc_info.length);
+            else if( packet.packet_type == PKT_NAME_REBUILD_NORMAL ||
+                     packet.packet_type == PKT_NAME_REBUILD_REGION )
+            {
+                /* What a real client does once the scene is built: revision
+                 * 239's server holds the login burst (PLAYER_INFO among it)
+                 * behind this barrier (torirs_server_world.c,
+                 * handle_map_build_complete). There is no scene to build here. */
+                uint8_t done[8];
+                int n = net_out_map_build_complete(peer->net.rev, peer->net.random_out, done,
+                                                   (int)sizeof(done));
+
+                assert(n > 0);
+                ToriRS_Network_SendRaw(&peer->net, done, n);
+            }
             else if( packet.packet_type == PKT_NAME_UPDATE_PID )
-                peer->my_pid = packet._update_pid.local_player_index;
+                peer->my_pid = ToriRSServer_WirePlayerPid(packet._update_pid.local_player_index);
             else if( packet.packet_type == PKT_NAME_SYNTH_SOUND )
             {
                 peer->saw_synth_count++;
@@ -1815,8 +1829,8 @@ main(void)
                   "the npc's face target is a player, not an npc slot");
             check(alice_face == bob_face,
                   "and both streams name the same absolute player");
-            check(alice_face - 32768 == alice->pid, "which is alice");
-            check(alice_face - 32768 != bob->pid,
+            check(ToriRSServer_WirePlayerPid(alice_face - 32768) == alice->pid, "which is alice");
+            check(ToriRSServer_WirePlayerPid(alice_face - 32768) != bob->pid,
                   "and is not whoever happens to be watching");
             check(!peers[0].saw_npc_unknown_target && !peers[1].saw_npc_unknown_target,
                   "with every npc block attributed to a tracked npc");

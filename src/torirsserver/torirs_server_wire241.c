@@ -1085,6 +1085,7 @@ w241_zone_payload(
 /* ------------------------------------------------------------------ */
 
 static const struct ToriRSServerWirePayload k_payload_osrs241 = {
+    .message_private = ToriRSServer_WireMessagePrivateOsrs,
     .if_movesub = w241_if_movesub,
     .if_setcolour = w241_if_setcolour,
     .if_sethide = w241_if_sethide,
@@ -1148,6 +1149,9 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
 /* The 239 list, packet for packet: every one of these has a 241 writer above
  * or a 241 branch at its send site in torirs_server_encode.c. */
 static const int k_transcribed_osrs241[] = {
+    /* MessagePrivateEncoder through the `message_private` hook: display name,
+     * world, 24-bit counter, crown, then the packed text. */
+    PKT_NAME_MESSAGE_PRIVATE,
     PKT_NAME_IF_OPENTOP,       PKT_NAME_IF_OPENSUB,      PKT_NAME_IF_CLOSESUB,
     PKT_NAME_IF_MOVESUB,       PKT_NAME_IF_RESYNC_V2,    PKT_NAME_IF_CLEARINV,
     PKT_NAME_IF_SETEVENTS,     PKT_NAME_IF_SETCOLOUR,

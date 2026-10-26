@@ -29,6 +29,7 @@
 #include "net/isaac.h"
 #include "net/login/login_osrs_block.h"
 #include "net/jbase37.h"
+#include "torirs_server_friends.h"
 #include "net/wordpack.h"
 
 /* The client's framing table, for the length check in ToriRSServer_Send. */
@@ -3312,11 +3313,26 @@ ToriRSServer_SendMessagePrivate(
     RSCache_BufferInit(&text_buf, packed, (uint32_t)sizeof(packed));
     wordpack_pack(&text_buf, text ? text : "");
 
-    open_packet(&buf, 16 + text_buf.position);
-    rsab_p8(&buf, from37);
-    rsab_p4(&buf, (int32_t)message_id);
-    rsab_p1(&buf, staff_mod > 3 ? 3 : staff_mod); /* MessagePrivateEncoder's clamp */
-    rsab_pdata(&buf, packed, (size_t)text_buf.position);
+    open_packet(&buf, 16 + 13 + text_buf.position);
+    {
+        const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+        if( pl && pl->message_private )
+        {
+            char from[13];
+
+            base37tostr((uint64_t)from37, from, (int)sizeof(from));
+            pl->message_private(&buf, from, ToriRSServer_FriendsWorld(from37), message_id,
+                                staff_mod > 3 ? 3 : staff_mod, packed, (int)text_buf.position);
+        }
+        else
+        {
+            rsab_p8(&buf, from37);
+            rsab_p4(&buf, (int32_t)message_id);
+            rsab_p1(&buf, staff_mod > 3 ? 3 : staff_mod); /* MessagePrivateEncoder's clamp */
+            rsab_pdata(&buf, packed, (size_t)text_buf.position);
+        }
+    }
     flush(player, &buf, OP_MESSAGE_PRIVATE, 2);
 }
 

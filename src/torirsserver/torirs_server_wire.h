@@ -228,6 +228,15 @@ struct ToriRSServerWirePayload
     void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);
     void (*ambientsound_stop)(struct RSAreaBuf* buf, int fade);
     void (*friendlist_loaded)(struct RSAreaBuf* buf, int status);
+    /**
+     * MESSAGE_PRIVATE. RSProt's MessagePrivate (223-241) names the sender by
+     * display name and splits the message's identity into the sender's world
+     * and a 24-bit per-world counter; the 2004 form is p8 name37 + p4 id. The
+     * text is the packed text either way (this server's wordpack, until both
+     * ends move to OSRS's Huffman).
+     */
+    void (*message_private)(struct RSAreaBuf* buf, const char* from, int world, int counter,
+                            int crown, uint8_t const* text, int text_len);
     /** One UPDATE_FRIENDLIST row. Rev 239 is a name/string record rather than
      *  the classic p8 base37 + p1 world tuple. */
     void (*friend_entry)(struct RSAreaBuf* buf, const char* name, int world);
@@ -490,6 +499,19 @@ static inline int
 ToriRSServer_WirePlayerIndex(int pool_pid)
 {
     return pool_pid + 1;
+}
+
+/** MESSAGE_PRIVATE as every OSRS wire writes it (see the hook). */
+void
+ToriRSServer_WireMessagePrivateOsrs(struct RSAreaBuf* buf, const char* from, int world,
+                                    int counter, int crown, uint8_t const* text, int text_len);
+
+/** The pool slot a revision-239 wire index names (the inverse of
+ *  ToriRSServer_WirePlayerIndex), -1 for index 0, which names nobody. */
+static inline int
+ToriRSServer_WirePlayerPid(int wire_index)
+{
+    return wire_index - 1;
 }
 
 /** The revision-241 wire (torirs_server_wire241.c). */

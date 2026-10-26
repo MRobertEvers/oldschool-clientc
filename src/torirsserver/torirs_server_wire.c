@@ -1584,7 +1584,23 @@ w239_zone_payload(
     }
 }
 
+void
+ToriRSServer_WireMessagePrivateOsrs(struct RSAreaBuf* buf, const char* from, int world,
+                                    int counter, int crown, uint8_t const* text, int text_len)
+{
+    assert(buf);
+    assert(from);
+    assert(text_len >= 0);
+    rsab_pjstr(buf, from, RSAB_JSTR_NUL);
+    rsab_p2(buf, world);
+    rsab_p3(buf, counter & 0xFFFFFF);
+    rsab_p1(buf, crown);
+    if( text_len > 0 )
+        rsab_pdata(buf, text, (size_t)text_len);
+}
+
 static const struct ToriRSServerWirePayload k_payload_osrs239 = {
+    .message_private = ToriRSServer_WireMessagePrivateOsrs,
     .if_movesub = w239_if_movesub,
     .if_setcolour = w239_if_setcolour,
     .if_sethide = w239_if_sethide,
@@ -1659,6 +1675,9 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
  * three because revision 239 has no such packet at all.
  */
 static const int k_transcribed_osrs239[] = {
+    /* MessagePrivateEncoder through the `message_private` hook: display name,
+     * world, 24-bit counter, crown, then the packed text. */
+    PKT_NAME_MESSAGE_PRIVATE,
     PKT_NAME_IF_OPENTOP,       PKT_NAME_IF_OPENSUB,      PKT_NAME_IF_CLOSESUB,
     PKT_NAME_IF_MOVESUB,       PKT_NAME_IF_RESYNC_V2,    PKT_NAME_IF_CLEARINV,
     PKT_NAME_IF_SETEVENTS,     PKT_NAME_IF_SETCOLOUR,
