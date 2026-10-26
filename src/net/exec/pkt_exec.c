@@ -14,6 +14,7 @@
  * cannot drift apart.
  */
 #include "rsprot_exec.h"
+#include "rsprot_trace.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -158,81 +159,30 @@ trace_final(RsprotExec *x)
     return x->trace && x->trace->final;
 }
 
-/* --- the trace (rsprot_exec_trace) --------------------------------------- */
-
-/* Every entry starts: u8 tag, u8 name length, the codec's field expression
- * (`m->interface_id`, `elem->value`, `m->members[k].rank`). */
-static int
-trace_head(RsprotTrace *t, int tag, const char *name, int32_t body)
-{
-    size_t n = name ? strlen(name) : 0;
-
-    if (n > 255)
-        n = 255;
-    if (t->overflow || t->cap - t->len < (int32_t)(2 + n) + body) {
-        t->overflow = 1;
-        return 0;
-    }
-    t->out[t->len++] = (uint8_t)tag;
-    t->out[t->len++] = (uint8_t)n;
-    memcpy(t->out + t->len, name, n);
-    t->len += (int32_t)n;
-    return 1;
-}
-
-static void
-trace_be(RsprotTrace *t, uint64_t v, int bytes)
-{
-    for (int i = bytes - 1; i >= 0; i--)
-        t->out[t->len++] = (uint8_t)(v >> (8 * i));
-}
+/* --- the trace (rsprot_exec_trace): include/rsprot_trace.h writes it ------- */
 
 static void
 trace_prim(RsprotExec *x, RsprotPrim prim, int32_t raw, const char *name)
 {
-    RsprotTrace *t = x->trace;
-
-    if (!t || !trace_head(t, RSPROT_TRACE_PRIM, name, 5))
-        return;
-    t->out[t->len++] = (uint8_t)prim;
-    trace_be(t, (uint32_t)raw, 4);
+    rsprot_trace_prim(x->trace, (int)prim, raw, name);
 }
 
 static void
 trace_long(RsprotExec *x, int64_t v, const char *name)
 {
-    RsprotTrace *t = x->trace;
-
-    if (!t || !trace_head(t, RSPROT_TRACE_LONG, name, 8))
-        return;
-    trace_be(t, (uint64_t)v, 8);
+    rsprot_trace_long(x->trace, v, name);
 }
 
 static void
 trace_bytes(RsprotExec *x, int tag, int sub, const uint8_t *data, int32_t len, const char *name)
 {
-    RsprotTrace *t = x->trace;
-    int32_t n = len < 0 ? 0 : len;
-
-    if (!t || !trace_head(t, tag, name, (sub >= 0) + 4 + n))
-        return;
-    if (sub >= 0)
-        t->out[t->len++] = (uint8_t)sub;
-    trace_be(t, (uint32_t)len, 4);
-    if (n > 0)
-        memcpy(t->out + t->len, data, (size_t)n);
-    t->len += n;
+    rsprot_trace_bytes(x->trace, tag, sub, data, len, name);
 }
 
 static void
 trace_bits(RsprotExec *x, int width, int32_t v, const char *name)
 {
-    RsprotTrace *t = x->trace;
-
-    if (!t || !trace_head(t, RSPROT_TRACE_BITS, name, 5))
-        return;
-    t->out[t->len++] = (uint8_t)width;
-    trace_be(t, (uint32_t)v, 4);
+    rsprot_trace_bits(x->trace, width, v, name);
 }
 
 void
@@ -377,7 +327,7 @@ rsprot_x(RsprotExec *x, RsprotPrim prim, int32_t *value, const char *name)
                 int32_t at = t->len;
 
                 t->len = t->clamp_at;
-                trace_be(t, (uint32_t)*value, 4);
+                rsprot_trace_be(t, (uint32_t)*value, 4);
                 t->len = at;
             }
             break;

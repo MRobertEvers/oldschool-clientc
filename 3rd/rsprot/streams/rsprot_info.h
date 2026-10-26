@@ -55,6 +55,8 @@
 
 #include "../src/rsprot_buf.h"
 
+struct RsprotTrace;
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -570,6 +572,15 @@ typedef struct RsprotInfoList
     /** An op or a byte did not fit; the read carried on so a player table
      *  stayed in step, but the list is incomplete. */
     int overflow;
+    /**
+     * Optional: the extended-info blocks' reads, by name (rsprot_exec.h's
+     * RsprotTrace format), for a host that builds its own models from them.
+     * Each entity's blocks start with `#who` (the extended-info target, as
+     * SET_EXT / ADD_NEW name it) and `#flag` (its flag word), each block with
+     * `#block` (its RsprotInfoKind). Set it after rsprot_info_list_init; a
+     * reader keeps it.
+     */
+    struct RsprotTrace* trace;
 } RsprotInfoList;
 
 /** Arm `list` over the caller's arrays. A reader empties it before it writes. */
@@ -640,7 +651,21 @@ typedef struct RsprotPlayerInfo
     /** Each slot's persistent traversal (the MOVE_SPEED block's; walk until
      *  one arrives): class95.field1344 in the reference. */
     int8_t move_speed[RSPROT_INFO_PLAYER_SLOTS];
+    /** What the last packet did to each slot (RsprotPlayerUpdate), as RSProx's
+     *  PlayerInfoClient classifies it. */
+    uint8_t update_type[RSPROT_INFO_PLAYER_SLOTS];
 } RsprotPlayerInfo;
+
+/** A slot's update in one PLAYER_INFO (PlayerInfoClient.UpdateType). */
+typedef enum RsprotPlayerUpdate
+{
+    RSPROT_PLAYER_LOW_RESOLUTION_IDLE = 0,
+    RSPROT_PLAYER_HIGH_RESOLUTION_IDLE,
+    RSPROT_PLAYER_LOW_RESOLUTION_TO_HIGH_RESOLUTION,
+    RSPROT_PLAYER_HIGH_RESOLUTION_MOVEMENT,
+    RSPROT_PLAYER_LOW_RESOLUTION_MOVEMENT,
+    RSPROT_PLAYER_HIGH_RESOLUTION_TO_LOW_RESOLUTION,
+} RsprotPlayerUpdate;
 
 /** A fresh table, owned by `local_index`. The table is the same at every
  *  revision; only the reader that walks it is per version. */
@@ -656,6 +681,20 @@ rsprot_player_info_init(
     RsprotPlayerInfo* pi,
     const uint8_t* data,
     int32_t len);
+
+/**
+ * PLAYER_INFO's appearance block -- the blob RSPROT_OP_APPEARANCE carries --
+ * read field by field into `trace` (rsprot_exec.h's format) as RSProx's
+ * PlayerInfoClient.decodeAppearance reads it at `revision`, under its
+ * variables' names. Returns 1; 0 when the blob is short or the revision has no
+ * layout.
+ */
+int
+rsprot_info_appearance_trace(
+    int revision,
+    const uint8_t* data,
+    int32_t len,
+    struct RsprotTrace* trace);
 
 /* The entry points' shapes, for a host that picks one at run time. Each
  * returns the op count it wrote into `out`. */

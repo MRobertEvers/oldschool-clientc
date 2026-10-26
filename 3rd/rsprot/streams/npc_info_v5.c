@@ -13,7 +13,7 @@ npc_info_v5_read(
     const NpcInfoV5 *k, int delta_bits, const uint8_t *data, int32_t len,
     RsprotNpcTypeLengths lengths, void *ctx, RsprotInfoList *out)
 {
-    static int extended[RSPROT_INFO_NPC_EXTENDED_MAX];
+    static _Thread_local int extended[RSPROT_INFO_NPC_EXTENDED_MAX];
     RsprotInfoBlocks t;
     RsprotBuf b;
     int count;

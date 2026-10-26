@@ -408,6 +408,7 @@
 #include "streams/player_info_v4.c"
 #include "streams/player_info_v5.c"
 #include "streams/player_info_v6.c"
+#include "streams/rsprot_info_appearance.c"
 #include "streams/rsprot_info_blocks.c"
 #include "streams/rsprot_info_npc.c"
 #include "streams/rsprot_info_player.c"
@@ -867,7 +868,7 @@ rsprot_registry_resolve_def(const RsprotProtDef *def, RsprotRegistryDir dir, int
             continue;
         memcpy(alt, tries[i], n + 1);
         if (n > 3 && strcmp(tries[i] + n - 3, "_V1") == 0)
-            alt[n - 3] = ' ';
+            alt[n - 3] = '\0';
         else
             memcpy(alt + n, "_V1", 4);
         if ((fn = rsprot_registry_codec(alt, dir, revision))) {

@@ -69,4 +69,51 @@ int rsprot_ffi_huffman_load(const uint8_t *table, int len);
  */
 int rsprot_ffi_huffman_decode(const uint8_t *data, int len, uint8_t *out, int cap);
 
+/* --- the info streams ----------------------------------------------------
+ *
+ * Each read writes one trace into `out`: first what the stream says about its
+ * entities, then -- from `*blocks_at` -- the extended-info blocks' reads by
+ * name, each entity's opened by `#who` / `#flag` and each block by `#block`
+ * (RsprotInfoList.trace). Returns the trace's length; -1 no reader carries the
+ * prot at the revision, -2 the read stopped (`err` says why), -3 `out` is full.
+ */
+
+/** A PLAYER_INFO table (RsprotPlayerInfo), owned by the local player. */
+void *rsprot_ffi_players_new(int local_index);
+void rsprot_ffi_players_free(void *players);
+void rsprot_ffi_players_reset(void *players, int local_index);
+/** Seed the table from a GPI init block (the login REBUILD's, or RECONNECT's). */
+void rsprot_ffi_players_init(void *players, const uint8_t *gpi, int len);
+
+/*
+ * PLAYER_INFO. The first part is one record per slot the packet did more than
+ * leave in low resolution: `index`, `type` (RsprotPlayerUpdate) and `coord` --
+ * the slot's absolute coordinate, or for the two low-resolution types its
+ * rough position (level << 28 | x << 14 | z, 8-bit x and z).
+ */
+int rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len,
+                           uint8_t *out, int cap, int *blocks_at, char *err, int err_cap);
+
+/** An npc type's recolour / retexture counts (CUSTOM_TYPED), for the npc at
+ *  list position `who`; return 0 when unknown. */
+typedef int (*RsprotFfiNpcLengths)(int who, int head, int *recolours, int *retextures);
+
+/*
+ * NPC_INFO_SMALL / NPC_INFO_LARGE (`prot` its table name: NPC_INFO_LARGE_V5,
+ * ...). The first part is the op list (rsprot_info.h), one `#op` entry (its
+ * RsprotInfoOpKind) then its fields by name, the extended-info ops left out.
+ */
+int rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len,
+                        RsprotFfiNpcLengths lengths, uint8_t *out, int cap, int *blocks_at,
+                        char *err, int err_cap);
+
+/** A player's appearance block (the PLAYER_INFO trace's `data` blob of an
+ *  appearance `#block`), field by field: rsprot_info_appearance_trace. */
+int rsprot_ffi_appearance(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
+                          char *err, int err_cap);
+
+/** WORLDENTITY_INFO_V1..V7, the same way. */
+int rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data, int len,
+                                uint8_t *out, int cap, int *blocks_at, char *err, int err_cap);
+
 #endif

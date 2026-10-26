@@ -10,8 +10,49 @@
  */
 #include "rsprot_info_blocks.h"
 
+#include "../include/rsprot_trace.h"
+
 #include <assert.h>
 #include <string.h>
+
+/* --- the trace (RsprotInfoList.trace) ----------------------------------------- */
+
+/* One field, read and -- when the list carries a trace -- written to it under
+ * the encoding's name for it. */
+static int32_t
+rd(RsprotInfoBlocks *t, RsprotRead read, const char *name)
+{
+    int32_t v = read(t->b);
+
+    if (t->out->trace && !t->b->err)
+        rsprot_trace_prim(t->out->trace, 0, v, name);
+    return v;
+}
+
+#define RD(field) rd(t, e->field, #field)
+
+/* A marker: `#who`, `#flag`, `#block`. */
+static void
+mark(RsprotInfoBlocks *t, const char *what, int32_t v)
+{
+    if (t->out->trace)
+        rsprot_trace_prim(t->out->trace, 0, v, what);
+}
+
+/* A block starts: its marker, and the op count block_end retracts to. */
+static int
+begin(RsprotInfoBlocks *t, int kind)
+{
+    mark(t, "#block", kind);
+    return t->out->count;
+}
+
+static void
+trace_blob(RsprotInfoBlocks *t, const uint8_t *data, int32_t len, const char *name)
+{
+    if (t->out->trace && data)
+        rsprot_trace_bytes(t->out->trace, RSPROT_TRACE_DATA, -1, data, len, name);
+}
 
 /* --- the list ----------------------------------------------------------------- */
 
@@ -50,7 +91,7 @@ rsprot_info_list_begin(RsprotInfoList *out)
 RsprotInfoOp *
 rsprot_info_emit(RsprotInfoList *out, RsprotInfoOpKind kind)
 {
-    static RsprotInfoOp scratch;
+    static _Thread_local RsprotInfoOp scratch;
     RsprotInfoOp *op;
 
     if (out->count >= out->cap) {
@@ -120,7 +161,7 @@ rsprot_info_blob(RsprotInfoList *out, const uint8_t *src, int32_t len, int order
 RsprotInfoOp *
 rsprot_info_stop(RsprotBuf *b, RsprotInfoList *out, int reason, int who)
 {
-    static RsprotInfoOp s_again;
+    static _Thread_local RsprotInfoOp s_again;
     RsprotInfoOp *op;
 
     if (out->stopped) {
@@ -163,6 +204,8 @@ rsprot_info_flags(RsprotInfoBlocks *t, int who, const uint32_t ext[3], uint32_t 
     }
     t->who = who;
     t->flag = flag;
+    mark(t, "#who", who);
+    mark(t, "#flag", (int32_t)flag);
     return 1;
 }
 
@@ -201,11 +244,14 @@ borrow_blob(RsprotBuf *b, int32_t len)
 
 /* A string at the cursor, into the list's bytes. */
 static const char *
-read_text(RsprotInfoBlocks *t)
+read_text(RsprotInfoBlocks *t, const char *name)
 {
     int32_t n = 0;
     const char *s = rsprot_gjstr(t->b, &n);
 
+    if (t->out->trace && s)
+        rsprot_trace_bytes(t->out->trace, RSPROT_TRACE_STR, RSPROT_STR_PLAIN, (const uint8_t *)s, n,
+                           name);
     return s ? rsprot_info_text(t->out, s, n) : "";
 }
 
@@ -222,17 +268,17 @@ static void
 read_bar(RsprotInfoBlocks *t, RsprotRead type, RsprotRead end_time, RsprotRead start_time,
          RsprotRead start_fill, RsprotRead end_fill, int keep)
 {
-    int32_t ty = type(t->b);
-    int32_t end = end_time(t->b);
+    int32_t ty = rd(t, type, "type");
+    int32_t end = rd(t, end_time, "end_time");
     int32_t start = -1;
     int32_t sfill = -1;
     int32_t efill = -1;
     RsprotInfoOp *op;
 
     if (end != 0x7FFF) {
-        start = start_time(t->b);
-        sfill = start_fill(t->b);
-        efill = end > 0 ? end_fill(t->b) : sfill;
+        start = rd(t, start_time, "start_time");
+        sfill = rd(t, start_fill, "start_fill");
+        efill = end > 0 ? rd(t, end_fill, "end_fill") : sfill;
     }
     if (!keep)
         return;
@@ -274,12 +320,13 @@ emit_hit(RsprotInfoList *out, int32_t type, int32_t value, int32_t delay, int32_
 /* `count` entries of `read`, discarded (colours, textures and ident kits the
  * executor does not carry). Returns the count. */
 static int32_t
-skip_items(RsprotInfoBlocks *t, RsprotRead count, RsprotRead read)
+skip_items(RsprotInfoBlocks *t, RsprotRead count, const char *count_name, RsprotRead read,
+           const char *name)
 {
-    int32_t n = count(t->b);
+    int32_t n = rd(t, count, count_name);
 
     for (int32_t i = 0; i < n && !t->b->err; i++)
-        (void)read(t->b);
+        (void)rd(t, read, name);
     return n;
 }
 
@@ -288,9 +335,8 @@ skip_items(RsprotInfoBlocks *t, RsprotRead count, RsprotRead read)
 int
 rsprot_info_say(RsprotInfoBlocks *t, uint32_t bit)
 {
-    int before = t->out->count;
-    const char *text = read_text(t);
-
+    int before = begin(t, RSPROT_IK_SAY);
+    const char *text = read_text(t, "text");
     rsprot_info_emit(t->out, RSPROT_OP_SAY)->say.text = text;
     return block_end(t, before, RSPROT_IK_SAY, bit);
 }
@@ -298,9 +344,8 @@ rsprot_info_say(RsprotInfoBlocks *t, uint32_t bit)
 int
 rsprot_info_name_change(RsprotInfoBlocks *t, uint32_t bit)
 {
-    int before = t->out->count;
-    const char *name = read_text(t);
-
+    int before = begin(t, RSPROT_IK_NAME_CHANGE);
+    const char *name = read_text(t, "name");
     rsprot_info_emit(t->out, RSPROT_OP_NAME_CHANGE)->name_change.name = name;
     return block_end(t, before, RSPROT_IK_NAME_CHANGE, bit);
 }
@@ -310,11 +355,11 @@ rsprot_info_name_change(RsprotInfoBlocks *t, uint32_t bit)
 int
 rsprot_info_name_extras(RsprotInfoBlocks *t, uint32_t bit)
 {
-    int before = t->out->count;
-    int32_t n = 0;
+    int before = begin(t, RSPROT_IK_NAME_EXTRAS);
 
-    for (int i = 0; i < 3; i++)
-        (void)rsprot_gjstr(t->b, &n);
+    (void)read_text(t, "before_name");
+    (void)read_text(t, "after_name");
+    (void)read_text(t, "after_combat_level");
     return block_end(t, before, RSPROT_IK_NAME_EXTRAS, bit);
 }
 
@@ -327,8 +372,8 @@ static int
 move_speed(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind, const RsprotInfoValueEnc *e,
            int persistent)
 {
-    int before = t->out->count;
-    int8_t speed = (int8_t)e->value(t->b);
+    int before = begin(t, kind);
+    int8_t speed = (int8_t)RD(value);
     RsprotPlayerPacket *pp = t->player;
     int op_index;
 
@@ -365,17 +410,17 @@ rsprot_info_temp_move_speed(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoV
 int
 rsprot_info_reset(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e)
 {
-    int before = t->out->count;
+    int before = begin(t, RSPROT_IK_RESET);
 
-    (void)e->value(t->b);
+    (void)RD(value);
     return block_end(t, before, RSPROT_IK_RESET, bit);
 }
 
 int
 rsprot_info_transformation(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e)
 {
-    int before = t->out->count;
-    int32_t type = e->value(t->b);
+    int before = begin(t, RSPROT_IK_TRANSFORMATION);
+    int32_t type = RD(value);
 
     rsprot_info_emit(t->out, RSPROT_OP_CHANGE_TYPE)->change_type.npc_type = id_or_none(type);
     return block_end(t, before, RSPROT_IK_TRANSFORMATION, bit);
@@ -384,8 +429,8 @@ rsprot_info_transformation(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoVa
 int
 rsprot_info_level_change(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e)
 {
-    int before = t->out->count;
-    int32_t level = e->value(t->b);
+    int before = begin(t, RSPROT_IK_LEVEL_CHANGE);
+    int32_t level = RD(value);
 
     rsprot_info_emit_value(t->out, RSPROT_OP_LEVEL_CHANGE, (uint32_t)level);
     return block_end(t, before, RSPROT_IK_LEVEL_CHANGE, bit);
@@ -394,8 +439,8 @@ rsprot_info_level_change(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValu
 int
 rsprot_info_enabled_ops(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValueEnc *e)
 {
-    int before = t->out->count;
-    int32_t mask = e->value(t->b);
+    int before = begin(t, RSPROT_IK_ENABLED_OPS);
+    int32_t mask = RD(value);
 
     rsprot_info_emit_value(t->out, RSPROT_OP_VISIBLE_OPS, (uint64_t)mask);
     return block_end(t, before, RSPROT_IK_ENABLED_OPS, bit);
@@ -406,9 +451,9 @@ rsprot_info_enabled_ops(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoValue
 int
 rsprot_info_sequence(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSequenceEnc *e)
 {
-    int before = t->out->count;
-    int32_t id = e->id(t->b);
-    int32_t delay = e->delay(t->b);
+    int before = begin(t, RSPROT_IK_SEQUENCE);
+    int32_t id = RD(id);
+    int32_t delay = RD(delay);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_SEQUENCE);
 
     op->sequence.sequence_id = id_or_none(id);
@@ -422,11 +467,11 @@ int
 rsprot_info_face_pathing_entity(
     RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacePathingEntityEnc *e)
 {
-    int before = t->out->count;
-    int32_t v = e->index(t->b);
+    int before = begin(t, RSPROT_IK_FACE_PATHING_ENTITY);
+    int32_t v = RD(index);
     int32_t id;
 
-    v += e->index_hi(t->b) << 16;
+    v += RD(index_hi) << 16;
     id = v == 0xFFFFFF || v < 0 ? -1 : v >= 0x10000 ? 32768 + (v - 0x10000) : v;
     rsprot_info_emit(t->out, RSPROT_OP_FACE_ENTITY)->face_entity.entity_id = id;
     return block_end(t, before, RSPROT_IK_FACE_PATHING_ENTITY, bit);
@@ -436,8 +481,8 @@ rsprot_info_face_pathing_entity(
 int
 rsprot_info_face_angle(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFaceAngleEnc *e)
 {
-    int before = t->out->count;
-    int32_t angle = e->angle(t->b);
+    int before = begin(t, RSPROT_IK_FACE_ANGLE);
+    int32_t angle = RD(angle);
 
     rsprot_info_emit(t->out, RSPROT_OP_FACE_ANGLE)->face_angle.angle = (uint16_t)angle;
     return block_end(t, before, RSPROT_IK_FACE_ANGLE, bit);
@@ -448,9 +493,9 @@ int
 rsprot_info_face_angle_instant(
     RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFaceAngleInstantEnc *e)
 {
-    int before = t->out->count;
-    int32_t angle = e->angle(t->b);
-    int32_t instant = e->instant(t->b);
+    int before = begin(t, RSPROT_IK_FACE_ANGLE);
+    int32_t angle = RD(angle);
+    int32_t instant = RD(instant);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_FACE_ANGLE);
 
     op->face_angle.angle = (uint16_t)angle;
@@ -463,10 +508,10 @@ rsprot_info_face_angle_instant(
 int
 rsprot_info_face_coord(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFaceCoordEnc *e)
 {
-    int before = t->out->count;
-    int32_t x = e->x(t->b);
-    int32_t z = e->z(t->b);
-    int32_t instant = e->instant(t->b);
+    int before = begin(t, RSPROT_IK_FACE_COORD);
+    int32_t x = RD(x);
+    int32_t z = RD(z);
+    int32_t instant = RD(instant);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_FACE_COORD);
 
     if (x != 0xFFFF) {
@@ -480,13 +525,13 @@ rsprot_info_face_coord(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFaceCo
 static void
 exact_move(RsprotInfoBlocks *t, const RsprotInfoExactMoveEnc *e)
 {
-    int32_t dx1 = e->dx1(t->b);
-    int32_t dz1 = e->dz1(t->b);
-    int32_t dx2 = e->dx2(t->b);
-    int32_t dz2 = e->dz2(t->b);
-    int32_t delay1 = e->delay1(t->b);
-    int32_t delay2 = e->delay2(t->b);
-    int32_t direction = e->direction(t->b);
+    int32_t dx1 = RD(dx1);
+    int32_t dz1 = RD(dz1);
+    int32_t dx2 = RD(dx2);
+    int32_t dz2 = RD(dz2);
+    int32_t delay1 = RD(delay1);
+    int32_t delay2 = RD(delay2);
+    int32_t direction = RD(direction);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_EXACT_MOVE);
 
     op->exact_move.start_x = (int16_t)dx1;
@@ -503,7 +548,7 @@ exact_move(RsprotInfoBlocks *t, const RsprotInfoExactMoveEnc *e)
 int
 rsprot_info_exact_move(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoExactMoveEnc *e)
 {
-    int before = t->out->count;
+    int before = begin(t, RSPROT_IK_EXACT_MOVE);
 
     exact_move(t, e);
     return block_end(t, before, RSPROT_IK_EXACT_MOVE, bit);
@@ -512,7 +557,7 @@ rsprot_info_exact_move(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoExactM
 int
 rsprot_info_player_exact_move(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoExactMoveEnc *e)
 {
-    int before = t->out->count;
+    int before = begin(t, RSPROT_IK_EXACT_MOVE);
     int op_index;
 
     assert(t->player);
@@ -528,13 +573,13 @@ rsprot_info_player_exact_move(RsprotInfoBlocks *t, uint32_t bit, const RsprotInf
 int
 rsprot_info_tinting(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoTintingEnc *e)
 {
-    int before = t->out->count;
-    int32_t start = e->start(t->b);
-    int32_t end = e->end(t->b);
-    int32_t hue = e->hue(t->b);
-    int32_t saturation = e->saturation(t->b);
-    int32_t lightness = e->lightness(t->b);
-    int32_t weight = e->weight(t->b);
+    int before = begin(t, RSPROT_IK_TINTING);
+    int32_t start = RD(start);
+    int32_t end = RD(end);
+    int32_t hue = RD(hue);
+    int32_t saturation = RD(saturation);
+    int32_t lightness = RD(lightness);
+    int32_t weight = RD(weight);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_TINT);
 
     op->tint.start_cycle_delta = (uint16_t)start;
@@ -549,12 +594,12 @@ rsprot_info_tinting(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoTintingEn
 int
 rsprot_info_transparency(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoTransparencyEnc *e)
 {
-    int before = t->out->count;
-    int32_t start = e->start(t->b);
-    int32_t end = e->end(t->b);
-    int32_t from = e->alpha_start(t->b);
-    int32_t to = e->alpha_end(t->b);
-    int32_t use_start = e->use_start(t->b);
+    int before = begin(t, RSPROT_IK_TRANSPARENCY);
+    int32_t start = RD(start);
+    int32_t end = RD(end);
+    int32_t from = RD(alpha_start);
+    int32_t to = RD(alpha_end);
+    int32_t use_start = RD(use_start);
     RsprotInfoOp *op = rsprot_info_emit(t->out, RSPROT_OP_TRANSPARENCY);
 
     op->transparency.start_cycle_delta = (int16_t)start;
@@ -569,11 +614,11 @@ rsprot_info_transparency(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoTran
 int
 rsprot_info_freeze(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFreezeEnc *e)
 {
-    int before = t->out->count;
+    int before = begin(t, RSPROT_IK_FREEZE);
 
-    (void)e->delay(t->b);
-    (void)e->duration(t->b);
-    (void)e->cancel(t->b);
+    (void)RD(delay);
+    (void)RD(duration);
+    (void)RD(cancel);
     return block_end(t, before, RSPROT_IK_FREEZE, bit);
 }
 
@@ -586,8 +631,8 @@ rsprot_info_freeze(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFreezeEnc 
 int
 rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc *e)
 {
-    int before = t->out->count;
-    int32_t flag = e->flag(t->b);
+    int before = begin(t, RSPROT_IK_FACING);
+    int32_t flag = RD(flag);
     int kind = (flag >> 3) & 0x7;
     bool instant = ((flag >> 6) & 1) != 0;
     uint8_t mode = (uint8_t)(flag & 0x7);
@@ -600,17 +645,17 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
     RsprotInfoOp *op;
 
     if (kind == 0) {
-        type = e->entity_type(t->b);
-        index = e->index(t->b);
-        angle = e->fallback_angle(t->b);
+        type = RD(entity_type);
+        index = RD(index);
+        angle = RD(fallback_angle);
         if (type == 3)
             kind = 2;
     } else if (kind == 1) {
-        x = e->x(t->b);
-        z = e->z(t->b);
-        size = e->size(t->b);
+        x = RD(x);
+        z = RD(z);
+        size = RD(size);
     } else if (kind == 2) {
-        angle = e->angle(t->b);
+        angle = RD(angle);
     } else if (kind != 3) {
         t->b->err |= RSPROT_BUF_ERR_RANGE; /* RSProx: error("Unknown kind") */
         return block_end(t, before, RSPROT_IK_FACING, bit);
@@ -649,22 +694,23 @@ rsprot_info_facing(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoFacingEnc 
 static int
 chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e, int patterned, int kind)
 {
-    int before = t->out->count;
-    int32_t colour_effects = e->colour_effects(t->b);
-    int32_t mod_icon = e->mod_icon(t->b);
+    int before = begin(t, kind);
+    int32_t colour_effects = RD(colour_effects);
+    int32_t mod_icon = RD(mod_icon);
     int32_t len;
     const uint8_t *data;
     int32_t colour;
     int patterns;
     RsprotInfoOp *op;
 
-    (void)e->autotyper(t->b);
-    len = e->data_len(t->b);
+    (void)RD(autotyper);
+    len = RD(data_len);
     data = borrow_blob(t->b, len);
+    trace_blob(t, data, len, "data");
     colour = (int32_t)((uint32_t)colour_effects >> 8);
     patterns = patterned && colour >= 13 && colour <= 20 ? colour - 12 : 0;
     for (int i = 0; i < patterns; i++)
-        (void)e->pattern(t->b);
+        (void)RD(pattern);
     if (t->b->err)
         return block_end(t, before, (RsprotInfoKind)kind, bit);
     op = rsprot_info_emit(t->out, RSPROT_OP_CHAT);
@@ -701,13 +747,13 @@ spot(RsprotInfoList *out, int32_t slot, int32_t id, int32_t height_delay, int32_
 int
 rsprot_info_spotanim(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanimEnc *e)
 {
-    int before = t->out->count;
-    int32_t n = e->count(t->b);
+    int before = begin(t, RSPROT_IK_SPOTANIM);
+    int32_t n = RD(count);
 
     for (int32_t i = 0; i < n && !t->b->err; i++) {
-        int32_t slot = e->slot(t->b);
-        int32_t id = e->id(t->b);
-        int32_t height_delay = e->height_delay(t->b);
+        int32_t slot = RD(slot);
+        int32_t id = RD(id);
+        int32_t height_delay = RD(height_delay);
 
         spot(t->out, slot, id, height_delay, 0);
     }
@@ -718,9 +764,9 @@ rsprot_info_spotanim(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanim
 int
 rsprot_info_spotanim_single(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanimSingleEnc *e)
 {
-    int before = t->out->count;
-    int32_t id = e->id(t->b);
-    int32_t height_delay = e->height_delay(t->b);
+    int before = begin(t, RSPROT_IK_SPOTANIM);
+    int32_t id = RD(id);
+    int32_t height_delay = RD(height_delay);
 
     spot(t->out, 0, id, height_delay, 0);
     return block_end(t, before, RSPROT_IK_SPOTANIM, bit);
@@ -729,14 +775,14 @@ rsprot_info_spotanim_single(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoS
 int
 rsprot_info_spotanim_loop(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpotanimLoopEnc *e)
 {
-    int before = t->out->count;
-    int32_t n = e->count(t->b);
+    int before = begin(t, RSPROT_IK_SPOTANIM);
+    int32_t n = RD(count);
 
     for (int32_t i = 0; i < n && !t->b->err; i++) {
-        int32_t slot = e->slot(t->b);
-        int32_t id = e->id(t->b);
-        int32_t height_delay = e->height_delay(t->b);
-        int32_t loop = e->loop(t->b);
+        int32_t slot = RD(slot);
+        int32_t id = RD(id);
+        int32_t height_delay = RD(height_delay);
+        int32_t loop = RD(loop);
 
         spot(t->out, slot, id, height_delay, loop);
     }
@@ -748,30 +794,30 @@ rsprot_info_spotanim_loop(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoSpo
 int
 rsprot_info_hits(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHitsEnc *e)
 {
-    int before = t->out->count;
-    int32_t n = e->count(t->b);
+    int before = begin(t, RSPROT_IK_HITS);
+    int32_t n = RD(count);
 
     for (int32_t i = 0; i < n && !t->b->err; i++) {
-        int32_t type = e->type(t->b);
+        int32_t type = RD(type);
 
         if (type == 0x7FFE) {
-            (void)e->delay(t->b);
+            (void)RD(delay);
         } else if (type == 0x7FFF) {
-            int32_t main_type = e->main_type(t->b);
-            int32_t value = e->value(t->b);
-            int32_t soak_type = e->soak_type(t->b);
-            int32_t soak_value = e->soak_value(t->b);
-            int32_t delay = e->delay(t->b);
+            int32_t main_type = RD(main_type);
+            int32_t value = RD(value);
+            int32_t soak_type = RD(soak_type);
+            int32_t soak_value = RD(soak_value);
+            int32_t delay = RD(delay);
 
             emit_hit(t->out, main_type, value, delay, -1, soak_type, soak_value);
         } else {
-            int32_t value = e->value(t->b);
-            int32_t delay = e->delay(t->b);
+            int32_t value = RD(value);
+            int32_t delay = RD(delay);
 
             emit_hit(t->out, type, value, delay, -1, -1, -1);
         }
     }
-    n = e->count2(t->b);
+    n = RD(count2);
     for (int32_t i = 0; i < n && !t->b->err; i++)
         read_bar(t, e->type, e->end_time, e->start_time, e->start_fill, e->end_fill, i == 0);
     return block_end(t, before, RSPROT_IK_HITS, bit);
@@ -780,14 +826,14 @@ rsprot_info_hits(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHitsEnc *e)
 int
 rsprot_info_hitmarks(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHitmarksEnc *e)
 {
-    int before = t->out->count;
-    int32_t n = e->count(t->b);
+    int before = begin(t, RSPROT_IK_HITMARKS);
+    int32_t n = RD(count);
 
     for (int32_t i = 0; i < n && !t->b->err; i++) {
-        int32_t type = e->type(t->b);
-        int32_t value = e->value(t->b);
-        int32_t delay = e->delay(t->b);
-        int32_t limit = e->limit(t->b);
+        int32_t type = RD(type);
+        int32_t value = RD(value);
+        int32_t delay = RD(delay);
+        int32_t limit = RD(limit);
 
         emit_hit(t->out, type, value, delay, limit, -1, -1);
     }
@@ -797,8 +843,8 @@ rsprot_info_hitmarks(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHitmarks
 int
 rsprot_info_headbars(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHeadbarsEnc *e)
 {
-    int before = t->out->count;
-    int32_t n = e->count(t->b);
+    int before = begin(t, RSPROT_IK_HEADBARS);
+    int32_t n = RD(count);
 
     for (int32_t i = 0; i < n && !t->b->err; i++)
         read_bar(t, e->type, e->end_time, e->start_time, e->start_fill, e->end_fill, i == 0);
@@ -808,10 +854,14 @@ rsprot_info_headbars(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHeadbars
 int
 rsprot_info_appearance(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoAppearanceEnc *e)
 {
-    int before = t->out->count;
-    int32_t len = e->data_len(t->b);
-    const uint8_t *data = borrow_blob(t->b, len);
+    int before = begin(t, RSPROT_IK_APPEARANCE);
+    int32_t len;
+    const uint8_t *data;
     RsprotInfoOp *op;
+
+    len = RD(data_len);
+    data = borrow_blob(t->b, len);
+    trace_blob(t, data, len, "data");
 
     if (t->b->err)
         return block_end(t, before, RSPROT_IK_APPEARANCE, bit);
@@ -825,13 +875,13 @@ rsprot_info_appearance(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoAppear
 int
 rsprot_info_bas_change(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoBasChangeEnc *e)
 {
-    int before = t->out->count;
-    int32_t mask = e->flag(t->b);
+    int before = begin(t, RSPROT_IK_BAS_CHANGE);
+    int32_t mask = RD(flag);
     int32_t a[15];
     RsprotInfoOp *op;
 
     for (int i = 0; i < 15; i++)
-        a[i] = (mask & (1 << i)) != 0 ? id_or_none(e->anims[i](t->b)) : -1;
+        a[i] = (mask & (1 << i)) != 0 ? id_or_none(rd(t, e->anims[i], "anim")) : -1;
     op = rsprot_info_emit(t->out, RSPROT_OP_BAS_CHANGE);
     op->bas_change.mask = (uint32_t)mask;
     op->bas_change.turnanim = a[0];
@@ -878,17 +928,17 @@ static int
 custom_typed_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind,
                    const RsprotInfoCustomTypedEnc *e)
 {
-    int before = t->out->count;
-    int32_t flag = e->flag(t->b);
+    int before = begin(t, kind);
+    int32_t flag = RD(flag);
     RsprotInfoBodyCustom *b = kind == RSPROT_IK_CUSTOM_TYPED ? body(t, flag) : NULL;
 
     if ((flag & 0x1) != 0)
         return block_end(t, before, kind, bit);
     if ((flag & 0x2) != 0) {
-        int32_t n = e->model_count(t->b);
+        int32_t n = RD(model_count);
 
         for (int32_t i = 0; i < n && !t->b->err; i++) {
-            int32_t model = e->model(t->b);
+            int32_t model = RD(model);
 
             body_model(b, model == e->model_none ? -1 : model);
         }
@@ -905,13 +955,13 @@ custom_typed_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind,
         }
         if ((flag & 0x4) != 0)
             for (int i = 0; i < recol && !t->b->err; i++)
-                (void)e->recolour(t->b);
+                (void)RD(recolour);
         if ((flag & 0x8) != 0)
             for (int i = 0; i < retex && !t->b->err; i++)
-                (void)e->retexture(t->b);
+                (void)RD(retexture);
     }
     if ((flag & 0x10) != 0)
-        (void)e->mirror(t->b);
+        (void)RD(mirror);
     return block_end(t, before, kind, bit);
 }
 
@@ -933,31 +983,31 @@ rsprot_info_head_custom_typed(
 static int
 custom_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind, const RsprotInfoCustomEnc *e)
 {
-    int before = t->out->count;
-    int32_t flag = e->flag(t->b);
+    int before = begin(t, kind);
+    int32_t flag = RD(flag);
     RsprotInfoBodyCustom *b = body(t, flag);
 
     if ((flag & 0x1) != 0)
         return block_end(t, before, kind, bit);
     if ((flag & 0x2) != 0) {
-        int32_t n = e->model_count(t->b);
+        int32_t n = RD(model_count);
 
         for (int32_t i = 0; i < n && !t->b->err; i++)
-            body_model(b, e->model(t->b));
+            body_model(b, RD(model));
     }
     if ((flag & 0x4) != 0) {
         int32_t recol_all = -1;
 
-        if (kind == RSPROT_IK_CUSTOM_V4 && e->recol_all_flag(t->b) == 1)
-            recol_all = e->recol_all(t->b);
+        if (kind == RSPROT_IK_CUSTOM_V4 && RD(recol_all_flag) == 1)
+            recol_all = RD(recol_all);
         if (recol_all == -1 || recol_all == 65535)
-            skip_items(t, e->recolour_count, e->recolour);
+            skip_items(t, e->recolour_count, "recolour_count", e->recolour, "recolour");
     }
     if ((flag & 0x8) != 0)
-        skip_items(t, e->retexture_count, e->retexture);
+        skip_items(t, e->retexture_count, "retexture_count", e->retexture, "retexture");
     if ((flag & 0x20) != 0) {
-        (void)e->body_type(t->b);
-        skip_items(t, e->identkit_count, e->identkit);
+        (void)RD(body_type);
+        skip_items(t, e->identkit_count, "identkit_count", e->identkit, "identkit");
     }
     return block_end(t, before, kind, bit);
 }
@@ -977,8 +1027,8 @@ rsprot_info_custom_v4(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoCustomE
 int
 rsprot_info_headicon_custom(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoHeadiconCustomEnc *e)
 {
-    int before = t->out->count;
-    int32_t mask = e->flag(t->b);
+    int before = begin(t, RSPROT_IK_HEADICON_CUSTOM);
+    int32_t mask = RD(flag);
     RsprotInfoHeadiconCustom *h = &rsprot_info_emit(t->out, RSPROT_OP_HEADICON_CUSTOM)->headicon;
 
     h->mask = (uint8_t)mask;
@@ -988,8 +1038,8 @@ rsprot_info_headicon_custom(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoH
     }
     for (int i = 0; i < 8 && !t->b->err; i++) {
         if ((mask & (1 << i)) != 0) {
-            h->group[i] = e->group(t->b);
-            h->index[i] = (int16_t)e->index(t->b);
+            h->group[i] = RD(group);
+            h->index[i] = (int16_t)RD(index);
         }
     }
     return block_end(t, before, RSPROT_IK_HEADICON_CUSTOM, bit);

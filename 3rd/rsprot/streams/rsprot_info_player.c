@@ -156,11 +156,13 @@ low_res(Reader *r, RsprotBuf *b, int idx)
             (int32_t)((level << 28) | (((((rough >> 14) & 0xff) << 13) + fine_x) << 14) |
                       ((((rough & 0xff) << 13) + fine_z) & 0x3fff));
         pi->high_res[idx] = 1;
+        pi->update_type[idx] = RSPROT_PLAYER_LOW_RESOLUTION_TO_HIGH_RESOLUTION;
         moved(r, idx, 0);
         if (extended)
             queue_extended(r, idx);
         return 1;
     }
+    pi->update_type[idx] = RSPROT_PLAYER_LOW_RESOLUTION_MOVEMENT;
     if (opcode == 1) {
         int level_delta = rsprot_gbits(b, 2);
 
@@ -206,6 +208,7 @@ high_res(Reader *r, RsprotBuf *b, int idx)
 
     if (opcode == 0) {
         if (extended) {
+            pi->update_type[idx] = RSPROT_PLAYER_HIGH_RESOLUTION_IDLE;
             rsprot_info_player_target(r->out, pi, idx);
             return;
         }
@@ -219,6 +222,8 @@ high_res(Reader *r, RsprotBuf *b, int idx)
         }
         pi->low_res_pos[idx] = (int32_t)((level << 28) | (z >> 13) | ((x >> 13) << 14));
         pi->high_res[idx] = 0;
+        /* A low-resolution update that follows reclassifies the slot. */
+        pi->update_type[idx] = RSPROT_PLAYER_HIGH_RESOLUTION_TO_LOW_RESOLUTION;
         pi->move_speed[idx] = RSPROT_TRAVERSAL_WALK;
         rsprot_info_emit_value(r->out, RSPROT_OP_REMOVE_PID, (uint64_t)idx);
         if (rsprot_gbits(b, 1) != 0)
@@ -226,6 +231,7 @@ high_res(Reader *r, RsprotBuf *b, int idx)
         return;
     }
 
+    pi->update_type[idx] = RSPROT_PLAYER_HIGH_RESOLUTION_MOVEMENT;
     if (opcode == 1) {
         int move = rsprot_gbits(b, 3);
 
@@ -268,6 +274,7 @@ section(Reader *r, RsprotBuf *b, int want_inactive, int low)
 {
     RsprotPlayerInfo *pi = r->pi;
     int skipped = 0;
+    uint8_t idle = low ? RSPROT_PLAYER_LOW_RESOLUTION_IDLE : RSPROT_PLAYER_HIGH_RESOLUTION_IDLE;
 
     rsprot_buf_bit_begin(b);
     for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS && !b->err; idx++) {
@@ -277,11 +284,13 @@ section(Reader *r, RsprotBuf *b, int want_inactive, int low)
             continue;
         if (skipped > 0) {
             --skipped;
+            pi->update_type[idx] = idle;
             pi->flags[idx] |= NEXT_CYCLE_INACTIVE;
             continue;
         }
         if (rsprot_gbits(b, 1) == 0) {
             skipped = read_stationary(b);
+            pi->update_type[idx] = idle;
             pi->flags[idx] |= NEXT_CYCLE_INACTIVE;
             continue;
         }
@@ -302,7 +311,7 @@ rsprot_info_player_sections(
     RsprotPlayerPacket *pp, RsprotBuf *b, RsprotInfoList *out,
     int extended[RSPROT_INFO_PLAYER_SLOTS])
 {
-    static Reader r;
+    Reader r;
     RsprotPlayerInfo *pi;
 
     assert(pp);
@@ -312,6 +321,7 @@ rsprot_info_player_sections(
     assert(extended);
     pi = pp->pi;
     memset(&r, 0, sizeof(r));
+    memset(pi->update_type, RSPROT_PLAYER_LOW_RESOLUTION_IDLE, sizeof(pi->update_type));
     r.pi = pi;
     r.pp = pp;
     for (int i = 0; i < RSPROT_INFO_PLAYER_SLOTS; i++)

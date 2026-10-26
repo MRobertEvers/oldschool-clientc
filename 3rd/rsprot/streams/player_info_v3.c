@@ -13,8 +13,8 @@ player_info_v3(
     const PlayerInfoV3 *k, RsprotPlayerInfo *pi, const uint8_t *data, int32_t len,
     RsprotInfoList *out)
 {
-    static int extended[RSPROT_INFO_PLAYER_SLOTS];
-    static RsprotPlayerPacket pp;
+    static _Thread_local int extended[RSPROT_INFO_PLAYER_SLOTS];
+    static _Thread_local RsprotPlayerPacket pp;
     RsprotInfoBlocks t;
     RsprotBuf b;
     int count;
