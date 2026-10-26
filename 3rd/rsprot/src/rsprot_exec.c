@@ -1,11 +1,9 @@
 /*
- * The packet executor — the implementation of `3rd/rsprot/include/rsprot_exec.h`.
+ * The packet executor — the implementation of `include/rsprot_exec.h`.
  *
  * rsprot declares the vocabulary a codec speaks and states what the bytes are.
- * This file is the other half: what to do about them. It lives on the server
- * project side because the four directions are a *host* concern — encoding into
- * a tick's buffer, decoding into a Task's message, dumping a schema for a
- * trace, filling one for a test — and none of that is protocol.
+ * This file runs it in the four directions: encoding into a buffer, decoding
+ * into a message, dumping a schema, filling one for a test.
  *
  * The shape to notice: every transfer funnels through `rsprot_x`, which is one
  * `switch` over the direction and one table lookup over the primitive. Adding a
@@ -13,12 +11,11 @@
  * the enum and fails on any row that is missing or moves no bytes, so the two
  * cannot drift apart.
  */
-#include "rsprot_exec.h"
-#include "rsprot_trace.h"
+#include "../include/rsprot_exec.h"
+#include "../include/rsprot_trace.h"
 
 #include <stdio.h>
 #include <string.h>
-#include "log/torirs_log.h"
 
 /* ------------------------------------------------------------------ */
 /* The primitive table                                                 */
@@ -840,7 +837,7 @@ rsprot_version_pick(const RsprotVersionRange *ranges, int count, int revision)
 void
 rsprot_schema_print(const RsprotSchema *schema, const char *title)
 {
-    TORIRS_ERR("%s: %d field%s%s\n",
+    fprintf(stderr, "%s: %d field%s%s\n",
            title ? title : "packet",
            schema->count,
            schema->count == 1 ? "" : "s",
@@ -855,16 +852,16 @@ rsprot_schema_print(const RsprotSchema *schema, const char *title)
 
         switch (f->kind) {
         case RSPROT_FIELD_BITS:
-            TORIRS_LOG("  %3d  %-14s %2d bits  %-6s %s\n", i, "bits", f->bit_width, at, f->name);
+            fprintf(stderr, "  %3d  %-14s %2d bits  %-6s %s\n", i, "bits", f->bit_width, at, f->name);
             break;
         case RSPROT_FIELD_STR:
-            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, "str", "", at, f->name);
+            fprintf(stderr, "  %3d  %-14s %8s  %-6s %s\n", i, "str", "", at, f->name);
             break;
         case RSPROT_FIELD_DATA:
-            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, "data", "", at, f->name);
+            fprintf(stderr, "  %3d  %-14s %8s  %-6s %s\n", i, "data", "", at, f->name);
             break;
         case RSPROT_FIELD_PRIM:
-            TORIRS_LOG("  %3d  %-14s %8s  %-6s %s\n", i, k_prim[f->prim].name, "", at, f->name);
+            fprintf(stderr, "  %3d  %-14s %8s  %-6s %s\n", i, k_prim[f->prim].name, "", at, f->name);
             break;
         }
     }

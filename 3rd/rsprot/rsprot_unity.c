@@ -4,19 +4,11 @@
  */
 
 /*
- * rsprot_buf.c is NOT here, and that is the point.
- *
- * It is the one part of this library with no dependencies of its own, and it is
- * the part everything else wants: the packet codecs, the executor, and now the
- * net stack's decoders all need a buffer and none of them need crypto. While it
- * lived in this TU, linking a buffer pulled in rsprot_crypto.c, which calls
- * src/net's ISAAC and RSA, which needs tommath — so a test that decodes two
- * bytes failed to link against a bignum library. That happened three separate
- * times before the split.
- *
- * It is now its own object (`$(OBJ_DIR)/rsprot_buf.o`), linked by everything;
- * this TU is the parts that have dependencies. Keep it out of here — including
- * it in both places is a duplicate-symbol link failure, which is at least loud.
+ * rsprot_buf.c is its own object, linked by everything that reads or writes a
+ * buffer; the executor (src/rsprot_exec.c), its storage (src/rsprot_storage.c)
+ * and the codecs (rsprot_packets_unity.c) are too. This TU is crypto and
+ * compression. Including rsprot_buf.c here as well is a duplicate-symbol link
+ * failure, which is at least loud.
  */
 
 // clang-format off

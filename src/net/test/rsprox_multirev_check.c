@@ -39,7 +39,7 @@
 #include "net/rev/rsprox/rsprox_rev.h"
 #include "net/rsprox_recording.h"
 #include "info_op_dump.h"
-#include "net/exec/pkt_codec_storage.h"
+#include "rsprot_storage.h"
 #include "rsprot_exec.h"
 #include "rsprot_registry.h"
 
@@ -185,7 +185,7 @@ explain_codec(int revision, char const* prot, uint8_t const* data, int len)
     if( !fn )
         return;
     memset(&scratch, 0, sizeof(scratch));
-    pkt_codec_storage_provide(prot, &scratch, 0);
+    rsprot_storage_provide(prot, &scratch, 0);
     rsprot_buf_wrap_read(&b, data, len);
     rsprot_exec_decode(&x, &b);
     fn(&x, &scratch);

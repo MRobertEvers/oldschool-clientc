@@ -1,16 +1,16 @@
 /* Element storage for caller-array codecs. See pkt_codec_storage.h. */
-#include "pkt_codec_storage.h"
+#include "rsprot_storage.h"
 
-#include "packets/if_initialstate.h"
-#include "packets/if_resync.h"
-#include "packets/if_resync_v1.h"
-#include "packets/if_resync_v2.h"
-#include "packets/loc_add_change_v2.h"
-#include "packets/runclientscript.h"
-#include "packets/update_friendlist.h"
-#include "packets/update_ignorelist.h"
-#include "packets/update_inv_full.h"
-#include "packets/update_inv_partial.h"
+#include "../packets/if_initialstate.h"
+#include "../packets/if_resync.h"
+#include "../packets/if_resync_v1.h"
+#include "../packets/if_resync_v2.h"
+#include "../packets/loc_add_change_v2.h"
+#include "../packets/runclientscript.h"
+#include "../packets/update_friendlist.h"
+#include "../packets/update_ignorelist.h"
+#include "../packets/update_inv_full.h"
+#include "../packets/update_inv_partial.h"
 
 #include <assert.h>
 #include <string.h>
@@ -30,7 +30,7 @@ static _Thread_local const char *g_cs2_strs[2][MSG_RUNCLIENTSCRIPT_MAX_ARGS][MSG
 #define POOL_HALF(T, side) ((T *)(void *)(g_pool[side].bytes + sizeof(g_pool[side].bytes) / 2))
 
 void
-pkt_codec_storage_provide(char const* prot, void* msg, int side)
+rsprot_storage_provide(char const* prot, void* msg, int side)
 {
     assert(prot);
     assert(msg);

@@ -22,7 +22,7 @@
  */
 #include "rsprox_rev.h"
 
-#include "net/exec/pkt_codec_storage.h"
+#include "rsprot_storage.h"
 #include "net/rev/rsprot_entity_state.h"
 
 #include "mem/torirs_mem.h"
@@ -1416,7 +1416,7 @@ rsprox_parse_validate(
     if( !fn )
         return -1;
     memset(&scratch, 0, sizeof(scratch));
-    pkt_codec_storage_provide(prot, &scratch, 0);
+    rsprot_storage_provide(prot, &scratch, 0);
     rsprot_buf_wrap_read(&b, data, len);
     rsprot_exec_decode(&x, &b);
     fn(&x, &scratch);

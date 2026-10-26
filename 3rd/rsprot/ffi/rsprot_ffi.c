@@ -9,7 +9,7 @@
 #include "../include/rsprot_trace.h"
 #include "../streams/rsprot_info.h"
 
-#include "pkt_codec_storage.h"
+#include "../src/rsprot_storage.h"
 #include "../packets/reflection_check_reply_results.h"
 
 #include <assert.h>
@@ -98,7 +98,7 @@ decode(int revision, int client, const char *prot, const uint8_t *data, int len,
     /* Decoding transfers every field before any branch reads it, so the
      * message needs no clearing beyond what the storage provider points at. */
     memset(g_msg.bytes, 0, 4096);
-    pkt_codec_storage_provide(file, g_msg.bytes, 0);
+    rsprot_storage_provide(file, g_msg.bytes, 0);
     rsprot_buf_wrap_read(&b, data, len);
     rsprot_exec_decode(&x, &b);
     trace.out = out;

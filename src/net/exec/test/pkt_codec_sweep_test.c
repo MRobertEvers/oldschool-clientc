@@ -23,7 +23,7 @@
  * Lives beside pkt_packets_test.c for the reason that file gives: a codec needs
  * the host's executor to run.
  */
-#include "net/exec/pkt_codec_storage.h"
+#include "rsprot_storage.h"
 #include "rsprot_exec.h"
 #include "rsprot_registry.h"
 #include "rsprot_tables.h"
@@ -118,7 +118,7 @@ check_codec(int rev, const char *prot, int table_size, RsprotCodecFn fn)
         printf("  check rev %d %s\n", rev, prot);
 
     memset(&g_msg_a, 0, sizeof(g_msg_a));
-    pkt_codec_storage_provide(prot, &g_msg_a, 0);
+    rsprot_storage_provide(prot, &g_msg_a, 0);
     rsprot_exec_describe(&x, &schema);
     fn(&x, &g_msg_a);
     fixed = rsprot_schema_fixed_size(&schema);
@@ -135,7 +135,7 @@ check_codec(int rev, const char *prot, int table_size, RsprotCodecFn fn)
         int len;
 
         memset(&g_msg_a, 0, sizeof(g_msg_a));
-        pkt_codec_storage_provide(prot, &g_msg_a, 0);
+        rsprot_storage_provide(prot, &g_msg_a, 0);
         rsprot_exec_fill(&x, seed);
         fn(&x, &g_msg_a);
         if (!rsprot_exec_ok(&x)) {
@@ -163,7 +163,7 @@ check_codec(int rev, const char *prot, int table_size, RsprotCodecFn fn)
         }
 
         memset(&g_msg_b, 0, sizeof(g_msg_b));
-        pkt_codec_storage_provide(prot, &g_msg_b, 1);
+        rsprot_storage_provide(prot, &g_msg_b, 1);
         rsprot_buf_wrap_read(&r, g_wire_a, len);
         rsprot_exec_decode(&x, &r);
         fn(&x, &g_msg_b);

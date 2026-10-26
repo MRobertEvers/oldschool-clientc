@@ -2758,15 +2758,13 @@ $(OBJ_DIR)/rsprot_buf.o: $(RSPROT_DIR)/src/rsprot_buf.c | $(OBJ_DIR)
 $(OBJ_DIR)/rsprot_packets_unity.o: $(RSPROT_PACKETS_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSPROT_CFLAGS) -Wall -Wextra -Wno-unused-parameter -c $(RSPROT_PACKETS_UNITY_SRC) -o $@
 
-# The executor implementing 3rd/rsprot/include/rsprot_exec.h. Host-side by
-# design (see the file header): the four directions are a host concern, so the
-# library declares them and this project supplies them.
-$(OBJ_DIR)/pkt_exec.o: net/exec/pkt_exec.c | $(OBJ_DIR)
+# rsprot's executor (include/rsprot_exec.h) and the pools for the codecs whose
+# arrays are caller-owned, for anything that runs a codec over a zeroed message
+# (the sweep, the recording check). Both are the library's own sources.
+$(OBJ_DIR)/pkt_exec.o: $(RSPROT_DIR)/src/rsprot_exec.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
-# Pools for the codecs whose arrays are caller-owned, for anything that runs a
-# codec over a zeroed message (the sweep, the recording check).
-$(OBJ_DIR)/pkt_codec_storage.o: net/exec/pkt_codec_storage.c | $(OBJ_DIR)
+$(OBJ_DIR)/pkt_codec_storage.o: $(RSPROT_DIR)/src/rsprot_storage.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -c $< -o $@
 
 # The bridge asks rsprot for a packet's layout, so it needs rsprot's headers on
