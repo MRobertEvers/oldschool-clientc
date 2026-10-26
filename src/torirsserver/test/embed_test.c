@@ -48,7 +48,7 @@
 #include "net/jbase37.h"
 #include "net/net.h"
 #include "net/net_out.h"
-#include "net/rev/gameproto_parse.h"
+#include "net/rev/revpacket.h"
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"
@@ -211,7 +211,7 @@ struct Peer
     /*
      * SYNTH_SOUND (WEAPON_FX_PORT_QUEUE.md slices 6-7). How many, and the
      * fields of the most recent, decoded by `ToriRS_Network`'s own reader —
-     * the same `gameproto_parse.c` case `rs_gameproto_exec.c:907` hands to
+     * the same executor arm whose packet `rs_gameproto_exec.c` hands to
      * `RS_Audio_Synth`. This is the wire half of the chain; the id-to-audible-
      * PCM half is `rs_audio_test.c`, unmodified, per the queue's instruction
      * not to touch it.
@@ -220,7 +220,7 @@ struct Peer
     int saw_synth_id, saw_synth_loops, saw_synth_delay;
 
     /** Same idea, for MIDI_JINGLE -- decoded by the client's real
-     *  `gameproto_parse.c`/`proto_in_adapt.c` reader, not asserted against a
+     *  executor (src/net/rev/<rev>/<rev>_exec.c), not asserted against a
      *  second parser. See the SS_OP_MIDI_JINGLE direct-dispatch check below. */
     int saw_jingle_count;
     int saw_jingle_id, saw_jingle_delay;
@@ -603,7 +603,7 @@ absorb_zone(
  *
  * Returns 1 if it consumed the packet, so the caller can leave the zone reader
  * alone. Nothing here interprets: it stores what the *client's own* decoder
- * (src/net/rev/gameproto_parse.c) produced, which is the half that has to agree
+ * (its revision's executor, src/net/rev/<rev>/) produced, which is the half that has to agree
  * with the server's encoders.
  */
 static int
@@ -1080,8 +1080,8 @@ main(void)
      * (it used to only print under TORIRSSERVER_VERBOSE and send nothing), the
      * packet is framed on wire opcode 102 as `PKT_NAME_SYNTH_SOUND`
      * (packetin.h, slice 6), and — the load-bearing part — it is decoded back
-     * by `ToriRS_Network`'s *own* reader (`gameproto_parse.c`, the same
-     * decoder `rs_gameproto_exec.c:907` hands to `RS_Audio_Synth`), not by a
+     * by `ToriRS_Network`'s *own* reader (its revision's executor, whose
+     * packet `rs_gameproto_exec.c` hands to `RS_Audio_Synth`), not by a
      * parser this test wrote for itself.
      *
      * What this does *not* prove, and is not asked to: that a given id renders
@@ -1126,7 +1126,7 @@ main(void)
         check(peers[0].saw_synth_id == synth_id && peers[0].saw_synth_loops == synth_loops &&
                   peers[0].saw_synth_delay == synth_delay,
               "id/loops/delay round-tripped through the client's own "
-              "gameproto_parse.c reader unchanged");
+              "reader unchanged");
     }
 
     /*

@@ -34,7 +34,6 @@
  * reader wrote before it stopped; MULTIREV_TRACE=1 every
  * frame before it is decoded (the last line names a frame that crashes).
  */
-#include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/proto/proto_info.h"
 #include "net/rev/revpacket.h"

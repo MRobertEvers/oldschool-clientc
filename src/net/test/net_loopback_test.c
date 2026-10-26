@@ -7,8 +7,7 @@
 #include "torirsserver/mock_server.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/gameproto_parse.h"
-#include "net/rev/lc245_2/packetin.h"
+#include "net/rev/revpacket.h"
 
 #include "cmd/cmdbus.h"
 

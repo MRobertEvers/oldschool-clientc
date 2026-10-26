@@ -14,7 +14,7 @@
 #include "game/task_exec_entity_info.h"
 #include "net/net.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/rs/info_rs.h"
+#include "streams/info_rs.h"
 #include "test_harness.h"
 #include "toridraw_scene.h"
 #include "world.h"

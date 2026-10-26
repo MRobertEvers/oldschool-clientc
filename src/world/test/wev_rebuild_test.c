@@ -39,7 +39,6 @@
 #include "engine/world_builder/heightmap.h"
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
-#include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "platform/platform_x_io.h"

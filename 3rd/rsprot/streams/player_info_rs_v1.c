@@ -1,16 +1,12 @@
 /*
- * PLAYER_INFO, RS2 family, version 1: the stream 245.2, 254 and 289 all send
+ * PLAYER_INFO, rs family, version 1: the stream 245.2, 254 and 289 all send
  * (see info_rs.h). A port of v0's pkt_player_info with the gaps filled from
  * the webclient decoder: EXACT_MOVE decoded, the CHAT payload consumed and
  * carried.
  */
 #include "info_rs_internal.h"
 
-#include "mem/torimem_rscache.h"
-#include "net/rev/packets/pkt_info_bytes.h"
-
 #include <assert.h>
-#include <rsbuffer.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,13 +15,13 @@
  * announced to the consumer, whereas here it is a teleport.
  * Returns the op read (or -1 when the info bit is clear). */
 static int
-read_movement(
+rs_player_read_movement(
     struct RsExtendedQueue* q,
-    struct Net_BitBuffer* buf,
+    RsprotBuf* b,
     RsprotInfoList* out,
     int extended_idx)
 {
-    int info = Net_BitBufferGbits(buf, 1);
+    int info = rsprot_gbits(b, 1);
     if( info == 0 )
     {
         struct RsprotInfoOp* op = rs_info_op(out);
@@ -34,7 +30,7 @@ read_movement(
         return -1;
     }
 
-    int move_op = Net_BitBufferGbits(buf, 2);
+    int move_op = rsprot_gbits(b, 2);
     switch( move_op )
     {
     case 0:
@@ -42,11 +38,11 @@ read_movement(
         break;
     case 1:
     {
-        int walkdir = Net_BitBufferGbits(buf, 3);
+        int walkdir = rsprot_gbits(b, 3);
         struct RsprotInfoOp* op = rs_info_op(out);
         op->kind = RSPROT_OP_WALKDIR;
         op->value = (uint64_t)walkdir;
-        if( Net_BitBufferGbits(buf, 1) )
+        if( rsprot_gbits(b, 1) )
             rs_info_queue(q, extended_idx);
         break;
     }
@@ -54,28 +50,28 @@ read_movement(
     {
         for( int r = 0; r < 2; r++ )
         {
-            int rundir = Net_BitBufferGbits(buf, 3);
+            int rundir = rsprot_gbits(b, 3);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_RUNDIR;
             op->value = (uint64_t)rundir;
         }
-        if( Net_BitBufferGbits(buf, 1) )
+        if( rsprot_gbits(b, 1) )
             rs_info_queue(q, extended_idx);
         break;
     }
     case 3:
     {
-        int level = Net_BitBufferGbits(buf, 2);
-        int sx = Net_BitBufferGbits(buf, 7);
-        int sz = Net_BitBufferGbits(buf, 7);
-        int jump = Net_BitBufferGbits(buf, 1);
+        int level = rsprot_gbits(b, 2);
+        int sx = rsprot_gbits(b, 7);
+        int sz = rsprot_gbits(b, 7);
+        int jump = rsprot_gbits(b, 1);
         struct RsprotInfoOp* op = rs_info_op(out);
         op->kind = RSPROT_OP_LOCAL_XZLEVEL;
         op->xz_level.x = (int16_t)sx;
         op->xz_level.z = (int16_t)sz;
         op->xz_level.level = (uint8_t)level;
         op->xz_level.jump = jump != 0;
-        if( Net_BitBufferGbits(buf, 1) )
+        if( rsprot_gbits(b, 1) )
             rs_info_queue(q, extended_idx);
         break;
     }
@@ -91,21 +87,21 @@ player_info_rs_v1(
 {
     struct RsExtendedQueue queue;
     struct RsExtendedQueue* q = &queue;
-    struct Net_BitBuffer buf;
-    struct RSCache_Buffer rsbuf;
+    RsprotBuf b;
 
     assert(data);
     assert(out);
     rsprot_info_list_begin(out);
     q->count = 0;
-    Net_BitBufferInit(&buf, data, length);
+    rsprot_buf_wrap_read(&b, data, length);
+    rsprot_buf_bit_begin(&b);
 
     /* Local player. */
     {
         struct RsprotInfoOp* op = rs_info_op(out);
         op->kind = RSPROT_OP_SET_LOCAL_PLAYER;
     }
-    read_movement(q, &buf, out, RS_PLAYER_INFO_LOCAL_PLAYER_IDX);
+    rs_player_read_movement(q, &b, out, RS_PLAYER_INFO_LOCAL_PLAYER_IDX);
 
 /*
  * The list index below is a CONTRACT with the consumer, not a local counter.
@@ -120,7 +116,7 @@ player_info_rs_v1(
  */
     /* Tracked players. */
     int new_idx = 0;
-    int count = Net_BitBufferGbits(&buf, 8);
+    int count = rsprot_gbits(&b, 8);
     {
         struct RsprotInfoOp* op = rs_info_op(out);
         op->kind = RSPROT_OP_COUNT_RESET;
@@ -138,10 +134,10 @@ player_info_rs_v1(
          * and the list carried into the next packet as `old_list` keeps the
          * departed player's slot -- shifting every later old_idx by one.
          */
-        int info = Net_BitBufferGbits(&buf, 1);
+        int info = rsprot_gbits(&b, 1);
         int move_op = -1;
         if( info != 0 )
-            move_op = (int)Net_BitBufferGbits(&buf, 2);
+            move_op = (int)rsprot_gbits(&b, 2);
 
         if( move_op == 3 )
         {
@@ -173,11 +169,11 @@ player_info_rs_v1(
             break;
         case 1:
         {
-            int walkdir = Net_BitBufferGbits(&buf, 3);
+            int walkdir = rsprot_gbits(&b, 3);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_WALKDIR;
             op->value = (uint64_t)walkdir;
-            if( Net_BitBufferGbits(&buf, 1) )
+            if( rsprot_gbits(&b, 1) )
                 rs_info_queue(q, new_idx);
             new_idx++;
             break;
@@ -186,12 +182,12 @@ player_info_rs_v1(
         {
             for( int r = 0; r < 2; r++ )
             {
-                int rundir = Net_BitBufferGbits(&buf, 3);
+                int rundir = rsprot_gbits(&b, 3);
                 struct RsprotInfoOp* op = rs_info_op(out);
                 op->kind = RSPROT_OP_RUNDIR;
                 op->value = (uint64_t)rundir;
             }
-            if( Net_BitBufferGbits(&buf, 1) )
+            if( rsprot_gbits(&b, 1) )
                 rs_info_queue(q, new_idx);
             new_idx++;
             break;
@@ -203,9 +199,9 @@ player_info_rs_v1(
     /* New players: only the 11-bit pid is needed to reach the 2047 terminator;
        requiring a full 23-bit entry skips the terminator when the packet ends
        right after it, desyncing the byte-aligned extended-info section. */
-    while( Net_BitBufferBitPos(&buf) + 11 <= length * 8 )
+    while( b.bit_rpos + 11 <= length * 8 )
     {
-        int player_id = Net_BitBufferGbits(&buf, 11);
+        int player_id = rsprot_gbits(&b, 11);
         if( player_id == RS_PLAYER_INFO_NEW_TERMINATOR )
             break;
 
@@ -215,13 +211,13 @@ player_info_rs_v1(
             op->value = (uint64_t)player_id;
         }
 
-        int dx = Net_BitBufferGbits(&buf, 5);
+        int dx = rsprot_gbits(&b, 5);
         if( dx > 15 )
             dx -= 32;
-        int dz = Net_BitBufferGbits(&buf, 5);
+        int dz = rsprot_gbits(&b, 5);
         if( dz > 15 )
             dz -= 32;
-        int jump = Net_BitBufferGbits(&buf, 1);
+        int jump = rsprot_gbits(&b, 1);
         {
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DELTA_XZ;
@@ -230,15 +226,15 @@ player_info_rs_v1(
             op->delta_xz.jump = jump != 0;
         }
 
-        if( Net_BitBufferGbits(&buf, 1) )
+        if( rsprot_gbits(&b, 1) )
             rs_info_queue(q, new_idx);
         new_idx++;
     }
 
-    /* Extended info (byte-aligned). */
-    RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)length);
-    rsbuf.position = (uint32_t)Net_BitBufferBytePos(&buf);
-    for( int i = 0; i < q->count && (int)rsbuf.position < length; i++ )
+    /* Extended info (byte-aligned). A field the payload is too short for marks
+     * `b`; the read stops at the next entry and the list says why. */
+    rsprot_buf_bit_end(&b);
+    for( int i = 0; i < q->count && rsprot_buf_readable(&b) > 0 && !b.err; i++ )
     {
         if( out->overflow )
             break;
@@ -250,16 +246,18 @@ player_info_rs_v1(
             op->value = (uint64_t)idx;
         }
 
-        if( (int)rsbuf.position >= length )
+        if( rsprot_buf_readable(&b) <= 0 )
             break;
-        int mask = g1(&rsbuf);
-        if( (mask & RS_PLAYER_MASK_BIG_UPDATE) != 0 && (int)rsbuf.position < length )
-            mask += g1(&rsbuf) << 8;
+        int mask = rsprot_g1(&b);
+        if( (mask & RS_PLAYER_MASK_BIG_UPDATE) != 0 && rsprot_buf_readable(&b) > 0 )
+            mask += rsprot_g1(&b) << 8;
 
         if( (mask & RS_PLAYER_MASK_APPEARANCE) != 0 )
         {
-            int len = g1(&rsbuf);
-            uint8_t const* blob = pkt_info_take_bytes(&rsbuf, out, len);
+            int len = rsprot_g1(&b);
+            uint8_t const* blob = rs_info_take_bytes(&b, out, len);
+            if( !blob )
+                break;
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_APPEARANCE;
             op->appearance.appearance = blob;
@@ -268,8 +266,8 @@ player_info_rs_v1(
 
         if( (mask & RS_PLAYER_MASK_SEQUENCE) != 0 )
         {
-            int seq_raw = g2(&rsbuf);
-            int delay = g1(&rsbuf);
+            int seq_raw = rsprot_g2_12(&b);
+            int delay = rsprot_g1(&b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SEQUENCE;
             op->sequence.sequence_id = seq_raw == 65535 ? -1 : seq_raw;
@@ -278,7 +276,7 @@ player_info_rs_v1(
 
         if( (mask & RS_PLAYER_MASK_FACE_ENTITY) != 0 )
         {
-            int entity_id = g2(&rsbuf);
+            int entity_id = rsprot_g2_12(&b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_FACE_ENTITY;
             op->face_entity.entity_id = entity_id;
@@ -286,7 +284,9 @@ player_info_rs_v1(
 
         if( (mask & RS_PLAYER_MASK_SAY) != 0 )
         {
-            char const* text = pkt_info_take_text(&rsbuf, out);
+            char const* text = rs_info_take_text(&b, out);
+            if( !text )
+                break;
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SAY;
             op->say.text = text;
@@ -297,16 +297,16 @@ player_info_rs_v1(
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DAMAGE;
             /* Client.ts 8126-8127: damage first, then damageType (both g1). */
-            op->damage.damage = (uint8_t)g1(&rsbuf);
-            op->damage.damage_type = (uint8_t)g1(&rsbuf);
-            op->damage.health = (uint8_t)g1(&rsbuf);
-            op->damage.total_health = (uint8_t)g1(&rsbuf);
+            op->damage.damage = (uint8_t)rsprot_g1(&b);
+            op->damage.damage_type = (uint8_t)rsprot_g1(&b);
+            op->damage.health = (uint8_t)rsprot_g1(&b);
+            op->damage.total_health = (uint8_t)rsprot_g1(&b);
         }
 
         if( (mask & RS_PLAYER_MASK_FACE_COORD) != 0 )
         {
-            int target_x = g2(&rsbuf);
-            int target_z = g2(&rsbuf);
+            int target_x = rsprot_g2_12(&b);
+            int target_z = rsprot_g2_12(&b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_FACE_COORD;
             op->face_coord.x = (int16_t)target_x;
@@ -318,10 +318,12 @@ player_info_rs_v1(
             /* Client.ts 8140-8181: colourEffect g2, type g1, length g1, then
              * exactly `length` wordpacked bytes (v0's decoder dropped the
              * payload without consuming it — desyncing the rest). */
-            int colour_effect = g2(&rsbuf);
-            int type = g1(&rsbuf);
-            int chat_len = g1(&rsbuf);
-            uint8_t const* payload = pkt_info_take_bytes(&rsbuf, out, chat_len);
+            int colour_effect = rsprot_g2_12(&b);
+            int type = rsprot_g1(&b);
+            int chat_len = rsprot_g1(&b);
+            uint8_t const* payload = rs_info_take_bytes(&b, out, chat_len);
+            if( !payload )
+                break;
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_CHAT;
             op->chat.colour_effect = (uint16_t)colour_effect;
@@ -334,8 +336,8 @@ player_info_rs_v1(
 
         if( (mask & RS_PLAYER_MASK_SPOTANIM) != 0 )
         {
-            int spotanim_id = g2(&rsbuf);
-            int height_delay = g4(&rsbuf);
+            int spotanim_id = rsprot_g2_12(&b);
+            int height_delay = rsprot_g4_1234(&b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SPOTANIM;
             op->spotanim.spotanim_id = spotanim_id == 65535 ? -1 : spotanim_id;
@@ -347,25 +349,26 @@ player_info_rs_v1(
             /* Client.ts 8202-8211. */
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_EXACT_MOVE;
-            op->exact_move.start_x = (uint8_t)g1(&rsbuf);
-            op->exact_move.start_z = (uint8_t)g1(&rsbuf);
-            op->exact_move.end_x = (uint8_t)g1(&rsbuf);
-            op->exact_move.end_z = (uint8_t)g1(&rsbuf);
-            op->exact_move.end_cycle_delta = (uint16_t)g2(&rsbuf);
-            op->exact_move.start_cycle_delta = (uint16_t)g2(&rsbuf);
-            op->exact_move.facing = (uint8_t)g1(&rsbuf);
+            op->exact_move.start_x = (uint8_t)rsprot_g1(&b);
+            op->exact_move.start_z = (uint8_t)rsprot_g1(&b);
+            op->exact_move.end_x = (uint8_t)rsprot_g1(&b);
+            op->exact_move.end_z = (uint8_t)rsprot_g1(&b);
+            op->exact_move.end_cycle_delta = (uint16_t)rsprot_g2_12(&b);
+            op->exact_move.start_cycle_delta = (uint16_t)rsprot_g2_12(&b);
+            op->exact_move.facing = (uint8_t)rsprot_g1(&b);
         }
 
         if( (mask & RS_PLAYER_MASK_DAMAGE2) != 0 )
         {
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DAMAGE2;
-            op->damage.damage = (uint8_t)g1(&rsbuf);
-            op->damage.damage_type = (uint8_t)g1(&rsbuf);
-            op->damage.health = (uint8_t)g1(&rsbuf);
-            op->damage.total_health = (uint8_t)g1(&rsbuf);
+            op->damage.damage = (uint8_t)rsprot_g1(&b);
+            op->damage.damage_type = (uint8_t)rsprot_g1(&b);
+            op->damage.health = (uint8_t)rsprot_g1(&b);
+            op->damage.total_health = (uint8_t)rsprot_g1(&b);
         }
     }
 
+    rs_info_end(&b, out);
     return out->count;
 }

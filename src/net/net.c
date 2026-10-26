@@ -3,7 +3,6 @@
 #include "torirs_env.h"
 
 #include "cmd/cmdbus.h"
-#include "rev/gameproto_parse.h"
 #include "net/net_capture.h"
 
 #include <assert.h>
@@ -534,35 +533,15 @@ net_process_packets(struct ToriRS_Network* net)
         }
         else
         {
-            /*
-             * A generated revision (src/net/rev/<rev>/<rev>_exec.c) decodes by
-             * wire opcode through its executor and never answers "not mine".
-             * The LostCity tables, until they are generated too, try in order,
-             * each returning <0 for "not mine":
-             *
-             *   1. rev->parse — a hand-written per-revision override;
-             *   2. gameproto_parse — the shared lc-style parser.
-             *
-             * rsprot goes first so that moving a packet across is adding one
-             * row to the bridge table, with the arm it supersedes becoming
-             * dead code rather than needing to be deleted in the same step.
-             * The order also means a disagreement surfaces as rsprot's answer
-             * winning, not as two parsers both running.
-             */
+            /* Every revision decodes by wire opcode through its generated
+             * executor (src/net/rev/<rev>/<rev>_exec.c), which sets
+             * `packet_type` itself. */
             uint8_t* pdata = packetbuffer_data(&net->packet_buffer);
             int psize = packetbuffer_size(&net->packet_buffer);
-            int parsed = -1;
-            /* Set the canonical name up front so a rev->parse override need not
-             * (the shared gameproto_parse also sets it). */
-            packet.packet_type = name;
-            /* A table whose names do not identify a layout (net/proto/:
-             * CAM_TARGET_V3 and _V4 share one) parses by wire opcode first. */
-            if( net->rev->parse_wire )
-                parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
-            if( parsed < 0 && net->rev->parse )
-                parsed = net->rev->parse(net->rev, name, pdata, psize, &packet);
-            if( parsed < 0 )
-                parsed = gameproto_parse(net->rev, name, pdata, psize, &packet);
+            int parsed;
+
+            assert(net->rev->parse_wire);
+            parsed = net->rev->parse_wire(net->rev, wire, pdata, psize, &packet);
             if( parsed > 0 )
             {
                 /* Owned payloads transfer to the queued copy; the stack one

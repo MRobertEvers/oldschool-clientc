@@ -406,7 +406,7 @@ player_target_op(
      * reasoning; this is the same invariant on the other stream.
      *
      * The classic decoder advances `new_idx` for every tracked entry it reads,
-     * including the ones whose info bit is clear (net/rev/rs/player_info_rs_v1.c), and
+     * including the ones whose info bit is clear (3rd/rsprot/streams/player_info_rs_v1.c), and
      * SET_PLAYER_OPBITS_IDX below resolves an extended-info block as
      * `active_players[new_idx]`. So this append cannot be conditional: dropping
      * an unresolvable entry shortens the list and every later appearance, chat,

@@ -15,7 +15,7 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/rev_list.h"
-#include "net/rev/rs/info_rs.h"
+#include "streams/info_rs.h"
 
 #include "rsprot_exec.h"
 #include "streams/npc_info.h"

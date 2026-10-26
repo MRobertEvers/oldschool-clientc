@@ -2946,9 +2946,9 @@ ToriRSServer_SendCamUnlock(
 
 /*
  * SYNTH_SOUND — WEAPON_FX.md §6. Field order is not a choice: it matches the
- * client's own reader (gameproto_parse.c:706-710) exactly — id g2, loops g1,
- * delay g2, 5 bytes total. lc254/packetin.h:157 and lc245_2/packetin.h:154
- * carry the same shape.
+ * client's own reader exactly (RSProt's synth_sound spec, the rs-family
+ * layout) — id g2, loops g1, delay g2, 5 bytes total, at every LostCity
+ * revision.
  */
 void
 ToriRSServer_SendSynthSound(
@@ -3186,7 +3186,8 @@ ToriRSServer_SendMessageTyped(
  * engine/src/network/game/server/codec/ — UpdateFriendListEncoder,
  * UpdateIgnoreListEncoder, FriendlistLoadedEncoder, MessagePrivateEncoder,
  * ChatFilterSettingsEncoder — and each was checked against the *client's own*
- * reader in src/net/rev/gameproto_parse.c, which is the half that has to agree.
+ * reader (then gameproto_parse.c, now RSProt's rs-family layouts), which is the
+ * half that has to agree.
  * Three of the five readers assert full frame consumption, so a field out of
  * place here is an abort in the client rather than a subtle drawing bug.
  *
@@ -4612,7 +4613,7 @@ zone_sub_payload(
         return 1;
     /*
      * Fifteen bytes, and the client asserts it consumed exactly that
-     * (`gameproto_parse.c` MAP_PROJANIM), so the order below is the whole
+     * (RSProt's MAP_PROJANIM codec), so the order below is the whole
      * contract. Three of the fields are *signed* on the wire — the two tile
      * offsets and the target — and every one of them is routinely negative: a
      * shot to the west has a negative dx, and a projectile aimed at a player
@@ -4635,7 +4636,7 @@ zone_sub_payload(
         rsab_p1(buf, event->peak);
         rsab_p1(buf, event->arc);
         return 1;
-    /* Six bytes; client asserts exactly that (`gameproto_parse.c` MAP_ANIM). */
+    /* Six bytes; the client's codec requires exactly that (RSProt MAP_ANIM). */
     case TORIRSSERVER_ZONE_EV_MAPANIM:
         rsab_p1(buf, event->pos);
         rsab_p2(buf, event->id);

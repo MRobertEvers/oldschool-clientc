@@ -1,12 +1,11 @@
 /*
  * PLAYER_INFO / NPC_INFO bit-stream decode unit tests. A tiny bit-writer
- * (mirroring Net_BitBufferGbits' MSB-first packing) builds command streams;
+ * (mirroring rsprot_gbits' MSB-first packing) builds command streams;
  * the decoders must emit the expected op arrays. Also exercises the
  * appearance blob decode and the extended-info byte order.
  */
-#include "net/bitbuffer.h"
 #include "net/rev/packets/pkt_player_appearance.h"
-#include "net/rev/rs/info_rs.h"
+#include "streams/info_rs.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -757,30 +756,32 @@ test_npc_ops_capacity_is_a_guard_not_an_assert(void)
 
 /*
  * Same shape one layer down: the bit cursor is walked by counts the packet
- * supplies, so a short packet ran it off the end of the buffer. That bound was
- * an assert too, i.e. absent from the shipping build.
+ * supplies, so a short packet runs it off the end of the buffer. The rs-family
+ * readers (3rd/rsprot/streams/info_rs.h) rely on RSProt's bit reader refusing
+ * that read -- whole, zero, and marked -- rather than serving what follows.
  */
 static void
 test_bitbuffer_refuses_reads_past_the_end(void)
 {
     uint8_t data[2] = { 0xAB, 0xCD };
-    struct Net_BitBuffer buf;
+    RsprotBuf buf;
 
-    Net_BitBufferInit(&buf, data, (int)sizeof(data));
-    TEST_CHECK(!buf.overrun);
-    TEST_CHECK(Net_BitBufferGbits(&buf, 16) == 0xABCD);
-    TEST_CHECK(!buf.overrun);
+    rsprot_buf_wrap_read(&buf, data, (int32_t)sizeof(data));
+    rsprot_buf_bit_begin(&buf);
+    TEST_CHECK(rsprot_gbits(&buf, 16) == 0xABCD);
+    TEST_CHECK(buf.err == RSPROT_BUF_OK);
 
     /* One bit past the end: refused, reported, and zero rather than whatever
      * follows the buffer. */
-    TEST_CHECK(Net_BitBufferGbits(&buf, 1) == 0);
-    TEST_CHECK(buf.overrun);
+    TEST_CHECK(rsprot_gbits(&buf, 1) == 0);
+    TEST_CHECK(buf.err != RSPROT_BUF_OK);
 
     /* A read that straddles the end is refused whole, not partially served. */
-    Net_BitBufferInit(&buf, data, (int)sizeof(data));
-    TEST_CHECK(Net_BitBufferGbits(&buf, 12) == 0xABC);
-    TEST_CHECK(Net_BitBufferGbits(&buf, 8) == 0);
-    TEST_CHECK(buf.overrun);
+    rsprot_buf_wrap_read(&buf, data, (int32_t)sizeof(data));
+    rsprot_buf_bit_begin(&buf);
+    TEST_CHECK(rsprot_gbits(&buf, 12) == 0xABC);
+    TEST_CHECK(rsprot_gbits(&buf, 8) == 0);
+    TEST_CHECK(buf.err != RSPROT_BUF_OK);
 
     printf("ok - bit reads past the packet end are refused\n");
 }

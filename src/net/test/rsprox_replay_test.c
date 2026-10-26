@@ -12,7 +12,7 @@
 #include "cmd/cmdbus.h"
 #include "net/net.h"
 #include "net/net_out.h"
-#include "net/rev/gameproto_parse.h"
+#include "net/rev/revpacket.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rsprox_recording.h"
 #include "mem/torirs_mem.h"

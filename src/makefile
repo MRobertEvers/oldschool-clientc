@@ -664,13 +664,6 @@ PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 
-# PLAYER_INFO / NPC_INFO for the RS2 family -- lc245_2, lc254, lc289, osrs230
-# (net/rev/rs/info_rs.h): the versions, their shared sections, and the
-# per-revision entry points.
-RS_INFO_SRCS = net/rev/rs/info_rs.c net/rev/rs/info_rs_blocks.c \
-	net/rev/rs/player_info_rs_v1.c net/rev/rs/npc_info_rs_v1.c net/rev/rs/npc_info_rs_v2.c
-RS_INFO_OBJS = $(patsubst net/rev/rs/%.c,$(OBJ_DIR)/%.o,$(RS_INFO_SRCS))
-
 # The client's protocol module (net/proto/proto.h): every revision's wire
 # table, codecs and entity streams come from 3rd/rsprot through it. It reads
 # rsprot's codec, prot-table and info-stream headers, so it has explicit rules
@@ -892,19 +885,16 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	inv/inv_manager.c \
 	cmd/cmdring.c cmd/cmdbus.c \
 	net/isaac.c net/rsa.c net/ringbuf.c net/jbase37.c net/wordpack.c \
-	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c net/bitbuffer.c \
+	$(LOGIN_SRCS) net/packetbuffer.c net/net.c net/net_out.c \
 	net/net_link_watch.c \
 	game/rs_clientscript_queue.c \
 	perf/frame_time_ring.c \
 	editor/editor_preview_camera.c \
 	editor/map_editor_ghost.c \
 	render/world_camera_orbit.c \
-	net/rev/gameproto_parse.c $(RS_INFO_SRCS) \
-	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_normal.c \
-	net/rev/packets/pkt_rebuild_region.c \
+	net/rev/revpacket.c \
+	net/rev/packets/pkt_player_appearance.c \
 	net/rev/gameproto_rev_params.c \
-	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
-	net/rev/lc289/gameproto_rev_lc289.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_mdns.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
@@ -982,7 +972,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_interface_state.c \
 	torirsserver/torirs_server_poh.c \
 	torirsserver/mock239_playerinfo.c \
-	net/proto/proto_info.c net/bitbuffer.c \
+	net/proto/proto_info.c \
 	torirsserver/mock239_interface_setters.c \
 	torirsserver/mock239_varp.c \
 	torirsserver/mock239_interface_inbound.c \
@@ -1042,7 +1032,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
-	net/proto/proto_info.c net/bitbuffer.c \
+	net/proto/proto_info.c \
 	torirsserver/wire/osrs241_clientprot.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
@@ -1683,28 +1673,17 @@ $(OBJ_DIR)/$(notdir $(1:.m=.o)): $(1) | $(OBJ_DIR)
 endef
 
 
-NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
-	net/rev/lc289/gameproto_rev_lc289.c
-
 DRIVE_LUA_SRCS = plugin/torirs_plugin_drive.c plugin/torirs_plugin_drive_state.c \
 	plugin/torirs_plugin_drive_chat.c plugin/torirs_plugin_drive_read.c \
 	plugin/torirs_plugin_drive_pointer.c plugin/torirs_plugin_drive_ui.c \
 	plugin/torirs_plugin_drive_ticklog.c plugin/torirs_plugin_drive_los.c \
 	plugin/torirs_plugin_drive_record.c
 
-$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c $(NET_REV_SRCS) $(PROTO_SRCS) $(REV_EXEC_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c $(DRIVE_LUA_SRCS) painters/painters.c $(PROTO_SRCS) $(REV_EXEC_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 $(foreach src,$(PLATFORM_OBJC_SRCS),$(eval $(call make-objc-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
-
-# Rev protocol tables include their own dir for packetin.h/packetout.h.
-$(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
-$(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
-$(OBJ_DIR)/gameproto_rev_lc289.o: net/rev/lc289/gameproto_rev_lc289.c | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc289 -c $< -o $@
 
 # The revision executors read RSProt's packet headers.
 define make-rev-exec-goal
@@ -3584,15 +3563,12 @@ test-cmdbus: $(OBJ_DIR) cmd/cmdring.c cmd/cmdbus.c cmd/test/cmdbus_test.c
 # Login handshake + packet framing, deterministic (fixed seed + tommath RSA).
 NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/login_lc.o \
-	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_params.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
-	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_lc289.o \
-	$(RS_INFO_OBJS) \
+	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_params.o \
 	$(OBJ_DIR)/proto_info.o $(OBJ_DIR)/pkt_player_appearance.o \
 	$(OBJ_DIR)/sha256.o $(OBJ_DIR)/pow_sha256.o \
 	$(OBJ_DIR)/osrs241_clientprot.o $(OBJ_DIR)/login_osrs.o $(REV_EXEC_OBJS) \
-	$(OBJ_DIR)/pkt_rebuild_normal.o $(OBJ_DIR)/pkt_rebuild_region.o \
-	$(OBJ_DIR)/bitbuffer.o \
-	$(OBJ_DIR)/gameproto_parse.o $(OBJ_DIR)/tommath.o \
+	\
+	$(OBJ_DIR)/revpacket.o $(OBJ_DIR)/tommath.o \
 	$(RSPROT_PARSE_OBJS) \
 	$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
 
@@ -3612,7 +3588,7 @@ test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock239_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock239_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		torirsserver/mock241_playerinfo.c \
-		net/proto/proto_info.c net/bitbuffer.c \
+		net/proto/proto_info.c \
 		$(RSAREABUF_DIR)/rsareabuf.c $(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock239_playerinfo_test
 
@@ -3622,7 +3598,7 @@ test-mock239-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 test-osrs241-npcinfo-large: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/osrs241_npc_info_large_test $(TORIMEM_SRCS) \
 		net/rev/test/osrs241_npc_info_large_test.c \
-		net/proto/proto_info.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/osrs241_npc_info_large_test
 
@@ -3632,7 +3608,7 @@ test-mock241-playerinfo: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mock241_playerinfo_test $(TORIMEM_SRCS) \
 		torirsserver/test/mock241_playerinfo_test.c torirsserver/mock239_playerinfo.c \
 		torirsserver/mock241_playerinfo.c \
-		net/proto/proto_info.c net/bitbuffer.c $(RSAREABUF_DIR)/rsareabuf.c \
+		net/proto/proto_info.c $(RSAREABUF_DIR)/rsareabuf.c \
 		$(RSPROT_INFO_OBJS) -lm
 	./$(OBJ_DIR)/mock241_playerinfo_test
 
@@ -3679,7 +3655,7 @@ test-torirsserver-interface-state: $(OBJ_DIR)
 	./$(OBJ_DIR)/ToriRSServer_InterfaceStateTest
 
 test-net-login: $(OBJ_DIR) $(NET_CORE_OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_login_test $(TORIMEM_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_login_test $(TORIMEM_SRCS) \
 		net/test/net_login_test.c $(NET_CORE_OBJS) -lm
 	./$(OBJ_DIR)/net_login_test
 
@@ -3704,15 +3680,6 @@ test-net-out-resume: $(OBJ_DIR) $(OBJS)
 		net/test/net_out_resume_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_out_resume_test
 
-# The LostCity executors (net/rev/rs<N>/) against the hand parser they
-# replace, until it is deleted: tables, FILL fuzz, and CAPTURE (an osrs230-wire
-# session). Every difference must be in net/test/lc_diff_expected.txt.
-.PHONY: test-lc-diff
-test-lc-diff: $(OBJ_DIR) $(OBJS)
-	$(CC) $(CFLAGS) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/lc_diff \
-		net/test/lc_diff.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	LC_DIFF_FUZZ=$(or $(FUZZ),8) ./$(OBJ_DIR)/lc_diff $(CAPTURE)
-
 # Decode RSProx recordings at their own revision (227-241) with the generated
 # executors, packet by packet: `RECORDINGS="a.bin.gz b.bin.gz"`. Not a suite
 # test -- it needs recordings, which are not in the tree.
@@ -3733,7 +3700,7 @@ test-rsprox-replay: $(OBJ_DIR) $(OBJS)
 
 # Full login -> GAME -> parsed-packet pipeline through a scripted mock server.
 test-net-loopback: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_loopback_test $(TORIMEM_SRCS) \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_loopback_test $(TORIMEM_SRCS) \
 		net/test/net_loopback_test.c torirsserver/mock_server.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	./$(OBJ_DIR)/net_loopback_test
@@ -4257,8 +4224,8 @@ test-entity-transparency: $(OBJ_DIR)
 # PLAYER_INFO / NPC_INFO bit decode + appearance blob.
 test-entity-decode: $(OBJ_DIR) $(RSPROT_INFO_OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/entity_decode_test $(TORIMEM_SRCS) $(RSPROT_INFO_OBJS) \
-		net/test/entity_decode_test.c net/bitbuffer.c \
-		$(RS_INFO_SRCS) net/rev/packets/pkt_player_appearance.c \
+		net/test/entity_decode_test.c \
+		net/rev/packets/pkt_player_appearance.c \
 		net/jbase37.c $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o -lm
 	./$(OBJ_DIR)/entity_decode_test
@@ -4768,7 +4735,7 @@ bench-trspk-bake: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS)
 # Packet exec seam against bare managers (no cache/disk). Links the app
 # object set (exec calls into RS_UISlots which references App) minus main.
 test-net-exec: $(OBJ_DIR) $(OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/net_exec_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/net_exec_test \
 		game/test/rs_gameproto_exec_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/net_exec_test
@@ -4778,7 +4745,7 @@ test-net-exec: $(OBJ_DIR) $(OBJS)
 # footprint corner bake, and the archive-72 WevConfig decode against the real
 # cache at ../cache.osrs239 (loud SKIP when absent).
 test-wev: $(OBJ_DIR) $(OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_test \
 		world/test/wev_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/wev_test
@@ -4792,7 +4759,7 @@ test-wev: $(OBJ_DIR) $(OBJS)
 # other already built, plus the despawn sweep. Cache-backed against
 # ../cache.osrs239 (loud SKIP when absent; the parse/decode/pool checks run).
 test-wev-rebuild: $(OBJ_DIR) $(OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -o $(OBJ_DIR)/wev_rebuild_test \
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/wev_rebuild_test \
 		world/test/wev_rebuild_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/wev_rebuild_test
@@ -4976,10 +4943,9 @@ TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server
 # through the CLIENT's own parser, entity decoders and world model, listed here.
 SCRIPTRUN_SRCS = torirsserver/torirs_server_scriptrun.c scriptrun/scriptrun_core.c \
 	scriptrun/scriptrun_stubs.c ui/uitree_if_events.c \
-	net/rev/gameproto_parse.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
+	net/rev/revpacket.c net/proto/proto_adapt.c $(REV_EXEC_SRCS) \
 	net/login/login_osrs.c net/pow_sha256.c net/sha256.c \
-	$(RS_INFO_SRCS) \
-	net/rev/packets/pkt_player_appearance.c net/rev/packets/pkt_rebuild_region.c net/rev/packets/pkt_rebuild_normal.c \
+	net/rev/packets/pkt_player_appearance.c \
 	world/world.c world/world_cycle.c world/entity_pool.c world/world_entity.c \
 	world/entity_pathing.c world/entity_registry.c game/rs_entity_sync.c \
 	scriptrun/scriptrun_collision.c engine/torirs_types.c engine/torirs_map_from_rscache.c \
@@ -6670,25 +6636,22 @@ test-content-name-index: $(OBJ_DIR)
 # by two byte buffers, no socket and no thread. Links the server core (no
 # main()) against the client's net stack. If this hangs, the login handshake has
 # gone back to blocking â see torirsserver/test/embed_test.c.
-# net_out.c and the RS2-family readers (net/rev/rs/) are here because the
+# net_out.c and the rs-family readers (RSProt's streams/) are here because the
 # two-client half of the test drives the *client's* encoder for a ground click
 # and the client's own readers for PLAYER_INFO and NPC_INFO â asserting on the
 # server's own view of its stream would be asserting the encoder against itself.
 #
-# `net/bitbuffer.c` is NOT in that list even though those readers need it: it is
-# already in $(NET_CORE_OBJS) as $(OBJ_DIR)/bitbuffer.o, and naming it here too
-# compiles it a second time into the same link â four duplicate symbols and a
-# link failure. The client's entity readers were named in the recipe and
-# then joined $(NET_CORE_OBJS) later, which broke this link again the same way;
-# they are gone from the recipe now and the objects carry them.
-# This target had been unbuildable for that reason, which is worse
+# Nothing the client links through $(NET_CORE_OBJS) may be named here as well:
+# a second copy in the same link is a duplicate-symbol failure (net/bitbuffer.c
+# did exactly that, and the client's entity readers after it).
+# This target had been unbuildable for that, which is worse
 # than it sounds: it is the only test that asserts the two-peer zone replay (a
 # door one client opens being open for a client that connects later), so the
 # whole multi-client half of the zone work was going unverified with nothing
 # saying so.
 test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedTest \
-		torirsserver/test/embed_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedTest
@@ -6704,7 +6667,7 @@ test-torirsserver-embed: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)
 .PHONY: test-embed-party-link
 test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest \
-		torirsserver/test/embed_party_link_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/embed_party_link_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_EmbedPartyLinkTest
@@ -6716,7 +6679,7 @@ test-embed-party-link: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/c
 # machine, not by the server checking its own arithmetic.
 test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginIndexTest \
-		torirsserver/test/login_index_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_index_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginIndexTest
@@ -6725,7 +6688,7 @@ test-torirsserver-login-index: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OB
 # client holds, only to the session's own key, and never seats a second copy.
 test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_ReconnectClaimTest \
-		torirsserver/test/reconnect_claim_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/reconnect_claim_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_ReconnectClaimTest
@@ -6736,7 +6699,7 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # over the session playing, development mode lets anything in.
 test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
-		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c net/bitbuffer.c,$(TORIRSSERVER_CORE_SRCS)) \
+		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c \
 		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest

@@ -1402,4 +1402,37 @@ struct RevPacketItem
     struct RevPacketItem* next_nullable;
 };
 
+/** Free heap fields inside a parsed packet (safe after exec). */
+void
+gameproto_free(struct RevPacket* packet);
+
+/**
+ * Can this packet's exec change interface or CS2-visible state?
+ *
+ * The client opens a visual server-tick transaction on the first such packet
+ * and holds the framebuffer until the tick closes. SERVER_TICK_END is not a
+ * universal reply fence -- immediate world feedback is also sent between
+ * scheduled ticks, the map flag after MOVE_GAMECLICK being the common case --
+ * so treating every inbound packet as a tick opener retains the frame until
+ * the next 600 ms server cycle whether or not anything changed.
+ *
+ * Deliberately includes transmit sources as well as direct IF_* writes: a
+ * later clientscript in the same tick must observe varp, inventory, stat and
+ * social changes as part of the same UI transaction.
+ */
+int
+gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type);
+
+/**
+ * Does this packet's exec mount, unmount or move an interface?
+ *
+ * The packet pump releases the RUNCLIENTSCRIPTs it is holding for the tick
+ * fence ahead of every such packet, so a script keeps its wire order against
+ * the interface it targets: one sent before an IF_CLOSESUB runs while its
+ * group is still mounted, one sent before an IF_OPENSUB seeds state the
+ * opened interface's onload reads. See `pending_clientscripts` in app.h.
+ */
+int
+gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type);
+
 #endif

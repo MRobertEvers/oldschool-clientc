@@ -17,7 +17,7 @@
  * the line says so.
  */
 #include "net/rsprox_recording.h"
-#include "net/rev/gameproto_parse.h" /* gameproto_free */
+#include "net/rev/revpacket.h" /* gameproto_free */
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 

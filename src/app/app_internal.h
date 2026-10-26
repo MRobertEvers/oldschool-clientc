@@ -112,7 +112,7 @@
 #include "net/jbase37.h"
 #include "net/net.h"
 #include "net/net_out.h"
-#include "net/rev/gameproto_parse.h"
+#include "net/rev/revpacket.h"
 #include "net/rev/packets/pkt_player_appearance.h"
 #include "painters/painters.h"
 #include "painters/painters_cull_project.h"

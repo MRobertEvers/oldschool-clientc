@@ -8,16 +8,17 @@
 
 /*
  * Per-revision protocol tables — THE modularity seam of the net stack.
- * Everything server-build-specific (obfuscated opcodes, payload sizes,
- * client version, archive CRCs) hangs off one of these; the state machines
- * (loginproto, packetbuffer, ToriRS_Network), the shared parser
- * (gameproto_parse) and the exec layer are revision-agnostic and key on
- * canonical GameProtoPktName / GameProtoPktOutName values.
+ * Everything server-build-specific (opcodes, payload layouts, client version,
+ * archive CRCs) hangs off one of these, and every one is GENERATED: a
+ * revision's executor (src/net/rev/<rev>/<rev>_exec.c, tools/rev_exec_gen.py)
+ * decodes and encodes through RSProt's codecs for that revision. The state
+ * machines (login, packetbuffer, ToriRS_Network) and the exec layer are
+ * revision-agnostic and key on canonical GameProtoPktName /
+ * GameProtoPktOutName values.
  *
- * lc245_2 is the Lost City rev 245_2 build the v0 client targets; lc254 is
- * the authoritative LostCity_Server (Engine-TS branch 254) build; lc289 is its
- * January-2005 branch — payload sizes carry over between all three, wire
- * opcodes do not.
+ * Two families: OSRS (osrs227-241) and LostCity's, RSProt's `rs` (rs245.2,
+ * the build the v0 client targets; rs254, the authoritative LostCity_Server,
+ * Engine-TS branch 254; rs289, its January-2005 branch).
  */
 
 #ifndef PKTIN_LENGTH_VARU8
@@ -28,19 +29,11 @@
 enum GameProtoRevision
 {
     GAMEPROTO_REVISION_INVALID = 0,
-    GAMEPROTO_REVISION_LC254 = 1,
-    GAMEPROTO_REVISION_LC245_2 = 2,
-    /* 3 was xrsps233, removed 2026-10-25. 4, 5 and 7 were the hand-written
-     * osrs230 / osrs239 / osrs241 tables, generated since 2026-10-26
-     * (GAMEPROTO_REVISION_OSRS). */
-    GAMEPROTO_REVISION_LC289 = 6,
-    /**
-     * One of the data-driven OSRS revisions, 227-241 (net/proto/): every
-     * wire table, codec and info-stream layout comes from 3rd/rsprot's
-     * generated tables, so the revision NUMBER is GameProtoRevTable.
-     * client_version and nothing else distinguishes them. Named "rsprox<N>".
-     */
-    GAMEPROTO_REVISION_RSPROX = 8,
+    /* Retired, every one now generated: 1, 2 and 6 were the hand-written
+     * LostCity tables (lc254, lc245_2, lc289; GAMEPROTO_REVISION_RS since
+     * 2026-10-26), 3 was xrsps233 (removed 2026-10-25), 4, 5 and 7 the
+     * hand-written osrs230 / 239 / 241 tables, and 8 the data-driven OSRS
+     * module the generated executors replaced (GAMEPROTO_REVISION_OSRS). */
     /**
      * A generated OSRS revision (src/net/rev/osrs<N>/osrs<N>_exec.c, from
      * src/net/rev/revisions.ini): its executor calls the revision's own
@@ -205,17 +198,8 @@ struct GameProtoRevTable
      */
     int reconnect_kind;
 
-    /** Per-rev packet parse override; NULL = shared gameproto_parse. A non-NULL
-     * hook may return <0 to signal "not mine, fall back to gameproto_parse". */
-    int (*parse)(
-        struct GameProtoRevTable const* rev,
-        int pkt_name,
-        uint8_t const* data,
-        int len,
-        struct RevPacket* out);
-
     /** The entity-info readers, each writing the op list the executor reads:
-     * <prot>_osrs<N> (3rd/rsprot/streams) or <prot>_rs<N> (net/rev/rs/).
+     * <prot>_osrs<N> or <prot>_rs<N> (3rd/rsprot/streams).
      * Every table that carries PLAYER_INFO / NPC_INFO names its own. */
     int (*player_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
     int (*npc_info_read)(uint8_t const* data, int len, struct RsprotInfoList* out);
@@ -277,15 +261,6 @@ struct GameProtoRevTable
     int (*encodes)(int out_name);
 };
 
-struct GameProtoRevTable const*
-GameProtoRev_LC245_2(void);
-
-struct GameProtoRevTable const*
-GameProtoRev_LC254(void);
-
-struct GameProtoRevTable const*
-GameProtoRev_LC289(void);
-
 /** Resolve a revision by name: "osrs<N>" or "rs245_2" / "rs254" / "rs289" (a
  *  generated executor each), or a name manifests already carry -- "lc254",
  *  "lc289", "lc245_2" for the rs ones, "rsprox<N>" for "osrs<N>"; NULL when
@@ -311,7 +286,7 @@ GameProtoRev_JagChecksumsFromEnv(struct GameProtoRevTable const* rev, char const
 /* Boot-time login-parameter injection from a boot manifest. The tables are
  * static non-const singletons; these cast the const away by design and MUST be
  * called before ToriRS_Network_Init (nothing reads these fields until login).
- * The env fallbacks (TORIRS_JAG_CRC in GameProtoRev_LC254, etc.) still take
+ * The env fallbacks (TORIRS_JAG_CRC, read by the rs254 executor) still take
  * precedence — the app only calls these when the matching env is absent. */
 void
 GameProtoRev_SetJagChecksums(struct GameProtoRevTable const* rev, int32_t const crc[9]);

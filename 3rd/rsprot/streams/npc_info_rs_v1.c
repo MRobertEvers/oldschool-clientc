@@ -1,8 +1,8 @@
 /*
- * NPC_INFO, RS2 family, version 2: build 289. Version 1 with a jump flag in the
- * new-npc record between (dx, dz) and the extended-info bit (webclient
- * Client.getNpcPosNewVis, branch 289) -- the teleport-vs-walk distinction the
- * tracked section always had, extended to an npc appearing for the first time.
+ * NPC_INFO, rs family, version 1: 245.2 and 254's stream, and the servers that
+ * send it with wider ids (see info_rs.h). A port of v0's pkt_npc_info with the
+ * gaps filled from the webclient decoder: CHANGE_TYPE and SPOTANIM decoded, SAY
+ * carried in the op.
  */
 #include "info_rs_internal.h"
 
@@ -10,7 +10,7 @@
 #include <stdbool.h>
 
 int
-npc_info_rs_v2(
+npc_info_rs_v1(
     NpcInfoRs const* k,
     uint8_t const* data,
     int length,
@@ -18,7 +18,7 @@ npc_info_rs_v2(
 {
     struct RsExtendedQueue queue;
     struct RsExtendedQueue* q = &queue;
-    struct Net_BitBuffer buf;
+    RsprotBuf b;
     int slot_bits;
     int type_bits;
     int terminator;
@@ -37,19 +37,20 @@ npc_info_rs_v2(
 
     rsprot_info_list_begin(out);
     q->count = 0;
-    Net_BitBufferInit(&buf, data, length);
-    new_idx = rs_npc_info_old_vis(&buf, q, out);
+    rsprot_buf_wrap_read(&b, data, length);
+    rsprot_buf_bit_begin(&b);
+    new_idx = rs_npc_info_old_vis(&b, q, out);
 
-    /* New NPCs: slot + type + 5 + 5 + jump(1) + 1 bits per record, terminated by an
+    /* New NPCs: slot + type + 5 + 5 + 1 bits per record, terminated by an
      * all-ones slot. Both widths come from the revision (Client-TS
      * getNpcPosNewVis reads gBit(14) with terminator 16383, NOT the 13-bit /
      * 8191 layout of older revisions), while the 21-bit loop guard is the
      * reference's own fixed margin and stays put: it is what decides whether
      * the terminator is consumed before the byte-aligned extended-info
      * section, so changing it would shift that alignment. */
-    while( Net_BitBufferBitPos(&buf) + 21 < length * 8 )
+    while( b.bit_rpos + 21 < length * 8 )
     {
-        int npc_slot = Net_BitBufferGbits(&buf, slot_bits);
+        int npc_slot = rsprot_gbits(&b, slot_bits);
         if( npc_slot == terminator )
             break;
 
@@ -59,33 +60,34 @@ npc_info_rs_v2(
             op->value = (uint64_t)npc_slot;
         }
 
-        int npc_type = Net_BitBufferGbits(&buf, type_bits);
+        int npc_type = rsprot_gbits(&b, type_bits);
         {
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_NPCTYPE;
             op->value = (uint64_t)npc_type;
         }
 
-        int dx = Net_BitBufferGbits(&buf, 5);
+        int dx = rsprot_gbits(&b, 5);
         if( dx > 15 )
             dx -= 32;
-        int dz = Net_BitBufferGbits(&buf, 5);
+        int dz = rsprot_gbits(&b, 5);
         if( dz > 15 )
             dz -= 32;
-        int jump = Net_BitBufferGbits(&buf, 1);
         {
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DELTA_XZ;
             op->delta_xz.dx = (int16_t)dx;
             op->delta_xz.dz = (int16_t)dz;
-            op->delta_xz.jump = jump != 0;
+            op->delta_xz.jump = false;
         }
 
-        if( Net_BitBufferGbits(&buf, 1) )
+        if( rsprot_gbits(&b, 1) )
             rs_info_queue(q, new_idx);
         new_idx++;
     }
 
-    rs_npc_info_extended(q, data, length, Net_BitBufferBytePos(&buf), out);
+    rsprot_buf_bit_end(&b);
+    rs_npc_info_extended(q, &b, out);
+    rs_info_end(&b, out);
     return out->count;
 }

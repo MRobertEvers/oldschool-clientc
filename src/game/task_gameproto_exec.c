@@ -2,7 +2,7 @@
 #include "mem/torirs_mem.h"
 
 #include "app.h"
-#include "net/rev/gameproto_parse.h"
+#include "net/rev/revpacket.h"
 #include "rs_gameproto_exec.h"
 #include "plugin/torirs_plugin_host.h"
 #include "net/net.h"

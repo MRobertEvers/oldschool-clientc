@@ -16,7 +16,6 @@
 #include "game/rs_player_stats.h"
 #include "game/task_gameproto_exec.h"
 #include "inv/inv_manager.h"
-#include "net/rev/gameproto_parse.h"
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/revpacket.h"
 #include "ui/uitree.h"
@@ -482,14 +481,14 @@ main(void)
 
         uint8_t const wire[3] = { 0x02, 0x9A, 0x01 };
         memset(&p, 0, sizeof(p));
-        assert(gameproto_parse(rev, PKT_NAME_SET_ACTIVE_WORLD, (uint8_t*)wire, 3, &p));
+        assert(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_SET_ACTIVE_WORLD), wire, 3, &p) > 0);
         assert(p._set_active_world.world_id == 666);
         assert(p._set_active_world.level == 1);
 
         /* Root re-select, the id every SERVER_TICK_END implies. */
         uint8_t const root_wire[3] = { 0x00, 0x00, 0x00 };
         memset(&p, 0, sizeof(p));
-        assert(gameproto_parse(rev, PKT_NAME_SET_ACTIVE_WORLD, (uint8_t*)root_wire, 3, &p));
+        assert(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_SET_ACTIVE_WORLD), root_wire, 3, &p) > 0);
         assert(p._set_active_world.world_id == 0);
         assert(p._set_active_world.level == 0);
         printf("ok - SET_ACTIVE_WORLD decodes id then plane\n");
@@ -829,7 +828,7 @@ main(void)
             uint8_t const wire[1] = { 2 };
             memset(&p, 0, sizeof(p));
             TEST_EXEC_ASSERT(
-                gameproto_parse(rev, PKT_NAME_MINIMAP_TOGGLE, (uint8_t*)wire, 1, &p),
+                rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_MINIMAP_TOGGLE), wire, 1, &p) > 0,
                 "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
             RS_GameProto_Exec(&ctx, &p);

@@ -874,7 +874,7 @@ enum
 
 /*
  * Extended-info mask bits, mirroring the client's readers exactly
- * (src/net/rev/rs/info_rs.h, RS_PLAYER_MASK_* / RS_NPC_MASK_*). The writers must
+ * (3rd/rsprot/streams/info_rs.h, RS_PLAYER_MASK_* / RS_NPC_MASK_*). The writers must
  * emit fields in ascending bit order, because that is the order the reader
  * tests them in — the mask says which fields are present, never where.
  */
@@ -2759,7 +2759,7 @@ struct ToriRSServerNpc
      * `move_dirs[1]`, and `PathingEntity.runDir` in the reference.
      *
      * NPC_INFO's tracked section has always had the op for it (update type 2,
-     * two 3-bit directions; `net/rev/rs/info_rs_blocks.c` decodes it and
+     * two 3-bit directions; `3rd/rsprot/streams/info_rs_blocks.c` decodes it and
      * `World_NpcPathPushStep(WORLD_PATHSTEP_RUN)` applies it), but nothing on
      * this side ever set it, because every npc mover took exactly one step.
      * `playerfollow` needs two: a follower that walks cannot keep up with an

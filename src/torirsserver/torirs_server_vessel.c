@@ -511,7 +511,7 @@ ToriRSServer_VesselSpawn(
     zone_w = (size_x_tiles + 7) / 8;
     zone_h = (size_z_tiles + 7) / 8;
     /* 13 zones is the client's hard grid stride (REBUILD_WORLDENTITY decodes
-     * onto the 13x13 instance array, gameproto_parse.c) — and 14+ would also
+     * onto the 13x13 instance array, proto_adapt.c) — and 14+ would also
      * index the encoder's own zones[4][13][13] out of bounds. The instance
      * pool accepts 16, so refuse here, where the size is still a request. */
     if( zone_w > 13 || zone_h > 13 )

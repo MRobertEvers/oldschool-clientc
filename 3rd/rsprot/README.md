@@ -1,7 +1,8 @@
 # rsprot (C)
 
 A C port of the OSRS wire layer that [RSProt](https://github.com/2004Scape/rsprot)
-and RSProx implement in Kotlin. It covers revisions 221-241 and depends on
+and RSProx implement in Kotlin. It covers OSRS revisions 221-241 and the three
+LostCity builds (rs245.2, rs254, rs289), and depends on
 nothing outside this directory: no Kotlin, no JVM, no other library in this
 tree. Programs that read or write the protocol depend on it: the 3draster
 client and server, rsprox-index's native indexer, and the rsprox-c fork
@@ -58,7 +59,9 @@ prot and, where the codec is filed under another name, the version it calls
 (`CAM_TARGET` at 223 calls `CAM_TARGET_V2`). Each packet header maps the
 revision to its layout (`packet_<file>_osrs<N>_<dir>`), and the info streams
 have an entry point per revision (`npc_info_small_v5_osrs239`) that calls its
-version with that revision's constants.
+version with that revision's constants. The rs family's streams are one shape
+across three builds and are hand-written (`streams/info_rs.h`:
+`player_info_rs254` calls `player_info_rs_v1`).
 
 The info streams are buffer readers: each writes an op list
 (`streams/rsprot_info.h`) carrying every value as sent, and the host applies

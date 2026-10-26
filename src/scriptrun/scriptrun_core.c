@@ -4,7 +4,6 @@
 #include "game/rs_chat.h" /* RS_CHAT_TYPE_PUBLIC: the client chatbox's type */
 #include "game/rs_entity_sync.h"
 #include "net/wordpack.h"
-#include "net/rev/gameproto_parse.h" /* gameproto_free */
 #include "net/rev/gameproto_revisions.h"
 #include "streams/rsprot_info.h"
 #include "net/rev/packets/pkt_player_appearance.h"

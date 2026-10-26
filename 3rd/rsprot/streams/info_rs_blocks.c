@@ -1,17 +1,13 @@
-/* The npc sections every RS2-family version shares (info_rs_internal.h). */
+/* The npc sections every rs-family version shares (info_rs_internal.h). */
 #include "info_rs_internal.h"
 
-#include "mem/torimem_rscache.h"
-#include "net/rev/packets/pkt_info_bytes.h"
-
 #include <assert.h>
-#include <rsbuffer.h>
 #include <stdbool.h>
 #include <string.h>
 
 int
 rs_npc_info_old_vis(
-    struct Net_BitBuffer* buf,
+    RsprotBuf* b,
     struct RsExtendedQueue* q,
     RsprotInfoList* out)
 {
@@ -28,7 +24,7 @@ rs_npc_info_old_vis(
  */
     /* Tracked NPCs. */
     int new_idx = 0;
-    int count = Net_BitBufferGbits(buf, 8);
+    int count = rsprot_gbits(b, 8);
     {
         struct RsprotInfoOp* op = rs_info_op(out);
         op->kind = RSPROT_OP_COUNT_RESET;
@@ -36,7 +32,7 @@ rs_npc_info_old_vis(
     }
     for( int old_idx = 0; old_idx < count; old_idx++ )
     {
-        int info = Net_BitBufferGbits(buf, 1);
+        int info = rsprot_gbits(b, 1);
 
         if( info == 0 )
         {
@@ -50,7 +46,7 @@ rs_npc_info_old_vis(
             continue;
         }
 
-        int move_op = Net_BitBufferGbits(buf, 2);
+        int move_op = rsprot_gbits(b, 2);
         switch( move_op )
         {
         case 0:
@@ -74,12 +70,12 @@ rs_npc_info_old_vis(
             op->kind = RSPROT_OP_INFO;
             op->value = (uint64_t)info;
 
-            int walkdir = Net_BitBufferGbits(buf, 3);
+            int walkdir = rsprot_gbits(b, 3);
             op = rs_info_op(out);
             op->kind = RSPROT_OP_WALKDIR;
             op->value = (uint64_t)walkdir;
 
-            if( Net_BitBufferGbits(buf, 1) )
+            if( rsprot_gbits(b, 1) )
                 rs_info_queue(q, new_idx);
             new_idx++;
             break;
@@ -95,13 +91,13 @@ rs_npc_info_old_vis(
 
             for( int r = 0; r < 2; r++ )
             {
-                int rundir = Net_BitBufferGbits(buf, 3);
+                int rundir = rsprot_gbits(b, 3);
                 op = rs_info_op(out);
                 op->kind = RSPROT_OP_RUNDIR;
                 op->value = (uint64_t)rundir;
             }
 
-            if( Net_BitBufferGbits(buf, 1) )
+            if( rsprot_gbits(b, 1) )
                 rs_info_queue(q, new_idx);
             new_idx++;
             break;
@@ -122,17 +118,12 @@ rs_npc_info_old_vis(
 void
 rs_npc_info_extended(
     struct RsExtendedQueue const* q,
-    uint8_t const* data,
-    int length,
-    int byte_pos,
+    RsprotBuf* b,
     RsprotInfoList* out)
 {
-    struct RSCache_Buffer rsbuf;
-
-    /* Extended info (byte-aligned). */
-    RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)length);
-    rsbuf.position = (uint32_t)byte_pos;
-    for( int i = 0; i < q->count && (int)rsbuf.position < length; i++ )
+    /* Extended info (byte-aligned). A field the payload is too short for
+     * marks `b`; the read stops at the next entry and the list says why. */
+    for( int i = 0; i < q->count && rsprot_buf_readable(b) > 0 && !b->err; i++ )
     {
         if( out->overflow )
             break;
@@ -143,24 +134,24 @@ rs_npc_info_extended(
             op->value = (uint64_t)idx;
         }
 
-        if( (int)rsbuf.position >= length )
+        if( rsprot_buf_readable(b) <= 0 )
             break;
-        int mask = g1(&rsbuf);
+        int mask = rsprot_g1(b);
 
         if( (mask & RS_NPC_MASK_DAMAGE2) != 0 )
         {
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DAMAGE;
-            op->damage.damage = (uint8_t)g1(&rsbuf);
-            op->damage.damage_type = (uint8_t)g1(&rsbuf);
-            op->damage.health = (uint8_t)g1(&rsbuf);
-            op->damage.total_health = (uint8_t)g1(&rsbuf);
+            op->damage.damage = (uint8_t)rsprot_g1(b);
+            op->damage.damage_type = (uint8_t)rsprot_g1(b);
+            op->damage.health = (uint8_t)rsprot_g1(b);
+            op->damage.total_health = (uint8_t)rsprot_g1(b);
         }
 
         if( (mask & RS_NPC_MASK_ANIM) != 0 )
         {
-            int seq_raw = g2(&rsbuf);
-            int delay = g1(&rsbuf);
+            int seq_raw = rsprot_g2_12(b);
+            int delay = rsprot_g1(b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SEQUENCE;
             op->sequence.sequence_id = seq_raw == 65535 ? -1 : seq_raw;
@@ -169,7 +160,7 @@ rs_npc_info_extended(
 
         if( (mask & RS_NPC_MASK_FACE_ENTITY) != 0 )
         {
-            int entity_id = g2(&rsbuf);
+            int entity_id = rsprot_g2_12(b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_FACE_ENTITY;
             op->face_entity.entity_id = entity_id;
@@ -177,7 +168,9 @@ rs_npc_info_extended(
 
         if( (mask & RS_NPC_MASK_SAY) != 0 )
         {
-            char const* text = pkt_info_take_text(&rsbuf, out);
+            char const* text = rs_info_take_text(b, out);
+            if( !text )
+                break;
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SAY;
             op->say.text = text;
@@ -188,16 +181,16 @@ rs_npc_info_extended(
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_DAMAGE;
             /* Client.ts 8446-8447: damage first, then damageType (both g1). */
-            op->damage.damage = (uint8_t)g1(&rsbuf);
-            op->damage.damage_type = (uint8_t)g1(&rsbuf);
-            op->damage.health = (uint8_t)g1(&rsbuf);
-            op->damage.total_health = (uint8_t)g1(&rsbuf);
+            op->damage.damage = (uint8_t)rsprot_g1(b);
+            op->damage.damage_type = (uint8_t)rsprot_g1(b);
+            op->damage.health = (uint8_t)rsprot_g1(b);
+            op->damage.total_health = (uint8_t)rsprot_g1(b);
         }
 
         if( (mask & RS_NPC_MASK_CHANGE_TYPE) != 0 )
         {
             /* Client.ts 8455: transmogrify — g2 new npc type. */
-            int npc_type = g2(&rsbuf);
+            int npc_type = rsprot_g2_12(b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_CHANGE_TYPE;
             op->change_type.npc_type = npc_type;
@@ -206,8 +199,8 @@ rs_npc_info_extended(
         if( (mask & RS_NPC_MASK_SPOTANIM) != 0 )
         {
             /* Client.ts 8466: g2 id (65535 -> -1) + g4 heightDelay. */
-            int spotanim_id = g2(&rsbuf);
-            int height_delay = g4(&rsbuf);
+            int spotanim_id = rsprot_g2_12(b);
+            int height_delay = rsprot_g4_1234(b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_SPOTANIM;
             op->spotanim.spotanim_id = spotanim_id == 65535 ? -1 : spotanim_id;
@@ -216,8 +209,8 @@ rs_npc_info_extended(
 
         if( (mask & RS_NPC_MASK_FACE_COORD) != 0 )
         {
-            int target_x = g2(&rsbuf);
-            int target_z = g2(&rsbuf);
+            int target_x = rsprot_g2_12(b);
+            int target_z = rsprot_g2_12(b);
             struct RsprotInfoOp* op = rs_info_op(out);
             op->kind = RSPROT_OP_FACE_COORD;
             op->face_coord.x = (int16_t)target_x;

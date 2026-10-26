@@ -7,8 +7,7 @@
 #include "net/login/login_lc.h"
 #include "net/packetbuffer.h"
 #include "net/rev/gameproto_revisions.h"
-#include "net/rev/gameproto_parse.h"
-#include "net/rev/lc245_2/packetin.h"
+#include "net/rev/revpacket.h"
 
 #include <assert.h>
 #include <stdint.h>
@@ -317,12 +316,7 @@ test_packet_framing(void)
 
     struct RevPacket packet;
     memset(&packet, 0, sizeof(packet));
-    int ok = gameproto_parse(
-        rev,
-        (enum GameProtoPktName)rev->packetin_code(code),
-        packetbuffer_data(&pb),
-        packetbuffer_size(&pb),
-        &packet);
+    int ok = rev->parse_wire(rev, code, packetbuffer_data(&pb), packetbuffer_size(&pb), &packet) > 0;
     assert(ok);
     gameproto_free(&packet);
 
@@ -452,7 +446,7 @@ test_lc_inv_full_size_is_two_bytes(void)
     struct RevPacket packet;
 
     memset(&packet, 0, sizeof(packet));
-    TEST_CHECK(gameproto_parse(rev, PKT_NAME_UPDATE_INV_FULL, body, sizeof(body), &packet) == 1);
+    TEST_CHECK(rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_INV_FULL), body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_full.component_id == 8847);
     assert(packet._update_inv_full.size == 3);
     assert(packet._update_inv_full.obj_ids[0] == 249);
@@ -479,7 +473,7 @@ test_lc_inv_partial_slot_is_smart(void)
 
     memset(&packet, 0, sizeof(packet));
     TEST_CHECK(
-        gameproto_parse(rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
+        rev->parse_wire(rev, rev->packetin_wire(PKT_NAME_UPDATE_INV_PARTIAL), body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_partial.component_id == 12);
     assert(packet._update_inv_partial.count == 2);
     assert(packet._update_inv_partial.entries[0].slot == 5);

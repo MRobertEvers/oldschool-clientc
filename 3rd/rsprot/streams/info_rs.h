@@ -1,11 +1,12 @@
-#ifndef SRC_NET_REV_RS_INFO_RS_H
-#define SRC_NET_REV_RS_INFO_RS_H
+#ifndef RSPROT_STREAMS_INFO_RS_H
+#define RSPROT_STREAMS_INFO_RS_H
 
 /*
- * PLAYER_INFO and NPC_INFO for the RS2 family: the Lost City era builds
- * (245.2, 254, 289) and the server that speaks their streams (osrs230).
+ * PLAYER_INFO and NPC_INFO for the rs family: the Lost City era builds
+ * (245.2, 254, 289). Hand-written, unlike the OSRS streams beside it: three
+ * revisions and one shape, which a spec would only restate.
  *
- * Laid out like 3rd/rsprot/streams: each revision has an entry point,
+ * Laid out like the OSRS streams: each revision has an entry point,
  * <prot>_rs<N>, which calls its prot's version, <prot>_rs_v<X>, a straight-line
  * reader with no revision branching. What a revision changes and the version
  * does not -- the new-npc record's field widths -- is a constants struct.
@@ -21,12 +22,13 @@
  * wrong npc: every later record is read one bit off and the section runs past
  * the end of the packet.
  *
- * Every reader writes the list the entity-info executor reads
- * (3rd/rsprot/streams/rsprot_info.h), as every other revision's readers do. The
- * streams are stateless across packets: the tracked list is the consumer's.
+ * Every reader writes the list every other revision's readers write
+ * (rsprot_info.h). The streams are stateless across packets: the tracked list
+ * is the consumer's. A read that runs out of payload ends the list with a STOP
+ * (RSPROT_STOP_ERROR), as the OSRS readers do.
  */
 
-#include "streams/rsprot_info.h"
+#include "rsprot_info.h"
 
 #include <stdint.h>
 

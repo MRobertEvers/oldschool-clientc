@@ -1,5 +1,5 @@
 /*
- * The RS2-family entry points: each revision's PLAYER_INFO and NPC_INFO, and
+ * The rs-family entry points: each revision's PLAYER_INFO and NPC_INFO, and
  * the constants its version reads (info_rs.h).
  */
 #include "info_rs.h"

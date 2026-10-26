@@ -1875,13 +1875,10 @@ adapt_midi_song_v2(MsgMidiSongV2 const* m, struct RevPacket* out)
 
 /*
  * MIDI_JINGLE. The wire layout genuinely differs by revision -- rev 239 is a
- * 5-byte `p3 length_in_millis / p2Alt3 id`, where the pre-239 revisions this
- * tree hand-parses are a 4-byte `g2 id / g2 delay` (gameproto_parse.c, kept
- * for lc254/lc245_2). Routing 239 through the generated codec here, instead
- * of hand-transcribing it into osrs239_parse.c, is what actually fixes the
- * bug: the hand-written reader used the 4-byte shape for every revision,
- * which desynchronises the very next packet against a real 239 server and
- * trips the `assert(position == data_size)` gameproto_parse.c never disables.
+ * 5-byte `p3 length_in_millis / p2Alt3 id`, where LostCity's is a 4-byte
+ * `g2 id / g2 delay`. The hand-written reader this replaced used the 4-byte
+ * shape for every revision, which desynchronised the very next packet against
+ * a real 239 server.
  *
  * `delay` carries the millisecond length; the canonical struct has no separate
  * field for it and the client does not act on it once decoded either way
@@ -2147,8 +2144,8 @@ adapt_cam_rotateto_coordinate_v3(MsgCamRotateToCoordinateV3 const* m, struct Rev
 
 /*
  * The 2004 protocol's messages, as the client's own reader mapped them
- * (src/net/rev/gameproto_parse.c, which these replace) -- field for field, so
- * a LostCity revision decodes into exactly the arm it always did.
+ * (gameproto_parse.c, which these replaced: git show 448b3cdf0) -- field for
+ * field, so a LostCity revision decodes into exactly the arm it always did.
  */
 
 /* A newline-terminated string the codec borrowed: owned, NUL-terminated. */
