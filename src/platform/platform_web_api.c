@@ -155,6 +155,23 @@ ToriRS_WebApi_ArchiveApplyMetadata(
 }
 
 /**
+ * Whether `table` lists the group at all.
+ *
+ * Asked before a group is fetched, because over JS5 a missing group is not a
+ * failed read: the server answers it by closing the connection, the page
+ * reconnects and re-sends it, and the read never ends. A disk read of the same
+ * group just fails, and this makes the browser's do the same.
+ */
+EMSCRIPTEN_KEEPALIVE int
+ToriRS_WebApi_ReferenceTableHasArchive(
+    struct RSCache_ReferenceTable const* table,
+    int archive_id)
+{
+    assert(table);
+    return RSCache_ReferenceTableHasArchive(table, archive_id) ? 1 : 0;
+}
+
+/**
  * Decode a reference table straight out of its raw container.
  *
  * Both steps in one call on purpose. A reference table arrives as an ordinary

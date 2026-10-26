@@ -527,6 +527,18 @@ mergeInto(LibraryManager.library, {
      */
     cacheReadDecode: async function (inst, req) {
       /*
+       * A group the cache does not list is a failed read, as on disk -- and it
+       * must be decided before asking, because a JS5 server answers a request
+       * for one by closing the connection, and the reconnect re-sends it
+       * forever (config group 72 on a rev-223 cache). The table's own
+       * reference table says; 255 is the index of those and lists nothing.
+       */
+      if (!this.isDat1(req.flags) && req.table !== 255) {
+        const listing = await this.refTableForMetadata(inst, req.table);
+        if (listing && !_ToriRS_WebApi_ReferenceTableHasArchive(listing, req.archive)) { return null; }
+      }
+
+      /*
        * Two awaits, and the order matters only in that both must finish
        * before the decode: the group's bytes, and the key the cache profile
        * says this table needs (null for everything but encrypted maps -- the

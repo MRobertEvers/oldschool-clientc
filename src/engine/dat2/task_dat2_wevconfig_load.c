@@ -21,9 +21,12 @@
  * per-frame interpolator, neither of which has anywhere to yield to a load.
  * The group is tiny — 14 records, 506 bytes total in cache.osrs239.
  *
- * Archive 72 exists only from OldSchool 239 on; every earlier cache simply
- * does not have it, so an absent group leaves the table empty and no boat
- * ever spawns — the pre-sailing world, not an error.
+ * Archive 72 exists only in newer OldSchool caches (223's has none); an
+ * absent group leaves the table empty and no boat ever spawns -- the
+ * pre-sailing world, not an error. Absent is decided from the configs
+ * reference table BEFORE the group is asked for: a disk read of a missing
+ * group fails quietly, but a JS5 server answers one by closing the
+ * connection, and the browser's reconnect re-sends it forever.
  */
 
 struct Task_Dat2WevConfigLoad
@@ -48,15 +51,44 @@ Task_Dat2WevConfigLoad_Run(
 
     PT_BEGIN(&task->pt);
 
+    /* One fetch of the configs table for every loader that wants it
+     * (dat2_buildcache.h, reference_table_loading). */
+    while( !dat2_buildcache_reference_table_has(task->bc, RSCACHE_DAT2_TABLE_CONFIGS) )
+    {
+        if( task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] )
+        {
+            task->task.blocked = 1;
+            PT_YIELD(&task->pt);
+            continue;
+        }
+        task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] = 1;
+        RSCache_IO_Dat2ReferenceTableLoad(io, 0, RSCACHE_DAT2_TABLE_CONFIGS);
+        PT_YIELD(&task->pt);
+
+        {
+            struct RSCache_ReferenceTable* configs = RSCache_IO_Dat2ReferenceTableDecode(io, 0);
+            task->bc->reference_table_loading[RSCACHE_DAT2_TABLE_CONFIGS] = 0;
+            if( !configs )
+            {
+                fprintf(stderr, "wevconfig: no configs reference table\n");
+                PT_EXIT(&task->pt);
+            }
+            dat2_buildcache_reference_table_add(task->bc, RSCACHE_DAT2_TABLE_CONFIGS, configs);
+        }
+    }
+    if( !RSCache_ReferenceTableHasArchive(
+            dat2_buildcache_reference_table_get(task->bc, RSCACHE_DAT2_TABLE_CONFIGS),
+            RSCACHE_DAT2_CONFIG_KIND_WORLDENTITY) )
+        PT_EXIT(&task->pt);
+
     RSCache_IO_Dat2ConfigGroupLoad(io, 0, RSCACHE_DAT2_CONFIG_KIND_WORLDENTITY);
     PT_YIELD(&task->pt);
 
     archive = RSCache_IO_Dat2ConfigGroupDecode(io, 0, RSCACHE_DAT2_CONFIG_KIND_WORLDENTITY);
     if( !archive )
     {
-        /* Pre-sailing cache (anything before OldSchool 239): no archive 72,
-         * no boats. The table stays empty and WORLDENTITY_INFO spawn asserts
-         * loudly if a server sends one anyway. */
+        /* Listed but unreadable. The table stays empty and WORLDENTITY_INFO
+         * spawn asserts loudly if a server sends one anyway. */
         PT_EXIT(&task->pt);
     }
 
