@@ -141,6 +141,21 @@ rsprot_exec_trace(RsprotExec *x, RsprotTrace *trace)
     x->trace = trace;
     trace->len = 0;
     trace->overflow = 0;
+    trace->final = 0;
+    trace->clamp_src = NULL;
+}
+
+void
+rsprot_exec_trace_final(RsprotExec *x, RsprotTrace *trace)
+{
+    rsprot_exec_trace(x, trace);
+    trace->final = 1;
+}
+
+static int
+trace_final(RsprotExec *x)
+{
+    return x->trace && x->trace->final;
 }
 
 /* --- the trace (rsprot_exec_trace) --------------------------------------- */
@@ -353,6 +368,20 @@ rsprot_x(RsprotExec *x, RsprotPrim prim, int32_t *value, const char *name)
         break;
     case RSPROT_DECODE:
         *value = k_prim[prim].get(x->buf);
+        if (trace_final(x) && value == x->trace->clamp_src) {
+            /* The escape field of a CLAMP: its source's entry gets the value. */
+            RsprotTrace *t = x->trace;
+
+            t->clamp_src = NULL;
+            if (!t->overflow) {
+                int32_t at = t->len;
+
+                t->len = t->clamp_at;
+                trace_be(t, (uint32_t)*value, 4);
+                t->len = at;
+            }
+            break;
+        }
         trace_prim(x, prim, *value, name);
         break;
     case RSPROT_DESCRIBE:
@@ -386,7 +415,8 @@ rsprot_xconst(RsprotExec *x, RsprotPrim prim, int32_t value, const char *name)
          * it became true, instead of as a nonsense value several fields later.
          */
         int32_t got = k_prim[prim].get(x->buf);
-        trace_prim(x, prim, got, name);
+        if (!trace_final(x))
+            trace_prim(x, prim, got, name);
         if (got != value)
             rsprot_exec_fail(x, "fixed field has the wrong value");
         break;
@@ -473,8 +503,11 @@ rsprot_xform_add(
         break;
     case RSPROT_DECODE:
         *value = k_prim[prim].get(x->buf);
-        trace_prim(x, prim, *value, name);
+        if (!trace_final(x))
+            trace_prim(x, prim, *value, name);
         *value -= delta;
+        if (trace_final(x))
+            trace_prim(x, prim, *value, name);
         break;
     case RSPROT_DESCRIBE:
         record(x, name, RSPROT_FIELD_PRIM, prim, 0);
@@ -499,7 +532,7 @@ rsprot_xform_add(
 void
 rsprot_xclamp(
     RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t *source, int32_t cap,
-    const char *name)
+    const char *name, const char *source_name)
 {
     if (prim < 0 || prim >= RSPROT_PRIM_COUNT) {
         rsprot_exec_fail(x, "unknown primitive");
@@ -520,11 +553,22 @@ rsprot_xclamp(
         break;
     case RSPROT_DECODE:
         *value = k_prim[prim].get(x->buf);
-        trace_prim(x, prim, *value, name);
         /* Below the cap the short field IS the value; at the cap an escape
          * field follows and overwrites this. */
         if (*value < cap)
             *source = *value;
+        if (!trace_final(x)) {
+            trace_prim(x, prim, *value, name);
+        } else {
+            RsprotTrace *t = x->trace;
+
+            trace_prim(x, prim, *value, source_name);
+            t->clamp_src = NULL;
+            if (*value >= cap && !t->overflow) {
+                t->clamp_src = source;
+                t->clamp_at = t->len - 4;
+            }
+        }
         break;
     case RSPROT_DESCRIBE:
         record(x, name, RSPROT_FIELD_PRIM, prim, 0);

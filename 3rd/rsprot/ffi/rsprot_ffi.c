@@ -72,9 +72,9 @@ static _Thread_local union
     uint8_t bytes[1 << 20];
 } g_msg;
 
-int
-rsprot_ffi_decode(int revision, int client, const char *prot, const uint8_t *data, int len,
-                  int whole, uint8_t *out, int cap, int *consumed, char *err, int err_cap)
+static int
+decode(int revision, int client, const char *prot, const uint8_t *data, int len, int whole,
+       int final, uint8_t *out, int cap, int *consumed, char *err, int err_cap)
 {
     RsprotRegistryDir dir = client ? RSPROT_REG_IN : RSPROT_REG_OUT;
     const RsprotProtDef *row = row_named(revision, client, prot);
@@ -96,7 +96,10 @@ rsprot_ffi_decode(int revision, int client, const char *prot, const uint8_t *dat
     rsprot_exec_decode(&x, &b);
     trace.out = out;
     trace.cap = cap;
-    rsprot_exec_trace(&x, &trace);
+    if (final)
+        rsprot_exec_trace_final(&x, &trace);
+    else
+        rsprot_exec_trace(&x, &trace);
     fn(&x, g_msg.bytes);
     if (consumed)
         *consumed = b.rpos;
@@ -112,4 +115,19 @@ rsprot_ffi_decode(int revision, int client, const char *prot, const uint8_t *dat
     if (trace.overflow)
         return -3;
     return trace.len;
+}
+
+int
+rsprot_ffi_decode(int revision, int client, const char *prot, const uint8_t *data, int len,
+                  int whole, uint8_t *out, int cap, int *consumed, char *err, int err_cap)
+{
+    return decode(revision, client, prot, data, len, whole, 0, out, cap, consumed, err, err_cap);
+}
+
+int
+rsprot_ffi_decode_fields(int revision, int client, const char *prot, const uint8_t *data,
+                         int len, int whole, uint8_t *out, int cap, int *consumed, char *err,
+                         int err_cap)
+{
+    return decode(revision, client, prot, data, len, whole, 1, out, cap, consumed, err, err_cap);
 }

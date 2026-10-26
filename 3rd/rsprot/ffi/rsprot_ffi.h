@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 
-#define RSPROT_FFI_ABI 1
+#define RSPROT_FFI_ABI 2
 
 /** RSPROT_FFI_ABI, for a binding to check what it loaded. */
 int rsprot_ffi_abi(void);
@@ -45,5 +45,14 @@ const char *rsprot_ffi_zone_prot(int revision, int ordinal);
  */
 int rsprot_ffi_decode(int revision, int client, const char *prot, const uint8_t *data, int len,
                       int whole, uint8_t *out, int cap, int *consumed, char *err, int err_cap);
+
+/*
+ * rsprot_ffi_decode, the trace holding each field's DECODED value
+ * (rsprot_exec_trace_final): the message as its struct holds it, which is what
+ * a host builds its own model from.
+ */
+int rsprot_ffi_decode_fields(int revision, int client, const char *prot, const uint8_t *data,
+                             int len, int whole, uint8_t *out, int cap, int *consumed, char *err,
+                             int err_cap);
 
 #endif

@@ -291,10 +291,28 @@ typedef struct RsprotTrace
     int32_t len;
     /** An entry did not fit; the decode carried on, the trace is incomplete. */
     int overflow;
+    /** rsprot_exec_trace_final: each field's decoded value, not as read. */
+    int final;
+    /* final: the CLAMP source an escape read completes, and where its value is. */
+    const int32_t *clamp_src;
+    int32_t clamp_at;
 } RsprotTrace;
 
 /** Record `x`'s reads into `trace` (after rsprot_exec_decode). */
 void rsprot_exec_trace(RsprotExec *x, RsprotTrace *trace);
+
+/*
+ * The same trace, of each field's DECODED value -- what the message struct holds
+ * once the codec returns -- so a host builds its model from the fields without
+ * knowing how the wire carried them:
+ *
+ *   - RSPROT_XFORM's entry is the field (the wire value less the offset);
+ *   - RSPROT_CLAMP's entry is its source, under the source's name, with the full
+ *     value: the escape field that follows at the cap completes that entry
+ *     instead of adding one;
+ *   - RSPROT_CONST has no entry: it is the layout's, not the message's.
+ */
+void rsprot_exec_trace_final(RsprotExec *x, RsprotTrace *trace);
 
 /** The shape every generated codec has. `msg` is that packet's message struct. */
 typedef void (*RsprotCodecFn)(RsprotExec *x, void *msg);
@@ -388,7 +406,7 @@ void rsprot_xform_add(
  */
 void rsprot_xclamp(
     RsprotExec *x, RsprotPrim prim, int32_t *value, int32_t *source, int32_t cap,
-    const char *name);
+    const char *name, const char *source_name);
 
 /**
  * Loop condition for an array the wire carries with NO count.
@@ -551,7 +569,7 @@ RSPROT_PRIM_LIST(RSPROT_PRIM_DECL)
     rsprot_xform_add((x), RSPROT_PRIM_##prim, &(f), (delta), #f)
 /* Wire carries `min(src, cap)`; the full value lives in `src`. */
 #define RSPROT_CLAMP(x, prim, f, src, cap)                                                         \
-    rsprot_xclamp((x), RSPROT_PRIM_##prim, &(f), &(src), (cap), #f)
+    rsprot_xclamp((x), RSPROT_PRIM_##prim, &(f), &(src), (cap), #f, #src)
 /* Loop guard for a counted array. See rsprot_within(). */
 #define RSPROT_WITHIN(x, i, cap) rsprot_within((x), (i), (cap))
 /* Loop condition for a count-less trailing array. See rsprot_more(). */
