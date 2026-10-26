@@ -674,12 +674,24 @@ npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
     return g_lengths && g_lengths(type >= 0 ? -1 : old, type, head, recolours, retextures);
 }
 
+/* The stream version a server prot calls at `revision` (rsprot_prot_version):
+ * a table name in, the reader's name out. */
+static const char *
+stream_version(int revision, const char *prot)
+{
+    const RsprotProtDef *row = row_named(revision, 0, prot);
+
+    return row ? rsprot_prot_version(row) : prot;
+}
+
 int
 rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len,
                     RsprotFfiNpcLengths lengths, uint8_t *out, int cap, char *err, int err_cap)
 {
     RsprotNpcInfoReadFn read = NULL;
     RsprotInfoList list;
+
+    prot = stream_version(revision, prot);
 
     if (strcmp(prot, "NPC_INFO_SMALL_V4") == 0)
         read = npc_info_small_v4_osrs(revision);
@@ -722,6 +734,7 @@ rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data,
         { "WORLDENTITY_INFO_V7", worldentity_info_v7_osrs },
     };
 
+    prot = stream_version(revision, prot);
     for (size_t i = 0; i < sizeof(k_versions) / sizeof(k_versions[0]); i++)
         if (strcmp(prot, k_versions[i].prot) == 0)
             read = k_versions[i].lookup(revision);

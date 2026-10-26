@@ -34,11 +34,11 @@ static const RsprotProtDef rsprot_osrs223_server[] = {
     { "IF_SETPLAYERMODEL_BODYTYPE", 75, 5, NULL },
     { "IF_SETPLAYERMODEL_OBJ", 89, 8, NULL },
     { "IF_SETPLAYERMODEL_SELF", 7, 5, NULL },
-    { "MIDI_SONG_V2", 29, 10, "MIDI_SONG" },  /* RSProt: MIDI_SONG */
+    { "MIDI_SONG", 29, 10, NULL },
     { "MIDI_SONG_WITHSECONDARY", 80, 12, NULL },
     { "MIDI_SWAP", 64, 8, NULL },
     { "MIDI_SONG_STOP", 77, 4, NULL },
-    { "MIDI_SONG_V1", 84, 2, "MIDI_SONG_OLD" },  /* RSProt: MIDI_SONG_OLD */
+    { "MIDI_SONG_OLD", 84, 2, NULL },
     { "MIDI_JINGLE", 92, 5, NULL },
     { "SYNTH_SOUND", 6, 5, NULL },
     { "UPDATE_ZONE_FULL_FOLLOWS", 1, 3, NULL },
@@ -55,8 +55,8 @@ static const RsprotProtDef rsprot_osrs223_server[] = {
     { "MAP_ANIM", 78, 6, NULL },
     { "MAP_PROJANIM", 66, 20, NULL },
     { "SOUND_AREA", 91, 7, NULL },
-    { "PROJANIM_SPECIFIC_V2", 118, 19, "PROJANIM_SPECIFIC" },  /* RSProt: PROJANIM_SPECIFIC */
-    { "PROJANIM_SPECIFIC_V1", 56, 17, "PROJANIM_SPECIFIC_OLD" },  /* RSProt: PROJANIM_SPECIFIC_OLD */
+    { "PROJANIM_SPECIFIC", 118, 19, NULL },
+    { "PROJANIM_SPECIFIC_OLD", 56, 17, NULL },
     { "MAP_ANIM_SPECIFIC", 76, 8, NULL },
     { "LOC_ANIM_SPECIFIC", 46, 6, NULL },
     { "NPC_HEADICON_SPECIFIC", 37, 9, NULL },
@@ -65,8 +65,8 @@ static const RsprotProtDef rsprot_osrs223_server[] = {
     { "ANIM_SPECIFIC", 117, 3, NULL },
     { "PLAYER_SPOTANIM_SPECIFIC", 116, 9, NULL },
     { "PLAYER_INFO", 45, RSPROT_VARU16, NULL },
-    { "NPC_INFO_SMALL_V4", 20, RSPROT_VARU16, "NPC_INFO_SMALL" },  /* RSProt: NPC_INFO_SMALL */
-    { "NPC_INFO_LARGE_V4", 32, RSPROT_VARU16, "NPC_INFO_LARGE" },  /* RSProt: NPC_INFO_LARGE */
+    { "NPC_INFO_SMALL", 20, RSPROT_VARU16, "NPC_INFO_SMALL_V4" },
+    { "NPC_INFO_LARGE", 32, RSPROT_VARU16, "NPC_INFO_LARGE_V4" },
     { "SET_NPC_UPDATE_ORIGIN", 28, 2, NULL },
     { "CLEAR_ENTITIES", 128, 0, NULL },
     { "SET_ACTIVE_WORLD", 130, 4, NULL },
@@ -89,8 +89,8 @@ static const RsprotProtDef rsprot_osrs223_server[] = {
     { "CAM_ROTATEBY", 41, 7, NULL },
     { "CAM_ROTATETO", 47, 7, NULL },
     { "CAM_MODE", 71, 1, NULL },
-    { "CAM_TARGET_V2", 125, 5, "CAM_TARGET" },  /* RSProt: CAM_TARGET */
-    { "CAM_TARGET_V1", 127, 3, "CAM_TARGET_OLD" },  /* RSProt: CAM_TARGET_OLD */
+    { "CAM_TARGET", 125, 5, "CAM_TARGET_V2" },
+    { "CAM_TARGET_OLD", 127, 3, "CAM_TARGET_V1" },
     { "OCULUS_SYNC", 73, 4, NULL },
     { "UPDATE_INV_FULL", 26, RSPROT_VARU16, NULL },
     { "UPDATE_INV_PARTIAL", 101, RSPROT_VARU16, NULL },
@@ -120,8 +120,8 @@ static const RsprotProtDef rsprot_osrs223_server[] = {
     { "UPDATE_RUNENERGY", 107, 2, NULL },
     { "SET_MAP_FLAG", 19, 2, NULL },
     { "SET_PLAYER_OP", 119, RSPROT_VARU8, NULL },
-    { "UPDATE_STAT_V2", 23, 7, "UPDATE_STAT" },  /* RSProt: UPDATE_STAT */
-    { "UPDATE_STAT_V1", 59, 6, "UPDATE_STAT_OLD" },  /* RSProt: UPDATE_STAT_OLD */
+    { "UPDATE_STAT", 23, 7, NULL },
+    { "UPDATE_STAT_OLD", 59, 6, NULL },
     { "RUNCLIENTSCRIPT", 30, RSPROT_VARU16, NULL },
     { "TRIGGER_ONDIALOGABORT", 72, 0, NULL },
     { "MESSAGE_GAME", 95, RSPROT_VARU8, NULL },

@@ -58,9 +58,9 @@ RsprotCodecFn rsprot_registry_codec(const char *prot, RsprotRegistryDir dir, int
 RsprotCodecFn rsprot_registry_resolve(const char *prot, RsprotRegistryDir dir, int revision);
 
 /**
- * The codec for a prot table row at `revision`: rsprot_registry_resolve on the
- * row's `codec` name when it has one (gen/osrs223-225: a prot the tables call
- * by RSProx's name, whose codec is filed under RSProt's), else on its `name`.
+ * The codec for a prot table row at `revision`: the version the row calls --
+ * its `codec` exactly when it has one (gen/osrs223-225: RSProt's X / X_OLD,
+ * filed as X_V2 / X_V1) -- else rsprot_registry_resolve on its `name`.
  * `prot_out`, when not NULL, gets the registry name that answered -- the packet
  * file, and so the message type.
  */

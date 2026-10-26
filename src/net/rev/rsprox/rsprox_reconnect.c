@@ -121,8 +121,8 @@ rsprox_recording_resolve_reconnects(
             if( fr->opcode == RSPROX_RECORDING_PACKET_GROUP_END )
                 continue;
             d = rsprox_server_prot(r, fr->opcode);
-            if( d && strncmp(d->name, "CAM_TARGET_V", 12) == 0 )
-                camera = camera_player(rec->revision, d->name, rec->data + fr->offset,
+            if( d && strncmp(rsprot_prot_version(d), "CAM_TARGET_V", 12) == 0 )
+                camera = camera_player(rec->revision, rsprot_prot_version(d), rec->data + fr->offset,
                                        (int)fr->length);
         }
         re->reconnect_index = current;

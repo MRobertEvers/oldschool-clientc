@@ -17,12 +17,20 @@ typedef struct RsprotProtDef {
 	int code;         /* wire opcode; -1 if the prot has no top-level opcode
 	                    * (UPDATE_ZONE_PARTIAL_ENCLOSED sub-packets only) */
 	int size;          /* payload byte count, or RSPROT_VARU8/RSPROT_VARU16 */
-	/* The registry name of the codec that reads this row, where it is not the
-	 * row's own name: at 223-225 the tables use RSProx's names for the prots
-	 * RSProt calls X / X_OLD (RSProx's X_V2 / X_V1), and RSProt's codecs keep
-	 * RSProt's names. NULL everywhere else -- resolve by `name`. */
+	/* The version of the packet this row calls -- its codec's registry name,
+	 * or its stream's -- where that is not the row's own name: at 223-225
+	 * RSProt calls a prot X / X_OLD whose codecs and streams are filed as
+	 * X_V2 / X_V1. NULL everywhere else: the row calls `name`. */
 	const char *codec;
 } RsprotProtDef;
+
+/** The packet version `def` calls: rsprot_registry_resolve_def's first try,
+ *  and the name a stream reader is chosen by. */
+static inline const char *
+rsprot_prot_version(const RsprotProtDef *def)
+{
+	return def->codec ? def->codec : def->name;
+}
 
 typedef struct RsprotRevTable {
 	int revision;

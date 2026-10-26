@@ -34,11 +34,11 @@ static const RsprotProtDef rsprot_osrs224_server[] = {
     { "IF_SETPLAYERMODEL_BODYTYPE", 15, 5, NULL },
     { "IF_SETPLAYERMODEL_OBJ", 66, 8, NULL },
     { "IF_SETPLAYERMODEL_SELF", 9, 5, NULL },
-    { "MIDI_SONG_V2", 118, 10, "MIDI_SONG" },  /* RSProt: MIDI_SONG */
+    { "MIDI_SONG", 118, 10, NULL },
     { "MIDI_SONG_WITHSECONDARY", 120, 12, NULL },
     { "MIDI_SWAP", 82, 8, NULL },
     { "MIDI_SONG_STOP", 36, 4, NULL },
-    { "MIDI_SONG_V1", 74, 2, "MIDI_SONG_OLD" },  /* RSProt: MIDI_SONG_OLD */
+    { "MIDI_SONG_OLD", 74, 2, NULL },
     { "MIDI_JINGLE", 99, 5, NULL },
     { "SYNTH_SOUND", 125, 5, NULL },
     { "UPDATE_ZONE_FULL_FOLLOWS", 32, 3, NULL },
@@ -55,8 +55,8 @@ static const RsprotProtDef rsprot_osrs224_server[] = {
     { "MAP_ANIM", 88, 6, NULL },
     { "MAP_PROJANIM", 58, 20, NULL },
     { "SOUND_AREA", 111, 7, NULL },
-    { "PROJANIM_SPECIFIC_V2", 122, 19, "PROJANIM_SPECIFIC" },  /* RSProt: PROJANIM_SPECIFIC */
-    { "PROJANIM_SPECIFIC_V1", 12, 17, "PROJANIM_SPECIFIC_OLD" },  /* RSProt: PROJANIM_SPECIFIC_OLD */
+    { "PROJANIM_SPECIFIC", 122, 19, NULL },
+    { "PROJANIM_SPECIFIC_OLD", 12, 17, NULL },
     { "MAP_ANIM_SPECIFIC", 60, 8, NULL },
     { "LOC_ANIM_SPECIFIC", 17, 6, NULL },
     { "NPC_HEADICON_SPECIFIC", 20, 9, NULL },
@@ -65,8 +65,8 @@ static const RsprotProtDef rsprot_osrs224_server[] = {
     { "ANIM_SPECIFIC", 75, 3, NULL },
     { "PLAYER_SPOTANIM_SPECIFIC", 4, 9, NULL },
     { "PLAYER_INFO", 50, RSPROT_VARU16, NULL },
-    { "NPC_INFO_SMALL_V4", 94, RSPROT_VARU16, "NPC_INFO_SMALL" },  /* RSProt: NPC_INFO_SMALL */
-    { "NPC_INFO_LARGE_V4", 96, RSPROT_VARU16, "NPC_INFO_LARGE" },  /* RSProt: NPC_INFO_LARGE */
+    { "NPC_INFO_SMALL", 94, RSPROT_VARU16, "NPC_INFO_SMALL_V4" },
+    { "NPC_INFO_LARGE", 96, RSPROT_VARU16, "NPC_INFO_LARGE_V4" },
     { "SET_NPC_UPDATE_ORIGIN", 23, 2, NULL },
     { "CLEAR_ENTITIES", 133, 0, NULL },
     { "SET_ACTIVE_WORLD", 134, 4, NULL },
@@ -89,8 +89,8 @@ static const RsprotProtDef rsprot_osrs224_server[] = {
     { "CAM_ROTATEBY", 107, 7, NULL },
     { "CAM_ROTATETO", 108, 7, NULL },
     { "CAM_MODE", 3, 1, NULL },
-    { "CAM_TARGET_V2", 76, 5, "CAM_TARGET" },  /* RSProt: CAM_TARGET */
-    { "CAM_TARGET_V1", 43, 3, "CAM_TARGET_OLD" },  /* RSProt: CAM_TARGET_OLD */
+    { "CAM_TARGET", 76, 5, "CAM_TARGET_V2" },
+    { "CAM_TARGET_OLD", 43, 3, "CAM_TARGET_V1" },
     { "OCULUS_SYNC", 80, 4, NULL },
     { "UPDATE_INV_FULL", 25, RSPROT_VARU16, NULL },
     { "UPDATE_INV_PARTIAL", 86, RSPROT_VARU16, NULL },
@@ -120,8 +120,8 @@ static const RsprotProtDef rsprot_osrs224_server[] = {
     { "UPDATE_RUNENERGY", 48, 2, NULL },
     { "SET_MAP_FLAG", 91, 2, NULL },
     { "SET_PLAYER_OP", 78, RSPROT_VARU8, NULL },
-    { "UPDATE_STAT_V2", 41, 7, "UPDATE_STAT" },  /* RSProt: UPDATE_STAT */
-    { "UPDATE_STAT_V1", 42, 6, "UPDATE_STAT_OLD" },  /* RSProt: UPDATE_STAT_OLD */
+    { "UPDATE_STAT", 41, 7, NULL },
+    { "UPDATE_STAT_OLD", 42, 6, NULL },
     { "RUNCLIENTSCRIPT", 105, RSPROT_VARU16, NULL },
     { "TRIGGER_ONDIALOGABORT", 64, 0, NULL },
     { "MESSAGE_GAME", 98, RSPROT_VARU8, NULL },
@@ -235,8 +235,8 @@ static const RsprotProtDef rsprot_osrs224_client[] = {
     { "SEND_SNAPSHOT", 26, RSPROT_VARU8, NULL },
     { "HISCORE_REQUEST", 9, RSPROT_VARU8, NULL },
     { "IF_CRMVIEW_OP", 65, 22, NULL },
-    { "UPDATE_PLAYER_MODEL_V2", 98, 26, "UPDATE_PLAYER_MODEL" },  /* RSProt: UPDATE_PLAYER_MODEL */
-    { "UPDATE_PLAYER_MODEL_V1", 90, 13, "UPDATE_PLAYER_MODEL_OLD" },  /* RSProt: UPDATE_PLAYER_MODEL_OLD */
+    { "UPDATE_PLAYER_MODEL", 98, 26, "UPDATE_PLAYER_MODEL_V2" },
+    { "UPDATE_PLAYER_MODEL_OLD", 90, 13, "UPDATE_PLAYER_MODEL_V1" },
     { "CONNECTION_TELEMETRY", 15, RSPROT_VARU8, NULL },
     { "SEND_PING_REPLY", 29, 10, NULL },
     { "DETECT_MODIFIED_CLIENT", 49, 4, NULL },

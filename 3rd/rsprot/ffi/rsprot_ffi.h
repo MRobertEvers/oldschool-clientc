@@ -135,8 +135,9 @@ int rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int
 typedef int (*RsprotFfiNpcLengths)(int old_position, int type, int head, int *recolours,
                                    int *retextures);
 
-/** NPC_INFO_SMALL / NPC_INFO_LARGE (`prot` its table name: NPC_INFO_LARGE_V5,
- *  ...). */
+/** NPC_INFO_SMALL / NPC_INFO_LARGE: `prot` its table name at `revision`
+ *  (NPC_INFO_SMALL at 223, NPC_INFO_LARGE_V5 at 230, ...) or the version it
+ *  calls. */
 int rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len,
                         RsprotFfiNpcLengths lengths, uint8_t *out, int cap, char *err,
                         int err_cap);
@@ -147,7 +148,7 @@ int rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int
 int rsprot_ffi_appearance(int revision, const uint8_t *data, int len, uint8_t *out, int cap,
                           char *err, int err_cap);
 
-/** WORLDENTITY_INFO_V1..V7, the same way. */
+/** WORLDENTITY_INFO (and _OLD at 225), V1..V7, the same way. */
 int rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data, int len,
                                 uint8_t *out, int cap, char *err, int err_cap);
 

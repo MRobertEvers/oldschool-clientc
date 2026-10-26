@@ -848,35 +848,31 @@ RsprotCodecFn
 rsprot_registry_resolve_def(const RsprotProtDef *def, RsprotRegistryDir dir, int revision,
                             const char **prot_out)
 {
-    const char *tries[2] = { def->codec, def->name };
+    char alt[96];
+    size_t n = strlen(def->name);
+    RsprotCodecFn fn;
 
-    for (int i = 0; i < 2; i++) {
-        char alt[96];
-        size_t n;
-        RsprotCodecFn fn;
-
-        if (!tries[i])
-            continue;
-        if ((fn = rsprot_registry_codec(tries[i], dir, revision))) {
-            if (prot_out)
-                *prot_out = rsprot_registry_find(tries[i], dir)->prot;
-            return fn;
-        }
-        /* The codec name is exact: its whole point is that the suffix rule
-         * pairs the wrong prots there. */
-        n = strlen(tries[i]);
-        if (i == 0 || n + 4 >= sizeof(alt))
-            continue;
-        memcpy(alt, tries[i], n + 1);
-        if (n > 3 && strcmp(tries[i] + n - 3, "_V1") == 0)
-            alt[n - 3] = '\0';
-        else
-            memcpy(alt + n, "_V1", 4);
-        if ((fn = rsprot_registry_codec(alt, dir, revision))) {
-            if (prot_out)
-                *prot_out = rsprot_registry_find(alt, dir)->prot;
-            return fn;
-        }
+    /* A row that names its version calls that one, or none: the suffix rule
+     * would pair it with the wrong prot. */
+    if (def->codec) {
+        fn = rsprot_registry_codec(def->codec, dir, revision);
+        if (fn && prot_out)
+            *prot_out = rsprot_registry_find(def->codec, dir)->prot;
+        return fn;
     }
-    return 0;
+    if ((fn = rsprot_registry_codec(def->name, dir, revision))) {
+        if (prot_out)
+            *prot_out = rsprot_registry_find(def->name, dir)->prot;
+        return fn;
+    }
+    if (n + 4 >= sizeof(alt))
+        return 0;
+    memcpy(alt, def->name, n + 1);
+    if (n > 3 && strcmp(def->name + n - 3, "_V1") == 0)
+        alt[n - 3] = '\0';
+    else
+        memcpy(alt + n, "_V1", 4);
+    if ((fn = rsprot_registry_codec(alt, dir, revision)) && prot_out)
+        *prot_out = rsprot_registry_find(alt, dir)->prot;
+    return fn;
 }
