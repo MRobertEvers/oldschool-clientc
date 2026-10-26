@@ -585,11 +585,11 @@ UITree_EmitFill(
          * grow as the product count falls), so an arrow shaft drawn at icon
          * distance was a thin line in the middle of a large empty button.
          *
-         * Gated on `item_id` because only the CS2 CC_SETOBJECT path sets it.
-         * The server IF_SETOBJECT path (`App_SetInterfaceObjModel`, the
-         * combat tab's wielded weapon) binds the same kind of model but
-         * carries its own wire zoom and never sets `item_id`, so it keeps the
-         * distance it asked for.
+         * Gated on `item_id`, the reference's own test (class163.method5491
+         * takes the obj branch, and its half-height lift, only when
+         * field4176 != -1). CC_SETOBJECT and the IF3 arm of the server's
+         * IF_SETOBJECT (`app_if_obj_pose`) both set it; IF1 IF_SETOBJECT does
+         * not, and keeps the zoom its wire field asked for.
          */
         if( component->item_id >= 0 )
         {
@@ -3007,12 +3007,17 @@ emit_walk_node(
         /* TORIRS_MODEL_CLIP_DEBUG: model widget box vs. the clip it will be
          * scissored to — the model overflows its box and is only bounded by
          * this clip (the enclosing interface layer ∩ surface). A clip narrower
-         * than the widget's own right edge is what crops a chathead. */
+         * than the widget's own right edge is what crops a chathead. The pose
+         * is printed too: a pose that never landed draws at the .if's own
+         * zoom with no pitch or offset, which reads as "drawn too high". */
         if( desc.kind == UITREE_EMIT_MODEL && model_clip_debug_armed() )
-            TORIRS_LOG("model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d)\n",
+            TORIRS_LOG("model com=0x%08x box=%d,%d %dx%d (right=%d) clip=%d,%d %dx%d (right=%d) "
+                       "model=%d zoom=%d xan=%d yan=%d zan=%d off=%d,%d obj=%d\n",
                 desc.component_id, desc.x, desc.y, desc.w, desc.h, desc.x + desc.w,
                 desc.clip.x, desc.clip.y, desc.clip.w, desc.clip.h,
-                desc.clip.x + desc.clip.w);
+                desc.clip.x + desc.clip.w, desc.model_id, desc.model_zoom, desc.model_xan,
+                desc.model_yan, desc.model_zan, desc.model_x_offset, desc.model_y_offset,
+                desc.model_obj_composed);
         emit_obj_selected_icon(tree, host, c, &desc);
         emit_buffer_append(out, &desc);
         emit_obj_stack_count(host, out, c, idx, &desc, parent_clip);

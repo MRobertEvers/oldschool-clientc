@@ -787,7 +787,8 @@ App_SetInterfaceObjModel(
  *   IF3: the wire's third field is a QUANTITY -- the count variant of the obj
  *        is drawn (ObjType.getCountObj) -- and the widget takes that variant's
  *        whole 2D view: x/y/z angles, offsetX2d/offsetY2d, and
- *        modelZoom = zoom2d * 32 / the component's width (else its height).
+ *        modelZoom = zoom2d * 32 / the component's width (else its height),
+ *        and the obj itself on the component, as CC_SETOBJECT stores it.
  *
  * The IF3 half was missing: an IF3 item model (objectbox 193, the chatbox's
  * one-item box) drew with no 2D offsets and an IF1 zoom, so an obj whose icon
@@ -844,20 +845,27 @@ app_if_obj_pose(
         return;
     if( node->if3 )
     {
-        int zoom = obj->zoom2d;
-        if( node->position.width > 0 )
-            zoom = zoom * 32 / node->position.width;
-        else if( node->position.height > 0 )
-            zoom = zoom * 32 / node->position.height;
+        int32_t const idx = UITree_FindByComponentId(app->tree, head->com_id);
+
+        /* The IF3 arm stores the obj on the component (field4176/field4177),
+         * exactly as CC_SETOBJECT does, and the draw keys the obj composition
+         * on it: class163.method5491 lowers the model by half its height
+         * (`field1926 / 2`) only when field4176 != -1. The emit applies that
+         * term and the zoom-per-box divide for any node carrying an obj
+         * (uitree_emit.c), so the pose takes the raw zoom2d as the CS2 path
+         * does. Without the obj the chatbox objectbox drew its item high by
+         * half the model. */
+        (void)UITree_SetObjectAt(
+            app->tree, idx, head->npc_id, head->zoom, -1, 0, node->item_num_mode);
         (void)UITree_SetModelPoseAt(
             app->tree,
-            UITree_FindByComponentId(app->tree, head->com_id),
+            idx,
             obj->offset_x2d,
             obj->offset_y2d,
             obj->xan2d,
             obj->yan2d,
             obj->zan2d,
-            zoom);
+            obj->zoom2d > 0 ? obj->zoom2d : 2000);
         return;
     }
     if( head->zoom > 0 )

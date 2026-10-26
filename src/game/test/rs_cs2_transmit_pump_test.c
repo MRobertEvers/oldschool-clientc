@@ -1507,10 +1507,73 @@ test_cache_model_animation_variants(void)
     }
 }
 
+/*
+ * Jagex's motw_setmodel (233) runs if_setmodel / if_setmodelangle /
+ * if_setmodelanim on welcome_screen:model1 BEFORE IF_OPENSUB opens the screen.
+ * The reference writes the IfType regardless and the pose is there when it
+ * opens. The angle set used to be dropped when the node was not mounted (the
+ * other two landed), so the model drew at the .if's defaults: high and small.
+ */
+static void
+test_model_angle_before_open(void)
+{
+    struct Fixture fx;
+    struct CS2VM2 vm;
+    struct CS2VM2_Thread* thread;
+    struct CS2VM_HostRequest request = { .kind = CS2VM_HOST_REQUEST_IF_SETMODELANGLE };
+    int const component_id = (378 << 16) | 55;
+
+    printf("pump: if_setmodelangle on an unopened interface keeps its pose\n");
+
+    fixture_init(&fx);
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &fx.host, RS_CS2Host_Exec);
+    thread = CS2VM2_ThreadMain(&vm);
+
+    request.u.IF_SETMODELANGLE.component_id = component_id;
+    request.u.IF_SETMODELANGLE.offset_x = 0;
+    request.u.IF_SETMODELANGLE.offset_y = 80;
+    request.u.IF_SETMODELANGLE.angle_x = 2023;
+    request.u.IF_SETMODELANGLE.angle_y = 1954;
+    request.u.IF_SETMODELANGLE.angle_z = 0;
+    request.u.IF_SETMODELANGLE.zoom = 2000;
+
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
+        "IF_SETMODELANGLE on an unmounted group yields to mount it");
+
+    struct UITreeNodeSpec root = { .type = UIELEM_RS_LAYER, .component_id = 378 << 16,
+                                   .width = 200, .height = 200 };
+    int32_t const root_idx = UITree_Push(fx.tree, -1, &root);
+    struct UITreeNodeSpec spec = { .type = UIELEM_RS_MODEL, .component_id = component_id,
+                                   .y = 17, .width = 100, .height = 100 };
+    spec.u.rs_model.gamecache_model_id = -1;
+    spec.u.rs_model.active_model_id = -1;
+    spec.u.rs_model.zoom = 1500;
+    int32_t const idx = UITree_Push(fx.tree, root_idx, &spec);
+
+    CHECK(
+        RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_OK,
+        "IF_SETMODELANGLE completes once the group is mounted");
+    struct UITreeComponent const* node = &fx.tree->components[idx];
+    CHECK(
+        node->u.rs_model.y_offset == 80 && node->u.rs_model.xan == 2023 &&
+            node->u.rs_model.yan == 1954 && node->u.rs_model.zoom == 2000,
+        "the pose lands on the mounted node: yoff=%d xan=%d yan=%d zoom=%d",
+        node->u.rs_model.y_offset,
+        node->u.rs_model.xan,
+        node->u.rs_model.yan,
+        node->u.rs_model.zoom);
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
     printf("TEST: RS_CS2_PumpTransmits — the transmit dirty-flag guard\n");
+
+    test_model_angle_before_open();
 
     test_queued_callback_identity();
     test_queued_widget_operations();

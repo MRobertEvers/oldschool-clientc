@@ -5241,17 +5241,14 @@ exec_set_object(
                         objtype->xan2d,
                         objtype->yan2d,
                         objtype->zoom2d > 0 ? objtype->zoom2d : 2000);
-                    /* yof2d is the other half of the same composition and is
-                     * not optional: `arrow_shaft` carries -29, and without it
-                     * the shaft projects clean out of its cell.
-                     *
-                     * xof2d is deliberately NOT passed. The widget transform
-                     * has no X translation — every backend maps the emit's
-                     * `model_x_offset` onto `orientation`, a ROTATION — so
-                     * handing it xof2d would spin the model rather than shift
-                     * it. The values are -3..7, small enough that dropping the
-                     * shift beats introducing a tilt. */
-                    (void)UITree_ApplyModelOffset(tree, component_id, 0, objtype->offset_y2d);
+                    /* xof2d/yof2d are the other half of the same composition
+                     * and are not optional: `arrow_shaft` carries yof2d -29,
+                     * and without it the shaft projects clean out of its
+                     * cell. The reference stores both (field4089/field4090);
+                     * the widget transform adds `model_x_offset` to camera X
+                     * as a translation on every backend. */
+                    (void)UITree_ApplyModelOffset(
+                        tree, component_id, objtype->offset_x2d, objtype->offset_y2d);
                 }
                 return CS2VM_EXECNO_OK;
             }
@@ -6358,17 +6355,20 @@ static int
 exec_widget_set_arc(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* exact_request,
     int component_id,
     int arc_start,
     int arc_end)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int32_t idx;
-    (void)vm;
     if( !tree )
         return CS2VM_EXECNO_OK;
     idx = UITree_FindByComponentId(tree, component_id);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
+    /* Not mounted yet: sub-mount the group, as exec_widget_set_int does. */
+    if( idx < 0 )
+        return rs_cs2_yield_if_group_missing(host, vm, component_id, exact_request);
+    if( tree->components[idx].type != UIELEM_RS_ARC )
         return CS2VM_EXECNO_OK;
     (void)UITree_SetArcAnglesAt(tree, idx, arc_start, arc_end);
     return CS2VM_EXECNO_OK;
@@ -6378,6 +6378,7 @@ static int
 exec_widget_set_model_angle(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest const* exact_request,
     int component_id,
     int offset_x,
     int offset_y,
@@ -6388,11 +6389,26 @@ exec_widget_set_model_angle(
 {
     struct UITree* tree = rs_cs2_tree(host);
     int32_t idx;
-    (void)vm;
     if( !tree )
         return CS2VM_EXECNO_OK;
     idx = UITree_FindByComponentId(tree, component_id);
-    if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
+    /*
+     * Not mounted yet: sub-mount the group, as exec_widget_set_int does. The
+     * reference writes the IfType whether or not its interface is open, and
+     * the pose stays for when it opens. Jagex's motw_setmodel (233) poses
+     * welcome_screen:model1 BEFORE IF_OPENSUB opens the screen; dropping the
+     * pose here while IF_SETMODEL (lazy bind) and IF_SETMODELANIM (sub-mount)
+     * both landed drew the model at the .if's own zoom with no pitch and no
+     * offsetY -- its feet on the box centre, high and small.
+     *
+     * OPEN: this is not enough on its own. A replay of RSProx index 4310
+     * (TORIRS_MODEL_CLIP_DEBUG on a log build) shows the pose landing on the
+     * sub-mounted copy and still gone once IF_OPENSUB mounts the group: the
+     * model draws at zoom 1500, xan 0. Something between the two loses it.
+     */
+    if( idx < 0 )
+        return rs_cs2_yield_if_group_missing(host, vm, component_id, exact_request);
+    if( tree->components[idx].type != UIELEM_RS_MODEL )
         return CS2VM_EXECNO_OK;
     (void)UITree_SetModelPoseAt(
         tree,
@@ -10492,10 +10508,10 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_model(host, vm, request, request->u.opname.component_id, request->u.opname.model_id)
 #define RS_CS2_WIDGET_MODEL_ANGLE_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_model_angle(host, vm, request->u.opname.component_id, request->u.opname.offset_x, request->u.opname.offset_y, request->u.opname.angle_x, request->u.opname.angle_y, request->u.opname.angle_z, request->u.opname.zoom)
+        return exec_widget_set_model_angle(host, vm, request, request->u.opname.component_id, request->u.opname.offset_x, request->u.opname.offset_y, request->u.opname.angle_x, request->u.opname.angle_y, request->u.opname.angle_z, request->u.opname.zoom)
 #define RS_CS2_WIDGET_ARC_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
-        return exec_widget_set_arc(host, vm, request->u.opname.component_id, request->u.opname.arc_start, request->u.opname.arc_end)
+        return exec_widget_set_arc(host, vm, request, request->u.opname.component_id, request->u.opname.arc_start, request->u.opname.arc_end)
 #define RS_CS2_WIDGET_MODEL_KIND_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_model_kind(host, vm, request, request->u.opname.component_id, request->u.opname.model_kind, request->u.opname.model_id)
