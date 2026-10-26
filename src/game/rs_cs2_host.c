@@ -666,6 +666,8 @@ rs_cs2_measure_span(
 
         if( token > 0 )
         {
+            /* `<img=N>`: the icon's width (deob class671 method14459). */
+            width += ToriDraw_FontMarkupIconAdvance(text, len, i);
             i += token;
             if( emitted )
                 width += font->draw_width[emitted];

@@ -73,6 +73,7 @@ Task_StaticSpritesLoad_Run(
             TORIRS_REPORT(
                 "static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
     }
+    UITreeSceneBridge_PublishFontIcons(self->bridge);
 
     PT_END(&self->pt);
 }

@@ -202,6 +202,44 @@ visit_glyph_count(
     return ctx.count;
 }
 
+struct IconVisit
+{
+    int count;
+    int x;
+    int y;
+};
+
+static void
+icon_visit_glyph(
+    void* ctx,
+    struct ToriDraw_Font* font,
+    int glyph_index,
+    int x,
+    int y,
+    int color_rgb)
+{
+    (void)ctx;
+    (void)font;
+    (void)glyph_index;
+    (void)x;
+    (void)y;
+    (void)color_rgb;
+}
+
+static void
+icon_visit_icon(
+    void* ctx,
+    struct ToriDraw_FontIcon const* icon,
+    int x,
+    int y)
+{
+    struct IconVisit* visit = (struct IconVisit*)ctx;
+    (void)icon;
+    visit->count++;
+    visit->x = x;
+    visit->y = y;
+}
+
 int
 main(void)
 {
@@ -349,6 +387,44 @@ main(void)
         check(
             top_n == 1 && alone_n == 1 && top[0].y < alone[0].y,
             "\"Game<br> \" sits above a lone \"Game\" in the same box");
+    }
+    /* `<img=N>` draws mod icon N with its bottom on the line's baseline and
+     * advances by its width (deob class671 method14459 and the draw loop); an
+     * N past the table draws nothing and takes no width. */
+    printf("<img=N> draws its icon\n");
+    {
+        static uint32_t const red[3 * 5] = {
+            0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u,
+            0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u,
+            0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u, 0xFFFF0000u,
+        };
+        struct ToriDraw_FontIcon const icon = { 3, 5, red, 0, 0 };
+        struct IconVisit visit = { 0 };
+        ToriDraw_FontSetIcons(&icon, 1);
+        check(
+            ToriDraw2D_MeasureString(font, "<img=0>abcd") == plain_w + 3,
+            "<img=0> measures as its icon's width");
+        check(
+            ToriDraw2D_MeasureString(font, "<img=1>abcd") == plain_w,
+            "<img=1> past the table takes no width");
+        check(
+            ToriDraw_FontMarkupIconAdvance("a<img=0>", 8, 1) == 3,
+            "ToriDraw_FontMarkupIconAdvance gives the icon's width");
+        check(ToriDraw_FontMarkupIconAdvance("a<img=0>", 8, 0) == 0, "a glyph is no icon");
+        ToriDraw_FontVisitGlyphsStyledIcons(
+            font, "ab<img=0>", 0, 0, TEXT_RGB, false, icon_visit_glyph, icon_visit_icon, &visit);
+        check(visit.count == 1, "the walk reaches the icon once");
+        check(visit.x == ToriDraw2D_MeasureString(font, "ab"), "the icon follows the text before it");
+        check(visit.y == ascent - 5, "the icon's bottom sits on the baseline");
+        canvas_draw(canvas, font, "<img=0>");
+        check(canvas_count(canvas, (int)0xFFFF0000u) == 3 * 5, "the software draw paints every icon pixel");
+        check(
+            canvas_at(canvas, TEXT_X, TEXT_BASELINE - 5) == (int)0xFFFF0000u &&
+                canvas_at(canvas, TEXT_X + 2, TEXT_BASELINE - 1) == (int)0xFFFF0000u,
+            "the icon is drawn from the pen with its bottom on the baseline");
+        canvas_draw(canvas, font, "<img=1>");
+        check(canvas_count(canvas, (int)0xFFFF0000u) == 0, "<img=1> past the table draws nothing");
+        ToriDraw_FontSetIcons(NULL, 0);
     }
     free(canvas);
 

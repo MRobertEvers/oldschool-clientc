@@ -57,9 +57,9 @@ ToriDraw_FontParseHexColor(
  * token there. `*emit_char_out` receives the character the token renders as
  * (`<lt>` -> '<', `<gt>` -> '>') or 0 when it renders nothing.
  *
- * The grammar: `@xyz@`, `<lt>`, `<gt>`, `<col=…>`/`</col>`, `<u>`/`<u=…>`/`</u>`,
- * `<str>`/`<str=…>`/`</str>`. Anything else is literal text, so a tag the
- * grammar does not list renders as its own characters.
+ * The grammar: `@xyz@`, `<lt>`, `<gt>`, and every other `<...>` is a tag
+ * (`<col=…>`, `<u>`, `<str>`, `<img=N>`, ...) that draws no characters; an
+ * `<img=N>` draws its icon instead (ToriDraw_FontMarkupIconAdvance).
  *
  * Exposed because measuring text and drawing it must agree on what is markup:
  * anything that walks a string to work out how wide it will be has to skip
@@ -72,6 +72,47 @@ ToriDraw_FontMarkupTokenLength(
     int len,
     int index,
     unsigned char* emit_char_out);
+
+/*
+ * `<img=N>` icons (deob Statics.field7115, the mod icons): one table for every
+ * font, filled by the client once its sprites are resident. `pixels` is ARGB,
+ * width * height, alpha 0 transparent, read by the software draw; `scene_id`
+ * and `frame` name the same sprite in the scene, which is how the GPU paths
+ * draw it. The table is copied; the pixels are borrowed and must outlive it.
+ */
+struct ToriDraw_FontIcon
+{
+    int width;
+    int height;
+    uint32_t const* pixels;
+    int scene_id;
+    int frame;
+};
+
+void
+ToriDraw_FontSetIcons(
+    struct ToriDraw_FontIcon const* icons,
+    int count);
+
+/** Icon `index`, or NULL when the table has none there. */
+struct ToriDraw_FontIcon const*
+ToriDraw_FontIconAt(int index);
+
+/** The pen advance of the markup token at text[index] when it is an `<img=N>`
+ *  naming a known icon, else 0 -- for walkers that measure text themselves
+ *  with ToriDraw_FontMarkupTokenLength. */
+int
+ToriDraw_FontMarkupIconAdvance(
+    char const* text,
+    int len,
+    int index);
+
+/** An icon the walk reached: its top-left, bottom on the line's baseline. */
+typedef void (*ToriDraw_FontIconCallback)(
+    void* ctx,
+    struct ToriDraw_FontIcon const* icon,
+    int x,
+    int y);
 
 typedef void (*ToriDraw_FontGlyphCallback)(
     void* ctx,
@@ -100,6 +141,20 @@ ToriDraw_FontVisitGlyphsStyled(
     int default_color_rgb,
     bool center,
     ToriDraw_FontGlyphCallback callback,
+    void* ctx);
+
+/** ToriDraw_FontVisitGlyphsStyled, plus each `<img=N>` icon to `icon_callback`
+ *  (NULL: the icon still takes its width). */
+void
+ToriDraw_FontVisitGlyphsStyledIcons(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    bool center,
+    ToriDraw_FontGlyphCallback callback,
+    ToriDraw_FontIconCallback icon_callback,
     void* ctx);
 
 int

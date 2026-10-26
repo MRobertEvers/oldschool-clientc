@@ -281,6 +281,13 @@ UITreeSceneBridge_EnsureStaticSprite(
 int
 UITreeSceneBridge_EnsureInkwell(struct UITreeSceneBridge* bridge);
 
+/** How many mod icons the font table carries; the mod_icons pack has ~50. */
+#define UITREE_BRIDGE_FONT_ICONS_MAX 128
+
+/** Publish the mod_icons frames as the font module's `<img=N>` icons. */
+void
+UITreeSceneBridge_PublishFontIcons(struct UITreeSceneBridge* bridge);
+
 int
 UITreeSceneBridge_StaticSpriteSceneId(
     struct UITreeSceneBridge const* bridge,

@@ -2524,6 +2524,26 @@ es3_ui_draw_font_rules(
     int y,
     bool center);
 
+/* An `<img=N>` icon goes through the sprite path, so it shares the sprite
+ * atlas and the text's clip. The shadow passes only advance past it. */
+static void
+es3_ui_font_icon(void* opaque, struct ToriDraw_FontIcon const* icon, int x, int y)
+{
+    struct ES3UIFontGlyphContext* context = (struct ES3UIFontGlyphContext*)opaque;
+    struct ToriRS_RenderCommand_Sprite command = { 0 };
+    if( context->shadow )
+        return;
+    command.scene_id = icon->scene_id;
+    command.atlas_index = icon->frame;
+    command.x = x;
+    command.y = y;
+    command.scissor_x = context->clip.x0;
+    command.scissor_y = context->clip.y0;
+    command.scissor_w = context->clip.x1 - context->clip.x0;
+    command.scissor_h = context->clip.y1 - context->clip.y0;
+    es3_ui_draw_sprite(context->renderer, &command);
+}
+
 static void
 es3_ui_draw_font_text(
     struct TRSPK_Renderer_ES3* renderer,
@@ -2543,8 +2563,8 @@ es3_ui_draw_font_text(
     context.slot = slot;
     context.clip = *clip;
     context.shadow = shadow;
-    ToriDraw_FontVisitGlyphsStyled(
-        slot->font, text, x, y, color, center, es3_ui_font_glyph, &context);
+    ToriDraw_FontVisitGlyphsStyledIcons(
+        slot->font, text, x, y, color, center, es3_ui_font_glyph, es3_ui_font_icon, &context);
     if( !shadow )
         es3_ui_draw_font_rules(renderer, slot->font, clip, text, x, y, center);
 }
@@ -2710,6 +2730,8 @@ es3_ui_draw_font_rule_range(
                 if( parsed >= 0 )
                     strike_rgb = parsed;
             }
+            /* An `<img=N>` icon takes its width; no rule runs under it. */
+            x += ToriDraw_FontMarkupIconAdvance(text, length, index);
             index += consumed;
             if( emit_char == 0 )
                 continue;

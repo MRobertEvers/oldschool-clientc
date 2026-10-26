@@ -284,6 +284,89 @@ font_tag_value(
 }
 
 /*
+ * `<img=N>`: the mod icons, one table for every font (deob Statics.field7115).
+ * A tag naming one draws it in the line -- bottom on the baseline, its width
+ * advancing the pen (class671: `y + ascent - height`, `x += width`) -- and a
+ * tag naming none draws nothing and takes no room. The client fills the table
+ * once its mod_icons sprites are resident (ToriDraw_FontSetIcons).
+ */
+static int
+font_try_consume_markup(
+    char const* text,
+    int len,
+    int i,
+    int default_color,
+    struct FontMarkupStyle* style,
+    unsigned char* emit_char_out);
+
+static struct ToriDraw_FontIcon* s_font_icons;
+static int s_font_icon_count;
+
+void
+ToriDraw_FontSetIcons(
+    struct ToriDraw_FontIcon const* icons,
+    int count)
+{
+    assert(count >= 0);
+    assert(count == 0 || icons);
+    TORIDRAW_FREE(s_font_icons);
+    s_font_icons = NULL;
+    s_font_icon_count = 0;
+    if( count == 0 )
+        return;
+    s_font_icons = TORIDRAW_MALLOC((size_t)count * sizeof(*s_font_icons));
+    assert(s_font_icons);
+    memcpy(s_font_icons, icons, (size_t)count * sizeof(*s_font_icons));
+    s_font_icon_count = count;
+}
+
+struct ToriDraw_FontIcon const*
+ToriDraw_FontIconAt(int index)
+{
+    if( index < 0 || index >= s_font_icon_count )
+        return NULL;
+    return &s_font_icons[index];
+}
+
+/* The icon a `consumed`-byte token at text[i] names, or -1. */
+static int
+font_markup_icon(
+    char const* text,
+    int i,
+    int consumed)
+{
+    int value;
+
+    if( consumed < 3 || text[i] != '<' || text[i + consumed - 1] != '>' )
+        return -1;
+    if( consumed - 2 <= 4 || strncmp(&text[i + 1], "img=", 4) != 0 )
+        return -1;
+    if( !font_parse_radix(&text[i + 5], consumed - 6, 10, &value) )
+        return -1;
+    return ToriDraw_FontIconAt(value) ? value : -1;
+}
+
+static int
+font_markup_icon_advance(
+    char const* text,
+    int i,
+    int consumed)
+{
+    int const icon = font_markup_icon(text, i, consumed);
+    return icon >= 0 ? s_font_icons[icon].width : 0;
+}
+
+int
+ToriDraw_FontMarkupIconAdvance(
+    char const* text,
+    int len,
+    int index)
+{
+    int const consumed = font_try_consume_markup(text, len, index, 0, NULL, NULL);
+    return consumed > 0 ? font_markup_icon_advance(text, index, consumed) : 0;
+}
+
+/*
  * What a tag does to the style (deob class671 method14556). A value that does
  * not parse leaves the style as it was; a tag nothing here knows -- `<img=…>`,
  * `<shad>`, a typo -- changes nothing. Either way the caller has already
@@ -610,6 +693,7 @@ font_measure_range(
                 int const gi = font_glyph_index(font, emit_char);
                 width += font_glyph_advance(font, gi);
             }
+            width += font_markup_icon_advance(text, i, consumed);
             i += consumed - 1;
             continue;
         }
@@ -1045,6 +1129,7 @@ font_visit_glyphs_range(
     int y,
     int default_color_rgb,
     ToriDraw_FontGlyphCallback callback,
+    ToriDraw_FontIconCallback icon_callback,
     void* ctx)
 {
     assert(font && text && len > 0 && callback);
@@ -1071,6 +1156,16 @@ font_visit_glyphs_range(
                     callback(ctx, font, gi, gx, gy, style.color);
                 }
                 x += font_glyph_advance(font, gi);
+            }
+            {
+                int const icon = font_markup_icon(text, i, consumed);
+                if( icon >= 0 )
+                {
+                    int const top = y + font->line_height - s_font_icons[icon].height;
+                    if( icon_callback )
+                        icon_callback(ctx, &s_font_icons[icon], x, top);
+                    x += s_font_icons[icon].width;
+                }
             }
             i += consumed - 1;
             continue;
@@ -1103,6 +1198,22 @@ ToriDraw_FontVisitGlyphsStyled(
     ToriDraw_FontGlyphCallback callback,
     void* ctx)
 {
+    ToriDraw_FontVisitGlyphsStyledIcons(
+        font, text, x, y, default_color_rgb, center, callback, NULL, ctx);
+}
+
+void
+ToriDraw_FontVisitGlyphsStyledIcons(
+    struct ToriDraw_Font* font,
+    char const* text,
+    int x,
+    int y,
+    int default_color_rgb,
+    bool center,
+    ToriDraw_FontGlyphCallback callback,
+    ToriDraw_FontIconCallback icon_callback,
+    void* ctx)
+{
     assert(font && text && callback);
 
     int const line_step = font->line_height > 0 ? font->line_height : 1;
@@ -1120,7 +1231,7 @@ ToriDraw_FontVisitGlyphsStyled(
 
         if( line_len > 0 )
             font_visit_glyphs_range(
-                font, rest, line_len, line_x, y, default_color_rgb, callback, ctx);
+                font, rest, line_len, line_x, y, default_color_rgb, callback, icon_callback, ctx);
 
         if( break_advance == 0 )
             break;
@@ -1250,6 +1361,42 @@ font_draw_style_rules(
             x, underline_y, advance, style->underline, cl, ct, cr, cb, stride, pixel_buffer);
 }
 
+/* An icon's ARGB pixels at (x, y), clipped; alpha 0 is transparent. */
+static int
+font_draw_icon_pixels(
+    struct ToriDraw_FontIcon const* icon,
+    int x,
+    int y,
+    int cl,
+    int ct,
+    int cr,
+    int cb,
+    int stride,
+    toripixel_t* pixel_buffer)
+{
+    int written = 0;
+
+    assert(icon);
+    if( !icon->pixels )
+        return 0;
+    for( int row = 0; row < icon->height; row++ )
+    {
+        int const py = y + row;
+        if( py < ct || py >= cb )
+            continue;
+        for( int col = 0; col < icon->width; col++ )
+        {
+            int const px = x + col;
+            uint32_t const argb = icon->pixels[row * icon->width + col];
+            if( px < cl || px >= cr || (argb >> 24) == 0 )
+                continue;
+            pixel_buffer[py * stride + px] = toripixel_pack_argb8888(0xFF000000u | argb);
+            written++;
+        }
+    }
+    return written;
+}
+
 static int
 font_draw_string_range(
     struct ToriDraw_Font const* font,
@@ -1304,6 +1451,16 @@ font_draw_string_range(
                 font_draw_style_rules(
                     &style, x, adv, underline_y, strike_y, cl, ct, cr, cb, stride, pixel_buffer);
                 x += adv;
+            }
+            {
+                int const icon = font_markup_icon(text, i, consumed);
+                if( icon >= 0 )
+                {
+                    struct ToriDraw_FontIcon const* ic = &s_font_icons[icon];
+                    pixels_written += font_draw_icon_pixels(
+                        ic, x, y + ascent - ic->height, cl, ct, cr, cb, stride, pixel_buffer);
+                    x += ic->width;
+                }
             }
             i += consumed - 1;
             continue;
@@ -1391,6 +1548,9 @@ font_draw_string_shadow_range(
                     pixel_buffer);
                 x += font_glyph_advance(font, gi);
             }
+            /* An icon casts no shadow (class671 draws it once, in the main
+             * pass); the pen still moves past it. */
+            x += font_markup_icon_advance(text, i, consumed);
             i += consumed - 1;
             continue;
         }
@@ -1673,7 +1833,7 @@ font_segment_has_visible_content(
             font_try_consume_markup(text, len, i, 0, NULL, &emit_char);
         if( consumed > 0 )
         {
-            if( emit_char )
+            if( emit_char || font_markup_icon(text, i, consumed) >= 0 )
                 return true;
             i += consumed - 1;
             continue;

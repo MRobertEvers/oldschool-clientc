@@ -1909,6 +1909,34 @@ gl3_font_glyph_callback(
 }
 
 static void
+gl3_ev_sprite(
+    struct ToriPlatformSDL2_Renderer_GL3* renderer,
+    struct ToriRS_RenderCommand* command);
+
+/* An `<img=N>` icon goes through the sprite path, so it shares the sprite
+ * atlas and the scissor the font command set. The shadow passes only advance
+ * past it. */
+static void
+gl3_font_icon_callback(void* ctx, struct ToriDraw_FontIcon const* icon, int x, int y)
+{
+    struct GL3FontGlyphCtx* gctx = (struct GL3FontGlyphCtx*)ctx;
+    struct ToriPlatformSDL2_Renderer_GL3* renderer = gctx->renderer;
+    struct ToriRS_RenderCommand command = { 0 };
+    if( gctx->shadow )
+        return;
+    command.kind = TORIRSRC_SPRITE;
+    command.u.sprite.scene_id = icon->scene_id;
+    command.u.sprite.atlas_index = icon->frame;
+    command.u.sprite.x = x;
+    command.u.sprite.y = y;
+    command.u.sprite.scissor_x = renderer->draw_scissor_x;
+    command.u.sprite.scissor_y = renderer->draw_scissor_y;
+    command.u.sprite.scissor_w = renderer->draw_scissor_w;
+    command.u.sprite.scissor_h = renderer->draw_scissor_h;
+    gl3_ev_sprite(renderer, &command);
+}
+
+static void
 gl3_draw_font_glyphs(
     struct ToriPlatformSDL2_Renderer_GL3* renderer,
     struct GL3FontSlot* slot,
@@ -1933,8 +1961,16 @@ gl3_draw_font_glyphs(
         .shadow = shadow,
         .quad_count = 0,
     };
-    ToriDraw_FontVisitGlyphsStyled(
-        font, text, x, y, default_color_rgb, center, gl3_font_glyph_callback, &ctx);
+    ToriDraw_FontVisitGlyphsStyledIcons(
+        font,
+        text,
+        x,
+        y,
+        default_color_rgb,
+        center,
+        gl3_font_glyph_callback,
+        gl3_font_icon_callback,
+        &ctx);
 
     if( gl3_text_debug_enabled() )
     {

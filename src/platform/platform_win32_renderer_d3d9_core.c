@@ -2485,6 +2485,8 @@ struct D3D9UIFontGlyphContext
     struct ToriPlatformWin32_Renderer_D3D9* renderer;
     struct D3D9UIFontSlot* slot;
     RECT scissor;
+    /* The command's logical scissor, which an icon's sprite command takes. */
+    const struct ToriRS_RenderCommand_Font* command;
     bool shadow;
 };
 
@@ -2539,10 +2541,31 @@ d3d9_ui_draw_font_rules(
     int y,
     bool center);
 
+/* An `<img=N>` icon goes through the sprite path, so it shares the sprite
+ * atlas and the text's scissor. The shadow passes only advance past it. */
+static void
+d3d9_ui_font_icon(void* opaque, struct ToriDraw_FontIcon const* icon, int x, int y)
+{
+    struct D3D9UIFontGlyphContext* context = (struct D3D9UIFontGlyphContext*)opaque;
+    struct ToriRS_RenderCommand_Sprite command = { 0 };
+    if( context->shadow )
+        return;
+    command.scene_id = icon->scene_id;
+    command.atlas_index = icon->frame;
+    command.x = x;
+    command.y = y;
+    command.scissor_x = context->command->scissor_x;
+    command.scissor_y = context->command->scissor_y;
+    command.scissor_w = context->command->scissor_w;
+    command.scissor_h = context->command->scissor_h;
+    d3d9_ui_draw_sprite(context->renderer, &command);
+}
+
 static void
 d3d9_ui_draw_font_text(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIFontSlot* slot,
+    const struct ToriRS_RenderCommand_Font* command,
     const RECT* scissor,
     const char* text,
     int x,
@@ -2557,8 +2580,9 @@ d3d9_ui_draw_font_text(
     context.renderer = renderer;
     context.slot = slot;
     context.scissor = *scissor;
+    context.command = command;
     context.shadow = shadow;
-    ToriDraw_FontVisitGlyphsStyled(
+    ToriDraw_FontVisitGlyphsStyledIcons(
         slot->font,
         text,
         x,
@@ -2566,6 +2590,7 @@ d3d9_ui_draw_font_text(
         color,
         center,
         d3d9_ui_font_glyph,
+        d3d9_ui_font_icon,
         &context);
     if( !shadow )
         d3d9_ui_draw_font_rules(renderer, slot->font, scissor, text, x, y, center);
@@ -2747,6 +2772,8 @@ d3d9_ui_draw_font_rule_range(
                 if( parsed >= 0 )
                     strike_rgb = parsed;
             }
+            /* An `<img=N>` icon takes its width; no rule runs under it. */
+            x += ToriDraw_FontMarkupIconAdvance(text, length, i);
             i += consumed;
             if( emit_char == 0 )
                 continue;
@@ -2802,6 +2829,7 @@ static void
 d3d9_ui_draw_font_range(
     struct ToriPlatformWin32_Renderer_D3D9* renderer,
     struct D3D9UIFontSlot* slot,
+    const struct ToriRS_RenderCommand_Font* command,
     const RECT* scissor,
     const char* text,
     int length,
@@ -2818,7 +2846,7 @@ d3d9_ui_draw_font_range(
     memcpy(buffer, text, (size_t)length);
     buffer[length] = '\0';
     d3d9_ui_draw_font_text(
-        renderer, slot, scissor, buffer, x, y, color, shadow, false);
+        renderer, slot, command, scissor, buffer, x, y, color, shadow, false);
 }
 
 static void
@@ -2851,11 +2879,11 @@ d3d9_ui_draw_font(
         {
             int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
             d3d9_ui_draw_font_text(
-                renderer, slot, &scissor, command->text, command->x + dx, y + dy,
+                renderer, slot, command, &scissor, command->text, command->x + dx, y + dy,
                 command->color, true, center);
         }
         d3d9_ui_draw_font_text(
-            renderer, slot, &scissor, command->text, command->x, y,
+            renderer, slot, command, &scissor, command->text, command->x, y,
             command->color, false, center);
         return;
     }
@@ -2870,11 +2898,11 @@ d3d9_ui_draw_font(
             {
                 int dx,dy;ToriDraw_FontShadowOffset(command->shadowed,pass,&dx,&dy);
                 d3d9_ui_draw_font_range(
-                    renderer, slot, &scissor, lines[i].text, lines[i].len, lines[i].x + dx,
+                    renderer, slot, command, &scissor, lines[i].text, lines[i].len, lines[i].x + dx,
                     lines[i].y + dy, command->color, true);
             }
             d3d9_ui_draw_font_range(
-                renderer, slot, &scissor, lines[i].text, lines[i].len, lines[i].x, lines[i].y,
+                renderer, slot, command, &scissor, lines[i].text, lines[i].len, lines[i].x, lines[i].y,
                 command->color, false);
         }
     }

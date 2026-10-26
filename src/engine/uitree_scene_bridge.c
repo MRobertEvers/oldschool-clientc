@@ -274,6 +274,8 @@ UITreeSceneBridge_Free(struct UITreeSceneBridge* bridge)
     bridge_hmap_free(bridge->obj_icon_border_map);
     bridge_hmap_free(bridge->npc_head_map);
     bridge_hmap_free(bridge->obj_model_map);
+    /* The icons' pixels are the scene's, and go with it. */
+    ToriDraw_FontSetIcons(NULL, 0);
     memset(bridge, 0, sizeof(*bridge));
 }
 
@@ -400,6 +402,40 @@ UITreeSceneBridge_EnsureStaticSprite(
     if( scene_id > 0 )
         bridge_set_scene_id(bridge, &bridge->static_sprite_scene[slot], scene_id);
     return scene_id;
+}
+
+/*
+ * `<img=N>` draws mod icon N (deob Statics.field7115): every frame of the
+ * mod_icons pack, published to the font module, which every text path reads.
+ * A profile with no mod_icons pack publishes none, and the tags take no room.
+ */
+void
+UITreeSceneBridge_PublishFontIcons(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_FontIcon icons[UITREE_BRIDGE_FONT_ICONS_MAX];
+    struct ToriDraw_Sprite** frames;
+    int scene_id;
+    int count = 0;
+
+    assert(bridge);
+    scene_id = bridge->static_sprite_scene[STATIC_SPRITE_MOD_ICONS];
+    if( scene_id <= 0 || !ToriDraw_SceneSpriteHas(bridge->scene, scene_id) )
+    {
+        ToriDraw_FontSetIcons(NULL, 0);
+        return;
+    }
+    frames = ToriDraw_SceneSpriteGet(bridge->scene, scene_id, &count);
+    if( count > UITREE_BRIDGE_FONT_ICONS_MAX )
+        count = UITREE_BRIDGE_FONT_ICONS_MAX;
+    for( int i = 0; i < count; i++ )
+    {
+        icons[i].width = frames[i] ? frames[i]->width : 0;
+        icons[i].height = frames[i] ? frames[i]->height : 0;
+        icons[i].pixels = frames[i] ? frames[i]->pixels_argb : NULL;
+        icons[i].scene_id = scene_id;
+        icons[i].frame = i;
+    }
+    ToriDraw_FontSetIcons(icons, count);
 }
 
 int
