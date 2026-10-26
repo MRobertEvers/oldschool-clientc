@@ -40,35 +40,73 @@ rsprot_player_info_reset(RsprotPlayerInfo *pi, int local_index)
  * 18 bits of rough position (level << 16 | x << 8 | z) for every other slot in
  * index order. The local slot is skipped, so the count is structural.
  */
-void
-rsprot_player_info_init(RsprotPlayerInfo *pi, const uint8_t *data, int32_t len)
+int
+rsprot_player_info_gpi(int local_index, const uint8_t *data, int32_t len, int32_t *coord,
+                       int32_t positions[RSPROT_INFO_PLAYER_SLOTS])
 {
     RsprotBuf b;
+
+    assert(coord);
+    assert(positions);
+    memset(positions, 0, sizeof(int32_t) * RSPROT_INFO_PLAYER_SLOTS);
+    *coord = 0;
+    if (local_index <= 0 || local_index >= RSPROT_INFO_PLAYER_SLOTS || !data || len <= 0)
+        return 0;
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_buf_bit_begin(&b);
+    *coord = rsprot_gbits(&b, 30);
+    for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++)
+        if (idx != local_index)
+            positions[idx] = rsprot_gbits(&b, 18);
+    rsprot_buf_bit_end(&b);
+    return !b.err;
+}
+
+void
+rsprot_player_info_seed(RsprotPlayerInfo *pi, int32_t coord,
+                        const int32_t positions[RSPROT_INFO_PLAYER_SLOTS])
+{
     int local;
 
     assert(pi);
+    assert(positions);
     local = pi->local_index;
     memset(pi, 0, sizeof(*pi));
     pi->local_index = local;
     pi->seeded = 1;
     memset(pi->move_speed, RSPROT_TRAVERSAL_WALK, sizeof(pi->move_speed));
-    if (local <= 0 || local >= RSPROT_INFO_PLAYER_SLOTS || !data || len <= 0)
+    if (local <= 0 || local >= RSPROT_INFO_PLAYER_SLOTS)
         return;
-
-    rsprot_buf_wrap_read(&b, data, len);
-    rsprot_buf_bit_begin(&b);
-    pi->coord[local] = rsprot_gbits(&b, 30);
+    pi->coord[local] = coord;
     pi->high_res[local] = 1;
     for (int idx = 1; idx < RSPROT_INFO_PLAYER_SLOTS; idx++) {
-        int packed;
+        int32_t packed = positions[idx];
 
         if (idx == local)
             continue;
-        packed = rsprot_gbits(&b, 18);
         pi->low_res_pos[idx] =
             (int32_t)((((packed >> 8) & 0xff) << 14) + (packed & 0xff) + ((packed >> 16) << 28));
     }
-    rsprot_buf_bit_end(&b);
+}
+
+void
+rsprot_player_info_init(RsprotPlayerInfo *pi, const uint8_t *data, int32_t len)
+{
+    static _Thread_local int32_t positions[RSPROT_INFO_PLAYER_SLOTS];
+    int32_t coord;
+
+    assert(pi);
+    if (!rsprot_player_info_gpi(pi->local_index, data, len, &coord, positions)) {
+        /* Seeded with nothing known, as the reference is by an empty block. */
+        int local = pi->local_index;
+
+        memset(pi, 0, sizeof(*pi));
+        pi->local_index = local;
+        pi->seeded = 1;
+        memset(pi->move_speed, RSPROT_TRAVERSAL_WALK, sizeof(pi->move_speed));
+        return;
+    }
+    rsprot_player_info_seed(pi, coord, positions);
 }
 
 typedef struct Reader

@@ -85,6 +85,14 @@ void rsprot_ffi_players_reset(void *players, int local_index);
 /** Seed the table from a GPI init block (the login REBUILD's, or RECONNECT's). */
 void rsprot_ffi_players_init(void *players, const uint8_t *gpi, int len);
 
+/** Parse a GPI init block: `*coord` the local player's absolute coordinate,
+ *  `positions` (2048) every other slot's 18-bit rough position. Returns 1, or 0
+ *  when the block is short. */
+int rsprot_ffi_gpi(int local_index, const uint8_t *gpi, int len, int32_t *coord, int32_t *positions);
+
+/** Seed the table from a parsed GPI init block (rsprot_ffi_gpi). */
+void rsprot_ffi_players_seed(void *players, int32_t coord, const int32_t *positions);
+
 /*
  * PLAYER_INFO. The first part is one record per slot the packet did more than
  * leave in low resolution: `index`, `type` (RsprotPlayerUpdate) and `coord` --
@@ -94,9 +102,15 @@ void rsprot_ffi_players_init(void *players, const uint8_t *gpi, int len);
 int rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len,
                            uint8_t *out, int cap, int *blocks_at, char *err, int err_cap);
 
-/** An npc type's recolour / retexture counts (CUSTOM_TYPED), for the npc at
- *  list position `who`; return 0 when unknown. */
-typedef int (*RsprotFfiNpcLengths)(int who, int head, int *recolours, int *retextures);
+/**
+ * An npc type's recolour / retexture counts, which CUSTOM_TYPED's arrays take
+ * their length from: for `type`, or -- when the read has not named the npc's
+ * type (it was in view before this packet, and has not transformed in it) --
+ * for the npc at `old_position` in the host's list from the previous packet.
+ * Return 0 when unknown: the read stops there.
+ */
+typedef int (*RsprotFfiNpcLengths)(int old_position, int type, int head, int *recolours,
+                                   int *retextures);
 
 /*
  * NPC_INFO_SMALL / NPC_INFO_LARGE (`prot` its table name: NPC_INFO_LARGE_V5,

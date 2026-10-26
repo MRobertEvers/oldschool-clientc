@@ -696,6 +696,24 @@ rsprot_info_appearance_trace(
     int32_t len,
     struct RsprotTrace* trace);
 
+/** Parse a GPI init block: the local player's absolute coordinate and every
+ *  other slot's 18-bit rough position (0 for slot 0 and the local slot).
+ *  Returns 1, or 0 when the block is short. */
+int
+rsprot_player_info_gpi(
+    int local_index,
+    const uint8_t* data,
+    int32_t len,
+    int32_t* coord,
+    int32_t positions[RSPROT_INFO_PLAYER_SLOTS]);
+
+/** Seed the table from a parsed GPI init block (rsprot_player_info_gpi). */
+void
+rsprot_player_info_seed(
+    RsprotPlayerInfo* pi,
+    int32_t coord,
+    const int32_t positions[RSPROT_INFO_PLAYER_SLOTS]);
+
 /* The entry points' shapes, for a host that picks one at run time. Each
  * returns the op count it wrote into `out`. */
 typedef int (*RsprotPlayerInfoReadFn)(

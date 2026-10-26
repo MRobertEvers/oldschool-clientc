@@ -258,6 +258,19 @@ rsprot_ffi_players_init(void *players, const uint8_t *gpi, int len)
 }
 
 int
+rsprot_ffi_gpi(int local_index, const uint8_t *gpi, int len, int32_t *coord, int32_t *positions)
+{
+    return rsprot_player_info_gpi(local_index, gpi, len, coord, positions);
+}
+
+void
+rsprot_ffi_players_seed(void *players, int32_t coord, const int32_t *positions)
+{
+    assert(players);
+    rsprot_player_info_seed(players, coord, positions);
+}
+
+int
 rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len,
                        uint8_t *out, int cap, int *blocks_at, char *err, int err_cap)
 {
@@ -381,11 +394,39 @@ trace_ops(const RsprotInfoList *list, RsprotTrace *head)
 
 static _Thread_local RsprotFfiNpcLengths g_lengths;
 
+/* CUSTOM_TYPED: whose type the npc at list position `who` has, from the ops
+ * read so far -- a newcomer's NPCTYPE, a CHANGE_TYPE in its own extended info,
+ * or else its position in the previous packet's list -- then the host's counts
+ * for it. */
 static int
 npc_lengths(void *ctx, int who, int head, int *recolours, int *retextures)
 {
-    (void)ctx;
-    return g_lengths && g_lengths(who, head, recolours, retextures);
+    const RsprotInfoList *list = ctx;
+    int position = 0;
+    int target = -1;
+    int old = -1;
+    int32_t type = -1;
+
+    for (int i = 0; i < list->count; i++) {
+        const RsprotInfoOp *op = &list->ops[i];
+
+        if (op->kind == RSPROT_OP_ADD_OLD) {
+            if (position++ == who)
+                old = (int)op->value;
+        } else if (op->kind == RSPROT_OP_ADD_NEW) {
+            position++;
+        } else if (op->kind == RSPROT_OP_NPCTYPE && position - 1 == who) {
+            type = (int32_t)op->value;
+        } else if (op->kind == RSPROT_OP_SET_EXT) {
+            target = (int)op->value;
+        } else if (op->kind == RSPROT_OP_CHANGE_TYPE && target == who) {
+            /* RSProx sets the id read, 65535 for "back to the spawned type". */
+            type = op->change_type.npc_type == -1 ? 0xFFFF : op->change_type.npc_type;
+        }
+    }
+    if (type < 0 && old < 0)
+        return 0;
+    return g_lengths && g_lengths(type >= 0 ? -1 : old, type, head, recolours, retextures);
 }
 
 int
@@ -414,7 +455,7 @@ rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len
         return -1;
     info_begin(&list, &blocks);
     g_lengths = lengths;
-    read(data, len, lengths ? npc_lengths : NULL, NULL, &list);
+    read(data, len, lengths ? npc_lengths : NULL, &list, &list);
     g_lengths = NULL;
     trace_ops(&list, &head);
     return info_end(&list, &head, &blocks, prot, blocks_at, err, err_cap);

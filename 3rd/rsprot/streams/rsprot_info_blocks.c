@@ -706,7 +706,6 @@ chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e, int patterne
     (void)RD(autotyper);
     len = RD(data_len);
     data = borrow_blob(t->b, len);
-    trace_blob(t, data, len, "data");
     colour = (int32_t)((uint32_t)colour_effects >> 8);
     patterns = patterned && colour >= 13 && colour <= 20 ? colour - 12 : 0;
     for (int i = 0; i < patterns; i++)
@@ -718,6 +717,8 @@ chat(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoChatEnc *e, int patterne
     op->chat.type = (uint8_t)mod_icon;
     op->chat.length = (uint8_t)len;
     op->chat.data = len > 0 ? rsprot_info_blob(t->out, data, len, e->data_order) : NULL;
+    /* In natural order: the arena's copy, not the payload's. */
+    trace_blob(t, len > 0 ? op->chat.data : data, len, "data");
     return 1;
 }
 
@@ -861,13 +862,13 @@ rsprot_info_appearance(RsprotInfoBlocks *t, uint32_t bit, const RsprotInfoAppear
 
     len = RD(data_len);
     data = borrow_blob(t->b, len);
-    trace_blob(t, data, len, "data");
-
     if (t->b->err)
         return block_end(t, before, RSPROT_IK_APPEARANCE, bit);
     op = rsprot_info_emit(t->out, RSPROT_OP_APPEARANCE);
     op->appearance.appearance = rsprot_info_blob(t->out, data, len, e->data_order);
     op->appearance.len = len;
+    /* In natural order: the arena's copy, not the payload's. */
+    trace_blob(t, op->appearance.appearance, len, "data");
     return 1;
 }
 
@@ -938,9 +939,14 @@ custom_typed_block(RsprotInfoBlocks *t, uint32_t bit, RsprotInfoKind kind,
         int32_t n = RD(model_count);
 
         for (int32_t i = 0; i < n && !t->b->err; i++) {
-            int32_t model = RD(model);
+            int32_t model = e->model(t->b);
 
-            body_model(b, model == e->model_none ? -1 : model);
+            /* Traced as RSProx keeps it: the old g2 form's 0xFFFF is no model. */
+            if (model == e->model_none)
+                model = -1;
+            if (t->out->trace && !t->b->err)
+                rsprot_trace_prim(t->out->trace, 0, model, "model");
+            body_model(b, model);
         }
     }
     if ((flag & (0x4 | 0x8)) != 0) {
