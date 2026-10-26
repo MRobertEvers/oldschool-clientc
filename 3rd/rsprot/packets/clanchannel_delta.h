@@ -37,6 +37,8 @@ typedef struct MsgClanchannelDelta {
 	int64_t update_num;
 	int32_t event_count;
 	MsgClanchannelDeltaEvent events[MSG_CLANCHANNEL_DELTA_MAX_EVENTS];
+	const uint8_t *trailing;
+	int32_t trailing_length;
 } MsgClanchannelDelta;
 
 /* v1 -- revs 223-241. */

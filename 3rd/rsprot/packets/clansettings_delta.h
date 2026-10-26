@@ -50,6 +50,8 @@ typedef struct MsgClansettingsDelta {
 	int32_t update_num;
 	int32_t update_count;
 	MsgClansettingsDeltaUpdate updates[MSG_CLANSETTINGS_DELTA_MAX_UPDATES];
+	const uint8_t *trailing;
+	int32_t trailing_length;
 } MsgClansettingsDelta;
 
 /* v1 -- revs 223-241. */

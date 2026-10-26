@@ -14,8 +14,11 @@ packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m)
         RSPROT_U1(x, u->opcode);
         switch (RSPROT_BRANCH(x, u->opcode)) {
         case 0:
-            /* The end; kept as an update so the layout round-trips. */
+            /* The end, kept as an update so the layout round-trips. RSProx
+             * stops here; whatever follows (8 bytes, in the recordings) is
+             * kept whole. */
             m->update_count = i + 1;
+            RSPROT_REST(x, m->trailing, m->trailing_length);
             return;
         case 1:
         case 3:
