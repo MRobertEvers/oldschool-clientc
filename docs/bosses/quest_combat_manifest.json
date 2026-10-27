@@ -561,8 +561,7 @@
         "khali_brew",
         "coins",
         "dorgesh_construction_bone",
-        "dorgesh_construction_bone_curved",
-        "vile_ashes"
+        "dorgesh_construction_bone_curved"
       ],
       "loc_gamevals": [
         "arena_guard_chest_shut",
@@ -588,7 +587,7 @@
         "opnpc1:arena_guard2",
         "opnpcu:arena_guard2"
       ],
-      "loot_contract": "Khazard Ogre has only independent 1/400 long-bone and 1/5013 curved-bone tertiary rolls; the scorpion and General have no drops; Bouncer drops one vile ashes. Quest completion grants 1,000 coins, 12,175 Attack XP, 2,175 Thieving XP and retains the Khazard armour set.",
+      "loot_contract": "Khazard Ogre has only independent 1/400 long-bone and 1/5013 curved-bone tertiary rolls; the scorpion, Bouncer and the General drop nothing (Bouncer: the one recorded kill, RSProx 4396 [171..177], sends no obj_add, though the wiki lists vile ashes). Quest completion grants 1,000 coins, 12,175 Attack XP, 2,175 Thieving XP and retains the Khazard armour set.",
       "test_ids": [
         "quest-combat-contract:fight-arena",
         "quest:arena",

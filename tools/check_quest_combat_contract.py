@@ -898,12 +898,14 @@ def check_fight_arena() -> None:
             "[proc,arena_on_logout]",
             "obj_add(npc_coord, dorgesh_construction_bone, 1, ^lootdrop_duration);",
             "obj_add(npc_coord, dorgesh_construction_bone_curved, 1, ^lootdrop_duration);",
-            "obj_add(npc_coord, vile_ashes, 1, ^lootdrop_duration);",
         ),
         "Fight Arena encounter",
     )
     require("random(400) = 0" in encounter and "random(5013) = 0" in encounter,
             "Fight Arena: Ogre tertiary drop rates drifted")
+    # Bouncer drops nothing: the one recorded kill (RSProx 4396 [171..177]) sends no
+    # obj_add, though the wiki lists vile ashes as always.
+    require("vile_ashes" not in encounter, "Fight Arena: Bouncer's drop restored (none recorded)")
     require("npc_setowner" not in encounter,
             "Fight Arena: the rounds are private by their copy; an owner-private actor is the old port's")
 
