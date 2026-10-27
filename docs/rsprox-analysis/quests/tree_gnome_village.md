@@ -244,3 +244,148 @@ the field: 568 arrows, 43 catapult shots, ~970 npc lives.
 - The journal (no recording) and the reward's spirit trees (the "Spirit Tree Locations"
   menu, recorded in 311 and 3976) are not audited.
 - The generic interactions marked NOT checked in the action table.
+
+## The Khazard warlord
+
+One recorded fight: index 4394 [1501..1910]. The shell (4971), its talking rung (7621),
+the fight's warlord (7622) and varbit 3460 are in no other indexed session (`search npc
+7622 / 4971 / 7621 --any`, `search varbit 3460`: 4394 only), so every count below is one
+fight. The recorder (combat 32) cast earth strike from a staff of earth every 5 ticks from
+(2457,3301), adjacent south of him, with Protect from Melee up throughout. Ours:
+`test/quests/tree.lua` on private packs (`build/quest_gate/tree_warlord/ticklog.tsv`; the
+seed is the run name): fire bolt every 9 ticks at Magic 99 with punches between (the
+driver), no prayer. Anchors: A = the fight's warlord's add, K = the killing hit, D = his
+del. Recorded A [1520], K [1878] (A+358), D [1880]; ours A 461, K 798, D 800.
+
+Content: `quests/quest_tree/scripts/khazard_warlord.rs2`, the `[khazard_warlord_combat]`
+block of `quest_tree.npc` (its keys deleted from `server_fields.generated.npc`). Tools:
+`rsprox_npcinfo.py`, `npc_block_inventory.py --values`, `multinpc_stance_audit.py`,
+`npc_movement_audit.py`, `rsprox_player_hits.py`, `rsprox_hit_causes.py --by-prayer`,
+`check_npc_cache_levels.py` (0), and `TORIRSSERVER_TRACE_OUT=1` for the interface and
+hint packets. "Before" is the pack this section started from (the 09:17 commit).
+
+### Timeline
+
+| tick | recorded (4394) | ours | verdict |
+|---|---|---|---|
+| A | the click of the last page [1519], then at [1520]: varbit 3460 0->1, `current_hint_arrow` (14192) 0->7, busy 0; the shell `[del]`; 7622 `[add]` on the shell's tile, spawnangle south, with `level_change` 112, `[facing]` the player, `enabled_ops` 0b11111, `[transformation]` 7622; `if_closesub` chatmodal; `hint_arrow` reset, then the npc | the same on A = click + 1, except the shell stays in our npc list (its rung resolves to -1, the client draws nothing) | fixed: no re-type on the add, the close went out on the click tick, no hint reset, 14192 never set. OPEN: the shell's `[del]` (engine) |
+| A+2 | his first swing, before the first spell lands (A+3): he takes the player on himself | A+2 | fixed: `npc_setmode(opplayer2)` swung on A+1 (the errand) and A+2 (the retaliation's errand), then nothing until the first landing latched him (A+7) |
+| every 4 | `human_blunt_pound` (401) + synth `warhammer_crush` (2567); the recorder's block + synth 511 delay 20 (88/88 gaps of 4) | the same (83/83) | fixed: 422 and silent |
+| each cast | `human_blunt_def` (404) delayed 56, sent on the cast's tick, splash or not, unless his own swing is that tick (54 of 72 casts; the other 18 went out as 401) | 404 delayed 56 on 28 of 38 casts, the other 10 on his swing ticks; 404/0 on the punches | fixed (was 424) |
+| each hit's landing | the splat; `[transformation]` + `level_change` 112 + `enabled_ops` 0b11111; synth `blade2` (29) | the same | fixed: no re-type, no sound |
+| each splash, cast+1 | `[transformation]` + `level_change` + `enabled_ops` 0b11111, no sound (18/18) | the same (14/14) | fixed |
+| K | the splat, headbar 0, `human_death` (836), `[facing] type=reset`, `enabled_ops` 0b00000 with the re-type, synths 29 and `human_death` (512) | the same | fixed: 836 and the reset came on K+1, silent |
+| D = K+2 | `[del]`; bones (`reveal=100, despawn=200, ownership=self`); stage 8; orbs (`despawn=200, ownership=self, neverturnpublic=true`); `map_anim smokepuff` (86) height 10; `sound_area smokepuff` (1930) range 5; `sound_area myarm_male_scream` (3200) delay 10 range 5; synth `put_down` (2739); the objbox; `script7192` for the bones only | the same, D = K+2 | fixed: D was K+3, no bones, no vapour, scream or put_down, and 7192 named the orbs. OPEN: our obj ownership fields; our hint clear on D |
+| D+30 | varbit 3460 -> 0 [1910] | D+30 | matched (was D+31) |
+
+The vapour and the scream are the objbox's "ghostly vapour" and "shrill scream": in 4394
+they come only with the quest's kill; smokepuff and put_down appear with no other npc death
+or bones drop in 4394, 4378, 4384, 4375 or 4392.
+
+### Npc info, every block kind
+
+| kind (7622) | recorded | before | ours | verdict |
+|---|---|---|---|---|
+| `[facing]` | 2: the player on the add, reset on K | 5: resets on A+1 and A+2, the player again on A+7 | 2 | fixed |
+| `[transformation]` | 73 ticks: the add, 54 hit landings, 18 splashes at cast+1 | 0 | 76 ticks: the add, 61 landings, 14 splashes | fixed (per landing, 72/72 and 75/75) |
+| `level_change` 112 | 73 | 0 | 76 | fixed |
+| `enabled_ops` | 72 x 0b11111, 1 x 0b00000 (K) | 1 (K) | 75 + 1 | fixed |
+| `[sequence]` | 401 x 89, 404/56 x 54, 836 x 1 | 422 / 424 | 401 x 84, 404/56 x 28, 404/0 x 28, 836 x 1 | fixed |
+| `[spotanim]`, `[hit]`, `[headbar]` | the recorder's spells (98 / 85), 54 splats | | fire bolt (128 / 85), 61 splats | the attacker's kit |
+| movement | none (198 idle ticks) | none | none | matched |
+| `[bas]`, `[body_customisation]`, headicons, `[say]`, `exact_move` | none | none | none | matched |
+
+The block inventory lists no recorded kind we never send. Our tick log writes one
+`npc_retype` row per call (100), two on a spell's landing (its two queues); the wire carries
+one block per tick (76).
+
+The shell (`khazard_warlord`): `multinpc_stance_audit.py` "same" (shell and rung share the
+human stance set). It wanders (2 steps in its 19 ticks in view, [1507] east, [1508] south)
+and faces the player with the first npc page [1509]; ours wanders (the generated default)
+and faces on the first npc page (455, the page after the player's at 454). The fight's
+warlord never left combat in 4394 (0 steps); it keeps the generated wander 5 and maxrange 7
+(the shell's recorded wander; the quest page's leash, "head west until the warlord
+de-aggros"): unverified.
+
+### Sounds
+
+| recorded | n | ours | verdict |
+|---|---|---|---|
+| synth 2567 `warhammer_crush`, each swing | 89/89 | 84/84 | fixed (none) |
+| synth 511 `human_block_1` delay 20, each 0 on the player | 89/89 | 78/78, and 518..521 delay 20 on the 6 hits | engine, matched |
+| synth 29 `blade2`, each hit on him | 54/54, none on the 18 splashes | 61 landings, none on the 14 splashes | fixed (none); a 0-damage landing's sound is unrecorded (no 0 landed in 4394) |
+| synth 512 `human_death`, K | 1 | 1 | fixed (none) |
+| D: area 1930 r5, area 3200 delay 10 r5, synth 2739 | 1 each | 1 each | fixed (none) |
+| 132 / 133 / 227 | 72 / 54 / 18 | | the recorder's earth strike |
+| 3120 x3, 3424, 2396+2384 x3, 2238, 2401, 2663, 2738, 909+521 [1907] | | | the stamina warning, level-up fireworks, an equip, a potion, prayer off, burying the bones, a wolf on the way home: not the fight |
+
+### Damage, accuracy and every splat (skill sections 13, 13b)
+
+- **His swings:** 89 splats on the recorder, each on the swing's own tick, all 0 under
+  Protect from Melee (89/89; `prayer_allactive` 16384 until [1884]). That rule holds in ours
+  by `~playerhit_n_melee_apply`; the max and the accuracy are not identifiable from this
+  fight.
+- **Max hit:** the wiki's 10 (infobox: +0 strength, max hit 10). `~npc_melee_maxhit` gave 9
+  from +0: `strengthbonus` 6 gives 10 (6..13 all do). Ours, unprayed: 84 swings, 78 zeros,
+  6 hits 1..9; the attack roll (75+9) x 64 = 5376 against the test player's crush defence
+  roll 28034 predicts 7.3 hits.
+- **Accuracy against him:** an npc defends magic with its Magic level. The recorder
+  (`--bas`: staff of earth +10, amulet of glory +10, Magic 10..13) predicts 13.7 splashes
+  of 72 against (1+9) x 64 = 640; recorded 18. A Defence-based roll predicts 61. So Magic 1
+  (the cache leaves stat6 at its default). Ours: 14 of 38 against 8.1 predicted from our
+  roll 1498 (p ~ 0.02, one seed; the player's side).
+- **Levels:** the cache's stat1..4 (75/80/78/170), stat5/6 unstated (1);
+  `check_npc_cache_levels.py` 0.
+- **Every splat** (`rsprox_hit_causes.py --npc khazard_warlord --by-prayer`): one cause
+  on both sides, `npc:khazard_warlord_combat:human_blunt_pound@0:adj`, 89 (0..0) recorded and
+  84 (0..9) ours; no `none`, no heal, no content damage on him. Every splat on him is his
+  attacker's (54 earth strikes; ours 24 fire bolts and 37 punches).
+- **Combat xp:** the recorder's 72 casts paid earth strike's 9.5 Magic each and almost
+  nothing for 173 damage. Replaying every Magic and Hitpoints update of the fight
+  (`update_stat_v2`, tenths kept, the damage part 2 and 4/3 per point x the multiplier) fits
+  a multiplier of 25..28 per 1000 and no other value: `combat_xp_multiplier` 25 (it was
+  1000). The wiki's trivia ("only yields the base magic experience") is this. OPEN: our
+  `~give_combat_experience` floors the damage part before the x2 / x4/3, so at 2.5% it pays a
+  tenth or two less per hit than Jagex.
+
+### Unrecorded, and how ours does it
+
+- **"Bah, enough of you!"** (Transcript:Khazard warlord, "Any time he is aggressive but not
+  attacked and cannot attack the player for long enough"; the quest page: he may despawn
+  when safespotted too long, not when flinched): the npc timer, re-armed by each of his
+  swings and by every landing on him, fires after `^tree_warlord_idle_ticks` (50) with
+  neither: the line and `npc_del`. On our wire with a scratch test (stage 7, the talk, then
+  the walk to (2458,3284), the recorder's own way home [1891..1899]): his last swing at 19,
+  the line and his removal at 69, varbit 3460 back at 100 (removal + 31: `npc_del` keeps
+  him findable through his removal tick, where a death resets at +30), the talking warlord
+  back and talkable (11/11 rows).
+- The re-type on a melee landing (the recorder only cast): the same as a spell's.
+- The vapour, scream and put_down on a later kill: none in ours (only the quest's kill
+  was recorded).
+- The npc_add duration (`^tree_warlord_combat_duration`, 1000 ticks) is a backstop no source
+  states: a fight longer than ten minutes would lose him. Unchanged here.
+
+### Open (engine or shared code, not changed here)
+
+1. **The shell's `[del]` on A:** Jagex takes the shell out of the player's npc info when its
+   rung resolves to -1; ours keeps it listed and the client hides it.
+2. **Our hint clear on D:** `hint_arrow_flush` (torirs_server_encode.c) clears an npc hint
+   whose npc left view; 4394 sends no hint packet after [1520] to the logout, and
+   `current_hint_arrow` stays 7.
+3. **Ground items:** our rev-241 OBJ_ADD sends `time_until_public`, `ownership` and
+   `never_becomes_public` as 0 for every obj (the bones: reveal 100, self; the orbs: self,
+   never public).
+4. **A successful spell's 0:** earth strike landed 0 in 0 of 58 recorded landings (18 ones;
+   a uniform 0..max roll gives that with p ~ 1e-4), fire wave 1 of 98, across 80 cached rev-241
+   transcripts (idx42xx-43xx); ours rolls 0..max (1 of 24 fire bolts). Shared player magic.
+5. An npc added facing a player who is not due south of it re-sends the face on the next
+   tick (`face_sent_angle` starts at 0, torirs_server_world.c). Not on this fight's tile.
+6. For docs/rsprox-analysis/combat/defend_timing.md's open question: a splash does send the
+   defend seq, delayed to its landing (11 of 11 here off his swing ticks; the brown bear in
+   index 4384, 3 of 3).
+
+**Test.** `tree.lua`'s `warlord.wire` row checks the fight's shape from the tick log: the
+first swing at A+2, every gap 4, 401 with 2567 on each, 836 on the killing blow's own tick,
+the del two ticks later with the smokepuff. It passes on the new pack (84 swings) and fails
+on the pack this section started from (0 swings of 401, the death seq a tick late, no
+smokepuff). The quest gate: 111 of 112, the only failure the `camelotTeleport.cast` row.

@@ -454,6 +454,50 @@ return {
         -- with an objbox; picked up by hand ([1887]).
         t.exec("warlord.orbs_page", t.chat.play, { "objbox:As the warlord falls to the ground" })
         t.exec("stage.defeated_warlord", t.var.await_server, "varp111_treequest", 8, 10)
+        -- The fight's shape as RSProx 4394 recorded it ([1520..1880];
+        -- docs/rsprox-analysis/quests/tree_gnome_village.md, "The Khazard
+        -- warlord"): his first swing two ticks after his add, then every 4
+        -- (88/88), each human_blunt_pound (401) with warhammer_crush (2567);
+        -- human_death (836) on the killing hit and his del two ticks later,
+        -- the ghostly vapour (smokepuff 86) on that tick.
+        do
+            local why = {}
+            local ok = true
+            local r, spawns = t.ticklog.rows({ kind = "npc_spawn", type = 7622 })
+            local sp = (r == "ok") and spawns[#spawns] or nil
+            if sp == nil then
+                ok = false
+                why[#why + 1] = "no npc_spawn row for khazard_warlord_combat (" .. tostring(r) .. ")"
+            else
+                local _, swings = t.ticklog.rows({ kind = "npc_anim", slot = sp.slot, seq = 401, since = sp.serial })
+                local _, deaths = t.ticklog.rows({ kind = "npc_anim", slot = sp.slot, seq = 836, since = sp.serial })
+                local _, blows = t.ticklog.rows({ kind = "npc_death", slot = sp.slot, type = 7622, since = sp.serial })
+                local _, frees = t.ticklog.rows({ kind = "npc_free", slot = sp.slot, type = 7622, since = sp.serial })
+                local _, crush = t.ticklog.rows({ kind = "sound", sound = 2567, since = sp.serial })
+                local _, puffs = t.ticklog.rows({ kind = "map_spotanim", spotanim = 86, since = sp.serial })
+                local crush_at = {}
+                for _, row in ipairs(crush or {}) do crush_at[row.tick] = true end
+                local bad_gap, silent = 0, 0
+                for i, row in ipairs(swings or {}) do
+                    if i > 1 and row.tick - swings[i - 1].tick ~= 4 then bad_gap = bad_gap + 1 end
+                    if not crush_at[row.tick] then silent = silent + 1 end
+                end
+                local first = (swings and swings[1]) and (swings[1].tick - sp.tick) or nil
+                local k = (deaths and deaths[1]) and deaths[1].tick or nil
+                local blow = (blows and blows[1]) and blows[1].tick or nil
+                local d = (frees and frees[1]) and frees[1].tick or nil
+                local puff = false
+                for _, row in ipairs(puffs or {}) do if row.tick == d then puff = true end end
+                ok = first == 2 and bad_gap == 0 and silent == 0 and #(swings or {}) > 1
+                    and k ~= nil and k == blow and d ~= nil and d - k == 2 and puff
+                why[#why + 1] = string.format("add tick %d, %d swing(s) (401), first at add+%s, %d gap(s) not 4,"
+                    .. " %d without warhammer_crush; killing blow at %s, death seq 836 at %s (want the blow's tick),"
+                    .. " del at %s (want death+2), smokepuff on the del: %s",
+                    sp.tick, #(swings or {}), tostring(first), bad_gap, silent, tostring(blow), tostring(k),
+                    tostring(d), tostring(puff))
+            end
+            t.check("warlord.wire", ok, table.concat(why, "; "))
+        end
         t.exec("pickupOrb", t.player.click_obj, "orbs_of_protection")
         t.exec("orbs.held", t.inv.await, "orbs_of_protection", 1, 10)
 
