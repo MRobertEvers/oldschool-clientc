@@ -18,17 +18,53 @@ enum
     PLAYER_MODEL_MAX_PARTS = 16,
 };
 
-/* Reference ClientPlayer.recol1d: per design part (hair, torso, legs, feet,
- * skin), index 0 is the identity colour the models ship with; a non-zero
- * colour recolors recol1d[part][0] -> recol1d[part][colour]. */
-static int const k_recol_hair[] = { 6798, 107, 10283, 16, 4797, 7744, 5799, 4634,
-                                    33697, 22433, 2983, 54193 };
-static int const k_recol_torso[] = { 8741, 12, 64030, 43162, 7735, 8404, 1701, 38430,
-                                     24094, 10153, 56621, 4783, 1341, 16578, 35003, 25239 };
-static int const k_recol_legs[] = { 25238, 8742, 12, 64030, 43162, 7735, 8404, 1701,
-                                    38430, 24094, 10153, 56621, 4783, 1341, 16578, 35003 };
+/* Reference PlayerComposition recol1d (class294.field3891 in the 239 client):
+ * per design part (hair, torso, legs, feet, skin), index 0 is the identity
+ * colour the models ship with; colour recolours palette[0] -> palette[colour].
+ * Older lanes use a prefix of these: see k_design_colour_counts. */
+static int const k_recol_hair[] = { 6798,  107,   10283, 16,    4797,  7744,  5799,  4634,
+                                    33697, 22433, 2983,  54193, 8,     5281,  10438, 3650,
+                                    38214, 43691, 200,   571,   908,   21830, 28946, 49835,
+                                    51526, 43414, 937,   8130,  52114, 30385 };
+static int const k_recol_torso[] = { 8741,  12,    64030, 43162, 7735,  8404,  1701,  38430,
+                                     24094, 10153, 56621, 4783,  1341,  16578, 35003, 25239,
+                                     8,     5281,  10438, 3650,  38214, 43691, 200,   571,
+                                     908,   21830, 28946, 49835, 51526 };
+static int const k_recol_legs[] = { 25238, 8742,  12,    64030, 43162, 7735,  8404,  1701,
+                                    38430, 24094, 10153, 56621, 4783,  1341,  16578, 35003,
+                                    8,     5281,  10438, 3650,  38214, 43691, 200,   571,
+                                    908,   21830, 28946, 49835, 51526 };
 static int const k_recol_feet[] = { 4626, 11146, 6439, 12, 4758, 10270 };
-static int const k_recol_skin[] = { 4550, 4537, 5681, 5673, 5790, 6806, 8076, 4574 };
+static int const k_recol_skin[] = { 4550,  4537, 5681, 5673,  5790,  6806, 8076,
+                                    4574,  17050, 0,   127,  33715, 47545, 918 };
+
+static int const* const k_recol1d[5] = {
+    k_recol_hair, k_recol_torso, k_recol_legs, k_recol_feet, k_recol_skin,
+};
+
+/* How much of each palette a lane offers, per part. The palettes only ever
+ * grew, each era's a prefix of the next (checked against the clients):
+ *   LostCity (317-era ClientPlayer.recol1d)   12 16 16 6  8
+ *   OSRS 184 (Kronos class211.field2493)      25 29 29 6 13
+ *   OSRS 239 and 241 deobs                    30 29 29 6 14
+ * There is no client here for OSRS 230..238; they get the 184 counts, which
+ * never offer a colour that client lacks. The hair and torso recol2d bands
+ * have the same length as recol1d in every one of those clients. */
+static int const k_design_colour_counts_lostcity[5] = { 12, 16, 16, 6, 8 };
+static int const k_design_colour_counts_osrs184[5] = { 25, 29, 29, 6, 13 };
+static int const k_design_colour_counts_osrs239[5] = { 30, 29, 29, 6, 14 };
+
+static int const*
+design_colour_counts(struct CacheProvider* provider)
+{
+    struct RSCache const* profile = CacheProvider_Profile(provider);
+
+    if( !RSCache_IsOsrs(profile) )
+        return k_design_colour_counts_lostcity;
+    if( profile->revision >= 239 )
+        return k_design_colour_counts_osrs239;
+    return k_design_colour_counts_osrs184;
+}
 
 /* Reference PlayerComposition's secondary colour band (class294.field3890 /
  * field3893 in the 239 client): hair models author their second shade as
@@ -48,30 +84,20 @@ static struct
 {
     int source;
     int const* palette;
-    int count;
 } const k_recol2d[2] = {
-    { 55232, k_recol2d_hair, (int)(sizeof(k_recol2d_hair) / sizeof(int)) },
-    { 9104, k_recol2d_torso, (int)(sizeof(k_recol2d_torso) / sizeof(int)) },
-};
-
-static struct
-{
-    int const* palette;
-    int count;
-} const k_recol1d[5] = {
-    { k_recol_hair, (int)(sizeof(k_recol_hair) / sizeof(int)) },
-    { k_recol_torso, (int)(sizeof(k_recol_torso) / sizeof(int)) },
-    { k_recol_legs, (int)(sizeof(k_recol_legs) / sizeof(int)) },
-    { k_recol_feet, (int)(sizeof(k_recol_feet) / sizeof(int)) },
-    { k_recol_skin, (int)(sizeof(k_recol_skin) / sizeof(int)) },
+    { 55232, k_recol2d_hair },
+    { 9104, k_recol2d_torso },
 };
 
 int
-PlayerModel_DesignColourCount(int part)
+PlayerModel_DesignColourCount(
+    struct CacheProvider* provider,
+    int part)
 {
-    if( part < 0 || part >= (int)(sizeof(k_recol1d) / sizeof(k_recol1d[0])) )
+    assert(provider);
+    if( part < 0 || part >= 5 )
         return 0;
-    return k_recol1d[part].count;
+    return design_colour_counts(provider)[part];
 }
 
 /* PlayerComposition's seven design-part -> wear-slot table (Statics.method8884
@@ -89,20 +115,22 @@ PlayerModel_DesignPartWearpos(int part)
 }
 
 /* Reference PlayerComposition model build: per design part, recol1d then
- * recol2d, each when the colour indexes that palette. */
+ * recol2d, each when the colour indexes the lane's palette. */
 static void
 player_design_recolour(
+    struct CacheProvider* provider,
     struct ToriDraw_Model* model,
     int const colors[5])
 {
+    int const* counts = design_colour_counts(provider);
+
     for( int part = 0; part < 5; part++ )
     {
         int colour = colors[part];
-        if( colour < 0 )
+        if( colour < 0 || colour >= counts[part] )
             continue;
-        if( colour < k_recol1d[part].count )
-            ToriDraw_ModelRecolor(model, k_recol1d[part].palette[0], k_recol1d[part].palette[colour]);
-        if( part < 2 && colour < k_recol2d[part].count )
+        ToriDraw_ModelRecolor(model, k_recol1d[part][0], k_recol1d[part][colour]);
+        if( part < 2 )
             ToriDraw_ModelRecolor(model, k_recol2d[part].source, k_recol2d[part].palette[colour]);
     }
 }
@@ -409,7 +437,7 @@ PlayerModel_BuildFromAppearance(
 
     /* Design recolors after the merge (reference ClientPlayer 517-528). */
     if( colors )
-        player_design_recolour(merged, colors);
+        player_design_recolour(provider, merged, colors);
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(provider, merged);
@@ -509,7 +537,7 @@ PlayerHeadModel_BuildFromAppearance(
      * bare head, but applying the full set is harmless (identity for absent
      * colours). */
     if( colors )
-        player_design_recolour(merged, colors);
+        player_design_recolour(provider, merged, colors);
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(provider, merged);

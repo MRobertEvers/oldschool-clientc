@@ -145,13 +145,14 @@ design_apply_kit(
 
 static int
 design_apply_colour(
+    struct CacheProvider* provider,
     int slot,
     int step,
     int colors[5])
 {
     /* Every one of the five palettes has entries; the caller has already
      * checked that the row is one of them. */
-    int const count = PlayerModel_DesignColourCount(slot);
+    int const count = PlayerModel_DesignColourCount(provider, slot);
     int next;
 
     assert(count > 0);
@@ -186,7 +187,7 @@ RS_DesignPanel_Apply(
     if( arrow->kind == RS_DESIGN_ARROW_COLOUR )
     {
         assert(arrow->row >= 0 && arrow->row < DESIGN_COLOUR_ROW_COUNT);
-        return design_apply_colour(arrow->row, arrow->step, colors);
+        return design_apply_colour(provider, arrow->row, arrow->step, colors);
     }
     return 0;
 }

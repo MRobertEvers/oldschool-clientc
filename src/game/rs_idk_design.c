@@ -112,9 +112,11 @@ RS_IdkDesign_EnsureResolved(
 }
 
 int
-RS_IdkDesign_ColourCount(int part)
+RS_IdkDesign_ColourCount(
+    struct CacheProvider* provider,
+    int part)
 {
-    return PlayerModel_DesignColourCount(part);
+    return PlayerModel_DesignColourCount(provider, part);
 }
 
 int
@@ -197,10 +199,11 @@ design_cycle_part(
 static void
 design_cycle_colour(
     struct RS_IdkDesign* design,
+    struct CacheProvider* provider,
     int part,
     int direction)
 {
-    int count = RS_IdkDesign_ColourCount(part);
+    int count = RS_IdkDesign_ColourCount(provider, part);
     int colour = design->colours[part];
 
     if( count <= 0 )
@@ -247,7 +250,7 @@ RS_IdkDesign_Button(
     if( client_code >= RS_CC_RECOLOUR_HAIR_L && client_code <= RS_CC_RECOLOUR_SKIN_R )
     {
         design_cycle_colour(
-            design, (client_code - RS_CC_RECOLOUR_HAIR_L) / 2, client_code & 1);
+            design, provider, (client_code - RS_CC_RECOLOUR_HAIR_L) / 2, client_code & 1);
         return 1;
     }
 

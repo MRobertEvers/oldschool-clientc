@@ -102,7 +102,7 @@ test_colour_step(struct CacheProvider* provider)
     int colors[5] = { 0, 0, 0, 0, 0 };
     struct RS_DesignArrow left = { RS_DESIGN_ARROW_COLOUR, 0, -1 };
     struct RS_DesignArrow right = { RS_DESIGN_ARROW_COLOUR, 0, 1 };
-    int const hair = PlayerModel_DesignColourCount(0);
+    int const hair = PlayerModel_DesignColourCount(provider, 0);
 
     CHECK(hair > 1, "the hair palette has entries to step through");
 
@@ -234,6 +234,36 @@ test_kit_step(struct CacheProvider* provider)
     }
 }
 
+static void
+set_lane(
+    struct CacheProvider* provider,
+    int game,
+    int epoch,
+    int revision)
+{
+    struct RSCache profile = RSCache_ProfileForIdentity(game, epoch, revision, RSCACHE_QUIRK_NONE);
+    CacheProvider_SetProfile(provider, &profile);
+}
+
+/* Each lane offers its own era's palette lengths (reference PlayerComposition
+ * recol1d per client): LostCity 317-era, OSRS 184 (Kronos), OSRS 239/241. */
+static void
+test_colour_count_by_lane(struct CacheProvider* provider)
+{
+    set_lane(provider, RSCACHE_GAME_RS2, RSCACHE_EPOCH_DAT1, 254);
+    CHECK(PlayerModel_DesignColourCount(provider, 0) == 12, "LostCity hair has 12 colours");
+    CHECK(PlayerModel_DesignColourCount(provider, 4) == 8, "LostCity skin has 8");
+
+    set_lane(provider, RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 184);
+    CHECK(PlayerModel_DesignColourCount(provider, 0) == 25, "OSRS 184 hair has 25 colours");
+    CHECK(PlayerModel_DesignColourCount(provider, 4) == 13, "OSRS 184 skin has 13");
+
+    set_lane(provider, RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 241);
+    CHECK(PlayerModel_DesignColourCount(provider, 0) == 30, "OSRS 241 hair has 30 colours");
+    CHECK(PlayerModel_DesignColourCount(provider, 1) == 29, "OSRS 241 torso has 29");
+    CHECK(PlayerModel_DesignColourCount(provider, 4) == 14, "OSRS 241 skin has 14");
+}
+
 int
 main(void)
 {
@@ -241,11 +271,13 @@ main(void)
 
     memset(&provider, 0, sizeof(provider));
     CacheProvider_InitEngineCaches(&provider);
+    set_lane(&provider, RSCACHE_GAME_OLDSCHOOL, RSCACHE_EPOCH_DAT2, 241);
     build_kit_table(&provider);
 
     test_arrow_mapping();
     test_colour_step(&provider);
     test_kit_step(&provider);
+    test_colour_count_by_lane(&provider);
 
     CacheProvider_FreeEngineCaches(&provider);
 

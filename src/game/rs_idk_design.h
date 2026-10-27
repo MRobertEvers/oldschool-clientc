@@ -98,7 +98,9 @@ RS_IdkDesign_Button(
 
 /** Palette size for a design colour slot (reference recol1d[part].length). */
 int
-RS_IdkDesign_ColourCount(int part);
+RS_IdkDesign_ColourCount(
+    struct CacheProvider* provider,
+    int part);
 
 /**
  * How many identity kits the provider holds: highest present id + 1. Kit ids

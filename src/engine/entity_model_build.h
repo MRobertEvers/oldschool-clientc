@@ -43,12 +43,14 @@ PlayerModel_AppearanceResident(
 
 /*
  * Palette size of a design colour slot (0 hair, 1 torso, 2 legs, 3 feet,
- * 4 skin) — reference ClientPlayer.recol1d[part].length, which is what the
- * design screen's colour arrows wrap around. Returns 0 for an out-of-range
- * part.
+ * 4 skin) on the provider's lane — reference PlayerComposition
+ * recol1d[part].length in that era's client, which is what the design screen's
+ * colour arrows wrap around. Returns 0 for an out-of-range part.
  */
 int
-PlayerModel_DesignColourCount(int part);
+PlayerModel_DesignColourCount(
+    struct CacheProvider* provider,
+    int part);
 
 /*
  * Wear position of design part `part` (0 hair, 1 jaw, 2 torso, 3 arms,
