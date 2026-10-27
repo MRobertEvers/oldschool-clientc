@@ -3737,10 +3737,11 @@ struct ToriRSServerPlayerHintArrow
     /** The last tuple written to this client's wire. `sent_type` 0 means
      *  nothing has been sent, which is not the same as having sent a clear. */
     int sent_type, sent_id, sent_z, sent_height;
-    /** A script's `hint_stop` this tick: a clear goes out before the tick's
-     *  arrow even when the arrow ends up the same (a gravestone re-points its
-     *  arrow every 3 ticks as `[hint_arrow] type="reset"` then the npc, 13/13
-     *  recorded deaths). */
+    /** The script `hint_stop`s this tick: one clear each goes out before the
+     *  tick's arrow, even when the arrow ends up the same (a gravestone
+     *  re-points its arrow every 3 ticks as `[hint_arrow] type="reset"` then
+     *  the npc, 13/13 recorded deaths; Tutorial Island's step frames send two
+     *  resets before a new arrow, RSProx index 4289 [534], [540]). */
     int stop_pending;
 };
 

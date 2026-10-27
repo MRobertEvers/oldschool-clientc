@@ -3502,7 +3502,7 @@ ToriRSServer_HintArrowStop(struct ToriRSServerPlayer* player)
 {
     assert(player);
     player->hint_arrow.type = 0;
-    player->hint_arrow.stop_pending = 1;
+    player->hint_arrow.stop_pending++;
 }
 
 /*
@@ -3577,12 +3577,12 @@ hint_arrow_flush(struct ToriRSServerPlayer* player)
         break;
     }
 
-    /* A script asked for the clear: it goes out, and the arrow after it is a
-     * fresh one even when it names the same subject. */
-    if( hint->stop_pending )
+    /* A script asked for the clear: it goes out, once per `hint_stop`, and the
+     * arrow after it is a fresh one even when it names the same subject. */
+    if( hint->stop_pending > 0 )
     {
-        hint->stop_pending = 0;
-        ToriRSServer_SendHintArrow(player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+        for( ; hint->stop_pending > 0; hint->stop_pending-- )
+            ToriRSServer_SendHintArrow(player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
         hint->sent_type = TORIRSSERVER_HINT_ARROW_CLEAR;
         hint->sent_id = 0;
         hint->sent_z = 0;

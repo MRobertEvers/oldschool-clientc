@@ -126,6 +126,27 @@ return {
         shape("journal.vampire.stake", "Vampyre Slayer", 3, "If I lose it")
         set("::setvar varp178_vampire 3")
         shape("journal.vampire.complete", "Vampyre Slayer", 6, "QUEST COMPLETE!")
+
+        -- The strip icons carry no server events (cache clickmask=2; Jagex arms
+        -- none, RSProx index 4289 [0], [509]) and still switch the body.
+        t.exec("strip.tab", t.ui.tab, "quests")
+        t.ticks(4)
+        local _, summary_icon = t.ui.widget("side_journal:summary_list")
+        t.expect("strip.summary", t.ui.invoke(summary_icon, 1))
+        t.expect("strip.summary.open", t.ui.await_open("account_summary_sidepanel", 5))
+        local _, quest_icon = t.ui.widget("side_journal:quest_list")
+        t.expect("strip.quests", t.ui.invoke(quest_icon, 1))
+        t.expect("strip.quests.open", t.ui.await_open("questlist", 5))
+        t.ticks(2)
+
+        -- Row ops on Pandemonium (quest id 206): Show on map opens the world
+        -- map (index 3430 [376]); the quick guide prints Jagex's line (3055 [22]).
+        local _, row = t.ui.widget("questlist:list", 206)
+        t.expect("row.quickguide", t.ui.invoke(row, 5))
+        t.ticks(2)
+        t.expect("row.quickguide.line", t.msg.expect("A quick guide for Pandemonium has been opened in the Old School RuneScape Wiki."))
+        t.expect("row.showonmap", t.ui.invoke(row, 3))
+        t.expect("row.showonmap.open", t.ui.await_open("worldmap", 5))
         t.finish(0)
     end,
 }

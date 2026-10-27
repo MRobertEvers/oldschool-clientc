@@ -13376,6 +13376,11 @@ handle_resume_pausebutton(
  * but a handful of 1,047 presses on another tab and 70 on the same one
  * (the press's own tick jitters by one). The tabs switch on the client; this
  * is the server's only answer.
+ *
+ * Only while the Account panel (109) is mounted: it is that panel's refresh.
+ * Tutorial Island takes the panel away until step 531, and its eleven presses
+ * before the handover get none, its seven after it all do (RSProx index 4289,
+ * [156]..[889] against [1051]..[1404]).
  */
 static void
 side_tab_press_answer(
@@ -13386,6 +13391,10 @@ side_tab_press_answer(
     static const int argv[3] = { 1, 1, 0 };
 
     if( !com || strncmp(com, "toplevel", 8) != 0 || !strstr(com, ":stone") )
+        return;
+    if( !ToriRSServer_IfStateHasInterface(
+            &srv->active_player->interfaces,
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "account")) )
         return;
     ToriRSServer_SendRunClientscriptMixed(srv->active_player, 2498, "i11", argv, NULL, 3);
 }

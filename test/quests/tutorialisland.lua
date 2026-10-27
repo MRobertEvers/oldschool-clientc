@@ -366,12 +366,16 @@ return {
             "npc:I'm here to tell you all about quests",
         })
         stage("open_quest_list")
+        -- The tab is handed over on the quest list, never the account summary
+        -- (RSProx index 4289 [509]: `questlist` (399) into side_journal:tab_container).
+        t.expect("questTab.questlist", t.ui.await_open("questlist", 5))
+        t.expect("questTab.no_summary", t.ui.await_close("account_summary_sidepanel", 1))
         open_tab("questTab", "quests", 2, "opened_quest_list")
         talk("talkToQuestGuide2", "newbie_quest_instructor", {
             "npc:Now that you have the quest list open",
             "npc:If you haven't started the quest",
             "npc:Just look out for the quest icon on your minimap",
-            "mesbox:Look for the icon to the left to find quest start points",
+            "objbox:Look for the icon to the left to find quest start points",
             "npc:collecting beads to hunting down dragons",
             "npc:You have to experience the thrill of it yourself",
         })

@@ -162,6 +162,18 @@ ToriRSServer_IfStateOpenSub(
 }
 
 int
+ToriRSServer_IfStateHasInterface(
+    const struct ToriRSServerInterfaceState* state,
+    int interface_id)
+{
+    assert(state);
+    for( int i = 0; i < state->mount_count; i++ )
+        if( state->mounts[i].interface_id == interface_id )
+            return 1;
+    return 0;
+}
+
+int
 ToriRSServer_IfStateMoveSub(
     struct ToriRSServerInterfaceState* state,
     int source_uid,

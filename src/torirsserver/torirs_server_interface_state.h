@@ -82,6 +82,12 @@ ToriRSServer_IfStateCloseSub(
     struct ToriRSServerInterfaceState* state,
     int target_uid);
 
+/** Whether `interface_id` is mounted anywhere in the tree. */
+int
+ToriRSServer_IfStateHasInterface(
+    const struct ToriRSServerInterfaceState* state,
+    int interface_id);
+
 /** Apply IF_MOVESUB's destination replacement and source move. */
 int
 ToriRSServer_IfStateMoveSub(

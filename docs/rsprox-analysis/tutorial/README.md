@@ -126,6 +126,32 @@ Implemented:
 
 None of these scripts, nor the `ui_highlighting_style_*` dbrows (7034 cta, 7036 alert), exist in the rev-239 cache. They have to be authored into it (as cases 5-23 of 2584 were) before content can call them.
 
+### The Quest Guide and the step frame (wire-audited 2026-10-27)
+
+Diffed packet for packet against index 4289 [508]..[540] with `tools/rsprox/wirelog_tells.py` on a `TORIRS_SCRIPTRUN_WIRELOG` run, our resizable slots (161) mapped to the recording's fixed ones (164), each page anchored on its own text.
+
+**Every step frame** (every frame from [153] to [1335] tabulated): `tutorial_overlay` re-opened in `overlay_atmosphere`; the stones in the order 0 1 2 3 4 5 6 9 11 8 7 13 12 (Logout never): a tab not yet given gets `if_setevents stoneN -1..-1 []` (and is closed if mounted), the tab given on this step is opened with its stone's events, a tab given earlier gets nothing; `noclick` hidden twice; the step's arrow and box; the overlay hint (2584) after the box, and `hint_layer` hidden only on the step after one that showed a hint. Handovers: settings 3, inventory 30, stats 50 (after `playermember`), journal 230, worn 390, combat 430, account 531, prayer 560, friends 580 (never opened: its cleared events just stop), magic 630. Arrows: the frame resets one only if `current_hint_arrow` (14192) says one is up; each new arrow is a reset and the arrow, so 1 reset at [509], 1 + npc at [512], 2 + coord at [534], 2 + npc at [540]. A stone click sends `toplevel_sidebutton_switch` (915) for its tab twice (all 9 recorded), and `account_info_update` (2498) only once the Account tab exists (0/11 presses before [1037], 7/7 after).
+
+| R | ours | verdict |
+|---|---|---|
+| [508] 281 = 230 with the first page | after the click | fixed: the step goes out with the page |
+| [509] journal: `side_journal` + stone2 OP1..6, `if_closesub tab_container`, `playermember` (828), `questlist` (399), `questlist:list 0..217 OP1..5` | the account summary (712), the stats/journal/inventory tabs re-opened with 60+ events, nine tabs closed every handover | fixed (stone2's events go out after the body, not before it: the body is `[if_open,side_journal]`'s) |
+| [0] login burst: `playermember`, `questlist`, its events; no close | summary (712) on a new character | fixed: `side_journal_tab` 1 for a new account |
+| [512] stone2 click: 915(2) x2, 240, 1 reset + npc arrow, the frame | no 915, 2498 sent, all tabs re-synced | fixed |
+| [519] 915(2) with the first page | absent | fixed |
+| [525] objectbox, `quest_start_icon_dummy` zoom 400 | a mesbox | fixed |
+| [531] 281 = 250 with the last page | after the click | fixed |
+| [534] frame, 2 resets + coord arrow | 1 reset (the engine folded two `hint_stop`s) | fixed: one clear per `hint_stop` |
+| `playermember` value 0 | 1 | the recorder's account was free; this world is members (`map_members`) |
+| every page: `if_setevents continue -1..-1`; objectbox `universe 0..1` | `0..28` | OPEN: the engine's `if_addresumebutton` arms 0..28 for all 115 callers |
+| [520] `busy` (12393) 1 a tick after the first page | with the second page | OPEN: engine-generic |
+| no `tutorial_progressbar_set` (867), no "% Done" text | both, every frame | OPEN: our cache's `tutorial_progressbar_init` (749) does not bind varp 406, so the bar would freeze without them |
+| [540] the mine: `midi` 144, `musicmulti_4` | 85 "Vision" | OPEN: the mine's music area |
+
+The quest list's rows (`questlist_draw`, 2633): 1 View info (speedrun only), 2 Read journal, 3 Show on map (index 3430 [376]; rev 241 index 4367 [881] from the overview: `worldmap_transmitdata` with the PLAYER's tile, the map floater, `worldmap:toggles 0..4`, 3331 with the quest's start and map element), 4 Open wiki guide (no recording: UNVERIFIED, shaped on the other lookups), 5 Open wiki quick guide (index 3055 [22]). The strip icons are `clickmask=2` in the cache and Jagex never arms them; ours no longer does. Tests: `questTab.questlist`/`questTab.no_summary` (tutorialisland.lua), `strip.*` and `row.*` (_journals.lua).
+
+Open beyond the quest section: the other panels' `[if_open,..]` hooks arm far more events than Jagex's handovers (stats 24 components x2, prayer 20, worn 14, combat 9, settings 12+); the graduation burst ([1361], every panel twice); `noclick` before step 3; the Adventure tab is Jagex's `adventurepath_side` (644, [1390]), ours `menu` (187).
+
 ## 1. The oak
 
 [288], [291], [404]. The response comes at L+1:
