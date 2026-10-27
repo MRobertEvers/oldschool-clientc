@@ -45,8 +45,9 @@
 #include "mem/torirs_mem_libs.h"
 #include "torirs_server.h"
 
+#include "accountserver/account_client.h"
+#include "torirs_server_accountlink.h"
 #include "torirs_server_accountlog.h"
-#include "torirs_server_accounts.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
@@ -122,10 +123,11 @@ on_stop_signal(int sig)
 
 /*
  * `torirsserver --account ...`: the operator's side of the sign-in gate
- * (torirs_server_auth.h). Touches only `<saves>/accounts/` and the account
- * database (`<saves>/accounts.sqlite`, torirs_server_accounts.h), so it runs
- * beside a live world without loading one; the world reads a record at each
- * login, so a change applies at the next one.
+ * (torirs_server_auth.h). Player accounts are files in `<saves>/accounts/`;
+ * web logins, invites and the hiscores' admin flag are the account server's
+ * (accountserver/account_server.h), asked over localhost, so those commands
+ * need it running. It runs beside a live world without loading one; the world
+ * reads a record at each login, so a change applies at the next one.
  * torirsctl (the deploy package's) is the friendly face of these.
  *
  * A password is never an argument (it would sit in `ps` and the shell's
@@ -179,6 +181,8 @@ account_create_problem(
         return "that name has an account already";
     if( result == TORIRSSERVER_CREATE_WRITE_FAILED )
         return "the record could not be written";
+    if( result == TORIRSSERVER_CREATE_UNAVAILABLE )
+        return "the account server did not answer (TORIRS_ACCOUNT_SERVER)";
     return problem ? problem : "refused";
 }
 
@@ -251,8 +255,9 @@ account_command(
         }
         /* A character saved before its account was made may already be on
          * the hiscores: staff come off them now. */
-        if( argc == 5 )
-            ToriRSServer_AccountsSetRanked(argv[3], 0);
+        if( argc == 5 && AccountClient_SetRanked(argv[3], 0) < 0 )
+            fprintf(stderr, "torirsserver: the account server did not answer; the hiscores "
+                            "drop '%s' at its next login\n", argv[3]);
         fprintf(stderr, "torirsserver: player account '%s' created%s\n", argv[3],
                 argc == 5 ? " as an admin (staff)" : "");
         return 0;
@@ -287,7 +292,7 @@ account_command(
             fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
             return 1;
         }
-        result = ToriRSServer_GateLoginCreate(argv[3], password, &problem);
+        result = AccountClient_GateLoginCreate(argv[3], password, &problem);
         memset(password, 0, sizeof(password));
         if( result != TORIRSSERVER_CREATE_OK )
         {
@@ -305,15 +310,24 @@ account_command(
         printf("player accounts (%s/accounts):\n", ToriRSServer_SaveDir());
         snprintf(dir, sizeof(dir), "%s/accounts", ToriRSServer_SaveDir());
         account_each_record(dir, account_list_player);
-        printf("web logins (%s):\n", ToriRSServer_AccountsPath());
-        ToriRSServer_GateLoginEach(account_list_login);
+        printf("web logins (the account server):\n");
+        if( AccountClient_GateLoginEach(account_list_login) < 0 )
+        {
+            fprintf(stderr, "torirsserver: the account server did not answer\n");
+            return 1;
+        }
         return 0;
     }
     if( argc == 4 && strcmp(argv[2], "revoke") == 0 )
     {
-        if( !ToriRSServer_GateLoginRevoke(argv[3]) )
+        int revoked = AccountClient_GateLoginRevoke(argv[3]);
+
+        if( revoked <= 0 )
         {
-            fprintf(stderr, "torirsserver: there is no web login '%s'\n", argv[3]);
+            fprintf(stderr, "torirsserver: %s '%s'\n",
+                    revoked < 0 ? "the account server did not answer; not revoked:"
+                                : "there is no web login",
+                    argv[3]);
             return 1;
         }
         fprintf(stderr, "torirsserver: web login '%s' revoked\n", argv[3]);
@@ -330,10 +344,14 @@ account_command(
             fprintf(stderr, "torirsserver: '%s': %s\n", name, ToriRSServer_AuthNameProblem(name));
             return 1;
         }
-        ToriRSServer_InviteCreate(name, code);
+        if( AccountClient_InviteCreate(name, code) < 0 )
+        {
+            fprintf(stderr, "torirsserver: the account server did not answer; no invite\n");
+            return 1;
+        }
         printf("%s/invite/%s\n", base ? base : "", code);
-        fprintf(stderr, "torirsserver: web login invite for %s, in %s\n",
-                name ? name : "a name of the visitor's choosing", ToriRSServer_AccountsPath());
+        fprintf(stderr, "torirsserver: web login invite for %s\n",
+                name ? name : "a name of the visitor's choosing");
         return 0;
     }
     if( argc == 5 && strcmp(argv[2], "admin") == 0 &&
@@ -348,7 +366,9 @@ account_command(
             return 1;
         }
         /* The hiscores now, not at the next login: staff are not ranked. */
-        ToriRSServer_AccountsSetRanked(argv[3], !admin);
+        if( AccountClient_SetRanked(argv[3], !admin) < 0 )
+            fprintf(stderr, "torirsserver: the account server did not answer; the hiscores "
+                            "take it at '%s''s next login\n", argv[3]);
         fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
         return 0;
     }
@@ -633,16 +653,13 @@ main(
             fprintf(stderr, "torirsserver: %s\n",
                     dev ? "development mode: logins do not check passwords"
                         : "logins check passwords (accounts in <saves>/accounts/)");
-        /* A world whose accounts mean something keeps hiscores and history
-         * (torirs_server_accounts.h). Opened now, so a database that cannot
-         * be opened, or the one-time import of the old files, happens at
-         * boot rather than at the first login. */
+        /* A world whose accounts mean something reports to the account
+         * server (torirs_server_accountlink.h): queued by the world, spooled
+         * and sent by the host, never waited for. */
         if( srv.check_passwords && !selftest && !botrun && !scriptrun )
         {
-            ToriRSServer_AccountsOpen();
             srv.account_log = ToriRSServer_AccountLogCreate();
-            fprintf(stderr, "torirsserver: hiscores and history in %s\n",
-                    ToriRSServer_AccountsPath());
+            srv.account_link = ToriRSServer_AccountLinkOpen();
         }
     }
     {
@@ -723,9 +740,10 @@ main(
 
     status = ToriRSServer_HostRun(&srv, &config, listener);
 
+    ToriRSServer_AccountLinkClose(srv.account_link);
+    srv.account_link = NULL;
     ToriRSServer_AccountLogFree(srv.account_log);
     srv.account_log = NULL;
-    ToriRSServer_AccountsClose();
     ToriRSServer_BankShutdown(&srv);
     ToriRSServer_ContainerShutdown(&srv);
     ToriRSServer_ScriptsFree(&srv);

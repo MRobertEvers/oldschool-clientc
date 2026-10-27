@@ -16276,7 +16276,7 @@ ToriRSServer_WorldRemovePlayer(
      * disconnects, so both get persistence from one call.
      */
     ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(display_name));
-    /* The account database (torirs_server_accountlog.h): the stats as just
+    /* The account server (torirs_server_accountlog.h): the stats as just
      * saved, and the session. Only for a session whose login finished -- one
      * dropped while its scene was still loading never queued its login, and
      * its stats are not loaded yet: a logout of zeros would read as

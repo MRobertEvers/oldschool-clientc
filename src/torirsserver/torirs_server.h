@@ -5461,12 +5461,18 @@ struct ToriRSServer
     int check_passwords;
 
     /**
-     * The account database's queue (torirs_server_accountlog.h): logins,
-     * stats, logouts and adventure log lines, emptied by the socket host after
-     * every tick. NULL records nothing; torirs_server_main.c makes one only
-     * for a world that checks passwords.
+     * The account server's queue (torirs_server_accountlog.h): logins,
+     * stats, logouts and adventure log lines, emptied into the spool by the
+     * socket host after every tick. NULL records nothing;
+     * torirs_server_main.c makes one only for a world that checks passwords.
      */
     struct ToriRSServerAccountLog* account_log;
+    /**
+     * Where the socket host sends `account_log` (torirs_server_accountlink.h):
+     * the spool and the account server's socket. Standalone only; set with
+     * `account_log` by torirs_server_main.c, and never touched by the world.
+     */
+    struct ToriRSServerAccountLink* account_link;
 
     /**
      * Behind io_server's sign-in gate (`--gate`, TORIRSSERVER_GATE=1;

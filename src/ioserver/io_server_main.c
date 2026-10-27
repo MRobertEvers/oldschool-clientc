@@ -64,7 +64,7 @@
 #include "mem/torirs_mem_libs.h"
 #include "http_server.h"
 #include "io_gate.h"
-#include "torirsserver/torirs_server_accounts.h"
+#include "accountserver/account_server.h"
 #include "torirsserver/torirs_server_savefile.h"
 
 #include "bootmanifest/bootmanifest.h"
@@ -1850,7 +1850,7 @@ usage(char const* argv0)
         "  --pokesprite the 2D client's sheet store, served over\n"
         "               GET /pokesprite/<key> (default %s)\n"
         "  --gate       serve only the sign-in pages until the visitor signs in\n"
-        "               with a web login (TORIRSSERVER_SAVES/accounts.sqlite), then send\n"
+        "               with a web login (the account server: account_server), then send\n"
         "               them to LANDING, e.g.\n"
         "               '/?args=--manifest,manifests/manifest_osrs241.ini&ws=ws'.\n"
         "               Run torirsserver with --gate too: it checks the same\n"
@@ -1955,8 +1955,9 @@ main(
         {
             IoGate_Init(&server.gate, argv[++i]);
             server.gate_on = 1;
-            printf("io_server: sign-in gate on; web logins in %s\n",
-                   ToriRSServer_AccountsPath());
+            printf("io_server: sign-in gate on; web logins from the account server "
+                   "(TORIRS_ACCOUNT_SERVER, default 127.0.0.1:%d)\n",
+                   ACCOUNT_SERVER_PORT);
             continue;
         }
         if( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0 )

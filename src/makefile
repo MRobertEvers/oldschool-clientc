@@ -1012,7 +1012,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_shop.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_history.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
@@ -1468,7 +1468,24 @@ endif
 servers:
 	$(MAKE) io-server
 	$(MAKE) js5-server
-	@echo "servers: src/build/io_server and src/$(OBJ_DIR)/js5_server"
+	$(MAKE) account-server
+	@echo "servers: src/build/io_server, src/$(OBJ_DIR)/js5_server and src/$(OBJ_DIR)/account_server"
+
+# The account server (accountserver/account_server.h): the one process that
+# opens <saves>/accounts.sqlite -- web logins, invites, hiscores, history, the
+# adventure log. Worlds send it their records; io_server and --account ask it.
+# Its database is the vendored 3rd/sqlite. Defined here, above every rule that
+# lists it as a prerequisite: a rule's prerequisites expand when the makefile
+# is read, so one defined later is empty there and the object never builds.
+ACCOUNT_SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
+ACCOUNT_SERVER_SRCS = $(TORIMEM_SRCS) accountserver/account_server_main.c \
+	accountserver/account_server.c accountserver/account_db.c accountserver/account_proto.c \
+	ioserver/http_server.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_history.c \
+	torirsserver/torirs_server_savefile.c net/sha256.c $(INI_SRC)
+account-server: $(OBJ_DIR)/account_server
+$(OBJ_DIR)/account_server: $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $@ $(ACCOUNT_SERVER_SRCS) $(ACCOUNT_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
+	@echo "built $@"
 
 web: servers
 	$(MAKE) PLATFORM=web OPT=1 MEMTRACE=$(MEMTRACE) all
@@ -1572,11 +1589,12 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
 	pokesprite/pokesprite_store.c $(INI_SRC) \
-	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_history.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
-	torirsserver/torirs_server_accounts.c \
+	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	accountserver/account_client.c accountserver/account_proto.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The 2D client's sheet store is indexed by sqlite (pokesprite_store.c), as are
-# the gate's links and the account database: the vendored 3rd/sqlite.
+# the gate's links: the vendored 3rd/sqlite. The account database is the
+# account server's; io_server asks it (account_client.c).
 IO_SERVER_SQLITE_OBJ = $(IO_SERVER_OBJ_DIR)/sqlite3.o
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
@@ -4978,13 +4996,17 @@ test-revconfig: $(OBJ_DIR)
 # list is also what EMBED_SERVER=1 links into the client, which has no listener
 # and drives ToriRSServer_EmbedPump itself.
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
-	torirsserver/torirs_server_accounts.c \
+	$(TORIRSSERVER_ACCOUNT_SRCS) \
 	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
-# The account database (torirs_server_accounts.c: hiscores, history, the gate's
-# logins) is sqlite -- the vendored 3rd/sqlite -- and standalone only: the core
-# list above is also the embedded client's and the browser build's, which keep
-# no accounts (their worlds have no `account_log`).
-TORIRSSERVER_SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
+# The world's side of the account server (accountserver/account_server.h),
+# standalone only -- the core list is also the embedded client's and the
+# browser build's, which keep no accounts (their worlds have no
+# `account_log`): the spool and its non-blocking sender, the record line, and
+# the blocking client `--account` asks with. No sqlite: the account server
+# alone opens the database.
+TORIRSSERVER_ACCOUNT_SRCS = torirsserver/torirs_server_accountlink.c \
+	accountserver/account_proto.c accountserver/account_client.c \
+	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -5067,13 +5089,13 @@ torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
 $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ) | $(OBJ_DIR)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o \
-		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
+		-lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsserver"
 
 # ---- ToriRSMapEd -----------------------------------------------------------
@@ -5137,12 +5159,12 @@ torirsmapedctl: $(OBJ_DIR)
 torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43597 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
@@ -5189,12 +5211,12 @@ test-torirsserver-dev: torirsserver-dev
 torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43599 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
 test-torirsserver-alt: torirsserver-alt
@@ -5211,12 +5233,12 @@ test-torirsserver-alt: torirsserver-alt
 torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43601 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
 test-torirsserver-bank: torirsserver-bank
@@ -6746,11 +6768,13 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # vectors, then logins through the real client login machine -- a first login
 # sets the password, a wrong one is refused with response 3 and does not take
 # over the session playing, development mode lets anything in.
-test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(TORIRSSERVER_SQLITE_OBJ)
+test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(ACCOUNT_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
 		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
-		net/net_out.c torirsserver/torirs_server_accounts.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(TORIRSSERVER_SQLITE_OBJ)
+		net/net_out.c accountserver/account_db.c accountserver/account_proto.c \
+		accountserver/account_server.c ioserver/http_server.c torirsserver/torirs_server_history.c \
+		torirsserver/torirs_server_accountlink.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(ACCOUNT_SQLITE_OBJ)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a

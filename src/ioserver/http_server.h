@@ -96,6 +96,19 @@ HttpServer_Run(
     HttpHandler handler,
     void* user);
 
+/**
+ * As HttpServer_Run, but `loopback_only` 1 binds 127.0.0.1 alone: a service
+ * meant only for processes on this machine (the account server, which answers
+ * password checks and takes the game's records without any credential of its
+ * own) is unreachable from the network rather than trusted to it.
+ */
+int
+HttpServer_RunOn(
+    int loopback_only,
+    int port,
+    HttpHandler handler,
+    void* user);
+
 /** Ask the running server to return from HttpServer_Run (signal-safe). */
 void
 HttpServer_RequestStop(void);

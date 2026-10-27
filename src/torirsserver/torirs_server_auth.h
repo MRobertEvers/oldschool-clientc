@@ -47,7 +47,7 @@
  * internet runs io_server with `--gate` in front of it (docs/WEB_SERVERS.md
  * "The sign-in gate"): a plain HTML page that serves nothing else until the
  * visitor signs in with a web login. Web logins live in the account
- * database (`<saves>/accounts.sqlite`, torirs_server_accounts.h), not beside
+ * server (`<saves>/accounts.sqlite`, accountserver/account_server.h), not beside
  * the players, and come only from invites an operator made
  * (`torirsserver --account invite [name]`), redeemed on the gate's /invite page
  * under the same password rules. Past the page the game asks for a player
@@ -130,6 +130,9 @@ enum ToriRSServerAuthResult
     /** The password matched, but the account is linked to a web login
      *  (`managed_by`) and signs in only through that login's session. */
     TORIRSSERVER_AUTH_MANAGED,
+    /** A web login's check could not be asked: the account server
+     *  (account_client.h) did not answer. Nothing was decided. */
+    TORIRSSERVER_AUTH_UNAVAILABLE,
 };
 
 /**
@@ -220,9 +223,10 @@ ToriRSServer_AuthLinkVerify(
 int
 ToriRSServer_AuthUnlink(const char* display_name);
 
-/* Web logins and invites live in the account database: their functions are
- * torirs_server_accounts.h's (ToriRSServer_GateLogin, ToriRSServer_Invite*),
- * which only the processes that open it link. */
+/* Web logins and invites are the account server's
+ * (accountserver/account_server.h); a process asks it through
+ * accountserver/account_client.h (AccountClient_GateLogin, AccountClient_Invite*).
+ * These results are what it answers. */
 
 enum ToriRSServerInviteResult
 {
@@ -238,6 +242,8 @@ enum ToriRSServerInviteResult
     /** The password breaks AuthPasswordProblem; `*out_problem` says how. */
     TORIRSSERVER_INVITE_WEAK,
     TORIRSSERVER_INVITE_WRITE_FAILED,
+    /** The account server did not answer; nothing was spent. */
+    TORIRSSERVER_INVITE_UNAVAILABLE,
 };
 
 enum ToriRSServerCreateResult
@@ -250,6 +256,8 @@ enum ToriRSServerCreateResult
     /** The password breaks AuthPasswordProblem; `*out_problem` says how. */
     TORIRSSERVER_CREATE_WEAK,
     TORIRSSERVER_CREATE_WRITE_FAILED,
+    /** The account server did not answer (a web login); nothing was made. */
+    TORIRSSERVER_CREATE_UNAVAILABLE,
 };
 
 /**

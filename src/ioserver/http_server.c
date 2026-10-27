@@ -495,6 +495,16 @@ HttpServer_Run(
     HttpHandler handler,
     void* user)
 {
+    return HttpServer_RunOn(0, port, handler, user);
+}
+
+int
+HttpServer_RunOn(
+    int loopback_only,
+    int port,
+    HttpHandler handler,
+    void* user)
+{
     struct HttpClient clients[HTTP_MAX_CLIENTS];
     struct sockaddr_in addr;
     sock_t listen_fd;
@@ -540,7 +550,7 @@ HttpServer_Run(
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    addr.sin_addr.s_addr = htonl(loopback_only ? INADDR_LOOPBACK : INADDR_ANY);
     addr.sin_port = htons((uint16_t)port);
     if( bind(listen_fd, (struct sockaddr*)&addr, sizeof(addr)) != 0 )
     {

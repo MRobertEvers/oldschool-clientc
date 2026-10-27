@@ -2,15 +2,15 @@
 #define SRC_TORIRSSERVER_TORIRS_SERVER_ACCOUNTLOG_H
 
 /*
- * What the world tells the account database (torirs_server_accounts.h): a
+ * What the world tells the account server (accountserver/account_server.h): a
  * login, a player's stats as they change, a logout, a line of the adventure
  * log. The account site's hiscores and history are built from these.
  *
  * The world only queues them. It is also compiled into the client and the
  * browser build, which have no database, so the records are plain structs in
  * a fixed queue the world owns (`ToriRSServer.account_log`) and the socket
- * host empties into the database after each tick
- * (ToriRSServer_AccountsApply). NULL `account_log` is a world that records
+ * host empties into its spool for the account server after each tick
+ * (torirs_server_accountlink.h). NULL `account_log` is a world that records
  * nothing: the embedded one, the selftest, bots, development servers -- every
  * world whose accounts mean nothing (no password check).
  *

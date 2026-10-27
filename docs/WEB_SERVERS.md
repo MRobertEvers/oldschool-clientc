@@ -284,9 +284,9 @@ URL given to `--gate`. torirsserver reads the same cookie off the upgrade
 request; the two processes share only the key, `<saves>/gate/gate.key`, which
 whichever starts first writes.
 
-**Two accounts, unrelated.** The gate's login is a *web login*, kept in the
-account database (`<saves>/accounts.sqlite`, `torirs_server_accounts.h`) with
-the invites, and made only from an invite or by the operator:
+**Two accounts, unrelated.** The gate's login is a *web login*, kept by the
+account server (below) with the invites, and made only from an invite or by
+the operator:
 
 ```sh
 TORIRSSERVER_SAVES=saves TORIRSSERVER_GATE_URL=https://torirs.example.com \
@@ -413,15 +413,47 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
 | `/account` | the linked accounts (Stats, Unlink) and a form to link another one with its name and password, under the same rules as the game's Link account |
 
-**Hiscores and history live in the account database**, which a world that
-checks passwords keeps (`torirs_server_accountlog.h`). The world queues a
-record when a login finishes, once a minute per player when the stats moved
-(compared, not hooked, so every writer of experience is seen), at the logout
-save, and for each `adventure_log` line content writes (a completed quest,
-from `~quest_complete_rewards_at`); the socket host writes the queue after each
-tick in one transaction. A session dropped before its scene loaded records
-nothing. The site reads it with prepared queries -- a page of the hiscores is a
-range of one index, a rank a count along it -- and never lists the saves.
+### The account server
+
+```sh
+TORIRSSERVER_SAVES=saves ./src/build_opt/account_server [--port 8091]   # make -C src account-server
+```
+
+One process owns `<saves>/accounts.sqlite` (`src/accountserver/`): web
+logins, invites, the hiscores, experience history, sessions and the adventure
+log. It listens on 127.0.0.1 only -- it checks passwords and takes records on
+no credential of its own -- and answers lines of tab-separated fields, so curl
+reads it (`account_server.h` lists the routes). Everything else is its client:
+
+- **The game server sends and never waits.** A world that checks passwords
+  queues a record when a login finishes, once a minute per player when the
+  stats moved (compared, not hooked, so every writer of experience is seen), at
+  the logout save, and for each `adventure_log` line content writes (a
+  completed quest, from `~quest_complete_rewards_at`). The socket host appends
+  them to `<saves>/account_spool.tsv` once a tick (buffered, never synced) and
+  sends them from its select loop on a non-blocking socket
+  (`torirs_server_accountlink.h`). The account server applies each record once
+  by its sequence number and acknowledges it; the spool keeps whatever is not
+  acknowledged, across restarts of either side, so an account server that is
+  down costs the world nothing and loses nothing. The game server links no
+  sqlite.
+- **io_server asks** (`account_client.h`): the gate's sign-in and invites, and
+  one request per site page -- a player page is a single view with the ranks,
+  the gains, the chart, the sessions and the log. When the account server does
+  not answer, the gate and the site say so (503), never "wrong password".
+- **`torirsserver --account`** asks it for web logins, invites and the admin
+  flag's effect on the hiscores; player accounts stay files the game server
+  reads.
+
+`TORIRS_ACCOUNT_SERVER=host:port` points the game server and io_server
+elsewhere (default 127.0.0.1:8091); `TORIRS_WORLD_NAME` names a world's
+records (default `world`). The database's first open imports the files it
+replaced; schema 1 (when the game server opened it itself) is upgraded in
+place.
+
+A session dropped before its scene loaded records nothing. The site's reads
+are prepared queries -- a page of the hiscores is a range of one index, a rank
+a count along it -- and nothing lists the saves.
 
 Staff (`admin = 1` in the account record) are not ranked: they appear on no
 hiscore list and push nobody down, and their adventure log shows only on their

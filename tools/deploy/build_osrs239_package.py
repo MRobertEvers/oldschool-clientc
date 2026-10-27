@@ -4,11 +4,14 @@
     python tools/deploy/build_osrs239_package.py            # build + stage + zip
     make -C src deploy-osrs239                               # the same
 
-The zip unpacks to a self-contained `torirs-osrs239/` that runs the two
+The zip unpacks to a self-contained `torirs-osrs239/` that runs the three
 processes a browser needs (docs/WEB_SERVERS.md) with nothing else installed:
 
     bin/torirsserver[.exe]      the game world, on the game port
     bin/io_server[.exe]         the page, POST /io cache reads, GET /boot/
+    bin/account_server[.exe]    web logins, invites, hiscores, history: the
+                                one process with saves/accounts.sqlite open,
+                                on 127.0.0.1 only (the other two ask it)
     build-web/                  the emscripten client and its host page
     cache.osrs239/              the pristine rev-239 cache both servers read
     content/osrs-content/    the slice of the content tree the server opens
@@ -290,12 +293,13 @@ set TORIRSSERVER_SAVES=saves
 if not exist saves mkdir saves
 if not exist logs mkdir logs
 echo torirs-osrs239: game port %TORIRS_GAME_PORT% (bind %TORIRSSERVER_BIND%), web port %TORIRS_WEB_PORT%
+start "account_server" /b bin\account_server.exe >> logs\account_server.log 2>&1
 start "torirsserver" /b bin\torirsserver.exe %TORIRS_GAME_PORT% --rev osrs239 >> logs\torirsserver.log 2>&1
 bin\io_server.exe --manifest manifests/manifest_osrs239.ini --root build-web --boot-root . --port %TORIRS_WEB_PORT% >> logs\io_server.log 2>&1
 """
 
 RUN_SH = """#!/bin/sh
-# Start the game server and io_server in the foreground; Ctrl-C stops both.
+# Start the account server, the game server and io_server; Ctrl-C stops all three.
 cd "$(dirname "$0")"
 : "${{TORIRS_GAME_PORT:={game_port}}}"
 : "${{TORIRS_WEB_PORT:={web_port}}}"
@@ -306,18 +310,20 @@ export TORIRSSERVER_CONTENT=content/osrs-content
 export TORIRSSERVER_SAVES=saves
 mkdir -p saves logs
 echo "torirs-osrs239: game port $TORIRS_GAME_PORT (bind $TORIRSSERVER_BIND), web port $TORIRS_WEB_PORT"
+./bin/account_server >> logs/account_server.log 2>&1 &
+ACCOUNTS=$!
 ./bin/torirsserver "$TORIRS_GAME_PORT" --rev osrs239 >> logs/torirsserver.log 2>&1 &
 GAME=$!
-trap 'kill $GAME 2>/dev/null' EXIT INT TERM
+trap 'kill $GAME $ACCOUNTS 2>/dev/null' EXIT INT TERM
 ./bin/io_server --manifest manifests/manifest_osrs239.ini --root build-web --boot-root . --port "$TORIRS_WEB_PORT" >> logs/io_server.log 2>&1
 """
 
 SUPERVISE_PS1 = r"""<#
-Start torirsserver and io_server from this directory and keep them running:
-whichever exits is started again after a short pause. Logs append under
-logs\. This is what install-windows-task.ps1 registers as the startup task;
-it also runs fine by hand in a console (Ctrl-C stops the supervisor, and the
-two children with it).
+Start account_server, torirsserver and io_server from this directory and keep
+them running: whichever exits is started again after a short pause. Logs
+append under logs\. This is what install-windows-task.ps1 registers as the
+startup task; it also runs fine by hand in a console (Ctrl-C stops the
+supervisor, and the three children with it).
 
   -GamePort N   the game/WebSocket port (default {game_port})
   -WebPort N    io_server's HTTP port (default {web_port})
@@ -336,6 +342,14 @@ $env:TORIRSSERVER_CACHE = "cache.osrs239"
 $env:TORIRSSERVER_CONTENT = "content/osrs-content"
 $env:TORIRSSERVER_SAVES = "saves"
 
+function Start-Accounts {{
+    $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\account_server.exe") `
+        -WorkingDirectory $PSScriptRoot -NoNewWindow -PassThru `
+        -RedirectStandardError "logs\account_server.log" `
+        -RedirectStandardOutput "logs\account_server.out.log"
+    $null = $p.Handle
+    $p
+}}
 function Start-Game {{
     $p = Start-Process -FilePath (Join-Path $PSScriptRoot "bin\torirsserver.exe") `
         -ArgumentList @("$GamePort", "--rev", "osrs239") -WorkingDirectory $PSScriptRoot `
@@ -354,9 +368,14 @@ function Start-Web {{
     $p
 }}
 
-$game = $null; $web = $null
+$accounts = $null; $game = $null; $web = $null
 try {{
     while ($true) {{
+        if (-not $accounts -or $accounts.HasExited) {{
+            if ($accounts) {{ Add-Content logs\supervise.log "$(Get-Date -Format s) account_server exited ($($accounts.ExitCode)); restarting" }}
+            $accounts = Start-Accounts
+            Add-Content logs\supervise.log "$(Get-Date -Format s) account_server pid $($accounts.Id)"
+        }}
         if (-not $game -or $game.HasExited) {{
             if ($game) {{ Add-Content logs\supervise.log "$(Get-Date -Format s) torirsserver exited ($($game.ExitCode)); restarting" }}
             $game = Start-Game
@@ -370,7 +389,7 @@ try {{
         Start-Sleep -Seconds 5
     }}
 }} finally {{
-    foreach ($p in @($game, $web)) {{
+    foreach ($p in @($accounts, $game, $web)) {{
         if ($p -and -not $p.HasExited) {{ Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }}
     }}
 }}
@@ -407,7 +426,7 @@ if ($Uninstall) {{
     foreach ($r in $rules) {{
         Get-NetFirewallRule -DisplayName $r.Name -ErrorAction SilentlyContinue | Remove-NetFirewallRule
     }}
-    Get-Process torirsserver, io_server -ErrorAction SilentlyContinue | Stop-Process -Force
+    Get-Process torirsserver, io_server, account_server -ErrorAction SilentlyContinue | Stop-Process -Force
     Write-Host "stopped servers, removed firewall rules"
     exit 0
 }}
@@ -683,8 +702,10 @@ def main() -> int:
     if not args.skip_servers:
         make(["io-server"], args.jobs)
         make(["OPT=1", "torirsserver"], args.jobs)
+        make(["OPT=1", "account-server"], args.jobs)
     built_after = None if args.skip_servers else started
     game_bin = server_binary("torirsserver", built_after)
+    accounts_bin = server_binary("account_server", built_after)
     io_bin = (SRC / "build" / f"io_server{EXE}")
     if not io_bin.is_file():
         die(f"{io_bin} missing")
@@ -698,7 +719,9 @@ def main() -> int:
     (stage / "bin").mkdir(parents=True)
     shutil.copy2(game_bin, stage / "bin" / f"torirsserver{EXE}")
     shutil.copy2(io_bin, stage / "bin" / f"io_server{EXE}")
-    log(f"servers: {game_bin.relative_to(REPO)}, {io_bin.relative_to(REPO)}")
+    shutil.copy2(accounts_bin, stage / "bin" / f"account_server{EXE}")
+    log(f"servers: {game_bin.relative_to(REPO)}, {io_bin.relative_to(REPO)}, "
+        f"{accounts_bin.relative_to(REPO)}")
     stage_runtime_dlls(stage / "bin")
     stage_web(stage)
     cache_bytes = copy_tree(REPO / f"cache.{WORLD}", stage / f"cache.{WORLD}")

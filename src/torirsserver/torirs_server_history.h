@@ -9,7 +9,7 @@
  *     1793114000 logout <xp_tenths of stat 0> ... <xp_tenths of stat 24>
  *
  * torirsserver appended a line per login and per logout until the account
- * database (torirs_server_accounts.h) took over: its first open imports each
+ * database (accountserver/account_db.h) took over: its first open imports each
  * file into the per-day experience and the session table, and nothing writes
  * these any more. The reader keeps the newest TORIRSSERVER_HISTORY_MAX
  * entries and skips a torn line.

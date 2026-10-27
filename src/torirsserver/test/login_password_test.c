@@ -14,8 +14,11 @@
  */
 
 #include "torirsserver/torirs_server.h"
+#include "accountserver/account_db.h"
+#include "accountserver/account_proto.h"
+#include "accountserver/account_server.h"
+#include "torirsserver/torirs_server_accountlink.h"
 #include "torirsserver/torirs_server_accountlog.h"
-#include "torirsserver/torirs_server_accounts.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_embed.h"
 #include "torirsserver/torirs_server_oauth.h"
@@ -320,47 +323,47 @@ check_invites(void)
     char who[64];
     const char* problem = NULL;
 
-    ToriRSServer_GateLoginRevoke("dave");
-    ToriRSServer_GateLoginRevoke("erin");
+    AccountDb_GateLoginRevoke("dave");
+    AccountDb_GateLoginRevoke("erin");
     remove(ToriRSServer_AccountPath("dave"));
 
-    check(ToriRSServer_GateLogin("dave", "davespass1") == TORIRSSERVER_AUTH_REFUSED,
+    check(AccountDb_GateLogin("dave", "davespass1") == TORIRSSERVER_AUTH_REFUSED,
           "the gate's login does not claim a name with no record");
-    check(ToriRSServer_GateLogin("dave", "davespass1") == TORIRSSERVER_AUTH_REFUSED,
+    check(AccountDb_GateLogin("dave", "davespass1") == TORIRSSERVER_AUTH_REFUSED,
           "and made nothing it could sign in with");
 
-    ToriRSServer_InviteCreate("Dave", named);
+    AccountDb_InviteCreate("Dave", named);
     check(strlen(named) == TORIRSSERVER_INVITE_CODE_BYTES * 2, "its code is 32 hex digits");
-    check(ToriRSServer_InviteLookup(named, who, sizeof(who)) && strcmp(who, "Dave") == 0,
+    check(AccountDb_InviteLookup(named, who, sizeof(who)) && strcmp(who, "Dave") == 0,
           "it names Dave");
-    check(ToriRSServer_InviteRedeem(named, "erin", "erinspass1", &problem) ==
+    check(AccountDb_InviteRedeem(named, "erin", "erinspass1", &problem) ==
               TORIRSSERVER_INVITE_WRONG_NAME,
           "another name cannot redeem it");
-    check(ToriRSServer_InviteRedeem(named, "dave", "short", &problem) == TORIRSSERVER_INVITE_WEAK &&
+    check(AccountDb_InviteRedeem(named, "dave", "short", &problem) == TORIRSSERVER_INVITE_WEAK &&
               problem,
           "a weak password is refused, with the rule");
-    check(ToriRSServer_InviteRedeem(named, "dave", "secret1234", &problem) == TORIRSSERVER_INVITE_OK,
+    check(AccountDb_InviteRedeem(named, "dave", "secret1234", &problem) == TORIRSSERVER_INVITE_OK,
           "Dave redeems it (the name matches as the account is keyed)");
-    check(ToriRSServer_GateLogin("Dave", "secret1234") == TORIRSSERVER_AUTH_OK,
+    check(AccountDb_GateLogin("Dave", "secret1234") == TORIRSSERVER_AUTH_OK,
           "his web login has his password");
     check(!file_exists(ToriRSServer_AccountPath("dave")), "and it is not a player account");
-    check(!ToriRSServer_InviteLookup(named, who, sizeof(who)), "the invite is spent");
-    check(ToriRSServer_InviteRedeem(named, "dave", "secret1234", &problem) ==
+    check(!AccountDb_InviteLookup(named, who, sizeof(who)), "the invite is spent");
+    check(AccountDb_InviteRedeem(named, "dave", "secret1234", &problem) ==
               TORIRSSERVER_INVITE_UNKNOWN,
           "and cannot be redeemed twice");
 
-    ToriRSServer_InviteCreate(NULL, open_code);
-    check(ToriRSServer_InviteLookup(open_code, who, sizeof(who)) && who[0] == '\0',
+    AccountDb_InviteCreate(NULL, open_code);
+    check(AccountDb_InviteLookup(open_code, who, sizeof(who)) && who[0] == '\0',
           "an invite for any name names nobody");
-    check(ToriRSServer_InviteRedeem(open_code, "DAVE", "another12", &problem) ==
+    check(AccountDb_InviteRedeem(open_code, "DAVE", "another12", &problem) ==
               TORIRSSERVER_INVITE_NAME_TAKEN,
           "a taken name is refused");
-    check(ToriRSServer_InviteRedeem(open_code, "../x", "another12", &problem) ==
+    check(AccountDb_InviteRedeem(open_code, "../x", "another12", &problem) ==
               TORIRSSERVER_INVITE_BAD_NAME,
           "a bad name is refused");
-    check(ToriRSServer_InviteRedeem(open_code, "erin", "another12", &problem) == TORIRSSERVER_INVITE_OK,
+    check(AccountDb_InviteRedeem(open_code, "erin", "another12", &problem) == TORIRSSERVER_INVITE_OK,
           "Erin redeems it");
-    check(ToriRSServer_InviteRedeem("../../etc/passwd", "erin", "another12", &problem) ==
+    check(AccountDb_InviteRedeem("../../etc/passwd", "erin", "another12", &problem) ==
               TORIRSSERVER_INVITE_UNKNOWN,
           "a code that is not a code is no invite");
 }
@@ -569,6 +572,64 @@ check_links(void)
           "link: and now it links");
 }
 
+/* A world's log through the account server's own route, as the link sends
+ * it: each record a line, POST /events, `acked <seq>` back. The log is
+ * emptied; `*next_seq` numbers the records. Returns what was acknowledged. */
+static long long
+send_log(
+    struct ToriRSServerAccountLog* log,
+    long long* next_seq,
+    long long* out_first_seq)
+{
+    static char body[64 * 1024];
+    size_t len = 0;
+    struct HttpRequest req;
+    struct HttpResponse res;
+    long long acked = -1;
+
+    if( out_first_seq )
+        *out_first_seq = *next_seq;
+    for( int i = 0; i < log->count; i++ )
+        len += (size_t)AccountProto_RecordFormat(&log->records[i], (*next_seq)++, body + len);
+    log->count = 0;
+    memset(&req, 0, sizeof(req));
+    memset(&res, 0, sizeof(res));
+    snprintf(req.method, sizeof(req.method), "POST");
+    snprintf(req.path, sizeof(req.path), "/events?source=test");
+    req.body = (uint8_t const*)body;
+    req.body_len = (int)len;
+    AccountServer_Handle(NULL, &req, &res);
+    if( res.status == 200 && res.body && strncmp((char const*)res.body, "acked\t", 6) == 0 )
+        acked = strtoll((char const*)res.body + 6, NULL, 10);
+    if( res.owns_body )
+        ToriMem_Free(ToriMem_Net(), res.body);
+    return acked;
+}
+
+/* The same batch again, as the link resends after a lost answer. */
+static long long
+resend(
+    char const* body,
+    size_t len)
+{
+    struct HttpRequest req;
+    struct HttpResponse res;
+    long long acked = -1;
+
+    memset(&req, 0, sizeof(req));
+    memset(&res, 0, sizeof(res));
+    snprintf(req.method, sizeof(req.method), "POST");
+    snprintf(req.path, sizeof(req.path), "/events?source=test");
+    req.body = (uint8_t const*)body;
+    req.body_len = (int)len;
+    AccountServer_Handle(NULL, &req, &res);
+    if( res.status == 200 && res.body && strncmp((char const*)res.body, "acked\t", 6) == 0 )
+        acked = strtoll((char const*)res.body + 6, NULL, 10);
+    if( res.owns_body )
+        ToriMem_Free(ToriMem_Net(), res.body);
+    return acked;
+}
+
 /* The account database: what the world queues, written by one apply, read
  * back as the site reads it -- staff never ranked, a minute's stats only when
  * they moved, a session per logout, the adventure log. */
@@ -578,11 +639,15 @@ check_accounts(void)
     static struct ToriRSServerPlayer quinn;
     static struct ToriRSServerPlayer root;
     struct ToriRSServerAccountLog* log = ToriRSServer_AccountLogCreate();
-    struct ToriRSServerAccountsPlayer row;
-    struct ToriRSServerAccountsPlayer staff;
-    struct ToriRSServerAccountsRow top[2];
-    struct ToriRSServerAccountsSession sessions[4];
-    struct ToriRSServerAccountsEvent events[4];
+    long long seq = 1000;
+    long long first = 0;
+    char again[ACCOUNT_RECORD_LINE_MAX * 2];
+    size_t again_len = 0;
+    struct AccountPlayer row;
+    struct AccountPlayer staff;
+    struct AccountRow top[2];
+    struct AccountSession sessions[4];
+    struct AccountEvent events[4];
     long long t = 1800000000LL;
     long long day = t / 86400;
     int total = 0;
@@ -599,16 +664,15 @@ check_accounts(void)
 
     ToriRSServer_AccountLogLogin(log, &quinn, t);
     ToriRSServer_AccountLogLogin(log, &root, t);
-    ToriRSServer_AccountsApply(log);
-    check(log->count == 0, "accounts: an apply empties the queue");
-    check(ToriRSServer_AccountsPlayer("quinn", &row) && row.xp[0] == 13034431 &&
+    check(send_log(log, &seq, NULL) == 1001, "accounts: the server acknowledges the batch");
+    check(AccountDb_Player("quinn", &row) && row.xp[0] == 13034431 &&
               row.quest_points == 3 && row.ranked && strcmp(row.name, "Quinn") == 0,
           "accounts: a login's stats are the player's");
-    check(ToriRSServer_AccountsPlayer("root", &staff) && !staff.ranked && staff.xp[0] == 200000000,
+    check(AccountDb_Player("root", &staff) && !staff.ranked && staff.xp[0] == 200000000,
           "accounts: staff keep their stats, unranked");
-    check(ToriRSServer_AccountsRank(staff.id, 0) == 0 && ToriRSServer_AccountsRank(row.id, 0) == 1,
+    check(AccountDb_Rank(staff.id, 0) == 0 && AccountDb_Rank(row.id, 0) == 1,
           "accounts: staff are not ranked and push nobody down");
-    check(ToriRSServer_AccountsHiscores(0, 0, 2, top) >= 1 && strcmp(top[0].key, "quinn") == 0,
+    check(AccountDb_Hiscores(0, 0, 2, top) >= 1 && strcmp(top[0].key, "quinn") == 0,
           "accounts: the Attack hiscores lead with Quinn, not Root");
 
     quinn.stat_xp_tenths[0] += 10000;
@@ -618,28 +682,106 @@ check_accounts(void)
     ToriRSServer_AccountLogEvent(log, &quinn, t + 130, TORIRSSERVER_ADVENTURE_QUEST, 1,
                                  "Cook's Assistant");
     ToriRSServer_AccountLogLogout(log, &quinn, t + 3600);
-    ToriRSServer_AccountsApply(log);
-    check(ToriRSServer_AccountsPlayer("quinn", &row) && row.xp[0] == 13035431,
+    for( int i = 0; i < log->count; i++ )
+        again_len += (size_t)AccountProto_RecordFormat(&log->records[i], seq + i, again + again_len);
+    check(send_log(log, &seq, &first) == first + 2, "accounts: stats, quest and logout acknowledged");
+    check(resend(again, again_len) == first + 2, "accounts: a resent batch is acknowledged again");
+    check(AccountDb_Player("quinn", &row) && row.xp[0] == 13035431,
           "accounts: the change is the player's");
-    check(ToriRSServer_AccountsXpAt(row.id, 0, day) == 13035431 &&
-              ToriRSServer_AccountsXpAt(row.id, 0, day - 1) == -1 &&
-              ToriRSServer_AccountsXpFirstDay(row.id, 0) == day,
+    check(AccountDb_XpAt(row.id, 0, day) == 13035431 &&
+              AccountDb_XpAt(row.id, 0, day - 1) == -1 &&
+              AccountDb_XpFirstDay(row.id, 0) == day,
           "accounts: the day's experience, and nothing before the first day");
-    check(ToriRSServer_AccountsSessions(row.id, sessions, 4, &total, &played) == 1 && total == 1 &&
+    check(AccountDb_Sessions(row.id, sessions, 4, &total, &played) == 1 && total == 1 &&
               played == 3600 && sessions[0].start == t && sessions[0].xp_gained == 1000 &&
               sessions[0].top_stat == 0 && sessions[0].top_gain == 1000,
           "accounts: a logout is a session, with its gain");
-    check(ToriRSServer_AccountsEvents(row.id, events, 4) == 1 &&
+    check(AccountDb_Events(row.id, events, 4) == 1 &&
               events[0].kind == TORIRSSERVER_ADVENTURE_QUEST && events[0].amount == 1 &&
               strcmp(events[0].label, "Cook's Assistant") == 0,
           "accounts: a quest is a line of the adventure log");
 
-    ToriRSServer_AccountsSetRanked("Root", 1);
-    check(ToriRSServer_AccountsRank(staff.id, 0) == 1 && ToriRSServer_AccountsRank(row.id, 0) == 2,
+    AccountDb_SetRanked("Root", 1);
+    check(AccountDb_Rank(staff.id, 0) == 1 && AccountDb_Rank(row.id, 0) == 2,
           "accounts: ranked again, Root leads");
-    ToriRSServer_AccountsSetRanked("Root", 0);
-    check(ToriRSServer_AccountsRank(staff.id, 0) == 0 && ToriRSServer_AccountsRank(row.id, 0) == 1,
+    AccountDb_SetRanked("Root", 0);
+    check(AccountDb_Rank(staff.id, 0) == 0 && AccountDb_Rank(row.id, 0) == 1,
           "accounts: and admin again, off the list at once");
+    ToriRSServer_AccountLogFree(log);
+}
+
+/* The world's spool: records wait in it while the account server does not
+ * answer, a send step never waits, and a restart finds them still there. */
+static void
+check_spool(void)
+{
+    static struct ToriRSServerPlayer pat;
+    struct ToriRSServerAccountLog* log = ToriRSServer_AccountLogCreate();
+    struct ToriRSServerAccountLink* link;
+    char path[1024];
+    struct timespec t0;
+    struct timespec t1;
+    double ms;
+
+    snprintf(path, sizeof(path), "%s/account_spool.tsv", ToriRSServer_SaveDir());
+    remove(path);
+    /* Nothing listens on port 1: the account server is down. */
+    setenv("TORIRS_ACCOUNT_SERVER", "127.0.0.1:1", 1);
+    link = ToriRSServer_AccountLinkOpen();
+    check(ToriRSServer_AccountLinkPending(link) == 0, "spool: a new spool has nothing waiting");
+    snprintf(pat.display_name, sizeof(pat.display_name), "Pat");
+    pat.stat_xp_tenths[3] = 11540;
+    ToriRSServer_AccountLogLogin(log, &pat, 100);
+    ToriRSServer_AccountLogLogout(log, &pat, 200);
+    ToriRSServer_AccountLinkWrite(link, log);
+    check(log->count == 0 && ToriRSServer_AccountLinkPending(link) == 2,
+          "spool: written records wait in it");
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    for( int i = 0; i < 50; i++ )
+        ToriRSServer_AccountLinkPump(link, 100000L + i * 10L);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    ms = (double)(t1.tv_sec - t0.tv_sec) * 1000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+    check(ms < 50.0, "spool: fifty send steps against a dead server return at once");
+    check(ToriRSServer_AccountLinkPending(link) == 2, "spool: and the records still wait");
+    ToriRSServer_AccountLinkClose(link);
+    link = ToriRSServer_AccountLinkOpen();
+    check(ToriRSServer_AccountLinkPending(link) == 2, "spool: a restart finds them still waiting");
+    ToriRSServer_AccountLinkClose(link);
+    unsetenv("TORIRS_ACCOUNT_SERVER");
+    remove(path);
+    ToriRSServer_AccountLogFree(log);
+}
+
+/* With ACCOUNT_SERVER_LIVE=<host:port>, the link against a running account
+ * server: two records over a real socket, until the spool is empty. */
+static void
+check_link_live(void)
+{
+    static struct ToriRSServerPlayer lia;
+    char const* live = getenv("ACCOUNT_SERVER_LIVE");
+    struct ToriRSServerAccountLog* log;
+    struct ToriRSServerAccountLink* link;
+    char path[1024];
+
+    if( !live )
+        return;
+    log = ToriRSServer_AccountLogCreate();
+    snprintf(path, sizeof(path), "%s/account_spool.tsv", ToriRSServer_SaveDir());
+    remove(path);
+    setenv("TORIRS_ACCOUNT_SERVER", live, 1);
+    link = ToriRSServer_AccountLinkOpen();
+    snprintf(lia.display_name, sizeof(lia.display_name), "Lia");
+    lia.stat_xp_tenths[3] = 11540;
+    lia.stat_xp_tenths[10] = 123450;
+    ToriRSServer_AccountLogLogin(log, &lia, (long long)time(NULL) - 60);
+    ToriRSServer_AccountLogLogout(log, &lia, (long long)time(NULL));
+    ToriRSServer_AccountLinkWrite(link, log);
+    ToriRSServer_AccountLinkDrain(link, 3000);
+    check(ToriRSServer_AccountLinkPending(link) == 0,
+          "live: the account server acknowledged everything sent");
+    ToriRSServer_AccountLinkClose(link);
+    unsetenv("TORIRS_ACCOUNT_SERVER");
+    remove(path);
     ToriRSServer_AccountLogFree(log);
 }
 
@@ -654,18 +796,18 @@ check_accounts_import(void)
     char who[64];
     uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES] = { 1, 2, 3 };
     char const* code = "0123456789abcdef0123456789abcdef";
-    struct ToriRSServerAccountsPlayer row;
-    struct ToriRSServerAccountsSession sessions[4];
+    struct AccountPlayer row;
+    struct AccountSession sessions[4];
     int total = 0;
     long long played = 0;
     FILE* file;
 
-    ToriRSServer_AccountsClose();
-    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountsPath());
+    AccountDb_Close();
+    snprintf(path, sizeof(path), "%s", AccountDb_Path());
     remove(path);
     strcat(path, "-wal");
     remove(path);
-    snprintf(path, sizeof(path), "%s-shm", ToriRSServer_AccountsPath());
+    snprintf(path, sizeof(path), "%s-shm", AccountDb_Path());
     remove(path);
 
     ToriRSServer_AuthRecord("olgapass12", salt, 1000, record);
@@ -691,21 +833,21 @@ check_accounts_import(void)
         fclose(file);
     }
 
-    ToriRSServer_AccountsOpen();
-    check(ToriRSServer_GateLogin("olga", "olgapass12") == TORIRSSERVER_AUTH_OK,
+    AccountDb_Open();
+    check(AccountDb_GateLogin("olga", "olgapass12") == TORIRSSERVER_AUTH_OK,
           "import: an old web login signs in");
-    check(ToriRSServer_InviteLookup(code, who, sizeof(who)) && strcmp(who, "Pia") == 0,
+    check(AccountDb_InviteLookup(code, who, sizeof(who)) && strcmp(who, "Pia") == 0,
           "import: an old invite is still good");
-    check(ToriRSServer_AccountsPlayer("rex", &row) && row.xp[0] == 5000 && row.quest_points == 7 &&
+    check(AccountDb_Player("rex", &row) && row.xp[0] == 5000 && row.quest_points == 7 &&
               strcmp(row.name, "Rex") == 0,
           "import: a save's stats");
-    check(ToriRSServer_AccountsXpAt(row.id, 0, 0) == 4000,
+    check(AccountDb_XpAt(row.id, 0, 0) == 4000,
           "import: the history's logout is that day's experience");
-    check(ToriRSServer_AccountsSessions(row.id, sessions, 4, &total, &played) == 1 &&
+    check(AccountDb_Sessions(row.id, sessions, 4, &total, &played) == 1 &&
               sessions[0].start == 1000 && sessions[0].end == 1600 && played == 600,
           "import: the history's login and logout are a session");
 
-    ToriRSServer_GateLoginRevoke("olga");
+    AccountDb_GateLoginRevoke("olga");
     remove(ToriRSServer_GateAccountPath("olga"));
     snprintf(path, sizeof(path), "%s/gate/invites/%s.ini", ToriRSServer_SaveDir(), code);
     remove(path);
@@ -722,7 +864,7 @@ check_operator_accounts(void)
     char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
 
     remove(ToriRSServer_AccountPath("jack"));
-    ToriRSServer_GateLoginRevoke("kate");
+    AccountDb_GateLoginRevoke("kate");
     check(ToriRSServer_AuthCreate("jack", "short", 1, &why) == TORIRSSERVER_CREATE_WEAK && why,
           "create: a weak password is refused, with the rule");
     check(!file_exists(ToriRSServer_AccountPath("jack")), "create: and writes nothing");
@@ -746,15 +888,15 @@ check_operator_accounts(void)
           "password: keeping the admin flag and the link");
     check(!ToriRSServer_AuthSetPassword("nobody_here", "red8fox99", &why),
           "password: only for an account that exists");
-    check(ToriRSServer_GateLoginCreate("kate", "blue7horse", &why) == TORIRSSERVER_CREATE_OK &&
-              ToriRSServer_GateLogin("kate", "blue7horse") == TORIRSSERVER_AUTH_OK,
+    check(AccountDb_GateLoginCreate("kate", "blue7horse", &why) == TORIRSSERVER_CREATE_OK &&
+              AccountDb_GateLogin("kate", "blue7horse") == TORIRSSERVER_AUTH_OK,
           "login: a web login made without an invite signs in");
-    check(ToriRSServer_GateLoginCreate("kate", "other8pass", &why) == TORIRSSERVER_CREATE_EXISTS,
+    check(AccountDb_GateLoginCreate("kate", "other8pass", &why) == TORIRSSERVER_CREATE_EXISTS,
           "login: never over an existing one");
-    check(ToriRSServer_GateLoginRevoke("Kate") &&
-              ToriRSServer_GateLogin("kate", "blue7horse") == TORIRSSERVER_AUTH_REFUSED,
+    check(AccountDb_GateLoginRevoke("Kate") &&
+              AccountDb_GateLogin("kate", "blue7horse") == TORIRSSERVER_AUTH_REFUSED,
           "revoke: the login cannot sign in again");
-    check(!ToriRSServer_GateLoginRevoke("kate"), "revoke: and is gone");
+    check(!AccountDb_GateLoginRevoke("kate"), "revoke: and is gone");
 }
 
 /* The gate's ticket: what io_server sets and torirsserver reads. */
@@ -992,13 +1134,16 @@ main(void)
         check(by_owner.net.state == TORIRS_NET_GAME, "and that logs him in");
         ToriRSServer_EmbedDisconnect(embed, by_owner.client_id);
         {
-            struct ToriRSServerAccountsPlayer henry;
+            struct AccountPlayer henry;
 
             /* This client never reports its map built, so the world never
              * finishes the login: the session must leave nothing in the
              * account database, above all not a logout of zeroed stats. */
-            ToriRSServer_AccountsApply(world->account_log);
-            check(!ToriRSServer_AccountsPlayer("henry", &henry),
+            long long henry_seq = 1;
+
+            check(world->account_log->count == 0 || send_log(world->account_log, &henry_seq, NULL) >= 0,
+                  "(whatever the world queued is sent)");
+            check(!AccountDb_Player("henry", &henry),
                   "a session dropped before its login finished records nothing");
         }
     }
@@ -1040,6 +1185,8 @@ main(void)
     check_oauth();
     check_links();
     check_accounts();
+    check_spool();
+    check_link_live();
     check_operator_accounts();
 
     if( g_failures )

@@ -9,7 +9,7 @@
 #include <signal.h>
 
 #include "torirs_server.h"
-#include "torirs_server_accounts.h"
+#include "torirs_server_accountlink.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_claim.h"
 #include "torirs_server_session.h"
@@ -514,9 +514,14 @@ host_logout_everyone(struct ToriRSServerHost* host)
             "torirsserver: shutting down — saving %d player(s)\n",
             live);
     host_drain_queue(host);
-    /* Their logouts, which the loop will not reach to write. */
-    if( host->srv->account_log )
-        ToriRSServer_AccountsApply(host->srv->account_log);
+    /* Their logouts, which the loop will not reach to send: a moment to hand
+     * them to the account server, and what it does not take waits in the
+     * spool for the next start. */
+    if( host->srv->account_link )
+    {
+        ToriRSServer_AccountLinkWrite(host->srv->account_link, host->srv->account_log);
+        ToriRSServer_AccountLinkDrain(host->srv->account_link, 2000);
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -615,6 +620,10 @@ ToriRSServer_HostRun(
                 immediate = 1;
         }
 
+        /* The account server's socket, so its answer wakes the loop. */
+        if( host->srv->account_link )
+            ToriRSServer_AccountLinkWatch(host->srv->account_link, &readable, &writable, &top);
+
         wait_ms = immediate ? 0 : host->next_tick - now_ms();
         if( wait_ms < 0 )
             wait_ms = 0;
@@ -679,9 +688,10 @@ ToriRSServer_HostRun(
             if( host->srv->world_built )
                 ToriRSServer_WorldTick(host->srv);
             /* What the tick and the logins/logouts drained above told the
-             * account database (torirs_server_accountlog.h). */
-            if( host->srv->account_log )
-                ToriRSServer_AccountsApply(host->srv->account_log);
+             * account log, into the spool for the account server
+             * (torirs_server_accountlink.h): an append, never a wait. */
+            if( host->srv->account_link )
+                ToriRSServer_AccountLinkWrite(host->srv->account_link, host->srv->account_log);
 
             /* Anchor to the schedule rather than to "now", so a slow tick does
              * not push every later tick out. */
@@ -689,6 +699,11 @@ ToriRSServer_HostRun(
             if( now_ms() - host->next_tick > 5 * TORIRSSERVER_TICK_MS )
                 host->next_tick = now_ms() + TORIRSSERVER_TICK_MS;
         }
+
+        /* One non-blocking step of sending to the account server, every
+         * pass: what its socket takes now, and no more. */
+        if( host->srv->account_link )
+            ToriRSServer_AccountLinkPump(host->srv->account_link, now_ms());
 
         /* The standalone server's FRAME reset: one loop iteration is its
          * frame. (The tick inside it is a checked scope of its own.) */

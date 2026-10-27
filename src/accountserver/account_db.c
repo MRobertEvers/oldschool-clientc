@@ -1,10 +1,10 @@
 /*
- * The account database. See torirs_server_accounts.h.
+ * The account database. See account_db.h.
  */
-#include "torirs_server_accounts.h"
+#include "account_db.h"
 
-#include "torirs_server_history.h"
-#include "torirs_server_savefile.h"
+#include "torirsserver/torirs_server_history.h"
+#include "torirsserver/torirs_server_savefile.h"
 
 #include <sqlite3.h>
 
@@ -18,7 +18,7 @@
 #include <sys/stat.h>
 #include <time.h>
 
-#define ACCOUNTS_SCHEMA_VERSION 1
+#define ACCOUNTS_SCHEMA_VERSION 2
 /* configs/all.varp varp101_qp, as a save's [varps] names it. */
 #define ACCOUNTS_VARP_QP 101
 /* A fresh character's Hitpoints: level 10, in tenths. */
@@ -51,6 +51,10 @@ static char const k_schema[] =
     " kind INTEGER NOT NULL, amount INTEGER NOT NULL, label TEXT NOT NULL);"
     "CREATE INDEX event_player ON event (player, id DESC);";
 
+/* Schema 2: each world's last record applied, which makes a resend harmless. */
+static char const k_schema_2[] =
+    "CREATE TABLE source (name TEXT PRIMARY KEY, seq INTEGER NOT NULL) WITHOUT ROWID;";
+
 enum AccountsStatement
 {
     ST_LOGIN_GET,
@@ -80,6 +84,8 @@ enum AccountsStatement
     ST_SESSIONS,
     ST_SESSION_TOTALS,
     ST_EVENTS,
+    ST_SOURCE_GET,
+    ST_SOURCE_PUT,
     ST_COUNT,
 };
 
@@ -139,6 +145,9 @@ static char const* const k_sql[ST_COUNT] = {
                           " THEN end - start ELSE 0 END), 0) FROM session WHERE player = ?1",
     [ST_EVENTS] = "SELECT time, kind, amount, label FROM event WHERE player = ?1"
                   " ORDER BY id DESC LIMIT ?2",
+    [ST_SOURCE_GET] = "SELECT seq FROM source WHERE name = ?1",
+    [ST_SOURCE_PUT] = "INSERT INTO source (name, seq) VALUES (?1, ?2)"
+                      " ON CONFLICT (name) DO UPDATE SET seq = excluded.seq",
 };
 
 static struct
@@ -185,7 +194,7 @@ wipe(
 }
 
 const char*
-ToriRSServer_AccountsPath(void)
+AccountDb_Path(void)
 {
     static char path[1024];
 
@@ -204,7 +213,7 @@ accounts_db(void)
 
     if( g_accounts.db )
         return g_accounts.db;
-    path = ToriRSServer_AccountsPath();
+    path = AccountDb_Path();
     ToriRSServer_SaveMkdirParent(path);
     must(NULL,
          sqlite3_open_v2(path, &g_accounts.db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL),
@@ -227,7 +236,9 @@ accounts_db(void)
     sqlite3_finalize(version);
     if( schema == 0 )
         exec(g_accounts.db, k_schema);
-    else if( schema != ACCOUNTS_SCHEMA_VERSION )
+    if( schema < 2 )
+        exec(g_accounts.db, k_schema_2);
+    if( schema > ACCOUNTS_SCHEMA_VERSION )
     {
         fprintf(stderr, "torirsserver: %s is schema %d; this build knows %d\n", path, schema,
                 ACCOUNTS_SCHEMA_VERSION);
@@ -237,10 +248,11 @@ accounts_db(void)
         must(g_accounts.db, sqlite3_prepare_v2(g_accounts.db, k_sql[i], -1, &g_accounts.st[i], NULL),
              k_sql[i]);
     if( schema == 0 )
+        accounts_import();
+    if( schema < ACCOUNTS_SCHEMA_VERSION )
     {
         char pragma[64];
 
-        accounts_import();
         snprintf(pragma, sizeof(pragma), "PRAGMA user_version = %d", ACCOUNTS_SCHEMA_VERSION);
         exec(g_accounts.db, pragma);
     }
@@ -249,13 +261,13 @@ accounts_db(void)
 }
 
 void
-ToriRSServer_AccountsOpen(void)
+AccountDb_Open(void)
 {
     accounts_db();
 }
 
 void
-ToriRSServer_AccountsClose(void)
+AccountDb_Close(void)
 {
     if( !g_accounts.db )
         return;
@@ -328,55 +340,6 @@ column_text(
 }
 
 /* ------------------------------------------------------------------ */
-/* Levels                                                              */
-/* ------------------------------------------------------------------ */
-
-int
-ToriRSServer_AccountsLevelForXp(long long xp)
-{
-    static long long level_xp[100];
-    int level = 1;
-
-    if( !level_xp[2] )
-    {
-        double points = 0;
-
-        for( int at = 1; at < 99; at++ )
-        {
-            points += floor(at + 300.0 * pow(2.0, at / 7.0));
-            level_xp[at + 1] = (long long)floor(points / 4);
-        }
-    }
-    while( level < 99 && xp >= level_xp[level + 1] )
-        level++;
-    return level;
-}
-
-/* Total experience fits 33 bits (24 skills at 200M each, under 2^33), so the
- * level goes above it. */
-long long
-ToriRSServer_AccountsOverallScore(
-    int total_level,
-    long long total_xp)
-{
-    assert(total_xp >= 0);
-    assert(total_xp < (1LL << 33));
-    return ((long long)total_level << 33) | total_xp;
-}
-
-void
-ToriRSServer_AccountsOverallSplit(
-    long long score,
-    int* out_total_level,
-    long long* out_total_xp)
-{
-    assert(out_total_level);
-    assert(out_total_xp);
-    *out_total_level = (int)(score >> 33);
-    *out_total_xp = score & ((1LL << 33) - 1);
-}
-
-/* ------------------------------------------------------------------ */
 /* Web logins and invites                                              */
 /* ------------------------------------------------------------------ */
 
@@ -431,11 +394,11 @@ login_put(
 }
 
 enum ToriRSServerAuthResult
-ToriRSServer_GateLogin(
+AccountDb_GateLogin(
     const char* name,
     const char* password)
 {
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
     char record[TORIRSSERVER_AUTH_RECORD_MAX];
     sqlite3_stmt* s;
     int ok;
@@ -461,12 +424,12 @@ ToriRSServer_GateLogin(
 }
 
 enum ToriRSServerCreateResult
-ToriRSServer_GateLoginCreate(
+AccountDb_GateLoginCreate(
     const char* name,
     const char* password,
     const char** out_problem)
 {
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
 
     assert(name);
     assert(password);
@@ -486,9 +449,9 @@ ToriRSServer_GateLoginCreate(
 }
 
 int
-ToriRSServer_GateLoginRevoke(const char* name)
+AccountDb_GateLoginRevoke(const char* name)
 {
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
     sqlite3_stmt* s;
 
     assert(name);
@@ -499,22 +462,24 @@ ToriRSServer_GateLoginRevoke(const char* name)
 }
 
 void
-ToriRSServer_GateLoginEach(void (*each)(const char* name))
+AccountDb_GateLoginEach(
+    void (*each)(const char* name, void* ctx),
+    void* ctx)
 {
     sqlite3_stmt* s = st(ST_LOGIN_LIST);
-    char name[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char name[ACCOUNT_NAME_MAX];
 
     assert(each);
     while( step(s) )
     {
         column_text(s, 0, name, sizeof(name));
-        each(name);
+        each(name, ctx);
     }
     sqlite3_reset(s);
 }
 
 void
-ToriRSServer_InviteCreate(
+AccountDb_InviteCreate(
     const char* name,
     char out_code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1])
 {
@@ -534,7 +499,7 @@ ToriRSServer_InviteCreate(
 }
 
 int
-ToriRSServer_InviteLookup(
+AccountDb_InviteLookup(
     const char* code,
     char* out_name,
     size_t cap)
@@ -556,15 +521,15 @@ ToriRSServer_InviteLookup(
 }
 
 enum ToriRSServerInviteResult
-ToriRSServer_InviteRedeem(
+AccountDb_InviteRedeem(
     const char* code,
     const char* name,
     const char* password,
     const char** out_problem)
 {
-    char fixed[TORIRSSERVER_ACCOUNTS_NAME_MAX];
-    char want[TORIRSSERVER_ACCOUNTS_NAME_MAX];
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char fixed[ACCOUNT_NAME_MAX];
+    char want[ACCOUNT_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
     enum ToriRSServerInviteResult result = TORIRSSERVER_INVITE_OK;
     sqlite3_stmt* s;
 
@@ -576,7 +541,7 @@ ToriRSServer_InviteRedeem(
     /* IMMEDIATE: the read and the spend are one write transaction, so two
      * visitors redeeming one code cannot both find it unspent. */
     exec(accounts_db(), "BEGIN IMMEDIATE");
-    if( !ToriRSServer_InviteLookup(code, fixed, sizeof(fixed)) )
+    if( !AccountDb_InviteLookup(code, fixed, sizeof(fixed)) )
         result = TORIRSSERVER_INVITE_UNKNOWN;
     if( result == TORIRSSERVER_INVITE_OK && fixed[0] )
     {
@@ -656,7 +621,7 @@ player_ensure_named(
     long long now,
     int* out_ranked)
 {
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
 
     ToriRSServer_SaveFileName(display_name, key, sizeof(key));
     /* The world only queues players that logged in, whose names were
@@ -722,7 +687,7 @@ total_xp(int const xp_tenths[TORIRSSERVER_ACCOUNTLOG_STATS])
 {
     long long total = 0;
 
-    for( int i = 0; i < TORIRSSERVER_ACCOUNTS_SKILLS; i++ )
+    for( int i = 0; i < ACCOUNT_SKILLS; i++ )
         total += xp_tenths[i] / 10;
     return total;
 }
@@ -745,13 +710,13 @@ stats_put(
 
         if( score_put(id, i, xp, now, ranked) )
             xp_day_put(id, i, day, xp);
-        if( i < TORIRSSERVER_ACCOUNTS_SKILLS )
-            total_level += ToriRSServer_AccountsLevelForXp(xp);
+        if( i < ACCOUNT_SKILLS )
+            total_level += AccountProto_LevelForXp(xp);
     }
-    if( score_put(id, TORIRSSERVER_ACCOUNTS_OVERALL,
-                  ToriRSServer_AccountsOverallScore(total_level, total_xp(xp_tenths)), now, ranked) )
-        xp_day_put(id, TORIRSSERVER_ACCOUNTS_TOTAL_XP, day, total_xp(xp_tenths));
-    score_put(id, TORIRSSERVER_ACCOUNTS_QUEST_POINTS, quest_points, now, ranked);
+    if( score_put(id, ACCOUNT_OVERALL,
+                  AccountProto_OverallScore(total_level, total_xp(xp_tenths)), now, ranked) )
+        xp_day_put(id, ACCOUNT_TOTAL_XP, day, total_xp(xp_tenths));
+    score_put(id, ACCOUNT_QUEST_POINTS, quest_points, now, ranked);
 }
 
 /* A session: its gain over the listed skills, and the skill that gained most. */
@@ -767,7 +732,7 @@ session_put(
     int top_stat = -1;
     long long top_gain = 0;
 
-    for( int i = 0; i < TORIRSSERVER_ACCOUNTS_SKILLS; i++ )
+    for( int i = 0; i < ACCOUNT_SKILLS; i++ )
     {
         long long gain = to_tenths[i] / 10 - from_tenths[i] / 10;
 
@@ -828,25 +793,59 @@ record_apply(struct ToriRSServerAccountRecord const* r)
     abort();
 }
 
-void
-ToriRSServer_AccountsApply(struct ToriRSServerAccountLog* log)
+/* The source's last applied record number; 0 before its first. */
+static long long
+source_seq(char const* source)
 {
-    assert(log);
-    if( log->count == 0 )
-        return;
+    sqlite3_stmt* s = st(ST_SOURCE_GET);
+    long long seq = 0;
+
+    bind_text(s, 1, source);
+    if( step(s) )
+        seq = sqlite3_column_int64(s, 0);
+    sqlite3_reset(s);
+    return seq;
+}
+
+long long
+AccountDb_ApplyBatch(
+    const char* source,
+    struct ToriRSServerAccountRecord const* records,
+    long long const* seqs,
+    int count)
+{
+    long long last;
+    sqlite3_stmt* s;
+
+    assert(source);
+    assert(count >= 0);
+    if( count == 0 )
+        return source_seq(source);
+    assert(records);
+    assert(seqs);
     exec(accounts_db(), "BEGIN IMMEDIATE");
-    for( int i = 0; i < log->count; i++ )
-        record_apply(&log->records[i]);
+    last = source_seq(source);
+    for( int i = 0; i < count; i++ )
+    {
+        if( seqs[i] <= last )
+            continue;
+        record_apply(&records[i]);
+        last = seqs[i];
+    }
+    s = st(ST_SOURCE_PUT);
+    bind_text(s, 1, source);
+    bind_int(s, 2, last);
+    run(s);
     exec(g_accounts.db, "COMMIT");
-    log->count = 0;
+    return last;
 }
 
 void
-ToriRSServer_AccountsSetRanked(
+AccountDb_SetRanked(
     const char* display_name,
     int ranked)
 {
-    char key[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char key[ACCOUNT_NAME_MAX];
     sqlite3_stmt* s;
     long long id;
 
@@ -869,9 +868,9 @@ ToriRSServer_AccountsSetRanked(
 /* ------------------------------------------------------------------ */
 
 int
-ToriRSServer_AccountsPlayer(
+AccountDb_Player(
     const char* key,
-    struct ToriRSServerAccountsPlayer* out)
+    struct AccountPlayer* out)
 {
     sqlite3_stmt* s;
 
@@ -901,7 +900,7 @@ ToriRSServer_AccountsPlayer(
 
         if( category >= 0 && category < TORIRSSERVER_ACCOUNTLOG_STATS )
             out->xp[category] = score;
-        else if( category == TORIRSSERVER_ACCOUNTS_QUEST_POINTS )
+        else if( category == ACCOUNT_QUEST_POINTS )
             out->quest_points = (int)score;
     }
     sqlite3_reset(s);
@@ -909,11 +908,11 @@ ToriRSServer_AccountsPlayer(
 }
 
 int
-ToriRSServer_AccountsHiscores(
+AccountDb_Hiscores(
     int category,
     int first,
     int max,
-    struct ToriRSServerAccountsRow* out)
+    struct AccountRow* out)
 {
     sqlite3_stmt* s;
     int count = 0;
@@ -936,7 +935,7 @@ ToriRSServer_AccountsHiscores(
 }
 
 int
-ToriRSServer_AccountsRankedCount(int category)
+AccountDb_RankedCount(int category)
 {
     sqlite3_stmt* s = st(ST_RANKED_COUNT);
     int count;
@@ -949,7 +948,7 @@ ToriRSServer_AccountsRankedCount(int category)
 }
 
 int
-ToriRSServer_AccountsRank(
+AccountDb_Rank(
     long long player,
     int category)
 {
@@ -981,7 +980,7 @@ ToriRSServer_AccountsRank(
 }
 
 long long
-ToriRSServer_AccountsXpAt(
+AccountDb_XpAt(
     long long player,
     int stat,
     long long day)
@@ -999,7 +998,7 @@ ToriRSServer_AccountsXpAt(
 }
 
 long long
-ToriRSServer_AccountsXpFirstDay(
+AccountDb_XpFirstDay(
     long long player,
     int stat)
 {
@@ -1015,7 +1014,7 @@ ToriRSServer_AccountsXpFirstDay(
 }
 
 int
-ToriRSServer_AccountsXpDays(
+AccountDb_XpDays(
     long long player,
     int stat,
     long long* out_day,
@@ -1053,9 +1052,9 @@ ToriRSServer_AccountsXpDays(
 }
 
 int
-ToriRSServer_AccountsSessions(
+AccountDb_Sessions(
     long long player,
-    struct ToriRSServerAccountsSession* out,
+    struct AccountSession* out,
     int max,
     int* out_count,
     long long* out_played)
@@ -1090,9 +1089,9 @@ ToriRSServer_AccountsSessions(
 }
 
 int
-ToriRSServer_AccountsEvents(
+AccountDb_Events(
     long long player,
-    struct ToriRSServerAccountsEvent* out,
+    struct AccountEvent* out,
     int max)
 {
     sqlite3_stmt* s;
@@ -1112,6 +1111,60 @@ ToriRSServer_AccountsEvents(
     }
     sqlite3_reset(s);
     return count;
+}
+
+int
+AccountDb_PlayerView(
+    const char* key,
+    int history,
+    struct AccountPlayerView* out)
+{
+    long long today = (long long)time(NULL) / 86400;
+    long long total = 0;
+
+    assert(key);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    if( !AccountDb_Player(key, &out->player) )
+        return 0;
+    out->rank_overall = AccountDb_Rank(out->player.id, ACCOUNT_OVERALL);
+    for( int i = 0; i < ACCOUNT_SKILLS; i++ )
+    {
+        out->rank[i] = AccountDb_Rank(out->player.id, i);
+        total += out->player.xp[i];
+    }
+    out->event_count = AccountDb_Events(out->player.id, out->events, ACCOUNT_EVENTS_SHOWN);
+    if( !history )
+        return 1;
+
+    out->has_history = AccountDb_XpFirstDay(out->player.id, ACCOUNT_TOTAL_XP) >= 0;
+    for( int w = 0; w < ACCOUNT_GAIN_WINDOWS; w++ )
+    {
+        long long day = today - g_account_gain_window_days[w];
+
+        out->gain_partial[w] = AccountDb_XpAt(out->player.id, ACCOUNT_TOTAL_XP, day) < 0;
+        for( int i = 0; i <= ACCOUNT_SKILLS; i++ )
+        {
+            int stat = i == ACCOUNT_SKILLS ? ACCOUNT_TOTAL_XP : i;
+            long long now = i == ACCOUNT_SKILLS ? total : out->player.xp[i];
+            long long then = AccountDb_XpAt(out->player.id, stat, day);
+
+            /* Older than the history: from its first day, or no gain at all
+             * for a stat it never recorded. */
+            if( then < 0 )
+            {
+                long long first = AccountDb_XpFirstDay(out->player.id, stat);
+
+                then = first < 0 ? now : AccountDb_XpAt(out->player.id, stat, first);
+            }
+            out->gain_base[w][i] = then;
+        }
+    }
+    out->chart_count = AccountDb_XpDays(out->player.id, ACCOUNT_TOTAL_XP, out->chart_day,
+                                        out->chart_xp, ACCOUNT_CHART_DAYS);
+    out->session_count = AccountDb_Sessions(out->player.id, out->sessions, ACCOUNT_SESSIONS_SHOWN,
+                                            &out->session_total, &out->played);
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1173,7 +1226,7 @@ dir_each_ini(
         return;
     while( (entry = readdir(handle)) != NULL )
     {
-        char stem[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+        char stem[ACCOUNT_NAME_MAX];
         char path[1024];
         struct stat info;
         size_t len = strlen(entry->d_name);
@@ -1193,7 +1246,7 @@ struct ImportFields
 {
     char want_section[16];
     char password[TORIRSSERVER_AUTH_RECORD_MAX];
-    char name[TORIRSSERVER_ACCOUNTS_NAME_MAX];
+    char name[ACCOUNT_NAME_MAX];
     int xp_tenths[TORIRSSERVER_ACCOUNTLOG_STATS];
     int quest_points;
 };
@@ -1312,7 +1365,7 @@ import_history(
             tenths[s] = (int)e->xp_tenths[s];
             xp_day_put(id, s, day, e->xp_tenths[s] / 10);
         }
-        xp_day_put(id, TORIRSSERVER_ACCOUNTS_TOTAL_XP, day, total_xp(tenths));
+        xp_day_put(id, ACCOUNT_TOTAL_XP, day, total_xp(tenths));
         if( previous )
         {
             int from[TORIRSSERVER_ACCOUNTLOG_STATS];

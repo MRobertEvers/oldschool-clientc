@@ -6,7 +6,7 @@
 #include "io_site.h"
 
 #include "mem/torirs_mem.h"
-#include "torirsserver/torirs_server_accounts.h"
+#include "accountserver/account_client.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_oauth.h"
 #include "torirsserver/torirs_server_savefile.h"
@@ -424,6 +424,7 @@ handle_login(
 {
     char name[IO_GATE_FIELD_MAX];
     char password[IO_GATE_FIELD_MAX];
+    enum ToriRSServerAuthResult auth;
     char key[64];
     struct IoGateThrottle* throttle;
     long long now = (long long)time(NULL);
@@ -451,7 +452,16 @@ handle_login(
         login_page(res, 429, "Too many attempts. Try again in a few minutes.", name);
         return;
     }
-    if( ToriRSServer_GateLogin(name, password) != TORIRSSERVER_AUTH_OK )
+    auth = AccountClient_GateLogin(name, password);
+    if( auth == TORIRSSERVER_AUTH_UNAVAILABLE )
+    {
+        /* Nothing was decided, so nothing counts against the name. */
+        memset(password, 0, sizeof(password));
+        login_page(res, 503, "The account service is not answering. Try again in a moment.",
+                   name);
+        return;
+    }
+    if( auth != TORIRSSERVER_AUTH_OK )
     {
         memset(password, 0, sizeof(password));
         throttle->failures++;
@@ -473,6 +483,7 @@ handle_invite(
     struct HttpResponse* res)
 {
     char code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1];
+    int found;
     char fixed_name[IO_GATE_FIELD_MAX];
     char name[IO_GATE_FIELD_MAX] = "";
     char password[IO_GATE_FIELD_MAX];
@@ -489,7 +500,16 @@ handle_invite(
     }
     memcpy(code, tail, code_len);
     code[code_len] = '\0';
-    if( !ToriRSServer_InviteLookup(code, fixed_name, sizeof(fixed_name)) )
+    found = AccountClient_InviteLookup(code, fixed_name, sizeof(fixed_name));
+    if( found < 0 )
+    {
+        res->status = 503;
+        snprintf(res->content_type, sizeof(res->content_type), "text/plain; charset=utf-8");
+        res->body = (void*)"The account service is not answering. Try again in a moment.\n";
+        res->body_len = (int)strlen((char const*)res->body);
+        return;
+    }
+    if( !found )
     {
         spent_invite_page(res);
         return;
@@ -512,7 +532,7 @@ handle_invite(
         invite_page(res, 400, code, "The two passwords are different.", fixed_name, name);
         return;
     }
-    result = ToriRSServer_InviteRedeem(code, name, password, &problem);
+    result = AccountClient_InviteRedeem(code, name, password, &problem);
     memset(password, 0, sizeof(password));
     memset(confirm, 0, sizeof(confirm));
     switch( result )
@@ -537,6 +557,10 @@ handle_invite(
     case TORIRSSERVER_INVITE_WRITE_FAILED:
         invite_page(res, 500, code, "The login could not be saved. Try again.", fixed_name,
                     name);
+        return;
+    case TORIRSSERVER_INVITE_UNAVAILABLE:
+        invite_page(res, 503, code, "The account service is not answering. Try again in a moment.",
+                    fixed_name, name);
         return;
     }
     assert(!"unhandled invite result");
@@ -1321,9 +1345,6 @@ IoGate_Init(
     snprintf(gate->landing, sizeof(gate->landing), "%s", landing);
     ToriRSServer_GateKeyLoad();
     ToriRSServer_OAuthKeyLoad();
-    /* The web logins, invites and hiscores (torirs_server_accounts.h): opened
-     * now, so a database that cannot be opened stops the gate at boot. */
-    ToriRSServer_AccountsOpen();
     {
         char path[1024];
 
