@@ -30,9 +30,29 @@ static int const k_recol_legs[] = { 25238, 8742, 12, 64030, 43162, 7735, 8404, 1
 static int const k_recol_feet[] = { 4626, 11146, 6439, 12, 4758, 10270 };
 static int const k_recol_skin[] = { 4550, 4537, 5681, 5673, 5790, 6806, 8076, 4574 };
 
-/* Reference ClientPlayer.recol2d: the torso's secondary colour band. */
-static int const k_recol2d[] = { 9104, 10275, 7595, 3610, 7975, 8526, 918, 38802,
-                                 24466, 10145, 58654, 5027, 1457, 16565, 34991, 25486 };
+/* Reference PlayerComposition's secondary colour band (class294.field3890 /
+ * field3893 in the 239 client): hair models author their second shade as
+ * magenta (55232) and torsos theirs as 9104, each recoloured to
+ * palette[colour]. Unlike recol1d, index 0 is NOT the identity for hair —
+ * magenta becomes 6554 — so the band is applied for every colour, 0 included. */
+static int const k_recol2d_hair[] = { 6554,  115,   10304, 28,    5702,  7756,  5681,  4510,
+                                      33701, 22437, 2859,  54197, 16,    5157,  10446, 3658,
+                                      38222, 43571, 472,   580,   784,   21966, 28950, 49839,
+                                      51534, 43420, 945,   8144,  52122, 30389 };
+static int const k_recol2d_torso[] = { 9104,  10275, 7595,  3610,  7975,  8526,  918,   38802,
+                                       24466, 10145, 58654, 5027,  1457,  16565, 34991, 25486,
+                                       24,    5392,  10429, 3673,  38201, 43579, 192,   687,
+                                       412,   21821, 28835, 50076, 51517 };
+
+static struct
+{
+    int source;
+    int const* palette;
+    int count;
+} const k_recol2d[2] = {
+    { 55232, k_recol2d_hair, (int)(sizeof(k_recol2d_hair) / sizeof(int)) },
+    { 9104, k_recol2d_torso, (int)(sizeof(k_recol2d_torso) / sizeof(int)) },
+};
 
 static struct
 {
@@ -66,6 +86,25 @@ PlayerModel_DesignPartWearpos(int part)
     if( part < 0 || part >= (int)(sizeof(k_design_part_wearpos) / sizeof(int)) )
         return -1;
     return k_design_part_wearpos[part];
+}
+
+/* Reference PlayerComposition model build: per design part, recol1d then
+ * recol2d, each when the colour indexes that palette. */
+static void
+player_design_recolour(
+    struct ToriDraw_Model* model,
+    int const colors[5])
+{
+    for( int part = 0; part < 5; part++ )
+    {
+        int colour = colors[part];
+        if( colour < 0 )
+            continue;
+        if( colour < k_recol1d[part].count )
+            ToriDraw_ModelRecolor(model, k_recol1d[part].palette[0], k_recol1d[part].palette[colour]);
+        if( part < 2 && colour < k_recol2d[part].count )
+            ToriDraw_ModelRecolor(model, k_recol2d[part].source, k_recol2d[part].palette[colour]);
+    }
 }
 
 static void
@@ -370,17 +409,7 @@ PlayerModel_BuildFromAppearance(
 
     /* Design recolors after the merge (reference ClientPlayer 517-528). */
     if( colors )
-    {
-        for( int part = 0; part < 5; part++ )
-        {
-            int colour = colors[part];
-            if( colour <= 0 || colour >= k_recol1d[part].count )
-                continue;
-            ToriDraw_ModelRecolor(merged, k_recol1d[part].palette[0], k_recol1d[part].palette[colour]);
-            if( part == 1 && colour < (int)(sizeof(k_recol2d) / sizeof(int)) )
-                ToriDraw_ModelRecolor(merged, k_recol2d[0], k_recol2d[colour]);
-        }
-    }
+        player_design_recolour(merged, colors);
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(provider, merged);
@@ -480,17 +509,7 @@ PlayerHeadModel_BuildFromAppearance(
      * bare head, but applying the full set is harmless (identity for absent
      * colours). */
     if( colors )
-    {
-        for( int part = 0; part < 5; part++ )
-        {
-            int colour = colors[part];
-            if( colour <= 0 || colour >= k_recol1d[part].count )
-                continue;
-            ToriDraw_ModelRecolor(merged, k_recol1d[part].palette[0], k_recol1d[part].palette[colour]);
-            if( part == 1 && colour < (int)(sizeof(k_recol2d) / sizeof(int)) )
-                ToriDraw_ModelRecolor(merged, k_recol2d[0], k_recol2d[colour]);
-        }
-    }
+        player_design_recolour(merged, colors);
 
     /* HD-only textures off before lighting — ModelData.light()'s isSd gate. */
     ToriDraw_ModelDropNonSdTextures(provider, merged);
