@@ -147,3 +147,11 @@ toridraw-debug.ndjson
 assets/pokesprite/missing.db
 assets/pokesprite/*.db-wal
 assets/pokesprite/*.db-shm
+
+# What a running client or server writes, never source: character saves and
+# account data (a deployment's live saves are its own, ~/torirs/live/saves on
+# the NUC), the client's plugin settings, and its plugin output (screenshots,
+# the loot and xp trackers' state).
+/saves/
+/plugin_prefs.ini
+/plugin_assets/
