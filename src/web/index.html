@@ -143,6 +143,14 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   /* The client renders at a fixed 765x503; scale it without smoothing so the
      software rasterizer's pixels stay the pixels it drew. */
   canvas#canvas {
+    /* A long press is the game's (the menu): no browser callout, text
+       selection, scroll or zoom gesture may take the touch from it -- each of
+       those cancels the touch, and the press never lasts long enough. */
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
     display: block;
     background: #000;
     border: 1px solid #3a2f22;
@@ -179,12 +187,13 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
      hidden, so while they show, the bottom of the canvas sat under them. */
   @supports (height: 100dvh) { body.fullcanvas { height: 100dvh; } }
   /* Clear of a phone's notch, rounded corners and home bar (viewport-fit=cover
-     lets the page under them; every inset is 0 on a desktop). */
-  body.fullcanvas #game-region {
+     lets the page under them; every inset is 0 on a desktop). On the whole of
+     main, so the plugin rail beside the canvas is inside it too. */
+  body.fullcanvas main {
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
              env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
-    gap: 0;
   }
+  body.fullcanvas #game-region { padding: 0; gap: 0; }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
   body.fullcanvas header {
@@ -194,7 +203,7 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
        torirs_chrome.js publishes here — 0px whenever nothing is docked. A
        corner pinned to the viewport instead lands on that window's title bar,
        which is the one row of it the user needs to reach. */
-    right: var(--torirs-dock-width, 0px);
+    right: calc(var(--torirs-dock-width, 0px) + env(safe-area-inset-right, 0px));
     z-index: 10;
     padding: 0.25rem 0.4rem;
     border: 1px solid #3a2f22;
@@ -251,6 +260,20 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     line-height: 1.45;
   }
   #fullscreen-hint[hidden] { display: none; }
+  /* The soft keyboard's field (torirsSoftKeyboard): focusable, never seen.
+     16px so iOS does not zoom the page to it. */
+  #torirs-keyboard {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    font-size: 16px;
+    pointer-events: none;
+  }
   #fullscreen-hint p { margin: 0 0 0.5rem; }
   #fullscreen-hint button { float: right; }
   .panel {
@@ -341,6 +364,8 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
      downloads the game data once more the first time.</p>
   <button type="button" id="btn-fullscreen-hint-close">OK</button>
 </div>
+<input id="torirs-keyboard" type="text" autocomplete="off" autocorrect="off"
+       autocapitalize="none" spellcheck="false" enterkeyhint="send" aria-hidden="true" tabindex="-1">
 <main id="app-content">
   <div id="game-region">
   <div id="stage">
@@ -500,6 +525,71 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   if (mobileDevice) {
     document.addEventListener('touchend', hideBrowserBars, { capture: true, passive: true });
     document.addEventListener('pointerup', hideBrowserBars, { capture: true, passive: true });
+  }
+
+  // The soft keyboard: the platform request the client makes when something
+  // wants typing (PlatformWindow_SetTextInput -> web_soft_keyboard), the one
+  // Android answers through JNI. A phone shows its keyboard for a focused
+  // text field, so this focuses a hidden one and hands what is typed into it
+  // to the client as keystrokes (torirs_web_text_input / torirs_web_key).
+  //
+  // What was typed is read as the difference between the field's value and
+  // the last one, not from key events: a phone's keyboard composes words and
+  // sends Android's keyCode 229 for most of them. The value always starts with
+  // one space, so a Backspace with nothing typed still has something to take.
+  //
+  // iOS raises the keyboard only for a focus made inside a tap. The request
+  // arrives a frame after the tap that caused it, so there it is kept, and
+  // the next tap focuses the field.
+  const keyboard = document.getElementById('torirs-keyboard');
+  const KEYBOARD_SEED = ' ';
+  let keyboardWanted = false;
+  let keyboardLast = KEYBOARD_SEED;
+  let keyboardComposing = false;
+  function keyboardReset() { keyboard.value = KEYBOARD_SEED; keyboardLast = KEYBOARD_SEED; }
+  function keyboardText(text) {
+    if (text && window.Module && Module.ccall) { Module.ccall('torirs_web_text_input', null, ['string'], [text]); }
+  }
+  function keyboardKey(which) {
+    if (window.Module && Module.ccall) { Module.ccall('torirs_web_key', null, ['number'], [which]); }
+  }
+  function keyboardFocus() {
+    if (keyboardWanted && document.activeElement !== keyboard) {
+      keyboardReset();
+      keyboard.focus({ preventScroll: true });
+    }
+  }
+  keyboard.addEventListener('input', () => {
+    const now = keyboard.value;
+    let same = 0;
+    while (same < keyboardLast.length && same < now.length && keyboardLast[same] === now[same]) { same++; }
+    for (let i = same; i < keyboardLast.length; i++) { keyboardKey(0); }
+    keyboardText(now.slice(same).replace(/[\r\n]/g, ''));
+    keyboardLast = now;
+    if (!now.startsWith(KEYBOARD_SEED) || (now.length > 64 && !keyboardComposing)) { keyboardReset(); }
+  });
+  keyboard.addEventListener('compositionstart', () => { keyboardComposing = true; });
+  keyboard.addEventListener('compositionend', () => { keyboardComposing = false; });
+  // Its own keys go no further: the client hears them as the input above, and
+  // SDL, listening on the window, would hear them a second time.
+  ['keydown', 'keypress', 'keyup'].forEach(type => {
+    keyboard.addEventListener(type, e => {
+      e.stopPropagation();
+      if (type === 'keydown' && e.key === 'Enter') {
+        e.preventDefault();
+        keyboardKey(1);
+        keyboardReset();
+      }
+    });
+  });
+  globalThis.torirsSoftKeyboard = on => {
+    keyboardWanted = on && mobileDevice;
+    if (keyboardWanted) { keyboardFocus(); } else if (document.activeElement === keyboard) { keyboard.blur(); }
+  };
+  if (mobileDevice) {
+    // Inside the tap: what iOS needs to raise it, and a tap on the canvas
+    // would otherwise take the focus (and the keyboard) away mid-sentence.
+    document.addEventListener('touchend', keyboardFocus, { capture: true, passive: true });
   }
 
   function syncFullscreenButton() {

@@ -3018,11 +3018,36 @@ PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url)
         fprintf(stderr, "unable to open url %s: %s\n", url, SDL_GetError());
 }
 
+#if defined(TORIRS_PLATFORM_WEB)
+/*
+ * The soft keyboard of a phone's browser, which SDL's emscripten backend does
+ * not have: SDL_StartTextInput there raises nothing. The page owns it
+ * (index.html, torirsSoftKeyboard): a hidden text field it focuses, which is
+ * what brings a phone's keyboard up, and whose input it puts on the command
+ * bus (main.c torirs_web_text_input). The platform request Android answers
+ * through JNI (PlatformAndroidJni_SetSoftKeyboard).
+ */
+EM_JS(int, web_soft_keyboard_available, (void), {
+    return typeof globalThis.torirsSoftKeyboard === 'function' && !!globalThis.torirsMobileDevice &&
+                   globalThis.torirsMobileDevice.mobile
+               ? 1
+               : 0;
+});
+EM_JS(void, web_soft_keyboard, (int on), {
+    if (typeof globalThis.torirsSoftKeyboard === 'function')
+        globalThis.torirsSoftKeyboard(!!on);
+});
+
+#endif
+
 void
 PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
 {
     assert(platform);
     (void)platform;
+#if defined(TORIRS_PLATFORM_WEB)
+    web_soft_keyboard(on);
+#endif
     /* Asked every time rather than tracked: SDL already tracks it, and a second
      * copy here could only disagree. Both calls are idempotent. */
     if( on )
@@ -3126,8 +3151,13 @@ PlatformWindow_HasScreenKeyboard(struct PlatformWindow* platform)
     assert(platform);
     (void)platform;
     /* The same question the `off` arm above asks itself, answered out loud.
-     * SDL knows it per backend -- Android and iOS yes, emscripten in a mobile
-     * browser yes, a desktop no -- so there is nothing here to keep in step. */
+     * SDL knows it per backend -- Android and iOS yes, a desktop no. A phone's
+     * browser is the page's to answer: SDL's emscripten backend says no there,
+     * and the page has one (web_soft_keyboard). */
+#if defined(TORIRS_PLATFORM_WEB)
+    if( web_soft_keyboard_available() )
+        return 1;
+#endif
     return SDL_HasScreenKeyboardSupport() ? 1 : 0;
 }
 

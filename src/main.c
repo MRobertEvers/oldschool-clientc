@@ -2033,6 +2033,65 @@ torirs_cmdbus_push_bytes(
     }
     return accepted;
 }
+
+/*
+ * A phone's soft keyboard, from the page (index.html, torirsSoftKeyboard):
+ * what was typed into its hidden field, onto the command bus as the frames a
+ * hardware keyboard's events make (the SDL_TEXTINPUT and SDL_KEYDOWN/UP arms of
+ * platform_sdl2.c), so typing on a phone records and replays like any other.
+ *
+ * Here and not in the page because the frames carry the client's own key
+ * numbering (TORIRSK_*, the OSRS key map), which a second copy in JavaScript
+ * would let drift.
+ */
+EMSCRIPTEN_KEEPALIVE void
+torirs_web_text_input(char const* text)
+{
+    unsigned char const* scan = (unsigned char const*)text;
+
+    assert(text);
+    while( *scan )
+    {
+        int codepoint = *scan;
+        int len = 1;
+
+        if( (*scan & 0xE0) == 0xC0 && (scan[1] & 0xC0) == 0x80 )
+        {
+            codepoint = ((scan[0] & 0x1F) << 6) | (scan[1] & 0x3F);
+            len = 2;
+        }
+        else if( (*scan & 0xF0) == 0xE0 )
+            len = 3;
+        else if( (*scan & 0xF8) == 0xF0 )
+            len = 4;
+        /* Latin-1 only, as the TEXTINPUT arm clamps: RS fonts have no
+         * glyphs beyond it. */
+        if( len <= 2 && codepoint >= 32 && codepoint <= 255 )
+            CmdBus_PushKeyEvent(&bus, -1, codepoint, 0);
+        while( len-- > 0 && *scan )
+            scan++;
+    }
+}
+
+/* An editing key from the page's field, pressed and released: 0 Backspace,
+ * 1 Enter. */
+EMSCRIPTEN_KEEPALIVE void
+torirs_web_key(int which)
+{
+    int const key = which == 1 ? TORIRSK_RETURN : TORIRSK_BACKSPACE;
+    int const osrs = LibToriRS_OsrsKeyFromVk(which == 1 ? TORIRS_VK_ENTER : TORIRS_VK_BACKSPACE);
+
+    assert(which == 0 || which == 1);
+    CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)key);
+    if( osrs >= 0 )
+    {
+        CmdBus_PushOsrsKey(&bus, osrs, 1, 1);
+        CmdBus_PushKeyEvent(&bus, osrs, 0, 0);
+    }
+    CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)key);
+    if( osrs >= 0 )
+        CmdBus_PushOsrsKey(&bus, osrs, 0, 0);
+}
 #endif
 
 /**
