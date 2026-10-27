@@ -88,11 +88,27 @@ is green.
      stage numbers must equal Jagex's. The varp and varbits go out whenever they change,
      journal open or not: any recording shows the stage it was at.
 
+   - The text is wrapped to **350 px of p12_full** (`^questjournal_text_width`). That is
+     narrower than the 415 px qj components: 1,460 recorded rows all fit 350, and every
+     mid-sentence break falls at 351 or more.
+   - Two formats. In current journals (Ides of Milk, 4381) every finished step is a
+     paragraph whose EVERY row starts `<str>`, with no blank rows between paragraphs. The
+     current step is unstruck in `<col=000080>`, with names in `<col=800000>`, and its
+     wording can differ from its struck form. At the end: a blank row, then
+     `<col=ff0000>QUEST COMPLETE!`. Older journals (Pirate's Treasure, 4378) start with a
+     blank row and separate paragraphs with blank rows, every row reopening its colour.
+   - Write a struck paragraph with `~journal_struck(text)`, never `^journal_done` before a
+     long string: the engine's split carries colour across a wrap but not the strike.
+   - A recording of the COMPLETED journal gives every finished step's text verbatim. The wiki
+     has per-state journal transcripts for 26 quests (`Transcript:<Quest>/Journal`), with the
+     current step's wording; key each state to the recorded stage values.
+
    Search for a recording that opens it (`rsprox_index.py search interface 119`, `... 782`,
    then `grep -n "questjournal" <txt>` for the quest's title or dbrow). Read the stage varp at
-   that tick, and diff every line for that stage. A stage no recording opens is UNVERIFIED in
-   the doc: a LostCity `*_journal.rs2` is 2004 text (§16). The test's `quest.journal` row only
-   checks that a title exists.
+   that tick, and diff every row for that stage. Rows compared as plain text check the wraps:
+   `test/quests/_journals.lua` does this, row for row against 4381 and 4378. A stage no
+   recording opens is UNVERIFIED in the doc: a LostCity `*_journal.rs2` is 2004 text (§16).
+   The test's `quest.journal` row only checks that a title exists.
 10. **The rewards' features.** What the scroll grants must work: TGV's "Spirit Tree Access"
     is the spirit trees' menu (`menu` 217 "Spirit Tree Locations", recorded in 311 and 3976).
 11. **Fights** get one agent each (owner rule: Opus 5.5, max effort, sequential): §13, §13b,

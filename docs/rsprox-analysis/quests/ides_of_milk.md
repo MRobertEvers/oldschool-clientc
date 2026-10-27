@@ -155,3 +155,14 @@ line's colour, no full stop, and silence when `music_unlock_text_toggle` is 1.
 - Unrecorded and from the wiki: the exit gate's Leave / Quick-escape, a cardinal
   stomp's three tiles, the special's damage spread, the shelf's random lines'
   odds, post-quest releases.
+
+## The journal (2026-10-27)
+
+RSProx index 4381 [870] (2026-10-25, after this doc was written) opens it complete:
+nine paragraphs, every row struck, a blank row, "QUEST COMPLETE!" in red. Copied
+verbatim (`idesofmilk.rs2` `~idesofmilk_journal`, Jagex's typos included); ours
+matches all 33 rows (`test/quests/_journals.lua`). The stage that first adds each
+paragraph (1 at 1, 2 at 2, 3 at 5, 4 at 8, 5 at 10, 6 at 12, 7 at 16, 8 at 20, 9 at
+22) and the current step's look (the newest paragraph unstruck in blue) are fitted,
+not recorded: no session opens it mid-quest.
+
