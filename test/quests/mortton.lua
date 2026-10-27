@@ -96,6 +96,16 @@ return {
     },
 
     run = function(t)
+        -- Ashes on the tarromin potion (unf): more than one makeable opens
+        -- the make-menu, and the dose lands the tick after the pick (RSProx
+        -- index 4187 [447..448]).
+        local function mix_serum(row)
+            t.player.use_item_on_item("ashes", "tarrominvial")
+            if t.ui.await_open("skillmulti", 3) == "ok" then
+                t.exec(row .. ".menu", t.ui.make, "a")
+            end
+            t.ticks(2)
+        end
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp339_morttonquest",
             constants = {
@@ -199,7 +209,7 @@ return {
                     end
                 end
                 if dose_item == nil then
-                    t.exec(mix_row, t.player.use_item_on_item, "ashes", "tarrominvial")
+                    mix_serum(mix_row)
                     dose_item = "mort_serum3"
                 else
                     t.note("re-curing with a carried " .. dose_item .. " (no fresh mix)")
@@ -415,12 +425,11 @@ return {
         -- the shelf.") is still open -- close it before reading the diary.
         t.exec("searchShelf-dismiss", t.chat.play, {"mesbox:You find an interesting looking book"})
 
-        -- Read the diary (serum_book.rs2:8, [opheld1,serum_book] -- a
-        -- numbered held op, op 1). It plays through 25 mesbox pages; the
-        -- quest varp write lands after page 20 is dismissed, so the pages
-        -- have to actually be clicked through, not skipped.
+        -- Read the diary (serum_book.rs2, [opheld1,serum_book]): interface
+        -- 392 (RSProx index 3071 [291..306]); the quest varp lands on the
+        -- last spread, so the book is paged to its end, not skipped.
         t.exec("readDiary", t.player.inv_op, "serum_book", 1)
-        t.exec("readDiary-drain", t.chat.drain, {})
+        t.exec("readDiary-book", t.ui.read_book, 30)
         t.exec("quest.stage.mortton_read_diary", t.quest.expect_stage, "mortton_read_diary")
 
         -- Mix Serum 207 for Razmire's FIRST cure: ashes used ON the
@@ -431,7 +440,13 @@ return {
         -- (quest_mortton.obj), so every cure below mixes its OWN fresh pair
         -- right before use rather than tracking a partially-drunk dose
         -- under a different name (mort_serum2/mort_serum1).
-        t.exec("addAshes", t.player.use_item_on_item, "ashes", "tarrominvial")
+        -- More than one makeable opens the make-menu; the first dose lands
+        -- the tick after the pick (RSProx index 4187 [447..448]).
+        t.player.use_item_on_item("ashes", "tarrominvial")
+        if t.ui.await_open("skillmulti", 3) == "ok" then
+            t.exec("addAshes.menu", t.ui.make, "a")
+        end
+        t.exec("addAshes", t.inv.await, "mort_serum3", 1, 5)
         local stage_after_mix1_result, stage_after_mix1_value = t.quest.stage()
         t.check("mixSerum207.stageAdvanced", stage_after_mix1_result == "ok" and stage_after_mix1_value == 10,
             "quest.stage() -> " .. tostring(stage_after_mix1_result) .. " (" .. tostring(stage_after_mix1_value)
@@ -474,7 +489,7 @@ return {
         -- Mix Serum 207 for Ulsquire's FIRST cure now, while the two are
         -- close together and before the hunt eats the backpack -- one fresh
         -- pair, used on him further down.
-        t.exec("mixSerum207-2", t.player.use_item_on_item, "ashes", "tarrominvial")
+        mix_serum("mixSerum207-2")
         t.expect("mixSerum207.secondDose", t.inv.expect_has("mort_serum3", 1))
 
         -- Kill five Loar shades (mortton_shades.npc's shadeshadow_level1:
@@ -1116,8 +1131,11 @@ return {
         -- again): three doses of Serum 208 -- Razmire, Ulsquire, and one left in hand for
         -- Ulsquire's "already used" answer (ulsquire_shauncy.rs2:22-26 consumes nothing).
         local serum3_before_mix = count_of("mort_serum3")
-        t.exec("mixSerum207-flame", t.player.use_item_on_item, "ashes", "tarrominvial")
-        t.ticks(1)
+        t.player.use_item_on_item("ashes", "tarrominvial")
+        if t.ui.await_open("skillmulti", 3) == "ok" then
+            t.exec("mixSerum207-flame", t.ui.make, "a")
+        end
+        t.ticks(2)
         local serum3_before = count_of("mort_serum3")
         local perm3_before = count_of("mort_serum_perm3")
         local sanctity_before_208 = read_sanctity()

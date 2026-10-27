@@ -121,7 +121,7 @@ return {
         -- %elemental_workshop_book = 1 that the spine cut needs. The read
         -- keeps the book; gotBookBack proves it is still held for the knife.
         t.exec("readBook", t.player.inv_op, "elemental_workshop_shield_book", 1)
-        t.exec("readBook.dismiss", t.chat.drain, {})
+        t.exec("readBook.dismiss", t.ui.read_book, 30)
         flag("readBook.var", "varb2056_elemental_workshop_book", 1)
         local book2_await_result, book2_await_detail = t.inv.await("elemental_workshop_shield_book", 1, 10)
         local book2_count_result, book2_count = t.inv.count("elemental_workshop_shield_book")

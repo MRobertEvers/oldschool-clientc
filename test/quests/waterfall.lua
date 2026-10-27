@@ -164,7 +164,7 @@ return {
         local book_result, book_count = t.inv.count("baxtorian_book_waterfall_quest")
         t.check("searchBookcase-book", book_count == 1, "Book on Baxtorian in backpack: " .. tostring(book_count))
         t.exec("readBook", t.player.inv_op, "baxtorian_book_waterfall_quest", 1)
-        t.exec("readBook-pages", t.chat.drain, { max_pages = 12 })
+        t.exec("readBook-pages", t.ui.read_book, 30)
         t.expect("quest.stage.opened_book_on_baxtorian", t.quest.expect_stage("opened_book_on_baxtorian"))
 
         -- ---- leaveHouse ----

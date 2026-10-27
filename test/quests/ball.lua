@@ -478,7 +478,7 @@ return {
         t.note("click_obj witches_diary -> " .. tostring(pickup_diary_result))
         t.exec("pickupDiary.await", t.inv.await, "witches_diary", 1, 10) -- trap 24
         t.exec("readDiary", t.player.inv_op, "witches_diary", 1)
-        t.exec("readDiary-drain", t.chat.drain, { stop_at = "none" })
+        t.exec("readDiary-book", t.ui.read_book, 30)
         t.ticks(2) -- trap 25
         t.expect("quest.stage.read_diary_after_door", t.quest.expect_stage("read_diary_after_door"))
 

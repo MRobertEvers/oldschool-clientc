@@ -672,7 +672,11 @@ return {
             for i = 1, 5 do
                 local _, raw = t.inv.count("tbwt_raw_karambwan")
                 if raw < 1 then break end
-                t.exec("cookKarambwan" .. i, t.player.use_on, "tbwt_raw_karambwan", t.player.by_symbol("loc", "fire"))
+                -- More than one held opens the make-menu (RSProx index 4095 [7666]).
+                t.player.use_on("tbwt_raw_karambwan", t.player.by_symbol("loc", "fire"))
+                if raw > 1 then
+                    t.exec("cookKarambwan" .. i .. ".menu", t.ui.make, "a")
+                end
                 t.ticks(4)
                 local _, pc = t.inv.count("tbwt_poorly_cooked_karambwan")
                 if pc >= 1 then break end

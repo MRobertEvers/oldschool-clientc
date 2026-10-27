@@ -1614,10 +1614,13 @@ npc_death_begin(
     /* `npc_setdeathanimnow`: the death animation (and its sound) with the
      * killing hit. Marks itself sent, so the death step does not play it a
      * second time. */
+    int death_seq_now = 0;
+
     if( npc->death_anim_now && !npc->death_seq_sent )
     {
         npc_death_sound(srv, npc);
         play_npc_seq(npc, npc->death_seq);
+        death_seq_now = npc->death_seq_sent;
     }
     /*
      * Drop whatever was already armed on the npc's own queue — a healer's
@@ -1674,13 +1677,24 @@ npc_death_begin(
          * `[proc,npc_death]` does it: RSProx, the Colosseum's shamans 272/276
          * `[facing] type=reset` on the death seq's tick, none on the splat's
          * (docs/rsprox-analysis/colosseum/README.md §5c).
+         *
+         * The reset rides WITH the death sequence, so a death whose sequence
+         * just went out on the blow's own tick (`npc_setdeathanimnow`, above)
+         * resets now: RSProx index 4392, the Skeletal Mystics [2164] [2254]
+         * [2316] and the lizardman shaman [656], `[facing] type=reset` beside
+         * the death seq on the killing hit's tick, 4 of 4
+         * (docs/rsprox-analysis/cox/mystics.md MYS08). Held a tick, ours
+         * reset on D+1, a tick after its seq.
          */
         int const face = npc->face_entity;
         int const face_masked = npc->masks & TORIRSSERVER_NMASK_FACE_ENTITY;
 
         ToriRSServer_CombatStopNpc(srv, slot);
-        npc->face_entity = face;
-        npc->masks = (npc->masks & ~TORIRSSERVER_NMASK_FACE_ENTITY) | face_masked;
+        if( !death_seq_now )
+        {
+            npc->face_entity = face;
+            npc->masks = (npc->masks & ~TORIRSSERVER_NMASK_FACE_ENTITY) | face_masked;
+        }
     }
     /*
      * And the *other* half of a target: the mode.

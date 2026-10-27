@@ -15,6 +15,9 @@ last = int(sys.argv[3]) if len(sys.argv) > 3 else 1 << 30
 ROW = re.compile(r"\[if_settext\] com=book:page_(left|right)_text_(\d+) \(392:\d+\), text=\"(.*)\"$")
 NUM = re.compile(r"\[if_settext\] com=book:page_(left|right)_number \(392:\d+\), text=\"(.*)\"$")
 TITLE = re.compile(r"\[if_settext\] com=book:title \(392:\d+\), text=\"(.*)\"$")
+# Older transcripts print bare ids: com=392:44. Rows are 44..58 (left) and
+# 60..74 (right), the numbers 9 and 10, the title 6 (interfaces/book.if).
+BARE = re.compile(r"\[if_settext\] com=392:(\d+), text=\"(.*)\"$")
 
 tick = 0
 rows = {"left": [""] * 15, "right": [""] * 15}
@@ -43,6 +46,21 @@ for raw in open(path, encoding="utf-8", errors="replace"):
     if tick < first or tick > last:
         continue
     s = line.strip()
+    m = BARE.match(s)
+    if m:
+        child, text = int(m.group(1)), m.group(2)
+        if 44 <= child <= 58:
+            rows["left"][child - 44] = text
+        elif 60 <= child <= 74:
+            rows["right"][child - 60] = text
+        elif child in (9, 10):
+            nums["left" if child == 9 else "right"] = text
+        elif child == 6:
+            title = text
+        else:
+            continue
+        dirty = True
+        continue
     m = ROW.match(s)
     if m:
         rows[m.group(1)][int(m.group(2)) - 1] = m.group(3)

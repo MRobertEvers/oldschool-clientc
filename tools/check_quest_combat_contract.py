@@ -2667,7 +2667,7 @@ def check_tai_bwo_wannai_trio() -> None:
     require_text(
         cooking,
         (
-            "[label,cook_tbwt_karambwan](category $source)",
+            "[label,cook_tbwt_karambwan](category $source, boolean $thorough, int $count)",
             "%varp6729_tbwt_tinsay >= ^tbwt_tinsay_claimed_final_reward & stat(cooking) >= 30",
             '"Cook it thoroughly."', "stat_random(cooking, 70, 256)",
             "inv_add(inv, tbwt_burnt_karambwan, 1);", "inv_add(inv, tbwt_cooked_karambwan, 1);",
@@ -3504,7 +3504,7 @@ def check_haunted_mine() -> None:
     require_text(
         HMQ_STRINGING.read_text(),
         ("case crystalshard_necklace_unstrung", "[opheldu,crystalshard_necklace_unstrung]",
-         "p_delay(2);", "inv_del(inv, ball_of_wool, 1);",
+         '"You carefully string the shard of crystal."', "inv_del(inv, ball_of_wool, 1);",
          "inv_add(inv, crystalshard_necklace, 1);"),
         "Haunted Mine salve amulet stringing",
     )

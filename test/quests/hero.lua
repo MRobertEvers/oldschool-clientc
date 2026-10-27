@@ -1120,7 +1120,11 @@ return {
             "world.loc_near(fire, 3) -> " .. tostring(fire_lookup_result)
                 .. (fire_lookup_result == "ok" and (" at " .. fire_row.tile_x .. "," .. fire_row.tile_z) or "") .. " (want the fire just lit beside the player)")
         local raweel0_r, raweel0 = t.inv.count("raw_lava_eel")
-        t.exec("cookLavaEel", t.player.use_on, "raw_lava_eel", fire_row)
+        -- Two eels held: the make-menu, one cooked (a scriptrun press is 1).
+        t.player.use_on("raw_lava_eel", fire_row)
+        if raweel0_r == "ok" and raweel0 > 1 then
+            t.exec("cookLavaEel", t.ui.make, "a")
+        end
         local eel_result, eel_detail = t.inv.await("lava_eel", 1, 10)
         local raweel1_r, raweel1 = t.inv.count("raw_lava_eel")
         t.step("cookLavaEel.cooked", eel_result == "ok" and raweel0_r == "ok" and raweel1_r == "ok" and raweel0 - raweel1 == 1 and "PASS" or "FAIL",
@@ -1203,7 +1207,10 @@ return {
             "npc:Very well. One moment please.",
             "mesbox:The monk quickly searches you.",
         })
-        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 10, "shipmonk")
+        -- The voyage is ship_journey: the hold for 14 ticks, then the deck
+        -- and the arrival box (RSProx index 4257).
+        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 30, "shipmonk")
+        t.exec("shipmonk.arrive", t.chat.play, { "mesbox:The ship arrives at Entrana." })
         local entrana_deck_r, entrana_deck = t.world.tile()
         t.check("shipmonk.onDeckAtEntrana", entrana_deck_r == "ok" and entrana_deck.level == 1
                 and math.abs(entrana_deck.x - 2834) <= 2 and math.abs(entrana_deck.z - 3331) <= 2,
@@ -1265,7 +1272,9 @@ return {
             "player:Yes, I'm ready to go.",
             "npc:Okay, let's board",
         })
-        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 end, 12, "leaveEntrana")
+        -- The hold (3064,3208,1) is also level 1 east of 3000: wait for the deck.
+        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 and tt.z > 3220 end, 30, "leaveEntrana")
+        t.exec("leaveEntrana.arrive", t.chat.play, { "mesbox:The ship arrives at Port Sarim." })
         local sarim_deck_r, sarim_deck = t.world.tile()
         t.check("leaveEntrana.onDeckAtPortSarim", sarim_deck_r == "ok" and sarim_deck.level == 1
                 and math.abs(sarim_deck.x - 3048) <= 2 and math.abs(sarim_deck.z - 3231) <= 2,

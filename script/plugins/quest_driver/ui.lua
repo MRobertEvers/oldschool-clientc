@@ -72,6 +72,64 @@ function QD.ui.await_close(interface, ticks)
     }, ticks or 20)
 end
 
+-- Read interface 392 `book` to its last spread and close it: the right arrow
+-- while it is shown (a page turn is a resume, interface_book/scripts/book.rs2),
+-- then the close button. A book a script opens is a modal, not chat, so
+-- `t.chat.drain` never reaches it; a quest that reads one calls this, with
+-- the most spreads it may turn (t.exec wants a first argument):
+-- `t.exec("read", t.ui.read_book, 30)`.
+-- Answers ("ok", "<n> spread(s) read") once the book has closed.
+function QD.ui.read_book(max_spreads)
+    local open_result, open_detail = QD.ui.await_open("book", 10)
+    if open_result ~= "ok" then
+        return open_result, "ui.read_book: " .. tostring(open_detail)
+    end
+    local spreads = 1
+    for turn = 1, max_spreads do
+        local shown_result, shown = QD.ui.shown("book:page_right_button")
+        if shown_result ~= "ok" or not shown then
+            break
+        end
+        local _, arrow = QD.ui.widget("book:page_right_button")
+        local turn_result = QD.ui.invoke(arrow, 1)
+        if turn_result ~= "ok" then
+            return turn_result, "ui.read_book: page turn " .. turn .. " -> " .. tostring(turn_result)
+        end
+        QD.ticks(1)
+        spreads = spreads + 1
+    end
+    local _, close = QD.ui.widget("book:close_button")
+    local close_result = QD.ui.invoke(close, 1)
+    if close_result ~= "ok" then
+        return close_result, "ui.read_book: close_button -> " .. tostring(close_result)
+    end
+    local closed = QD.ui.await_close("book", 5)
+    if closed ~= "ok" then
+        return closed, "ui.read_book: the book stayed open"
+    end
+    return "ok", spreads .. " spread(s) read"
+end
+
+-- The make-menu, interface 270 `skillmulti`: await it and press one product
+-- cell ("a" is the first). A scriptrun press answers with quantity 1, so this
+-- starts a batch of one.
+--     t.exec("cut.menu", t.ui.make, "a")
+function QD.ui.make(letter)
+    local open_result, open_detail = QD.ui.await_open("skillmulti", 10)
+    if open_result ~= "ok" then
+        return open_result, "ui.make: " .. tostring(open_detail)
+    end
+    local cell_result, cell = QD.ui.widget("skillmulti:" .. letter)
+    if cell_result ~= "ok" then
+        return cell_result, "ui.make: skillmulti:" .. letter .. " " .. tostring(cell)
+    end
+    local press_result = QD.ui.invoke(cell, 1)
+    if press_result ~= "ok" then
+        return press_result, "ui.make: skillmulti:" .. letter .. " -> " .. tostring(press_result)
+    end
+    return "ok", "skillmulti:" .. letter .. " pressed"
+end
+
 -- Wrapped as a plain component id, not a ToriRS_WidgetRef: constructing that
 -- retained-control wrapper is verbs-read/chat.lua's business (get_text/state
 -- compose on the id this returns), and inventing a second shape here would

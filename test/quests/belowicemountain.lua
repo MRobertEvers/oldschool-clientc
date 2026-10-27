@@ -208,7 +208,9 @@ return {
         t.exec("talkToCook-ask", t.chat.choose, "I was wondering if you'd be able to make me a Steak sandwich?")
         t.exec("talkToCook-tail", t.chat.drain, {})
         t.check("talkToCook-recipe", varbit("varb12064_bim_marley") == 10, "marley=" .. tostring(varbit("varb12064_bim_marley")))
-        t.exec("makeSandwich", t.player.use_item_on_item, "knife", "bread")
+        -- Knife on bread asks Breadcrumbs | Steak sandwich (RSProx index 3021).
+        t.player.use_item_on_item("knife", "bread")
+        t.exec("makeSandwich", t.ui.make, "b")
         t.exec("makeSandwich-await", t.inv.await, "bim_steak_sandwich", 1, 12)
 
         t.exec("goto-feedMarley", t.player.goto_tile, 3088, 3469, 0)
