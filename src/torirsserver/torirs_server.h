@@ -4898,6 +4898,21 @@ struct ToriRSServerPlayer
     uint16_t combat_claim_npc_gen;
     int combat_claim_tick;
 
+    /**
+     * Tolerance (wiki Tolerance): two 21x21 regions, each centred on a tile, and
+     * the ticks spent inside them since the player last left both. Leaving both
+     * drops the older region, centres a new one on the tile left from, and
+     * restarts the count; an aggressive npc ignores a player whose count has
+     * reached the npc's `tolerance` param (`maybe_aggress`). `tolerance_set` 0
+     * is "no region yet" — the first player tick centres both on the player.
+     * Saved, because logging out is not leaving the area.
+     */
+    int tolerance_set;
+    int tolerance_x[2];
+    int tolerance_z[2];
+    int tolerance_level[2];
+    int tolerance_ticks;
+
     /*
      * The enemy health overlay's session state (torirs_server_hpbar.c).
      *

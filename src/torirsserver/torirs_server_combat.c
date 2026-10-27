@@ -40,6 +40,7 @@
 #include "ssvm.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -3193,6 +3194,66 @@ ToriRSServer_CombatPlayerApproach(struct ToriRSServer* srv)
     }
 }
 
+/*
+ * Tolerance (wiki Tolerance), the player half.
+ *
+ * "After a player remains within a standard monster's tolerance region for 10
+ * minutes, the monster will lose aggression until the player exits and
+ * re-enters the region." A region is the 21x21 square centred on a tile, and
+ * there are two: the one the player is in now and the one they entered it
+ * from. Stepping outside both drops the older, centres a new one on the tile
+ * the player stepped out from, and restarts the count — so pacing inside a
+ * camp keeps the timer, and walking off and back resets it.
+ *
+ * A different level is outside: stairs are leaving the area. Counted on every
+ * player tick, in combat or not, because standing in a fight is still standing
+ * in the area. The npc half — whether this count is enough for a given
+ * monster — is `npc_tolerance_ticks` in the aggression section below.
+ */
+#define TORIRSSERVER_TOLERANCE_RADIUS 10
+/* combat.param `tolerance`'s default, for a pack that predates the param. */
+#define TORIRSSERVER_TOLERANCE_TICKS 1000
+
+static int
+tolerance_region_holds(
+    const struct ToriRSServerPlayer* player,
+    int region)
+{
+    return player->level == player->tolerance_level[region] &&
+           abs_of(player->x - player->tolerance_x[region]) <= TORIRSSERVER_TOLERANCE_RADIUS &&
+           abs_of(player->z - player->tolerance_z[region]) <= TORIRSSERVER_TOLERANCE_RADIUS;
+}
+
+static void
+tolerance_tick(struct ToriRSServerPlayer* player)
+{
+    if( !player->tolerance_set )
+    {
+        for( int i = 0; i < 2; i++ )
+        {
+            player->tolerance_x[i] = player->x;
+            player->tolerance_z[i] = player->z;
+            player->tolerance_level[i] = player->level;
+        }
+        player->tolerance_ticks = 0;
+        player->tolerance_set = 1;
+        return;
+    }
+    if( tolerance_region_holds(player, 0) || tolerance_region_holds(player, 1) )
+    {
+        if( player->tolerance_ticks < INT_MAX )
+            player->tolerance_ticks++;
+        return;
+    }
+    player->tolerance_x[1] = player->tolerance_x[0];
+    player->tolerance_z[1] = player->tolerance_z[0];
+    player->tolerance_level[1] = player->tolerance_level[0];
+    player->tolerance_x[0] = player->x;
+    player->tolerance_z[0] = player->z;
+    player->tolerance_level[0] = player->level;
+    player->tolerance_ticks = 0;
+}
+
 void
 ToriRSServer_CombatPlayerTick(struct ToriRSServer* srv)
 {
@@ -3248,6 +3309,8 @@ ToriRSServer_CombatPlayerTick(struct ToriRSServer* srv)
         }
     }
 
+    tolerance_tick(player);
+
     /*
      * A corpse does not swing, and the script is what stops it being one.
      *
@@ -3291,23 +3354,36 @@ ToriRSServer_CombatPlayerTick(struct ToriRSServer* srv)
  * Aggression.
  *
  * OldSchool's rule, kept: a monster stops being aggressive once the player's
- * combat level is more than twice its own. Without that the Lumbridge goblins
- * would still be mobbing a player who has outgrown them by an order of
- * magnitude, which is a worse first impression than no aggression at all.
+ * combat level is more than twice its own. Without that the Lumbridge swamp's
+ * giant rats would still be mobbing a player who has outgrown them by an order
+ * of magnitude, which is a worse first impression than no aggression at all.
  */
 int
 ToriRSServer_CombatLevel(const struct ToriRSServerPlayer* player)
 {
-    /* OldSchool's melee formula:
-     * floor(0.25 * (defence + hitpoints + floor(prayer / 2)) + 0.325 * (attack
-     * + strength)). Scaled by 1000 so it stays in integers. */
+    /* OldSchool's formula (wiki Combat level):
+     * floor(0.25 * (defence + hitpoints + floor(prayer / 2))
+     *       + 0.325 * max(attack + strength, floor(1.5 * ranged), floor(1.5 * magic))).
+     * Scaled by 1000 so it stays in integers.
+     *
+     * The ranged and magic terms are not optional. Melee alone made a
+     * 99-ranged, 1-attack account read as level 3 to every `level * 2`
+     * aggression check, so every monster in the game aggressed it, and other
+     * players saw level 3 over its head. */
     int base = player->stat_level[TORIRSSERVER_STAT_DEFENCE] +
                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] +
                (player->stat_level[TORIRSSERVER_STAT_PRAYER] / 2);
     int melee = player->stat_level[TORIRSSERVER_STAT_ATTACK] +
                 player->stat_level[TORIRSSERVER_STAT_STRENGTH];
+    int ranged = (player->stat_level[TORIRSSERVER_STAT_RANGED] * 3) / 2;
+    int magic = (player->stat_level[TORIRSSERVER_STAT_MAGIC] * 3) / 2;
+    int best = melee;
 
-    return ((base * 250) + (melee * 325)) / 1000;
+    if( ranged > best )
+        best = ranged;
+    if( magic > best )
+        best = magic;
+    return ((base * 250) + (best * 325)) / 1000;
 }
 
 /*
@@ -3393,6 +3469,43 @@ target_within_maxrange(
 }
 
 /*
+ * Tolerance, the npc half: how many ticks in its region before this monster
+ * stops aggressing a player, 0 for never.
+ *
+ * `param=tolerance` (combat.param, default 1000 — ten minutes) on the type, so
+ * the exceptions the wiki lists (bosses, dark beasts, the God Wars followers)
+ * state 0 where they are authored. A param rather than a record field so a
+ * server built before it reads the same pack. An npc inside a map instance is
+ * never tolerant: every instance here is a raid, a boss room or a minigame, and
+ * those fight for as long as the player is in them.
+ */
+static int
+npc_tolerance_ticks(const struct ToriRSServerNpc* npc)
+{
+    static int s_param = -2;
+    int32_t value = 0;
+    const struct ToriRSServerNpcDef* def;
+
+    assert(npc);
+    if( ToriRSServer_MapInstanceFind(npc->x, npc->z) )
+        return 0;
+    if( s_param == -2 )
+        s_param = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "tolerance");
+    if( s_param < 0 )
+        return TORIRSSERVER_TOLERANCE_TICKS;
+    def = npc->def ? npc->def : ToriRSServer_ContentNpcDefault();
+    if( def && ToriRSServer_ContentNpcParam(def, s_param, &value) )
+        return value;
+    {
+        const struct ToriRSServerNpcParam* row = ToriRSServer_NpcParam(npc->type, s_param);
+
+        if( row && !row->sval )
+            return row->ival;
+    }
+    return TORIRSSERVER_TOLERANCE_TICKS;
+}
+
+/*
  * The player an aggressive npc would notice, or NULL.
  *
  * Nearest first, which is the only tie-break that does not depend on pool
@@ -3409,6 +3522,9 @@ nearest_victim(
 {
     struct ToriRSServerPlayer* best = NULL;
     int best_distance = 0;
+    /* Asked only once some player is in range: most aggressive npcs on most
+     * ticks have nobody near them, and the answer costs an instance lookup. */
+    int tolerance = -1;
 
     for( int i = 0; i < srv->player_count; i++ )
     {
@@ -3425,6 +3541,13 @@ nearest_victim(
             distance = tile_distance(px, pz, npc->x, npc->z);
         }
         if( distance > npc->def->huntrange )
+            continue;
+        /* Tolerant of this player: ten minutes in the region and the monster
+         * leaves them be, though another player who just walked in is fair
+         * game — tolerance is per player, not per npc. */
+        if( tolerance < 0 )
+            tolerance = npc_tolerance_ticks(npc);
+        if( tolerance > 0 && player->tolerance_ticks >= tolerance )
             continue;
         if( !best || distance < best_distance )
         {

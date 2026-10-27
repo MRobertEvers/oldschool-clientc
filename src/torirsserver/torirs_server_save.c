@@ -218,6 +218,14 @@ save_player_write(
             "client_layout_mode = %d\n",
             TORIRSSERVER_SAVE_VERSION, player->display_name, save_x, save_z, save_level,
             player->run_energy, player->run_toggle, player->client_layout_mode);
+    /* Tolerance survives a logout (wiki Tolerance: "logging out is not classed
+     * as leaving the area"), so the regions and the count are part of the
+     * character: x z level of each region, then the ticks. */
+    if( player->tolerance_set )
+        fprintf(file, "tolerance = %d %d %d %d %d %d %d\n",
+                player->tolerance_x[0], player->tolerance_z[0], player->tolerance_level[0],
+                player->tolerance_x[1], player->tolerance_z[1], player->tolerance_level[1],
+                player->tolerance_ticks);
 
     /*
      * The three chat filter modes.
@@ -775,6 +783,18 @@ ToriRSServer_LoadPlayer(
                 player->run_energy = atoi(value);
             else if( strcmp(key, "run_toggle") == 0 )
                 player->run_toggle = atoi(value);
+            else if( strcmp(key, "tolerance") == 0 )
+            {
+                /* A malformed line keeps the fresh state: the first tick
+                 * centres both regions on the player and starts counting. */
+                if( sscanf(value, "%d %d %d %d %d %d %d", &player->tolerance_x[0],
+                           &player->tolerance_z[0], &player->tolerance_level[0],
+                           &player->tolerance_x[1], &player->tolerance_z[1],
+                           &player->tolerance_level[1], &player->tolerance_ticks) == 7 )
+                    player->tolerance_set = 1;
+                else
+                    player->tolerance_ticks = 0;
+            }
             else if( strcmp(key, "client_layout_mode") == 0 )
             {
                 int mode = atoi(value);

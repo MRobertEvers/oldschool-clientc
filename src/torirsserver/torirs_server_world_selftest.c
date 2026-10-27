@@ -22321,6 +22321,41 @@ ToriRSServer_WorldSelftest(void)
             player->stat_level[TORIRSSERVER_STAT_SUMMONING] = saved_summoning;
         }
 
+        /* Ranged and magic are combat inputs: OldSchool takes the best of
+         * melee, 1.5x ranged and 1.5x magic. Melee alone read a 99-ranged
+         * account as level 3, and every aggressive monster's `level * 2` check
+         * took it. Fresh 3, pure ranger and pure mage 50, maxed 126 (wiki
+         * Combat level). */
+        {
+            int saved[TORIRSSERVER_STAT_COUNT];
+            static const struct
+            {
+                int attack, strength, defence, hitpoints, prayer, ranged, magic;
+                int want;
+            } k_levels[] = {
+                { 1, 1, 1, 10, 1, 1, 1, 3 },
+                { 1, 1, 1, 10, 1, 99, 1, 50 },
+                { 1, 1, 1, 10, 1, 1, 99, 50 },
+                { 99, 99, 99, 99, 99, 99, 99, 126 },
+            };
+
+            memcpy(saved, player->stat_level, sizeof(saved));
+            for( size_t i = 0; i < sizeof(k_levels) / sizeof(k_levels[0]); i++ )
+            {
+                player->stat_level[TORIRSSERVER_STAT_ATTACK] = k_levels[i].attack;
+                player->stat_level[TORIRSSERVER_STAT_STRENGTH] = k_levels[i].strength;
+                player->stat_level[TORIRSSERVER_STAT_DEFENCE] = k_levels[i].defence;
+                player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = k_levels[i].hitpoints;
+                player->stat_level[TORIRSSERVER_STAT_PRAYER] = k_levels[i].prayer;
+                player->stat_level[TORIRSSERVER_STAT_RANGED] = k_levels[i].ranged;
+                player->stat_level[TORIRSSERVER_STAT_MAGIC] = k_levels[i].magic;
+                SELFTEST_CHECK(ToriRSServer_CombatLevel(player) == k_levels[i].want,
+                               "combat level row %d: want %d got %d", (int)i,
+                               k_levels[i].want, ToriRSServer_CombatLevel(player));
+            }
+            memcpy(player->stat_level, saved, sizeof(saved));
+        }
+
         /* The goblin roster entry, whatever slot it landed in. 3028 is the id
          * OpenRune's gameval table calls `npcs.goblin`, checked against
          * cache.osrs230 — which does name 3028 "Goblin". The mock's old roster
@@ -41219,12 +41254,16 @@ ToriRSServer_WorldSelftest(void)
 
     fprintf(stderr, "ToriRSServer selftest: an npc pursues the player\n");
     {
-        int goblin = selftest_require_npc(srv, 3028, g_home_x + 3, g_home_z + 5, 0);
+        /* A level-2 giant spider, not the goblin this used to chase with: no
+         * goblin is aggressive (wiki Goblin, `aggressive = No`), and this
+         * stanza needs a monster that starts the fight itself. Same level, so
+         * the double-level threshold below is still 4. */
+        int spider = selftest_require_npc(srv, 3017, g_home_x + 3, g_home_z + 5, 0);
 
-        SELFTEST_CHECK(goblin >= 0, "the fixture goblin should exist");
-        if( goblin >= 0 )
+        SELFTEST_CHECK(spider >= 0, "the fixture spider should exist");
+        if( spider >= 0 )
         {
-            struct ToriRSServerNpc* npc = &srv->npcs[goblin];
+            struct ToriRSServerNpc* npc = &srv->npcs[spider];
             int home_x = npc->spawn_x;
             int home_z = npc->spawn_z;
             int maxrange = npc->def ? npc->def->maxrange : 7;
@@ -41318,20 +41357,20 @@ ToriRSServer_WorldSelftest(void)
              * The route the player runs away down.
              *
              * A *route* rather than a straight line, and found rather than
-             * named: the goblin's spawn is where the map put it, and requiring
+             * named: the spider's spawn is where the map put it, and requiring
              * eight clear tiles in a compass direction is a fact about
              * Lumbridge that this test has no business depending on.
              *
              * But one a NAIVE chaser can follow: every step the one straight
              * toward the route's end. Npc pursuit is the reference's naive
              * stepper (`ToriRSServer_WorldNpcWalkTo`, "NPCs never flood"), so a
-             * route that turns round a corner is one the goblin rightly stops at
+             * route that turns round a corner is one the spider rightly stops at
              * - that is a safespot, not a broken chase - and the player's own
              * router found one of those here (the goblin held 3221,3225 while
              * the route turned north-west).
              */
             {
-                /* Scene must cover the goblin: route no longer straight-lines
+                /* Scene must cover the spider: route no longer straight-lines
                  * through tiles outside the built window. */
                 selftest_park_player(srv, home_x, home_z);
                 for( int ox = -12; ox <= 12 && flee_steps < 6; ox++ )
@@ -41363,7 +41402,7 @@ ToriRSServer_WorldSelftest(void)
                     }
                 }
                 SELFTEST_CHECK(flee_steps >= 6,
-                               "a walkable route away from the goblin's spawn to run down");
+                               "a walkable route away from the spider's spawn to run down");
             }
 
             if( flee_steps >= 6 )
@@ -41387,15 +41426,15 @@ ToriRSServer_WorldSelftest(void)
                  *
                  * `maybe_aggress` refuses when the player is more than twice the
                  * npc's combat level — real OldSchool behaviour, and the whole
-                 * reason a goblin ignores a main. The max-hit stanza above sets
+                 * reason a spider ignores a main. The max-hit stanza above sets
                  * STRENGTH to 60 and never puts it back, which makes this player
-                 * combat level 22 against a level-2 goblin's threshold of 4, so
+                 * combat level 22 against a level-2 spider's threshold of 4, so
                  * the gate refused on every tick and the chase could never
                  * start. Nothing was wrong with aggression; the fixture was.
                  *
                  * Set here rather than relaxing the gate: the double-level rule
                  * is the behaviour under test everywhere else, and a test that
-                 * proved a goblin aggresses a level-22 player would be asserting
+                 * proved a spider aggresses a level-22 player would be asserting
                  * a bug.
                  */
                 for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
@@ -41443,7 +41482,7 @@ ToriRSServer_WorldSelftest(void)
                  * it is back on the straight. What matters is that it is
                  * following rather than falling away, which the settle below
                  * pins down exactly. */
-                SELFTEST_CHECK(worst <= 3, "the goblin keeps up with a walking player, worst gap %d",
+                SELFTEST_CHECK(worst <= 3, "the spider keeps up with a walking player, worst gap %d",
                                worst);
                 SELFTEST_CHECK(npc->x != home_x || npc->z != home_z,
                                "which means it left its spawn tile");
@@ -41462,7 +41501,7 @@ ToriRSServer_WorldSelftest(void)
                 /*
                  * Past the leash it gives up — `maxrange`, measured from the
                  * spawn tile, the reference's `targetWithinMaxRange`. Without
-                 * it a goblin follows you to the next county, which is the
+                 * it a spider follows you to the next county, which is the
                  * behaviour pursuit would otherwise have introduced.
                  */
                 ToriRSServer_CombatStopPlayer(srv);

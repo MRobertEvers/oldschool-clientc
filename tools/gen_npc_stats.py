@@ -89,8 +89,8 @@ STYLE_MAP = {
 # An aggressive npc with no `huntrange` never starts a fight (npc_combat.param:
 # "0 means it never starts one") and the wiki has no field for this — it is
 # server design, not a monster fact. 5 matches the hand-authored blocks this
-# tree already carries (dark_wizard, chaos_druid, goblin's own `huntrange=4`
-# is the outlier). Stated here once rather than silently defaulted, and noted
+# tree already carries (dark_wizard, chaos_druid; the Lumbridge spiders'
+# `huntrange=4` is the outlier). Stated here once rather than silently defaulted, and noted
 # in every ledger row it applies to.
 DEFAULT_AGGRO_HUNTRANGE = 5
 
