@@ -76,6 +76,8 @@ struct LoginOsrs
      * at this revision, so this is the only statement of it on the wire, and
      * PLAYER_INFO v5 is keyed on it. -1 until the response arrives. */
     int local_index;
+    /* LoginResponse.Ok's staffModLevel: 2 is a moderator (the crown). */
+    int staff_mod_level;
 
     /* Inbound accumulator. The shapes it has to hold are the 9-byte seed
      * reply, a var-short proof-of-work challenge, and RECONNECT_OK's
@@ -353,6 +355,7 @@ login_osrs_new(struct ToriRS_Network* net, char const* username, char const* pas
     {
         memcpy(h->prev_seed, net->prev_seed, sizeof(h->prev_seed));
         h->local_index = net->local_index;
+        h->staff_mod_level = net->staff_mod_level;
     }
     else if( net->reconnect )
     {
@@ -391,6 +394,7 @@ publish_seed(struct LoginOsrs* h)
     memcpy(h->net->prev_seed, h->seed, sizeof(h->net->prev_seed));
     h->net->has_prev_seed = 1;
     h->net->local_index = h->local_index;
+    h->net->staff_mod_level = h->staff_mod_level;
 }
 
 static int
@@ -471,7 +475,7 @@ login_osrs_recv(void* handle, uint8_t const* data, int size)
                                                .position = 0 };
                 (void)g1(&rbuf); /* authenticator kind */
                 (void)g4(&rbuf); /* authenticator code */
-                (void)g1(&rbuf); /* staffModLevel */
+                h->staff_mod_level = g1(&rbuf);
                 (void)g1(&rbuf); /* playerMod */
                 int index = g2(&rbuf);
                 h->local_index = index;

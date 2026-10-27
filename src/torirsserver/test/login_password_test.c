@@ -1025,6 +1025,8 @@ main(void)
         struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, staff.client_id);
 
         check(player && player->staff_level == 2, "an admin account logs in at staff level 2");
+        check(staff.net.staff_mod_level == 2,
+              "and the client reads staffModLevel 2 off the login response (the crown)");
         check(player && player->account_admin, "as an admin account (no Tutorial Island)");
         check(player && ToriRSServer_PlayerMayCheat(world, player), "and may cheat");
     }
@@ -1051,6 +1053,7 @@ main(void)
         struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, plain.client_id);
 
         check(player && player->staff_level == 0, "a plain account logs in at staff level 0");
+        check(plain.net.staff_mod_level == 0, "and the client reads staffModLevel 0");
         check(player && !player->account_admin, "and not as an admin account");
         check(player && !ToriRSServer_PlayerMayCheat(world, player),
               "and may not cheat where passwords are checked");

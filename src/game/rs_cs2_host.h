@@ -744,6 +744,9 @@ struct RS_CS2Host
      * has), so the two cannot disagree.
      */
     char local_player_name[RS_CS2_HOST_SOCIAL_NAME_LEN];
+    /** The login response's staffModLevel (ToriRS_Network.staff_mod_level),
+     * copied in each frame by the app: STAFFMODLEVEL answers it. */
+    int staff_mod_level;
     struct UITreeSceneBridge* bridge; /* may be NULL until set */
 
     /*

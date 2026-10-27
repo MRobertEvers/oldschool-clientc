@@ -312,6 +312,14 @@ the binary on stdin, never as an argument): `create-admin <name>`,
 `revoke-login <name>`, `invite [name]` and `list`. It runs beside the live servers: every record is
 read again at each login.
 
+From anywhere else, `tools/deploy/torirsctl <command>` runs the NUC's copy
+over SSH: to `mrobertevers.com` (the cloud proxy), and through it over
+WireGuard to the NUC (`--lan` goes straight to its LAN address instead). The
+password prompt happens on the NUC through the SSH terminal; piped stdin is
+passed through. Hosts and keys default to this deployment's and are
+overridable (`TORIRSCTL_PROXY`, `TORIRSCTL_NUC`, ... -- see the script's
+header).
+
 **Staff.** `torirsserver --account admin <name> on` sets `admin = 1` on a
 player account; the next login is staff level 2 -- the Jagex moderator's gold
 crown on public chat and private messages, and permission to cheat. Wherever

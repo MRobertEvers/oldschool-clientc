@@ -9396,9 +9396,11 @@ exec_chat(
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_STAFFMODLEVEL:
-        /* No staff accounts here: the chatbox asks before offering the moderator
-         * options on a line, and 0 is "an ordinary player". */
-        return CS2VM2_PushInt(vm, 0);
+        /* The login response's staffModLevel, but only a moderator's: the deob
+         * (op 3316) pushes client.field892 when it is at least 2 and 0 for
+         * anything less. The chatbox's staff paths (chatdefault_onkey) and the
+         * moderator options on a line key on it. */
+        return CS2VM2_PushInt(vm, host->staff_mod_level >= 2 ? host->staff_mod_level : 0);
 
     default:
         assert(0 && "exec_chat: unexpected opcode");

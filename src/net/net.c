@@ -109,6 +109,7 @@ ToriRS_Network_Init(
     net->random_out = isaac_new(NULL, 0);
     net->conn_status = TORIRS_NET_STATUS_DISCONNECTED;
     net->local_index = -1;
+    net->staff_mod_level = 0;
     CmdRing_Init(&net->out);
 
     if( rsa_exp_hex && rsa_mod_hex )
@@ -354,6 +355,7 @@ ToriRS_Network_TakeResumeRefused(struct ToriRS_Network* net)
     net->resume_in_flight = 0;
     net->has_prev_seed = 0;
     net->local_index = -1;
+    net->staff_mod_level = 0;
     return 1;
 }
 

@@ -141,6 +141,10 @@ struct ToriRS_Network
     /** The local player's slot as last stated by a login response, or -1.
      * A reconnect keeps it: RECONNECT_OK restates nothing. */
     int local_index;
+    /** The login response's staffModLevel (deob client.field892): 2 is a
+     * moderator. What CS2 STAFFMODLEVEL answers, and what the chatbox's staff
+     * paths key on. Kept across a reconnect like `local_index`. */
+    int staff_mod_level;
 
     /**
      * A previous session's seed and slot were handed in from outside this

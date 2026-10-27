@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# torirsctl from anywhere: runs the live world's own torirsctl (the deploy
+# package's, ~/torirs/live/torirsctl on the NUC) over SSH, so the commands and
+# their rules live in one place. Run on the NUC itself, it just runs that one.
+#
+#   tools/deploy/torirsctl create-admin <name>
+#   tools/deploy/torirsctl list
+#   tools/deploy/torirsctl --lan list      (at home: straight to the NUC)
+#   tools/deploy/torirsctl help            (the commands)
+#
+# The route: SSH to mrobertevers.com (the cloud proxy), and through it over
+# WireGuard to the NUC (10.0.0.8). --lan goes to the NUC's LAN address instead.
+# Each hop has its own key, as ~/.ssh/config has them. A password prompt
+# happens on the NUC through the SSH terminal, so it is never echoed and never
+# rides on a command line; piped stdin is passed through for scripts.
+#
+# Overrides (environment):
+#   TORIRSCTL_PROXY      user@host of the proxy   (matthewevers@mrobertevers.com)
+#   TORIRSCTL_PROXY_KEY  its key                  (~/.ssh/ys_cloud)
+#   TORIRSCTL_NUC        user@host behind it      (matthew@10.0.0.8)
+#   TORIRSCTL_NUC_LAN    user@host with --lan     (matthew@192.168.1.150)
+#   TORIRSCTL_NUC_KEY    the NUC's key            (~/.ssh/matthew@matthew-mbp-m4)
+#   TORIRSCTL_DIR        the live package on it   (torirs/live, from its home)
+set -euo pipefail
+
+PROXY="${TORIRSCTL_PROXY:-matthewevers@mrobertevers.com}"
+PROXY_KEY="${TORIRSCTL_PROXY_KEY:-$HOME/.ssh/ys_cloud}"
+NUC="${TORIRSCTL_NUC:-matthew@10.0.0.8}"
+NUC_LAN="${TORIRSCTL_NUC_LAN:-matthew@192.168.1.150}"
+NUC_KEY="${TORIRSCTL_NUC_KEY:-$HOME/.ssh/matthew@matthew-mbp-m4}"
+DIR="${TORIRSCTL_DIR:-torirs/live}"
+
+# On the NUC already: no SSH.
+if [ -x "$HOME/$DIR/torirsctl" ]; then
+    exec "$HOME/$DIR/torirsctl" "$@"
+fi
+
+lan=0
+if [ "${1:-}" = "--lan" ]; then
+    lan=1
+    shift
+fi
+
+# The remote command, each argument quoted for the remote shell.
+remote="cd $(printf '%q' "$DIR") && ./torirsctl"
+for arg in "$@"; do
+    remote+=" $(printf '%q' "$arg")"
+done
+
+ssh_args=(-o IdentitiesOnly=yes -o LogLevel=ERROR -o ConnectTimeout=15 -i "$NUC_KEY")
+# A terminal gets a terminal on the far side, for the no-echo prompt; a pipe
+# stays a pipe, so `printf 'pw\n' | torirsctl create-player x` still works.
+if [ -t 0 ]; then
+    ssh_args+=(-t)
+fi
+if [ "$lan" = 1 ]; then
+    exec ssh "${ssh_args[@]}" "$NUC_LAN" "$remote"
+fi
+# The proxy is the same machine as ~/.ssh/config's "MyServer"; HostKeyAlias
+# shares that entry's known host key rather than asking again.
+exec ssh "${ssh_args[@]}" \
+    -o "ProxyCommand=ssh -o IdentitiesOnly=yes -o LogLevel=ERROR -o HostKeyAlias=MyServer -i $(printf '%q' "$PROXY_KEY") -W %h:%p $(printf '%q' "$PROXY")" \
+    "$NUC" "$remote"
