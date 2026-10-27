@@ -126,12 +126,12 @@ and y coordinates." line, and no coordinate at all (LostCity's line).
 | door from outside at stage 4: mesbox "...find<br>another way to get in." [934] | same | fixed (forced break) |
 | low wall before the ballista: "The wall is damaged, but not enough to climb." [939] | same | matched |
 | after: the box, two steps on its click, `human_walk_crumbledwall` (840) delay 30, exact move (2509,3252) -> (2509,3254) 30..100 north [1303..1309] | same (ticklog 840/30) | matched |
-| the commander swings the tick after the crawl [1310], "Don't even think of taking the orb!" [1311] | `npc_setmode(opplayer2)`, `p_delay(0)`, the say | fixed (was a three-line conversation) |
+| the commander takes the player the tick after the crawl [1310], "Don't even think of taking the orb!" [1311] | his own hunt (see "The Khazard commanders"), the say at C+2 | fixed (was a three-line conversation, then a one-swing errand) |
 | chest: `human_openchest` + synth 52 [1325]; the open chest + "Oi! You! Get out of there." [1326] | `~open_chest` + say | matched |
 | search: stage, orb, box, nobody speaks [1328] | same | fixed (LostCity's "Hands off..." deleted) |
 
-The commander's own fight (two of them, ground floor and upstairs, both attacking on
-sight) is a combat encounter of its own: OPEN, see below.
+The commanders' own fight (two of them, ground floor and upstairs, both attacking on
+sight) is audited in "The Khazard commanders" below.
 
 ## The ceremony [2085..2134]
 
@@ -235,8 +235,7 @@ the field: 568 arrows, 43 catapult shots, ~970 npc lives.
 
 ## Open
 
-- The Khazard warlord fight: its own audit (one agent per encounter), section below.
-- The Khazard commanders' fight in the stronghold: not audited yet.
+- The two fights (warlord, commanders): their own sections below, each with its Open list.
 - Battlefield: arrow distances (d = 1 only), the damage model is fitted not identified,
   and the gnome archers further back rarely find a target within 6 tiles.
 - Unrecorded branches (Elkoy's talk, Remsai, Kalron, Bolkoy, stage 0 Elkoy) are the
@@ -389,3 +388,123 @@ first swing at A+2, every gap 4, 401 with 2567 on each, 836 on the killing blow'
 the del two ticks later with the smokepuff. It passes on the new pack (84 swings) and fails
 on the pack this section started from (0 swings of 401, the death seq a tick late, no
 smokepuff). The quest gate: 111 of 112, the only failure the `camelotTeleport.cast` row.
+
+## The Khazard commanders
+
+One recorded encounter: index 4394 [1294..1347], the only session that goes into the
+stronghold. The ground floor's commander (npc index 14493, spawn 2509,3254) and the first
+floor's (14616, spawn 2503,3255); `search npc 4972 --any` adds 3909 (rev 236, two adds at
+2511,3254, never near) and 1682 (rev 226, two wander trips); 820 is a false hit. The
+recorder (combat 32, staff of earth, auto-retaliate off: never swings back) crawls over
+the rubble at C = [1309], climbs the ladder at U = [1319], opens the chest (the "Oi!" at
+X = [1326]), searches [1328], goes down at D = [1335] and out the door [1340]; Protect
+from Melee from [1312]. Nobody kills either commander. Ours: `test/quests/tree.lua` on
+private packs (`build/quest_gate/tree_commander/ticklog.tsv`; C 325, U 339, X 350, D 361)
+and an uncommitted scratch test (150 ticks outside the outer wall on the recorder's tile,
+24 standing beside him, the recorder's way to the ladder, 20 at the ladder, up, killing
+the first-floor one). "Before" is the content this section started from.
+
+Content: the `[khazard_commander]` block of `quest_tree.npc` (huntmode, huntrange,
+maxrange, wanderrange, death_sound; those five keys deleted from his
+`server_fields.generated.npc` block), `quests/quest_tree/scripts/khazard_commander.rs2`
+(new: the hunt's line-of-sight gate), the wall and chest of `quest_tree_locs.rs2`. This
+supersedes the stronghold table's commander row above (`npc_setmode(opplayer2)`,
+`p_delay(0)`, the say) and the Open bullet "The Khazard commanders' fight in the
+stronghold: not audited yet".
+
+### Timeline
+
+| tick | recorded (4394) | before | ours | verdict |
+|---|---|---|---|---|
+| [938..950] | the player 1..2 tiles off the ground one for 13 ticks across the outer wall, no fight: no face, no step | no hunt at all | not taken (scratch: 77 ticks within 2, 0 faces; the same pack without the gate: taken on the first tick, held 154) | fixed |
+| C | `human_walk_crumbledwall` (840) delay 30, exact move 2509,3252 -> 2509,3254 30..100; no `loc_merge` (0 in all of 4394) | the same plus a LOC_MERGE (zone sub-packet 12, TRACE_OUT=2) | the same, no LOC_MERGE | fixed |
+| C+1 | the ground one, 2 tiles off: `[facing]` the player, a step and `human_spear_spike` (428) + synth `staff_stab` (2562) on the one tick; the player's block seq | nothing: the wall's opplayer2 latched, the swing at C+2, `[facing]` reset after it | taken on C+1 (face, target); swings C+1 when already beside him (scratch), C+3 in the quest run (he stood on the landing tile) | fixed; the same-tick step and swing OPEN |
+| C+2 | the player's walk north onto 2509,3255; "Don't even think of taking the orb!"; the splat (2) + synth 520 delay 20 | the say; the player stayed on 2509,3254 | the walk step and the say | fixed |
+| C+3..C+7 | the chase, a face per change of angle; steps 2508,3255 and 2507,3256; `[facing] type=reset` the turn after the player reached 2503,3255 | mode none after the one swing: he never moved again | scratch, the recorder's path: the same two steps and the reset on the same turn ([190] [191] [192]) | fixed |
+| C+8, C+9 | two steps straight back to the spawn | | one step, then the wander roll 27 ticks later | OPEN (engine) |
+| U+1 | the first-floor one, 2 tiles off on arrival: face, step, swing on one tick | nothing until the chest: taken at X+1 by `~npc_retaliate` | taken on the first turn within 2 (U+5, the bot's way to the chest), the swing a tick later | fixed |
+| X | "Oi! You! Get out of there." with the open chest | same | same (`npc_attackplayer`: a no-op, he holds the player) | matched |
+| U+6, U+10, U+15 | swings (gaps 5, 4, 5: each 5 a step first) | one swing (U+16), then the face reset and mode none | gaps 4, 4, 7 (the 7 a chase) | fixed |
+| [1326] [1311] [1335] | the splat waits for the player's delay (the chest's lid, the crawl, the ladder) | | the splat on the swing | OPEN (shared combat) |
+| [1336..1342] | the ground one leaves the player be: in combat ([1335]), single-way | | | engine, not run |
+
+### Npc info, every block kind
+
+| kind | recorded | before | ours | verdict |
+|---|---|---|---|---|
+| `[facing]` | 13: the player on the hunt and on each change of fallback angle (13/13 fit the npc's tile after its step against the player's before his), 1 reset (the leash) | 6: errand faces, a reset after each errand swing | 8: the hunt, angle re-sends, the leash reset | fixed |
+| `[sequence]` | 428 x 5 | 428 x 2 | 428 x 5 | fixed |
+| `[say]` | 2 | 2 | 2 | matched |
+| movement | walk only, 45 steps, 11 lives | | walk | matched |
+| `[hit]` `[headbar]` `[bas]` `[body_customisation]` `[transformation]` `level_change` `enabled_ops` | none (nobody hits them) | none | none | matched |
+
+`npc_block_inventory.py`: no recorded kind we never send; `multinpc_stance_audit.py`: no
+multinpc.
+
+### The hunt, the leash and the wander
+
+- **huntmode aggressive, huntrange 2.** Both take the player unprompted on the first npc
+  turn he is in their room, 2 tiles off, with no op in between (2/2). 2 is the least both
+  need; nothing recorded bounds it above. LostCity has `cowardly`, huntrange 1; the wiki
+  infobox "aggressive = No".
+- **Line of sight** (`[ai_hunt,khazard_commander]`; LostCity's `cowardly` is
+  check_vis=lineofsight; our engine's hunt measures distance only). The south wall blocks
+  it (blockrange); the room's west wall (`crumblywall2`, blockrange=0) does not, and upstairs
+  the cannons and cannonballs block some 2-tile diagonals (scratch: 2501,3255 to 2503,3253
+  declined 14 ticks): unrecorded.
+- **maxrange 4.** The release at [1316] fits the leash (past maxrange + 1 = 5 from the spawn)
+  with 3 or 4; LostCity's is 4. Ours releases on the same turn on the same path.
+- **wanderrange 3.** 14 wander trips (4394, 1682) end at most 3 tiles from the spawn
+  (2506..2512, 3254..3257); LostCity's 2 is too small. Ours: the same extents (scratch, 12
+  trips).
+
+### Sounds
+
+| recorded | n | ours | verdict |
+|---|---|---|---|
+| synth 2562 `staff_stab`, each swing | 5/5 | 5/5 (scratch 9/9) | matched (generated) |
+| synth 511 `human_block_1` delay 20, each 0 | 4/4 | 5/5 | engine, matched |
+| synth 520 `human_hit_3` delay 20, the 2 | 1/1 | no nonzero in ours | engine |
+| 52 chest_open, 46, 2676 / 2663 | | | the chest (matched), the door, the recorder's prayer |
+| death | unrecorded | `human_death` (512) on the death seq (scratch) | was silent; the warlord's and the battlefield's human death |
+| defend | unrecorded | `human_spear_block` (430) + `blade2` (29) (scratch) | generated (LostCity's), unrecorded |
+
+### Damage, accuracy and every splat (skill sections 13, 13b)
+
+- 5 swings, 5 splats: [1311] 2 unprayed (swung [1310], before Protect from Melee); [1320],
+  [1326], [1329], [1335] 0 under Protect from Melee (4/4).
+- Max hit 5 (the wiki; str 45, +0: floor(0.5 + 54 x 64 / 640)); the recorded 2 (n = 1) tests
+  nothing. Accuracy: the recorder's stab defence roll (1 + 8) x (3 + 2 + 64) = 621 against
+  (50 + 9) x 64 = 3776, P(hit) 0.92; 1/1. Not identifiable. Levels: the cache's 50/50/45/22;
+  `check_npc_cache_levels.py` 0.
+- `rsprox_hit_causes.py --npc khazard_commander --by-prayer`: recorded `@1:adj` 3 (the splats
+  that waited for the delay), `@0:adj` 1, `@0:near` 1 (the step and swing from 2 tiles);
+  ours `@0:adj` 5 (0..0: the bot's defence roll 27216, P(hit) 0.07). No `none`, no heal. The
+  two REC-ONLY keys are Open 1 and 2.
+
+### Unrecorded
+
+The death (scratch: the engine's default, seq on K+1, bones, del K+3; the warlord's
+recorded K / K+2), the respawn (150, the wiki), the wiki's tertiary orb drop (not built),
+and the chest taking a player the hunt has not (`npc_attackplayer`).
+
+### Open (engine or shared code, not changed here)
+
+1. **Step and swing on one tick:** 4/4 recorded ([1310] [1320] [1325] [1334]); ours steps and
+   swings a tick later (`ToriRSServer_CombatNpcTick` returns after the approach; LostCity's
+   `aiMode` tries the interaction again after moving). The test's row checks the take, not
+   the first swing, for this reason.
+2. **A hit on a delayed player:** the splat and its synth wait for the delay's end (3/3);
+   ours lands on the swing (`~playerhit_n_melee_apply`).
+3. **After the leash:** straight back to the spawn (1/1); ours waits for the wander roll.
+4. **Wander trips:** recorded 1..4 steps (14, mean 2.4); ours 1..6 (12, 3 of 5+, mean 3.1).
+5. **"Too strong" for a hunt** uses our melee-only combat level: the test bot is 82 to us,
+   97 by OSRS's formula (over 2 x 48, never hunted there).
+
+**Test.** `tree.lua`'s `commander.wire` row: each commander taken on the first turn the
+player is within 2 (the first-floor one by the "Oi!" at the latest), not through the outer
+wall, every swing with 2562 and 4+ apart, the ground one let go on the leash's turn, the
+first-floor one not before the ladder down, and the step and the line at C+2. It passes on
+the new pack and fails on the old (the ground one never taken, the first-floor one taken
+after the "Oi!" and let go upstairs, no step at C+2). The quest gate: 112 of 113, the only
+failure the `camelotTeleport.cast` row; every row that passed before passes.

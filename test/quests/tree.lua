@@ -370,6 +370,154 @@ return {
             far_ok = function(tile) return tile.z <= 3250 end,
             far_desc = "outside the stronghold, on or south of its door (z <= 3250)" })
         t.exec("walk-retrieveOrb.leaveStronghold", t.player.walk_to, 2502, 3249)
+        -- The commanders' wire shape, as RSProx 4394 recorded it ([1294..1347];
+        -- docs/rsprox-analysis/quests/tree_gnome_village.md, "The Khazard
+        -- commanders"). Each takes the player by his own hunt, a held target
+        -- and never a script's mode (quest_tree.npc, khazard_commander.rs2):
+        -- on the first npc turn the player is within his huntrange of 2 --
+        -- the ground one the turn after the crawl C ([1310]), the first-floor
+        -- one before any chest ([1320]), at the chest's "Oi!" at the latest.
+        -- Each swing is human_spear_spike (428) with staff_stab (2562) on its
+        -- tick, 4+ ticks after the last (5/5). The ground one lets go on the
+        -- first turn the player is past his maxrange-4 leash from 2509,3254
+        -- ([1316], the player 6 west). At C+2 the player steps on to 2509,3255
+        -- with "Don't even think of taking the orb!" ([1311]).
+        do
+            local why, ok = {}, true
+            local function rows(o)
+                local r, v = t.ticklog.rows(o)
+                return (r == "ok" and v) or {}
+            end
+            local function fail(msg) ok = false; why[#why + 1] = msg end
+            local slot_floor = {}
+            for _, sp in ipairs(rows({ kind = "npc_spawn", type = 4972 })) do
+                slot_floor[sp.slot] = sp.level
+            end
+            local C, U, D, X
+            for _, row in ipairs(rows({ kind = "player_anim", seq = 840 })) do C = row.tick end
+            local ptile = {}
+            for _, row in ipairs(rows({ kind = "player_tile" })) do ptile[row.tick] = row end
+            if C ~= nil then
+                for tick = C + 1, C + 200 do
+                    local p = ptile[tick]
+                    if U == nil and p and p.level == 1 then U = tick end
+                    if U ~= nil and D == nil and p and p.level == 0 and tick > U then D = tick end
+                end
+            end
+            local say = rows({ kind = "npc_say", type = 4972, text = "Oi! You! Get out of there." })
+            X = say[1] and say[1].tick or nil
+            if C == nil or U == nil or D == nil or X == nil then
+                fail(string.format("anchors: crawl %s, first floor %s, down %s, Oi %s",
+                    tostring(C), tostring(U), tostring(D), tostring(X)))
+            else
+                -- Where each commander stood at the end of each tick: its spawn
+                -- row, then every npc_tile row.
+                local moves = {}
+                for slot in pairs(slot_floor) do
+                    moves[slot] = rows({ kind = { "npc_spawn", "npc_tile" }, slot = slot })
+                end
+                local function npc_at(slot, tick)
+                    local at = nil
+                    for _, row in ipairs(moves[slot]) do
+                        if row.tick <= tick then at = row end
+                    end
+                    return at
+                end
+                local function near(slot, tick, range)
+                    local n, p = npc_at(slot, tick), ptile[tick]
+                    return n and p and n.level == p.level
+                        and math.max(math.abs(n.x - p.x), math.abs(n.z - p.z)) <= range
+                end
+                local synth = {}
+                for _, row in ipairs(rows({ kind = "sound", sound = 2562 })) do synth[row.tick] = true end
+                for slot, floor in pairs(slot_floor) do
+                    local name = floor == 0 and "ground" or "first floor"
+                    local from, to = (floor == 0) and C or U, (floor == 0) and U or D
+                    -- Taken: his face on the player (npc_face z = 32768 + pid);
+                    -- let go: the face reset (z = -1). A held target keeps the
+                    -- face through every swing; the one-swing opplayer2 errand
+                    -- reset it after the swing.
+                    local faces = rows({ kind = "npc_face", slot = slot,
+                        where = function(r) return r.x == -1 and r.tick > from - 30 and r.tick <= to + 5 end })
+                    local taken, gone, early = nil, nil, nil
+                    for _, row in ipairs(faces) do
+                        if row.z >= 32768 and row.tick <= from and early == nil then early = row.tick end
+                        if row.z >= 32768 and row.tick > from and taken == nil then taken = row.tick end
+                        if row.z == -1 and taken ~= nil and gone == nil then gone = row.tick end
+                    end
+                    if floor == 1 and gone ~= nil and gone < D then
+                        fail(string.format("first floor: let go at %d with the player still upstairs (down at %d)", gone, D))
+                    end
+                    -- The first turn the player is in range (his tile and the
+                    -- player's at the end of the turn before).
+                    local due = nil
+                    for tick = from + 1, (floor == 0) and to or X do
+                        if due == nil and near(slot, tick - 1, 2) then due = tick end
+                    end
+                    if floor == 1 and due == nil then due = X end
+                    -- Upstairs a cannon or a pile of cannonballs can stand in
+                    -- the sight line of a 2-tile diagonal (the hunt's
+                    -- lineofsight), so there it is "not before he could, and
+                    -- by the Oi! at the latest"; the ground floor's landing
+                    -- tile is in plain sight of his whole room.
+                    local late_ok = floor == 1 and taken ~= nil and taken >= due and taken <= X
+                    if not late_ok and (taken == nil or taken ~= due) then
+                        fail(string.format("%s: taken at %s, due at %s (C %d, U %d, Oi %d)", name,
+                            tostring(taken), tostring(due), C, U, X))
+                    end
+                    if floor == 0 then
+                        -- Not through the outer wall ([938..950]): the player
+                        -- outside within 2 tiles before the crawl is no hunt.
+                        local outside = 0
+                        for tick = C - 30, C - 1 do
+                            if near(slot, tick, 2) then outside = outside + 1 end
+                        end
+                        if early ~= nil then
+                            fail(string.format("ground: taken through the wall at %d", early))
+                        end
+                        why[#why + 1] = string.format("ground: %d tick(s) within 2 outside the wall, not taken", outside)
+                    end
+                    local swings = rows({ kind = "npc_anim", slot = slot, seq = 428,
+                        where = function(r) return r.tick >= from and r.tick <= to + 2 end })
+                    local silent, short = 0, 0
+                    for i, row in ipairs(swings) do
+                        if not synth[row.tick] then silent = silent + 1 end
+                        if i > 1 and row.tick - swings[i - 1].tick < 4 then short = short + 1 end
+                    end
+                    if #swings == 0 or silent > 0 or short > 0 then
+                        fail(string.format("%s: %d swing(s), %d without staff_stab, %d under 4 apart",
+                            name, #swings, silent, short))
+                    end
+                    why[#why + 1] = string.format("%s: taken at +%s, swings at %s", name,
+                        tostring(taken and taken - from), table.concat((function()
+                            local out = {}
+                            for _, row in ipairs(swings) do out[#out + 1] = "+" .. (row.tick - from) end
+                            return out
+                        end)(), " "))
+                    if floor == 0 and taken ~= nil then
+                        -- maxrange 4: past 5 on an axis from the spawn, or 5 on both.
+                        local leash = nil
+                        for tick = taken + 1, U do
+                            local p = ptile[tick - 1]
+                            if leash == nil and p then
+                                local dx, dz = math.abs(p.x - 2509), math.abs(p.z - 3254)
+                                if p.level ~= 0 or dx > 5 or dz > 5 or (dx == 5 and dz == 5) then leash = tick end
+                            end
+                        end
+                        if gone == nil or gone ~= leash then
+                            fail(string.format("ground: let go at %s, the leash at %s", tostring(gone), tostring(leash)))
+                        end
+                    end
+                end
+                local orb = rows({ kind = "npc_say", type = 4972, text = "Don't even think of taking the orb!" })
+                local p2 = ptile[C + 2]
+                if not (orb[1] and orb[1].tick == C + 2 and p2 and p2.x == 2509 and p2.z == 3255) then
+                    fail(string.format("C+2: the line at %s, the player on %s", tostring(orb[1] and orb[1].tick - C),
+                        p2 and (p2.x .. "," .. p2.z) or "?"))
+                end
+            end
+            t.check("commander.wire", ok, table.concat(why, "; "))
+        end
 
         -- returnFirstOrb via elkoySkip: Elkoy outside the maze, "Yes please."
         -- -> p_telejump(^elkoy_maze_coord) 2515,3159 (elkoy.rs2:89-106).
