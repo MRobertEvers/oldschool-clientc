@@ -2,8 +2,57 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover: the canvas may run under a phone's notch and home
+     bar. No browser zoom: a pinch or a double tap is the game's. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- Launched from the home screen, a phone shows the page with no browser
+     bars at all (site.webmanifest asks for fullscreen too). -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>ToriRS (web)</title>
+<script>
+/*
+ * Is this a phone or a tablet? Read once, before anything else, because the
+ * client asks it at boot (app.c web_mobile_device): a mobile device is the
+ * mobile client -- clienttype 7 (8 on iOS) and on_mobile for the cache's
+ * scripts, the same on the login, so the server opens the mobile gameframe --
+ * and the page hides the browser's bars for it.
+ *
+ * In order: ?mobile=1 / ?mobile=0; iOS, whose iPads say "Macintosh" unless
+ * they are counted by touch points; the UA client hints' `mobile` (Chrome's
+ * own answer, false on tablets); a mobile UA (Android tablets included); and
+ * last a touch screen with no fine pointer anywhere (an Android tablet in
+ * "desktop site" mode). A touch laptop has a fine pointer and stays desktop.
+ */
+globalThis.torirsMobileDevice = (() => {
+  const forced = new URLSearchParams(window.location.search).get('mobile');
+  if (forced !== null) {
+    return { mobile: forced !== '0', ios: false, why: '?mobile=' + forced };
+  }
+  const nav = window.navigator;
+  const ua = nav.userAgent || '';
+  const touchPoints = nav.maxTouchPoints || 0;
+  const media = q => !!(window.matchMedia && window.matchMedia(q).matches);
+  if (/iPhone|iPad|iPod/.test(ua)) { return { mobile: true, ios: true, why: 'iOS user agent' }; }
+  if (/Macintosh/.test(ua) && touchPoints > 1) {
+    return { mobile: true, ios: true, why: 'iPadOS (desktop user agent, touch screen)' };
+  }
+  if (nav.userAgentData && nav.userAgentData.mobile === true) {
+    return { mobile: true, ios: false, why: 'user agent client hints' };
+  }
+  if (/Android|Mobi|Opera Mini|IEMobile|Silk|Kindle/i.test(ua)) {
+    return { mobile: true, ios: false, why: 'mobile user agent' };
+  }
+  if (touchPoints > 0 && media('(pointer: coarse)') && !media('(any-pointer: fine)')) {
+    return { mobile: true, ios: false, why: 'touch screen, no fine pointer' };
+  }
+  return { mobile: false, ios: false, why: 'desktop' };
+})();
+document.documentElement.classList.toggle('mobile', globalThis.torirsMobileDevice.mobile);
+console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobile' : 'desktop') +
+            ' (' + globalThis.torirsMobileDevice.why + ')');
+</script>
 <!-- Generated from res/torirs_icon.jpg by tools/make_app_icons.py. The .ico
      carries 16/32/48 for browsers that still ask for one by default path. -->
 <link rel="icon" href="favicon.ico" sizes="any">
@@ -126,6 +175,9 @@
      strip, faded until pointed at, so the toggles stay reachable without
      taking a row from the picture. */
   body.fullcanvas { height: 100vh; overflow: hidden; }
+  /* The VISIBLE height: on a phone 100vh is the height with the browser's bars
+     hidden, so while they show, the bottom of the canvas sat under them. */
+  @supports (height: 100dvh) { body.fullcanvas { height: 100dvh; } }
   body.fullcanvas #game-region { padding: 0; gap: 0; }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
@@ -388,9 +440,34 @@
   btnFull.onclick = () => {
     // The application root, not the canvas: rail, active plugin pane and the
     // way back out must stay in the same fullscreen presentation.
-    const p = fullscreenElement() ? exitFullscreen() : requestFullscreen(app);
+    const leaving = !!fullscreenElement();
+    // Leaving by the button is a choice: the phone's own retry below stops.
+    if (leaving) { autoFullscreen = false; }
+    const p = leaving ? exitFullscreen() : requestFullscreen(app);
     if (p && p.catch) { p.catch(() => { /* denied or unsupported */ }); }
   };
+
+  // A phone hides its browser bars (address bar, navigation bar) only for
+  // fullscreen, and a page may ask for that only inside a tap. So the first
+  // tap asks, and every tap after a system exit (a back swipe) asks again,
+  // until the player leaves with the button. iPhone Safari has no element
+  // fullscreen: there the 100dvh layout keeps the canvas inside the visible
+  // area, and a home-screen launch drops the bars instead.
+  const mobileDevice = !!(globalThis.torirsMobileDevice && globalThis.torirsMobileDevice.mobile);
+  let autoFullscreen = mobileDevice;
+  function hideBrowserBars() {
+    if (!autoFullscreen || fullscreenElement()) { return; }
+    const fn = app.requestFullscreen || app.webkitRequestFullscreen;
+    if (!fn) { return; }
+    try {
+      const p = fn.call(app, { navigationUI: 'hide' });
+      if (p && p.catch) { p.catch(() => { /* denied: the next tap tries again */ }); }
+    } catch (e) { /* unsupported */ }
+  }
+  if (mobileDevice) {
+    document.addEventListener('touchend', hideBrowserBars, { capture: true, passive: true });
+    document.addEventListener('pointerup', hideBrowserBars, { capture: true, passive: true });
+  }
 
   function syncFullscreenButton() {
     btnFull.setAttribute('aria-pressed', fullscreenElement() ? 'true' : 'false');
@@ -427,7 +504,10 @@
   let stored = null;
   try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
   const forced = new URLSearchParams(window.location.search).get('fullcanvas');
-  setFullCanvas(forced !== null ? forced !== '0' : stored === '1');
+  // A phone has no room for the log panels: full canvas unless it was turned
+  // off there before.
+  setFullCanvas(forced !== null ? forced !== '0'
+                                : stored !== null ? stored === '1' : mobileDevice);
 
   let drawerStored = null;
   try { drawerStored = window.localStorage.getItem(DRAWER_KEY); } catch (e) { /* private mode */ }

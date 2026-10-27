@@ -37,6 +37,22 @@ EM_JS(
         else
             console.warn('[torirs] panel=tab, but the page defines no torirsOpenPanelTab()');
     });
+
+/*
+ * What the page decided this device is (index.html's torirsMobileDevice):
+ * 0 a desktop, 1 a phone or tablet, 2 one running iOS. A page that does not
+ * say is a desktop.
+ */
+EM_JS(
+    int,
+    web_mobile_device,
+    (void),
+    {
+        const d = globalThis.torirsMobileDevice;
+        if( !d || !d.mobile )
+            return 0;
+        return d.ios ? 2 : 1;
+    });
 // clang-format on
 #endif
 
@@ -747,11 +763,17 @@ App_Init(
          * revconfig `[features]`, then the platform: a phone is the mobile
          * client (7, on_mobile -- the pair the cache's own script 1972 reads
          * as the mobile layout), everything else the desktop enhanced one.
+         * In a browser the page says which (web_mobile_device), and an iOS
+         * browser is Jagex's iOS client, 8.
          */
         {
 #if defined(TORIRS_PLATFORM_ANDROID)
             int clienttype = 7;
             int on_mobile = 1;
+#elif defined(TORIRS_PLATFORM_WEB)
+            int const device = web_mobile_device();
+            int clienttype = device == 2 ? 8 : device == 1 ? 7 : 10;
+            int on_mobile = device != 0;
 #else
             int clienttype = 10;
             int on_mobile = 0;

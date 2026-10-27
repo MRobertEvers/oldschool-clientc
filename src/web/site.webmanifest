@@ -8,5 +8,6 @@
   ],
   "background_color": "#14100c",
   "theme_color": "#14100c",
-  "display": "standalone"
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"]
 }

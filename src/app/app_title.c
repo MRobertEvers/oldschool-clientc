@@ -883,7 +883,10 @@ app_login_set_client_identity(struct App* app)
     assert(app);
     assert(app->net);
     app->net->client_type = CS2VM2_ClientType();
-    app->net->platform_type = CS2VM2_OnMobile() ? 2 : 0;
+    /* LoginPlatformType: 2 ANDROID, 3 APPLE (the iOS client, 8). */
+    app->net->platform_type = !CS2VM2_OnMobile()           ? 0
+                              : CS2VM2_ClientType() == 8 ? 3
+                                                         : 2;
 }
 
 static void
