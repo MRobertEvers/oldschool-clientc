@@ -1,5 +1,9 @@
 # Fight Arena parity brief
 
+> **Superseded 2026-10-27.** The quest was rebuilt from RSProx index 4395 and 4396
+> (rev 241); this LostCity brief describes the old port. Current audit:
+> `docs/rsprox-analysis/quests/fight_arena.md`.
+
 Status: `lostcity-parity` -- the port follows LostCity leg by leg (stage writers, spawns, gates,
 dialogue), with the OSRS-era form winning where the Wiki says the quest changed. Every leg below
 is driven through the real client by a scratch driver (108 ledger rows, 0 fail).

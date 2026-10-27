@@ -480,7 +480,7 @@
       "kind": "quest",
       "name": "Fight Arena",
       "wiki_url": "https://oldschool.runescape.wiki/w/Fight_Arena",
-      "encounter_summary": "Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142)",
+      "encounter_summary": "Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142); every round in a private copy of the arena (RSProx index 4395/4396)",
       "plan_line": 92,
       "cache_scope": "osrs239",
       "implementation_status": "implementation-in-progress",
@@ -539,14 +539,20 @@
       "npc_gamevals": [
         "lady_servil",
         "arena_guard2",
+        "arena_guard3",
+        "arena_guard_door_1",
+        "arena_guard_door_2",
         "sammy_servil",
         "sammy_servil_arena",
         "justin_servil",
+        "justin_servil_khazard",
+        "general_khazard_arena",
+        "arena_guard_family",
         "hengrad",
         "arena_ogre",
         "arena_scorpion",
         "arena_bouncer",
-        "general_khazard_arena"
+        "general_khazard"
       ],
       "item_gamevals": [
         "khazard_helmet",
@@ -564,29 +570,34 @@
         "arena_prisondoor",
         "arena_jeremydoor",
         "fightarena_door1",
-        "fightarena_door2"
+        "fightarena_door2",
+        "fightarena_door2_escape"
       ],
       "trigger_handlers": [
         "oploc1:arena_guard_chest_shut",
-        "oploc1:arena_guard_chest_open",
+        "oploc1:fightarena_door1",
         "oplocu:arena_jeremydoor",
         "oploc1:fightarena_door2",
-        "oploc2:fightarena_door2",
+        "oploc1:fightarena_door2_escape",
+        "oploc2:fightarena_door2_escape",
         "ai_queue3:arena_ogre",
         "ai_queue3:arena_scorpion",
         "ai_queue3:arena_bouncer",
-        "ai_queue3:general_khazard_arena",
-        "opnpc1:lady_servil"
+        "ai_queue3:general_khazard",
+        "opnpc1:lady_servil",
+        "opnpc1:arena_guard2",
+        "opnpcu:arena_guard2"
       ],
       "loot_contract": "Khazard Ogre has only independent 1/400 long-bone and 1/5013 curved-bone tertiary rolls; the scorpion and General have no drops; Bouncer drops one vile ashes. Quest completion grants 1,000 coins, 12,175 Attack XP, 2,175 Thieving XP and retains the Khazard armour set.",
       "test_ids": [
         "quest-combat-contract:fight-arena",
-        "torirsserver-selftest:npc-owner-visibility"
+        "quest:arena",
+        "quest:arena_escape"
       ],
       "known_gaps": [
-        "The jail and opponent-release transitions use authored dialogue and teleports; full camera, guard-walk and temporary-door choreography remains pending.",
+        "Per-encounter combat audits against RSProx 4395/4396 (one recorded fight each): docs/rsprox-analysis/quests/fight_arena.md.",
         "The arena-specific Dwarf multicannon placement refusal awaits the shared cannon placement gate.",
-        "A real-client disguise, concurrent-player, escape, death and relog smoke is still pending."
+        "Death in a round and the escape door's landing are not recorded."
       ]
     },
     {

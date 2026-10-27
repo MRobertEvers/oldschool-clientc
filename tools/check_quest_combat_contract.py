@@ -23,14 +23,13 @@ ARIS = CONTENT / "areas/varrock/scripts/aris.rs2"
 WITCH_SCRIPT = CONTENT / "quests/quest_ball/scripts/quest_ball_locs.rs2"
 WITCH_NPC = CONTENT / "quests/quest_ball/configs/witches_house.npc"
 WITCH_VARP = CONTENT / "quests/quest_ball/configs/quest_ball.varp"
-ARENA = CONTENT / "quests/quest_arena/scripts/arena_encounter.rs2"
+ARENA = CONTENT / "quests/quest_arena/scripts/arena_cutscenes.rs2"
 ARENA_LOCS = CONTENT / "quests/quest_arena/scripts/arena_locs.rs2"
 ARENA_NPC = CONTENT / "quests/quest_arena/configs/quest_arena.npc"
 ARENA_SPAWN = CONTENT / "quests/quest_arena/configs/quest_arena.spawn"
 ARENA_WORLD_SPAWN = CONTENT / "areas/world/configs/m40_49.spawn"
 ARENA_LADY = CONTENT / "quests/quest_arena/scripts/lady_servil.rs2"
 ARENA_SAMMY = CONTENT / "quests/quest_arena/scripts/sammy_servil.rs2"
-ARENA_CUTSCENES = CONTENT / "quests/quest_arena/scripts/quest_arena.rs2"
 HAZEEL_ALOMONE = CONTENT / "quests/quest_hazeelcult/scripts/alomone.rs2"
 HAZEEL_LOCS = CONTENT / "quests/quest_hazeelcult/scripts/quest_hazeelcult_locs.rs2"
 HAZEEL_CLIVET = CONTENT / "quests/quest_hazeelcult/scripts/clivet.rs2"
@@ -868,80 +867,68 @@ def check_witches_experiment() -> None:
 
 
 def check_fight_arena() -> None:
+    # Rev 241 (RSProx index 4395/4396): every round is fought in a private copy
+    # of the arena's square (arena_cutscenes.rs2), so a fighter is private by
+    # being in the player's own copy, not by npc_setowner.
     encounter = ARENA.read_text()
     require_text(
         encounter,
         (
-            "[label,arena_start_ogre]",
-            "@ogre_attack_justin;",
-            "[label,arena_start_scorpion]",
-            "@arena_release_scorp;",
-            "[label,arena_start_bouncer]",
-            "@arena_release_bouncer;",
-            "[label,arena_start_general]",
-            "npc_add(0_40_49_44_18, general_khazard_arena, 32000);",
-            "[label,arena_after_ogre]",
+            "[proc,arena_copy_enter]",
+            "~map_instance_from_square(^arena_square);",
+            "[proc,arena_round_enter]",
+            "[proc,arena_round_fighter]",
+            "~arena_fighter(~arena_copy_at(42, 29), arena_ogre, ~arena_copy_at(32, 27))",
+            "~arena_fighter(~arena_copy_at(41, 23), arena_scorpion, ~arena_copy_at(31, 21))",
+            "~arena_fighter(~arena_copy_at(43, 26), arena_bouncer, ~arena_copy_at(33, 24))",
+            "~arena_fighter(~arena_copy_at(40, 17), general_khazard, ~arena_copy_at(40, 37))",
+            "[label,arena_release_sammy]",
+            "%varp17_arenaquest = ^arena_entered_ogre_fight;",
+            "[label,arena_general_scene]",
             "%varp17_arenaquest = ^arena_sent_jail;",
-            "[label,arena_general_after_bouncer]",
+            "[label,arena_bouncer_scene]",
+            "[label,arena_freed_scene]",
             "%varp17_arenaquest = ^arena_freed_servils;",
-            "[proc,arena_remove_owned_fighters]",
+            "[label,arena_return_scene]",
+            "%varp17_arenaquest = ^arena_defeated_genkhazard;",
             "[ai_queue3,arena_ogre]",
             "[ai_queue3,arena_scorpion]",
             "[ai_queue3,arena_bouncer]",
-            "[ai_queue3,general_khazard_arena]",
+            "[ai_queue3,general_khazard]",
+            "[proc,arena_on_logout]",
             "obj_add(npc_coord, dorgesh_construction_bone, 1, ^lootdrop_duration);",
             "obj_add(npc_coord, dorgesh_construction_bone_curved, 1, ^lootdrop_duration);",
             "obj_add(npc_coord, vile_ashes, 1, ^lootdrop_duration);",
         ),
         "Fight Arena encounter",
     )
-    # The ogre, scorpion and Bouncer are created by the pen cutscenes LostCity
-    # scripts (sammy_servil.rs2 ogre_attack_justin = jeremy_servil.rs2:95-146;
-    # quest_arena.rs2 arena_release_scorp/_bouncer = quest_arena.rs2:193-265),
-    # in LostCity's pen tiles; the General by arena_spawn_general. Each one's
-    # npc_add must be followed at once by npc_setowner.
-    sammy_text = ARENA_SAMMY.read_text()
-    cutscenes = ARENA_CUTSCENES.read_text()
-    require_text(sammy_text, ("[label,ogre_attack_justin]", "def_coord $ogre_to = 0_40_49_46_29;"),
-                 "Fight Arena ogre-pen cutscene")
-    require_text(cutscenes, ("[label,arena_release_scorp]", "def_coord $scorp_spawn = 0_40_49_47_23;",
-                             "[label,arena_release_bouncer]", "def_coord $bouncer_spawn = 0_40_49_47_26;"),
-                 "Fight Arena pen cutscenes")
-    for text, spawn in (
-        (sammy_text, "npc_add(movecoord($ogre_to, 1, 0, 0), arena_ogre, 32000);"),
-        (cutscenes, "npc_add($scorp_spawn, arena_scorpion, 32000);"),
-        (cutscenes, "npc_add($bouncer_spawn, arena_bouncer, 32000);"),
-        (encounter, "npc_add(0_40_49_44_18, general_khazard_arena, 32000);"),
-    ):
-        require(text.count(spawn) == 1, f"Fight Arena: expected one {spawn}")
-        after = text.split(spawn, 1)[1].lstrip().splitlines()[0].strip()
-        require(after == "npc_setowner;",
-                f"Fight Arena: {spawn} not followed by npc_setowner; (every dynamically spawned combat type must be owner-private)")
     require("random(400) = 0" in encounter and "random(5013) = 0" in encounter,
             "Fight Arena: Ogre tertiary drop rates drifted")
+    require("npc_setowner" not in encounter,
+            "Fight Arena: the rounds are private by their copy; an owner-private actor is the old port's")
 
     locs = ARENA_LOCS.read_text()
     require_text(
         locs,
         (
             "[oploc1,arena_guard_chest_shut]",
-            "[label,arena_search_chest]",
             "[oplocu,arena_jeremydoor]",
-            "[label,arena_free_sammy]",
+            "@arena_release_sammy;",
+            "[oploc1,fightarena_door1]",
             "[oploc1,fightarena_door2]",
-            "[oploc2,fightarena_door2]",
-            "[label,arena_enter_current_round]",
-            "[label,arena_escape]",
+            '"Return to the arena?"',
         ),
         "Fight Arena route",
     )
+    require_text(encounter, ("[oploc1,fightarena_door2_escape]", "[oploc2,fightarena_door2_escape]"),
+                 "Fight Arena escape door")
 
     npc = config_text.read_text(ARENA_NPC)
     for name, hp, attack, strength, defence, rate, style in (
         ("arena_ogre", 60, 54, 53, 53, 6, 2),
         ("arena_scorpion", 40, 40, 39, 34, 4, 0),
         ("arena_bouncer", 116, 120, 120, 120, 4, 0),
-        ("general_khazard_arena", 170, 75, 78, 80, 4, 1),
+        ("general_khazard", 170, 75, 78, 80, 4, 1),
     ):
         require_text(
             npc,
@@ -957,15 +944,9 @@ def check_fight_arena() -> None:
             ),
             f"Fight Arena NPC {name}",
         )
-    require_text(npc, ("[general_khazard_arena]", "op2=Attack", "vislevel=142"),
-                 "Fight Arena General Khazard")
 
-    # The curated spawn rows are read as ROWS (first word of every non-comment
-    # line after "==== NPC ===="): a substring test passed on a comment that
-    # merely named an actor. The arena Sammy is not a spawn row at all since
-    # seam29 -- the rev-239 shell sammy_servil_arena draws the op-less
-    # sammy_servil_vis_noop, so ~arena_spawn_sammy places an owner-private
-    # sammy_servil_vis instead (sammy_servil.rs2) and every round start calls it.
+    # The spawn rows are read as ROWS (first word of every non-comment line after
+    # "==== NPC ===="): a substring test passed on a comment that merely named one.
     curated_rows = set()
     in_npc = False
     for line in ARENA_SPAWN.read_text().splitlines():
@@ -976,27 +957,20 @@ def check_fight_arena() -> None:
         if not in_npc or not stripped or stripped.startswith("//"):
             continue
         curated_rows.add(stripped.split()[0])
-    for actor in ("lady_servil", "arena_guard2", "sammy_servil", "justin_servil"):
+    for actor in ("lady_servil", "arena_guard2", "arena_guard3", "sammy_servil", "justin_servil",
+                  "hengrad", "arena_guard_door_1", "arena_guard_door_2", "general_khazard_arena"):
         require(actor in curated_rows, f"Fight Arena spawn: missing {actor} spawn row")
-    require("sammy_servil_arena" not in curated_rows,
-            "Fight Arena spawn: sammy_servil_arena shell placed (its op-less form cannot be talked to)")
-    require_text(
-        ARENA_SAMMY.read_text(),
-        ("[proc,arena_spawn_sammy]", "npc_add(0_40_49_42_18, sammy_servil_vis, 32000);",
-         "npc_setowner;", "[opnpc1,sammy_servil_vis]"),
-        "Fight Arena owner-private Sammy",
-    )
-    require(ARENA.read_text().count("~arena_spawn_sammy;") >= 4,
-            "Fight Arena: every round start must call ~arena_spawn_sammy")
     world_spawn = ARENA_WORLD_SPAWN.read_text()
-    for actor in ("arena_ogre", "arena_scorpion", "arena_bouncer"):
-        require(actor not in world_spawn, f"Fight Arena: public combat spawn restored for {actor}")
+    for actor in ("arena_ogre", "arena_scorpion", "arena_bouncer", "general_khazard ", "arena_guard"):
+        require(actor not in curated_rows and actor not in world_spawn.split("==== NPC ====")[-1],
+                f"Fight Arena: public spawn restored for {actor.strip()}")
     require_text(
         SPAWN_GENERATOR.read_text(),
-        ("NPC_SPAWN_EXCLUSIONS", "scripted owner-private encounter actor",
+        ("NPC_SPAWN_EXCLUSIONS",
          '("arena_scorpion", 2608, 3159, 0)',
          '("arena_bouncer", 2608, 3162, 0)',
-         '("arena_ogre", 2608, 3165, 0)'),
+         '("arena_ogre", 2608, 3165, 0)',
+         '("arena_guard1", 2584, 3141, 0)'),
         "Fight Arena spawn regeneration",
     )
 
@@ -1010,8 +984,10 @@ def check_fight_arena() -> None:
             "stat_advance(attack, 121750);",
             "stat_advance(thieving, 21750);",
             "~quest_complete_rewards(quest_fightarena",
+            "He tried, but I escaped.",
+            "He tried, but I was able to defeat him.",
         ),
-        "Fight Arena rewards",
+        "Fight Arena rewards and endings",
     )
 
 
