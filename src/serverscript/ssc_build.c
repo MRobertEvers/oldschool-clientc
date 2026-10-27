@@ -1343,7 +1343,12 @@ dir_listing_hash(const char* dir)
         count++;
     }
     closedir(handle);
-    qsort(names, (size_t)count, sizeof(char*), compare_names);
+    /* Not for an empty directory: `names` is still NULL there, and qsort's
+     * pointer is declared nonnull, so GCC took the call as proof that it was
+     * not and dropped ToriMem_Free's NULL check below -- the Linux sscompile
+     * segfaulted on the first directory with no sources in it. */
+    if( count > 0 )
+        qsort(names, (size_t)count, sizeof(char*), compare_names);
     for( int i = 0; i < count; i++ )
     {
         hash = ssc_hash_str(hash, names[i]);
