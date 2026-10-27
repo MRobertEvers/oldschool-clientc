@@ -2552,40 +2552,24 @@ return {
             return result, describe(detail)
         end)
 
-        -- `levelup_display` has no content opener anywhere in this pack: the
-        -- server never puts the box up, so there is nothing on screen for
-        -- either verb to read.  That is a decision, not a gap the driver can
-        -- close -- docs/QUEST_DRIVER_REMAINING.md's "Out of scope, by
-        -- decision" holds it until plan U16 lands the content, and its phase
-        -- B2 says in so many words that "those two verbs record `unsupported`
-        -- with that reason ... and the harness expects that".
-        --
-        -- So these two rows assert the REFUSAL rather than tolerating it: the
-        -- documented word passes, and everything else -- most of all a verb
-        -- that starts answering `ok` with no box on screen -- fails.  When U16
-        -- lands the content, the row goes red on the first day the box opens,
-        -- which is exactly when it should be rewritten to read it.
-        local function refused_until_u16(result, detail)
-            local text = describe(detail)
-            if result == "unsupported" then
-                return "ok", "refused as planned (plan U16, no content opener) -- " .. text
-            end
-            if result == "ok" then
-                return "hollow", "answered ok with no levelup box on screen -- " .. text
-            end
-            return result, text
-        end
-
+        -- The level-up box the scroll's xp earned.  levelup.rs2 queues it,
+        -- so it waits out the scroll and opens once scroll.close has shut it
+        -- (RSProx index 4396 [602] -> [603]).  Cook's Assistant's 300 Cooking
+        -- xp takes the fixture's Cooking 1 to 4, the level-up index 4339 [177]
+        -- recorded for the same quest.
         step("levelup.skill", function()
             local fn = verb("levelup", "skill")
             if not fn then return missing("levelup", "skill") end
-            return refused_until_u16(fn())
+            local result, detail = fn()
+            return answered(result, detail, "", field("skill", equals(STAT_SYMBOL)),
+                "the box is not the " .. STAT_SYMBOL .. " level-up this scroll's xp earned")
         end)
 
         step("levelup.continue_", function()
             local fn = verb("levelup", "continue_")
             if not fn then return missing("levelup", "continue_") end
-            return refused_until_u16(fn())
+            local result, detail = fn()
+            return result, describe(detail)
         end)
 
         -- ---------------- phase 9: the quest binding and the journal

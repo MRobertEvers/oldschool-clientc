@@ -3984,13 +3984,27 @@ d_click_armed(lua_State* L)
     return 2;
 }
 
+/* The component's own hidden flag, as the client keeps it: the server's last
+ * IF_SETHIDE since the group opened, else the cache's `hidden=`. Interface
+ * 233 ships all 25 skill icons hidden and the server shows one
+ * (levelup.rs2), so "never told" must read as the cache's yes, not as shown. */
 static int
 d_widget_own_hidden(lua_State* L)
 {
-    (void)bot_of(L);
-    (void)luaL_checkinteger(L, 1);
+    struct ScriptBot* bot = bot_of(L);
+    int component = (int)luaL_checkinteger(L, 1);
+    int sent = ScriptrunCore_SetHide(bot->core, component);
+    int hidden;
+
+    if( sent >= 0 )
+        hidden = sent;
+    else
+    {
+        struct RSCache_Dat2Component const* comp = cache_component(bot, component);
+        hidden = comp && comp->hidden;
+    }
     lua_pushstring(L, "ok");
-    lua_pushboolean(L, 0);
+    lua_pushboolean(L, hidden);
     return 2;
 }
 

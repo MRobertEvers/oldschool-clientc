@@ -270,9 +270,9 @@ cleared on *every* mount, so a naive presence check is wrong (plan D6).
 
 `text`, `head`, `name`, `item`, `expect_*`, `scroll.*`, `levelup.*`.
 `head` and `item` need the widget model reader; confirm it is wired before
-assuming it is. `levelup_display` has no content opener in this tree (plan
-U16), so those two verbs record `unsupported` with that reason until the
-content decision lands, and the harness expects that.
+assuming it is. `levelup_display` is opened by `levelup/scripts/levelup.rs2`
+(queued after the xp, as RSProx records it), so `levelup.skill` waits for the
+box to mount and the conformance row reads Cook's Assistant's Cooking box.
 
 ### B3. pointer and world-interact families
 
@@ -356,7 +356,6 @@ out of draft.
   thing being optimised. Note the tick-unit fix in this branch is a
   *prerequisite*: it put the two clocks behind one named ratio, which is what
   that work needs to vary.
-- **`levelup_display`** until the content decision in plan U16.
 
 ## Haiku pilots, 2026-09-19 (three batches of four)
 

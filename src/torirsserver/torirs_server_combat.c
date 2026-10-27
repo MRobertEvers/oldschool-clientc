@@ -1305,9 +1305,12 @@ ToriRSServer_CombatAddXp(
             ToriRSServer_CombatSyncHitpoints(player);
         }
         /* Only upward: `advancestat` is the level-up trigger, and content hangs
-         * the fanfare interface off it. Losing a level is not an advance. */
+         * the fanfare interface off it. Losing a level is not an advance.
+         * `last_int` is the level it came from: one drop can cross several
+         * levels (a quest reward), and the script's jingle depends on whether
+         * any level crossed unlocks something (levelup.rs2). */
         if( player->stat_level[stat] > before )
-            ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1);
+            ToriRSServer_ScriptsRunTriggerLastint(srv, SS_TRIGGER_ADVANCESTAT, stat, -1, -1, before);
     }
     if( stat != TORIRSSERVER_STAT_HITPOINTS && stat != TORIRSSERVER_STAT_SUMMONING )
     {

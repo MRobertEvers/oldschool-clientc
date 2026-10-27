@@ -470,20 +470,18 @@ function QD.read._levelup_universe_presented()
     return component_id ~= nil and QD.read._is_presented(component_id)
 end
 
--- The box has no content opener anywhere in this tree today (plan U16):
--- every [advancestat,*] trigger in this content pack routes to the
--- account-summary side panel instead, never to levelup_display. That is a
--- static fact about the content pack, not a runtime race, so answering
--- "unsupported" immediately -- rather than waiting out an 8-tick await that
--- can never resolve -- documents it as the recorded, justified gap plan U16
--- calls for instead of costing the gate 8 idle ticks on every run it is
--- exercised. Re-gate against a real mount only if the product decision is
--- to open it: the scan below (skill container, text1/text2) is kept ready
--- for that day, gated on the same presented check.
+-- The box opens two ticks after the xp that earned it, and later still when
+-- a modal was up (it waits out the quest scroll): levelup.rs2 queues it the
+-- way Jagex does (docs/rsprox-analysis/levelup/README.md). So the read waits
+-- for it to mount, as chat.text waits for its page.
 function QD.levelup.skill()
-    if not QD.read._levelup_universe_presented() then
-        return "unsupported",
-            "levelup.skill: levelup_display has no content opener in this tree (plan U16)"
+    local result, detail = await({
+        event = "sub_mounted",
+        level = QD.read._levelup_universe_presented,
+        note = "levelup.skill",
+    }, 8)
+    if result ~= "ok" then
+        return result, detail
     end
 
     local skill_name = nil
@@ -511,16 +509,11 @@ end
 -- drives (D1: RESUME_PAUSEBUTTON, action_index -1) -- api.drive.resume
 -- directly, not QD.chat.continue_, which is scoped to chat_modal_host and
 -- would refuse to arm a component outside it.
---
--- Same plan-U16 gap as levelup.skill above: nothing in this content pack
--- ever opens levelup_display, so the role never resolves to a live
--- component and this answers "unsupported" rather than the bare "no_row" a
--- content-pack bug would leave behind.
 function QD.levelup.continue_()
     local continue_id = QD.read._component_of("levelup_display:continue")
     if not continue_id then
         return "unsupported",
-            "levelup.continue: levelup_display has no content opener in this tree (plan U16)"
+            "levelup.continue: this content pack has no levelup_display:continue"
     end
 
     local pending_result, pending_id = api_drive.pause_pending()
