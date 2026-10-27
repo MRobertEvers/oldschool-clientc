@@ -65,26 +65,21 @@ app_world_scene_element_create(
         {
             el->dynamic = true;
             /*
-             * Entities pick per-face, like locs do.
+             * Players and ground objs pick by their box, as the rev-239 deob
+             * sets Model.field2167 (useAABBMouseCheck) on every player model
+             * (class60) and every obj model (class396). The box is the
+             * reference's: the cursor's ray against the model's 3D box
+             * (ToriDraw_ProjectedModelBoxHitTest), not a screen rectangle --
+             * a screen rectangle grown by 5 px is what once made boxes look
+             * so much bigger than the model that entities were moved to the
+             * per-face test.
              *
-             * The reference sets Model.useAABBMouseCheck on exactly these
-             * (ObjType.getWorldModel:359, ClientPlayer:321/395, NpcType:227),
-             * and this followed it — but a screen-space box around a large
-             * model is enormously bigger than the model. TzKal-Zuk is the case
-             * that made it untenable: his box swallows most of the arena, so
-             * clicking the floor near him hits him instead. The box is also
-             * built over *every* projected vertex, including geometry that is
-             * never drawn, which inflates it further.
-             *
-             * ToriDraw_ProjectedModelMouseHitTest still uses the AABB as its
-             * cheap reject before walking faces, so this costs a triangle scan
-             * only on models the cursor is actually over.
-             *
-             * Npcs are overwritten every frame by the rev-239 deob's rule
+             * Npcs are overwritten every frame by the deob's rule
              * (app_world_sync_positions: box only for a size-1 type), which
-             * picks Zuk per face too.
+             * picks TzKal-Zuk per face.
              */
-            el->pick_aabb = false;
+            el->pick_aabb =
+                kind == TORIDRAW_ELEMENT_KIND_PLAYER || kind == TORIDRAW_ELEMENT_KIND_OBJSTACK;
         }
     }
     return element_id;

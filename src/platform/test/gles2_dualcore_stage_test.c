@@ -274,7 +274,7 @@ reference_stage(
     if( out->cull != TORIDRAW_CULL_VISIBLE )
         return;
     out->pick_hit = command->pick_aabb
-                        ? ToriDraw_ProjectedModelContainsAabb(f->scene, f->mouse_x, f->mouse_y)
+                        ? ToriDraw_ProjectedModelBoxHitTest(f->scene, command->model, &f->view_port, f->mouse_x, f->mouse_y)
                         : ToriDraw_ProjectedModelMouseHitTest(
                               f->scene, command->model, &f->view_port, f->mouse_x, f->mouse_y);
     out->depth = f->scene->projected_vertex.z;

@@ -3906,7 +3906,7 @@ gl3_ev_model_draw(
      * all sort away must still pick. */
     if( renderer->pick_enabled && mcmd->pickable && mcmd->element_id >= 0 &&
         (mcmd->pick_aabb
-             ? ToriDraw_ProjectedModelContainsAabb(ctx, renderer->pick_mouse_x, renderer->pick_mouse_y)
+             ? ToriDraw_ProjectedModelBoxHitTest(ctx, mcmd->model, &renderer->cur_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
          : mcmd->pick_terrain
              ? ToriDraw_ProjectedTileMouseHitTest(
                    ctx, mcmd->model, &renderer->cur_3d.view_port, renderer->pick_mouse_x,

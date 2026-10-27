@@ -476,8 +476,7 @@ stage_pick_hit(
     if( !context->pick_enabled || !command->pickable || command->element_id < 0 )
         return false;
     if( command->pick_aabb )
-        return ToriDraw_ProjectedModelContainsAabb(
-            context->scene, context->pick_mouse_x, context->pick_mouse_y);
+        return ToriDraw_ProjectedModelBoxHitTest(context->scene, command->model, &context->view_port, context->pick_mouse_x, context->pick_mouse_y);
     if( command->pick_terrain )
         return ToriDraw_ProjectedTileMouseHitTest(
             context->scene,

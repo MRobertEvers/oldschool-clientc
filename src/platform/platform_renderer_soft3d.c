@@ -1419,8 +1419,7 @@ soft3d_draw_model(
     {
         bool hit;
         if( cmd->pick_aabb )
-            hit = ToriDraw_ProjectedModelContainsAabb(
-                soft->scene, soft->pick_mouse_x, soft->pick_mouse_y);
+            hit = ToriDraw_ProjectedModelBoxHitTest(soft->scene, cmd->model, &soft->view_port_3d, soft->pick_mouse_x, soft->pick_mouse_y);
         else if( cmd->pick_terrain )
             hit = ToriDraw_ProjectedTileMouseHitTest(
                 soft->scene,

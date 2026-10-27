@@ -1466,6 +1466,8 @@ ToriDraw_ProjectWithVTable(
     }
 
     scene->projected_vertex = center_projection;
+    scene->pick_position = *position;
+    scene->pick_camera = *camera;
 
     /*
      * No screen box is built before the projection. The model is bounded
@@ -1766,6 +1768,201 @@ ToriDraw_ProjectedModelContainsAabb(
            screen_y >= aabb->min_screen_y && screen_y <= aabb->max_screen_y;
 }
 
+/*
+ * The reference's mouse test for a model: does the ray under the cursor pass
+ * through the model's 3D box? Every model is asked this first (class144.draw
+ * with field2115, which is always true: Statics.method129); a box model
+ * (field2167, Model.useAABBMouseCheck) is picked on the answer alone, and any
+ * other model goes on to the per-face rough test only when it is yes.
+ *
+ * NOT a screen rectangle. The projected-vertex rectangle grown by
+ * TORIDRAW_PICK_SLOP, which this replaced for box models, was 5 px wider than
+ * the model on every side at every distance -- double the width of an npc
+ * twenty pixels across -- and swallowed the whole screen once a vertex was
+ * near-clipped. The ray has no slop; the box's own padding is in world units,
+ * so it shrinks with distance as the model does.
+ *
+ * The box (class144.method4977): the model's vertices under its own rotation,
+ * bounded from the ORIGIN (min and max start at zero), centre (min+max)/2,
+ * half-extent (max-min+1)/2. x and z half-extents are raised to 32, and a box
+ * model's get 8 more. The reference rotates by yaw alone; this applies the
+ * model's full roll/pitch/yaw, in the projection's order, so the box contains
+ * exactly the vertices that were drawn.
+ *
+ * The ray (Statics.method1374 / method6402): the cursor's view ray from depth
+ * 50 to the draw distance, carried back through the camera rotation into
+ * world axes relative to the model origin. The intersection is the separating
+ * axis test of method6582, segment against box, axis for axis.
+ */
+static bool
+toridraw_pick_ray_hits_box(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y,
+    bool entity_box)
+{
+    const struct ToriDraw_Position* const pos = &scene->pick_position;
+    const struct ToriDraw_Camera* const cam = &scene->pick_camera;
+    int const vertex_count = model_vertex_count(hnd);
+    const vertexint_t* const vx = model_vertices_x(hnd);
+    const vertexint_t* const vy = model_vertices_y(hnd);
+    const vertexint_t* const vz = model_vertices_z(hnd);
+
+    int const pitch = ToriDraw_NormalizeAngle(pos->pitch);
+    int const yaw = ToriDraw_NormalizeAngle(pos->yaw);
+    int const roll = ToriDraw_NormalizeAngle(pos->roll);
+    int const sin_pitch = ToriDraw_ReadSinTable(pitch);
+    int const cos_pitch = ToriDraw_ReadCosTable(pitch);
+    int const sin_yaw = ToriDraw_ReadSinTable(yaw);
+    int const cos_yaw = ToriDraw_ReadCosTable(yaw);
+    int const sin_roll = ToriDraw_ReadSinTable(roll);
+    int const cos_roll = ToriDraw_ReadCosTable(roll);
+
+    int min_x = 0, min_y = 0, min_z = 0;
+    int max_x = 0, max_y = 0, max_z = 0;
+    for( int i = 0; i < vertex_count; i++ )
+    {
+        /* project_orthographic's model rotation, statement for statement. */
+        int x = vx[i];
+        int y = vy[i];
+        int z = vz[i];
+        if( roll != 0 )
+        {
+            int tmp = (y * sin_roll + x * cos_roll) >> 16;
+            y = (y * cos_roll - x * sin_roll) >> 16;
+            x = tmp;
+        }
+        if( pitch != 0 )
+        {
+            int tmp = (y * cos_pitch - z * sin_pitch) >> 16;
+            z = (y * sin_pitch + z * cos_pitch) >> 16;
+            y = tmp;
+        }
+        if( yaw != 0 )
+        {
+            int tmp = (z * sin_yaw + x * cos_yaw) >> 16;
+            z = (z * cos_yaw - x * sin_yaw) >> 16;
+            x = tmp;
+        }
+        if( x < min_x )
+            min_x = x;
+        if( x > max_x )
+            max_x = x;
+        if( y < min_y )
+            min_y = y;
+        if( y > max_y )
+            max_y = y;
+        if( z < min_z )
+            min_z = z;
+        if( z > max_z )
+            max_z = z;
+    }
+
+    double const box_x = (min_x + max_x) / 2;
+    double const box_y = (min_y + max_y) / 2;
+    double const box_z = (min_z + max_z) / 2;
+    int half_x = (max_x - min_x + 1) / 2;
+    int const half_y = (max_y - min_y + 1) / 2;
+    int half_z = (max_z - min_z + 1) / 2;
+    if( half_x < 32 )
+        half_x = 32;
+    if( half_z < 32 )
+        half_z = 32;
+    if( entity_box )
+    {
+        half_x += 8;
+        half_z += 8;
+    }
+
+    /* The segment in camera space: x and y at depth d are the screen offset
+     * scaled back out of the projection. */
+    double const rel_x = screen_x - view_port->x_center;
+    double const rel_y = screen_y - view_port->y_center;
+    double const near_d = cam->near_plane_z;
+    double const far_d = TORIDRAW_CYLINDER_FAR_PLANE_Z;
+    double cam_end[2][3];
+    if( toridraw_projection_is_parallel(cam->projection_mode) )
+    {
+        double const zoom = (cam->parallel_zoom16 ? cam->parallel_zoom16 : TORIDRAW_ORTHO_ZOOM_UNIT) /
+                            (double)TORIDRAW_ORTHO_ZOOM_UNIT;
+        for( int e = 0; e < 2; e++ )
+        {
+            cam_end[e][0] = rel_x / zoom;
+            cam_end[e][1] = rel_y / zoom;
+        }
+    }
+    else
+    {
+        /* screen = ((c * cot15) >> 15) * 512 / z, so the linear scale is
+         * cot15 / 64. */
+        double const scale =
+            (toridraw_projection_cot16(cam->projection_mode, cam->projection_scale, cam->fov_rpi2048) >>
+             1) /
+            64.0;
+        cam_end[0][0] = rel_x * near_d / scale;
+        cam_end[0][1] = rel_y * near_d / scale;
+        cam_end[1][0] = rel_x * far_d / scale;
+        cam_end[1][1] = rel_y * far_d / scale;
+    }
+    cam_end[0][2] = near_d;
+    cam_end[1][2] = far_d;
+
+    /* Back through the camera: the transpose of project_orthographic's
+     * yaw, pitch, roll, undone in reverse. */
+    int const cp = ToriDraw_NormalizeAngle(cam->pitch);
+    int const cy = ToriDraw_NormalizeAngle(cam->yaw);
+    int const cr = ToriDraw_NormalizeAngle(cam->roll);
+    double const sin_cp = ToriDraw_ReadSinTable(cp) / 65536.0;
+    double const cos_cp = ToriDraw_ReadCosTable(cp) / 65536.0;
+    double const sin_cy = ToriDraw_ReadSinTable(cy) / 65536.0;
+    double const cos_cy = ToriDraw_ReadCosTable(cy) / 65536.0;
+    double const sin_cr = ToriDraw_ReadSinTable(cr) / 65536.0;
+    double const cos_cr = ToriDraw_ReadCosTable(cr) / 65536.0;
+    double end[2][3];
+    for( int e = 0; e < 2; e++ )
+    {
+        double const xf = cam_end[e][0];
+        double const yf = cam_end[e][1];
+        double const zf = cam_end[e][2];
+        double const xs = xf * cos_cr - yf * sin_cr;
+        double const ys = xf * sin_cr + yf * cos_cr;
+        double const y = ys * cos_cp + zf * sin_cp;
+        double const zs = zf * cos_cp - ys * sin_cp;
+        double const x = xs * cos_cy - zs * sin_cy;
+        double const z = xs * sin_cy + zs * cos_cy;
+        /* pick_position is the model origin relative to the camera. */
+        end[e][0] = x - pos->x;
+        end[e][1] = y - pos->y;
+        end[e][2] = z - pos->z;
+    }
+
+    /* method6582: segment midpoint against box centre, then the three edge
+     * cross axes. */
+    double const dx = (end[1][0] - end[0][0]) / 2;
+    double const dy = (end[1][1] - end[0][1]) / 2;
+    double const dz = (end[1][2] - end[0][2]) / 2;
+    double const adx = fabs(dx);
+    double const ady = fabs(dy);
+    double const adz = fabs(dz);
+    double const tx = (end[0][0] + end[1][0]) / 2 - box_x;
+    double const ty = (end[0][1] + end[1][1]) / 2 - box_y;
+    double const tz = (end[0][2] + end[1][2]) / 2 - box_z;
+
+    if( fabs(tx) > half_x + adx )
+        return false;
+    if( fabs(ty) > half_y + ady )
+        return false;
+    if( fabs(tz) > half_z + adz )
+        return false;
+    if( fabs(dy * tz - dz * ty) > half_y * adz + half_z * ady )
+        return false;
+    if( fabs(dz * tx - dx * tz) > half_x * adz + half_z * adx )
+        return false;
+    return fabs(dx * ty - dy * tx) <= half_x * ady + half_y * adx;
+}
+
 /**
  * Shared face walk behind both per-face tests. Which faces are eligible is the
  * same question for any of them — only the triangle predicate differs, so
@@ -1916,14 +2113,33 @@ ToriDraw_ProjectedModelMouseHitTest(
     int screen_x,
     int screen_y)
 {
+    /* Both halves of the reference's rule: the ray through the model's box
+     * (which bounds the faces' 5 px slop to the model), and then a face. The
+     * face walk goes first only because it is the cheaper miss. */
     return toridraw_projected_model_hit_face(
-        scene,
-        hnd,
-        view_port,
-        screen_x,
-        screen_y,
-        TORIDRAW_PICKTEST_ROUGH,
-        /* include_hidden */ false);
+               scene,
+               hnd,
+               view_port,
+               screen_x,
+               screen_y,
+               TORIDRAW_PICKTEST_ROUGH,
+               /* include_hidden */ false) &&
+           toridraw_pick_ray_hits_box(
+               scene, hnd, view_port, screen_x, screen_y, /* entity_box */ false);
+}
+
+bool
+ToriDraw_ProjectedModelBoxHitTest(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
+    int screen_x,
+    int screen_y)
+{
+    assert(scene);
+    assert(view_port);
+    return toridraw_pick_ray_hits_box(
+        scene, hnd, view_port, screen_x, screen_y, /* entity_box */ true);
 }
 
 bool

@@ -516,8 +516,7 @@ es3p_draw_model(
 
         if( renderer->pick_enabled && command->pickable && command->element_id >= 0 &&
             (command->pick_aabb
-                 ? ToriDraw_ProjectedModelContainsAabb(
-                       renderer->scene, renderer->pick_mouse_x, renderer->pick_mouse_y)
+                 ? ToriDraw_ProjectedModelBoxHitTest(renderer->scene, command->model, &renderer->current_3d.view_port, renderer->pick_mouse_x, renderer->pick_mouse_y)
              : command->pick_terrain ? ToriDraw_ProjectedTileMouseHitTest(
                                            renderer->scene,
                                            command->model,

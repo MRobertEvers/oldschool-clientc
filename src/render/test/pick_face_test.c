@@ -47,6 +47,14 @@ struct Fixture
     int sy[MAX_V];
     int sz[MAX_V];
 
+    /* Model-space vertices, read only by the ray-against-box half of the
+     * pick. Left at zero with a zeroed camera, the ray starts at the model
+     * origin, inside its box, so every face case passes that half and stays a
+     * statement about the face rule alone. */
+    vertexint_t vx[MAX_V];
+    vertexint_t vy[MAX_V];
+    vertexint_t vz[MAX_V];
+
     faceint_t fa[MAX_F];
     faceint_t fb[MAX_F];
     faceint_t fc[MAX_F];
@@ -72,6 +80,10 @@ fixture_reset(void)
 
     g_fx.view_port.x_center = CENTER_X;
     g_fx.view_port.y_center = CENTER_Y;
+
+    g_fx.model.vertices_x = g_fx.vx;
+    g_fx.model.vertices_y = g_fx.vy;
+    g_fx.model.vertices_z = g_fx.vz;
 
     g_fx.model.face_indices_a = g_fx.fa;
     g_fx.model.face_indices_b = g_fx.fb;
@@ -346,6 +358,108 @@ test_aabb_gate(void)
     CHECK(!pick(10, 10), "a point outside the model aabb must reject before the face walk");
 }
 
+/*
+ * The ray half of the pick, against real geometry: deob Statics.method129 ->
+ * method6582 (segment against box) over the box class144.method4977 builds.
+ *
+ * A camera at the origin looking down +z at scale 512, near plane 50, and a
+ * model 20 wide, 20 deep and 100 tall standing on its origin. Its box is
+ * x/z half-extent 10, raised to 32 (and to 40 for a box model), y from -100
+ * to 0. The box's near face sits at depth D - half_z, which is where its
+ * silhouette is widest: the edge is at screen x = half_x * 512 / (D - half_z).
+ */
+static void
+fixture_tall_model(int depth)
+{
+    static const int corner_x[8] = { -10, 10, -10, 10, -10, 10, -10, 10 };
+    static const int corner_y[8] = { -100, -100, 0, 0, -100, -100, 0, 0 };
+    static const int corner_z[8] = { -10, -10, -10, -10, 10, 10, 10, 10 };
+
+    fixture_reset();
+    g_fx.scene.pick_camera.projection_mode = TORIDRAW_PROJECTION_MODE_SCALE;
+    g_fx.scene.pick_camera.projection_scale = 512;
+    g_fx.scene.pick_camera.near_plane_z = 50;
+    g_fx.scene.pick_position.z = depth;
+    for( int i = 0; i < 8; i++ )
+    {
+        /* Screen coordinates as the projection writes them: truncated. */
+        int z = depth + corner_z[i];
+        int v = add_vertex(corner_x[i] * 512 / z, corner_y[i] * 512 / z);
+        g_fx.vx[v] = (vertexint_t)corner_x[i];
+        g_fx.vy[v] = (vertexint_t)corner_y[i];
+        g_fx.vz[v] = (vertexint_t)corner_z[i];
+    }
+}
+
+static bool
+pick_box(int mouse_x, int mouse_y)
+{
+    return ToriDraw_ProjectedModelBoxHitTest(
+        &g_fx.scene, g_fx.hnd, &g_fx.view_port, CENTER_X + mouse_x, CENTER_Y + mouse_y);
+}
+
+/* A box model's edge is the 3D box's, padded 8 world units -- not the screen
+ * rectangle grown by 5 px, which is a fixed size at every distance. */
+static void
+test_box_model_edge_is_the_3d_box(void)
+{
+    /* 40 * 512 / 960 = 21.3 */
+    fixture_tall_model(1000);
+    CHECK(pick_box(21, -25), "inside the padded box's near face must pick");
+    CHECK(!pick_box(22, -25), "past the padded box's near face must miss");
+    CHECK(pick_box(-21, -25), "the box is symmetric about the origin");
+    CHECK(!pick_box(-22, -25), "past the left edge must miss");
+
+    /* Far off the box shrinks with the model: 40 * 512 / 3960 = 5.2. The
+     * vertices land at x = +-1, so the old rectangle reached 6. */
+    fixture_tall_model(4000);
+    CHECK(pick_box(5, -6), "inside the distant box must pick");
+    CHECK(!pick_box(6, -6), "5 px past a distant model's vertices is outside its box");
+
+    /* Vertically the box is the model's own extent: y in [-100, 0] reaches
+     * -100 * 512 / 960 = -53.3 at the near face. */
+    fixture_tall_model(1000);
+    CHECK(pick_box(0, -53), "the top of the box must pick");
+    CHECK(!pick_box(0, -54), "above the box must miss");
+    CHECK(!pick_box(0, 1), "below the model's origin must miss");
+}
+
+/* A per-face model's 5 px face slop is bounded by its box (no padding, half
+ * extent 32 at least): at a distance the slop reaches past the box and the
+ * reference refuses those pixels. */
+static void
+test_face_slop_is_bounded_by_the_box(void)
+{
+    fixture_tall_model(4000);
+    /* Front face: (-1,-12) (1,-12) (1,0). Face slop reaches x = 6; the box
+     * edge is 32 * 512 / 3968 = 4.1. */
+    add_face(0, 1, 3);
+    CHECK(pick(4, -6), "inside the box and the face slop must pick");
+    CHECK(!pick(5, -6), "face slop past the box must not pick");
+
+    /* Close up the box (32 * 512 / 968 = 16.9) is wider than the slop (5 + 5),
+     * so the faces decide. */
+    fixture_tall_model(1000);
+    add_face(0, 1, 3);
+    CHECK(pick(10, -25), "face slop inside the box picks");
+    CHECK(!pick(11, -25), "past the face slop misses even inside the box");
+}
+
+/* A near-clipped box model used to make its screen rectangle the whole plane
+ * and pick from anywhere. The ray starts at the near plane and only meets the
+ * box where the box is. */
+static void
+test_near_clipped_box_model_does_not_pick_everywhere(void)
+{
+    fixture_tall_model(20);
+    g_fx.scene.pick_position.x = 300;
+    g_fx.scene.near_clipped = true;
+    CHECK(!pick_box(0, 0), "a box well off to the side must not pick at the centre");
+    CHECK(!pick_box(-200, -100), "nor anywhere else it is not");
+    /* At depth 50 the box (x 260..340) is at screen x 2662..3481. */
+    CHECK(pick_box(3000, -10), "where the box actually is, it picks");
+}
+
 /* A model whose faces are all hidden is unpickable, which is what lets a
  * fully merged-away loc fall through to whatever is behind it. */
 static void
@@ -532,6 +646,10 @@ test_tile_pick_keeps_the_other_gates(void)
 int
 main(void)
 {
+    /* The ray half of the pick reads the trig tables. */
+    ToriDraw_InitSinTable();
+    ToriDraw_InitCosTable();
+
     test_bbox_not_containment();
     test_slop_is_five();
     test_hidden_faces_do_not_pick();
@@ -541,6 +659,9 @@ main(void)
     test_backfacing_faces_still_pick();
     test_alpha_254_stays_pickable_255_does_not();
     test_aabb_gate();
+    test_box_model_edge_is_the_3d_box();
+    test_face_slop_is_bounded_by_the_box();
+    test_near_clipped_box_model_does_not_pick_everywhere();
     test_all_hidden_model();
     test_visible_face_query();
     test_missing_colour_channel_picks_every_face();

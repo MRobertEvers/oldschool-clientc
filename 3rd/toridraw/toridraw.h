@@ -270,12 +270,24 @@ ToriDraw_RenderModel1CullPoint(
     bool* out_point_inside);
 
 
-/** Bounding-box hit test against the last projected model (reference
- *  Model.useAABBMouseCheck). Cheaper and far more forgiving than the per-face
- *  test — the reference uses it for npcs, players and ground objs. */
+/** Whether the point is inside the last projected model's screen rectangle,
+ *  grown by the per-face test's 5 px slop. A cheap reject only: it is NOT the
+ *  reference's box test (see ToriDraw_ProjectedModelBoxHitTest). */
 bool
 ToriDraw_ProjectedModelContainsAabb(
     struct ToriDraw_Scene* scene,
+    int screen_x,
+    int screen_y);
+
+/** Box hit test against the last projected model (reference
+ *  Model.useAABBMouseCheck, deob class144.field2167): the cursor's view ray
+ *  against the model's 3D box, padded 8 units in x and z. The reference uses
+ *  it for size-1 npcs, players and ground objs. */
+bool
+ToriDraw_ProjectedModelBoxHitTest(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_ViewPort* view_port,
     int screen_x,
     int screen_y);
 
@@ -292,7 +304,9 @@ ToriDraw_ProjectedModelContainsPoint(
  *  reference render2 pick pass. A face counts when the cursor (grown by 5px)
  *  overlaps its screen bounding box — deliberately loose, so the gaps in a
  *  sparse model still pick. Faces hidden by lighting/mergeNormals and faces
- *  with a near-clipped vertex are skipped; backfacing ones are not. */
+ *  with a near-clipped vertex are skipped; backfacing ones are not. The
+ *  cursor's view ray must also pass through the model's 3D box, as in the
+ *  reference, which keeps the slop from reaching past the model. */
 bool
 ToriDraw_ProjectedModelMouseHitTest(
     struct ToriDraw_Scene* scene,

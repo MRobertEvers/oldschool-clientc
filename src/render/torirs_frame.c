@@ -21,21 +21,6 @@
 #include "toridraw.h"
 #include "toridraw_element_id.h"
 
-/* See the pick_aabb assignment in the element draw below. */
-static bool
-frame_entity_draws_no_face(
-    int element_id,
-    struct ToriDraw_ModelHandle model)
-{
-    enum ToriDraw_ElementKind const kind = ElementId_Kind(ElementId_FromRaw(element_id));
-    /* Not npcs: their pick_aabb is the deob's size rule (app_world_sync.c),
-     * which already boxes a size-1 npc that draws nothing (Chancy) and must
-     * NOT box a larger one (the Inferno's invisible rocky support). */
-    if( kind != TORIDRAW_ELEMENT_KIND_PLAYER && kind != TORIDRAW_ELEMENT_KIND_OBJSTACK )
-        return false;
-    return !ToriDraw_ModelHasVisibleFace(model);
-}
-
 static void
 frame_queue(
     struct ToriRS_Frame* frame,
@@ -2657,22 +2642,13 @@ try_emit_world_draw_model(
          * purpose. */
         out->u.model.anim_index = 0;
         out->u.model.pickable = !flat;
-        /* AN ENTITY THAT DRAWS NO FACE PICKS BY ITS BOX.  Entities pick
-         * per-face here (app_world_scene_element_create: the reference's
-         * box, Model.useAABBMouseCheck on NpcType:227 / ClientPlayer /
-         * ObjType, swallowed TzKal-Zuk's arena), and the per-face walk skips
-         * hidden faces -- so an npc whose model is ALL hidden faces could
-         * never be pressed, where the reference's box (built over every
-         * projected vertex, hidden ones included) picks it.  Biohazard's
-         * Chancy and Da Vinci in the Dancing Donkey Inn (gambler2 1106,
-         * artist2 1104) are drawn with model 25362 alone: a 128x128 quad at
-         * head height whose two faces carry alpha 255, which ModelData.light
-         * hides.  Only that case changes: a model with one visible face keeps
-         * the per-face rule, and locs never take this arm.  Npcs no longer
-         * take it either: el->pick_aabb carries the deob's own npc rule
-         * (size 1 = box, app_world_sync.c), which covers Chancy. */
-        out->u.model.pick_aabb = el->pick_aabb ||
-            (!flat && frame_entity_draws_no_face(element_id, el->model));
+        /* The deob's box rule (Model.field2167): players and ground objs
+         * always, npcs only at size 1 -- set on the element by
+         * app_world_scene_element_create and app_world_sync_positions. A
+         * size-1 npc drawn with nothing but hidden faces (Biohazard's Chancy
+         * and Da Vinci, model 25362) still picks, because the box is built
+         * over every vertex, hidden ones included. */
+        out->u.model.pick_aabb = el->pick_aabb;
         /* Which view this draw belongs to, off the descent stack: a deck
          * tile's pick coords are the DECK's own tiles, and the click layer
          * resolves them against that view's staging base (deob: each scene

@@ -1040,6 +1040,17 @@ struct ToriDraw_Scene
      * projection16.aarch64.S. */
     int projection_prepared_cot16;
 
+    /*
+     * The placement and camera the last projected model was projected with,
+     * kept for the pick: the reference's mouse test is a ray against the
+     * model's 3D box (deob Statics.method129 -> method6582), and a ray cannot
+     * be rebuilt from screen coordinates alone. Written once per model that
+     * survives the fast cull; read only by the hit tests that follow it.
+     * Here, past the block whose layout toridraw.c pins.
+     */
+    struct ToriDraw_Position pick_position;
+    struct ToriDraw_Camera pick_camera;
+
     faceint_t* tmp_depth_face_count;
     faceint_t* tmp_depth_faces;
     faceint_t* tmp_priority_face_count;
