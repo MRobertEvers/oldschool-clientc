@@ -255,6 +255,39 @@ There are no modal boxes. **Implemented:** both lines go through `~tutorial_meso
 
 **Implemented 2026-10-26, every anvil:** the `smithing` interface (312) replaces our `skillmulti` chain. Open: `smithing_bar_type` (varbit 3216), `makexcrafting` (varp 2224) = bars held capped at 28, clientscript 2524, the modal. A cell's IF_BUTTON: the lasttype varbits, seq 898, the modal closed, `smithing_close` (6123); products at C+3 then every 5 ticks (index 3449 [7275..7288]), spam-typed "You hammer..." lines, no synth. The quantity buttons set 2224 (index 800 [12729]). A cell finds its row through the new `smithing:component` column. Unverified: which bar "Smith" picks when several kinds are held (lowest tier here), and the X button's prompt.
 
+## The display name (implemented 2026-10-27)
+
+Jagex asks for the name before the design panel, in `tutorial_displayname` (558). The
+client sends the typed name unprompted: no `p_stringdialog` goes out before it. The box's
+state is `displayname_status` (varbit 5605, on varp 1042, which therefore transmits), and
+`tutorial_displayname_buttons` (2575) draws the buttons from it.
+
+| tick | recorded | ours |
+|---|---|---|
+| [0] | login: 281 = 1, 5605 = 1; step frame; mesoverlay "<col=0000ff>Setting your name</col><br>Before you get started, you'll need to set a display name. Please use the open interface to set one."; `toplevel_mainmodal_open` (2524) (-1, -1); `if_opensub mainmodal` 558; `tutorial_displayname_allow_input` (4139) (look_up_name, set_name, name_text, name_highlight, name, true) | `[queue,tutorial_open_displayname]`, a tick after login like the design panel was |
+| [9] | `if_button name` → 4139 again | `[if_button1,tutorial_displayname:name]` |
+| [18] | `resume_p_stringdialog "LoveTori"` + `if_button look_up_name`; 5605 = 2; `tutorial_displayname_push_name` (4144) (…, "LoveTori") | `last_string` reads the unsolicited resume (`player->resume_string`); `displayname_check` |
+| [20] | 5605 = 4; status "Great! The display name <col=ffffff>LoveTori</col> is <col=00ff00>available</col>!<br>You may set this name now, or enter another to look up." | `p_delay(1)` |
+| [24] | `if_button set_name`; 5605 = 5; status "Requesting..." | |
+| [26] | 5607 `displayname_changedthissession` = 1; the appearance block carries the new name; synth 2655 `found_gem`; `tutorial_overlay:noclick` hidden; 4145 | `displayname_set`: reserves the name, renames the friend entry, writes the save |
+| [27] | 8119 `has_displayname_transmitter` = 1 (chat allowed); 558 closed; the design panel with "<col=0000ff>Setting your appearance</col>…" | `@tutorial_open_design`; `[login,_]` sets 8119 only once a name is set |
+
+The player shows `#Player978` until [26]. Ours shows the login name. No recording looks up a
+taken or invalid name, so the refusal text and the return to status 1 are UNVERIFIED, and
+so are the `suggestions` rows (558:14..17), which we never fill.
+
+The account and the display name are now separate. The login name is the account: the
+save file, the password record, the login claim and the account database's key. The
+display name is the save's `display_name`, under `[player]`. It is used for the
+appearance block, chat, the friend service and the hiscores. `<saves>/names/<key>` holds
+each name a player has set, with the account that set it. A name counts as taken when it
+is another account's login name, another account's display name, or a name shown by
+anyone online. A new login under a held name is refused as a wrong password would be.
+
+Test: `test/quests/tutorialisland.lua` names the player and checks Dezzick's
+"You can call me Tori Newbie." page. Scriptrun has no clientscripts, so there the test sends
+the resume itself (`t.chat.resume_string`); the client lane types with `t.text`.
+
 ## Dialogue findings
 
 - **Moods:** the 43 tutorial pages above. The recorded anim gives the mood: `chat<mood><rows>`.
@@ -272,5 +305,4 @@ There are no modal boxes. **Implemented:** both lines go through `~tutorial_meso
 - **Steps 183, 270, 460, 490, 580:** in-script transitions. 460 and 490 need an attack-start hook.
 - **Wind Strike ([1240..1243], implemented 2026-10-26):** on the cast's tick 650 -> 660 ("Magic casting: You cast a spell! Sadly it didn't have any effect this time...", arrow still on the chicken) -> 670 ("To the mainland!", arrow on Terrova, overlay hint 20); 671 with the quest's line on C+1 (`[queue,tutorial_quest_complete]`). The cast resolves on the chicken BEFORE the tutorial is told: the 670 hint's `npc_find` repoints the active npc, and run first it put the chicken's hit on Terrova. Open: our scroll and jingle land at C+2, not C+1 -- `~quest_scroll_paint` opens the scroll through a queue, and a queue raised from a queue lands a tick later.
 - **Terrova's goodbye ([1253..1335], implemented 2026-10-26):** Yes./No.; then "Do you want to go to the mainland? Or would you like to talk to the Ironman tutor first..." with three options; "Yes, I'd like to go to the mainland" -> Adventurer Jon's two pages, the `ap_guide_icon_dummy` objbox, overlay hint 23 with "Excellent...", and on its continue 680 with two "To the mainland!" boxes. "I'll talk to the Ironman tutor." was never chosen: its player line is unverified.
-- **Display name (step 0 → 1)**, the "Setting your name" box, and the familiarity interface: our flow starts at the design panel.
 - **Leaving ([1336..1364]):** Jagex's Home Teleport plays the full channel, sets 1000 and lands on **3232,3232** (by Adventurer Jon, `ap_guide_parent` at 3232,3235 in m50_50.spawn), with "Welcome to Old School RuneScape." (type 108), six music unlocks and Jon's "Hey <name>! Come over here." ([1364]). Ours lands at the castle with a Lumbridge Guide objbox. Jon has no scripts here.

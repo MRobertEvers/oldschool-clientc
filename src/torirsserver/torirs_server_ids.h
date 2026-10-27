@@ -268,6 +268,8 @@ struct ToriRSServerIds
 
     /** The bank side panel's inventory grid, where deposits come from. */
     int com_bankside_items;
+    /** The equipment-stats screen's backpack panel, where equips come from. */
+    int com_equipment_side_items;
 
     /*
      * The equipment-stats screen: the container the worn inv binds to, and the

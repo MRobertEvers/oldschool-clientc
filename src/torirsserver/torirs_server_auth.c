@@ -575,6 +575,19 @@ ToriRSServer_AuthLogin(
         return ok ? TORIRSSERVER_AUTH_OK : TORIRSSERVER_AUTH_REFUSED;
     }
 
+    /* A display name another account set on Tutorial Island is that
+     * account's in public; a login under it would be its double. Refused as a
+     * wrong password is, so the answer says nothing about who holds it. */
+    {
+        char key[64];
+        char owner[64];
+
+        ToriRSServer_SaveFileName(display_name, key, sizeof(key));
+        if( ToriRSServer_DisplayNameOwner(display_name, owner, sizeof(owner)) &&
+            strcmp(owner, key) != 0 )
+            return TORIRSSERVER_AUTH_REFUSED;
+    }
+
     /* A claim sets the password, so it is held to the same rules as one set
      * through an invite. */
     if( ToriRSServer_AuthPasswordProblem(display_name, password) )

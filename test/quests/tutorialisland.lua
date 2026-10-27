@@ -10,8 +10,10 @@
 -- Content: server/scripts/tutorial/.
 --
 -- Start: fresh_tutorial.ini, a save with no varps standing in the Gielinor
--- Guide's house. The design panel, then "How familiar are you with Old School
--- RuneScape?" -- answered "I'm brand new!" -- then every instructor in turn.
+-- Guide's house. The display name (tutorial_displayname, 558: typed, looked
+-- up, set; RSProx 4289 [0..27]), the design panel, then "How familiar are you
+-- with Old School RuneScape?" -- answered "I'm brand new!" -- then every
+-- instructor in turn, who call the player by the name it set.
 -- Every side tab is opened by clicking its flashing stone (the client sends
 -- IF_BUTTON1 on it); every item comes from the instructor or skill that
 -- hands it over; every door is clicked and every ladder climbed. Wind Strike
@@ -225,6 +227,30 @@ return {
         -- The Gielinor Guide's house
         ---------------------------------------------------------------
         on_tile("login.tile", 3094, 3106, 0)
+        local NAME = "Tori Newbie"
+        local function name_status()
+            local _, v = t.var.varbit("varb5605_displayname_status")
+            return v
+        end
+        local function name_press(name, sym)
+            local wr, w = t.ui.widget(sym)
+            t.check(name, wr == "ok" and t.ui.invoke(w, 1), sym .. " " .. tostring(wr))
+        end
+        t.exec("name.open", t.ui.await_open, "tutorial_displayname", 5)
+        t.check("name.status", name_status() == 1, "displayname_status " .. tostring(name_status()))
+        name_press("name.focus", "tutorial_displayname:name")
+        t.ticks(1)
+        -- The client types into the box, whose own clientscript resumes with
+        -- the text on the lookup press; scriptrun has no clientscripts and
+        -- resumes with it itself.
+        if t.chat.resume_string(NAME) == "unsupported" then
+            t.text(NAME)
+        end
+        name_press("name.lookup", "tutorial_displayname:look_up_name")
+        t.exec("name.available", t.ui.expect_text, "tutorial_displayname:status", "Great! The display name", 5)
+        t.check("name.status4", name_status() == 4, "displayname_status " .. tostring(name_status()))
+        name_press("name.set", "tutorial_displayname:set_name")
+        closed_check("name.closed", "tutorial_displayname")
         stage("designed_character")
         t.exec("design.open", t.ui.await_open, "player_design", 5)
         local cr, confirm = t.ui.widget("player_design:confirm")
@@ -389,7 +415,7 @@ return {
         t.exec("walk-mining", t.player.walk_to, 3080, 9505, 40)
         talk("talkToMining", "newbie_mining_instructor", {
             "npc:So what do I call you?",
-            "player:You can call me",
+            "player:You can call me Tori Newbie.",
             "npc:My name is Dezzick and I'm a miner by trade",
             "npc:all you need is a pickaxe",
             "*",

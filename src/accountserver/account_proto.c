@@ -11,7 +11,7 @@
 
 /* Fields before the two stat tables, then the tables, then name and label. */
 #define RECORD_HEAD_FIELDS 8
-#define RECORD_FIELDS (RECORD_HEAD_FIELDS + 2 * TORIRSSERVER_ACCOUNTLOG_STATS + 2)
+#define RECORD_FIELDS (RECORD_HEAD_FIELDS + 2 * TORIRSSERVER_ACCOUNTLOG_STATS + 3)
 
 int const g_account_gain_window_days[ACCOUNT_GAIN_WINDOWS] = { 1, 7, 30 };
 
@@ -106,12 +106,14 @@ AccountProto_RecordFormat(
     char out[ACCOUNT_RECORD_LINE_MAX])
 {
     char name[TORIRSSERVER_ACCOUNTLOG_NAME_MAX];
+    char display[TORIRSSERVER_ACCOUNTLOG_NAME_MAX];
     char label[TORIRSSERVER_ACCOUNTLOG_LABEL_MAX];
     int len;
 
     assert(r);
     assert(out);
     AccountProto_Clean(r->name, name, sizeof(name));
+    AccountProto_Clean(r->display, display, sizeof(display));
     AccountProto_Clean(r->label, label, sizeof(label));
     len = snprintf(out, ACCOUNT_RECORD_LINE_MAX, "%lld\t%d\t%lld\t%d\t%d\t%lld\t%d\t%d", seq,
                    (int)r->kind, r->time, r->admin, r->quest_points, r->session_start,
@@ -121,8 +123,9 @@ AccountProto_RecordFormat(
     for( int i = 0; i < TORIRSSERVER_ACCOUNTLOG_STATS; i++ )
         len += snprintf(out + len, (size_t)(ACCOUNT_RECORD_LINE_MAX - len), "\t%d",
                         r->session_xp_tenths[i]);
-    len += snprintf(out + len, (size_t)(ACCOUNT_RECORD_LINE_MAX - len), "\t%s\t%s\n", name, label);
-    /* 58 numbers and two short texts: far inside the line. */
+    len += snprintf(out + len, (size_t)(ACCOUNT_RECORD_LINE_MAX - len), "\t%s\t%s\t%s\n", name,
+                    display, label);
+    /* 58 numbers and three short texts: far inside the line. */
     assert(len < ACCOUNT_RECORD_LINE_MAX);
     return len;
 }
@@ -145,7 +148,7 @@ AccountProto_RecordParse(
     count = AccountProto_Fields(line, f, RECORD_FIELDS + 1);
     if( count != RECORD_FIELDS )
         return 0;
-    for( int i = 0; i < RECORD_FIELDS - 2; i++ )
+    for( int i = 0; i < RECORD_FIELDS - 3; i++ )
     {
         char* end;
 
@@ -166,6 +169,7 @@ AccountProto_RecordParse(
     for( int i = 0; i < TORIRSSERVER_ACCOUNTLOG_STATS; i++ )
         out->session_xp_tenths[i] = atoi(f[at++]);
     snprintf(out->name, sizeof(out->name), "%s", f[at++]);
+    snprintf(out->display, sizeof(out->display), "%s", f[at++]);
     snprintf(out->label, sizeof(out->label), "%s", f[at]);
     if( *out_seq <= 0 || !out->name[0] || out->kind < TORIRSSERVER_ACCOUNTLOG_LOGIN ||
         out->kind > TORIRSSERVER_ACCOUNTLOG_EVENT )

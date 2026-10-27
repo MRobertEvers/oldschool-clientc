@@ -217,3 +217,127 @@ ToriRSServer_SaveWriteText(
     }
     return 1;
 }
+
+/* `<save dir>/names/<key>`, the reservation of one display name. */
+static void
+display_name_path(
+    const char* key,
+    char* path,
+    size_t cap)
+{
+    snprintf(path, cap, "%s/names/%s", ToriRSServer_SaveDir(), key);
+}
+
+static int
+file_exists(const char* path)
+{
+    struct stat info;
+
+    return path[0] && stat(path, &info) == 0;
+}
+
+/* The account a reservation file names: its first line. 0 when there is no
+ * file; a file that cannot be read counts as held, by nobody nameable. */
+static int
+display_name_read(
+    const char* path,
+    char* owner,
+    size_t cap)
+{
+    FILE* file = fopen(path, "rb");
+    size_t len;
+
+    if( !file )
+        return 0;
+    if( !fgets(owner, (int)cap, file) )
+        owner[0] = '\0';
+    fclose(file);
+    len = strlen(owner);
+    while( len > 0 && (owner[len - 1] == '\n' || owner[len - 1] == '\r') )
+        owner[--len] = '\0';
+    return 1;
+}
+
+int
+ToriRSServer_DisplayNameOwner(
+    const char* name,
+    char* owner,
+    size_t cap)
+{
+    char key[64];
+    char path[1024];
+
+    assert(name);
+    assert(owner);
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    assert(key[0]);
+    display_name_path(key, path, sizeof(path));
+    if( display_name_read(path, owner, cap) )
+        return 1;
+    if( file_exists(ToriRSServer_SavePath(key)) || file_exists(ToriRSServer_AccountPath(key)) )
+    {
+        snprintf(owner, cap, "%s", key);
+        return 1;
+    }
+    return 0;
+}
+
+int
+ToriRSServer_DisplayNameClaim(
+    const char* name,
+    const char* account)
+{
+    char key[64];
+    char account_key[64];
+    char owner[64];
+    char path[1024];
+    FILE* file;
+
+    assert(name);
+    assert(account);
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    ToriRSServer_SaveFileName(account, account_key, sizeof(account_key));
+    assert(key[0]);
+    assert(account_key[0]);
+    if( ToriRSServer_DisplayNameOwner(name, owner, sizeof(owner)) )
+        return strcmp(owner, account_key) == 0;
+    display_name_path(key, path, sizeof(path));
+    ToriRSServer_SaveMkdirParent(path);
+    /* "x": the create fails when the file exists, so the check above and
+     * this write cannot let two accounts through between them. */
+    file = fopen(path, "wbx");
+    if( !file )
+    {
+        if( display_name_read(path, owner, sizeof(owner)) )
+            return strcmp(owner, account_key) == 0;
+        fprintf(stderr, "torirsserver: cannot write %s\n", path);
+        return 0;
+    }
+    if( fprintf(file, "%s\n", account_key) < 0 || fclose(file) != 0 )
+    {
+        remove(path);
+        fprintf(stderr, "torirsserver: cannot write %s\n", path);
+        return 0;
+    }
+    return 1;
+}
+
+void
+ToriRSServer_DisplayNameRelease(
+    const char* name,
+    const char* account)
+{
+    char key[64];
+    char account_key[64];
+    char owner[64];
+    char path[1024];
+
+    assert(name);
+    assert(account);
+    ToriRSServer_SaveFileName(name, key, sizeof(key));
+    ToriRSServer_SaveFileName(account, account_key, sizeof(account_key));
+    assert(key[0]);
+    display_name_path(key, path, sizeof(path));
+    if( display_name_read(path, owner, sizeof(owner)) && strcmp(owner, account_key) == 0 )
+        remove(path);
+}

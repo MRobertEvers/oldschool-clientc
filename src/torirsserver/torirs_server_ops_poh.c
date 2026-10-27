@@ -167,7 +167,7 @@ ToriRSServer_OpsPoh(
         SSVM_PushInt(
             state,
             ToriRSServer_PohValidate(&player->poh) &&
-                ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(player->display_name)));
+                ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(player->account_name)));
         return 1;
 
     case SS_OP_POH_ROOM_SET:

@@ -600,6 +600,18 @@ function QD.chat.resume_name(text)
     return api_drive.resume_namedialog(tostring(text))
 end
 
+-- RESUME_P_STRINGDIALOG with `text`, which Tutorial Island's display name box
+-- sends unasked when its name is looked up. The client gets there by typing
+-- (t.text) and pressing "Look up name"; scriptrun, with no clientscripts,
+-- binds api.drive.resume_stringdialog instead, and a client answers
+-- "unsupported".
+function QD.chat.resume_string(text)
+    if not api_drive.resume_stringdialog then
+        return "unsupported", "chat.resume_string: no resume_stringdialog on this drive"
+    end
+    return api_drive.resume_stringdialog(tostring(text))
+end
+
 -- api.drive.options reads dialog_options_title/_row_N directly (verbs-chat's
 -- own C, see torirs_plugin_drive_chat.c): ready only once rows 1 and 2 both
 -- resolve -- RUNCLIENTSCRIPT is held to the tick fence (app_cs2_flush.c:71,

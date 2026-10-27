@@ -1168,6 +1168,10 @@ enum
  */
 #define TORIRSSERVER_XP_MAX_TENTHS 2000000000
 
+/* RESUME_P_STRINGDIALOG text kept for `last_string` (player->resume_string):
+ * the client's string box holds 80 characters. */
+#define TORIRSSERVER_RESUME_STRING_MAX 81
+
 /* The immunity after a freeze ends, in ticks: wiki_Freeze.wikitext:9 "The
  * immunity window for most freezes (with the exception of Grasp spells) is 5
  * ticks". */
@@ -4809,12 +4813,22 @@ struct ToriRSServerPlayer
     int last_useitem;
     int last_useslot;
 
-    /** The name typed at the login screen, which is what `displayname` returns.
-     *  Nothing else in the mock has a use for it — there is one player and the
-     *  wire never carries a name — but a dialogue that puts the player's words
-     *  on screen has to label them with something, and "Player" is a worse
-     *  answer than the one the client already sent. */
+    /** The name typed at the login screen: the account. The save file, the
+     *  password file, the login claim and the account database are filed
+     *  under it, and it never changes. */
+    char account_name[32];
+
+    /** The name the world shows: the appearance block, chat, the friend
+     *  service (`name37`) and `displayname`. The account name until the
+     *  player sets one on Tutorial Island (tutorial_displayname, 558), then
+     *  the save's `display_name` (ToriRSServer_WorldChangeDisplayName). */
     char display_name[32];
+
+    /** The last RESUME_P_STRINGDIALOG text no script was waiting for.
+     *  Tutorial Island's name box sends its text that way, unprompted, just
+     *  before the "Look up name" click that reads it (index 4289 [18]);
+     *  `last_string` answers it to a script that has no reply of its own. */
+    char resume_string[TORIRSSERVER_RESUME_STRING_MAX];
 
     /**
      * The staffModLevel this login was given (0 player, 1 player moderator,
@@ -6210,13 +6224,46 @@ void
 ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player);
 
 /**
- * Copy the login name onto the player. **Call after ToriRSServer_WorldPlayerInit**,
+ * Copy the login name onto the player, as its account name and (until the
+ * save says otherwise) its display name. **Call after ToriRSServer_WorldPlayerInit**,
  * which memsets the player struct — writing the name before it is what used to
  * make `displayname` report nothing.
  */
 void
 ToriRSServer_WorldSetDisplayName(
     struct ToriRSServerPlayer* player,
+    const char* name);
+
+/* What ToriRSServer_WorldDisplayNameCheck says of a display name. Content
+ * reads these numbers (`displayname_check`): keep them. */
+enum ToriRSServerDisplayNameCheck
+{
+    TORIRSSERVER_DISPLAYNAME_AVAILABLE = 0,
+    /** Another account shows it, logs in with it, or has set it. */
+    TORIRSSERVER_DISPLAYNAME_TAKEN = 1,
+    /** Not a name at all (ToriRSServer_AuthNameProblem). */
+    TORIRSSERVER_DISPLAYNAME_INVALID = 2,
+};
+
+/** May `player` take the display name `name`? Its own account name and its
+ *  current display name are always available to it. */
+enum ToriRSServerDisplayNameCheck
+ToriRSServer_WorldDisplayNameCheck(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    const char* name);
+
+/**
+ * Give the active player the display name `name`: reserve it for the
+ * account (ToriRSServer_DisplayNameClaim), give back the one it had set
+ * before, re-file the player in the friend service under it, send it to
+ * everyone in the appearance block, and write the save at once so the
+ * name and the reservation on disk agree. 0, with nothing changed, when
+ * the name is not available to this player.
+ */
+int
+ToriRSServer_WorldChangeDisplayName(
+    struct ToriRSServer* srv,
     const char* name);
 
 /**

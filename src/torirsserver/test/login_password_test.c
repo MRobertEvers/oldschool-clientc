@@ -653,11 +653,11 @@ check_accounts(void)
     int total = 0;
     long long played = 0;
 
-    snprintf(quinn.display_name, sizeof(quinn.display_name), "Quinn");
+    ToriRSServer_WorldSetDisplayName(&quinn, "Quinn");
     quinn.stat_xp_tenths[0] = 130344310; /* 99 Attack */
     quinn.stat_xp_tenths[3] = 11540;
     quinn.varps[TORIRSSERVER_ACCOUNTLOG_VARP_QP] = 3;
-    snprintf(root.display_name, sizeof(root.display_name), "Root");
+    ToriRSServer_WorldSetDisplayName(&root, "Root");
     root.account_admin = 1;
     root.stat_xp_tenths[0] = 2000000000; /* 200M: more than anyone */
     root.stat_xp_tenths[3] = 11540;
@@ -707,7 +707,52 @@ check_accounts(void)
     AccountDb_SetRanked("Root", 0);
     check(AccountDb_Rank(staff.id, 0) == 0 && AccountDb_Rank(row.id, 0) == 1,
           "accounts: and admin again, off the list at once");
+
+    /* A display name set on Tutorial Island: the same account, shown by it. */
+    snprintf(quinn.display_name, sizeof(quinn.display_name), "Quinn Fair");
+    ToriRSServer_AccountLogStats(log, &quinn, t + 4000);
+    quinn.stat_xp_tenths[0] += 10000;
+    ToriRSServer_AccountLogStats(log, &quinn, t + 4060);
+    send_log(log, &seq, NULL);
+    check(AccountDb_Player("quinn", &row) && strcmp(row.name, "Quinn Fair") == 0 &&
+              !AccountDb_Player("quinn_fair", &staff),
+          "accounts: a display name is the account's name on the hiscores, under its key");
     ToriRSServer_AccountLogFree(log);
+}
+
+/* Display names (torirs_server_savefile.h): one account each, and nobody
+ * logs in as a name somebody else shows. */
+static void
+check_display_names(void)
+{
+    char owner[64];
+
+    check(!ToriRSServer_DisplayNameOwner("Mara Vell", owner, sizeof(owner)),
+          "names: a name nobody holds is free");
+    check(ToriRSServer_DisplayNameClaim("Mara Vell", "kit"), "names: an account reserves one");
+    check(ToriRSServer_DisplayNameOwner("mara_vell", owner, sizeof(owner)) &&
+              strcmp(owner, "kit") == 0,
+          "names: held by that account, however it is spelled");
+    check(ToriRSServer_DisplayNameClaim("MARA VELL", "kit"), "names: which may claim it again");
+    check(!ToriRSServer_DisplayNameClaim("Mara Vell", "lou"), "names: and nobody else may");
+    check(ToriRSServer_AuthLogin("Mara Vell", "plum4tree9") == TORIRSSERVER_AUTH_REFUSED,
+          "names: nobody logs in under a name another account shows");
+    {
+        enum ToriRSServerAuthResult odo = ToriRSServer_AuthLogin("odo", "plum4tree9");
+
+        check((odo == TORIRSSERVER_AUTH_CLAIMED || odo == TORIRSSERVER_AUTH_OK) &&
+                  ToriRSServer_DisplayNameOwner("Odo", owner, sizeof(owner)) &&
+                  strcmp(owner, "odo") == 0,
+              "names: an account's login name is its own");
+    }
+    check(!ToriRSServer_DisplayNameClaim("Odo", "kit"),
+          "names: and no other account's display name");
+    ToriRSServer_DisplayNameRelease("Mara Vell", "lou");
+    check(ToriRSServer_DisplayNameOwner("Mara Vell", owner, sizeof(owner)),
+          "names: only the holder gives one up");
+    ToriRSServer_DisplayNameRelease("Mara Vell", "kit");
+    check(!ToriRSServer_DisplayNameOwner("Mara Vell", owner, sizeof(owner)),
+          "names: and then it is free");
 }
 
 /* The world's spool: records wait in it while the account server does not
@@ -729,7 +774,7 @@ check_spool(void)
     setenv("TORIRS_ACCOUNT_SERVER", "127.0.0.1:1", 1);
     link = ToriRSServer_AccountLinkOpen();
     check(ToriRSServer_AccountLinkPending(link) == 0, "spool: a new spool has nothing waiting");
-    snprintf(pat.display_name, sizeof(pat.display_name), "Pat");
+    ToriRSServer_WorldSetDisplayName(&pat, "Pat");
     pat.stat_xp_tenths[3] = 11540;
     ToriRSServer_AccountLogLogin(log, &pat, 100);
     ToriRSServer_AccountLogLogout(log, &pat, 200);
@@ -770,7 +815,7 @@ check_link_live(void)
     remove(path);
     setenv("TORIRS_ACCOUNT_SERVER", live, 1);
     link = ToriRSServer_AccountLinkOpen();
-    snprintf(lia.display_name, sizeof(lia.display_name), "Lia");
+    ToriRSServer_WorldSetDisplayName(&lia, "Lia");
     lia.stat_xp_tenths[3] = 11540;
     lia.stat_xp_tenths[10] = 123450;
     ToriRSServer_AccountLogLogin(log, &lia, (long long)time(NULL) - 60);
@@ -1188,6 +1233,7 @@ main(void)
     check_oauth();
     check_links();
     check_accounts();
+    check_display_names();
     check_spool();
     check_link_live();
     check_operator_accounts();

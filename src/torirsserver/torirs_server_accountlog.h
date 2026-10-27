@@ -60,8 +60,11 @@ enum ToriRSServerAdventureKind
 struct ToriRSServerAccountRecord
 {
     enum ToriRSServerAccountLogKind kind;
-    /** The player's display name; the database keys it as the save is. */
+    /** The player's account name; the database keys it as the save is. */
     char name[TORIRSSERVER_ACCOUNTLOG_NAME_MAX];
+    /** The name the player shows (a display name set on Tutorial Island),
+     *  which the hiscores print; "" means `name`. */
+    char display[TORIRSSERVER_ACCOUNTLOG_NAME_MAX];
     long long time;
     /** LOGIN, STATS, LOGOUT: the experience table, in tenths. */
     int xp_tenths[TORIRSSERVER_ACCOUNTLOG_STATS];

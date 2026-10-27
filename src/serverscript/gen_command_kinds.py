@@ -100,6 +100,8 @@ EXTRA_DECLARATIONS = [
     "[command,npc_setblockwalk](int $blockwalk)",
     "[command,npc_setpassthru](boolean $passthru)",
     "[command,adventure_log](int $kind, int $amount, string $label)",
+    "[command,displayname_check](string $name)(int)",
+    "[command,displayname_set](string $name)(boolean)",
     "[command,cam_moveto_cycles](coord $coord, int $height, int $cycles, int $ignore_terrain, int $easing)",
     "[command,cam_rotateto_coordinate](coord $coord, int $height, int $cycles, int $easing)",
     "[command,cam_unlock](boolean $unlock)",

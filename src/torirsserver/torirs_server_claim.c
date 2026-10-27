@@ -29,7 +29,7 @@ ToriRSServer_ClaimNoteDeparted(
     record = &claims->departed[claims->next];
     claims->next = (claims->next + 1) % TORIRSSERVER_CLAIM_DEPARTED_MAX;
     snprintf(record->save_path, sizeof(record->save_path), "%s",
-             ToriRSServer_SavePath(player->display_name));
+             ToriRSServer_SavePath(player->account_name));
     memcpy(record->seed, player->session->seed, sizeof(record->seed));
     record->pid = player->pid;
     record->left_ms = now_ms;
@@ -68,7 +68,7 @@ ToriRSServer_ClaimSlot(
 
         if( !online->active || !online->session || online->session == session )
             continue;
-        if( strcmp(ToriRSServer_SavePath(online->display_name), save_path) != 0 )
+        if( strcmp(ToriRSServer_SavePath(online->account_name), save_path) != 0 )
             continue;
         if( session->reconnect && memcmp(session->presented_seed, online->session->seed,
                                          sizeof(session->presented_seed)) != 0 )

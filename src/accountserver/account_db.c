@@ -614,20 +614,23 @@ player_ensure(
     return id;
 }
 
-/* The player named `display_name`, as the world names it. */
+/* The player whose account is `account_name`, as the world names it,
+ * shown as `display_name` (its account name when "", as before display
+ * names). */
 static long long
 player_ensure_named(
+    char const* account_name,
     char const* display_name,
     long long now,
     int* out_ranked)
 {
     char key[ACCOUNT_NAME_MAX];
 
-    ToriRSServer_SaveFileName(display_name, key, sizeof(key));
+    ToriRSServer_SaveFileName(account_name, key, sizeof(key));
     /* The world only queues players that logged in, whose names were
      * usable to get there. */
     assert(key[0]);
-    return player_ensure(key, display_name, now, out_ranked);
+    return player_ensure(key, display_name[0] ? display_name : account_name, now, out_ranked);
 }
 
 static void
@@ -756,7 +759,7 @@ static void
 record_apply(struct ToriRSServerAccountRecord const* r)
 {
     int ranked;
-    long long id = player_ensure_named(r->name, r->time, &ranked);
+    long long id = player_ensure_named(r->name, r->display, r->time, &ranked);
 
     switch( r->kind )
     {
@@ -1271,8 +1274,10 @@ import_field(
             snprintf(f->name, sizeof(f->name), "%s", value);
         return;
     }
-    /* A character save. */
-    if( strcmp(section, "player") == 0 && strcmp(key, "name") == 0 )
+    /* A character save: the name it shows, a `display_name` (after `name` in
+     * the file) over the account's own. */
+    if( strcmp(section, "player") == 0 &&
+        (strcmp(key, "name") == 0 || strcmp(key, "display_name") == 0) )
         snprintf(f->name, sizeof(f->name), "%s", value);
     else if( strcmp(section, "stats") == 0 )
     {

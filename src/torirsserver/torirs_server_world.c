@@ -33,6 +33,7 @@
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
 #include "torirs_server_accountlog.h"
+#include "torirs_server_auth.h"
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_world_internal.h"
@@ -7565,12 +7566,13 @@ handle_inv_buttond(
             srv, src_com, src_slot, dst_com, dst_slot) )
         return;
 
-    if( src_com == ids->com_inventory_items || src_com == ids->com_bankside_items )
+    if( src_com == ids->com_inventory_items || src_com == ids->com_bankside_items ||
+        src_com == ids->com_equipment_side_items )
     {
         struct ToriRSServerItem swap;
 
-        /* The normal gameframe and the bank side panel are two named views of
-         * the backpack. A drag remains within the surface it started on; the
+        /* The normal gameframe and the bank and equipment-stats side panels are
+         * named views of the backpack. A drag remains within the surface it started on; the
          * component selects the view while the slots index the same container. */
         if( src_com != dst_com )
             return;
@@ -14215,6 +14217,17 @@ handle_resume_textdialog(
                 text.len, (const char*)text.bytes);
     if( name == PKTOUT_NAME_RESUME_P_NAMEDIALOG )
         ToriRSServer_ScriptsResumeNamedialog(srv, text.bytes, text.len);
+    else
+    {
+        /* Nothing waits for a string dialog: Tutorial Island's name box sends
+         * its text unasked, ahead of the click that reads it (RSProx index
+         * 4289 [18]), so it is kept for `last_string`. */
+        int len = text.len < TORIRSSERVER_RESUME_STRING_MAX - 1 ? text.len
+                                                                : TORIRSSERVER_RESUME_STRING_MAX - 1;
+
+        memcpy(srv->active_player->resume_string, text.bytes, (size_t)len);
+        srv->active_player->resume_string[len] = '\0';
+    }
 }
 
 static void
@@ -16069,6 +16082,7 @@ ToriRSServer_WorldRemovePlayer(
 {
     int64_t name37;
     char display_name[sizeof(player->display_name)];
+    char account_name[sizeof(player->account_name)];
 
     assert(player);
     if( !player->active )
@@ -16079,6 +16093,7 @@ ToriRSServer_WorldRemovePlayer(
     /* Copied, not aliased: the slot this points into is reused by the next
      * login and the notification below runs after the slot has been released. */
     snprintf(display_name, sizeof(display_name), "%s", player->display_name);
+    snprintf(account_name, sizeof(account_name), "%s", player->account_name);
 
     /*
      * `[logout]`, and it runs *above* the save on purpose.
@@ -16275,7 +16290,7 @@ ToriRSServer_WorldRemovePlayer(
      * when the session dies and the embed host calls it when a client
      * disconnects, so both get persistence from one call.
      */
-    ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(display_name));
+    ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(account_name));
     /* The account server (torirs_server_accountlog.h): the stats as just
      * saved, and the session. Only for a session whose login finished -- one
      * dropped while its scene was still loading never queued its login, and
@@ -16366,11 +16381,95 @@ ToriRSServer_WorldSetDisplayName(
     assert(name);
     if( !name[0] )
         return;
+    snprintf(player->account_name, sizeof(player->account_name), "%s", name);
     snprintf(player->display_name, sizeof(player->display_name), "%s", name);
-    /* The base-37 form is derived here and nowhere else: it is the key the
-     * friend service files this player under, and two places packing it are two
-     * places that can disagree about what this player is called. */
+    /* The base-37 form is derived from the display name, here, after the load
+     * and in ToriRSServer_WorldChangeDisplayName, and nowhere else: it is the
+     * key the friend service files this player under, and two places packing
+     * it are two places that can disagree about what this player is called. */
     player->name37 = (int64_t)strtobase37(player->display_name);
+}
+
+/* Do two names save under the same file name? `Zezima`, `zezima` and
+ * `ze zima`/`ze_zima` are one account, so they are one display name too. */
+static int
+display_name_same(
+    const char* a,
+    const char* b)
+{
+    char ka[64];
+    char kb[64];
+
+    ToriRSServer_SaveFileName(a, ka, sizeof(ka));
+    ToriRSServer_SaveFileName(b, kb, sizeof(kb));
+    return ka[0] && strcmp(ka, kb) == 0;
+}
+
+enum ToriRSServerDisplayNameCheck
+ToriRSServer_WorldDisplayNameCheck(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
+    const char* name)
+{
+    char owner[64];
+    char account_key[64];
+
+    assert(srv);
+    assert(player);
+    assert(name);
+    if( ToriRSServer_AuthNameProblem(name) )
+        return TORIRSSERVER_DISPLAYNAME_INVALID;
+    if( display_name_same(name, player->account_name) ||
+        display_name_same(name, player->display_name) )
+        return TORIRSSERVER_DISPLAYNAME_AVAILABLE;
+    /* Online first: a new character has no save until it logs out, and shows
+     * its login name all the same. */
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        const struct ToriRSServerPlayer* other = &srv->players[i];
+
+        if( !other->active || other == player )
+            continue;
+        if( display_name_same(name, other->account_name) ||
+            display_name_same(name, other->display_name) )
+            return TORIRSSERVER_DISPLAYNAME_TAKEN;
+    }
+    ToriRSServer_SaveFileName(player->account_name, account_key, sizeof(account_key));
+    if( ToriRSServer_DisplayNameOwner(name, owner, sizeof(owner)) && strcmp(owner, account_key) != 0 )
+        return TORIRSSERVER_DISPLAYNAME_TAKEN;
+    return TORIRSSERVER_DISPLAYNAME_AVAILABLE;
+}
+
+int
+ToriRSServer_WorldChangeDisplayName(
+    struct ToriRSServer* srv,
+    const char* name)
+{
+    struct ToriRSServerPlayer* player = srv->active_player;
+    char old_name[sizeof(player->display_name)];
+    int64_t new37;
+
+    assert(player);
+    assert(name);
+    if( ToriRSServer_WorldDisplayNameCheck(srv, player, name) != TORIRSSERVER_DISPLAYNAME_AVAILABLE )
+        return 0;
+    if( !ToriRSServer_DisplayNameClaim(name, player->account_name) )
+        return 0;
+    new37 = (int64_t)strtobase37(name);
+    if( !ToriRSServer_FriendsRename(player->name37, new37) )
+    {
+        if( !display_name_same(name, player->account_name) )
+            ToriRSServer_DisplayNameRelease(name, player->account_name);
+        return 0;
+    }
+    snprintf(old_name, sizeof(old_name), "%s", player->display_name);
+    snprintf(player->display_name, sizeof(player->display_name), "%s", name);
+    player->name37 = new37;
+    if( !display_name_same(old_name, name) && !display_name_same(old_name, player->account_name) )
+        ToriRSServer_DisplayNameRelease(old_name, player->account_name);
+    player->masks |= TORIRSSERVER_PMASK_APPEARANCE;
+    ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(player->account_name));
+    return 1;
 }
 
 int
@@ -17051,8 +17150,11 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * man stood blocked at 3222,3217 on scriptrun, and the two lanes' logs
      * parted on it). Restamped below, once the boat has placed them too. */
     player_set_occupancy(player, 0);
-    if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->display_name)) )
+    if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->account_name)) )
         ToriRSServer_WorldPlaceNewCharacter(player);
+    /* The save may carry a display name set on Tutorial Island; the friend
+     * service is told this player's name below, by this key. */
+    player->name37 = (int64_t)strtobase37(player->display_name);
     /* Reconstruct an at-sea owned boat before the login scene/GPI coordinate
      * is emitted. The save holds a safe root fallback and relative deck tile,
      * so a process restart never treats a recycled pool square as a location. */

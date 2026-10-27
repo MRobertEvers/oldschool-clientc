@@ -5868,6 +5868,43 @@ script_command(
     }
 
     /*
+     * `[command,displayname_check](string $name)(int)` and
+     * `[command,displayname_set](string $name)(boolean)`: Tutorial Island's
+     * display name (tutorial_displayname, 558). The rules are the world's
+     * (ToriRSServer_WorldDisplayNameCheck); the words and the waits are
+     * content's.
+     */
+    case SS_OP_DISPLAYNAME_CHECK:
+    {
+        const char* name;
+
+        if( !SSVM_PopStr(state, &name) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "displayname_check with no active player");
+            return 1;
+        }
+        SSVM_PushInt(state, (int32_t)ToriRSServer_WorldDisplayNameCheck(srv, player, name));
+        return 1;
+    }
+
+    case SS_OP_DISPLAYNAME_SET:
+    {
+        const char* name;
+
+        if( !SSVM_PopStr(state, &name) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "displayname_set with no active player");
+            return 1;
+        }
+        SSVM_PushInt(state, ToriRSServer_WorldChangeDisplayName(srv, name));
+        return 1;
+    }
+
+    /*
      * `[command,set_player_op](string $op, int $slot, boolean $primary)` —
      * `PlayerOps.ts` SET_PLAYER_OP, one `SetPlayerOp` write.
      *
@@ -16137,7 +16174,13 @@ script_command(
         SSVM_PushInt(state, state->last_int);
         return 1;
     case SS_OP_LAST_STRING:
-        SSVM_PushStr(state, state->last_string ? state->last_string : "");
+        /* A script's own NAMEDIALOG reply, else the last string the client
+         * resumed with unasked (player->resume_string). A script starts
+         * with "" (SSVM_StateInit). */
+        if( state->last_string && state->last_string[0] )
+            SSVM_PushStr(state, state->last_string);
+        else
+            SSVM_PushStr(state, player ? player->resume_string : "");
         return 1;
     case SS_OP_LAST_SLOT:
         SSVM_PushInt(state, player->last_slot);

@@ -46,7 +46,8 @@ log_push(
     record = &log->records[log->count++];
     memset(record, 0, sizeof(*record));
     record->kind = kind;
-    snprintf(record->name, sizeof(record->name), "%s", player->display_name);
+    snprintf(record->name, sizeof(record->name), "%s", player->account_name);
+    snprintf(record->display, sizeof(record->display), "%s", player->display_name);
     record->time = now;
     return record;
 }

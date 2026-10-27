@@ -210,13 +210,15 @@ save_player_write(
             "\n[player]\n"
             "version = %d\n"
             "name = %s\n"
+            "display_name = %s\n"
             "x = %d\n"
             "z = %d\n"
             "level = %d\n"
             "run_energy = %d\n"
             "run_toggle = %d\n"
             "client_layout_mode = %d\n",
-            TORIRSSERVER_SAVE_VERSION, player->display_name, save_x, save_z, save_level,
+            TORIRSSERVER_SAVE_VERSION, player->account_name, player->display_name, save_x,
+            save_z, save_level,
             player->run_energy, player->run_toggle, player->client_layout_mode);
     /* Tolerance survives a logout (wiki Tolerance: "logging out is not classed
      * as leaving the area"), so the regions and the count are part of the
@@ -771,7 +773,10 @@ ToriRSServer_LoadPlayer(
         case SAVE_PLAYER:
             if( strcmp(key, "version") == 0 )
                 version = atoi(value);
-            else if( strcmp(key, "name") == 0 )
+            /* `name` is the account, as the file is named; a save from before
+             * display names shows it. `display_name`, written after it, is the
+             * name the player set on Tutorial Island. */
+            else if( strcmp(key, "name") == 0 || strcmp(key, "display_name") == 0 )
                 snprintf(player->display_name, sizeof(player->display_name), "%s", value);
             else if( strcmp(key, "x") == 0 )
                 player->x = atoi(value);

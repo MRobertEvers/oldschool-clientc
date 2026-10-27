@@ -948,7 +948,7 @@ ToriRSServer_BotRun(
             {
                 char path[1024];
 
-                snprintf(path, sizeof(path), "%s/%s.ini", snapshot_dir, run.bots[i]->display_name);
+                snprintf(path, sizeof(path), "%s/%s.ini", snapshot_dir, run.bots[i]->account_name);
                 if( !ToriRSServer_SavePlayer(run.bots[i], path) )
                     status = 1;
                 fprintf(stderr, "botrun: snapshot %s\n", path);

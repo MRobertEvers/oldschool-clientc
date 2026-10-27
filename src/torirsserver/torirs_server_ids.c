@@ -117,6 +117,8 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_COMPONENT, "bankmain:depositinv", &g_ids.com_bankmain_deposit_inv },
         { TORIRSSERVER_PACK_COMPONENT, "bankmain:depositworn", &g_ids.com_bankmain_deposit_worn },
         { TORIRSSERVER_PACK_COMPONENT, "bankside:items", &g_ids.com_bankside_items },
+        { TORIRSSERVER_PACK_COMPONENT, "equipment_side:items",
+          &g_ids.com_equipment_side_items },
 
         { TORIRSSERVER_PACK_COMPONENT, "equipment:universe",
           &g_ids.com_equipment_stats_container },

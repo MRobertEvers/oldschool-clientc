@@ -197,6 +197,17 @@ ToriRSServer_FriendsLogin(
 void
 ToriRSServer_FriendsLogout(int64_t name37);
 
+/**
+ * A player online as `old37` is now called `new37` (a display name set on
+ * Tutorial Island): its lists, modes and presence move to the new name, and
+ * the old name stays behind offline with empty lists, as a name a follower
+ * listed. 0 when the roster cannot track `new37`.
+ */
+int
+ToriRSServer_FriendsRename(
+    int64_t old37,
+    int64_t new37);
+
 /** Is this name online, and on which world? 0 = offline or unknown. This is the
  *  raw answer; `ToriRSServer_FriendsGet` is the one that applies `isVisibleTo`. */
 int

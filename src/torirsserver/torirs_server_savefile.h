@@ -12,6 +12,8 @@
  *   <TORIRSSERVER_SAVES, default "saves">/
  *     <name>.ini                 the character (torirs_server_save.h)
  *     accounts/<name>.ini        the player account: password and privileges
+ *     names/<name>               a display name set on Tutorial Island, and the
+ *                                account (its save name) that holds it
  *     accounts.sqlite            web logins for io_server's sign-in gate (a
  *                                separate account, not a player), invites,
  *                                hiscores, history: the account server's
@@ -90,5 +92,36 @@ int
 ToriRSServer_SaveReplace(
     const char* temp,
     const char* path);
+
+/**
+ * Which account holds the display name `name`, as its save name, into
+ * `owner`. 1 when one does: the account that set it (`names/<name>`), or
+ * the account whose login name it is -- a save or an account record under
+ * that name -- since every account shows its login name until it sets
+ * another. 0 when the name is free. `name` must sanitise to something
+ * (ToriRSServer_SaveFileName).
+ */
+int
+ToriRSServer_DisplayNameOwner(
+    const char* name,
+    char* owner,
+    size_t cap);
+
+/**
+ * Reserve the display name `name` for the account saved as `account`. 1 when
+ * it is the account's now (or already was); 0 when another account holds it.
+ * The reservation is an exclusive create, so of two worlds asking at once
+ * one wins.
+ */
+int
+ToriRSServer_DisplayNameClaim(
+    const char* name,
+    const char* account);
+
+/** Give up the reservation of `name`, when `account` is the one holding it. */
+void
+ToriRSServer_DisplayNameRelease(
+    const char* name,
+    const char* account);
 
 #endif

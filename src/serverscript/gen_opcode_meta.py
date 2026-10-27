@@ -1302,6 +1302,22 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # whose accounts mean something (one that checks passwords).
     "ADVENTURE_LOG": (11292, 2, 1, 0, 0),
 
+    # displayname_check(string $name)(int)
+    #
+    # May the active player take `name` as its display name? 0 available,
+    # 1 taken (another account shows it, logs in with it or has set it),
+    # 2 not a name (ToriRSServer_WorldDisplayNameCheck). Tutorial Island's
+    # "Look up name" (tutorial_displayname, 558; RSProx index 4289 [18..20]).
+    "DISPLAYNAME_CHECK": (11293, 0, 1, 1, 0),
+
+    # displayname_set(string $name)(boolean)
+    #
+    # Give the active player the display name `name`: reserved for its
+    # account under <saves>/names/, shown in the appearance block, the friend
+    # service's key, written to the save at once. False, with nothing
+    # changed, when the name is no longer available (4289 [24..26]).
+    "DISPLAYNAME_SET": (11294, 0, 1, 1, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -1944,6 +1960,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_SETBLOCKWALK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETPASSTHRU": (1 << POINTER_BITS["active_npc"], 0),
     "ADVENTURE_LOG": (1 << POINTER_BITS["active_player"], 0),
+    "DISPLAYNAME_CHECK": (1 << POINTER_BITS["active_player"], 0),
+    "DISPLAYNAME_SET": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETBASESTAT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),

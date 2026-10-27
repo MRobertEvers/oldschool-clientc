@@ -4117,6 +4117,29 @@ d_resume_namedialog(lua_State* L)
     return push_result(L, "ok", "resume_p_namedialog sent");
 }
 
+/* api_drive.resume_stringdialog(text) -> ok | refused
+ *
+ * RESUME_P_STRINGDIALOG with `text`, as Tutorial Island's display name box
+ * sends what was typed into it ahead of its "Look up name" click
+ * (torirs_search_commit; RSProx index 4289 [18]). Scriptrun-only, like
+ * resume_namedialog: the client types it, and this runner has no
+ * clientscripts to type into. */
+static int
+d_resume_stringdialog(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    char const* text = luaL_checkstring(L, 1);
+    uint8_t payload[200];
+    int len;
+
+    len = snprintf((char*)payload, sizeof(payload), "%s", text);
+    if( len < 0 || len + 1 >= (int)sizeof(payload) )
+        return push_result(L, "refused", "string text too long");
+    payload[len] = 0;
+    handle(bot, PKTOUT_NAME_RESUME_P_STRINGDIALOG, payload, len + 1);
+    return push_result(L, "ok", "resume_p_stringdialog sent");
+}
+
 /* api_drive.if_drag(src_component, src_sub, dst_component, dst_sub) -> ok
  *
  * INV_BUTTOND (rev-230's IfButtonD), the packet a drag between two dynamic
@@ -4571,6 +4594,7 @@ push_drive_table(
     bind(L, bot, "cheat", d_cheat);
     bind(L, bot, "key", d_key);
     bind(L, bot, "resume_namedialog", d_resume_namedialog);
+    bind(L, bot, "resume_stringdialog", d_resume_stringdialog);
     bind(L, bot, "if_drag", d_if_drag);
     bind(L, bot, "resume_script", d_resume_script);
     bind(L, bot, "player_tile", d_player_tile);

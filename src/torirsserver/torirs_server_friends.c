@@ -334,6 +334,43 @@ ToriRSServer_FriendsLogin(
     return 1;
 }
 
+int
+ToriRSServer_FriendsRename(
+    int64_t old37,
+    int64_t new37)
+{
+    struct ToriRSServerSocialEntry* from;
+    struct ToriRSServerSocialEntry* to;
+    struct ToriRSServerSocialEntry moved;
+
+    assert(name37_is_valid(old37));
+    assert(name37_is_valid(new37));
+    if( old37 == new37 )
+        return 1;
+    /* Found before entry_get, which may append and move nothing: the roster
+     * is a fixed array, so `from` stays valid across it. */
+    from = entry_find(old37);
+    assert(from);
+    to = entry_get(new37);
+    if( !to )
+        return 0;
+    /* A name somebody listed already has an entry with empty lists of its
+     * own; the moving player's lists replace them. */
+    ToriMem_Free(ToriMem_ServerPlayers(), to->friends);
+    ToriMem_Free(ToriMem_ServerPlayers(), to->ignores);
+    moved = *from;
+    moved.name37 = new37;
+    *to = moved;
+    from->friends = NULL;
+    from->friend_count = 0;
+    from->friend_capacity = 0;
+    from->ignores = NULL;
+    from->ignore_count = 0;
+    from->ignore_capacity = 0;
+    from->world = 0;
+    return 1;
+}
+
 void
 ToriRSServer_FriendsLogout(int64_t name37)
 {
