@@ -55,6 +55,9 @@ static struct NxtCoxRoomRow const NXT_COX_ROOMS[] = {
 
 #define NXT_COX_ROOM_COUNT ((int)(sizeof(NXT_COX_ROOMS) / sizeof(NXT_COX_ROOMS[0])))
 
+/** The row of the raid's own start, not a floor's. */
+#define NXT_COX_RAID_START_ZCELL 162
+
 /** Template x / 32 of the counter-clockwise variant; the other two follow. */
 #define NXT_COX_VARIANT_XCELL0 102
 
@@ -191,6 +194,33 @@ NxtCoxLayout_Note(
     c->variant = (int8_t)variant;
     c->rotation = (int8_t)rotation;
     return true;
+}
+
+bool
+NxtCox_RoomIsRaidStart(int kind)
+{
+    assert(kind >= 0);
+    assert(kind < NXT_COX_ROOM_COUNT);
+    return NXT_COX_ROOMS[kind].zcell == NXT_COX_RAID_START_ZCELL;
+}
+
+bool
+NxtCoxLayout_IsAnotherRaid(
+    struct NxtCoxLayout const* layout,
+    int level,
+    int cell_x,
+    int cell_z)
+{
+    assert(layout);
+    for( int i = 0; i < layout->count; i++ )
+    {
+        struct NxtCoxCell const* c = &layout->cells[i];
+        if( !NxtCox_RoomIsRaidStart(c->kind) )
+            continue;
+        if( c->level != level || c->cell_x != cell_x || c->cell_z != cell_z )
+            return true;
+    }
+    return false;
 }
 
 void

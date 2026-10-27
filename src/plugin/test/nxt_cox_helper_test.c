@@ -176,6 +176,30 @@ test_walk(void)
         CHECK(layout.cells[out[k]].cell_x == 40 + k, "the seen part in order");
 }
 
+/*
+ * A reroll goes from one raid's start straight into the next's, with no scene
+ * between that has no raid room (RSProx 4392: six raids before the one
+ * played). The table is one raid's, so a start anywhere else is another raid.
+ */
+static void
+test_reroll(void)
+{
+    static int const ALL[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    int const start = NxtCox_RoomKindOf(3264, 162 * 32, 3);
+    struct NxtCoxLayout layout;
+
+    CHECK(start >= 0 && NxtCox_RoomIsRaidStart(start), "row 162 is the raid's start");
+    CHECK(!NxtCox_RoomIsRaidStart(NxtCox_RoomKindOf(3264, 178 * 32, 3)), "a floor's start is not");
+
+    NxtCoxLayout_Reset(&layout);
+    CHECK(!NxtCoxLayout_IsAnotherRaid(&layout, 3, 430, 82), "nothing remembered, nothing to forget");
+    NxtCoxLayout_Note(&layout, 3, 430, 82, start, 0, 0);
+    gen_floor(&layout, 3, 0, 430, 80, ALL);
+    CHECK(!NxtCoxLayout_IsAnotherRaid(&layout, 3, 430, 82), "the same start is the same raid");
+    CHECK(NxtCoxLayout_IsAnotherRaid(&layout, 3, 340, 88), "a start elsewhere is another raid");
+    CHECK(NxtCoxLayout_IsAnotherRaid(&layout, 2, 430, 82), "a start on another level too");
+}
+
 static void
 test_format(void)
 {
@@ -340,6 +364,7 @@ main(void)
 {
     test_table();
     test_walk();
+    test_reroll();
     test_format();
     test_paint_matches_the_picture();
     if( g_failures )

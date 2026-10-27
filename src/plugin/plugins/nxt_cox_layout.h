@@ -94,6 +94,19 @@ bool NxtCoxLayout_Note(
     int variant,
     int rotation);
 
+/** Whether `kind` is the raid's own start room, of which a raid has one. */
+bool NxtCox_RoomIsRaidStart(int kind);
+
+/** Whether the layout remembers a raid start room other than the one at this
+ *  cell: a scene that shows another start is another raid. A reroll goes from
+ *  raid to raid with no scene between, so nothing else says the last one is
+ *  over. */
+bool NxtCoxLayout_IsAnotherRaid(
+    struct NxtCoxLayout const* layout,
+    int level,
+    int cell_x,
+    int cell_z);
+
 /** The player stood on `level`. */
 void NxtCoxLayout_Visit(struct NxtCoxLayout* layout, int level);
 

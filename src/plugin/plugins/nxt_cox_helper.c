@@ -134,21 +134,29 @@ nxt_cox_trace_rooms(struct NxtCoxState const* state)
     fprintf(stderr, "\n");
 }
 
-/*
- * Every zone of the new scene, asked what it was copied from. Sixteen zones
- * make a room and all sixteen say the same; Note keeps one.
- *
- * A scene with no raid room in it at all is not a raid: whatever was
- * remembered belonged to the last one and goes.
- */
-static void
-nxt_cox_scan(struct ToriRS_Api* api, struct NxtCoxState* state, int base_tile_x, int base_tile_z)
+/** The room kind a zone of the scene was copied from, or -1. */
+static int
+nxt_cox_zone_kind(
+    struct ToriRS_Api* api,
+    int level,
+    int zone_x,
+    int zone_z,
+    struct ToriRS_InstanceZone* zone)
 {
-    int found = 0;
-    bool changed = false;
+    if( !api->world.instance_zone(api, level, zone_x, zone_z, zone) )
+        return -1;
+    return NxtCox_RoomKindOf(zone->template_tile_x, zone->template_tile_z, zone->template_level);
+}
 
-    assert(api);
-    assert(state);
+/** Forget the remembered raid when the scene's raid start is another one.
+ *  Returns true when it did. */
+static bool
+nxt_cox_forget_other_raid(
+    struct ToriRS_Api* api,
+    struct NxtCoxState* state,
+    int base_tile_x,
+    int base_tile_z)
+{
     for( int level = 0; level < NXT_COX_MAX_LEVELS; level++ )
     {
         for( int dx = 0; dx < 13; dx++ )
@@ -158,11 +166,49 @@ nxt_cox_scan(struct ToriRS_Api* api, struct NxtCoxState* state, int base_tile_x,
                 struct ToriRS_InstanceZone zone;
                 int const zone_x = (base_tile_x >> 3) + dx;
                 int const zone_z = (base_tile_z >> 3) + dz;
-                int kind;
+                int const kind = nxt_cox_zone_kind(api, level, zone_x, zone_z, &zone);
 
-                if( !api->world.instance_zone(api, level, zone_x, zone_z, &zone) )
+                if( kind < 0 || !NxtCox_RoomIsRaidStart(kind) )
                     continue;
-                kind = NxtCox_RoomKindOf(zone.template_tile_x, zone.template_tile_z, zone.template_level);
+                if( !NxtCoxLayout_IsAnotherRaid(&state->layout, level, zone_x >> 2, zone_z >> 2) )
+                    return false;
+                NxtCoxLayout_Reset(&state->layout);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/*
+ * Every zone of the new scene, asked what it was copied from. Sixteen zones
+ * make a room and all sixteen say the same; Note keeps one.
+ *
+ * A scene with no raid room in it at all is not a raid, and a scene whose
+ * raid start is not the remembered one is another raid (a reroll, RSProx
+ * 4392: six raids in a row): either way whatever was remembered belonged to
+ * the last one and goes.
+ */
+static void
+nxt_cox_scan(struct ToriRS_Api* api, struct NxtCoxState* state, int base_tile_x, int base_tile_z)
+{
+    int found = 0;
+    bool changed;
+
+    assert(api);
+    assert(state);
+    changed = nxt_cox_forget_other_raid(api, state, base_tile_x, base_tile_z);
+    for( int level = 0; level < NXT_COX_MAX_LEVELS; level++ )
+    {
+        for( int dx = 0; dx < 13; dx++ )
+        {
+            for( int dz = 0; dz < 13; dz++ )
+            {
+                struct ToriRS_InstanceZone zone;
+                int const zone_x = (base_tile_x >> 3) + dx;
+                int const zone_z = (base_tile_z >> 3) + dz;
+                int const kind = nxt_cox_zone_kind(api, level, zone_x, zone_z, &zone);
+
                 if( kind < 0 )
                     continue;
                 found++;
