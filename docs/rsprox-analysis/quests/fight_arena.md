@@ -402,3 +402,11 @@ formula's max equals the wiki's.
 The one departure is the ogre's earth weakness (40%), which the wiki does not list and the
 recording proves (varp 5536 = the earth rune, 4395 [625]). The safespots follow the wiki ("all
 can be safespotted"); the scorpion's was probed on ours and holds. Both items are closed.
+
+## Live run (2026-10-27)
+
+`run.py arena` on the live client: every row passes (97/97), the two camera rows included
+(`openCell.cutscene` 14 keyframes, `generalScene.cutscene` 8, both ending in the reset) and
+`quest.journal` (title "Fight Arena", 22 rows, complete). The journal was rewritten to the
+recorded journals' shape (each finished step one paragraph struck row by row through
+`~journal_struck`, at the 350px wrap); `::arenastage N` + `::arenajournal` reads it on any lane.

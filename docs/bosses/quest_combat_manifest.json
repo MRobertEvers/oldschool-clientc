@@ -480,7 +480,7 @@
       "kind": "quest",
       "name": "Fight Arena",
       "wiki_url": "https://oldschool.runescape.wiki/w/Fight_Arena",
-      "encounter_summary": "Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142); every round in a private copy of the arena (RSProx index 4395/4396)",
+      "encounter_summary": "Khazard ogre (63), Khazard scorpion (44), Bouncer (137), optional General Khazard (142)",
       "plan_line": 92,
       "cache_scope": "osrs239",
       "implementation_status": "implementation-in-progress",
