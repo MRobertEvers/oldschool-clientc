@@ -32,7 +32,9 @@
 -- * Combat-level branches: none in quest_tree/ or area_gnome/ (grepped
 --   combat_level), so the staged combat stats change no page.
 --
--- ANY-OF: pickupOrb warlord.satchel khazard_warlord.rs2:110 (the kill's own inv_add(inv, orbs_of_protection, 1) grants the orbs straight into the backpack -- they never land on the ground, so orbsOfProtectionNearby never trips in this port)
+-- Rebuilt 2026-10-27 against RSProx index 4394 (the whole quest, rev 241):
+-- Bolren's Start confirm, Elkoy's guide frame and Follow op, the trackers'
+-- boxes and the rolled x coordinate, the warlord's dropped orbs.
 
 return {
     id = "tree",
@@ -117,6 +119,14 @@ return {
                 t.note(name .. ": no page in 4 ticks (" .. tostring(r) .. "; " .. why .. ")")
             end
         end
+        -- Elkoy's guided walk (RSProx 4394 [300..304], [308..312]): a box with
+        -- nothing to click and the fade, the teleport at +3, Elkoy's page at +4.
+        local function guided(name, line)
+            local r = t.await({ level = function() return t.chat.kind() == "npc" end }, 8)
+            t.check(name .. ".page_up", r == "ok", "await Elkoy's page after the guide -> " .. tostring(r)
+                .. ", kind now " .. tostring(t.chat.kind()))
+            t.exec(name, t.chat.play, { line })
+        end
         -- The maze, entrance 2504,3190 to the railing's outer tile 2515,3160:
         -- the 215-tile closed-doors path reach.py's flood finds at margin 40,
         -- one waypoint per corner (hops <= 9).
@@ -174,7 +184,7 @@ return {
             "npc:Khazard troops seized the orb.",
             "player:How can I help?",
             "npc:You would be a huge benefit",
-            "choose:I would be glad to help.",
+            "choose:Yes.",
             "player:I would be glad to help.",
             "npc:Thank you. The battlefield is to the north",
             "npc:That is if he's still alive.",
@@ -182,8 +192,8 @@ return {
         })
         t.exec("stage.started", t.var.await_server, "varp111_treequest", 1, 10)
         -- @bolren_leavemaze_initial: p_telejump(entrance - 1 z) = 2504,3191.
-        maybe_page("bolren.leaveMaze.elkoy", "npc:We're out of the maze now.",
-            "Elkoy speaks only when npc_find finds him within 4 tiles, king_bolren.rs2:148")
+        -- RSProx 4394 [300..304]: the guide box, the fade, the teleport, Elkoy.
+        guided("bolren.leaveMaze.elkoy", "npc:We're out of the maze now.")
         tile_is("bolren.leaveMaze", { 2504, 3191, 0 }, 0, "Bolren's assistant guided the player out of the maze (king_bolren.rs2:147 p_telejump)")
 
         t.exec("goto-montai", t.player.goto_tile, 2523, 3207, 0)
@@ -234,7 +244,7 @@ return {
         t.exec("tracker1.height", t.chat.play, {
             "player:Do you know the coordinates",
             "npc:I managed to get one",
-            "npc:The height coordinate is 4.",
+            "mesbox:The gnome tells you the",
             "player:Well done.",
             "npc:The other two tracker gnomes",
             "player:OK, take care.",
@@ -245,6 +255,11 @@ return {
         t.exec("goto-tracker2", t.player.goto_tile, 2524, 3253, 0)
         t.exec("secondTracker.jailDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
             at = { 2524, 3254, 0 }, near = { 2524, 3253 }, far = { 2524, 3255 } })
+        -- He wanders his barred cell (2522-2526 x 3257-3258, RSProx 4394 too)
+        -- and is spoken to across the bars from two tiles ([1178]: the
+        -- player on 2524,3255, he on 2526,3257); from 2524,3256 every cell
+        -- tile is within two.
+        t.exec("walk-tracker2", t.player.walk_to, 2524, 3256)
         t.exec("tracker2.talk", t.player.talk_to, "tracker2", 1)
         t.exec("tracker2.y", t.chat.play, {
             "player:Are you OK?",
@@ -252,7 +267,7 @@ return {
             "npc:But I didn't crack.",
             "player:I'm sorry little man.",
             "npc:Don't be. I have the position",
-            "npc:The y coordinate is 5.",
+            "mesbox:The gnome tells you the",
             "player:Well done.",
             "npc:Now leave before they find you",
             "player:Hang in there.",
@@ -261,6 +276,13 @@ return {
         t.exec("secondTracker.jailDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
             at = { 2524, 3254, 0 }, near = { 2524, 3255 }, far = { 2524, 3253 } })
         t.exec("goto-tracker3", t.player.goto_tile, 2497, 3233, 0)
+        -- The x coordinate was rolled with stage 4 (varbit ballista, x =
+        -- ballista + 1); tracker 3's riddle names it (RSProx 4394 [1218]: 2,
+        -- "More than we, less than our feet."; the others the wiki's).
+        local _, roll = t.var.server("varb602_ballista")
+        roll = tonumber(roll) or 0
+        local RIDDLE = { [0] = "Less than my hands.", [1] = "More than my head, less than my fingers.",
+            [2] = "More than we, less than our feet.", [3] = "My legs and your legs, ha ha ha!" }
         t.exec("tracker3.talk", t.player.talk_to, "tracker3", 1)
         t.exec("tracker3.riddle", t.chat.play, {
             "player:Are you OK?",
@@ -273,26 +295,35 @@ return {
             "player:Do you have the coordinate",
             "npc:Who holds the stronghold?",
             "player:What?",
-            "npc:More than me, less than our feet.",
+            "npc:" .. RIDDLE[roll],
             "player:You're mad.",
-            "npc:More than we, and Khazard's men are beat.",
+            "npc:Dance with me, and Khazard's men are beat.",
             "mesbox:The toll of war",
             "player:I'll pray for you little man.",
             "npc:All day we pray in the hay",
         })
 
-        -- Ballista: height 4, x 3 (tracker3's riddle), y 5.
+        -- Ballista (RSProx 4394 [1249..1275]): the height and y are entered
+        -- for you; a wrong x first (a miss and the player's line), then the
+        -- rolled one.
+        local wrong = (roll + 1) % 4 + 1
         t.exec("goto-ballista", t.player.goto_tile, 2509, 3209, 0)
+        t.exec("ballista.miss", t.player.click_loc, "catabow", 2)
+        t.exec("ballista.miss.coords", t.chat.play, {
+            "player:That tracker gnome was a bit vague",
+            "choose:000" .. wrong,
+            "mesbox:You enter the height and y coordinates",
+        })
+        t.exec("ballista.miss.page", t.chat.play, {
+            "mesbox:The huge spear completely misses",
+            "player:Evidently that wasn't the right x coordinate.",
+        })
         t.exec("ballista.fire", t.player.click_loc, "catabow", 2)
         t.exec("ballista.coords", t.chat.play, {
-            "mesbox:To fire the ballista",
-            "choose:0004",
-            "choose:0003",
-            "choose:0005",
-            "mesbox:You fire the ballista.",
+            "player:That tracker gnome was a bit vague",
+            "choose:000" .. (roll + 1),
+            "mesbox:You enter the height and y coordinates",
         })
-        local hit_r = t.await({ level = function() return t.chat.kind() == "mesbox" end }, 10)
-        t.check("ballista.hit_page", hit_r == "ok", "await chat.kind()==mesbox after if_close + p_delay -> " .. tostring(hit_r) .. ", kind now " .. tostring(t.chat.kind()))
         t.exec("ballista.hit", t.chat.play, { "mesbox:screams down directly" })
         t.exec("stage.ballista_fired", t.var.await_server, "varp111_treequest", 5, 10)
 
@@ -343,17 +374,9 @@ return {
         -- returnFirstOrb via elkoySkip: Elkoy outside the maze, "Yes please."
         -- -> p_telejump(^elkoy_maze_coord) 2515,3159 (elkoy.rs2:89-106).
         t.exec("goto-elkoySkip", t.player.goto_tile, ENTRANCE[1], ENTRANCE[2], 0)
-        t.exec("elkoySkip", t.player.talk_to, "elkoy", 1)
-        t.exec("elkoySkip.dialog", t.chat.play, {
-            "player:Hello Elkoy.",
-            "npc:You're back! And the orb?",
-            "player:I have it here.",
-            "npc:You're our saviour.",
-            "choose:Yes please.",
-            "player:Yes please.",
-            "npc:Ok then, follow me.",
-            "npc:Here we are. Take the orb to King Bolren",
-        })
+        -- Follow (op 3), as the recording does ([1375..1380]).
+        t.exec("elkoySkip", t.player.talk_to, "elkoy", 3)
+        guided("elkoySkip.dialog", "npc:Here we are. Take the orb to King Bolren")
         tile_is("elkoySkip.landed", { 2515, 3159, 0 }, 0, "Elkoy's telejump to the maze's inner end (^elkoy_maze_coord 0_39_49_19_23)")
         t.exec("walk-returnFirstOrb.railing", t.player.walk_to, 2515, 3160)
         railing_in("returnFirstOrb.railingIn")
@@ -380,8 +403,7 @@ return {
         t.exec("stage.returned_first_orb", t.var.await_server, "varp111_treequest", 7, 10)
         t.exec("orb.handed_in", t.inv.expect_absent, "orb_of_protection")
         -- @bolren_leavemaze_second: p_telejump to 2504,3191 again.
-        maybe_page("bolren.leaveMaze2.elkoy", "npc:Good luck friend.",
-            "Elkoy speaks only when npc_find finds him within 4 tiles, king_bolren.rs2:154")
+        guided("bolren.leaveMaze2.elkoy", "npc:Good luck friend.")
         tile_is("bolren.leaveMaze2", { 2504, 3191, 0 }, 0, "Bolren's assistant guided the player out again (king_bolren.rs2:153 p_telejump)")
 
         -- The warlord, west of West Ardougne's wall (ardoungewall x 2459-2460):
@@ -428,17 +450,14 @@ return {
             "Khazard warlord (level 112, 170 hp): " .. fight.casts .. " fire bolt(s), lowest hp " .. tostring(fight.low)
                 .. "/99, sharks left " .. tostring(food) .. " of 6 staged (" .. tostring(food_r)
                 .. ") (margin: lowest hp >= 25, a quarter of 99, AND food left)")
-        t.exec("warlord.satchel", t.chat.play, { "mesbox:You search his satchel and find the orbs of protection." })
+        -- RSProx 4394 [1880]: the orbs land on his tile for the player alone,
+        -- with an objbox; picked up by hand ([1887]).
+        t.exec("warlord.orbs_page", t.chat.play, { "objbox:As the warlord falls to the ground" })
         t.exec("stage.defeated_warlord", t.var.await_server, "varp111_treequest", 8, 10)
+        t.exec("pickupOrb", t.player.click_obj, "orbs_of_protection")
         t.exec("orbs.held", t.inv.await, "orbs_of_protection", 1, 10)
 
-        -- king_bolren.rs2's [queue,tree_quest_complete] (armed inside the
-        -- SAME "bolren.orbs" dialogue below, well before the chant
-        -- cutscene's own mesboxes) is what runs stat_advance(attack,
-        -- 114500) -- so the reward snapshot has to be taken before THIS
-        -- dialogue, not merely before quest.expect_complete() (measured
-        -- run 2 of the seam23 author: a later snapshot read the POST-grant
-        -- value and reported delta=0).
+        -- The reward goes out on the last page's click (RSProx 4394 [2134]).
         local snap_r, snap_v = t.skill.snapshot()
         t.check("reward.snapshot", snap_r == "ok", "skill.snapshot before the hand-in dialogue -> " .. tostring(snap_r))
         local amulet_before_r, amulet_before = t.inv.count("gnome_amulet")
@@ -446,18 +465,8 @@ return {
         -- returnOrbs via elkoySkip2: Elkoy's hero page offers the way in
         -- again (elkoy.rs2:162-200, ^elkoy_maze_coord).
         t.exec("goto-elkoySkip2", t.player.goto_tile, ENTRANCE[1], ENTRANCE[2], 0)
-        t.exec("elkoySkip2", t.player.talk_to, "elkoy", 1)
-        t.exec("elkoySkip2.dialog", t.chat.play, {
-            "player:Hello Elkoy.",
-            "npc:You truly are a hero.",
-            "player:Thanks.",
-            "npc:You saved us by returning the orbs",
-            "npc:Would you like me to show you the way",
-            "choose:Yes please.",
-            "player:Yes please.",
-            "npc:Ok then, follow me.",
-            "npc:Here we are. Feel free to look around.",
-        })
+        t.exec("elkoySkip2", t.player.talk_to, "elkoy", 3)
+        guided("elkoySkip2.dialog", "npc:Here we are. Feel free to have a look around.")
         tile_is("elkoySkip2.landed", { 2515, 3159, 0 }, 0, "Elkoy's telejump to the maze's inner end (^elkoy_maze_coord 0_39_49_19_23)")
         t.exec("walk-returnOrbs.railing", t.player.walk_to, 2515, 3160)
         railing_in("returnOrbs.railingIn")
