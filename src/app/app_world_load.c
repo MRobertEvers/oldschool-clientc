@@ -410,6 +410,14 @@ App_WorldLoadFinish(struct App* app)
          * rebuilt: their placeholders dropped themselves for the rebuild and
          * take new ones now, against this generation. */
         app_placeholder_obj_stacks_sweep(app, app->world);
+        /* The scene was built from the map, so every loc a zone packet changed
+         * is back to the map's, and a zone that stayed in view is not resent:
+         * re-place them (World_LocChangesTakeStanding). Server-driven only --
+         * an offline or editor load builds from text that already holds its
+         * edits. On the loc lane like the packets were, so a change that
+         * arrives after this lands after it. */
+        if( server_driven )
+            app_world_loc_changes_replace(app);
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source;

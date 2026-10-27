@@ -280,6 +280,36 @@ app_loc_change_apply_cb(
 }
 
 void
+app_world_loc_changes_replace(struct App* app)
+{
+    /* ~54 KB: static, not on a web build's 64 KB stack. One App per process,
+     * and nothing below re-enters this. */
+    static struct World_LocChange standing[WORLD_LOC_CHANGE_MAX];
+    int previous_view;
+    int count;
+
+    assert(app);
+    assert(app->world);
+    count = World_LocChangesTakeStanding(app->world, standing, WORLD_LOC_CHANGE_MAX);
+    /* The records are the root world's; queue against it whichever view the
+     * cursor addresses (the varp re-place does the same). */
+    previous_view = app->active_world;
+    app->active_world = WORLDVIEW_ROOT;
+    for( int i = 0; i < count; i++ )
+        App_WorldLocChangeOps(
+            app,
+            standing[i].x,
+            standing[i].z,
+            standing[i].level,
+            standing[i].new_type,
+            standing[i].new_shape,
+            standing[i].new_angle,
+            standing[i].op_flags,
+            standing[i].ops);
+    app->active_world = previous_view;
+}
+
+void
 App_WorldLocMerge(
     struct App* app,
     int scene_x,

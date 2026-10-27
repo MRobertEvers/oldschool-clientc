@@ -1969,7 +1969,7 @@ Task_AppSpawn_Run(
                     old_shape = old->shape;
                 }
             }
-            World_LocChangePush(
+            World_LocChangePushOps(
                 world,
                 self->level,
                 World_LocShapeToLayer(self->loc_shape),
@@ -1982,7 +1982,9 @@ Task_AppSpawn_Run(
                 self->loc_angle,
                 self->loc_shape,
                 world->cycle,
-                -1);
+                -1,
+                self->loc_op_flags,
+                self->loc_ops);
             WorldBuilder_ApplyLocChange(
                 wv->builder,
                 self->tile_x,

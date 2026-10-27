@@ -2989,9 +2989,35 @@ World_LocChangePush(
     int start_time,
     int end_time)
 {
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+
+    World_LocChangePushOps(
+        world, level, layer, x, z, old_type, old_angle, old_shape, new_type, new_angle, new_shape,
+        start_time, end_time, 0x1f, none);
+}
+
+void
+World_LocChangePushOps(
+    struct World* world,
+    int level,
+    int layer,
+    int x,
+    int z,
+    int old_type,
+    int old_angle,
+    int old_shape,
+    int new_type,
+    int new_angle,
+    int new_shape,
+    int start_time,
+    int end_time,
+    int op_flags,
+    const char ops[5][32])
+{
     struct World_LocChange* loc;
 
     assert(world);
+    assert(ops);
     if( world->loc_change_count >= WORLD_LOC_CHANGE_MAX )
         return;
     loc = &world->loc_changes[world->loc_change_count++];
@@ -3007,6 +3033,60 @@ World_LocChangePush(
     loc->new_shape = new_shape;
     loc->start_time = start_time;
     loc->end_time = end_time;
+    loc->op_flags = op_flags;
+    memcpy(loc->ops, ops, sizeof(loc->ops));
+}
+
+/* One record's key: the deob's pending-spawn identity (Statics.method5652
+ * matches level, x, z and layer). */
+static int
+world_loc_change_same_key(
+    struct World_LocChange const* a,
+    struct World_LocChange const* b)
+{
+    return a->level == b->level && a->layer == b->layer && a->x == b->x && a->z == b->z;
+}
+
+int
+World_LocChangesTakeStanding(
+    struct World* world,
+    struct World_LocChange* out,
+    int max)
+{
+    int count = 0;
+
+    assert(world);
+    assert(out);
+    (void)max; /* read only by the assert below */
+    for( int i = 0; i < world->loc_change_count; i++ )
+    {
+        struct World_LocChange const* oldest = &world->loc_changes[i];
+        struct World_LocChange const* latest = oldest;
+        int first = 1;
+
+        for( int j = 0; j < i && first; j++ )
+            if( world_loc_change_same_key(&world->loc_changes[j], oldest) )
+                first = 0;
+        if( !first )
+            continue;
+        for( int k = i + 1; k < world->loc_change_count; k++ )
+            if( world_loc_change_same_key(&world->loc_changes[k], oldest) )
+                latest = &world->loc_changes[k];
+        if( latest->end_time >= 0 )
+            continue;
+        if( latest->new_type == oldest->old_type &&
+            (latest->new_type < 0 ||
+             (latest->new_angle == oldest->old_angle && latest->new_shape == oldest->old_shape)) )
+            continue;
+        assert(count < max);
+        out[count] = *latest;
+        out[count].old_type = oldest->old_type;
+        out[count].old_angle = oldest->old_angle;
+        out[count].old_shape = oldest->old_shape;
+        count++;
+    }
+    world->loc_change_count = 0;
+    return count;
 }
 
 void

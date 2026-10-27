@@ -307,6 +307,12 @@ struct World_LocChange
     int new_shape;
     int start_time;
     int end_time;
+    /* The placement's own menu (LOC_ADD_CHANGE_V2): `op_flags` is the 5-bit
+     * shown mask, `ops[i]` the replacement label for slot i ("" = the
+     * loctype's). Kept so a rebuild re-places the loc with them, as the deob's
+     * pending spawn keeps its field656/field661. */
+    int op_flags;
+    char ops[5][32];
 };
 
 /**
@@ -1868,6 +1874,54 @@ World_LocChangePush(
     int new_shape,
     int start_time,
     int end_time);
+
+/** `World_LocChangePush` carrying the placement's own menu: the op mask and
+ * replacement labels a LOC_ADD_CHANGE_V2 placed the loc with. The plain push
+ * is this with every op shown and no labels. */
+void
+World_LocChangePushOps(
+    struct World* world,
+    int level,
+    int layer,
+    int x,
+    int z,
+    int old_type,
+    int old_angle,
+    int old_shape,
+    int new_type,
+    int new_angle,
+    int new_shape,
+    int start_time,
+    int end_time,
+    int op_flags,
+    const char ops[5][32]);
+
+/**
+ * After a rebuild: what each changed tile must be put back to, and the list
+ * emptied. Deob client.method2278, run when the rebuilt scene is swapped in:
+ * a pending spawn that is permanent (field668 == -1) gets startTime 0 so the
+ * next pass places it again, and its old loc is re-read from the NEW scene;
+ * any other is unlinked.
+ *
+ * The rebuild built the scene from the map, so every runtime loc is gone, and
+ * the server does not resend a zone that stayed in view (RSProx 4392: the CoX
+ * herb patch's growth stages are sent once; the recorder walks east, the scene
+ * rebuilds, and nothing re-sends the plant).
+ *
+ * Our list appends a record per applied change, so a key (level, layer, x, z)
+ * may hold several. Per key the LATEST record says what stands; one written
+ * by a countdown (end_time >= 0) is dropped with the rest of the key, as the
+ * deob unlinks it. Out: one entry per surviving key, its new_* and ops from
+ * the latest record and its old_* from the oldest (the map's loc), skipping a
+ * key whose latest loc IS the map's. Re-placing an entry pushes a fresh record
+ * whose old loc is read from the new scene. Returns the count; asserts `max`
+ * holds them (a key per record at most, so WORLD_LOC_CHANGE_MAX always does).
+ */
+int
+World_LocChangesTakeStanding(
+    struct World* world,
+    struct World_LocChange* out,
+    int max);
 
 /** Clear every temporary loc-change record (scene rebuild). */
 void

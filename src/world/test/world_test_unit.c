@@ -1846,6 +1846,43 @@ test_rebuild_shift(void)
 }
 
 void
+test_loc_changes_take_standing(void)
+{
+    printf("TEST: loc changes taken for a rebuild\n");
+
+    struct World* world = World_TestMakeReady(104);
+    static const char none[5][32] = { { 0 }, { 0 }, { 0 }, { 0 }, { 0 } };
+    char ops[5][32] = { "", "Pick", "", "", "" };
+    struct World_LocChange out[WORLD_LOC_CHANGE_MAX];
+
+    /* A herb patch growing: three changes on one key, each remembering what
+     * it replaced. The map's loc is the first record's old. */
+    World_LocChangePushOps(world, 3, 2, 46, 53, 100, 3, 10, 101, 3, 10, 0, -1, 0x1f, none);
+    World_LocChangePushOps(world, 3, 2, 46, 53, 101, 3, 10, 102, 3, 10, 0, -1, 0x1f, none);
+    World_LocChangePushOps(world, 3, 2, 46, 53, 102, 3, 10, 103, 3, 10, 0, -1, 0x02, ops);
+    /* Opened and shut again: back to the map's loc, nothing to re-place. */
+    World_LocChangePush(world, 0, 0, 10, 10, 200, 1, 0, 201, 2, 0, 0, -1);
+    World_LocChangePush(world, 0, 0, 10, 10, 201, 2, 0, 200, 1, 0, 0, -1);
+    /* Deleted: the rebuild put it back, so the delete is re-placed. */
+    World_LocChangePush(world, 0, 2, 20, 20, 300, 0, 10, -1, 0, 10, 0, -1);
+    /* A countdown (LOC_MERGE): the deob unlinks it on a rebuild. */
+    World_LocChangePush(world, 0, 2, 30, 30, 400, 0, 10, -1, 0, 10, 0, 5);
+
+    int count = World_LocChangesTakeStanding(world, out, WORLD_LOC_CHANGE_MAX);
+    TEST_ASSERT(count == 2, "one entry per changed key, reverted and countdown keys dropped");
+    TEST_ASSERT(world->loc_change_count == 0, "list emptied for the re-placed records");
+    TEST_ASSERT(out[0].x == 46 && out[0].z == 53 && out[0].new_type == 103,
+                "latest growth stage stands");
+    TEST_ASSERT(out[0].old_type == 100, "old is the map's loc, from the oldest record");
+    TEST_ASSERT(out[0].op_flags == 0x02 && strcmp(out[0].ops[1], "Pick") == 0,
+                "the latest placement's menu rides along");
+    TEST_ASSERT(out[1].x == 20 && out[1].new_type == -1 && out[1].old_type == 300,
+                "a delete is re-placed");
+
+    World_Free(world);
+}
+
+void
 test_obj_raise(void)
 {
     printf("TEST: obj raise map\n");

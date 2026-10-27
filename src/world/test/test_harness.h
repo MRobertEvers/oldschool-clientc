@@ -179,6 +179,7 @@ void test_tile_stack_dedup(void);
 void test_minusedlevel_entity_draw(void);
 void test_spawned_entity_first_placement_snaps(void);
 void test_rebuild_shift(void);
+void test_loc_changes_take_standing(void);
 void test_exact_move_across_far_teleport(void);
 void test_obj_raise(void);
 void test_action_anim_restarts_the_readyanim(void);

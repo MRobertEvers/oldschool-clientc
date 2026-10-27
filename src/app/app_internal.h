@@ -2203,6 +2203,12 @@ app_loc_change_apply_cb(
     int shape,
     int angle);
 
+/* After a server-driven rebuild: put every loc a zone packet changed back on
+ * the rebuilt root scene, with the menu it was placed with (deob
+ * client.method2278; see World_LocChangesTakeStanding). */
+void
+app_world_loc_changes_replace(struct App* app);
+
 void
 app_world_spawn_spotanim(
     struct App* app,

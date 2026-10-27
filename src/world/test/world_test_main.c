@@ -65,6 +65,7 @@ main(void)
     test_minusedlevel_entity_draw();
     test_spawned_entity_first_placement_snaps();
     test_rebuild_shift();
+    test_loc_changes_take_standing();
     test_exact_move_across_far_teleport();
     test_obj_raise();
     test_action_anim_restarts_the_readyanim();
