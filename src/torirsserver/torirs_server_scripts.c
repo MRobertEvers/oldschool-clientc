@@ -13429,6 +13429,16 @@ script_command(
         SSVM_PushInt(state, srv->members_world != 0);
         return 1;
 
+    /*
+     * `staffmodlevel`: the active player's staffModLevel (0 player, 1 player
+     * moderator, 2 Jagex moderator). An account with `admin = 1` logs in at 2
+     * (torirs_server_auth.h); TORIRSSERVER_STAFF_LEVEL raises it for a harness.
+     */
+    case SS_OP_STAFFMODLEVEL:
+        assert(srv->active_player);
+        SSVM_PushInt(state, srv->active_player->staff_level);
+        return 1;
+
     /* ---- map instances -------------------------------------------- */
 
     /*
