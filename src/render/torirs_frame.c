@@ -2231,6 +2231,8 @@ frame_view_push(
         frame->view_stack[depth].scale_y * xf->flatten_scale;
     frame->view_stack[depth + 1].flat_hsl = xf->flat_hsl >= 0
         ? xf->flat_hsl : frame->view_stack[depth].flat_hsl;
+    frame->view_stack[depth + 1].flat =
+        xf->flat || xf->flat_hsl >= 0 || frame->view_stack[depth].flat;
     frame->view_stack[depth + 1].yaw = (parent_yaw + xf->yaw) & 0x7ff;
     frame->view_stack[depth + 1].view_id = view_id;
 
@@ -2457,7 +2459,8 @@ try_emit_world_draw_model(
         assert(frame->view_depth >= 0);
         assert(frame->view_depth < TORIRS_FRAME_MAX_VIEWS);
         view_world = frame->view_stack[frame->view_depth].world;
-        bool flat = frame->view_stack[frame->view_depth].flat_hsl >= 0;
+        bool flat = frame->view_stack[frame->view_depth].flat;
+        bool recolour = frame->view_stack[frame->view_depth].flat_hsl >= 0;
         if( flat && cmd->_bf_kind == PNTR_CMD_TERRAIN_PICK_ONLY ) continue;
 
         if( cmd->_bf_kind == PNTR_CMD_ELEMENT || cmd->_bf_kind == PNTR_CMD_TERRAIN ||
@@ -2615,12 +2618,12 @@ try_emit_world_draw_model(
         /* A GPU frame may freeze each requested pose here. The model is
          * element-owned and the world update cannot advance until FrameEnd.
          * The feed release publishes these geometry writes to the worker. */
-        if( (frame->prepare_gpu_poses || flat) && el->animation )
+        if( (frame->prepare_gpu_poses || recolour) && el->animation )
             ToriDraw_SceneElementApplyAnimationResolved(el,element_id,true,el->anim_frame,true);
 
         frame_command_reset(out);
         out->kind = TORIRSRC_DRAW_MODEL;
-        out->u.model.model = flat
+        out->u.model.model = recolour
             ? frame_flat_model(frame->flat_arena, el->model,
                                frame->view_stack[frame->view_depth].scale_y,
                                frame->view_stack[frame->view_depth].flat_hsl)
@@ -2874,6 +2877,7 @@ ToriRS_FrameBegin(struct ToriRS_Frame* frame)
     frame->view_stack[0].world = frame->world;
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
+    frame->view_stack[0].flat = false;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
@@ -2907,6 +2911,7 @@ ToriRS_FrameBeginWorldOnly(struct ToriRS_Frame* frame)
     frame->view_stack[0].world = frame->world;
     frame->view_stack[0].scale_y = 1.0f;
     frame->view_stack[0].flat_hsl = -1;
+    frame->view_stack[0].flat = false;
     frame->scrollbar_step = 0;
     frame->event_index = 0;
     frame->in_world = false;
@@ -3053,6 +3058,7 @@ again:
             frame->view_stack[0].world = frame->world;
             frame->view_stack[0].scale_y = 1.0f;
             frame->view_stack[0].flat_hsl = -1;
+            frame->view_stack[0].flat = false;
 
             if( frame->pass == TORIRS_FRAME_PASS_2D )
             {

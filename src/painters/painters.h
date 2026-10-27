@@ -462,6 +462,10 @@ painter_command_element_id(struct PaintersElementCommand const* cmd)
  * One nested world view as the parent painter sees it: which painter to descend
  * into, and where the camera sits once transformed into that view's tile space.
  * Rebuilt every frame alongside the pseudo-locs.
+ *
+ * A view bound with painter_set_world_entity_element has no painter: the
+ * descent emits `element_id` alone between the view's two markers, and the
+ * frame still composes the view's transform around it.
  */
 struct PainterWorldEntityView
 {
@@ -470,6 +474,9 @@ struct PainterWorldEntityView
     int camera_sz;
     int camera_slevel;
     int active;
+    /** Nonzero: draw `element_id` in place of painting `painter`. */
+    int element_only;
+    int element_id;
 };
 
 struct Painter;
@@ -1053,6 +1060,19 @@ painter_set_world_entity_view(
     int camera_sx,
     int camera_sz,
     int camera_slevel);
+
+/**
+ * Bind view `view_id` as ONE scene element rather than a painter: when the
+ * drain reaches the view's pseudo-loc it emits BEGIN_WORLD, `element_id`,
+ * END_WORLD, and walks none of the view's tiles. A flattened sailing hull
+ * drawn as a prebuilt outline (app_wev_flat_outline.c) is bound this way.
+ * Cleared with the other bindings by painter_clear_world_entity_views.
+ */
+void
+painter_set_world_entity_element(
+    struct Painter* painter,
+    int view_id,
+    int element_id);
 
 void
 painter_clear_world_entity_views(struct Painter* painter);

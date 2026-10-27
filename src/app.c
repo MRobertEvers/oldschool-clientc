@@ -498,6 +498,7 @@ App_Init(
         RevConfigRefs_Get(&app->revconfig_refs, "model", "sailing_heading_selected");
     app->sailing_arrow_element[0] = app->sailing_arrow_element[1] = -1;
     WevConfigTable_Init(&app->wev_configs);
+    AppWevFlat_Init(&app->wev_flat, AppWevFlat_OpsByName(torirs_env_wev_flat()));
     /* The dynamic-registration pass puts every entity floating in this world
      * into its painter as a transient pseudo-loc (SAILING_PLAN C3). Boat worlds
      * get the same hook at spawn, so nesting registers itself. */
@@ -1355,6 +1356,8 @@ App_Shutdown(struct App* app)
      * walk named its tables. */
     RS_Hitsplats_Free(&app->hitsplats);
     RS_EntitySync_Free(&app->esync);
+    /* While the scene is alive: an outline strategy holds scene elements. */
+    AppWevFlat_Free(&app->wev_flat, app);
     /* Frees any owned (non-root) views; the root slot only borrows the pair
      * freed just below. */
     WorldviewRegistry_Free(&app->worldviews);

@@ -24,8 +24,6 @@ static void
 app_sailing_register_arrows(
     struct App* app,
     struct World* world);
-static int
-app_wev_debug_enabled(void);
 static bool
 app_wev_ground_below(
     void* userdata,
@@ -361,7 +359,7 @@ app_wev_terrain_height(
  * registration, where an unconditional write costs whole milliseconds
  * (docs — one stderr write per spawn was the entire "laggy scene" stutter).
  */
-static int
+int
 app_wev_debug_enabled(void)
 {
     static int cached = -1;
@@ -581,6 +579,9 @@ App_WevDespawn(
     /* Its npcs go with it: the deob discards the World with its npc list. */
     RS_EntitySync_ClearViewNpcs(&app->esync, app->world, id);
 
+    /* Whatever the flatten strategy built from this deck goes with it, before
+     * the slot can be handed to another hull. */
+    app->wev_flat.ops->release_view(app->wev_flat.state, app, id);
     Wevs_Despawn(&app->wevs, id);
     /* The slot goes back to the pool and the next hull it is given is a
      * different world-entity: the modes SET_INTERACTION_MODE gave this one
@@ -897,8 +898,12 @@ app_wev_bind_view_cameras(
             if( sz > max_tile )
                 sz = max_tile;
 
-            painter_set_world_entity_view(
-                parent_world->painter, id, view->world->painter, sx, sz, 0);
+            if( wev->flattened )
+                app->wev_flat.ops->bind_painter(
+                    app->wev_flat.state, app, wev, parent_world->painter, sx, sz);
+            else
+                painter_set_world_entity_view(
+                    parent_world->painter, id, view->world->painter, sx, sz, 0);
 
             /* Nested entities ride this deck; their cameras derive from it. */
             assert(tail < WORLDVIEW_MAX);
@@ -974,16 +979,54 @@ app_wev_bind_frame_xforms(
                 box.pos_z,
                 box.angle);
             if( wev->flattened )
-            {
-                frame->views[wev->id].flatten_scale = 0.01f;
-                frame->views[wev->id].flatten_y_offset = -1200;
-                frame->views[wev->id].flat_hsl = wev->config->flat_hsl;
-            }
+                app->wev_flat.ops->bind_frame(
+                    app->wev_flat.state, app, wev, &frame->views[wev->id]);
         }
     }
 }
 
 /* --- SAILING_PLAN C4: flatten (budget / priority / overlap) -------------- */
+
+/* The flatten strategy table (app_wev_flat.h): which one, and its state. */
+
+struct AppWevFlatOps const*
+AppWevFlat_OpsByName(char const* name)
+{
+    if( !name || !name[0] )
+        return &g_app_wev_flat_outline;
+    if( strcmp(name, g_app_wev_flat_live.name) == 0 )
+        return &g_app_wev_flat_live;
+    if( strcmp(name, g_app_wev_flat_outline.name) == 0 )
+        return &g_app_wev_flat_outline;
+    TORIRS_ERR("TORIRS_WEV_FLAT=%s: expected \"live\" or \"outline\"\n", name);
+    assert(!"unknown TORIRS_WEV_FLAT strategy");
+    abort();
+}
+
+void
+AppWevFlat_Init(
+    struct AppWevFlat* flat,
+    struct AppWevFlatOps const* ops)
+{
+    assert(flat);
+    assert(ops);
+    flat->ops = ops;
+    flat->state = ops->create();
+}
+
+void
+AppWevFlat_Free(
+    struct AppWevFlat* flat,
+    struct App* app)
+{
+    assert(flat);
+    if( !flat->ops )
+        return;
+    flat->ops->destroy(flat->state, app);
+    flat->ops = NULL;
+    flat->state = NULL;
+}
+
 
 /* Native actor overlaps use the drawn root position and nearest-16 oriented
  * hull bounds. NPCs opt in only when their resolved type exposes an action. */
@@ -1634,6 +1677,8 @@ app_wev_claim_deck_actors(
         for( int i = 0; i < 2 && n < max; ++i )
             if( app->sailing_arrow_element[i] >= 0 )
                 out_element_ids[n++] = app->sailing_arrow_element[i];
+        n += app->wev_flat.ops->claim_elements(
+            app->wev_flat.state, out_element_ids + n, max - n);
         return n;
     }
     owner = app->world;

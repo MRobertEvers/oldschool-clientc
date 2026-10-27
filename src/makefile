@@ -723,6 +723,8 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_varp_transforms.c \
 	app/app_viewport.c \
 	app/app_wev.c \
+	app/app_wev_flat_live.c \
+	app/app_wev_flat_outline.c \
 	app/app_world_apply.c \
 	app/app_world_click.c \
 	app/app_world_edit.c \

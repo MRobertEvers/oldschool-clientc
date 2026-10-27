@@ -1987,6 +1987,9 @@ app_draw_connection_lost_overlay(
 
 
 /* ---- app_wev.c ---- */
+/** TORIRS_WEV_DEBUG is set: the sailing traces print (read once). */
+int
+app_wev_debug_enabled(void);
 int
 app_wev_actor_root_fine(
     struct App* app,

@@ -53,7 +53,13 @@ struct ToriRS_FrameViewXform
     int yaw;
     float flatten_scale;
     int flatten_y_offset;
+    /** >= 0: every draw inside is a frame-owned copy, Y-scaled and recoloured
+     *  to this HSL (the live flattened hull, torirs_frame_flat.u.h). Implies
+     *  `flat`. */
     int flat_hsl;
+    /** The view is drawn flattened: its draws are not pickable and carry no
+     *  pose. Set alone by a strategy whose geometry is already flat. */
+    bool flat;
     bool live;
 };
 
@@ -112,6 +118,7 @@ struct ToriRS_Frame
         int yaw;
         float scale_y;
         int flat_hsl;
+        bool flat;
         /** Which view opened this level; slot 0 (the root) is 0. Kept so a
          *  close that names a different view than the open is caught here
          *  rather than resolving terrain against the wrong world. */

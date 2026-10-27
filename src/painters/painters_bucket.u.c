@@ -813,7 +813,15 @@ bucket_descend(
     bucket_cursor_reserve(cursor, 2);
     bucket_emit_world_marker(&cursor->cur, cursor->end, PNTR_CMD_BEGIN_WORLD, view_id);
 
-    if( !refused )
+    /* A view bound as one element: that element is the view's whole paint.
+     * Nothing is pushed -- there is no painter to run, and nothing below can
+     * descend from a single draw. */
+    if( !refused && view->element_only )
+    {
+        bucket_cursor_reserve(cursor, 1);
+        bucket_emit_entity(&cursor->cur, cursor->end, view->element_id);
+    }
+    else if( !refused )
     {
         stack->depth = depth + 1;
         stack->view_ids |= (1ull << view_id);

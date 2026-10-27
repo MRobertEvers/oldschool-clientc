@@ -426,6 +426,24 @@ suppressed for that view; runtime scenery on the deck is retained. Because there
 is no persistent bake, a REBUILD needs no invalidation, and the deck's live
 geometry changes are visible in the flat silhouette on the next frame.
 
+That live rendering is one of two strategies behind `struct AppWevFlatOps`
+(`src/app/app_wev_flat.h`), chosen at init by `TORIRS_WEV_FLAT`:
+
+- `live` -- the deob path above (`app_wev_flat_live.c`).
+- `outline` (default, not the deob's) -- `app_wev_flat_outline.c` rasterises
+  the deck's terrain and scenery faces once into a 1/8-tile XZ grid, merges the
+  filled cells into rectangles and keeps them as ONE flat-shaded root-dynamic
+  scene element. The painter emits that element in place of the deck
+  (`painter_set_world_entity_element`). The frame view is marked `flat` with no
+  `flat_hsl`, so the model draws as-is: unposed, unpickable, under the same
+  0.01 transform. It rebuilds when `World::geometry_serial` moves AND the
+  deck's records hash differently. Animations are ignored, and a hull nested
+  on a flattened deck is not drawn. On RSProx 4281 (24 flat hulls, 1239x921,
+  software z-buffer): `live` 25 fps, `outline` 55 fps. The outline is about
+  44 rectangles a hull, built from 12-25k faces.
+
+Actors aboard a flattened hull are suppressed under both strategies.
+
 The bob is implemented too (deob class467.method10419 → class112.method4034:
 the active animaya seq's root-bone pose matrix multiplies the whole sub-scene
 transform). Config op 25 names the looping idle (13424/13426/13428 — the

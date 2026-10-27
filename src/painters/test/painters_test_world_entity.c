@@ -380,6 +380,50 @@ test_descent_resumes_the_rest_of_the_tile(void)
  * 2. Refusals still balance the stream.
  * ---------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------
+ * 1c. A view bound as one element (a flattened hull's prebuilt outline):
+ *     that element is the whole span, and the deck painter is never run.
+ * ---------------------------------------------------------------------- */
+
+#define OUTLINE_ELEMENT 777
+
+static void
+test_element_view_emits_only_its_element(int depth_renderer)
+{
+    printf("test_element_view_emits_only_its_element (depth=%d)\n", depth_renderer);
+
+    struct Painter* root = make_painter();
+    struct Painter* deck = make_painter();
+    struct PaintersBuffer* buf = make_buffer();
+
+    painter_add_normal_scenery(root, 12, 12, 0, LOC_FAR, 1, 1, 0);
+    painter_add_world_entity(root, 0, 7, 7, /*view_id=*/1, 0, 1, 1);
+    painter_add_normal_scenery(root, 2, 2, 0, LOC_NEAR, 1, 1, 0);
+    /* The deck still has locs; binding the element must keep them out. */
+    painter_add_normal_scenery(deck, 6, 6, 0, LOC_DECK_A, 1, 1, 0);
+
+    painter_clear_world_entity_views(root);
+    painter_set_world_entity_element(root, 1, OUTLINE_ELEMENT);
+
+    if( depth_renderer ) painter_collect_visible_depth(root, buf, 0, 0, 0);
+    else painter_paint_bucket(root, buf, 0, 0, 0);
+
+    int begin = index_of(buf, PNTR_CMD_BEGIN_WORLD, 1);
+    int end = index_of(buf, PNTR_CMD_END_WORLD, 1);
+    int outline = index_of(buf, PNTR_CMD_ELEMENT, OUTLINE_ELEMENT);
+    expect(begin >= 0 && end == begin + 2, "the span holds exactly one command");
+    expect(outline == begin + 1, "that command is the bound element");
+    expect(count_of(buf, PNTR_CMD_ELEMENT, OUTLINE_ELEMENT) == 1, "the element emits once");
+    expect(index_of(buf, PNTR_CMD_ELEMENT, LOC_DECK_A) < 0, "no deck loc is painted");
+    expect(markers_balanced(buf, NULL), "marker stream is balanced");
+    expect(index_of(buf, PNTR_CMD_ELEMENT, LOC_FAR) < begin, "parent order before holds");
+    expect(index_of(buf, PNTR_CMD_ELEMENT, LOC_NEAR) > end, "parent order after holds");
+
+    free_buffer(buf);
+    painter_free(deck);
+    painter_free(root);
+}
+
 static void
 test_unbound_view_emits_an_empty_pair(void)
 {
@@ -860,6 +904,8 @@ main(void)
     test_descent_emits_deck_between_markers(0);
     test_descent_emits_deck_between_markers(1);
     test_descent_resumes_the_rest_of_the_tile();
+    test_element_view_emits_only_its_element(0);
+    test_element_view_emits_only_its_element(1);
     test_unbound_view_emits_an_empty_pair();
     test_cycle_is_refused_not_re_entered();
     test_distinct_view_alias_is_refused();

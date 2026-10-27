@@ -83,6 +83,7 @@
 #include "world/wev.h"
 #include "world/world_pickset.h"
 #include "world/worldview.h"
+#include "app/app_wev_flat.h"
 
 struct ToriPlatform_Renderer_Soft3D;
 struct ToriRS_Frame;
@@ -1342,6 +1343,9 @@ struct App
      * (wev.h). An entity's id doubles as its view id in `worldviews`.
      */
     struct Wevs wevs;
+    /** How a flattened hull is drawn: the live deob path or a prebuilt
+     *  outline, chosen at init by TORIRS_WEV_FLAT (app/app_wev_flat.h). */
+    struct AppWevFlat wev_flat;
     /** Native bearing-marker models. Scene-owned elements are claimed across
      * root rebuilds; a chosen heading remains highlighted for 30 cycles. */
     int sailing_at_helm_varbit;

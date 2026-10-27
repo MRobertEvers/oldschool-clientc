@@ -1161,6 +1161,23 @@ painter_set_world_entity_view(
 }
 
 void
+painter_set_world_entity_element(
+    struct Painter* painter,
+    int view_id,
+    int element_id)
+{
+    assert(painter);
+    assert(view_id > 0);
+    assert(view_id < PAINTER_MAX_WORLD_VIEWS);
+    assert(element_id >= 0);
+    painter->world_entity_views[view_id] = (struct PainterWorldEntityView){
+        .active = 1,
+        .element_only = 1,
+        .element_id = element_id,
+    };
+}
+
+void
 painter_clear_world_entity_views(struct Painter* painter)
 {
     assert(painter);

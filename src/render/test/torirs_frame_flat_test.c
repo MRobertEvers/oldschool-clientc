@@ -6,6 +6,7 @@
 #include "toridraw_model.h"
 #include "render/torirs_frame_flat.u.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -18,6 +19,11 @@ struct WorldEntity_NPC* World_NpcGetByElementId(struct World* w, int id, int* id
 { (void)w; (void)id; (void)idx; return NULL; }
 struct WorldEntity_Scenery* World_SceneryGetByElementId(struct World* w, int id)
 { (void)w; (void)id; return NULL; }
+/* Widget model draws never happen here; the frame links against it anyway. */
+struct UITreeModelRenderCache;
+struct ToriDraw_ModelHandle UITreeAnim_ModelForDraw(struct ToriDraw_Scene* scene,
+    struct UITreeModelRenderCache* cache, int model_id, int sequence, int frame)
+{ (void)scene; (void)cache; (void)model_id; (void)sequence; (void)frame; abort(); }
 
 static struct ToriDraw_Model* model(void)
 {
@@ -118,6 +124,23 @@ int main(void)
     assert(next_model(&frame,&normal) && normal.u.model.pick_view==TORIRS_FRAME_MAX_VIEWS-1);
     assert(!next_model(&frame,&normal) && frame.view_depth==0);
     ToriRS_FrameEnd(&frame);
+    /* A view whose geometry is already flat (the outline strategy): placed
+     * and scaled like the live one, still unpickable and unposed, but drawn
+     * from its own model -- no copy, no arena. */
+    ToriRS_FrameClearViewXforms(&frame);
+    ToriRS_FrameSetViewXform(&frame,1,&deck,-64,-64,1000,50,2000,512);
+    frame.views[1].flatten_scale = 0.01f;
+    frame.views[1].flatten_y_offset = -1200;
+    frame.views[1].flat = true;
+    painters.commands=commands;painters.command_count=5;
+    ToriRS_FrameBegin(&frame);
+    assert(!frame.flat_arena);
+    assert(next_model(&frame,&flat));
+    assert(flat.u.model.model.u.model.model == original);
+    assert(flat.u.model.position.y == 48);
+    assert(!flat.u.model.pickable && flat.u.model.animation == NULL && flat.u.model.dynamic);
+    assert(next_model(&frame,&normal) && normal.u.model.pickable);
+    ToriRS_FrameEnd(&frame);
     /* The alternate terrain handle must flatten without borrowing mutable
      * arrays from the source ground mesh. */
     vertexint_t gx[]={0,100,0},gy[]={100,200,-100},gz[]={0,0,100};
@@ -128,7 +151,7 @@ int main(void)
         .face_indices_b=gb,.face_indices_c=gc,.face_colors_a=colours,
         .face_colors_b=colours,.face_colors_c=colours};
     struct ToriDraw_ModelHandle gh={.kind=TORIDRAWMK_GROUND};gh.u.model.ground=&ground;
-    struct ToriRS_FrameFlatArena* arena=calloc(1,sizeof(*arena));assert(arena);
+    struct ToriRS_FrameFlatArena* arena=ToriMem_Calloc(ToriMem_Frame(),1,sizeof(*arena));assert(arena);
     struct ToriDraw_ModelHandle flattened_ground=frame_flat_model(arena,gh,0.01f,923);
     const struct ToriDraw_Model* gm=ToriDraw_ModelRead(flattened_ground);
     assert(gm->vertices_y[0]==1 && gm->vertices_y[1]==2 && gm->vertices_y[2]==-1);

@@ -683,6 +683,7 @@ World_ResetSceneAlloc(
     /* "What changed" is "all of it"; no list can say that usefully. */
     world->scenery_changed_count = 0;
     world->scenery_changed_overflow = true;
+    world->geometry_serial++;
     if( world->scenery_listener )
         world->scenery_listener(
             world->scenery_listener_userdata, world, WORLD_SCENERY_RESET, -1);
@@ -824,6 +825,7 @@ World_TerrainReset(struct World* world)
 {
     assert(world);
     World_EntityPoolReset(&world->entities.terrain);
+    world->geometry_serial++;
     if( world->painter )
         painter_clear_terrain_elements(world->painter);
 }
@@ -849,6 +851,7 @@ World_TerrainSet(
     terrain->grid_position.level = level;
     terrain->grid_position.x = x;
     terrain->grid_position.z = z;
+    world->geometry_serial++;
 
     /* Mirror into the painter so the paint walk can stamp the id onto the
      * terrain command (World_TerrainElementAt is the pool walk the frame
@@ -1820,6 +1823,7 @@ World_SceneryNoteChanged(
 
     if( element_id < 0 )
         return;
+    world->geometry_serial++;
     if( world->scenery_changed_count >= WORLD_SCENERY_CHANGED_MAX )
     {
         world->scenery_changed_overflow = true;
