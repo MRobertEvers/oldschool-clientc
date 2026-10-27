@@ -417,6 +417,29 @@ app_net_tear_down_session(
     App_NetSessionReset(app);
 }
 
+/*
+ * Out of attempts: back to the login screen, saying why.
+ *
+ * The reference retries once and falls back to the login screen. Staying on
+ * the dead world with "please reload" left a phone that came back from the
+ * background with no way on but reloading the page, and the server, having let
+ * go of the session after its reclaim window, refuses every reconnect: on a
+ * Play Now world there is no password to fall back on either. A profile with
+ * no title screen has nowhere to go, and keeps the overlay.
+ */
+static void
+app_net_give_up(struct App* app)
+{
+    assert(app);
+    if( !App_HasTitleScreen(app) )
+    {
+        app->need_redraw = 1;
+        return;
+    }
+    App_Logout(app);
+    RS_Title_SetMessages(&app->title, "Connection lost.", "Please log in again.", NULL);
+}
+
 /* Sever the session on demand, from outside the per-frame watch. */
 void
 app_net_lost(
@@ -480,13 +503,14 @@ app_net_link_watch(
         if( !ToriRS_Network_Reconnect(app->net) )
         {
             NetLinkWatch_NoteReconnectRefused(&app->net_link);
-            app->need_redraw = 1;
+            TORIRS_LOG("net: the reconnect could not be dialled; giving up\n");
+            app_net_give_up(app);
         }
         break;
     case NET_LINK_GAVE_UP:
         TORIRS_LOG(
             "net: giving up after %d reconnect attempts\n", app->net_link.reconnect_attempts);
-        app->need_redraw = 1;
+        app_net_give_up(app);
         break;
     case NET_LINK_IDLE:
         break;

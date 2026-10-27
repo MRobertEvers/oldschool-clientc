@@ -139,8 +139,9 @@ NetLinkWatch_Step(
     }
 
     /* An attempt is still in flight while the login machine runs; only a
-     * machine that fell back to disconnected has failed. */
-    if( seen->logging_in )
+     * machine that fell back to disconnected has failed -- or one that has run
+     * for longer than an attempt may, which is abandoned and counted. */
+    if( seen->logging_in && seen->now_ms - watch->attempt_started_ms < (uint64_t)NET_LINK_ATTEMPT_TIMEOUT_MS )
         return NET_LINK_IDLE;
     if( watch->reconnect_failed )
         return NET_LINK_IDLE;
@@ -155,5 +156,6 @@ NetLinkWatch_Step(
 
     watch->reconnect_attempts++;
     watch->reconnect_at_ms = seen->now_ms + (uint64_t)NET_LINK_RECONNECT_DELAY_MS;
+    watch->attempt_started_ms = seen->now_ms;
     return NET_LINK_RECONNECT;
 }

@@ -437,10 +437,50 @@ test_an_attempt_in_flight_is_waited_for(void)
      * down to another one on top of it would have two handshakes racing for
      * the same character, which the server resolves by refusing both.
      */
-    seen = healthy(5000 + NET_LINK_RECONNECT_DELAY_MS * 10);
+    seen = healthy(5000 + NET_LINK_ATTEMPT_TIMEOUT_MS - 1);
     seen.in_game = false;
     seen.logging_in = true;
     CHECK(step(&watch, &seen) == NET_LINK_IDLE, "dialled over an attempt in flight");
+}
+
+static void
+test_a_hung_attempt_is_abandoned(void)
+{
+    struct NetLinkWatch watch = live_session();
+    struct NetLinkSighting seen;
+    uint64_t now = 5000;
+    int attempts = 1;
+
+    printf("TEST: an attempt that never finishes is counted, and the attempts end\n");
+
+    seen = healthy(now);
+    seen.frame_gap_ms = NET_LINK_STALL_MS;
+    CHECK(step(&watch, &seen) == NET_LINK_LOST, "did not lose the session");
+    seen = healthy(now);
+    seen.in_game = false;
+    CHECK(step(&watch, &seen) == NET_LINK_RECONNECT, "the first attempt did not happen");
+
+    /*
+     * A dial into a socket a phone's browser suspended, or a handshake the
+     * server never answers, leaves the login machine running for good. Waited
+     * for without a bound, it held "attempting to reestablish" on screen
+     * forever and never reached the give-up (iPhone, 2026-10-27).
+     */
+    while( attempts < NET_LINK_RECONNECT_MAX_ATTEMPTS )
+    {
+        now += NET_LINK_ATTEMPT_TIMEOUT_MS;
+        seen = healthy(now);
+        seen.in_game = false;
+        seen.logging_in = true;
+        CHECK(step(&watch, &seen) == NET_LINK_RECONNECT,
+            "a hung attempt %d was not abandoned for another", attempts);
+        attempts++;
+    }
+    now += NET_LINK_ATTEMPT_TIMEOUT_MS;
+    seen = healthy(now);
+    seen.in_game = false;
+    seen.logging_in = true;
+    CHECK(step(&watch, &seen) == NET_LINK_GAVE_UP, "hung attempts never gave up");
 }
 
 static void
@@ -583,6 +623,7 @@ main(void)
     test_losing_it_is_idempotent();
     test_the_backoff();
     test_an_attempt_in_flight_is_waited_for();
+    test_a_hung_attempt_is_abandoned();
     test_a_refused_dial_stops_the_machine();
     test_coming_back();
     test_a_deliberate_logout_disarms_the_watch();

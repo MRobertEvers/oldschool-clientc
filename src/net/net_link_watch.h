@@ -58,6 +58,11 @@ enum
     NET_LINK_STALL_MS = 30000,
     NET_LINK_RECONNECT_DELAY_MS = 2000,
     NET_LINK_RECONNECT_MAX_ATTEMPTS = 5,
+    /* How long one attempt may stay in the login machine before it counts as
+     * failed. A dial into a socket the phone's browser has suspended, or a
+     * handshake the server never answers, otherwise held "attempting to
+     * reestablish" on screen for good (iPhone, 2026-10-27). */
+    NET_LINK_ATTEMPT_TIMEOUT_MS = 10000,
 };
 
 /** Everything the policy remembers between frames. */
@@ -70,6 +75,8 @@ struct NetLinkWatch
     uint64_t first_recv_ms;
     /** Wall clock at which the next attempt may be made. */
     uint64_t reconnect_at_ms;
+    /** Wall clock the last attempt was dialled at. */
+    uint64_t attempt_started_ms;
     /** Non-zero while the connection is gone and being re-established. */
     int lost;
     /** Attempts made since it was lost. */
