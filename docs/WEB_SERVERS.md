@@ -380,3 +380,29 @@ which gives the account its own password back. With no gate in front (a LAN or
 development world) there is no web login: `/account/players` is never answered
 and the form signs in with passwords as before, but a linked account still
 refuses its password there.
+
+### The account site
+
+Signed in, the gate lands on its own small website (`src/ioserver/io_site.c`)
+rather than straight in the game. It is server-rendered HTML with the styling
+inline, and it loads nothing else: no script, no image, no font. The game is
+still the landing URL given to `--gate` (`/?args=...`), which every page's
+**Play** button opens.
+
+| page | what it shows |
+| --- | --- |
+| `/` | Play Now, this login's linked accounts, the top five players |
+| `/hiscores[?skill=N]` | everyone ranked overall (total level, then XP) or by one skill, with a player search |
+| `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, and every skill's level, XP and rank. For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
+| `/account` | the linked accounts (Stats, Unlink) and a form to link another one with its name and password, under the same rules as the game's Link account |
+
+Stats come straight from the character saves (`[stats]`, and varp 101 for
+quest points), so every player is on the hiscores. A session history is
+private to the login its account is linked to.
+
+**History.** A world that checks passwords appends to
+`<saves>/history/<name>.log` (`torirs_server_history.h`): a `login` line when
+a login finishes, and a `logout` line carrying the whole stat table as saved.
+A session dropped before its scene loaded writes neither line. The file is
+append-only text, and the site reads its newest 512 entries. An account's
+history starts with its first logout after this was deployed.

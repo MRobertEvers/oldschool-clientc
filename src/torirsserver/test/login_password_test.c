@@ -16,6 +16,7 @@
 #include "torirsserver/torirs_server.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_embed.h"
+#include "torirsserver/torirs_server_history.h"
 #include "torirsserver/torirs_server_oauth.h"
 #include "torirsserver/torirs_server_save.h"
 #include "torirsserver/torirs_server_session.h"
@@ -560,6 +561,49 @@ check_links(void)
           "link: a good one claims and links the name in one go");
 }
 
+/* Session history (torirs_server_history.h): what the account site reads. */
+static void
+check_history(void)
+{
+    static struct ToriRSServerHistory history;
+    int xp[TORIRSSERVER_HISTORY_STATS] = { 0 };
+    FILE* file;
+
+    remove(ToriRSServer_HistoryPath("ivy"));
+    ToriRSServer_HistoryRead("ivy", &history);
+    check(history.count == 0, "history: none before the first login");
+    ToriRSServer_HistoryLogin("ivy", 1000);
+    xp[3] = 11540;
+    xp[24] = 77;
+    ToriRSServer_HistoryLogout("Ivy", 1600, xp);
+    ToriRSServer_HistoryRead("IVY", &history);
+    check(history.count == 2 && history.entries[0].kind == TORIRSSERVER_HISTORY_LOGIN &&
+              history.entries[0].time == 1000,
+          "history: a login is read back");
+    check(history.entries[1].kind == TORIRSSERVER_HISTORY_LOGOUT &&
+              history.entries[1].time == 1600 && history.entries[1].xp_tenths[3] == 11540 &&
+              history.entries[1].xp_tenths[24] == 77,
+          "history: a logout keeps the whole stat table");
+    file = fopen(ToriRSServer_HistoryPath("ivy"), "ab");
+    check(file != NULL, "(append a torn line)");
+    if( file )
+    {
+        fputs("1700 logout 1 2 3\n1800 login\n", file);
+        fclose(file);
+    }
+    ToriRSServer_HistoryRead("ivy", &history);
+    check(history.count == 3 && history.entries[2].time == 1800,
+          "history: a torn line is skipped, the next read");
+    for( int i = 0; i < TORIRSSERVER_HISTORY_MAX + 10; i++ )
+        ToriRSServer_HistoryLogin("ivy", 2000 + i);
+    ToriRSServer_HistoryRead("ivy", &history);
+    check(history.count == TORIRSSERVER_HISTORY_MAX &&
+              history.entries[TORIRSSERVER_HISTORY_MAX - 1].time ==
+                  2000 + TORIRSSERVER_HISTORY_MAX + 9 &&
+              history.entries[0].time == 2000 + 10,
+          "history: past the cap, the newest are kept in order");
+}
+
 /* The gate's ticket: what io_server sets and torirsserver reads. */
 static void
 check_tickets(void)
@@ -760,6 +804,7 @@ main(void)
         long long now = (long long)time(NULL);
 
         remove(ToriRSServer_AccountPath("henry"));
+        remove(ToriRSServer_HistoryPath("henry"));
         check(ToriRSServer_AuthLink("henry", "red8fox99", "matt", token) == TORIRSSERVER_LINK_OK,
               "(link henry to matt)");
         login(embed, &by_password, NULL, "henry", "red8fox99");
@@ -780,6 +825,16 @@ main(void)
         }
         check(by_owner.net.state == TORIRS_NET_GAME, "and that logs him in");
         ToriRSServer_EmbedDisconnect(embed, by_owner.client_id);
+        {
+            static struct ToriRSServerHistory history;
+
+            /* This client never reports its map built, so the world never
+             * finishes the login: the session must leave no history at all,
+             * above all not a logout of zeroed stats. */
+            ToriRSServer_HistoryRead("henry", &history);
+            check(history.count == 0,
+                  "a session dropped before its login finished writes no history");
+        }
     }
 
     ToriRSServer_EmbedStop(embed);
@@ -816,6 +871,7 @@ main(void)
     check_tickets();
     check_oauth();
     check_links();
+    check_history();
 
     if( g_failures )
     {

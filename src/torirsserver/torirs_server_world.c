@@ -32,6 +32,7 @@
 #include "torirs_server_ids.h"
 #include "torirs_server_runenergy.h"
 #include "torirs_server_save.h"
+#include "torirs_server_history.h"
 #include "torirs_server_session.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_world_internal.h"
@@ -16051,6 +16052,10 @@ ToriRSServer_WorldPlayerReap(struct ToriRSServer* srv)
     srv->player_free_queue_count = 0;
 }
 
+/* A logout's history line is the whole stat table. */
+_Static_assert(TORIRSSERVER_HISTORY_STATS == TORIRSSERVER_STAT_COUNT,
+               "torirs_server_history.h TORIRSSERVER_HISTORY_STATS");
+
 void
 ToriRSServer_WorldRemovePlayer(
     struct ToriRSServer* srv,
@@ -16265,6 +16270,13 @@ ToriRSServer_WorldRemovePlayer(
      * disconnects, so both get persistence from one call.
      */
     ToriRSServer_SavePlayer(player, ToriRSServer_SavePath(display_name));
+    /* The account site's session history (torirs_server_history.h): the
+     * stats as just saved. Only where accounts mean something, and only for
+     * a session whose login finished -- one dropped while its scene was
+     * still loading never wrote its login line, and its stats are not
+     * loaded yet: a logout of zeros would read as everything lost. */
+    if( srv->check_passwords && !player->login_scene_pending )
+        ToriRSServer_HistoryLogout(display_name, (long long)time(NULL), player->stat_xp_tenths);
 
     /*
      * The bank is heap-allocated per player, so a logout that only cleared
@@ -17192,6 +17204,8 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
 
     ToriRSServer_WorldSetActive(srv, player);
+    if( srv->check_passwords )
+        ToriRSServer_HistoryLogin(player->display_name, (long long)time(NULL));
 
     /* Root-world info batches start by selecting their world and plane. The
      * login rebuild's GPI block only seeds the player-coordinate tracker. */

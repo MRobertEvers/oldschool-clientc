@@ -153,6 +153,27 @@ IoGateLinks_Token(
     return found;
 }
 
+void
+IoGateLinks_Drop(
+    struct IoGateLinks* links,
+    char const* user,
+    char const* display_name)
+{
+    char player[64];
+
+    assert(links);
+    assert(user);
+    assert(display_name);
+    ToriRSServer_SaveFileName(display_name, player, sizeof(player));
+    if( !player[0] )
+        return;
+    sqlite3_bind_text(links->drop, 1, player, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(links->drop, 2, user, -1, SQLITE_TRANSIENT);
+    must(links->db, sqlite3_step(links->drop), "drop");
+    sqlite3_reset(links->drop);
+    sqlite3_clear_bindings(links->drop);
+}
+
 int
 IoGateLinks_List(
     struct IoGateLinks* links,

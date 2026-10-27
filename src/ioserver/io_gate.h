@@ -28,11 +28,17 @@
  * "Linked player accounts"): the /account routes, whose links live in
  * `<saves>/gate/links.sqlite` (io_gate_links.h).
  *
+ * Signed in, the visitor lands on the account site (io_site.h): home with
+ * Play Now, hiscores, player pages and linked-account management. The game
+ * itself stays at the landing URL `--gate` names.
+ *
  * The pages are plain HTML with the styling inline, and nothing else is served
  * before sign-in: no script, no image, no font.
  */
 
 #include "http_server.h"
+
+#include <stddef.h>
 
 #define IO_GATE_THROTTLE_SLOTS 64
 
@@ -63,6 +69,66 @@ void
 IoGate_Init(
     struct IoGate* gate,
     char const* landing);
+
+/*
+ * For the account site (io_site.c), which runs behind the gate and shares its
+ * forms and its link rules.
+ */
+
+/** One decoded field of the POST body / of the query string; 0 when absent,
+ *  too long for `out`, or holding a control byte. */
+int
+IoGate_FormField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap);
+
+int
+IoGate_QueryField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap);
+
+/** Does the path, up to its query, equal `want`? */
+int
+IoGate_PathIs(
+    char const* path,
+    char const* want);
+
+enum IoGateLinkResult
+{
+    IO_GATE_LINK_LINKED,
+    /** The visitor's mistake (wrong password, another owner, a weak password
+     *  for a new name, too many tries); the message says which. */
+    IO_GATE_LINK_REFUSED,
+    IO_GATE_LINK_FAILED,
+};
+
+/**
+ * Link the player `username` to the web login `who` with the player's own
+ * `password` (wiped here): the record, the links database, and every refresh
+ * token the account had revoked. `*out_message` is a sentence for the visitor
+ * when it is not LINKED. The game client's /account/link and the site's form
+ * both come here.
+ */
+enum IoGateLinkResult
+IoGate_LinkPlayer(
+    struct IoGate* gate,
+    char const* who,
+    char const* username,
+    char* password,
+    size_t password_cap,
+    char const** out_message);
+
+/** Release `player` from `who`, its owner: its own password signs it in again.
+ *  0 when `who` does not own it. */
+int
+IoGate_UnlinkPlayer(
+    struct IoGate* gate,
+    char const* who,
+    char const* player);
 
 /**
  * 1 when the gate answered `req` itself and `res` is filled; 0 when the

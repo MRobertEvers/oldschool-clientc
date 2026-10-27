@@ -3,6 +3,7 @@
  */
 #include "io_gate.h"
 #include "io_gate_links.h"
+#include "io_site.h"
 
 #include "mem/torirs_mem.h"
 #include "torirsserver/torirs_server_auth.h"
@@ -37,31 +38,36 @@ static char const k_page[] =
     "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
     "<title>ToriRS</title>\n"
     "<style>\n"
-    ":root { color-scheme: light dark; }\n"
+    /* The account site's look (io_site.c), in miniature: a parchment card on
+     * the dark field, gold title, the red button. */
+    ":root { color-scheme: dark; }\n"
     "body { margin: 0; min-height: 100vh; display: grid; place-items: center;\n"
-    "       font: 16px/1.4 system-ui, sans-serif; background: #f4f4f4; color: #1a1a1a; }\n"
-    "main { width: min(320px, calc(100vw - 32px)); }\n"
-    "h1 { font-size: 1.5rem; margin: 0 0 1rem; }\n"
+    "       font: 16px/1.45 Georgia, 'Times New Roman', serif; color: #2b1d0e;\n"
+    "       background: #14100c radial-gradient(ellipse at top, #3a2a1a 0%%, #14100c 65%%) fixed; }\n"
+    "main { width: min(340px, calc(100vw - 32px)); }\n"
+    "h1 { font-size: 3rem; margin: 0 0 1rem; text-align: center; color: #f0c060;\n"
+    "     letter-spacing: 2px; text-shadow: 3px 3px 0 #000, 0 0 24px rgba(240,192,96,.35); }\n"
+    ".card { background: linear-gradient(#e9dfc4, #ddd0ae); border: 3px double #7a5a2e;\n"
+    "        border-radius: 4px; padding: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.6); }\n"
     "label { display: block; margin: 0 0 .75rem; font-size: .9rem; }\n"
     "input { display: block; box-sizing: border-box; width: 100%%; margin-top: .25rem;\n"
-    "        padding: .5rem; font: inherit; border: 1px solid #999; border-radius: 4px; }\n"
+    "        padding: .5rem; font: inherit; border: 1px solid #7a5a2e; border-radius: 3px;\n"
+    "        background: #fbf6e8; color: #2b1d0e; }\n"
     "input[readonly] { opacity: .7; }\n"
-    "button { width: 100%%; padding: .55rem; font: inherit; border: 0; border-radius: 4px;\n"
-    "         background: #1a1a1a; color: #fff; cursor: pointer; }\n"
-    ".error { color: #b00020; margin: 0 0 1rem; }\n"
-    ".note { color: #666; font-size: .85rem; margin-top: 1rem; }\n"
-    "@media (prefers-color-scheme: dark) {\n"
-    "  body { background: #161616; color: #e8e8e8; }\n"
-    "  input { background: #222; color: inherit; border-color: #555; }\n"
-    "  button { background: #e8e8e8; color: #161616; }\n"
-    "  .error { color: #ff6b81; } .note { color: #999; }\n"
-    "}\n"
+    "button { width: 100%%; padding: .6rem; font: inherit; font-weight: bold; color: #fff;\n"
+    "         background: linear-gradient(#b8382a, #7a1c12); border: 1px solid #f0c060;\n"
+    "         border-radius: 3px; cursor: pointer; text-shadow: 1px 1px 0 #000; }\n"
+    ".error { color: #8e2318; margin: 0 0 1rem; }\n"
+    ".note { color: #6b5537; font-size: .85rem; margin: 1rem 0 0; }\n"
+    ".note a { color: #7a2a12; }\n"
     "</style>\n"
     "</head>\n"
     "<body>\n"
     "<main>\n"
     "<h1>ToriRS</h1>\n"
+    "<div class=\"card\">\n"
     "%s"
+    "</div>\n"
     "</main>\n"
     "</body>\n"
     "</html>\n";
@@ -299,6 +305,29 @@ form_field(
     return urlencoded_field((char const*)req->body, req->body_len, key, out, cap);
 }
 
+int
+IoGate_FormField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    assert(req);
+    assert(key);
+    assert(out);
+    return form_field(req, key, out, cap);
+}
+
+int
+IoGate_PathIs(
+    char const* path,
+    char const* want)
+{
+    assert(path);
+    assert(want);
+    return path_is(path, want);
+}
+
 static int
 query_field(
     struct HttpRequest const* req,
@@ -314,6 +343,19 @@ query_field(
     return urlencoded_field(query, (int)strcspn(query, "#"), key, out, cap);
 }
 
+int
+IoGate_QueryField(
+    struct HttpRequest const* req,
+    char const* key,
+    char* out,
+    size_t cap)
+{
+    assert(req);
+    assert(key);
+    assert(out);
+    return query_field(req, key, out, cap);
+}
+
 static int
 signed_in(
     struct HttpRequest const* req,
@@ -327,7 +369,8 @@ signed_in(
                                                    out_name, cap);
 }
 
-/* Sign `display_name` in: the ticket as a cookie, and a 303 to the game. */
+/* Sign `display_name` in: the ticket as a cookie, and a 303 to the account
+ * site's home, whose Play Now is the game. */
 static void
 issue_ticket(
     struct IoGate* gate,
@@ -344,8 +387,9 @@ issue_ticket(
     snprintf(res->set_cookie, sizeof(res->set_cookie),
              TORIRSSERVER_GATE_COOKIE "=%s; Path=/; Max-Age=%lld; HttpOnly; Secure; SameSite=Lax",
              ticket, TORIRSSERVER_GATE_TICKET_SECONDS);
+    (void)gate;
     res->status = 303;
-    snprintf(res->location, sizeof(res->location), "%s", gate->landing);
+    snprintf(res->location, sizeof(res->location), "/");
 }
 
 /* The throttle slot for a name: its own, else the oldest to reuse. */
@@ -1071,6 +1115,90 @@ handle_account_players(
  * to give; the record takes this login as its one owner and the token's hash,
  * the links database the token, every refresh token the account had is
  * revoked, and the answer is a one-time login so linking also plays. */
+enum IoGateLinkResult
+IoGate_LinkPlayer(
+    struct IoGate* gate,
+    char const* who,
+    char const* username,
+    char* password,
+    size_t password_cap,
+    char const** out_message)
+{
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct IoGateThrottle* throttle;
+    enum ToriRSServerLinkResult result;
+    long long now = (long long)time(NULL);
+
+    assert(gate);
+    assert(who);
+    assert(username);
+    assert(password);
+    assert(out_message);
+    *out_message = NULL;
+    if( !player_name_ok(username) || !password[0] )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "Enter the player account's name and password.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( !player_throttle_allows(gate, username, &throttle) )
+    {
+        memset(password, 0, password_cap);
+        *out_message = "Too many attempts. Try again in a few minutes.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    result = ToriRSServer_AuthLink(username, password, who, token);
+    if( result == TORIRSSERVER_LINK_WEAK )
+        *out_message = ToriRSServer_AuthPasswordProblem(username, password);
+    memset(password, 0, password_cap);
+    if( result == TORIRSSERVER_LINK_WEAK )
+        return IO_GATE_LINK_REFUSED;
+    if( result == TORIRSSERVER_LINK_REFUSED )
+    {
+        throttle->failures++;
+        *out_message = "Invalid username or password.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( result == TORIRSSERVER_LINK_OTHER_USER )
+    {
+        fprintf(stderr, "io_server: gate: '%s' tried to link '%s', which another login owns\n",
+                who, username);
+        *out_message = "That account is already linked to another login.";
+        return IO_GATE_LINK_REFUSED;
+    }
+    if( result != TORIRSSERVER_LINK_OK )
+    {
+        *out_message = "The link could not be saved.";
+        return IO_GATE_LINK_FAILED;
+    }
+    IoGateLinks_Put(gate->links, who, username, token, now);
+    memset(token, 0, sizeof(token));
+    ToriRSServer_OAuthRevokeAccount(username, now);
+    fprintf(stderr, "io_server: gate: '%s' linked player account '%s'\n", who, username);
+    return IO_GATE_LINK_LINKED;
+}
+
+int
+IoGate_UnlinkPlayer(
+    struct IoGate* gate,
+    char const* who,
+    char const* player)
+{
+    char owner[64];
+
+    assert(gate);
+    assert(who);
+    assert(player);
+    if( !player_name_ok(player) ||
+        ToriRSServer_AuthManagedBy(player, owner, sizeof(owner)) != 1 || strcmp(owner, who) != 0 )
+        return 0;
+    if( !ToriRSServer_AuthUnlink(player) )
+        return 0;
+    IoGateLinks_Drop(gate->links, who, player);
+    fprintf(stderr, "io_server: gate: '%s' unlinked player account '%s'\n", who, player);
+    return 1;
+}
+
 static void
 handle_account_link(
     struct IoGate* gate,
@@ -1078,60 +1206,27 @@ handle_account_link(
     struct HttpResponse* res,
     char const* who)
 {
-    char username[IO_GATE_FIELD_MAX];
-    char password[IO_GATE_FIELD_MAX];
-    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
-    struct IoGateThrottle* throttle;
-    enum ToriRSServerLinkResult result;
-    long long now = (long long)time(NULL);
+    char username[IO_GATE_FIELD_MAX] = "";
+    char password[IO_GATE_FIELD_MAX] = "";
+    char const* message = NULL;
+    enum IoGateLinkResult result;
 
     if( !form_field(req, "username", username, sizeof(username)) ||
-        !form_field(req, "password", password, sizeof(password)) || !player_name_ok(username) )
+        !form_field(req, "password", password, sizeof(password)) )
     {
         memset(password, 0, sizeof(password));
         oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "username and password are required");
         return;
     }
-    if( !player_throttle_allows(gate, username, &throttle) )
+    result = IoGate_LinkPlayer(gate, who, username, password, sizeof(password), &message);
+    if( result != IO_GATE_LINK_LINKED )
     {
-        memset(password, 0, sizeof(password));
-        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT,
-                    "Too many attempts. Try again in a few minutes.");
+        oauth_error(res,
+                    result == IO_GATE_LINK_FAILED ? TORIRSSERVER_OAUTH_SERVER_ERROR
+                                                  : TORIRSSERVER_OAUTH_INVALID_GRANT,
+                    message);
         return;
     }
-    result = ToriRSServer_AuthLink(username, password, who, token);
-    if( result == TORIRSSERVER_LINK_WEAK )
-    {
-        char const* problem = ToriRSServer_AuthPasswordProblem(username, password);
-
-        memset(password, 0, sizeof(password));
-        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, problem);
-        return;
-    }
-    memset(password, 0, sizeof(password));
-    if( result == TORIRSSERVER_LINK_REFUSED )
-    {
-        throttle->failures++;
-        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Invalid username or password.");
-        return;
-    }
-    if( result == TORIRSSERVER_LINK_OTHER_USER )
-    {
-        fprintf(stderr, "io_server: gate: '%s' tried to link '%s', which another login owns\n",
-                who, username);
-        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT,
-                    "That account is already linked to another login.");
-        return;
-    }
-    if( result != TORIRSSERVER_LINK_OK )
-    {
-        oauth_error(res, TORIRSSERVER_OAUTH_SERVER_ERROR, "The link could not be saved.");
-        return;
-    }
-    IoGateLinks_Put(gate->links, who, username, token, now);
-    memset(token, 0, sizeof(token));
-    ToriRSServer_OAuthRevokeAccount(username, now);
-    fprintf(stderr, "io_server: gate: '%s' linked player account '%s'\n", who, username);
     account_play_answer(gate, res, who, username);
 }
 
@@ -1254,7 +1349,7 @@ IoGate_Handle(
         else if( is_get && signed_in(req, who, sizeof(who)) )
         {
             res->status = 303;
-            snprintf(res->location, sizeof(res->location), "%s", gate->landing);
+            snprintf(res->location, sizeof(res->location), "/");
         }
         else if( is_get )
             login_page(res, 200, NULL, NULL);
@@ -1298,13 +1393,10 @@ IoGate_Handle(
      * session only ever reaches the accounts linked to it. */
     if( handle_account(gate, req, res, who) )
         return 1;
-    /* The bare page boots nothing: it needs the manifest and the socket the
-     * landing URL names, so a signed-in visit to "/" goes there. */
-    if( is_get && strcmp(req->path, "/") == 0 )
-    {
-        res->status = 303;
-        snprintf(res->location, sizeof(res->location), "%s", gate->landing);
+    /* The account site: the bare "/" and its pages. The game is the landing
+     * URL ("/?args=..."), which is not the bare path and falls through to the
+     * static files. */
+    if( IoSite_Handle(gate, who, req, res) )
         return 1;
-    }
     return 0;
 }

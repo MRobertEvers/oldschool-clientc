@@ -50,6 +50,13 @@ IoGateLinks_Token(
     char const* display_name,
     char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1]);
 
+/** Drop `user`'s row for the player `display_name`, if it has one. */
+void
+IoGateLinks_Drop(
+    struct IoGateLinks* links,
+    char const* user,
+    char const* display_name);
+
 /** The display names of the players `user` has linked, oldest first, at most
  *  `max`. Rows whose player record no longer agrees are deleted on the way. */
 int

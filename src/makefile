@@ -1011,7 +1011,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_shop.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_history.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
@@ -1571,7 +1571,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
 	pokesprite/pokesprite_store.c $(INI_SRC) \
-	ioserver/io_gate.c ioserver/io_gate_links.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_history.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
 IO_SERVER_SQLITE_LIBS := -lsqlite3
