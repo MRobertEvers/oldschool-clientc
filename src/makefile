@@ -357,6 +357,7 @@ CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas \
+	-I$(REPO_ROOT)/3rd/sqlite \
 	-I$(STB_DIR) \
 	$(RSPROT_HDR_INCLUDES)
 
@@ -1574,8 +1575,9 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_history.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	torirsserver/torirs_server_accounts.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
-# The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
-IO_SERVER_SQLITE_LIBS := -lsqlite3
+# The 2D client's sheet store is indexed by sqlite (pokesprite_store.c), as are
+# the gate's links and the account database: the vendored 3rd/sqlite.
+IO_SERVER_SQLITE_OBJ = $(IO_SERVER_OBJ_DIR)/sqlite3.o
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
 # ws2_32, not the CRT, so a native Windows link needs it named explicitly.
@@ -1592,12 +1594,12 @@ io-server:
 $(IO_SERVER_OBJ_DIR)/io_server: $(IO_SERVER_SRCS) \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
-		$(IO_SERVER_OBJ_DIR)/xteas.o | $(IO_SERVER_OBJ_DIR)
+		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) | $(IO_SERVER_OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ioserver -o $@ $(IO_SERVER_SRCS) \
 		-DTORIRS_PLATFORM_X_IO_NO_JS5=1 -DTORIRS_PLATFORM_X_IO_NO_LAUNCH=1 \
 		$(IO_SERVER_OBJ_DIR)/rscache_unity.o $(IO_SERVER_OBJ_DIR)/bzip.o \
 		$(IO_SERVER_OBJ_DIR)/bzip_encode.o $(IO_SERVER_OBJ_DIR)/miniz.o \
-		$(IO_SERVER_OBJ_DIR)/xteas.o -lm $(IO_SERVER_SOCKET_LIBS) $(IO_SERVER_SQLITE_LIBS)
+		$(IO_SERVER_OBJ_DIR)/xteas.o $(IO_SERVER_SQLITE_OBJ) -lm $(IO_SERVER_SOCKET_LIBS)
 	@echo "built $@"
 
 # TORIRS_PLATFORM_X_IO_NO_LAUNCH (raid seam37): the standalone io_server does
@@ -2820,6 +2822,17 @@ $(OBJ_DIR)/miniz.o: $(REPO_ROOT)/3rd/miniz/miniz.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
 $(OBJ_DIR)/xteas.o: $(REPO_ROOT)/3rd/xteas/xteas.c | $(OBJ_DIR)
 	$(CC) $(COMPRESS_CFLAGS) -c $< -o $@
+
+# SQLite, vendored (3rd/sqlite/README.md): io_server's databases and
+# torirsserver's account database link this object, never the system library.
+# Single-threaded, because both processes are: no mutexes, and no pthread or dl
+# to link on any platform. Extensions are never loaded. No -std: the
+# amalgamation picks its own feature macros, and a strict c11 hides the POSIX
+# calls it makes. -w like everything else under 3rd/.
+SQLITE_DEFINES = -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION=1 \
+	-DSQLITE_DEFAULT_MEMSTATUS=0 -DSQLITE_DQS=0
+$(OBJ_DIR)/sqlite3.o: $(REPO_ROOT)/3rd/sqlite/sqlite3.c $(REPO_ROOT)/3rd/sqlite/sqlite3.h | $(OBJ_DIR)
+	$(CC) $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(SQLITE_DEFINES) -w -c $< -o $@
 
 $(OBJ_DIR)/toridraw_unity.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(TORIDRAW_CFLAGS) -w -c $(TORIDRAW_UNITY_SRC) -o $@
@@ -4968,10 +4981,10 @@ TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server
 	torirsserver/torirs_server_accounts.c \
 	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
 # The account database (torirs_server_accounts.c: hiscores, history, the gate's
-# logins) is sqlite, and standalone only: the core list above is also the
-# embedded client's and the browser build's, which have no sqlite and keep no
-# accounts -- their worlds have no `account_log`.
-TORIRSSERVER_SQLITE_LIBS := -lsqlite3
+# logins) is sqlite -- the vendored 3rd/sqlite -- and standalone only: the core
+# list above is also the embedded client's and the browser build's, which keep
+# no accounts (their worlds have no `account_log`).
+TORIRSSERVER_SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -5054,13 +5067,13 @@ torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
 $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o | $(OBJ_DIR)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -o $(OBJ_DIR)/torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o \
-		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
 	@echo "built $(OBJ_DIR)/torirsserver"
 
 # ---- ToriRSMapEd -----------------------------------------------------------
@@ -5124,12 +5137,12 @@ torirsmapedctl: $(OBJ_DIR)
 torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43597 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/dev_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
 	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
@@ -5176,12 +5189,12 @@ test-torirsserver-dev: torirsserver-dev
 torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43599 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/alt_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
 	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
 test-torirsserver-alt: torirsserver-alt
@@ -5198,12 +5211,12 @@ test-torirsserver-alt: torirsserver-alt
 torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o $(TORIRSSERVER_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -I$(LUA_DIR) $(RSPROT_INCLUDES) -DTORIRSSERVER_DEFAULT_PORT=43601 -DTORIRSSERVER_DEFAULT_DEV=1 -o $(OBJ_DIR)/bank_torirsserver $(TORIRSSERVER_SRCS) \
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_OBJ)
 	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
 test-torirsserver-bank: torirsserver-bank
@@ -6733,11 +6746,11 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 # vectors, then logins through the real client login machine -- a first login
 # sets the password, a wrong one is refused with response 3 and does not take
 # over the session playing, development mode lets anything in.
-test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
+test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o $(TORIRSSERVER_SQLITE_OBJ)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
 		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
 		net/net_out.c torirsserver/torirs_server_accounts.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(TORIRSSERVER_SQLITE_LIBS)
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(TORIRSSERVER_SQLITE_OBJ)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a
