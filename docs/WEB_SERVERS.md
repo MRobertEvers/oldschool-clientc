@@ -337,3 +337,46 @@ named `auth/token` and `auth/play` that lend a form body, the launch service's
 convention: the browser executor POSTs them to the page's own origin, where the
 cookie rides along; the desktop one to `TORIRS_AUTH_URL` with
 `TORIRS_GATE_COOKIE` (plain http, so a LAN gate only).
+
+### Player accounts linked to the web login
+
+A web login (the "user account") can take player accounts under it. Behind
+the gate a page always has a web login, so on an `auth=oauth` world the title
+asks the gate who it is (`POST /account/players`) and puts that login's linked
+accounts on Play Now cards ahead of the device's own.
+
+| route | what it does |
+| --- | --- |
+| `POST /account/players` | `{"user": <web login>, "players": "A\nB"}`: the linked accounts, newline separated |
+| `POST /account/link` | `username` + `password` of a player account: proves it is the linker's, links it, and answers a one-time login (`{"token","name"}`) so linking also plays |
+| `POST /account/play` | `player`: a one-time login for a linked account, on this session |
+
+Submitting the password form while signed in to the gate opens a prompt:
+**Link account** (the call above) or **Log in** (the ordinary password grant,
+leaving the account unlinked). A name that is already linked to this login
+skips the prompt and plays.
+
+A link mints a random **link token**. The web login's links database,
+`<saves>/gate/links.sqlite` (mode 0600; one row per player account), keeps the
+token; the player's own record, `<saves>/accounts/<name>.ini`, gains
+`managed_by = <web login>` and `link_hash = SHA-256(token)`. `/account/play`
+mints a one-time login only when the record names the session's login AND the
+stored token hashes to `link_hash`. So:
+
+- **One owner.** Another login cannot link the account even with its password
+  (`That account is already linked to another login.`).
+- **One live link.** Linking again, even by the owner, mints a new token; the
+  old one is dead. That is also how an owner whose database row was lost gets
+  the account back.
+- **Nothing else signs it in.** Its password is refused everywhere (game login
+  reply 3, the password grant, the authorize page); every refresh token it had
+  is revoked at the link; an access token or one-time login minted before the
+  link is refused.
+- **The record is the authority.** A database row the record no longer agrees
+  with is dropped the next time the list is read.
+
+`torirsserver --account unlink <name>` clears `managed_by` and `link_hash`,
+which gives the account its own password back. With no gate in front (a LAN or
+development world) there is no web login: `/account/players` is never answered
+and the form signs in with passwords as before, but a linked account still
+refuses its password there.

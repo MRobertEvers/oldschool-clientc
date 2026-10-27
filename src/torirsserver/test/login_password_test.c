@@ -225,6 +225,23 @@ file_exists(const char* path)
     return 1;
 }
 
+/* A small file's text, "" when there is none; good until the next call. */
+static const char*
+file_text(const char* path)
+{
+    static char text[4096];
+    size_t size = 0;
+    FILE* file = fopen(path, "rb");
+
+    if( file )
+    {
+        size = fread(text, 1, sizeof(text) - 1, file);
+        fclose(file);
+    }
+    text[size] = '\0';
+    return text;
+}
+
 /* Log `name` in with a one-time login token on a fresh client. */
 static void
 login_token_once(
@@ -437,6 +454,112 @@ check_oauth(void)
           "oauth: the code and its verifier sign alice in");
 }
 
+/* Player accounts linked to a web login (torirs_server_auth.h "Linked player
+ * accounts"): one owner, the token's hash on the record, nothing else signs
+ * it in. */
+static void
+check_links(void)
+{
+    static struct ToriRSServerOAuthTokens tokens, after;
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char again[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char other[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char early_otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char name[64];
+    char owner[64];
+    const char* why = NULL;
+    long long now = (long long)time(NULL);
+
+    remove(ToriRSServer_AccountPath("frank"));
+    remove(ToriRSServer_AccountPath("gina"));
+    ToriRSServer_OAuthKeyLoad();
+    check(ToriRSServer_OAuthPasswordGrant("frank", "blue7horse", NULL, now, &tokens, &why) ==
+              TORIRSSERVER_OAUTH_OK,
+          "link: (frank claims his name and signs in)");
+    check(ToriRSServer_OAuthPlay(tokens.access_token, now, early_otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_OK,
+          "link: (and mints a one-time login before linking)");
+    check(ToriRSServer_AuthManagedBy("frank", owner, sizeof(owner)) == 0,
+          "link: an account starts unlinked");
+
+    check(ToriRSServer_AuthLink("frank", "wrongpass1", "matt", token) == TORIRSSERVER_LINK_REFUSED &&
+              !token[0],
+          "link: the wrong password links nothing");
+    check(ToriRSServer_AuthLink("frank", "blue7horse", "Matt", token) == TORIRSSERVER_LINK_OK &&
+              strlen(token) == TORIRSSERVER_LINK_TOKEN_HEX,
+          "link: the right one links him and mints a token");
+    check(ToriRSServer_AuthManagedBy("frank", owner, sizeof(owner)) == 1 &&
+              strcmp(owner, "matt") == 0,
+          "link: the record names its owner as keyed");
+    check(!strstr(file_text(ToriRSServer_AccountPath("frank")), token) &&
+              strstr(file_text(ToriRSServer_AccountPath("frank")), "link_hash = "),
+          "link: the record keeps the token's hash, not the token");
+    check(ToriRSServer_AuthLinkVerify("frank", "matt", token), "link: the token verifies");
+    check(!ToriRSServer_AuthLinkVerify("frank", "nina", token), "link: for its owner only");
+    check(ToriRSServer_AuthLink("frank", "blue7horse", "nina", other) ==
+              TORIRSSERVER_LINK_OTHER_USER,
+          "link: another login cannot take him, even with his password");
+    check(ToriRSServer_AuthLinkVerify("frank", "matt", token), "link: and the link stands");
+
+    check(ToriRSServer_AuthLogin("frank", "blue7horse") == TORIRSSERVER_AUTH_MANAGED,
+          "link: his password now answers 'managed'");
+    check(ToriRSServer_AuthLogin("frank", "wrongpass1") == TORIRSSERVER_AUTH_REFUSED,
+          "link: a wrong one is still just wrong");
+    check(ToriRSServer_OAuthPasswordGrant("frank", "blue7horse", NULL, now, &after, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "link: the password grant refuses him");
+    check(ToriRSServer_OAuthPlay(tokens.access_token, now, otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_INVALID_TOKEN,
+          "link: his old access token buys no play");
+    check(ToriRSServer_OAuthRefreshGrant(tokens.refresh_token, NULL, now, &after, &why) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "link: nor does his old refresh token");
+    check(!ToriRSServer_OAuthRedeemOtl(early_otl, "frank", now),
+          "link: a one-time login from before the link is refused");
+
+    check(ToriRSServer_OAuthUserPlay("matt", "Frank", token, now, otl, name, sizeof(name)) ==
+                  TORIRSSERVER_OAUTH_OK &&
+              strcmp(name, "Frank") == 0,
+          "link: his owner's session plays him with the token");
+    check(ToriRSServer_OAuthRedeemOtl(otl, "frank", now), "link: and that one-time login logs in");
+    check(ToriRSServer_OAuthUserPlay("nina", "frank", token, now, otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "link: another login's session cannot");
+    snprintf(other, sizeof(other), "%s", token);
+    other[0] = other[0] == 'a' ? 'b' : 'a';
+    check(ToriRSServer_OAuthUserPlay("matt", "frank", other, now, otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "link: nor the owner with a wrong token");
+
+    check(ToriRSServer_AuthLink("frank", "blue7horse", "matt", again) == TORIRSSERVER_LINK_OK &&
+              strcmp(again, token) != 0,
+          "link: the owner linking again mints a new token");
+    check(ToriRSServer_OAuthUserPlay("matt", "frank", token, now, otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_INVALID_GRANT,
+          "link: and the old one is dead");
+    check(ToriRSServer_OAuthUserPlay("matt", "frank", again, now, otl, name, sizeof(name)) ==
+              TORIRSSERVER_OAUTH_OK,
+          "link: the new one plays");
+
+    check(ToriRSServer_AuthSetAdmin("frank", 1) && ToriRSServer_AuthLinkVerify("frank", "matt", again),
+          "link: setting admin keeps the link");
+    check(ToriRSServer_AuthSetAdmin("frank", 0), "(and clearing it)");
+    check(ToriRSServer_AuthUnlink("frank"), "link: unlink");
+    check(ToriRSServer_AuthManagedBy("frank", owner, sizeof(owner)) == 0 &&
+              !ToriRSServer_AuthLinkVerify("frank", "matt", again),
+          "link: leaves him unlinked, the token dead");
+    check(ToriRSServer_AuthLogin("frank", "blue7horse") == TORIRSSERVER_AUTH_OK,
+          "link: and his password his own again");
+
+    check(ToriRSServer_AuthLink("gina", "short", "matt", token) == TORIRSSERVER_LINK_WEAK,
+          "link: an unclaimed name is held to the password rules");
+    check(!file_exists(ToriRSServer_AccountPath("gina")), "link: and nothing is written");
+    check(ToriRSServer_AuthLink("gina", "green9owl", "matt", token) == TORIRSSERVER_LINK_OK &&
+              ToriRSServer_AuthLinkVerify("gina", "matt", token),
+          "link: a good one claims and links the name in one go");
+}
+
 /* The gate's ticket: what io_server sets and torirsserver reads. */
 static void
 check_tickets(void)
@@ -472,6 +595,8 @@ main(void)
     struct ToriRSServerEmbed* embed;
     struct ToriRSServer* world;
     char account[1024];
+    int reused_client = -1;
+    int wrong_name_client = -1;
 
     check_vectors();
 
@@ -604,6 +729,40 @@ main(void)
         login_token_once(embed, &wrong_name, "bob", otl);
         check(wrong_name.net.state != TORIRS_NET_GAME,
               "oauth: a one-time login is for its own account only");
+        reused_client = reused.client_id;
+        wrong_name_client = wrong_name.client_id;
+    }
+
+    /* 5d. A linked account: its password is refused at the game's own login
+     *     (3, like any refusal), and its owner's one-time login is not. */
+    {
+        static struct Peer by_password, by_owner;
+        char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+        char otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+        char name[64];
+        long long now = (long long)time(NULL);
+
+        remove(ToriRSServer_AccountPath("henry"));
+        check(ToriRSServer_AuthLink("henry", "red8fox99", "matt", token) == TORIRSSERVER_LINK_OK,
+              "(link henry to matt)");
+        login(embed, &by_password, NULL, "henry", "red8fox99");
+        check(by_password.net.state != TORIRS_NET_GAME && by_password.net.login_reply == 3,
+              "a linked account's password is refused at login (3)");
+        /* The embed has five client slots and 5c's refusals still hold two. */
+        ToriRSServer_EmbedDisconnect(embed, by_password.client_id);
+        ToriRSServer_EmbedDisconnect(embed, reused_client);
+        ToriRSServer_EmbedDisconnect(embed, wrong_name_client);
+        check(ToriRSServer_OAuthUserPlay("matt", "henry", token, now, otl, name, sizeof(name)) ==
+                  TORIRSSERVER_OAUTH_OK,
+              "(matt's session mints henry a one-time login)");
+        peer_begin(&by_owner, ToriRSServer_EmbedConnect(embed));
+        peer_dial_token(&by_owner, "henry", otl);
+        {
+            struct Peer* peers[] = { &by_owner };
+            settle(peers, 1, embed);
+        }
+        check(by_owner.net.state == TORIRS_NET_GAME, "and that logs him in");
+        ToriRSServer_EmbedDisconnect(embed, by_owner.client_id);
     }
 
     ToriRSServer_EmbedStop(embed);
@@ -639,6 +798,7 @@ main(void)
     check_invites();
     check_tickets();
     check_oauth();
+    check_links();
 
     if( g_failures )
     {

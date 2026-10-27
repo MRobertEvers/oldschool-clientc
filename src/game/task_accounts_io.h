@@ -10,6 +10,13 @@
  *                -> access_token, a rotated refresh_token, name
  *   auth/play    access_token -> {"token": one-time login}
  *
+ * and, on the gate's session (the "user account", RS_SiteSession):
+ *
+ *   auth/user     -> {"user", "players"}: the web login and its linked players
+ *   auth/link     username + password -> the player linked to the web login,
+ *                 and {"token": one-time login, "name"}
+ *   auth/userplay player -> {"token": one-time login, "name"} for a linked one
+ *
  * Each request is a SCRIPT item whose path is `auth/<endpoint>` and whose data
  * LENDS the form-encoded body -- the launch service's convention
  * (platform_x_io.c), so every executor and the browser's item ABI carry it
@@ -29,6 +36,11 @@ enum RS_AccountSignInGrant
     RS_ACCOUNT_SIGNIN_PASSWORD = 0,
     /** A Play Now: the account's saved refresh token. */
     RS_ACCOUNT_SIGNIN_REFRESH,
+    /** The credential form, "Link account": the player joins the site's web
+     *  login and plays. No refresh token: a linked account has none. */
+    RS_ACCOUNT_SIGNIN_LINK,
+    /** A linked account's Play Now (`username`), on the site's session. */
+    RS_ACCOUNT_SIGNIN_SITE,
 };
 
 /** One sign-in, owned by the app. The task fills the second half and sets
@@ -41,7 +53,8 @@ struct RS_AccountSignIn
     char refresh_token[RS_ACCOUNTS_TOKEN_LEN];
 
     int done;
-    /** 1: `name`, `otl` and `new_refresh_token` are good, dial the game. */
+    /** 1: `name` and `otl` are good, dial the game; `new_refresh_token` too
+     *  for the PASSWORD and REFRESH grants. */
     int ok;
     /** The refresh token was refused (invalid_grant): forget the account. */
     int refresh_refused;
@@ -70,5 +83,12 @@ CreateTask_AccountsSave(
  *  or to an error. The caller keeps `signin` alive until `done`. */
 struct ToriRS_Task*
 CreateTask_AccountSignIn(struct RS_AccountSignIn* signin);
+
+/** Ask the account server who the site session is (auth/user) into `site`,
+ *  and set `*done`. No answer leaves `site` not signed in. */
+struct ToriRS_Task*
+CreateTask_SiteSessionLoad(
+    struct RS_SiteSession* site,
+    int* done);
 
 #endif

@@ -171,7 +171,6 @@ struct Task_AccountSignIn
     struct RS_AccountSignIn* signin;
     /** The request body, LENT to the item across each yield. */
     char body[SIGNIN_BODY_MAX];
-    int body_size;
     /** The token endpoint's answer, kept for the play request. */
     char access_token[RS_ACCOUNTS_TOKEN_LEN];
 };
@@ -205,10 +204,10 @@ form_append(
     assert(used + 4 < cap);
 }
 
-/* Queue `auth/<endpoint>` lending the task's body. */
+/* Queue `auth/<endpoint>` lending `body` (a task's own array). */
 static void
 queue_request(
-    struct Task_AccountSignIn* task,
+    char* body,
     struct ToriRS_IOBatch* io,
     char const* endpoint)
 {
@@ -216,11 +215,10 @@ queue_request(
     struct ToriRS_IOItem* item;
 
     snprintf(path, sizeof(path), "auth/%s", endpoint);
-    task->body_size = (int)strlen(task->body);
     ToriRS_IO_QueueScript(io, ACCOUNTS_IO_SLOT, path);
     item = ToriRS_IO_TaskSlot(io, ACCOUNTS_IO_SLOT);
-    item->data = task->body;
-    item->data_size = task->body_size;
+    item->data = body;
+    item->data_size = (int)strlen(body);
 }
 
 /*
@@ -230,7 +228,8 @@ queue_request(
  */
 static int
 take_answer(
-    struct Task_AccountSignIn* task,
+    char* body,
+    size_t body_cap,
     struct ToriRS_IOBatch* io,
     char* out,
     size_t cap)
@@ -238,7 +237,7 @@ take_answer(
     struct ToriRS_IOItem* item = ToriRS_IO_TaskSlot(io, ACCOUNTS_IO_SLOT);
     int ok = 0;
 
-    if( IOITEM_DATA(item) == task->body )
+    if( IOITEM_DATA(item) == body )
     {
         IOITEM_DATA(item) = NULL;
         IOITEM_DATA_SIZE(item) = 0;
@@ -251,7 +250,7 @@ take_answer(
         ok = 1;
     }
     ToriRS_IO_ClearItem(item);
-    memset(task->body, 0, sizeof(task->body));
+    memset(body, 0, body_cap);
     return ok;
 }
 
@@ -286,6 +285,42 @@ Task_AccountSignIn_Run(
 
     PT_BEGIN(&task->pt);
 
+    /* A link, or a linked account's Play Now: one request on the site's
+     * session, answered with the one-time login itself -- no token grant, so
+     * nothing for the device to keep. */
+    if( signin->grant == RS_ACCOUNT_SIGNIN_LINK || signin->grant == RS_ACCOUNT_SIGNIN_SITE )
+    {
+        task->body[0] = '\0';
+        if( signin->grant == RS_ACCOUNT_SIGNIN_LINK )
+        {
+            form_append(task->body, sizeof(task->body), "username", signin->username);
+            form_append(task->body, sizeof(task->body), "password", signin->password);
+        }
+        else
+            form_append(task->body, sizeof(task->body), "player", signin->username);
+        memset(signin->password, 0, sizeof(signin->password));
+        queue_request(task->body, io,
+                      signin->grant == RS_ACCOUNT_SIGNIN_LINK ? "link" : "userplay");
+        PT_YIELD(&task->pt);
+
+        if( !take_answer(task->body, sizeof(task->body), io, answer, sizeof(answer)) )
+        {
+            snprintf(signin->error, sizeof(signin->error), "Unable to reach the login server.");
+            signin->done = 1;
+            PT_EXIT(&task->pt);
+        }
+        if( !FlatJson_String(answer, strlen(answer), "token", signin->otl, sizeof(signin->otl)) ||
+            !FlatJson_String(answer, strlen(answer), "name", signin->name, sizeof(signin->name)) )
+        {
+            describe_error(answer, signin->error, sizeof(signin->error));
+            signin->done = 1;
+            PT_EXIT(&task->pt);
+        }
+        signin->ok = 1;
+        signin->done = 1;
+        PT_EXIT(&task->pt);
+    }
+
     /* 1. The token endpoint (the deob's shield/oauth/token). */
     task->body[0] = '\0';
     form_append(task->body, sizeof(task->body), "client_id", ACCOUNTS_CLIENT_ID);
@@ -302,10 +337,10 @@ Task_AccountSignIn_Run(
         form_append(task->body, sizeof(task->body), "password", signin->password);
     }
     memset(signin->password, 0, sizeof(signin->password));
-    queue_request(task, io, "token");
+    queue_request(task->body, io, "token");
     PT_YIELD(&task->pt);
 
-    if( !take_answer(task, io, answer, sizeof(answer)) )
+    if( !take_answer(task->body, sizeof(task->body), io, answer, sizeof(answer)) )
     {
         snprintf(signin->error, sizeof(signin->error), "Unable to reach the login server.");
         signin->done = 1;
@@ -332,10 +367,10 @@ Task_AccountSignIn_Run(
     task->body[0] = '\0';
     form_append(task->body, sizeof(task->body), "access_token", task->access_token);
     memset(task->access_token, 0, sizeof(task->access_token));
-    queue_request(task, io, "play");
+    queue_request(task->body, io, "play");
     PT_YIELD(&task->pt);
 
-    if( !take_answer(task, io, answer, sizeof(answer)) )
+    if( !take_answer(task->body, sizeof(task->body), io, answer, sizeof(answer)) )
     {
         snprintf(signin->error, sizeof(signin->error), "Unable to reach the login server.");
         signin->done = 1;
@@ -384,6 +419,79 @@ CreateTask_AccountSignIn(struct RS_AccountSignIn* signin)
     signin->ok = 0;
     signin->refresh_refused = 0;
     signin->error[0] = '\0';
+    PT_INIT(&task->pt);
+    return &task->task;
+}
+
+/* ------------------------------------------------------------------ */
+/* The site session                                                    */
+/* ------------------------------------------------------------------ */
+
+struct Task_SiteSessionLoad
+{
+    struct ToriRS_Task task;
+    struct pt pt;
+    struct RS_SiteSession* site;
+    int* done;
+    /** The request body, LENT to the item across the yield. */
+    char body[64];
+};
+
+static int
+Task_SiteSessionLoad_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IOBatch* io)
+{
+    struct Task_SiteSessionLoad* task = (struct Task_SiteSessionLoad*)task_base;
+    /* Read out of the slot before the next yield, never carried across one. */
+    static char answer[4096];
+
+    PT_BEGIN(&task->pt);
+
+    memset(task->site, 0, sizeof(*task->site));
+    task->body[0] = '\0';
+    form_append(task->body, sizeof(task->body), "client_id", ACCOUNTS_CLIENT_ID);
+    queue_request(task->body, io, "user");
+    PT_YIELD(&task->pt);
+
+    /* No answer is a world with no gate, or a desktop with no account server
+     * named: the form signs in with passwords, as without one. */
+    if( take_answer(task->body, sizeof(task->body), io, answer, sizeof(answer)) )
+        RS_SiteSession_Decode(task->site, answer, (int)strlen(answer));
+    if( task->site->signed_in )
+        TORIRS_LOG("accounts: site session '%s', %d linked account(s)\n", task->site->user,
+                   task->site->count);
+    *task->done = 1;
+
+    PT_END(&task->pt);
+}
+
+static void
+Task_SiteSessionLoad_Free(struct ToriRS_Task* task_base)
+{
+    ToriMem_Free(ToriMem_Process(), task_base);
+}
+
+static struct ToriRS_TaskVTable Task_SiteSessionLoad_VTable = {
+    .run = Task_SiteSessionLoad_Run,
+    .free = Task_SiteSessionLoad_Free,
+};
+
+struct ToriRS_Task*
+CreateTask_SiteSessionLoad(
+    struct RS_SiteSession* site,
+    int* done)
+{
+    struct Task_SiteSessionLoad* task;
+
+    assert(site);
+    assert(done);
+    task = ToriMem_Calloc(ToriMem_Process(), 1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_SiteSessionLoad_VTable;
+    strcpy(task->task.name, "SiteSessionLoad");
+    task->site = site;
+    task->done = done;
     PT_INIT(&task->pt);
     return &task->task;
 }

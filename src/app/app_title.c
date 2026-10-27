@@ -25,10 +25,6 @@ app_title_resume_to_login(struct App* app);
 static void
 app_title_layout_accounts(struct App* app);
 
-/* Play Now cards the title has room for; the device may hold more
- * (RS_ACCOUNTS_MAX), and the most recently played are the ones shown. */
-#define APP_TITLE_ACCOUNT_CARDS 4
-
 /*
  * The system-update line, or NULL when no update is pending.
  *
@@ -262,6 +258,7 @@ app_title_sync_groups(struct App* app)
         "title_form_group",
         "title_info_group",
         "title_accounts_group",
+        "title_link_group",
         "title_progress_group",
     };
     /* Parallel to k_groups: which RS_TitleScreen each belongs to, and -1 for
@@ -271,6 +268,7 @@ app_title_sync_groups(struct App* app)
         RS_TITLE_LOGIN_FORM,
         RS_TITLE_INFO,
         RS_TITLE_ACCOUNTS,
+        RS_TITLE_LINK_PROMPT,
         -1,
     };
     int showing_progress;
@@ -314,6 +312,47 @@ app_title_sync_groups(struct App* app)
 }
 
 /*
+ * Which accounts get the cards: the site login's linked accounts first, then
+ * the device's own that are not among them, into app->title_cards.
+ */
+static void
+app_title_build_cards(struct App* app)
+{
+    int count = 0;
+
+    assert(app);
+    if( app->oauth && app->site.signed_in )
+        for( int i = 0; i < app->site.count && count < APP_TITLE_ACCOUNT_CARDS; i++ )
+        {
+            app->title_cards[count].site = 1;
+            app->title_cards[count].index = i;
+            count++;
+        }
+    if( app->oauth )
+        for( int i = 0; i < app->accounts.count && count < APP_TITLE_ACCOUNT_CARDS; i++ )
+        {
+            if( RS_SiteSession_Find(&app->site, app->accounts.list[i].name) >= 0 )
+                continue;
+            app->title_cards[count].site = 0;
+            app->title_cards[count].index = i;
+            count++;
+        }
+    app->title_card_count = count;
+}
+
+/* The name on card `card`. */
+static char const*
+app_title_card_name(
+    struct App const* app,
+    int card)
+{
+    assert(card >= 0 && card < app->title_card_count);
+    if( app->title_cards[card].site )
+        return app->site.players[app->title_cards[card].index];
+    return app->accounts.list[app->title_cards[card].index].name;
+}
+
+/*
  * The Play Now cards, placed by how many there are.
  *
  * One card stands in the middle of the box; two stand where the front menu's
@@ -335,9 +374,8 @@ app_title_layout_accounts(struct App* app)
 
     assert(app);
     assert(app->tree);
-    shown = app->oauth ? app->accounts.count : 0;
-    if( shown > APP_TITLE_ACCOUNT_CARDS )
-        shown = APP_TITLE_ACCOUNT_CARDS;
+    app_title_build_cards(app);
+    shown = app->title_card_count;
 
     for( int i = 0; i < APP_TITLE_ACCOUNT_CARDS; i++ )
     {
@@ -373,7 +411,7 @@ app_title_layout_accounts(struct App* app)
         snprintf(role, sizeof(role), "title_account_name_%d", i);
         name = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
         if( name >= 0 )
-            UITree_SetTextAt(app->tree, name, app->accounts.list[i].name);
+            UITree_SetTextAt(app->tree, name, app_title_card_name(app, i));
     }
 
     icon = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_accounts_icon");
@@ -394,10 +432,12 @@ app_accounts_save(struct App* app)
 }
 
 /*
- * Start a sign-in at the account server: a Play Now (`index` is the account,
- * whose refresh token is spent) or the credential form (its two fields, the
- * password cleared out of the form as it is copied). The title shows
- * "Connecting to server..." until the task answers; app_title_tick waits.
+ * Start a sign-in at the account server: a device account's Play Now (`index`
+ * is the account, whose refresh token is spent), a linked account's (`index`
+ * into site.players, played on the site's session), or the credential form --
+ * a password grant or a link -- (its two fields, the password cleared out of
+ * the form as it is copied). The title shows "Connecting to server..." until
+ * the task answers; app_title_tick waits.
  */
 static void
 app_accounts_begin_signin(
@@ -419,6 +459,12 @@ app_accounts_begin_signin(
         snprintf(app->signin.refresh_token, sizeof(app->signin.refresh_token), "%s",
                  app->accounts.list[index].refresh_token);
     }
+    else if( grant == RS_ACCOUNT_SIGNIN_SITE )
+    {
+        assert(index >= 0 && index < app->site.count);
+        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
+                 app->site.players[index]);
+    }
     else
     {
         snprintf(app->signin.username, sizeof(app->signin.username), "%s",
@@ -434,12 +480,29 @@ app_accounts_begin_signin(
     app_title_state_changed(app);
 }
 
+/* Forget the device's own Play Now for `name`: the account is linked now, its
+ * refresh tokens revoked, and its card is the site's. 1 when one was there. */
+static int
+app_accounts_forget_linked(
+    struct App* app,
+    char const* name)
+{
+    int index = RS_Accounts_Find(&app->accounts, name);
+
+    if( index < 0 )
+        return 0;
+    RS_Accounts_Forget(&app->accounts, index);
+    return 1;
+}
+
 /*
- * The sign-in answered. Good: the account goes first in the list with its
- * rotated refresh token, and the game is dialled with the one-time login --
- * from here the ordinary login result handling takes over. Refused: back to
- * the title with the server's words, and a refresh token the server refused
- * is forgotten, its account's name put in the form for a password.
+ * The sign-in answered. Good: a password or refresh grant's account goes first
+ * in the device's list with its rotated refresh token, a link's joins the site
+ * login's (and leaves the device's), and the game is dialled with the one-time
+ * login -- from here the ordinary login result handling takes over. Refused:
+ * back to the title with the server's words, and a refresh token the server
+ * refused is forgotten, its account's name put in the form for a password --
+ * unless the account is linked, whose card is the site's.
  */
 static void
 app_accounts_finish_signin(struct App* app)
@@ -450,8 +513,17 @@ app_accounts_finish_signin(struct App* app)
     assert(signin->done);
     if( signin->ok )
     {
-        RS_Accounts_Remember(&app->accounts, signin->name, signin->new_refresh_token);
-        app_accounts_save(app);
+        if( signin->grant == RS_ACCOUNT_SIGNIN_LINK )
+        {
+            RS_SiteSession_Add(&app->site, signin->name);
+            if( app_accounts_forget_linked(app, signin->name) )
+                app_accounts_save(app);
+        }
+        else if( signin->grant != RS_ACCOUNT_SIGNIN_SITE )
+        {
+            RS_Accounts_Remember(&app->accounts, signin->name, signin->new_refresh_token);
+            app_accounts_save(app);
+        }
         app_login_refresh_jag_checksums(app);
         app_login_set_client_identity(app);
         ToriRS_Network_ConnectLoginToken(
@@ -463,7 +535,14 @@ app_accounts_finish_signin(struct App* app)
 
     TORIRS_LOG("login: account server refused the sign-in: %s\n", signin->error);
     app->screen = APP_SCREEN_TITLE;
-    if( signin->refresh_refused )
+    if( signin->refresh_refused && RS_SiteSession_Find(&app->site, signin->username) >= 0 )
+    {
+        /* Linked since this device saved it: the site's card plays it. */
+        if( app_accounts_forget_linked(app, signin->username) )
+            app_accounts_save(app);
+        RS_Title_SetMessages(&app->title, signin->error, NULL, NULL);
+    }
+    else if( signin->refresh_refused )
     {
         int index = RS_Accounts_Find(&app->accounts, signin->username);
 
@@ -866,9 +945,38 @@ app_title_submit(struct App* app)
      * on the wire: the dial waits for the one-time login it buys. */
     if( app->oauth )
     {
-        if( app->net_enabled && app->net &&
-            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME)[0] && !app->signin_busy )
+        char const* name = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
+        int linked;
+
+        if( !app->net_enabled || !app->net || !name[0] || app->signin_busy )
+            return;
+        if( !app->site.signed_in )
+        {
             app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_PASSWORD, -1);
+            return;
+        }
+        /* Already linked to this site login: its password no longer signs
+         * it in, and the session does -- so the session plays it. */
+        linked = RS_SiteSession_Find(&app->site, name);
+        if( linked >= 0 )
+        {
+            RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
+            app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_SITE, linked);
+            return;
+        }
+        /* Signed in to a site login: link this account to it, or just log
+         * in. The form keeps both fields behind the prompt for either. */
+        {
+            char line[RS_TITLE_MESSAGE_LEN];
+
+            snprintf(line, sizeof(line), "Link %s to %s?", name, app->site.user);
+            RS_Title_SetMessages(&app->title, line,
+                                 "A linked account signs in only from this site login.",
+                                 "Log in signs in with the password, unlinked.");
+        }
+        app->title.link_choice = RS_TITLE_LINK_NONE;
+        RS_Title_SetScreen(&app->title, RS_TITLE_LINK_PROMPT);
+        app_title_state_changed(app);
         return;
     }
 
@@ -958,6 +1066,27 @@ app_title_tick(struct App* app)
         app_title_state_changed(app);
         redraw = 1;
     }
+    /* The site session, asked once. Its linked accounts become cards, and
+     * the device's own Play Now for any of them is dropped: linking revoked
+     * its token. Waits for the device's file, which it edits. */
+    if( app->oauth && app->accounts_loaded && !app->site_load_started )
+    {
+        app->site_load_started = 1;
+        ToriRS_TaskQueue_Add(app->runner.queue,
+                             CreateTask_SiteSessionLoad(&app->site, &app->site_loaded));
+    }
+    if( app->site_loaded && !app->site_shown )
+    {
+        int forgot = 0;
+
+        app->site_shown = 1;
+        for( int i = 0; i < app->site.count; i++ )
+            forgot |= app_accounts_forget_linked(app, app->site.players[i]);
+        if( forgot )
+            app_accounts_save(app);
+        app_title_state_changed(app);
+        redraw = 1;
+    }
 
     /*
      * A sign-in at the account server is in flight. Nothing else on the
@@ -974,11 +1103,31 @@ app_title_tick(struct App* app)
     }
     if( app->title.play_requested >= 0 )
     {
-        int index = app->title.play_requested;
+        int card = app->title.play_requested;
 
         app->title.play_requested = -1;
-        if( app->oauth && index < app->accounts.count && app->net_enabled && app->net )
-            app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_REFRESH, index);
+        if( app->oauth && card < app->title_card_count && app->net_enabled && app->net )
+            app_accounts_begin_signin(app,
+                                      app->title_cards[card].site ? RS_ACCOUNT_SIGNIN_SITE
+                                                                  : RS_ACCOUNT_SIGNIN_REFRESH,
+                                      app->title_cards[card].index);
+        return 1;
+    }
+    /* The link prompt was answered: back on the form, whose fields it kept,
+     * where "Connecting..." and any refusal are shown. */
+    if( app->title.link_choice != RS_TITLE_LINK_NONE )
+    {
+        enum RS_TitleLinkChoice choice = app->title.link_choice;
+
+        app->title.link_choice = RS_TITLE_LINK_NONE;
+        RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
+        if( app->oauth && app->net_enabled && app->net )
+            app_accounts_begin_signin(app,
+                                      choice == RS_TITLE_LINK_LINK ? RS_ACCOUNT_SIGNIN_LINK
+                                                                   : RS_ACCOUNT_SIGNIN_PASSWORD,
+                                      -1);
+        else
+            app_title_state_changed(app);
         return 1;
     }
 

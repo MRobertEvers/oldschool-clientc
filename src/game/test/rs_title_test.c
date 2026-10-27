@@ -375,6 +375,43 @@ test_accounts_screen(void)
                 "the account actions resolve");
 }
 
+static void
+test_link_prompt(void)
+{
+    struct RS_Title title;
+
+    RS_Title_Init(&title);
+    TEST_ASSERT(!RS_Title_HandleAction(&title, RS_TITLE_ACTION_LINK_ACCOUNT) &&
+                    title.link_choice == RS_TITLE_LINK_NONE,
+                "link: off the prompt, its buttons do nothing");
+    RS_Title_SetScreen(&title, RS_TITLE_LOGIN_FORM);
+    type_string(&title, "bob");
+    press(&title, TORIRS_OSRSKEY_ENTER);
+    type_string(&title, "pw");
+    RS_Title_SetScreen(&title, RS_TITLE_LINK_PROMPT);
+    TEST_ASSERT(!type_char(&title, 'x') && strcmp(RS_Title_FieldText(&title, RS_TITLE_FIELD_PASSWORD),
+                                              "pw") == 0,
+                "link: the prompt takes no typing and keeps the form's fields");
+    TEST_ASSERT(RS_Title_HandleAction(&title, RS_TITLE_ACTION_LINK_ACCOUNT) &&
+                    title.link_choice == RS_TITLE_LINK_LINK,
+                "link: Link account is taken");
+    TEST_ASSERT(!RS_Title_HandleAction(&title, RS_TITLE_ACTION_PLAIN_LOGIN) &&
+                    title.link_choice == RS_TITLE_LINK_LINK,
+                "link: and answers once");
+    title.link_choice = RS_TITLE_LINK_NONE;
+    TEST_ASSERT(RS_Title_HandleAction(&title, RS_TITLE_ACTION_PLAIN_LOGIN) &&
+                    title.link_choice == RS_TITLE_LINK_LOG_IN,
+                "link: Log in is the other answer");
+    title.link_choice = RS_TITLE_LINK_NONE;
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_CANCEL);
+    TEST_ASSERT(title.screen == RS_TITLE_MAIN_MENU &&
+                    RS_Title_FieldText(&title, RS_TITLE_FIELD_PASSWORD)[0] == '\0',
+                "link: cancel goes home and drops the password");
+    TEST_ASSERT(RS_Title_ActionFromName("link_account") == RS_TITLE_ACTION_LINK_ACCOUNT &&
+                    RS_Title_ActionFromName("plain_login") == RS_TITLE_ACTION_PLAIN_LOGIN,
+                "link: the prompt's actions resolve");
+}
+
 int
 main(void)
 {
@@ -395,6 +432,7 @@ main(void)
     test_messages_and_progress();
     test_action_names();
     test_accounts_screen();
+    test_link_prompt();
 
     if( g_failures )
     {

@@ -84,4 +84,44 @@ RS_Accounts_Forget(
     struct RS_Accounts* accounts,
     int index);
 
+/*
+ * The SITE session: the web login the gate's cookie signed this page in as
+ * (the "user account"), and the player accounts linked under it
+ * (torirs_server_auth.h "Linked player accounts"). Not kept on the device:
+ * the gate's /account/players answers it each boot, so a link made elsewhere
+ * shows up and an unlinked account goes away. A linked account carries no
+ * token here -- the gate's session is what plays it.
+ *
+ *   {"user": "matt", "players": "Matt\nMatt Alt"}
+ */
+struct RS_SiteSession
+{
+    /** 1: the account server named a web login. 0: no gate in front of this
+     *  world (or none reachable), and the form signs in as it always has. */
+    int signed_in;
+    char user[RS_ACCOUNTS_NAME_LEN];
+    char players[RS_ACCOUNTS_MAX][RS_ACCOUNTS_NAME_LEN];
+    int count;
+};
+
+/** Replace `site` with the /account/players answer `json`; anything that is
+ *  not one (an error body, a refusal) is "not signed in". */
+void
+RS_SiteSession_Decode(
+    struct RS_SiteSession* site,
+    char const* json,
+    int size);
+
+/** The index of the linked player `name` (folded as RS_Accounts_Find), or -1. */
+int
+RS_SiteSession_Find(
+    struct RS_SiteSession const* site,
+    char const* name);
+
+/** Add a player just linked, last, unless it is there or the list is full. */
+void
+RS_SiteSession_Add(
+    struct RS_SiteSession* site,
+    char const* name);
+
 #endif

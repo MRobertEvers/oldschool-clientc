@@ -2,6 +2,7 @@
  * The sign-in gate. See io_gate.h.
  */
 #include "io_gate.h"
+#include "io_gate_links.h"
 
 #include "mem/torirs_mem.h"
 #include "torirsserver/torirs_server_auth.h"
@@ -969,6 +970,226 @@ handle_authorize(
              strchr(redirect, '?') ? "&" : "?", code, state[0] ? "&state=" : "", state_query);
 }
 
+/* ------------------------------------------------------------------ */
+/* Player accounts linked to the web login (torirs_server_auth.h)      */
+/* ------------------------------------------------------------------ */
+
+/* `text` as a JSON string body onto `out` (quotes not included). Names reach
+ * here already free of control characters but for the '\n' list separator. */
+static void
+json_append(
+    char* out,
+    size_t cap,
+    char const* text)
+{
+    size_t used = strlen(out);
+
+    for( ; *text && used + 3 < cap; text++ )
+    {
+        if( *text == '"' || *text == '\\' )
+            out[used++] = '\\';
+        if( *text == '\n' )
+        {
+            out[used++] = '\\';
+            out[used++] = 'n';
+            continue;
+        }
+        out[used++] = *text;
+    }
+    out[used] = '\0';
+}
+
+/* A player name from a form: what OAuth's check_account accepts. */
+static int
+player_name_ok(char const* name)
+{
+    if( !name[0] || strlen(name) >= IO_GATE_LINKS_NAME_MAX )
+        return 0;
+    for( char const* scan = name; *scan; scan++ )
+        if( (unsigned char)*scan < ' ' )
+            return 0;
+    return 1;
+}
+
+/* A one-time login for the linked `display_name`, as the play call answers. */
+static void
+account_play_answer(
+    struct IoGate* gate,
+    struct HttpResponse* res,
+    char const* who,
+    char const* display_name)
+{
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    char otl[TORIRSSERVER_OAUTH_ID_HEX + 1];
+    char name[64];
+    char body[256];
+    enum ToriRSServerOAuthError error = TORIRSSERVER_OAUTH_INVALID_GRANT;
+
+    if( IoGateLinks_Token(gate->links, who, display_name, token) )
+        error = ToriRSServer_OAuthUserPlay(who, display_name, token, (long long)time(NULL), otl,
+                                           name, sizeof(name));
+    memset(token, 0, sizeof(token));
+    if( error != TORIRSSERVER_OAUTH_OK )
+    {
+        oauth_error(res, error, "That account is not linked to this login.");
+        return;
+    }
+    fprintf(stderr, "io_server: gate: '%s' plays linked account '%s'\n", who, name);
+    snprintf(body, sizeof(body), "{\"token\":\"%s\",\"expires_in\":%d,\"name\":\"", otl,
+             TORIRSSERVER_OAUTH_OTL_SECONDS);
+    json_append(body, sizeof(body) - 3, name);
+    strcat(body, "\"}");
+    json_response(res, 200, body);
+}
+
+/* POST /account/players: {"user": <web login>, "players": "A\nB"}, newline
+ * separated because a name cannot hold one and the client reads flat JSON. */
+static void
+handle_account_players(
+    struct IoGate* gate,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char names[IO_GATE_LINKS_LIST_MAX][IO_GATE_LINKS_NAME_MAX];
+    char body[2048];
+    int count = IoGateLinks_List(gate->links, who, names, IO_GATE_LINKS_LIST_MAX);
+
+    snprintf(body, sizeof(body), "{\"user\":\"");
+    json_append(body, sizeof(body) - 32, who);
+    strcat(body, "\",\"players\":\"");
+    for( int i = 0; i < count; i++ )
+    {
+        if( i )
+            json_append(body, sizeof(body) - 3, "\n");
+        json_append(body, sizeof(body) - 3, names[i]);
+    }
+    strcat(body, "\"}");
+    json_response(res, 200, body);
+}
+
+/* POST /account/link: the player's own name and password prove it is theirs
+ * to give; the record takes this login as its one owner and the token's hash,
+ * the links database the token, every refresh token the account had is
+ * revoked, and the answer is a one-time login so linking also plays. */
+static void
+handle_account_link(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char username[IO_GATE_FIELD_MAX];
+    char password[IO_GATE_FIELD_MAX];
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct IoGateThrottle* throttle;
+    enum ToriRSServerLinkResult result;
+    long long now = (long long)time(NULL);
+
+    if( !form_field(req, "username", username, sizeof(username)) ||
+        !form_field(req, "password", password, sizeof(password)) || !player_name_ok(username) )
+    {
+        memset(password, 0, sizeof(password));
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "username and password are required");
+        return;
+    }
+    if( !player_throttle_allows(gate, username, &throttle) )
+    {
+        memset(password, 0, sizeof(password));
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT,
+                    "Too many attempts. Try again in a few minutes.");
+        return;
+    }
+    result = ToriRSServer_AuthLink(username, password, who, token);
+    if( result == TORIRSSERVER_LINK_WEAK )
+    {
+        char const* problem = ToriRSServer_AuthPasswordProblem(username, password);
+
+        memset(password, 0, sizeof(password));
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, problem);
+        return;
+    }
+    memset(password, 0, sizeof(password));
+    if( result == TORIRSSERVER_LINK_REFUSED )
+    {
+        throttle->failures++;
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT, "Invalid username or password.");
+        return;
+    }
+    if( result == TORIRSSERVER_LINK_OTHER_USER )
+    {
+        fprintf(stderr, "io_server: gate: '%s' tried to link '%s', which another login owns\n",
+                who, username);
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_GRANT,
+                    "That account is already linked to another login.");
+        return;
+    }
+    if( result != TORIRSSERVER_LINK_OK )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_SERVER_ERROR, "The link could not be saved.");
+        return;
+    }
+    IoGateLinks_Put(gate->links, who, username, token, now);
+    memset(token, 0, sizeof(token));
+    ToriRSServer_OAuthRevokeAccount(username, now);
+    fprintf(stderr, "io_server: gate: '%s' linked player account '%s'\n", who, username);
+    account_play_answer(gate, res, who, username);
+}
+
+/* POST /account/play: a linked account's one-time login, on this session. */
+static void
+handle_account_play(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    char player[IO_GATE_FIELD_MAX];
+
+    if( !form_field(req, "player", player, sizeof(player)) || !player_name_ok(player) )
+    {
+        oauth_error(res, TORIRSSERVER_OAUTH_INVALID_REQUEST, "player is required");
+        return;
+    }
+    account_play_answer(gate, res, who, player);
+}
+
+/* 1 when `req` was an /account route and `res` is its answer. POST only: each
+ * either changes the account or mints a login. */
+static int
+handle_account(
+    struct IoGate* gate,
+    struct HttpRequest const* req,
+    struct HttpResponse* res,
+    char const* who)
+{
+    int is_post = strcmp(req->method, "POST") == 0;
+
+    if( path_is(req->path, "/account/players") )
+    {
+        if( is_post )
+            handle_account_players(gate, res, who);
+        else
+            res->status = 405;
+    }
+    else if( path_is(req->path, "/account/link") )
+    {
+        if( is_post )
+            handle_account_link(gate, req, res, who);
+        else
+            res->status = 405;
+    }
+    else if( path_is(req->path, "/account/play") )
+    {
+        if( is_post )
+            handle_account_play(gate, req, res, who);
+        else
+            res->status = 405;
+    }
+    else
+        return 0;
+    return 1;
+}
+
 /* 1 when `req` was an OAuth route and `res` is its answer. */
 static int
 handle_oauth(
@@ -1002,6 +1223,12 @@ IoGate_Init(
     snprintf(gate->landing, sizeof(gate->landing), "%s", landing);
     ToriRSServer_GateKeyLoad();
     ToriRSServer_OAuthKeyLoad();
+    {
+        char path[1024];
+
+        snprintf(path, sizeof(path), "%s/gate/links.sqlite", ToriRSServer_SaveDir());
+        gate->links = IoGateLinks_Open(path);
+    }
 }
 
 int
@@ -1066,6 +1293,10 @@ IoGate_Handle(
     /* Player-account OAuth, after the gate: a token is only ever minted for a
      * browser (or client) that already holds the gate's ticket. */
     if( handle_oauth(gate, req, res) )
+        return 1;
+    /* The web login's own player accounts: `who` is the ticket's login, so a
+     * session only ever reaches the accounts linked to it. */
+    if( handle_account(gate, req, res, who) )
         return 1;
     /* The bare page boots nothing: it needs the manifest and the socket the
      * landing URL names, so a signed-in visit to "/" goes there. */

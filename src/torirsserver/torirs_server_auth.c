@@ -303,6 +303,12 @@ struct AuthFile
     int has_password;
     char name[TORIRSSERVER_AUTH_NAME_MAX + 1];
     int admin;
+    /** The web login that owns this player account (ToriRSServer_AuthLink);
+     *  "" when it signs in with its own password. */
+    char managed_by[64];
+    /** SHA-256 hex of the link token the owner's links database holds; the
+     *  one link this account answers to. "" with managed_by "". */
+    char link_hash[TORIRSSERVER_LINK_TOKEN_HEX + 1];
 };
 
 /* 3rd/ini does not trim, and io_server links no content code for
@@ -392,6 +398,10 @@ auth_read_file(
             snprintf(out->name, sizeof(out->name), "%s", element._keyval.value);
         else if( strcmp(element._keyval.name, "admin") == 0 )
             out->admin = atoi(element._keyval.value) != 0;
+        else if( strcmp(element._keyval.name, "managed_by") == 0 )
+            snprintf(out->managed_by, sizeof(out->managed_by), "%s", element._keyval.value);
+        else if( strcmp(element._keyval.name, "link_hash") == 0 )
+            snprintf(out->link_hash, sizeof(out->link_hash), "%s", element._keyval.value);
     }
     return 1;
 }
@@ -412,23 +422,38 @@ auth_read_record(
     return have;
 }
 
+/* `managed_by` is the web login that owns the account and `link_hash` its
+ * link token's hash, or both "" for none. */
 static int
 auth_write_record(
     const char* path,
     const char* record,
-    int admin)
+    int admin,
+    const char* managed_by,
+    const char* link_hash)
 {
-    char text[512];
+    char text[896];
+    char managed_line[192] = "";
 
+    assert(managed_by);
+    assert(link_hash);
+    assert(!managed_by[0] == !link_hash[0]);
+    if( managed_by[0] )
+        snprintf(managed_line, sizeof(managed_line), "managed_by = %s\nlink_hash = %s\n",
+                 managed_by, link_hash);
     snprintf(text, sizeof(text),
              "; ToriRSServer account. Written by torirs_server_auth.c.\n"
              "; Delete this file to reset the password: the next login sets it.\n"
              "; admin = 1 is staff: the jmod crown, and ::commands on a world\n"
              "; that checks passwords (torirsserver --account admin <name> on).\n"
+             "; managed_by = <web login> is an account linked to that login: it signs\n"
+             "; in only through the gate's session presenting the link token whose\n"
+             "; hash is link_hash, never with this password\n"
+             "; (torirsserver --account unlink <name> undoes it).\n"
              "\n[account]\n"
              "password = %s\n"
-             "%s",
-             record, admin ? "admin = 1\n" : "");
+             "%s%s",
+             record, admin ? "admin = 1\n" : "", managed_line);
     return ToriRSServer_SaveWriteText(path, text);
 }
 
@@ -556,8 +581,13 @@ ToriRSServer_AuthLogin(
     if( have > 0 )
     {
         int ok = ToriRSServer_AuthVerify(password, file.password);
+        int managed = file.managed_by[0] != '\0';
 
         auth_wipe(&file, sizeof(file));
+        /* Judged after the password, so only someone who knows it learns the
+         * account is linked; to anyone else it is a wrong password. */
+        if( ok && managed )
+            return TORIRSSERVER_AUTH_MANAGED;
         return ok ? TORIRSSERVER_AUTH_OK : TORIRSSERVER_AUTH_REFUSED;
     }
 
@@ -569,7 +599,7 @@ ToriRSServer_AuthLogin(
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
     /* A claim that could not be written must not log in: the next login would
      * find no record and claim the name again, with any password. */
-    if( !auth_write_record(path, record, 0) )
+    if( !auth_write_record(path, record, 0, "", "") )
         return TORIRSSERVER_AUTH_REFUSED;
     return TORIRSSERVER_AUTH_CLAIMED;
 }
@@ -628,9 +658,177 @@ ToriRSServer_AuthSetAdmin(
     snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
     if( !path[0] || auth_read_record(path, &file) <= 0 )
         return 0;
-    written = auth_write_record(path, file.password, admin);
+    written = auth_write_record(path, file.password, admin, file.managed_by, file.link_hash);
     auth_wipe(&file, sizeof(file));
     return written;
+}
+
+/* ------------------------------------------------------------------ */
+/* Player accounts linked to a web login                               */
+/* ------------------------------------------------------------------ */
+
+int
+ToriRSServer_AuthManagedBy(
+    const char* display_name,
+    char* out_user,
+    size_t cap)
+{
+    char path[1024];
+    struct AuthFile file;
+    int have;
+
+    assert(display_name);
+    assert(out_user);
+    assert(cap > 0);
+    out_user[0] = '\0';
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] )
+        return 0;
+    have = auth_read_record(path, &file);
+    if( have <= 0 )
+        return have;
+    snprintf(out_user, cap, "%s", file.managed_by);
+    auth_wipe(&file, sizeof(file));
+    return out_user[0] ? 1 : 0;
+}
+
+/* SHA-256 of a link token's hex, as hex: what the record keeps. */
+static void
+auth_link_hash(
+    const char* link_token,
+    char out[TORIRSSERVER_LINK_TOKEN_HEX + 1])
+{
+    uint8_t digest[SHA256_DIGEST_BYTES];
+
+    sha256((const uint8_t*)link_token, strlen(link_token), digest);
+    ToriRSServer_AuthHex(digest, sizeof(digest), out);
+}
+
+/* A fresh link token into `out_token`, its hash into `out_hash`. */
+static void
+auth_link_mint(
+    char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1],
+    char out_hash[TORIRSSERVER_LINK_TOKEN_HEX + 1])
+{
+    uint8_t bytes[TORIRSSERVER_LINK_TOKEN_HEX / 2];
+
+    auth_random(bytes, sizeof(bytes));
+    ToriRSServer_AuthHex(bytes, sizeof(bytes), out_token);
+    auth_wipe(bytes, sizeof(bytes));
+    auth_link_hash(out_token, out_hash);
+}
+
+enum ToriRSServerLinkResult
+ToriRSServer_AuthLink(
+    const char* display_name,
+    const char* password,
+    const char* user,
+    char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1])
+{
+    char path[1024];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    char owner[64];
+    char hash[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct AuthFile file;
+    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
+    int have;
+    int written;
+
+    assert(display_name);
+    assert(password);
+    assert(user);
+    assert(out_token);
+    out_token[0] = '\0';
+    /* The web login as it is keyed: a ticket names it sanitised already, and
+     * the comparison at every later play is against this spelling. */
+    ToriRSServer_SaveFileName(user, owner, sizeof(owner));
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || !password[0] || !owner[0] )
+        return TORIRSSERVER_LINK_REFUSED;
+
+    have = auth_read_record(path, &file);
+    if( have < 0 )
+        return TORIRSSERVER_LINK_REFUSED;
+    if( have == 0 )
+    {
+        /* A name nobody holds yet: claimed and linked in one write, under
+         * the rules a claim always meets. */
+        if( ToriRSServer_AuthPasswordProblem(display_name, password) )
+            return TORIRSSERVER_LINK_WEAK;
+        auth_random(salt, sizeof(salt));
+        ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
+        auth_link_mint(out_token, hash);
+        if( auth_write_record(path, record, 0, owner, hash) )
+            return TORIRSSERVER_LINK_OK;
+        out_token[0] = '\0';
+        return TORIRSSERVER_LINK_WRITE_FAILED;
+    }
+    /* The password is the proof the player account is the linker's to give:
+     * a gate session alone must not be able to take a name. */
+    if( !ToriRSServer_AuthVerify(password, file.password) )
+    {
+        auth_wipe(&file, sizeof(file));
+        return TORIRSSERVER_LINK_REFUSED;
+    }
+    /* One owner. Its own owner linking again gets a NEW token -- the way back
+     * when its links database lost the row -- and the old one stops working. */
+    if( file.managed_by[0] && strcmp(file.managed_by, owner) != 0 )
+    {
+        auth_wipe(&file, sizeof(file));
+        return TORIRSSERVER_LINK_OTHER_USER;
+    }
+    auth_link_mint(out_token, hash);
+    written = auth_write_record(path, file.password, file.admin, owner, hash);
+    auth_wipe(&file, sizeof(file));
+    if( written )
+        return TORIRSSERVER_LINK_OK;
+    out_token[0] = '\0';
+    return TORIRSSERVER_LINK_WRITE_FAILED;
+}
+
+int
+ToriRSServer_AuthUnlink(const char* display_name)
+{
+    char path[1024];
+    struct AuthFile file;
+    int written;
+
+    assert(display_name);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+        return 0;
+    written = auth_write_record(path, file.password, file.admin, "", "");
+    auth_wipe(&file, sizeof(file));
+    return written;
+}
+
+int
+ToriRSServer_AuthLinkVerify(
+    const char* display_name,
+    const char* user,
+    const char* link_token)
+{
+    char path[1024];
+    char hash[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+    struct AuthFile file;
+    unsigned diff = 0;
+    int ok;
+
+    assert(display_name);
+    assert(user);
+    assert(link_token);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || strlen(link_token) != TORIRSSERVER_LINK_TOKEN_HEX ||
+        auth_read_record(path, &file) <= 0 )
+        return 0;
+    auth_link_hash(link_token, hash);
+    /* The same time wherever the hashes differ, as AuthVerify compares keys. */
+    for( size_t i = 0; i < TORIRSSERVER_LINK_TOKEN_HEX; i++ )
+        diff |= (unsigned)(hash[i] ^ file.link_hash[i]);
+    ok = file.managed_by[0] && strcmp(file.managed_by, user) == 0 &&
+         strlen(file.link_hash) == TORIRSSERVER_LINK_TOKEN_HEX && diff == 0;
+    auth_wipe(&file, sizeof(file));
+    return ok;
 }
 
 /* ------------------------------------------------------------------ */

@@ -48,6 +48,13 @@ enum RS_TitleScreen
      * loginIndex values, because the desktop deob has no such screen.
      */
     RS_TITLE_ACCOUNTS = 10,
+    /**
+     * The credential form was submitted while the page is signed in to a site
+     * login (a "user account", RS_SiteSession): link this player account to
+     * it, or just log in. The form's fields stay filled behind it; the choice
+     * is RS_Title::link_choice. Ours, like RS_TITLE_ACCOUNTS.
+     */
+    RS_TITLE_LINK_PROMPT = 11,
 };
 
 enum RS_TitleField
@@ -84,6 +91,19 @@ enum RS_TitleAction
     RS_TITLE_ACTION_OTHER_ACCOUNT,
     /** The account icon on the form: back to the accounts. */
     RS_TITLE_ACTION_SHOW_ACCOUNTS,
+    /** The link prompt's two answers (RS_TITLE_LINK_PROMPT). */
+    RS_TITLE_ACTION_LINK_ACCOUNT,
+    RS_TITLE_ACTION_PLAIN_LOGIN,
+};
+
+/** What the link prompt was answered with; the app takes it. */
+enum RS_TitleLinkChoice
+{
+    RS_TITLE_LINK_NONE = 0,
+    /** "Link account": the player joins the site login, then plays. */
+    RS_TITLE_LINK_LINK,
+    /** "Log in": the password signs in as it would with no site login. */
+    RS_TITLE_LINK_LOG_IN,
 };
 
 /** Which of the title's toggles a login_toggle is. Parallel to RS_TitleAction's
@@ -157,6 +177,8 @@ struct RS_Title
     /** A Play Now was pressed: the account's index, or -1. The app takes it,
      *  as it takes submit_requested. */
     int play_requested;
+    /** The link prompt's answer; the app takes it and sets it back. */
+    enum RS_TitleLinkChoice link_choice;
 };
 
 /** Zero the model and put it on the front menu with no bar. */

@@ -1571,7 +1571,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
 	pokesprite/pokesprite_store.c $(INI_SRC) \
-	ioserver/io_gate.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	ioserver/io_gate.c ioserver/io_gate_links.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
 IO_SERVER_SQLITE_LIBS := -lsqlite3

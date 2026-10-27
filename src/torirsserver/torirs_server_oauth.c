@@ -281,6 +281,9 @@ struct OAuthRecord
     char redirect[256];
     char challenge[64];
     char scope[64];
+    /** An OTL minted through a web login's session (OAuthUserPlay): that
+     *  login, as keyed. "" for every other record. */
+    char user[64];
     long long exp;
 };
 
@@ -332,9 +335,9 @@ record_write(
     snprintf(text, sizeof(text),
              "; Written by torirs_server_oauth.c. One use: deleted when spent.\n"
              "\n[%s]\nsub = %s\nname = %s\nfam = %s\nredirect = %s\nchallenge = %s\n"
-             "scope = %s\nexp = %lld\n",
+             "scope = %s\nuser = %s\nexp = %lld\n",
              section, record->sub, record->name, record->fam, record->redirect,
-             record->challenge, record->scope, record->exp);
+             record->challenge, record->scope, record->user, record->exp);
     return ToriRSServer_SaveWriteText(path, text);
 }
 
@@ -393,6 +396,8 @@ record_read(
             snprintf(out->challenge, sizeof(out->challenge), "%s", element._keyval.value);
         else if( strcmp(element._keyval.name, "scope") == 0 )
             snprintf(out->scope, sizeof(out->scope), "%s", element._keyval.value);
+        else if( strcmp(element._keyval.name, "user") == 0 )
+            snprintf(out->user, sizeof(out->user), "%s", element._keyval.value);
         else if( strcmp(element._keyval.name, "exp") == 0 )
             out->exp = strtoll(element._keyval.value, NULL, 10);
     }
@@ -429,12 +434,14 @@ record_take(
 }
 
 /*
- * Delete every refresh record of family `fam` -- a reuse, or a revocation --
- * and, while the directory is open, every expired one.
+ * Delete every refresh record of family `fam`, or every one of account `sub`
+ * -- a reuse, a revocation, a link -- and, while the directory is open, every
+ * expired one. Either selector may be NULL.
  */
 static void
-revoke_family(
+revoke_where(
     const char* fam,
+    const char* sub,
     long long now)
 {
     char dir[1024];
@@ -455,10 +462,29 @@ revoke_family(
         snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
         if( record_read(path, "refresh", &record) <= 0 )
             continue;
-        if( (fam && strcmp(record.fam, fam) == 0) || record.exp <= now )
+        if( (fam && strcmp(record.fam, fam) == 0) || (sub && strcmp(record.sub, sub) == 0) ||
+            record.exp <= now )
             remove(path);
     }
     closedir(handle);
+}
+
+static void
+revoke_family(
+    const char* fam,
+    long long now)
+{
+    revoke_where(fam, NULL, now);
+}
+
+/* 1 when the account `name` is linked to a web login, or its record cannot
+ * be read: either way no player-held token may sign it in. */
+static int
+account_is_managed(const char* name)
+{
+    char owner[64];
+
+    return ToriRSServer_AuthManagedBy(name, owner, sizeof(owner)) != 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -566,6 +592,11 @@ check_account(
         *out_description = ToriRSServer_AuthPasswordProblem(username, password);
         return TORIRSSERVER_OAUTH_INVALID_GRANT;
     }
+    if( auth == TORIRSSERVER_AUTH_MANAGED )
+    {
+        *out_description = TORIRSSERVER_OAUTH_MANAGED_DESCRIPTION;
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    }
     if( auth != TORIRSSERVER_AUTH_OK && auth != TORIRSSERVER_AUTH_CLAIMED )
     {
         *out_description = "Invalid username or password.";
@@ -643,6 +674,14 @@ ToriRSServer_OAuthRefreshGrant(
     {
         revoke_family(claims.fam, now);
         *out_description = "The refresh token does not match its record.";
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    }
+    /* Linking revoked this account's families; one minted in the moment
+     * between the check and the link still ends here. */
+    if( account_is_managed(claims.sub) )
+    {
+        revoke_family(claims.fam, now);
+        *out_description = TORIRSSERVER_OAUTH_MANAGED_DESCRIPTION;
         return TORIRSSERVER_OAUTH_INVALID_GRANT;
     }
     snprintf(granted, sizeof(granted), "%s", claims.scope);
@@ -822,6 +861,9 @@ ToriRSServer_OAuthPlay(
     if( !ToriRSServer_OAuthVerify(access_token, now, &claims) ||
         strcmp(claims.typ, "access") != 0 || strcmp(claims.scope, TORIRSSERVER_OAUTH_SCOPE) != 0 )
         return TORIRSSERVER_OAUTH_INVALID_TOKEN;
+    /* An access token outlives a link by up to ten minutes; it buys nothing. */
+    if( account_is_managed(claims.sub) )
+        return TORIRSSERVER_OAUTH_INVALID_TOKEN;
     memset(&record, 0, sizeof(record));
     snprintf(record.sub, sizeof(record.sub), "%s", claims.sub);
     snprintf(record.name, sizeof(record.name), "%s", claims.name);
@@ -834,6 +876,65 @@ ToriRSServer_OAuthPlay(
     return TORIRSSERVER_OAUTH_OK;
 }
 
+enum ToriRSServerOAuthError
+ToriRSServer_OAuthUserPlay(
+    const char* user,
+    const char* display_name,
+    const char* link_token,
+    long long now,
+    char out_otl[TORIRSSERVER_OAUTH_ID_HEX + 1],
+    char* out_name,
+    size_t cap)
+{
+    struct OAuthRecord record;
+    char owner[64];
+    char sub[64];
+    char path[1024];
+
+    assert(user);
+    assert(display_name);
+    assert(link_token);
+    assert(out_otl);
+    assert(out_name);
+    /* The name goes into the record and the answer; a control character in it
+     * would end a line of either. */
+    for( const char* scan = display_name; *scan; scan++ )
+        if( (unsigned char)*scan < ' ' )
+            return TORIRSSERVER_OAUTH_INVALID_REQUEST;
+    ToriRSServer_SaveFileName(display_name, sub, sizeof(sub));
+    if( !sub[0] || strlen(display_name) >= sizeof(record.name) )
+        return TORIRSSERVER_OAUTH_INVALID_REQUEST;
+    /* The owner AND the live link's token: a row left behind by an unlink, or
+     * by a re-link that minted a newer token, buys nothing. */
+    if( ToriRSServer_AuthManagedBy(display_name, owner, sizeof(owner)) != 1 ||
+        strcmp(owner, user) != 0 || !ToriRSServer_AuthLinkVerify(display_name, user, link_token) )
+        return TORIRSSERVER_OAUTH_INVALID_GRANT;
+    memset(&record, 0, sizeof(record));
+    snprintf(record.sub, sizeof(record.sub), "%s", sub);
+    snprintf(record.name, sizeof(record.name), "%s", display_name);
+    snprintf(record.user, sizeof(record.user), "%s", owner);
+    record.exp = now + TORIRSSERVER_OAUTH_OTL_SECONDS;
+    new_id(out_otl);
+    record_path("otl", out_otl, path, sizeof(path));
+    if( !record_write(path, "otl", &record) )
+        return TORIRSSERVER_OAUTH_SERVER_ERROR;
+    snprintf(out_name, cap, "%s", display_name);
+    return TORIRSSERVER_OAUTH_OK;
+}
+
+void
+ToriRSServer_OAuthRevokeAccount(
+    const char* display_name,
+    long long now)
+{
+    char sub[64];
+
+    assert(display_name);
+    ToriRSServer_SaveFileName(display_name, sub, sizeof(sub));
+    if( sub[0] )
+        revoke_where(NULL, sub, now);
+}
+
 int
 ToriRSServer_OAuthRedeemOtl(
     const char* otl,
@@ -842,11 +943,23 @@ ToriRSServer_OAuthRedeemOtl(
 {
     struct OAuthRecord record;
     char name[64];
+    char owner[64];
+    int managed;
 
     assert(otl);
     assert(display_name);
     if( !record_take("otl", otl, &record) || record.exp <= now )
         return 0;
     ToriRSServer_SaveFileName(display_name, name, sizeof(name));
-    return name[0] && strcmp(name, record.sub) == 0;
+    if( !name[0] || strcmp(name, record.sub) != 0 )
+        return 0;
+    /* A linked account takes only a token its owner's session minted: one the
+     * player's own access token bought in the minute before the link is
+     * refused, and so is one from a login it has since been moved away from. */
+    managed = ToriRSServer_AuthManagedBy(display_name, owner, sizeof(owner));
+    if( managed < 0 )
+        return 0;
+    if( managed > 0 )
+        return strcmp(record.user, owner) == 0;
+    return 1;
 }

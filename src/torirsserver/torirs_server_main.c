@@ -126,6 +126,9 @@ on_stop_signal(int sig)
  *   --account admin <name> on|off     set or clear a PLAYER account's admin
  *                                     flag (staff: jmod crown, cheats); it
  *                                     takes effect at the next login
+ *   --account unlink <name>           release a PLAYER account from the web
+ *                                     login it is linked to: its own password
+ *                                     signs it in again
  *
  * TORIRSSERVER_GATE_URL (e.g. https://torirs.example.com) makes the invite a
  * whole link.
@@ -167,6 +170,22 @@ account_command(
         fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
         return 0;
     }
+    if( argc == 4 && strcmp(argv[2], "unlink") == 0 )
+    {
+        char owner[64];
+
+        if( ToriRSServer_AuthManagedBy(argv[3], owner, sizeof(owner)) != 1 )
+        {
+            fprintf(stderr, "torirsserver: '%s' is not linked to a web login (%s)\n", argv[3],
+                    ToriRSServer_AccountPath(argv[3]));
+            return 1;
+        }
+        if( !ToriRSServer_AuthUnlink(argv[3]) )
+            return 1;
+        fprintf(stderr, "torirsserver: '%s' unlinked from '%s'; its password signs it in again\n",
+                argv[3], owner);
+        return 0;
+    }
     return 2;
 }
 
@@ -192,8 +211,9 @@ main(
 
         if( status == 2 )
             fprintf(stderr, "usage: %s --account invite [name]\n"
-                            "       %s --account admin <name> on|off\n",
-                    argv[0], argv[0]);
+                            "       %s --account admin <name> on|off\n"
+                            "       %s --account unlink <name>\n",
+                    argv[0], argv[0], argv[0]);
         return status;
     }
     /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0

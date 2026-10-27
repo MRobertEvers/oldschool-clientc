@@ -28,6 +28,10 @@
  *     password = pbkdf2-sha256$<iterations>$<salt hex>$<key hex>
  *     admin = 1        optional; staff: the jmod crown, and ::commands where
  *                      passwords are checked (ToriRSServer_PlayerMayCheat)
+ *     managed_by = matt   optional; the account is LINKED to that web login
+ *                      (ToriRSServer_AuthLink) and its password no longer signs
+ *                      it in -- see "Linked player accounts" below
+ *     link_hash = <64 hex>   with managed_by: SHA-256 of the link token
  *
  * A separate file rather than a key in the character save, because the save
  * is rewritten from the player struct on every logout and is hand-edited, and
@@ -52,6 +56,23 @@
  * issues as a cookie and torirsserver requires on the game WebSocket, so the
  * socket is as closed as the page and the two processes share a key file and
  * nothing else.
+ *
+ * **Linked player accounts.** A web login may take player accounts under it:
+ * on the gate's `/account/link` the visitor proves the player account is theirs
+ * with its password (a gate session alone must never be able to take a name),
+ * and the link mints a random LINK TOKEN: the web login's links database
+ * (`<saves>/gate/links.sqlite`, io_gate_links.c) keeps the token, and the
+ * record gains `managed_by = <web login>` and `link_hash = SHA-256(token)`.
+ * From then on the account signs in only through that login: io_server's
+ * `/account/play` presents the stored token for the ticket's login, and a
+ * one-time login is minted only when the record names that login AND the
+ * token hashes to its link_hash (ToriRSServer_AuthLinkVerify). So an account
+ * has exactly one owner and one live link -- linking it again, even by its
+ * owner, mints a new token and the old one is dead -- and its password, its
+ * refresh tokens (revoked when it is linked) and every other login are
+ * refused. `torirsserver --account unlink <name>` clears both keys and gives
+ * the account its password back; the database's row then fails the check and
+ * is dropped.
  *
  * PBKDF2-HMAC-SHA256 on the SHA-256 the login handshake already carries
  * (src/net/sha256.c); the iteration count is stored per record, so raising
@@ -79,6 +100,9 @@
 #define TORIRSSERVER_AUTH_NAME_MAX 12
 
 #define TORIRSSERVER_INVITE_CODE_BYTES 16
+/* A link token: 32 random bytes as hex. The record keeps its SHA-256 (also 64
+ * hex); the owner's links database keeps the token. */
+#define TORIRSSERVER_LINK_TOKEN_HEX 64
 
 #define TORIRSSERVER_GATE_KEY_BYTES 32
 /* The cookie io_server sets and torirsserver reads off the upgrade request. */
@@ -100,6 +124,9 @@ enum ToriRSServerAuthResult
     /** The name had no record and this password breaks the rules, so it was
      *  not claimed; nothing was written. */
     TORIRSSERVER_AUTH_WEAK,
+    /** The password matched, but the account is linked to a web login
+     *  (`managed_by`) and signs in only through that login's session. */
+    TORIRSSERVER_AUTH_MANAGED,
 };
 
 /**
@@ -145,6 +172,60 @@ int
 ToriRSServer_AuthSetAdmin(
     const char* display_name,
     int admin);
+
+/**
+ * The web login a player account is linked to, as it is keyed, into
+ * `out_user`. 1 when it is linked; 0 when it is not or has no record; -1 when
+ * the record cannot be read, which every caller must treat as a refusal.
+ */
+int
+ToriRSServer_AuthManagedBy(
+    const char* display_name,
+    char* out_user,
+    size_t cap);
+
+enum ToriRSServerLinkResult
+{
+    /** Linked to `user` now (or already was). */
+    TORIRSSERVER_LINK_OK,
+    /** Wrong password, an unusable name, or an unreadable record. */
+    TORIRSSERVER_LINK_REFUSED,
+    /** No record, and the password breaks the rules, so the name was not
+     *  claimed. */
+    TORIRSSERVER_LINK_WEAK,
+    /** The account is linked to a different web login: one owner only. */
+    TORIRSSERVER_LINK_OTHER_USER,
+    TORIRSSERVER_LINK_WRITE_FAILED,
+};
+
+/**
+ * Link the player account `display_name` to the web login `user`, the
+ * account's own `password` proving it is the linker's, and mint the link's
+ * token into `out_token` (OK only) for the caller to keep: the record holds
+ * only its hash. A name with no record is claimed under the password rules and
+ * linked in the same write; an account linked to `user` already is re-linked
+ * with a new token. Only the record changes here; revoking the account's
+ * refresh tokens is the caller's (ToriRSServer_OAuthRevokeAccount).
+ */
+enum ToriRSServerLinkResult
+ToriRSServer_AuthLink(
+    const char* display_name,
+    const char* password,
+    const char* user,
+    char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1]);
+
+/** 1 when the account `display_name` is linked to the web login `user` (as
+ *  keyed) and `link_token` is its live link's token. */
+int
+ToriRSServer_AuthLinkVerify(
+    const char* display_name,
+    const char* user,
+    const char* link_token);
+
+/** Clear `managed_by`, so the account's own password signs it in again. 0
+ *  when there is no usable record or it could not be rewritten. */
+int
+ToriRSServer_AuthUnlink(const char* display_name);
 
 /**
  * Write an invite: `<saves>/gate/invites/<code>.ini`, redeemed at the gate's

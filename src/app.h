@@ -176,6 +176,10 @@ enum AppDebugHotkey
 };
 
 /* Enable checkbox plus config rows, across every plugin the panel shows. */
+/* Play Now cards the title has room for; the device may hold more
+ * (RS_ACCOUNTS_MAX), and the most recently played are the ones shown. */
+#define APP_TITLE_ACCOUNT_CARDS 4
+
 #define APP_PLUGIN_PANEL_ROWS_MAX 320
 /** What one chrome widget in the plugin window edits. */
 enum AppPluginRowKind
@@ -1976,6 +1980,27 @@ struct App
     int accounts_shown;
     struct RS_AccountSignIn signin;
     int signin_busy;
+    /**
+     * The site session (the gate's web login, the "user account") and the
+     * player accounts linked under it, asked of the account server once at
+     * boot (CreateTask_SiteSessionLoad). Linked accounts are Play Now cards
+     * ahead of the device's own; a password-form login while signed in asks
+     * to link first (RS_TITLE_LINK_PROMPT).
+     */
+    struct RS_SiteSession site;
+    int site_load_started;
+    /** Set by the task when the account server answered (or did not). */
+    int site_loaded;
+    int site_shown;
+    /** What each Play Now card plays, in card order: a linked account
+     *  (`site` 1, an index into site.players) or one of the device's
+     *  (`site` 0, into accounts). Built by app_title_layout_accounts. */
+    struct
+    {
+        int site;
+        int index;
+    } title_cards[APP_TITLE_ACCOUNT_CARDS];
+    int title_card_count;
     /** What the page's password-manager form was last told
      *  (App_TakeCredentialForm). */
     struct PlatformCredentialForm credential_form_sent;

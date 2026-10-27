@@ -4,6 +4,7 @@
 #include "game/rs_accounts.h"
 
 #include "mem/torirs_mem.h"
+#include "net/flat_json.h"
 
 #include <assert.h>
 #include <ctype.h>
@@ -214,4 +215,79 @@ RS_Accounts_Encode(
     assert(used < cap);
     *out_data = text;
     *out_size = used;
+}
+
+void
+RS_SiteSession_Decode(
+    struct RS_SiteSession* site,
+    char const* json,
+    int size)
+{
+    char players[RS_ACCOUNTS_MAX * RS_ACCOUNTS_NAME_LEN];
+    char const* scan;
+
+    assert(site);
+    assert(json);
+    assert(size >= 0);
+    memset(site, 0, sizeof(*site));
+    if( !FlatJson_String(json, (size_t)size, "user", site->user, sizeof(site->user)) ||
+        !site->user[0] )
+    {
+        site->user[0] = '\0';
+        return;
+    }
+    site->signed_in = 1;
+    if( !FlatJson_String(json, (size_t)size, "players", players, sizeof(players)) )
+        return;
+    scan = players;
+    while( *scan )
+    {
+        size_t len = strcspn(scan, "\n");
+
+        if( len > 0 && len < RS_ACCOUNTS_NAME_LEN && site->count < RS_ACCOUNTS_MAX )
+        {
+            memcpy(site->players[site->count], scan, len);
+            site->players[site->count][len] = '\0';
+            site->count++;
+        }
+        scan += len;
+        if( *scan == '\n' )
+            scan++;
+    }
+}
+
+int
+RS_SiteSession_Find(
+    struct RS_SiteSession const* site,
+    char const* name)
+{
+    char want[RS_ACCOUNTS_NAME_LEN];
+
+    assert(site);
+    assert(name);
+    account_key(name, want, sizeof(want));
+    if( !want[0] )
+        return -1;
+    for( int i = 0; i < site->count; i++ )
+    {
+        char have[RS_ACCOUNTS_NAME_LEN];
+
+        account_key(site->players[i], have, sizeof(have));
+        if( strcmp(have, want) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+void
+RS_SiteSession_Add(
+    struct RS_SiteSession* site,
+    char const* name)
+{
+    assert(site);
+    assert(name && name[0]);
+    if( RS_SiteSession_Find(site, name) >= 0 || site->count == RS_ACCOUNTS_MAX )
+        return;
+    snprintf(site->players[site->count], sizeof(site->players[0]), "%s", name);
+    site->count++;
 }

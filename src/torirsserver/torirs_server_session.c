@@ -754,7 +754,7 @@ step_login(
 
         memset(pass, 0, sizeof(pass));
         if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE ||
-            auth == TORIRSSERVER_AUTH_WEAK )
+            auth == TORIRSSERVER_AUTH_WEAK || auth == TORIRSSERVER_AUTH_MANAGED )
         {
             uint8_t refused = OSRS_LOGINRES_INVALID_USER_OR_PASS;
 
@@ -764,6 +764,8 @@ step_login(
                                                               : "wrong password")
                     : auth == TORIRSSERVER_AUTH_WEAK
                         ? "no account, and the password breaks the rules, so it was not claimed"
+                    : auth == TORIRSSERVER_AUTH_MANAGED
+                        ? "the account is linked to a site login; it signs in only through it"
                         : "unusable name or empty password");
             /* 3 is "invalid username or password" at 230 and 239 alike. */
             ToriRSServer_SessionSend(session, &refused, 1);

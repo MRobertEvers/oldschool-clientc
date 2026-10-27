@@ -46,6 +46,12 @@ _Static_assert(
 _Static_assert(
     (int)RS_TITLE_ACTION_SHOW_ACCOUNTS == (int)UITREE_TITLE_ACTION_SHOW_ACCOUNTS,
     "title action show_accounts");
+_Static_assert(
+    (int)RS_TITLE_ACTION_LINK_ACCOUNT == (int)UITREE_TITLE_ACTION_LINK_ACCOUNT,
+    "title action link_account");
+_Static_assert(
+    (int)RS_TITLE_ACTION_PLAIN_LOGIN == (int)UITREE_TITLE_ACTION_PLAIN_LOGIN,
+    "title action plain_login");
 
 void
 RS_Title_Init(struct RS_Title* title)
@@ -343,6 +349,16 @@ RS_Title_HandleAction(
         RS_Title_SetScreen(title, RS_TITLE_ACCOUNTS);
         return 1;
 
+    /* Answered once: a second click while the first is being acted on is
+     * nothing, and neither is a click on a prompt that is not up. */
+    case RS_TITLE_ACTION_LINK_ACCOUNT:
+    case RS_TITLE_ACTION_PLAIN_LOGIN:
+        if( title->screen != RS_TITLE_LINK_PROMPT || title->link_choice != RS_TITLE_LINK_NONE )
+            return 0;
+        title->link_choice =
+            action == RS_TITLE_ACTION_LINK_ACCOUNT ? RS_TITLE_LINK_LINK : RS_TITLE_LINK_LOG_IN;
+        return 1;
+
     case RS_TITLE_ACTION_FOCUS_USERNAME:
         if( title->focus == RS_TITLE_FIELD_USERNAME )
             return 0;
@@ -404,5 +420,9 @@ RS_Title_ActionFromName(char const* name)
         return RS_TITLE_ACTION_OTHER_ACCOUNT;
     if( strcmp(name, "show_accounts") == 0 )
         return RS_TITLE_ACTION_SHOW_ACCOUNTS;
+    if( strcmp(name, "link_account") == 0 )
+        return RS_TITLE_ACTION_LINK_ACCOUNT;
+    if( strcmp(name, "plain_login") == 0 )
+        return RS_TITLE_ACTION_PLAIN_LOGIN;
     return RS_TITLE_ACTION_NONE;
 }

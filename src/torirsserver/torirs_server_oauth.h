@@ -36,7 +36,11 @@
  * OTLs are one-use records under `<saves>/oauth/codes/` and `otl/`.
  *
  * Everything here is a PLAYER account (torirs_server_auth.h), not the gate's
- * web login: the gate only decides who may reach these endpoints at all.
+ * web login: the gate only decides who may reach these endpoints at all --
+ * except a player account LINKED to a web login (`managed_by`), which none of
+ * the grants above will sign in: its one-time login comes from its owner's
+ * gate session instead (ToriRSServer_OAuthUserPlay, the gate's /account/play),
+ * and the OTL remembers which login minted it.
  */
 
 #include <stddef.h>
@@ -54,6 +58,10 @@
 #define TORIRSSERVER_OAUTH_OTL_SECONDS 60
 
 #define TORIRSSERVER_OAUTH_TOKEN_MAX 1024
+/* The error_description a linked account's password or token gets. */
+#define TORIRSSERVER_OAUTH_MANAGED_DESCRIPTION \
+    "This account is linked to a site login. Sign in to the site and press its Play Now."
+
 /* An id, code or OTL: 16 random bytes as hex. */
 #define TORIRSSERVER_OAUTH_ID_HEX 32
 
@@ -165,8 +173,34 @@ ToriRSServer_OAuthPlay(
     char* out_name,
     size_t cap);
 
+/**
+ * A one-time login for the LINKED player account `display_name`, minted on the
+ * session of the web login `user` (as keyed: the gate ticket's name) with the
+ * link token its links database holds. Only when the record says
+ * `managed_by = <user>` and the token hashes to its `link_hash`
+ * (ToriRSServer_AuthLinkVerify); INVALID_GRANT otherwise. `out_name` gets the
+ * display name.
+ */
+enum ToriRSServerOAuthError
+ToriRSServer_OAuthUserPlay(
+    const char* user,
+    const char* display_name,
+    const char* link_token,
+    long long now,
+    char out_otl[TORIRSSERVER_OAUTH_ID_HEX + 1],
+    char* out_name,
+    size_t cap);
+
+/** Revoke every refresh token family of the player account `display_name`:
+ *  what a link does, so no device's saved Play Now outlives it. */
+void
+ToriRSServer_OAuthRevokeAccount(
+    const char* display_name,
+    long long now);
+
 /** torirsserver's side: 1 when `otl` is an unexpired one-time login token for
- *  `display_name` (as the account is keyed). It is spent either way. */
+ *  `display_name` (as the account is keyed) -- and, when the account is
+ *  linked, one its owner's session minted. It is spent either way. */
 int
 ToriRSServer_OAuthRedeemOtl(
     const char* otl,

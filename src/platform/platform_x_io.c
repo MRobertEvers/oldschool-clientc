@@ -817,6 +817,13 @@ answer_auth_item(struct ToriRS_IOItem* item)
         route = "/game/play";
     else if( strcmp(endpoint, "revoke") == 0 )
         route = "/oauth/revoke";
+    /* The gate session's own player accounts (io_gate.h /account). */
+    else if( strcmp(endpoint, "user") == 0 )
+        route = "/account/players";
+    else if( strcmp(endpoint, "link") == 0 )
+        route = "/account/link";
+    else if( strcmp(endpoint, "userplay") == 0 )
+        route = "/account/play";
     if( !route || !base || strncmp(base, "http://", 7) != 0 )
     {
         TORIRS_LOG("io: no account server for '%s' (set TORIRS_AUTH_URL=http://host:port)\n",

@@ -117,6 +117,42 @@ test_flat_json(void)
                 "json: an unterminated string is refused");
 }
 
+/* The gate's /account/players answer: a web login and its linked players. */
+static void
+test_site_session(void)
+{
+    static char const body[] = "{\"user\":\"matt\",\"players\":\"Matt\\nSecond Account\"}";
+    struct RS_SiteSession site;
+
+    RS_SiteSession_Decode(&site, body, (int)strlen(body));
+    TEST_ASSERT(site.signed_in && strcmp(site.user, "matt") == 0, "site: the web login is read");
+    TEST_ASSERT(site.count == 2 && strcmp(site.players[0], "Matt") == 0 &&
+                    strcmp(site.players[1], "Second Account") == 0,
+                "site: the players split on newlines");
+    TEST_ASSERT(RS_SiteSession_Find(&site, "second_account") == 1,
+                "site: find folds as the server keys accounts");
+    RS_SiteSession_Add(&site, "MATT");
+    TEST_ASSERT(site.count == 2, "site: a linked player is not added twice");
+    RS_SiteSession_Add(&site, "Third");
+    TEST_ASSERT(site.count == 3 && RS_SiteSession_Find(&site, "third") == 2,
+                "site: a new link joins the end");
+
+    {
+        static char const empty[] = "{\"user\":\"matt\",\"players\":\"\"}";
+
+        RS_SiteSession_Decode(&site, empty, (int)strlen(empty));
+    }
+    TEST_ASSERT(site.signed_in && site.count == 0, "site: signed in with nothing linked");
+    {
+        static char const refused[] = "{\"error\":\"invalid_request\"}";
+
+        RS_SiteSession_Decode(&site, refused, (int)strlen(refused));
+    }
+    TEST_ASSERT(!site.signed_in && site.count == 0, "site: an error body is not a session");
+    RS_SiteSession_Decode(&site, "", 0);
+    TEST_ASSERT(!site.signed_in, "site: nor is nothing");
+}
+
 int
 main(void)
 {
@@ -124,6 +160,7 @@ main(void)
     test_remember_and_forget();
     test_round_trip();
     test_flat_json();
+    test_site_session();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s) of %d check(s)\n", g_failures, g_checks);
