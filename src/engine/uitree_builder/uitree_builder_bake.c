@@ -695,7 +695,7 @@ push_builtin_op(
      * thousands of them into the tree's by-id lookups for no reader.
      */
     if( spec.component_id < 0 && !is_iface_mount &&
-        (op->option[0] != '\0' || op->over_color != 0) )
+        (op->option[0] != '\0' || op->over_color != 0 || op->sprite_hover_ref[0] != '\0') )
         spec.component_id = TORIRS_REVCONFIG_ID_BASE + builder->authored_id_next++;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
@@ -725,12 +725,21 @@ push_builtin_op(
     int atlas_index = 0;
     int sprite_active_id = -1;
     int atlas_active = 0;
+    int sprite_hover_id = -1;
+    int atlas_hover = 0;
+    int sprite_active_hover_id = -1;
+    int atlas_active_hover = 0;
 
     if( op->sprite_ref[0] )
         sprite_id = resolve_sprite_required(builder, op->sprite_ref, &atlas_index);
     if( op->sprite_active_ref[0] )
         sprite_active_id =
             resolve_sprite_required(builder, op->sprite_active_ref, &atlas_active);
+    if( op->sprite_hover_ref[0] )
+        sprite_hover_id = resolve_sprite_required(builder, op->sprite_hover_ref, &atlas_hover);
+    if( op->sprite_active_hover_ref[0] )
+        sprite_active_hover_id =
+            resolve_sprite_required(builder, op->sprite_active_hover_ref, &atlas_active_hover);
 
     struct UITreeBehavior behavior;
     memset(&behavior, 0, sizeof(behavior));
@@ -852,6 +861,10 @@ push_builtin_op(
         spec.u.login_toggle.atlas_index = atlas_index;
         spec.u.login_toggle.scene_id_on = sprite_active_id;
         spec.u.login_toggle.atlas_index_on = atlas_active;
+        spec.u.login_toggle.scene_id_hover = sprite_hover_id;
+        spec.u.login_toggle.atlas_index_hover = atlas_hover;
+        spec.u.login_toggle.scene_id_on_hover = sprite_active_hover_id;
+        spec.u.login_toggle.atlas_index_on_hover = atlas_active_hover;
         spec.u.login_toggle.action = RS_Title_ActionFromName(op->title_action);
         /* Same reasoning as the button's: an unresolved action= is a widget
          * that sits there eating clicks and doing nothing. */

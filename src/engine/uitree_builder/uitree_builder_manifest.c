@@ -314,6 +314,11 @@ fill_tree_op_from_component(
     op->componentno = uibuilder_uicomponent_iface_id(comp, root_interface_id);
     strncpy(op->sprite_ref, comp->sprite, sizeof(op->sprite_ref) - 1);
     strncpy(op->sprite_active_ref, comp->sprite_active, sizeof(op->sprite_active_ref) - 1);
+    strncpy(op->sprite_hover_ref, comp->sprite_hover, sizeof(op->sprite_hover_ref) - 1);
+    strncpy(
+        op->sprite_active_hover_ref,
+        comp->sprite_active_hover,
+        sizeof(op->sprite_active_hover_ref) - 1);
     strncpy(op->inv_name, comp->inv, sizeof(op->inv_name) - 1);
     op->font = comp->font;
     op->ink_style = comp->ink_style;

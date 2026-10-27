@@ -175,6 +175,11 @@ find_hovered_recursive(
                  UITree_Hooks(component)->on_mouse_leave.script_id > 0 ||
                  UITree_Hooks(component)->on_mouse_repeat.script_id > 0 )
             candidate = component->component_id;
+        /* A login checkbox with hover art: the deob swaps the plate while the
+         * pointer is inside the box (class56.field472/473). */
+        else if( component->type == UIELEM_BUILTIN_LOGIN_TOGGLE &&
+                 component->u.login_toggle.scene_id_hover > 0 )
+            candidate = component->component_id;
     }
 
     if( ordered->items )

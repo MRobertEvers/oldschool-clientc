@@ -99,6 +99,8 @@ struct UIBuilderTreeOp
     int componentno;
     char sprite_ref[64];
     char sprite_active_ref[64];
+    char sprite_hover_ref[64];
+    char sprite_active_hover_ref[64];
     char inv_name[64];
     char font_ref[64];
     int font;

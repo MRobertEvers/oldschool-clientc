@@ -167,6 +167,8 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_ANCHOR_Y,
     RCFIELD_UICOMPONENT_TABNO,
     RCFIELD_UICOMPONENT_SPRITE_ACTIVE,
+    RCFIELD_UICOMPONENT_SPRITE_HOVER,
+    RCFIELD_UICOMPONENT_SPRITE_ACTIVE_HOVER,
     RCFIELD_UICOMPONENT_COMPONENTNO,
     RCFIELD_UICOMPONENT_INV,
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
@@ -802,6 +804,13 @@ struct RevConfigUIComponentItem
      * Alternate sprite for pressed/hover state (redstone_tab, rs_graphic).
      */
     char sprite_active[64];
+
+    /*
+     * INI: sprite_hover= / sprite_active_hover=
+     * The off and on art while the pointer is over the box (login_toggle).
+     */
+    char sprite_hover[64];
+    char sprite_active_hover[64];
 
     /*
      * INI: inv=

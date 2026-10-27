@@ -1176,6 +1176,14 @@ struct UITreeComponent
             int atlas_index;
             int scene_id_on;
             int atlas_index_on;
+            /** The same two while the pointer is over the box -- the deob's
+             *  options_radio_buttons,4 and ,6. -1 when the profile declares
+             *  no sprite_hover / sprite_active_hover: the plate then does not
+             *  change under the pointer, and the node is not a hover target. */
+            int scene_id_hover;
+            int atlas_index_hover;
+            int scene_id_on_hover;
+            int atlas_index_on_hover;
             /** Resolved RS_TitleAction (one of the toggle members). */
             int action;
             /** Resolved RS_TitleToggle: which checkbox to ask the host about. */
@@ -1998,6 +2006,10 @@ struct UITreeNodeSpec
             int atlas_index;
             int scene_id_on;
             int atlas_index_on;
+            int scene_id_hover;
+            int atlas_index_hover;
+            int scene_id_on_hover;
+            int atlas_index_on_hover;
             int action;
             int toggle;
             int song;

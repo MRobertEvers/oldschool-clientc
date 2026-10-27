@@ -574,6 +574,10 @@ push_field_from_ini_kv(
         kind = RCFIELD_INV_ITEM;
     else if( strcmp(key, "sprite_active") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE_ACTIVE;
+    else if( strcmp(key, "sprite_hover") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SPRITE_HOVER;
+    else if( strcmp(key, "sprite_active_hover") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_SPRITE_ACTIVE_HOVER;
     else if( strcmp(key, "left") == 0 )
         kind = RCFIELD_UILAYOUT_LEFT;
     else if( strcmp(key, "top") == 0 )

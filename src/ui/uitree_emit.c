@@ -995,6 +995,18 @@ UITree_EmitFill(
             scene_id = component->u.login_toggle.scene_id_on;
             atlas_index = component->u.login_toggle.atlas_index_on;
         }
+        /* Under the pointer, the hover twin of whichever plate that is: the
+         * deob's method9360 picks one of four frames by (on, hovered). */
+        if( hovered && on && component->u.login_toggle.scene_id_on_hover > 0 )
+        {
+            scene_id = component->u.login_toggle.scene_id_on_hover;
+            atlas_index = component->u.login_toggle.atlas_index_on_hover;
+        }
+        else if( hovered && !on && component->u.login_toggle.scene_id_hover > 0 )
+        {
+            scene_id = component->u.login_toggle.scene_id_hover;
+            atlas_index = component->u.login_toggle.atlas_index_hover;
+        }
         if( scene_id <= 0 )
             return false;
         out->kind = UITREE_EMIT_SPRITE;

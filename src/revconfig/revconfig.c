@@ -780,6 +780,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_TABNO";
     case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         return "RCFIELD_UICOMPONENT_SPRITE_ACTIVE";
+    case RCFIELD_UICOMPONENT_SPRITE_HOVER:
+        return "RCFIELD_UICOMPONENT_SPRITE_HOVER";
+    case RCFIELD_UICOMPONENT_SPRITE_ACTIVE_HOVER:
+        return "RCFIELD_UICOMPONENT_SPRITE_ACTIVE_HOVER";
     case RCFIELD_UICOMPONENT_COMPONENTNO:
         return "RCFIELD_UICOMPONENT_COMPONENTNO";
     case RCFIELD_UICOMPONENT_INV:
@@ -1585,6 +1589,12 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         strncpy(comp->sprite_active, value, sizeof(comp->sprite_active) - 1);
+        break;
+    case RCFIELD_UICOMPONENT_SPRITE_HOVER:
+        strncpy(comp->sprite_hover, value, sizeof(comp->sprite_hover) - 1);
+        break;
+    case RCFIELD_UICOMPONENT_SPRITE_ACTIVE_HOVER:
+        strncpy(comp->sprite_active_hover, value, sizeof(comp->sprite_active_hover) - 1);
         break;
     case RCFIELD_UICOMPONENT_COMPONENTNO:
         comp->componentno = revconfig_parse_int(value);
