@@ -103,6 +103,12 @@ struct ToriRS_Network
     char host[128];
     char username[64];
     char password[64];
+    /**
+     * What `password` is: 0, a password, or 2, a one-time login token from
+     * the play endpoint (the deob's class660.field7035; torirs_server_oauth.h).
+     * The login block carries it as the auth type. Set by the connect call.
+     */
+    int login_auth_type;
 
     /** What the login block says this client is: the revision-239 login
      *  header's clientType / platformType (rsprot LoginClientType /
@@ -168,6 +174,19 @@ ToriRS_Network_SetSeedFn(
     struct ToriRS_Network* net,
     loginproto_seed_fn seed_fn,
     void* user);
+
+/**
+ * Begin the login handshake as ToriRS_Network_ConnectLogin does, with a
+ * one-time login token in place of the password: the block says auth type
+ * TOKEN, and the server spends the token instead of checking a password.
+ * Revisions whose login has no auth type (pre-OSRS) send it as a password.
+ */
+void
+ToriRS_Network_ConnectLoginToken(
+    struct ToriRS_Network* net,
+    char const* host,
+    char const* username,
+    char const* token);
 
 /** Begin the login handshake: enter LOGIN and push a CONNECT to `out`. */
 void

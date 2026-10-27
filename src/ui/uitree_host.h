@@ -529,6 +529,8 @@ struct UITreeHostRequest
         {
             /** Resolved RS_TitleAction. */
             int action;
+            /** The button's index= (which account a Play Now plays). */
+            int index;
         } title_action;
         struct
         {

@@ -324,6 +324,57 @@ test_action_names(void)
         RS_Title_ActionFromName("nonsense") == RS_TITLE_ACTION_NONE, "an unknown action is none");
 }
 
+/* The accounts screen: home once the app says there are accounts, Play Now
+ * with its index, "another account" to an empty form, the icon back. */
+static void
+test_accounts_screen(void)
+{
+    struct RS_Title title;
+
+    RS_Title_Init(&title);
+    TEST_ASSERT(title.home == RS_TITLE_MAIN_MENU, "home starts as the front menu");
+    TEST_ASSERT(title.play_requested == -1, "no Play Now pending");
+    TEST_ASSERT(!RS_Title_PlayAccount(&title, 0), "Play Now off the accounts screen is ignored");
+
+    RS_Title_SetHome(&title, RS_TITLE_ACCOUNTS);
+    TEST_ASSERT(title.screen == RS_TITLE_ACCOUNTS, "a new home moves a screen showing the old one");
+    TEST_ASSERT(RS_Title_PlayAccount(&title, 2) && title.play_requested == 2,
+                "Play Now asks for its account");
+    TEST_ASSERT(!RS_Title_PlayAccount(&title, 1) && title.play_requested == 2,
+                "a second press while one is pending is ignored");
+    title.play_requested = -1;
+
+    RS_Title_SetFieldText(&title, RS_TITLE_FIELD_USERNAME, "someone");
+    TEST_ASSERT(RS_Title_HandleAction(&title, RS_TITLE_ACTION_OTHER_ACCOUNT) &&
+                    title.screen == RS_TITLE_LOGIN_FORM,
+                "another account opens the form");
+    TEST_ASSERT(RS_Title_FieldText(&title, RS_TITLE_FIELD_USERNAME)[0] == '\0',
+                "empty: it is a different account");
+    type_string(&title, "bob");
+    press(&title, TORIRS_OSRSKEY_ENTER);
+    type_string(&title, "pw");
+    TEST_ASSERT(RS_Title_HandleAction(&title, RS_TITLE_ACTION_SHOW_ACCOUNTS) &&
+                    title.screen == RS_TITLE_ACCOUNTS,
+                "the account icon goes back to the accounts");
+    TEST_ASSERT(RS_Title_FieldText(&title, RS_TITLE_FIELD_PASSWORD)[0] == '\0',
+                "and drops the half-typed password");
+
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_OTHER_ACCOUNT);
+    press(&title, TORIRS_OSRSKEY_ESCAPE);
+    TEST_ASSERT(title.screen == RS_TITLE_ACCOUNTS, "escape returns home, the accounts");
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_OTHER_ACCOUNT);
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_CANCEL);
+    TEST_ASSERT(title.screen == RS_TITLE_ACCOUNTS, "so does cancel");
+
+    RS_Title_SetHome(&title, RS_TITLE_MAIN_MENU);
+    TEST_ASSERT(title.screen == RS_TITLE_MAIN_MENU,
+                "with the last account forgotten, home is the front menu again");
+    TEST_ASSERT(RS_Title_ActionFromName("play_account") == RS_TITLE_ACTION_PLAY_ACCOUNT &&
+                    RS_Title_ActionFromName("other_account") == RS_TITLE_ACTION_OTHER_ACCOUNT &&
+                    RS_Title_ActionFromName("show_accounts") == RS_TITLE_ACTION_SHOW_ACCOUNTS,
+                "the account actions resolve");
+}
+
 int
 main(void)
 {
@@ -343,6 +394,7 @@ main(void)
     test_set_field_text_truncates();
     test_messages_and_progress();
     test_action_names();
+    test_accounts_screen();
 
     if( g_failures )
     {

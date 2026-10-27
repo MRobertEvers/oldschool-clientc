@@ -28,6 +28,9 @@ typedef char* (*PlatformX_IO_LaunchAnswerFn)(
     void* context, char const* verb, char const* body, int body_size, int* out_size);
 void PlatformX_IO_SetLaunchAnswer(PlatformX_IO_LaunchAnswerFn answer, void* context);
 
+/* The account server's items (game/task_accounts_io.h; see answer_auth_item). */
+#define PLATFORM_X_IO_AUTH_PREFIX "auth/"
+
 
 #include <assert.h>
 #include <rscache.h>
@@ -769,6 +772,87 @@ answer_launch_item(struct ToriRS_IOItem* item)
 }
 
 /*
+ * THE ACCOUNT SERVER'S ITEMS (game/task_accounts_io.h).
+ *
+ * A SCRIPT item whose path is `auth/<endpoint>`, lending a form body exactly
+ * as a launch item does, answered with the response's JSON in place of the
+ * body. The browser posts these to its own origin and the gate's cookie rides
+ * along by itself; a desktop client has no origin and no cookie jar, so both
+ * are named in the environment:
+ *
+ *   TORIRS_AUTH_URL      http://host:port of io_server with --gate
+ *   TORIRS_GATE_COOKIE   the gate's ticket (torirs_gate=... or just the value)
+ *
+ * Without TORIRS_AUTH_URL the item is refused, which the sign-in reports as
+ * "unable to reach the login server" -- this client has no account server to
+ * ask. Plain http only: the desktop transport has no TLS, so this is for a
+ * gate on the LAN, never the public one.
+ */
+static int
+item_is_auth(struct ToriRS_IOItem const* item)
+{
+    return item->kind == TORIRS_IOK_SCRIPT &&
+           strncmp(item->u.script.path, PLATFORM_X_IO_AUTH_PREFIX,
+                   sizeof(PLATFORM_X_IO_AUTH_PREFIX) - 1) == 0;
+}
+
+static int
+answer_auth_item(struct ToriRS_IOItem* item)
+{
+    char const* endpoint = item->u.script.path + sizeof(PLATFORM_X_IO_AUTH_PREFIX) - 1;
+    char const* base = getenv("TORIRS_AUTH_URL");
+    char const* cookie_env = getenv("TORIRS_GATE_COOKIE");
+    char const* route = NULL;
+    char host[256];
+    char cookie[512];
+    int port = 80;
+    int status = 0;
+    int size = 0;
+    char* answer;
+
+    assert(item->data_size >= 0);
+    if( strcmp(endpoint, "token") == 0 )
+        route = "/oauth/token";
+    else if( strcmp(endpoint, "play") == 0 )
+        route = "/game/play";
+    else if( strcmp(endpoint, "revoke") == 0 )
+        route = "/oauth/revoke";
+    if( !route || !base || strncmp(base, "http://", 7) != 0 )
+    {
+        TORIRS_LOG("io: no account server for '%s' (set TORIRS_AUTH_URL=http://host:port)\n",
+                   item->u.script.path);
+        item->data = NULL;
+        item->data_size = 0;
+        item->error_code = -1;
+        return -1;
+    }
+    snprintf(host, sizeof(host), "%s", base + 7);
+    {
+        char* colon = strchr(host, ':');
+        char* slash = strchr(host, '/');
+
+        if( slash )
+            *slash = '\0';
+        if( colon )
+        {
+            *colon = '\0';
+            port = atoi(colon + 1);
+        }
+    }
+    cookie[0] = '\0';
+    if( cookie_env && cookie_env[0] )
+        snprintf(cookie, sizeof(cookie), "%s%s", strchr(cookie_env, '=') ? "" : "torirs_gate=",
+                 cookie_env);
+    answer = PlatformX_HttpPostForm(host, port, route, cookie[0] ? cookie : NULL,
+                                    (char const*)item->data, item->data_size, &size, &status);
+    /* The body was lent; the answer replaces it or nothing does. */
+    item->data = answer;
+    item->data_size = answer ? size : 0;
+    item->error_code = answer ? 0 : -1;
+    return answer ? 0 : -1;
+}
+
+/*
  * A plugin script, the manifest that names them, or a shipped plugin asset.
  *
  * Nothing to decide here: stored_file_read is local-first and io_server-second
@@ -1412,6 +1496,8 @@ PlatformX_IO_LoadItem(
      * (the launch service's banner above). */
     if( item_is_launch(item) )
         return answer_launch_item(item);
+    if( item_is_auth(item) )
+        return answer_auth_item(item);
     /* A prefetch on a source that answers inside LoadItem is already
      * resident by definition -- the disk is the store -- so every group
      * "landed" without a read. The lent id array stays the caller's. */
@@ -1498,9 +1584,10 @@ PlatformX_IO_Process(
         struct ToriRS_IOItem* item = io->active[i];
 
         /* A write carries its payload in these two fields — see LoadItem —
-         * and a prefetch lends its id array the same way. */
+         * a prefetch lends its id array the same way, and a launch or an
+         * account-server item its request body. */
         if( item->kind != TORIRS_IOK_FILE_WRITE && item->kind != TORIRS_IOK_CACHE_PREFETCH &&
-            !item_is_launch(item) )
+            !item_is_launch(item) && !item_is_auth(item) )
         {
             item->data = NULL;
             item->data_size = 0;

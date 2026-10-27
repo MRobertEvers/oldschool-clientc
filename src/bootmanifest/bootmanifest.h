@@ -285,6 +285,11 @@ struct BootManifest
      * Only the web build looks at these — see BootManifest_ApplyWebEndpoint. */
     char ws_host[128];
     int ws_port;
+    /* `auth=oauth`: players sign in through the account server -- Play Now
+     * for a saved account, OAuth tokens and a one-time login token instead of
+     * a password on the wire (game/task_accounts_io.h). 0 = the password form
+     * as it always was. */
+    int auth_oauth;
     int client_version; /* 0 = unset; login-block only, not cache identity */
     char rsa_exp[512];
     char rsa_mod[512];

@@ -54,6 +54,8 @@ struct LoginOsrs
     struct ToriRS_Network* net;
     char username[64];
     char password[64];
+    /* OSRS_LOGIN_AUTH_PASSWORD or _TOKEN, from net->login_auth_type. */
+    int auth_type;
     enum login_osrs_login_state state;
 
     /* The server's rejection byte, kept so the login screen can say which
@@ -215,7 +217,10 @@ build_login_block(struct LoginOsrs* h)
         /* OTP_NONE, whose four payload bytes the decoder skips without reading. */
         p1(&rbuf, OSRS_LOGIN_OTP_NONE);
         p4(&rbuf, 0);
-        p1(&rbuf, OSRS_LOGIN_AUTH_PASSWORD);
+        /* The deob writes class660.field7035 and the one-time login token
+         * here when it signed in through the launcher, and field7040 and the
+         * password otherwise (client.java's login state machine). */
+        p1(&rbuf, h->auth_type);
         pjstr(&rbuf, h->password, 0);
     }
 
@@ -334,6 +339,7 @@ login_osrs_new(struct ToriRS_Network* net, char const* username, char const* pas
     h->reply_code = -1;
     snprintf(h->username, sizeof(h->username), "%s", username ? username : "");
     snprintf(h->password, sizeof(h->password), "%s", password ? password : "");
+    h->auth_type = net->login_auth_type == 2 ? OSRS_LOGIN_AUTH_TOKEN : OSRS_LOGIN_AUTH_PASSWORD;
     h->state = LOGIN_OSRS_SEND_CONNECT;
     h->local_index = -1;
     /*

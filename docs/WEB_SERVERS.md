@@ -252,3 +252,88 @@ page's directory, so a prefix mount needs no other configuration. This was
 learned the hard way: the first public deployment routed the game socket and
 not JS5, and every cache read came back empty.
 
+
+`--world osrs241` packages the current revision instead (its cache, manifest
+and revconfig); the default is still `osrs239`.
+
+---
+
+## The sign-in gate
+
+A world on the internet runs both servers with `--gate`, and then **nothing on
+either answers without the gate's cookie**:
+
+```sh
+TORIRSSERVER_SAVES=saves torirsserver 43594 --rev osrs241 --gate
+TORIRSSERVER_SAVES=saves io_server --manifest manifests/manifest_osrs241.ini \
+    --root build-web --boot-root . --port 8088 \
+    --gate '/?args=--manifest,manifests/manifest_osrs241.ini&ws=ws'
+```
+
+| server | without a good cookie |
+| --- | --- |
+| io_server, any route | GET: `303 /login`; anything else: `401` |
+| torirsserver, WebSocket upgrade (game and JS5) | `403 Forbidden`, closed |
+| torirsserver, raw TCP | closed at the first byte (no cookie can ride on it) |
+
+io_server serves the gate's own pages, plain HTML with nothing else loaded:
+`/login`, `/invite/<code>` and `/logout` (`src/ioserver/io_gate.c`). Signing
+in sets `torirs_gate=<name>.<expiry>.<hmac>` (30 days, `HttpOnly`,
+`SameSite=Lax`, `Secure` when `X-Forwarded-Proto: https`) and lands on the
+URL given to `--gate`. torirsserver reads the same cookie off the upgrade
+request; the two processes share only the key, `<saves>/gate/gate.key`, which
+whichever starts first writes.
+
+**Two accounts, unrelated.** The gate's login is a *web login*, kept in
+`<saves>/gate/<name>.ini` and made only from an invite:
+
+```sh
+TORIRSSERVER_SAVES=saves TORIRSSERVER_GATE_URL=https://torirs.example.com \
+    torirsserver --account invite [name]      # prints the link; one use
+```
+
+Past the page, the game asks for a *player account* (`<saves>/accounts/`) the
+usual way: the first login claims a name. Both are held to the same password
+rules -- 8 to 20 characters, a letter and a digit, no spaces, not one character
+repeated, not containing the name (`ToriRSServer_AuthPasswordProblem`). Five
+wrong passwords for one web login lock it for ten minutes.
+
+**Staff.** `torirsserver --account admin <name> on` sets `admin = 1` on a
+player account; the next login is staff level 2 -- the Jagex moderator's gold
+crown on public chat and private messages, and permission to cheat. Wherever
+passwords are checked, a `::command` (CLIENT_CHEAT) or a world-map click
+teleport from anyone else is refused and logged (`ToriRSServer_PlayerMayCheat`).
+A development server lets everyone cheat, since a name proves nothing there.
+
+### Player accounts over OAuth: Play Now
+
+Behind the gate, io_server is also the account server for PLAYER accounts
+(`src/torirsserver/torirs_server_oauth.h`), and every endpoint needs the gate
+cookie like everything else:
+
+| route | what it does |
+| --- | --- |
+| `POST /oauth/token` | RFC 6749: `grant_type=password`, `refresh_token` (rotating; a reused one revokes its family) or `authorization_code` (PKCE S256 only). Public client `torirs-client`, scope `gamesso.token.create`. Answers JWT access (10 min) and refresh (30 days) tokens, HS256 under `<saves>/oauth/signing.key`. |
+| `GET\|POST /oauth/authorize` | The code flow's player-account sign-in page, then a redirect to a same-origin path or a loopback URI with `?code=&state=`. |
+| `POST /oauth/revoke` | RFC 7009. |
+| `POST /game/play` | The deob's play call: a Bearer access token (header or `access_token=`) for `{"token": <one-time login>}`, good for 60 s. |
+| `GET /.well-known/oauth-authorization-server` | RFC 8414 metadata. |
+
+The game never sees a JWT. As in the deob's launcher login, the client trades
+its access token at `/game/play` for a one-time login token and sends THAT in
+the login block's RSA section with auth type TOKEN; torirsserver spends it
+(`ToriRSServer_OAuthRedeemOtl`). A 1024-bit RSA block has no room for a JWT, and
+the deob does not try.
+
+A world whose manifest says `[net:boot] auth=oauth` (package:
+`--auth oauth`) opens on the device's saved accounts, one Play Now card each,
+laid out by count (`app_title_layout_accounts`); "Log in with another account"
+opens the password form, which then signs in with the password grant (a new
+name is claimed there, under the password rules), and the account icon in the
+form's corner goes back to the cards. The accounts file (`TORIRS_ACCOUNTS`,
+default `accounts.ini`) is the client's own and travels as FILE_READ/WRITE, so
+on the browser it lives in IndexedDB. The client's requests are SCRIPT items
+named `auth/token` and `auth/play` that lend a form body, the launch service's
+convention: the browser executor POSTs them to the page's own origin, where the
+cookie rides along; the desktop one to `TORIRS_AUTH_URL` with
+`TORIRS_GATE_COOKIE` (plain http, so a LAN gate only).

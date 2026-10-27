@@ -198,16 +198,24 @@ status_text(int status)
         return "No Content";
     case 302:
         return "Found";
+    case 303:
+        return "See Other";
     case 304:
         return "Not Modified";
     case 400:
         return "Bad Request";
+    case 401:
+        return "Unauthorized";
+    case 403:
+        return "Forbidden";
     case 404:
         return "Not Found";
     case 405:
         return "Method Not Allowed";
     case 413:
         return "Payload Too Large";
+    case 429:
+        return "Too Many Requests";
     case 500:
         return "Internal Server Error";
     case 503:
@@ -236,7 +244,7 @@ send_response(
     sock_t fd,
     struct HttpResponse const* res)
 {
-    char header[1024];
+    char header[2048];
     /* A 304 carries no body by definition (RFC 7232 4.1), and the length is
      * spelled 0 rather than omitted so keep-alive framing stays unambiguous. */
     int body_len = res->status == 304 ? 0 : res->body_len;
@@ -258,6 +266,8 @@ send_response(
         "Access-Control-Expose-Headers: ETag, Content-Length\r\n"
         "%s%s%s"
         "%s%s%s"
+        "%s%s%s"
+        "%s%s%s"
         "Cache-Control: %s\r\n"
         "Connection: keep-alive\r\n"
         "\r\n",
@@ -271,6 +281,12 @@ send_response(
         res->location[0] ? "Location: " : "",
         res->location[0] ? res->location : "",
         res->location[0] ? "\r\n" : "",
+        res->set_cookie[0] ? "Set-Cookie: " : "",
+        res->set_cookie[0] ? res->set_cookie : "",
+        res->set_cookie[0] ? "\r\n" : "",
+        res->www_authenticate[0] ? "WWW-Authenticate: " : "",
+        res->www_authenticate[0] ? res->www_authenticate : "",
+        res->www_authenticate[0] ? "\r\n" : "",
         /* no-store on anything without a validator: an IO batch is a POST
          * result and a stats page is a snapshot, neither of which may be
          * reused. A validated representation is the opposite case — it must be

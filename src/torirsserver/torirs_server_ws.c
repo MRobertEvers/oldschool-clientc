@@ -12,12 +12,16 @@
 #include "torirs_server_ws.h"
 #include <assert.h>
 
+#include "torirs_server_auth.h"
+
 #include "platform/net_transport_ws_frame.h"
 #include "platform/net_transport_ws_handshake.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #if defined(_WIN32)
 /* win32 build: winsock instead of BSD sockets. close()->closesocket(); the
  * embedded server never opens this websocket path at runtime (net_transport_embed
@@ -145,6 +149,53 @@ app_append(
  * could afford and one thread per server cannot: a peer that opens a socket
  * and sends half a header line would otherwise hold the world tick.
  */
+/*
+ * The gate's ticket, off the Cookie header of a request whose headers end at
+ * `len`: 1 and `out` named when there is a good one. Every Cookie line is
+ * tried, since a browser may send one per cookie.
+ */
+static int
+ws_request_ticket(
+    const uint8_t* request,
+    int len,
+    char* out,
+    size_t cap)
+{
+    static const char name[] = "cookie:";
+    int line = 0;
+
+    while( line < len )
+    {
+        int end = line;
+
+        while( end < len && request[end] != '\n' )
+            end++;
+        if( end - line > (int)sizeof(name) - 1 )
+        {
+            int i = 0;
+
+            while( i < (int)sizeof(name) - 1 && tolower(request[line + i]) == name[i] )
+                i++;
+            if( i == (int)sizeof(name) - 1 )
+            {
+                int value = line + i;
+                int value_end = end;
+
+                while( value < value_end && (request[value] == ' ' || request[value] == '\t') )
+                    value++;
+                if( value_end > value && request[value_end - 1] == '\r' )
+                    value_end--;
+                if( ToriRSServer_GateCookieTicket((const char*)request + value,
+                                                  (size_t)(value_end - value),
+                                                  (long long)time(NULL), out, cap) )
+                    return 1;
+            }
+        }
+        line = end + 1;
+    }
+    return 0;
+}
+
 static enum ToriRSServerConnOpen
 ws_handshake_step(struct ToriRSServerConn* conn)
 {
@@ -176,6 +227,22 @@ ws_handshake_step(struct ToriRSServerConn* conn)
     if( status != WS_HANDSHAKE_OK )
     {
         fprintf(stderr, "torirsserver: malformed websocket upgrade request\n");
+        return TORIRSSERVER_CONN_OPEN_FAILED;
+    }
+
+    /* Behind the gate: no ticket, no socket. Answered in plain HTTP so the
+     * refusal is a status a browser's devtools show, not a dropped
+     * connection that reads as a server that is down. */
+    if( conn->require_ticket &&
+        !ws_request_ticket(conn->raw, handshake.consumed, conn->ticket_name,
+                           sizeof(conn->ticket_name)) )
+    {
+        static const char forbidden[] = "HTTP/1.1 403 Forbidden\r\n"
+                                        "Content-Length: 0\r\n"
+                                        "Connection: close\r\n\r\n";
+
+        fprintf(stderr, "torirsserver: websocket refused: no valid sign-in ticket\n");
+        (void)write(conn->fd, forbidden, sizeof(forbidden) - 1);
         return TORIRSSERVER_CONN_OPEN_FAILED;
     }
 
@@ -248,6 +315,14 @@ ToriRSServer_ConnOpenStep(struct ToriRSServerConn* conn)
     {
         conn->upgrade = 1;
         return ws_handshake_step(conn);
+    }
+    /* Behind the gate nothing is answered without its cookie, and raw TCP
+     * cannot carry one: a native client is refused along with everything
+     * else that is not a signed-in browser. */
+    if( conn->require_ticket )
+    {
+        fprintf(stderr, "torirsserver: raw TCP refused behind the sign-in gate\n");
+        return TORIRSSERVER_CONN_OPEN_FAILED;
     }
     conn->opening = 0;
     return TORIRSSERVER_CONN_OPEN_READY;

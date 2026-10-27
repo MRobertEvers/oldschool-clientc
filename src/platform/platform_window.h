@@ -14,6 +14,7 @@ struct ClientScaleSettings;
 /* ToriRS_TouchOverlayFn, for the gesture seam below. The touch header is
  * policy and two integers deep -- it pulls in nothing. */
 #include "input/torirs_touch.h"
+#include "platform/platform_credential_form.h"
 
 struct PlatformWindow*
 PlatformWindow_New(void);
@@ -488,6 +489,16 @@ PlatformWindow_SetTitle(
  */
 void
 PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on);
+
+/**
+ * The title's login form changed (platform_credential_form.h). The browser
+ * lays a real form over the drawn fields so its password manager can fill and
+ * save them; every other backend has none to show it to and ignores it.
+ */
+void
+PlatformWindow_SetCredentialForm(
+    struct PlatformWindow* platform,
+    struct PlatformCredentialForm const* form);
 
 /**
  * Open `url` in the system browser (clientscript openurl). A backend with no

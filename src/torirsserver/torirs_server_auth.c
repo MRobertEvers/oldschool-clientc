@@ -10,13 +10,13 @@
 
 #include "torirs_server_auth.h"
 
-#include "torirs_server_save.h"
+#include "torirs_server_savefile.h"
 
 #include "3rd/ini/ini.h"
-#include "content/content_register.h"
 #include "net/sha256.h"
 
 #include <assert.h>
+#include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -294,39 +294,67 @@ ToriRSServer_AuthVerify(
 }
 
 /*
- * Read the name's record into `record`.
+ * The keys an account record or an invite can carry. One reader for both,
+ * because both are a single INI section of the same few keys.
+ */
+struct AuthFile
+{
+    char password[TORIRSSERVER_AUTH_RECORD_MAX * 2];
+    int has_password;
+    char name[TORIRSSERVER_AUTH_NAME_MAX + 1];
+    int admin;
+};
+
+/* 3rd/ini does not trim, and io_server links no content code for
+ * ContentIni_Trim, so the same trim lives here. */
+static void
+auth_trim(char* text)
+{
+    size_t len = strlen(text);
+    size_t start = 0;
+
+    while( len > 0 && isspace((unsigned char)text[len - 1]) )
+        text[--len] = '\0';
+    while( start < len && isspace((unsigned char)text[start]) )
+        start++;
+    if( start > 0 )
+        memmove(text, text + start, len - start + 1);
+}
+
+/*
+ * Read `section` of `path` into `out`.
  *
- * 1 = read, 0 = there is no record (the file does not exist), -1 = there is
- * one and it cannot be used. Only 0 lets a login claim the name.
+ * 1 = read, 0 = there is no file, -1 = there is one and it cannot be read or
+ * parsed. Only 0 lets a login claim the name: a damaged record must not reopen
+ * it to whoever logs in next.
  */
 static int
-auth_read_record(
+auth_read_file(
     const char* path,
-    char* record,
-    size_t cap)
+    const char* section,
+    struct AuthFile* out)
 {
     uint8_t data[4096];
     size_t size;
     FILE* file;
     struct INIReader reader;
     struct INIElement element;
-    int in_account = 0;
-    int found = 0;
+    int in_section = 0;
 
+    memset(out, 0, sizeof(*out));
     file = fopen(path, "rb");
     if( !file )
     {
         if( errno == ENOENT )
             return 0;
-        fprintf(stderr, "torirsserver: cannot open account record %s: %s\n", path,
-                strerror(errno));
+        fprintf(stderr, "torirsserver: cannot open %s: %s\n", path, strerror(errno));
         return -1;
     }
     size = fread(data, 1, sizeof(data), file);
     if( ferror(file) || size == sizeof(data) )
     {
         fclose(file);
-        fprintf(stderr, "torirsserver: account record %s is unreadable or too large\n", path);
+        fprintf(stderr, "torirsserver: %s is unreadable or too large\n", path);
         return -1;
     }
     fclose(file);
@@ -340,50 +368,168 @@ auth_read_record(
         {
             if( status != TORI_INI_ERR_NONE )
             {
-                fprintf(stderr, "torirsserver: account record %s does not parse\n", path);
+                fprintf(stderr, "torirsserver: %s does not parse\n", path);
                 return -1;
             }
             break;
         }
-        /* 3rd/ini does not trim — see ContentIni_Trim. */
         if( element.kind == INI_ELEMENT_SECTION )
         {
-            ContentIni_Trim(element._section.name);
-            in_account = strcmp(element._section.name, "account") == 0;
+            auth_trim(element._section.name);
+            in_section = strcmp(element._section.name, section) == 0;
             continue;
         }
-        if( element.kind != INI_ELEMENT_KEYVAL || !in_account )
+        if( element.kind != INI_ELEMENT_KEYVAL || !in_section )
             continue;
-        ContentIni_Trim(element._keyval.name);
-        ContentIni_Trim(element._keyval.value);
+        auth_trim(element._keyval.name);
+        auth_trim(element._keyval.value);
         if( strcmp(element._keyval.name, "password") == 0 )
         {
-            snprintf(record, cap, "%s", element._keyval.value);
-            found = 1;
+            snprintf(out->password, sizeof(out->password), "%s", element._keyval.value);
+            out->has_password = 1;
         }
+        else if( strcmp(element._keyval.name, "name") == 0 )
+            snprintf(out->name, sizeof(out->name), "%s", element._keyval.value);
+        else if( strcmp(element._keyval.name, "admin") == 0 )
+            out->admin = atoi(element._keyval.value) != 0;
     }
-    if( !found )
+    return 1;
+}
+
+/* An account record, which must carry a password to be one. */
+static int
+auth_read_record(
+    const char* path,
+    struct AuthFile* out)
+{
+    int have = auth_read_file(path, "account", out);
+
+    if( have > 0 && !out->has_password )
     {
         fprintf(stderr, "torirsserver: account record %s has no [account] password\n", path);
         return -1;
     }
-    return 1;
+    return have;
 }
 
 static int
 auth_write_record(
     const char* path,
-    const char* record)
+    const char* record,
+    int admin)
 {
     char text[512];
 
     snprintf(text, sizeof(text),
              "; ToriRSServer account. Written by torirs_server_auth.c.\n"
              "; Delete this file to reset the password: the next login sets it.\n"
+             "; admin = 1 is staff: the jmod crown, and ::commands on a world\n"
+             "; that checks passwords (torirsserver --account admin <name> on).\n"
+             "\n[account]\n"
+             "password = %s\n"
+             "%s",
+             record, admin ? "admin = 1\n" : "");
+    return ToriRSServer_SaveWriteText(path, text);
+}
+
+static int
+auth_write_gate_record(
+    const char* path,
+    const char* record)
+{
+    char text[512];
+
+    snprintf(text, sizeof(text),
+             "; A web login for the sign-in gate, made from an invite. Not a player\n"
+             "; account: it only opens the page. Delete it to revoke the login.\n"
              "\n[account]\n"
              "password = %s\n",
              record);
     return ToriRSServer_SaveWriteText(path, text);
+}
+
+const char*
+ToriRSServer_AuthNameProblem(const char* display_name)
+{
+    size_t len;
+    int letters = 0;
+
+    assert(display_name);
+    len = strlen(display_name);
+    if( len < 1 || len > TORIRSSERVER_AUTH_NAME_MAX )
+        return "Names are 1 to 12 characters long.";
+    for( size_t i = 0; i < len; i++ )
+    {
+        unsigned char ch = (unsigned char)display_name[i];
+
+        if( isalpha(ch) )
+            letters++;
+        else if( !isdigit(ch) && ch != ' ' && ch != '_' && ch != '-' )
+            return "Names use letters, numbers, spaces, '-' and '_' only.";
+    }
+    if( !letters )
+        return "Names need at least one letter.";
+    if( display_name[0] == ' ' || display_name[len - 1] == ' ' )
+        return "Names cannot start or end with a space.";
+    return NULL;
+}
+
+const char*
+ToriRSServer_AuthPasswordProblem(
+    const char* display_name,
+    const char* password)
+{
+    char name[64];
+    char lowered[TORIRSSERVER_AUTH_PASSWORD_MAX + 1];
+    size_t len;
+    int letters = 0;
+    int digits = 0;
+    int all_same = 1;
+
+    assert(display_name);
+    assert(password);
+    len = strlen(password);
+    if( len < TORIRSSERVER_AUTH_PASSWORD_MIN || len > TORIRSSERVER_AUTH_PASSWORD_MAX )
+        return "Passwords are 8 to 20 characters long.";
+    for( size_t i = 0; i < len; i++ )
+    {
+        unsigned char ch = (unsigned char)password[i];
+
+        /* Printable ASCII without the space: what the login screen's field
+         * accepts, so a password set here can always be typed there. */
+        if( ch <= ' ' || ch > '~' )
+            return "Passwords use letters, numbers and symbols, with no spaces.";
+        if( isalpha(ch) )
+            letters++;
+        if( isdigit(ch) )
+            digits++;
+        if( ch != (unsigned char)password[0] )
+            all_same = 0;
+        lowered[i] = (char)tolower(ch);
+    }
+    lowered[len] = '\0';
+    if( !letters || !digits )
+        return "Passwords need at least one letter and one number.";
+    if( all_same )
+        return "Passwords cannot be one character repeated.";
+    /* The sanitised name, as the account is keyed: "Bob Smith" is
+     * "bob_smith", and both "bob_smith1" and "bobsmith1" are refused. */
+    ToriRSServer_SaveFileName(display_name, name, sizeof(name));
+    if( name[0] )
+    {
+        char squeezed[64];
+        size_t used = 0;
+
+        if( strstr(lowered, name) )
+            return "Passwords cannot contain the account name.";
+        for( const char* scan = name; *scan && used < sizeof(squeezed) - 1; scan++ )
+            if( *scan != '_' )
+                squeezed[used++] = *scan;
+        squeezed[used] = '\0';
+        if( used >= 3 && strstr(lowered, squeezed) )
+            return "Passwords cannot contain the account name.";
+    }
+    return NULL;
 }
 
 enum ToriRSServerAuthResult
@@ -392,7 +538,8 @@ ToriRSServer_AuthLogin(
     const char* password)
 {
     char path[1024];
-    char record[TORIRSSERVER_AUTH_RECORD_MAX * 2];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    struct AuthFile file;
     uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
     int have;
 
@@ -403,21 +550,439 @@ ToriRSServer_AuthLogin(
     if( !path[0] || !password[0] )
         return TORIRSSERVER_AUTH_UNUSABLE;
 
-    have = auth_read_record(path, record, sizeof(record));
+    have = auth_read_record(path, &file);
     if( have < 0 )
         return TORIRSSERVER_AUTH_REFUSED;
     if( have > 0 )
     {
-        if( !ToriRSServer_AuthVerify(password, record) )
-            return TORIRSSERVER_AUTH_REFUSED;
-        return TORIRSSERVER_AUTH_OK;
+        int ok = ToriRSServer_AuthVerify(password, file.password);
+
+        auth_wipe(&file, sizeof(file));
+        return ok ? TORIRSSERVER_AUTH_OK : TORIRSSERVER_AUTH_REFUSED;
     }
 
+    /* A claim sets the password, so it is held to the same rules as one set
+     * through an invite. */
+    if( ToriRSServer_AuthPasswordProblem(display_name, password) )
+        return TORIRSSERVER_AUTH_WEAK;
     auth_random(salt, sizeof(salt));
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
     /* A claim that could not be written must not log in: the next login would
      * find no record and claim the name again, with any password. */
-    if( !auth_write_record(path, record) )
+    if( !auth_write_record(path, record, 0) )
         return TORIRSSERVER_AUTH_REFUSED;
     return TORIRSSERVER_AUTH_CLAIMED;
+}
+
+enum ToriRSServerAuthResult
+ToriRSServer_GateLogin(
+    const char* name,
+    const char* password)
+{
+    char path[1024];
+    struct AuthFile file;
+    int have;
+    int ok;
+
+    assert(name);
+    assert(password);
+
+    snprintf(path, sizeof(path), "%s", ToriRSServer_GateAccountPath(name));
+    if( !path[0] || !password[0] )
+        return TORIRSSERVER_AUTH_UNUSABLE;
+    /* Never a claim: every web login was made by an invite. */
+    have = auth_read_record(path, &file);
+    if( have <= 0 )
+        return TORIRSSERVER_AUTH_REFUSED;
+    ok = ToriRSServer_AuthVerify(password, file.password);
+    auth_wipe(&file, sizeof(file));
+    return ok ? TORIRSSERVER_AUTH_OK : TORIRSSERVER_AUTH_REFUSED;
+}
+
+int
+ToriRSServer_AuthIsAdmin(const char* display_name)
+{
+    char path[1024];
+    struct AuthFile file;
+    int admin;
+
+    assert(display_name);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+        return 0;
+    admin = file.admin;
+    auth_wipe(&file, sizeof(file));
+    return admin;
+}
+
+int
+ToriRSServer_AuthSetAdmin(
+    const char* display_name,
+    int admin)
+{
+    char path[1024];
+    struct AuthFile file;
+    int written;
+
+    assert(display_name);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+        return 0;
+    written = auth_write_record(path, file.password, admin);
+    auth_wipe(&file, sizeof(file));
+    return written;
+}
+
+/* ------------------------------------------------------------------ */
+/* Invites                                                             */
+/* ------------------------------------------------------------------ */
+
+/* `<saves>/gate/invites/<code>.ini`, or "" when `code` is not exactly a
+ * code's worth of lowercase hex -- it arrives in a URL, so it is a path
+ * component an attacker chose. */
+static void
+auth_invite_path(
+    const char* code,
+    char* out,
+    size_t cap)
+{
+    size_t len = strlen(code);
+
+    out[0] = '\0';
+    if( len != TORIRSSERVER_INVITE_CODE_BYTES * 2 )
+        return;
+    for( size_t i = 0; i < len; i++ )
+        if( !isdigit((unsigned char)code[i]) && (code[i] < 'a' || code[i] > 'f') )
+            return;
+    snprintf(out, cap, "%s/gate/invites/%s.ini", ToriRSServer_SaveDir(), code);
+}
+
+int
+ToriRSServer_InviteCreate(
+    const char* name,
+    char out_code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1])
+{
+    uint8_t bytes[TORIRSSERVER_INVITE_CODE_BYTES];
+    char path[1024];
+    char text[256];
+
+    assert(!name || !ToriRSServer_AuthNameProblem(name));
+    assert(out_code);
+    auth_random(bytes, sizeof(bytes));
+    auth_hex(bytes, sizeof(bytes), out_code);
+    auth_invite_path(out_code, path, sizeof(path));
+    assert(path[0]);
+    snprintf(text, sizeof(text),
+             "; A ToriRS sign-in gate invite. Redeemed (and deleted) at\n"
+             "; /invite/<this file's name>; it makes a web login, not a player.\n"
+             "\n[invite]\n%s%s%s",
+             name ? "name = " : "", name ? name : "", name ? "\n" : "");
+    return ToriRSServer_SaveWriteText(path, text);
+}
+
+int
+ToriRSServer_InviteLookup(
+    const char* code,
+    char* out_name,
+    size_t cap)
+{
+    char path[1024];
+    struct AuthFile file;
+
+    assert(code);
+    assert(out_name);
+    auth_invite_path(code, path, sizeof(path));
+    if( !path[0] || auth_read_file(path, "invite", &file) <= 0 )
+        return 0;
+    snprintf(out_name, cap, "%s", file.name);
+    return 1;
+}
+
+enum ToriRSServerInviteResult
+ToriRSServer_InviteRedeem(
+    const char* code,
+    const char* name,
+    const char* password,
+    const char** out_problem)
+{
+    char invite_path[1024];
+    char account_path[1024];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    char want[64];
+    char got[64];
+    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
+    struct AuthFile invite;
+    struct AuthFile existing;
+    const char* problem;
+
+    assert(code);
+    assert(name);
+    assert(password);
+    assert(out_problem);
+    *out_problem = NULL;
+
+    auth_invite_path(code, invite_path, sizeof(invite_path));
+    if( !invite_path[0] || auth_read_file(invite_path, "invite", &invite) <= 0 )
+        return TORIRSSERVER_INVITE_UNKNOWN;
+    if( invite.name[0] )
+    {
+        ToriRSServer_SaveFileName(invite.name, want, sizeof(want));
+        ToriRSServer_SaveFileName(name, got, sizeof(got));
+        if( strcmp(want, got) != 0 )
+            return TORIRSSERVER_INVITE_WRONG_NAME;
+    }
+    problem = ToriRSServer_AuthNameProblem(name);
+    if( problem )
+    {
+        *out_problem = problem;
+        return TORIRSSERVER_INVITE_BAD_NAME;
+    }
+    snprintf(account_path, sizeof(account_path), "%s", ToriRSServer_GateAccountPath(name));
+    assert(account_path[0]); /* AuthNameProblem passed, so the name has a letter */
+    if( auth_read_record(account_path, &existing) != 0 )
+        return TORIRSSERVER_INVITE_NAME_TAKEN;
+    problem = ToriRSServer_AuthPasswordProblem(name, password);
+    if( problem )
+    {
+        *out_problem = problem;
+        return TORIRSSERVER_INVITE_WEAK;
+    }
+
+    auth_random(salt, sizeof(salt));
+    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
+    if( !auth_write_gate_record(account_path, record) )
+        return TORIRSSERVER_INVITE_WRITE_FAILED;
+    /* The login exists now, so an invite that cannot be deleted is one that
+     * can be spent twice -- on another name. Loud, not fatal: the login the
+     * visitor just made is real. */
+    if( remove(invite_path) != 0 )
+        fprintf(stderr, "torirsserver: INVITE %s WAS REDEEMED BUT NOT DELETED: %s\n",
+                invite_path, strerror(errno));
+    return TORIRSSERVER_INVITE_OK;
+}
+
+/* ------------------------------------------------------------------ */
+/* The gate's ticket                                                   */
+/* ------------------------------------------------------------------ */
+
+static uint8_t g_gate_key[TORIRSSERVER_GATE_KEY_BYTES];
+static int g_gate_key_loaded;
+
+void
+ToriRSServer_KeyFileLoad(
+    const char* path,
+    uint8_t* out,
+    size_t len)
+{
+    char hex[256];
+    FILE* file;
+    size_t got;
+
+    assert(path);
+    assert(out);
+    assert(len * 2 + 2 <= sizeof(hex));
+    file = fopen(path, "rb");
+    if( !file )
+    {
+        uint8_t fresh[64];
+        char text[sizeof(hex)];
+
+        /* io_server and torirsserver both start here, so the first writes it
+         * and the second reads what the first wrote. The atomic replace means
+         * a reader never sees half a key; two first starts in the same instant
+         * would each keep its own, which a restart of either resolves. */
+        assert(len <= sizeof(fresh));
+        auth_random(fresh, len);
+        auth_hex(fresh, len, text);
+        strcat(text, "\n");
+        if( !ToriRSServer_SaveWriteText(path, text) )
+        {
+            fprintf(stderr, "torirsserver: cannot write the key %s\n", path);
+            abort();
+        }
+        auth_wipe(fresh, sizeof(fresh));
+        file = fopen(path, "rb");
+        if( !file )
+        {
+            fprintf(stderr, "torirsserver: cannot read back the key %s\n", path);
+            abort();
+        }
+    }
+    got = fread(hex, 1, sizeof(hex) - 1, file);
+    fclose(file);
+    hex[got] = '\0';
+    auth_trim(hex);
+    if( strlen(hex) != len * 2 || !auth_unhex(hex, strlen(hex), out) )
+    {
+        fprintf(stderr, "torirsserver: the key %s is not %d hex bytes\n", path, (int)len);
+        abort();
+    }
+    auth_wipe(hex, sizeof(hex));
+}
+
+void
+ToriRSServer_GateKeyLoad(void)
+{
+    char path[1024];
+
+    snprintf(path, sizeof(path), "%s/gate/gate.key", ToriRSServer_SaveDir());
+    ToriRSServer_KeyFileLoad(path, g_gate_key, sizeof(g_gate_key));
+    g_gate_key_loaded = 1;
+}
+
+void
+ToriRSServer_AuthRandom(
+    uint8_t* out,
+    size_t len)
+{
+    assert(out);
+    auth_random(out, len);
+}
+
+void
+ToriRSServer_AuthHex(
+    const uint8_t* bytes,
+    size_t len,
+    char* out)
+{
+    assert(bytes);
+    assert(out);
+    auth_hex(bytes, len, out);
+}
+
+void
+ToriRSServer_AuthHmacSha256(
+    const uint8_t* key,
+    size_t key_len,
+    const uint8_t* message,
+    size_t message_len,
+    uint8_t out[32])
+{
+    struct AuthHmac hmac;
+
+    assert(key);
+    assert(message);
+    assert(out);
+    auth_hmac_key(&hmac, key, key_len);
+    auth_hmac(&hmac, message, message_len, NULL, 0, out);
+    auth_wipe(&hmac, sizeof(hmac));
+}
+
+/* HMAC(gate key, "<name>.<expires>") as hex. */
+static void
+auth_gate_mac(
+    const char* name,
+    long long expires,
+    char out[SHA256_DIGEST_BYTES * 2 + 1])
+{
+    struct AuthHmac hmac;
+    char body[96];
+    uint8_t mac[SHA256_DIGEST_BYTES];
+    int len;
+
+    assert(g_gate_key_loaded);
+    len = snprintf(body, sizeof(body), "%s.%lld", name, expires);
+    auth_hmac_key(&hmac, g_gate_key, sizeof(g_gate_key));
+    auth_hmac(&hmac, (const uint8_t*)body, (size_t)len, NULL, 0, mac);
+    auth_hex(mac, sizeof(mac), out);
+    auth_wipe(&hmac, sizeof(hmac));
+}
+
+void
+ToriRSServer_GateTicketMint(
+    const char* name,
+    long long expires,
+    char out[TORIRSSERVER_GATE_TICKET_MAX])
+{
+    char file[64];
+    char mac[SHA256_DIGEST_BYTES * 2 + 1];
+
+    assert(name);
+    assert(out);
+    ToriRSServer_SaveFileName(name, file, sizeof(file));
+    assert(file[0]);
+    auth_gate_mac(file, expires, mac);
+    snprintf(out, TORIRSSERVER_GATE_TICKET_MAX, "%s.%lld.%s", file, expires, mac);
+}
+
+int
+ToriRSServer_GateTicketCheck(
+    const char* ticket,
+    size_t len,
+    long long now,
+    char* out_name,
+    size_t cap)
+{
+    char copy[TORIRSSERVER_GATE_TICKET_MAX];
+    char want[SHA256_DIGEST_BYTES * 2 + 1];
+    char* first;
+    char* second;
+    char* end;
+    long long expires;
+    uint8_t diff = 0;
+
+    assert(ticket);
+    assert(out_name);
+    if( len == 0 || len >= sizeof(copy) )
+        return 0;
+    memcpy(copy, ticket, len);
+    copy[len] = '\0';
+    first = strchr(copy, '.');
+    if( !first )
+        return 0;
+    second = strchr(first + 1, '.');
+    if( !second )
+        return 0;
+    *first = '\0';
+    *second = '\0';
+    if( !copy[0] || strlen(copy) >= cap )
+        return 0;
+    for( const char* scan = copy; *scan; scan++ )
+        if( !islower((unsigned char)*scan) && !isdigit((unsigned char)*scan) && *scan != '_' )
+            return 0;
+    expires = strtoll(first + 1, &end, 10);
+    if( end == first + 1 || *end != '\0' || expires < now )
+        return 0;
+    if( strlen(second + 1) != sizeof(want) - 1 )
+        return 0;
+    auth_gate_mac(copy, expires, want);
+    for( size_t i = 0; i < sizeof(want) - 1; i++ )
+        diff |= (uint8_t)(want[i] ^ second[1 + i]);
+    if( diff != 0 )
+        return 0;
+    snprintf(out_name, cap, "%s", copy);
+    return 1;
+}
+
+int
+ToriRSServer_GateCookieTicket(
+    const char* cookie,
+    size_t len,
+    long long now,
+    char* out_name,
+    size_t cap)
+{
+    static const char want[] = TORIRSSERVER_GATE_COOKIE "=";
+    size_t at = 0;
+
+    assert(cookie);
+    assert(out_name);
+    /* `a=1; torirs_gate=...; b=2`: every pair, so a cookie of the same name
+     * set for a parent domain cannot hide ours by coming first. */
+    while( at < len )
+    {
+        size_t end;
+
+        while( at < len && (cookie[at] == ' ' || cookie[at] == ';') )
+            at++;
+        end = at;
+        while( end < len && cookie[end] != ';' )
+            end++;
+        if( end - at > sizeof(want) - 1 && memcmp(cookie + at, want, sizeof(want) - 1) == 0 &&
+            ToriRSServer_GateTicketCheck(cookie + at + sizeof(want) - 1,
+                                         end - at - (sizeof(want) - 1), now, out_name, cap) )
+            return 1;
+        at = end;
+    }
+    return 0;
 }

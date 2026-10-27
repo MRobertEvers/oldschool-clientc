@@ -63,6 +63,8 @@
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"
 #include "http_server.h"
+#include "io_gate.h"
+#include "torirsserver/torirs_server_savefile.h"
 
 #include "bootmanifest/bootmanifest.h"
 #include "asyncio.h"
@@ -199,6 +201,11 @@ struct IoServer
     long served;
     long failed;
     long bytes_out;
+
+    /* `--gate <landing>`: nothing but the sign-in pages until the visitor has
+     * signed in (io_gate.h). Off for every local run. */
+    int gate_on;
+    struct IoGate gate;
 };
 
 /* Resolve a client-named cache directory under the server's root. The name
@@ -684,6 +691,15 @@ io_server_load(
     if( item->kind == TORIRS_IOK_FILE_READ || item->kind == TORIRS_IOK_FILE_WRITE )
     {
         fprintf(stderr, "io: refusing a client-file request; those stay on the client\n");
+        item->error_code = -1;
+        return;
+    }
+    /* An account-server request (game/task_accounts_io.h) arriving over /io
+     * would have this process post someone's password on to wherever its own
+     * environment points. The gate answers those itself, at /oauth/. */
+    if( item->kind == TORIRS_IOK_SCRIPT && strncmp(item->u.script.path, "auth/", 5) == 0 )
+    {
+        fprintf(stderr, "io: refusing an account-server request over /io\n");
         item->error_code = -1;
         return;
     }
@@ -1677,7 +1693,10 @@ io_server_handler(
 {
     struct IoServer* server = (struct IoServer*)user;
 
-    io_server_route(server, req, res);
+    /* The gate first, so a visitor who has not signed in reaches no route at
+     * all -- not the page, not /boot/, not /status. */
+    if( !server->gate_on || !IoGate_Handle(&server->gate, req, res) )
+        io_server_route(server, req, res);
 
     /*
      * A HEAD is a GET whose body is dropped: routing it as one is what makes
@@ -1815,7 +1834,7 @@ usage(char const* argv0)
         stderr,
         "usage: %s [--manifest <boot.ini> | --rev <name> <cache_dir>]\n"
         "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
-        "          [--script DIR] [--pokesprite DIR] [-v]\n"
+        "          [--script DIR] [--pokesprite DIR] [--gate LANDING] [-v]\n"
         "\n"
         "  --manifest   PREOPEN one world's cache (and its LostCity wire) at\n"
         "               startup, so an unreachable server is named here rather\n"
@@ -1828,7 +1847,13 @@ usage(char const* argv0)
         "               RevConfig INIs the client opens by name (default .)\n"
         "  --port       listen port (default %d)\n"
         "  --pokesprite the 2D client's sheet store, served over\n"
-        "               GET /pokesprite/<key> (default %s)\n",
+        "               GET /pokesprite/<key> (default %s)\n"
+        "  --gate       serve only the sign-in pages until the visitor signs in\n"
+        "               with a web login (TORIRSSERVER_SAVES/gate), then send\n"
+        "               them to LANDING, e.g.\n"
+        "               '/?args=--manifest,manifests/manifest_osrs241.ini&ws=ws'.\n"
+        "               Run torirsserver with --gate too: it checks the same\n"
+        "               ticket on the game socket\n",
         argv0,
         IO_SERVER_DEFAULT_ROOT,
         IO_SERVER_DEFAULT_PORT,
@@ -1923,6 +1948,14 @@ main(
         if( strcmp(argv[i], "--pokesprite") == 0 && i + 1 < argc )
         {
             snprintf(server.pokesprite_root, sizeof(server.pokesprite_root), "%s", argv[++i]);
+            continue;
+        }
+        if( strcmp(argv[i], "--gate") == 0 && i + 1 < argc )
+        {
+            IoGate_Init(&server.gate, argv[++i]);
+            server.gate_on = 1;
+            printf("io_server: sign-in gate on; web logins in %s/gate/\n",
+                   ToriRSServer_SaveDir());
             continue;
         }
         if( strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--verbose") == 0 )

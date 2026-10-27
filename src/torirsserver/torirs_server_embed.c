@@ -1958,6 +1958,7 @@ pump_client(
         client->session.player = player;
         ToriRSServer_WorldPlayerInit(player);
         ToriRSServer_WorldSetDisplayName(player, client->session.display_name);
+        player->staff_level = client->session.staff_level;
         ToriRSServer_WorldLogin(player);
         client->online = 1;
         /* Anything sent behind the login block is still buffered. */

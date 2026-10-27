@@ -19,6 +19,7 @@
 
 #include "torirs_server.h"
 #include "torirs_server_auth.h"
+#include "torirs_server_oauth.h"
 
 #include "net/isaac.h"
 #include "torirsserver/wire/osrs230/packetout.h"
@@ -225,7 +226,8 @@ login_is_239(const struct ToriRSServer* srv)
 }
 
 /*
- * TORIRSSERVER_STAFF_LEVEL: the staffModLevel the login response advertises.
+ * TORIRSSERVER_STAFF_LEVEL: the staffModLevel every login is given at least
+ * (an account with `admin = 1` gets 2 where passwords are checked).
  *
  * Keep normal sessions at the golden value 0, but let an isolated integration
  * run opt into the client's own CLIENT_CHEAT path.  The mock already exposes
@@ -526,6 +528,9 @@ step_login(
     uint64_t claimed;
     char user[64];
     char pass[64];
+    /* OSRS_LOGIN_AUTH_PASSWORD, or _TOKEN: `pass` then holds a one-time login
+     * token from the play endpoint (torirs_server_oauth.h), not a password. */
+    int auth_type = OSRS_LOGIN_AUTH_PASSWORD;
     int body_off = 0;
     int body_len = 0;
     uint8_t ok = 2;
@@ -677,7 +682,7 @@ step_login(
         }
     }
     if( !session->reconnect )
-        (void)rsab_g1(&in); /* auth type: 0 password, 2 token */
+        auth_type = rsab_g1(&in); /* 0 password, 2 token */
     if( login_is_239(srv) )
     {
         /*
@@ -737,16 +742,29 @@ step_login(
      */
     if( !session->reconnect && srv->check_passwords )
     {
-        enum ToriRSServerAuthResult auth = ToriRSServer_AuthLogin(user, pass);
+        /* A token is the deob's one-time login (class660.field7035): minted by
+         * the play endpoint for exactly one account, spent here. It is never
+         * a claim -- the account it names already signed in to get it. */
+        enum ToriRSServerAuthResult auth =
+            auth_type == OSRS_LOGIN_AUTH_TOKEN
+                ? (ToriRSServer_OAuthRedeemOtl(pass, user, (long long)time(NULL))
+                       ? TORIRSSERVER_AUTH_OK
+                       : TORIRSSERVER_AUTH_REFUSED)
+                : ToriRSServer_AuthLogin(user, pass);
 
         memset(pass, 0, sizeof(pass));
-        if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE )
+        if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE ||
+            auth == TORIRSSERVER_AUTH_WEAK )
         {
             uint8_t refused = OSRS_LOGINRES_INVALID_USER_OR_PASS;
 
             fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
-                    auth == TORIRSSERVER_AUTH_REFUSED ? "wrong password"
-                                                      : "unusable name or empty password");
+                    auth == TORIRSSERVER_AUTH_REFUSED
+                        ? (auth_type == OSRS_LOGIN_AUTH_TOKEN ? "one-time login token not valid for this account"
+                                                              : "wrong password")
+                    : auth == TORIRSSERVER_AUTH_WEAK
+                        ? "no account, and the password breaks the rules, so it was not claimed"
+                        : "unusable name or empty password");
             /* 3 is "invalid username or password" at 230 and 239 alike. */
             ToriRSServer_SessionSend(session, &refused, 1);
             session->state = TORIRSSERVER_SESSION_DEAD;
@@ -768,6 +786,17 @@ step_login(
      */
     snprintf(session->display_name, sizeof(session->display_name), "%s",
              user[0] ? user : "Player");
+
+    /* The staff level, for a login and a reconnect alike: the response below
+     * carries it at 239, and the player gets it whatever the revision. An
+     * account's admin flag means something only where the password was
+     * checked; elsewhere a name proves nothing. */
+    session->staff_level = login_staff_level();
+    if( srv->check_passwords && session->staff_level < 2 && ToriRSServer_AuthIsAdmin(user) )
+        session->staff_level = 2;
+    if( session->staff_level > 0 )
+        fprintf(stderr, "torirsserver: '%s' is staff, staffModLevel=%d\n", user,
+                session->staff_level);
     fprintf(stderr, "torirsserver: %s user='%s' session=%s\n",
             session->reconnect ? "reconnect" : "login", user,
             claimed == SESSION_ID ? "ok" : "MISMATCH");
@@ -802,8 +831,8 @@ step_login(
          *
          * The body below is therefore written by
          * ToriRSServer_SessionSendLoginOk, which runs once there is a player
-         * to ask. Only the staff level is resolved here, because it is a
-         * property of the connection rather than of the slot.
+         * to ask. The staff level was resolved above, because it is a
+         * property of the account rather than of the slot.
          *
          * A bare `0x02` is what this server used to send, and at 239 that is
          * not "a shorter response", it is a desync: the client reads a length
@@ -813,11 +842,7 @@ step_login(
          * never sees the packets it ate, which reads as "the server didn't send
          * them".
          */
-        session->login_ok_staff_level = login_staff_level();
         session->login_ok_pending = 1;
-        if( session->login_ok_staff_level > 0 )
-            fprintf(stderr, "torirsserver: rev239 control privilege staffModLevel=%d\n",
-                    session->login_ok_staff_level);
     }
     else if( ToriRSServer_SessionSend(session, &ok, 1) < 0 )
     {
@@ -875,7 +900,7 @@ ToriRSServer_SessionSendLoginOk(struct ToriRSServerSession* session)
     rsab_p1(&out, 34 + 3);
     rsab_p1(&out, 0); /* no authenticator */
     rsab_p4(&out, 0); /* ...and no code */
-    rsab_p1(&out, session->login_ok_staff_level);
+    rsab_p1(&out, session->staff_level);
     rsab_p1(&out, 0); /* playerMod */
     rsab_p2(&out, index);
     rsab_p1(&out, 1); /* member */

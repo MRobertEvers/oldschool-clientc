@@ -33,6 +33,9 @@
 #include "game/rs_worldmap_view.h"
 #include "game/rs_preload.h"
 #include "game/rs_title.h"
+#include "game/rs_accounts.h"
+#include "platform/platform_credential_form.h"
+#include "game/task_accounts_io.h"
 #include "net/rev/revpacket.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
@@ -490,6 +493,9 @@ struct AppConfig
     int varc_seed_count;
     /** --connect target "host[:port]". NULL/"" = offline (no networking). */
     char const* connect_target;
+    /** `[net:boot] auth=oauth`: sign in through the account server (saved
+     *  accounts, Play Now, one-time login tokens). 0 = the password form. */
+    int connect_oauth;
     char const* connect_user;
     char const* connect_pass;
     /** --resume "s0,s1,s2,s3,index": a previous session's resume token
@@ -1953,6 +1959,26 @@ struct App
      *  the per-field scratch the host requests hand out. @see
      *  game/rs_title_session.h for why each of those is a rule. */
     struct RS_TitleSession title_session;
+    /**
+     * The account flow (game/task_accounts_io.h), on a world whose manifest
+     * says `[net:boot] auth=oauth`: the accounts this device has signed in
+     * with -- the title's Play Now cards -- and the one sign-in in flight.
+     * `oauth` 0 leaves the password form exactly as it was.
+     */
+    int oauth;
+    struct RS_Accounts accounts;
+    /** NULL keeps nothing (TORIRS_ACCOUNTS=""). */
+    char const* accounts_path;
+    int accounts_load_started;
+    /** Set by the load task when the file has been read (or found absent). */
+    int accounts_loaded;
+    /** The title has been rebuilt for the loaded list. */
+    int accounts_shown;
+    struct RS_AccountSignIn signin;
+    int signin_busy;
+    /** What the page's password-manager form was last told
+     *  (App_TakeCredentialForm). */
+    struct PlatformCredentialForm credential_form_sent;
     /**
      * The title screen's music: which track the profile's music button names
      * (learned from that button's song= when it is drawn; meaningful only
@@ -3442,6 +3468,34 @@ App_PluginLayoutTick(struct App* app);
  */
 int
 App_TakeTextInputChange(struct App* app, int* out_on);
+
+/**
+ * The login form as a password manager needs it (platform_credential_form.h):
+ * 1 and `out` filled when it changed since the last take. Polled per frame,
+ * like App_TakeTextInputChange, because many paths move the form.
+ */
+int
+App_TakeCredentialForm(
+    struct App* app,
+    struct PlatformCredentialForm* out);
+
+/** The page's input for `field` (0 username, 1 password) now says `text`:
+ *  typed there, or filled by the browser. Ignored off the credential form. */
+void
+App_CredentialInput(
+    struct App* app,
+    int field,
+    char const* text);
+
+/** The page's input for `field` took the focus: the caret follows it. */
+void
+App_CredentialFocus(
+    struct App* app,
+    int field);
+
+/** The page's form was submitted (Enter in either input): the Login button. */
+void
+App_CredentialSubmit(struct App* app);
 
 /**
  * A url a clientscript asked the client to open (openurl, 3113), copied into

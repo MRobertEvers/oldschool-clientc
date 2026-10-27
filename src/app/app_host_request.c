@@ -284,6 +284,14 @@ app_host_request(
             app_title_state_changed(app);
             return 0;
         }
+        /* The one action with an index: which account's Play Now. The app's
+         * title tick takes the request and signs that account in. */
+        if( action == RS_TITLE_ACTION_PLAY_ACCOUNT )
+        {
+            if( RS_Title_PlayAccount(&app->title, req->u.title_action.index) )
+                app_title_state_changed(app);
+            return 0;
+        }
         if( RS_Title_HandleAction(&app->title, action) )
         {
             /* The form is greeted with a prompt rather than an empty box, and

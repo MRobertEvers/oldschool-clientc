@@ -194,9 +194,14 @@ ToriRSServer_WorldMapClick(
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- CLICK_WORLD_MAP %d,%d,%d\n", level, abs_x, abs_z);
     /* The reference gates this on an admin privilege and moves the player
-     * there. The mock has one player and no privilege system, so it is
-     * unconditional — the point of the packet here is that the round trip is
-     * observable at all. */
+     * there. So does this server, by the same rule as a ::command: anyone on a
+     * development server, only staff where passwords are checked. */
+    if( !ToriRSServer_PlayerMayCheat(srv, srv->active_player) )
+    {
+        fprintf(stderr, "torirsserver: %s is not staff; refused world map teleport\n",
+                srv->active_player->display_name);
+        return;
+    }
     ToriRSServer_WorldTeleport(srv, level, abs_x, abs_z);
     if( srv->active_player->worldmap_open )
         send_worldmap_tile(srv);

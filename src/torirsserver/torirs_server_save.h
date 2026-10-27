@@ -25,38 +25,9 @@
  * deliberately not saved, which is the same default the transmit gate uses.
  */
 
+#include "torirs_server_savefile.h"
+
 struct ToriRSServerPlayer;
-
-/**
- * Where a player's save lives. Returns a pointer to static storage.
- *
- * The name is sanitised to `[a-z0-9_]` — it comes off the login screen, so it
- * is attacker-controlled, and a name of `../../etc/passwd` must not become a
- * path. An empty result means the name was unusable and nothing should be
- * written.
- */
-const char*
-ToriRSServer_SavePath(const char* display_name);
-
-/**
- * Where a login name's account record lives: `<save dir>/accounts/<name>.ini`,
- * the same sanitised name ToriRSServer_SavePath uses, so a password and a
- * character are keyed identically. Static storage; "" for an unusable name.
- * See torirs_server_auth.h.
- */
-const char*
-ToriRSServer_AccountPath(const char* display_name);
-
-/**
- * Replace `path` with `text`, the way a save is written: the directory is
- * created, the text goes to `<path>.tmp`, and the temp is renamed over the
- * file, so a crash leaves the old file or the new one and never half of
- * either. Returns 1 on success; a failure is reported on stderr.
- */
-int
-ToriRSServer_SaveWriteText(
-    const char* path,
-    const char* text);
 
 /**
  * Write the player. Returns 1 on success.

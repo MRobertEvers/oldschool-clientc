@@ -22,6 +22,12 @@ static enum RS_TitleLinkState
 app_title_link_state(struct App const* app);
 static void
 app_title_resume_to_login(struct App* app);
+static void
+app_title_layout_accounts(struct App* app);
+
+/* Play Now cards the title has room for; the device may hold more
+ * (RS_ACCOUNTS_MAX), and the most recently played are the ones shown. */
+#define APP_TITLE_ACCOUNT_CARDS 4
 
 /*
  * The system-update line, or NULL when no update is pending.
@@ -255,6 +261,7 @@ app_title_sync_groups(struct App* app)
         "title_menu_group",
         "title_form_group",
         "title_info_group",
+        "title_accounts_group",
         "title_progress_group",
     };
     /* Parallel to k_groups: which RS_TitleScreen each belongs to, and -1 for
@@ -263,6 +270,7 @@ app_title_sync_groups(struct App* app)
         RS_TITLE_MAIN_MENU,
         RS_TITLE_LOGIN_FORM,
         RS_TITLE_INFO,
+        RS_TITLE_ACCOUNTS,
         -1,
     };
     int showing_progress;
@@ -270,6 +278,11 @@ app_title_sync_groups(struct App* app)
     assert(app);
     if( !app->tree )
         return;
+
+    /* First, because it can move the screen: once the device holds accounts
+     * their cards are home, and the front menu is no longer where a player
+     * lands. */
+    app_title_layout_accounts(app);
 
     /* The bar owns the panel while there is one: the reference draws the
      * loading screen INSTEAD of the login box, in the same 360x200 space. */
@@ -298,6 +311,176 @@ app_title_sync_groups(struct App* app)
         if( idx >= 0 )
             UITree_SetScreenHiddenAt(app->tree, idx, app->screen == APP_SCREEN_CONNECTING);
     }
+}
+
+/*
+ * The Play Now cards, placed by how many there are.
+ *
+ * One card stands in the middle of the box; two stand where the front menu's
+ * two buttons do; three or four make two rows, with a third card centred
+ * under the first two. Cards past the count are hidden, and so is every one
+ * on a world without the account server. The form's account icon shows only
+ * when there is somewhere for it to go back to.
+ *
+ * Runs on a state change, never per frame: each role lookup here is a table
+ * read, and nothing about the cards moves between changes.
+ */
+static void
+app_title_layout_accounts(struct App* app)
+{
+    static int const k_column[2] = { 229, 389 };
+    int const centre_x = 309;
+    int shown;
+    int32_t icon;
+
+    assert(app);
+    assert(app->tree);
+    shown = app->oauth ? app->accounts.count : 0;
+    if( shown > APP_TITLE_ACCOUNT_CARDS )
+        shown = APP_TITLE_ACCOUNT_CARDS;
+
+    for( int i = 0; i < APP_TITLE_ACCOUNT_CARDS; i++ )
+    {
+        char role[48];
+        int32_t card;
+        int32_t name;
+        int x;
+        int y;
+
+        snprintf(role, sizeof(role), "title_account_%d", i);
+        card = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+        if( card < 0 )
+            continue;
+        UITree_SetScreenHiddenAt(app->tree, card, i >= shown);
+        if( i >= shown )
+            continue;
+        if( shown == 1 )
+        {
+            x = centre_x;
+            y = 236;
+        }
+        else if( shown == 2 )
+        {
+            x = k_column[i];
+            y = 236;
+        }
+        else
+        {
+            x = shown == 3 && i == 2 ? centre_x : k_column[i % 2];
+            y = i < 2 ? 205 : 267;
+        }
+        UITree_SetPositionAt(app->tree, card, x, y);
+        snprintf(role, sizeof(role), "title_account_name_%d", i);
+        name = UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+        if( name >= 0 )
+            UITree_SetTextAt(app->tree, name, app->accounts.list[i].name);
+    }
+
+    icon = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_accounts_icon");
+    if( icon >= 0 )
+        UITree_SetScreenHiddenAt(app->tree, icon, shown == 0);
+    RS_Title_SetHome(&app->title, shown > 0 ? RS_TITLE_ACCOUNTS : RS_TITLE_MAIN_MENU);
+}
+
+/* Write the device's accounts (FILE_WRITE; the page's IndexedDB on the
+ * browser). Queued, never waited on: the list in memory is the truth. */
+static void
+app_accounts_save(struct App* app)
+{
+    assert(app);
+    if( app->accounts_path )
+        ToriRS_TaskQueue_Add(app->runner.queue,
+                             CreateTask_AccountsSave(&app->accounts, app->accounts_path));
+}
+
+/*
+ * Start a sign-in at the account server: a Play Now (`index` is the account,
+ * whose refresh token is spent) or the credential form (its two fields, the
+ * password cleared out of the form as it is copied). The title shows
+ * "Connecting to server..." until the task answers; app_title_tick waits.
+ */
+static void
+app_accounts_begin_signin(
+    struct App* app,
+    enum RS_AccountSignInGrant grant,
+    int index)
+{
+    char const* connecting = RS_LoginReplies_String(&app->login_replies, "connecting");
+
+    assert(app);
+    assert(!app->signin_busy);
+    memset(&app->signin, 0, sizeof(app->signin));
+    app->signin.grant = grant;
+    if( grant == RS_ACCOUNT_SIGNIN_REFRESH )
+    {
+        assert(index >= 0 && index < app->accounts.count);
+        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
+                 app->accounts.list[index].name);
+        snprintf(app->signin.refresh_token, sizeof(app->signin.refresh_token), "%s",
+                 app->accounts.list[index].refresh_token);
+    }
+    else
+    {
+        snprintf(app->signin.username, sizeof(app->signin.username), "%s",
+                 RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME));
+        snprintf(app->signin.password, sizeof(app->signin.password), "%s",
+                 RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
+    }
+    app->signin_busy = 1;
+    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_AccountSignIn(&app->signin));
+    RS_Title_SetMessages(&app->title, connecting, NULL, NULL);
+    app->screen = APP_SCREEN_CONNECTING;
+    app_title_state_changed(app);
+}
+
+/*
+ * The sign-in answered. Good: the account goes first in the list with its
+ * rotated refresh token, and the game is dialled with the one-time login --
+ * from here the ordinary login result handling takes over. Refused: back to
+ * the title with the server's words, and a refresh token the server refused
+ * is forgotten, its account's name put in the form for a password.
+ */
+static void
+app_accounts_finish_signin(struct App* app)
+{
+    struct RS_AccountSignIn* signin = &app->signin;
+
+    assert(app);
+    assert(signin->done);
+    if( signin->ok )
+    {
+        RS_Accounts_Remember(&app->accounts, signin->name, signin->new_refresh_token);
+        app_accounts_save(app);
+        app_login_refresh_jag_checksums(app);
+        app_login_set_client_identity(app);
+        ToriRS_Network_ConnectLoginToken(
+            app->net, app->title_session.connect_target, signin->name, signin->otl);
+        memset(signin, 0, sizeof(*signin));
+        app_title_state_changed(app);
+        return;
+    }
+
+    TORIRS_LOG("login: account server refused the sign-in: %s\n", signin->error);
+    app->screen = APP_SCREEN_TITLE;
+    if( signin->refresh_refused )
+    {
+        int index = RS_Accounts_Find(&app->accounts, signin->username);
+
+        if( index >= 0 )
+        {
+            RS_Accounts_Forget(&app->accounts, index);
+            app_accounts_save(app);
+        }
+        RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, signin->username);
+        RS_Title_SetScreen(&app->title, RS_TITLE_LOGIN_FORM);
+        RS_Title_SetMessages(&app->title, "Your session has expired.",
+                             "Please log in again.", NULL);
+    }
+    else
+        RS_Title_SetMessages(&app->title, signin->error, NULL, NULL);
+    memset(signin, 0, sizeof(*signin));
+    app_title_state_changed(app);
 }
 
 /*
@@ -679,6 +862,16 @@ app_title_submit(struct App* app)
     app->title.submit_requested = 0;
     ToriRS_BootTelemetry_Mark("login_submit");
 
+    /* On an account-server world the form is a password grant, not a password
+     * on the wire: the dial waits for the one-time login it buys. */
+    if( app->oauth )
+    {
+        if( app->net_enabled && app->net &&
+            RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME)[0] && !app->signin_busy )
+            app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_PASSWORD, -1);
+        return;
+    }
+
     /* The password is not read here: the connect happens a tick later and
      * takes both straight off the form -- see RS_TitleSession. */
     user = RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME);
@@ -750,6 +943,45 @@ app_title_tick(struct App* app)
     if( app->app_state != APP_STATE_READY )
         return 0;
 
+    /* The device's saved accounts, read once. The title is the plain front
+     * menu until they land, then their cards (app_title_layout_accounts). */
+    if( app->oauth && app->accounts_path && !app->accounts_load_started )
+    {
+        app->accounts_load_started = 1;
+        ToriRS_TaskQueue_Add(
+            app->runner.queue,
+            CreateTask_AccountsLoad(&app->accounts, app->accounts_path, &app->accounts_loaded));
+    }
+    if( app->accounts_loaded && !app->accounts_shown )
+    {
+        app->accounts_shown = 1;
+        app_title_state_changed(app);
+        redraw = 1;
+    }
+
+    /*
+     * A sign-in at the account server is in flight. Nothing else on the
+     * title moves until it answers -- above all not the login-failed check
+     * below, which reads an undialled link as a refusal.
+     */
+    if( app->signin_busy )
+    {
+        if( !app->signin.done )
+            return redraw;
+        app->signin_busy = 0;
+        app_accounts_finish_signin(app);
+        return 1;
+    }
+    if( app->title.play_requested >= 0 )
+    {
+        int index = app->title.play_requested;
+
+        app->title.play_requested = -1;
+        if( app->oauth && index < app->accounts.count && app->net_enabled && app->net )
+            app_accounts_begin_signin(app, RS_ACCOUNT_SIGNIN_REFRESH, index);
+        return 1;
+    }
+
     /*
      * A reloaded page, asking for the session it was already in.
      *
@@ -798,6 +1030,10 @@ app_title_tick(struct App* app)
     {
         app_title_submit(app);
         redraw = 1;
+        /* A sign-in at the account server started: the link is not dialled
+         * yet, and the login-failed check below would read that as a refusal. */
+        if( app->signin_busy )
+            return redraw;
     }
     /*
      * The connect the previous tick deferred, now that its frame has been
@@ -909,4 +1145,95 @@ app_title_tick(struct App* app)
     }
 
     return redraw;
+}
+
+/*
+ * The login form, for the browser's password manager (platform_credential_form.h).
+ *
+ * The credential form is "showing" only while it is the screen and its two
+ * fields are on the tree: the inputs the page lays over them are only ever
+ * where a field is drawn. The boxes are the fields' drawn bounds, the same
+ * rectangles a click on the canvas hits.
+ */
+int
+App_TakeCredentialForm(
+    struct App* app,
+    struct PlatformCredentialForm* out)
+{
+    static char const* const k_roles[2] = { "login_username", "login_password" };
+    struct PlatformCredentialForm now;
+
+    assert(app);
+    assert(out);
+    memset(&now, 0, sizeof(now));
+    now.connecting = app->screen == APP_SCREEN_CONNECTING;
+    now.in_game = app->screen == APP_SCREEN_GAME;
+    now.showing = app->tree && app->screen == APP_SCREEN_TITLE &&
+                  app->title.screen == RS_TITLE_LOGIN_FORM && app->title.progress_percent < 0;
+    for( int i = 0; i < 2 && now.showing; i++ )
+    {
+        int32_t node = UITree_RoleNodeByName(app->tree, &app->ui_roles, k_roles[i]);
+
+        if( node < 0 ||
+            !UITree_NodeDrawnBounds(app->tree, node, &now.x[i], &now.y[i], &now.w[i], &now.h[i]) )
+            now.showing = 0;
+    }
+    now.focus = app->title.focus;
+    now.password_len = (int)strlen(RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
+    snprintf(now.username, sizeof(now.username), "%s",
+             RS_Title_FieldText(&app->title, RS_TITLE_FIELD_USERNAME));
+    /* Both zeroed whole, so the padding compares too. */
+    if( memcmp(&now, &app->credential_form_sent, sizeof(now)) == 0 )
+        return 0;
+    app->credential_form_sent = now;
+    *out = now;
+    return 1;
+}
+
+/* The page's form is only ever over the credential form; anything it says
+ * once that screen has gone is a message that crossed a screen change. */
+static int
+app_credential_form_live(struct App const* app)
+{
+    return app->screen == APP_SCREEN_TITLE && app->title.screen == RS_TITLE_LOGIN_FORM;
+}
+
+void
+App_CredentialInput(
+    struct App* app,
+    int field,
+    char const* text)
+{
+    assert(app);
+    assert(field == RS_TITLE_FIELD_USERNAME || field == RS_TITLE_FIELD_PASSWORD);
+    assert(text);
+    if( !app_credential_form_live(app) )
+        return;
+    if( strcmp(RS_Title_FieldText(&app->title, (enum RS_TitleField)field), text) == 0 )
+        return;
+    RS_Title_SetFieldText(&app->title, (enum RS_TitleField)field, text);
+    app_title_state_changed(app);
+}
+
+void
+App_CredentialFocus(
+    struct App* app,
+    int field)
+{
+    assert(app);
+    assert(field == RS_TITLE_FIELD_USERNAME || field == RS_TITLE_FIELD_PASSWORD);
+    if( !app_credential_form_live(app) || app->title.focus == field )
+        return;
+    app->title.focus = field;
+    app_title_state_changed(app);
+}
+
+void
+App_CredentialSubmit(struct App* app)
+{
+    assert(app);
+    if( !app_credential_form_live(app) )
+        return;
+    app->title.submit_requested = 1;
+    app_title_state_changed(app);
 }

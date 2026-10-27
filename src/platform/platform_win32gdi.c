@@ -2418,6 +2418,16 @@ PlatformWindow_OpenUrl(struct PlatformWindow* p, char const* url)
         fprintf(stderr, "unable to open url %s\n", url);
 }
 
+/* No password manager to hand the login form to. */
+void
+PlatformWindow_SetCredentialForm(
+    struct PlatformWindow* p,
+    struct PlatformCredentialForm const* form)
+{
+    assert(p);
+    assert(form);
+}
+
 void
 PlatformWindow_SetTextInput(struct PlatformWindow* p, int on)
 {

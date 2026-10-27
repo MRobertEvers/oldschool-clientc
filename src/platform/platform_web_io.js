@@ -412,7 +412,16 @@ mergeInto(LibraryManager.library, {
         return { kind: kind, path: inst.join(inst.configDir, this.itemPath(item, a.configPathOff)) };
       }
       if (kind === K.SCRIPT) {
-        return { kind: kind, path: inst.join(inst.scriptDir, this.itemPath(item, a.scriptPathOff)) };
+        const path = this.itemPath(item, a.scriptPathOff);
+        /* An account-server request (game/task_accounts_io.h): the path names
+         * the endpoint and `data` LENDS the form body, copied out here for the
+         * reason FILE_WRITE's bytes are. The answer replaces the body. */
+        if (path.startsWith('auth/')) {
+          const ptr = HEAP32[(item + a.dataOff) >> 2];
+          const size = HEAP32[(item + a.dataSizeOff) >> 2];
+          return { kind: kind, auth: path.slice(5), bytes: HEAPU8.slice(ptr, ptr + size) };
+        }
+        return { kind: kind, path: inst.join(inst.scriptDir, path) };
       }
       if (kind === K.FILE_READ) {
         return { kind: kind, path: this.itemPath(item, a.filePathOff) };
@@ -747,6 +756,11 @@ mergeInto(LibraryManager.library, {
     execute: async function (inst, req) {
       const K = inst.kinds;
 
+      if (req.kind === K.SCRIPT && req.auth !== undefined) {
+        return typeof inst.host.authPost === 'function'
+          ? await inst.host.authPost(req.auth, req.bytes)
+          : null;
+      }
       if (req.kind === K.CONFIG_FILE || req.kind === K.SCRIPT) {
         return await inst.host.readFile(req.path);
       }

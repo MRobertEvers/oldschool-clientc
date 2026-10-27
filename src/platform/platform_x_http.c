@@ -202,18 +202,25 @@ http_framed_length(const char* buf, int header_size, int* out_chunked)
     return content_length;
 }
 
-char*
-PlatformX_HttpGetTimed(
+/*
+ * One request and its response's body. `head` is the whole request line and
+ * headers; `payload` follows it. Only a 200's body is returned unless
+ * `any_status`, for a caller (a POST) whose refusals carry a body worth reading.
+ */
+static char*
+http_exchange(
     const char* host,
     int port,
-    const char* route,
+    const char* head,
+    const char* payload,
+    int payload_size,
+    int any_status,
     int* out_size,
     int* out_status,
     int connect_sec,
     int read_sec)
 {
     struct SockStream* stream = NULL;
-    char request[512];
     char* buffer = NULL;
     int capacity = 0;
     int length = 0;
@@ -226,7 +233,7 @@ PlatformX_HttpGetTimed(
     char* result = NULL;
 
     assert(host);
-    assert(route);
+    assert(head);
     assert(out_size);
 
     *out_size = 0;
@@ -237,15 +244,9 @@ PlatformX_HttpGetTimed(
     if( !stream )
         return NULL;
 
-    snprintf(
-        request,
-        sizeof(request),
-        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n"
-        "Connection: close\r\n\r\n",
-        route,
-        host,
-        port);
-    if( http_write_all(stream, request, (int)strlen(request), read_sec) != 0 )
+    if( http_write_all(stream, head, (int)strlen(head), read_sec) != 0 )
+        goto done;
+    if( payload_size > 0 && http_write_all(stream, payload, payload_size, read_sec) != 0 )
         goto done;
 
     for( ;; )
@@ -307,7 +308,7 @@ PlatformX_HttpGetTimed(
      * test so a caller can tell a refusal from silence. */
     if( out_status )
         *out_status = (buffer[9] - '0') * 100 + (buffer[10] - '0') * 10 + (buffer[11] - '0');
-    if( memcmp(buffer + 9, "200", 3) != 0 )
+    if( !any_status && memcmp(buffer + 9, "200", 3) != 0 )
         goto done;
 
     /* Both may already be known -- the loop needs them to decide when to stop.
@@ -370,6 +371,63 @@ done:
         sockstream_free(stream);
     }
     return result;
+}
+
+char*
+PlatformX_HttpGetTimed(
+    const char* host,
+    int port,
+    const char* route,
+    int* out_size,
+    int* out_status,
+    int connect_sec,
+    int read_sec)
+{
+    char request[512];
+
+    assert(route);
+    snprintf(
+        request,
+        sizeof(request),
+        "GET %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: */*\r\n"
+        "Connection: close\r\n\r\n",
+        route,
+        host,
+        port);
+    return http_exchange(host, port, request, NULL, 0, /* any_status */ 0, out_size,
+                         out_status, connect_sec, read_sec);
+}
+
+char*
+PlatformX_HttpPostForm(
+    const char* host,
+    int port,
+    const char* route,
+    const char* cookie,
+    const char* body,
+    int body_size,
+    int* out_size,
+    int* out_status)
+{
+    char request[1024];
+
+    assert(route);
+    assert(body || body_size == 0);
+    snprintf(
+        request,
+        sizeof(request),
+        "POST %s HTTP/1.0\r\nHost: %s:%d\r\nUser-Agent: torirs\r\nAccept: application/json\r\n"
+        "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: %d\r\n"
+        "%s%s%sConnection: close\r\n\r\n",
+        route,
+        host,
+        port,
+        body_size,
+        cookie ? "Cookie: " : "",
+        cookie ? cookie : "",
+        cookie ? "\r\n" : "");
+    return http_exchange(host, port, request, body, body_size, /* any_status */ 1, out_size,
+                         out_status, HTTP_CONNECT_TIMEOUT_SEC, HTTP_READ_TIMEOUT_SEC);
 }
 
 /* The general timeouts: short, because a config or plugin read that hangs

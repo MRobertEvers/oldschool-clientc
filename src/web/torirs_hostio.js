@@ -65,7 +65,7 @@
    * run. `producers` supplies the two cache fillers; either may be absent, and
    * a deployment with neither is a client that reads only what it already has.
    */
-  window.ToriRS_CreateHostIO = function (cacheKeyOf, bootUrl, producers) {
+  window.ToriRS_CreateHostIO = function (cacheKeyOf, bootUrl, producers, authBase) {
     const idb = window.ToriRS_IDB;
     const cacheKey = () => (typeof cacheKeyOf === 'function' ? cacheKeyOf() : cacheKeyOf);
     const js5 = () => (producers && producers.js5 ? producers.js5() : null);
@@ -238,6 +238,33 @@
       async writeClientFile(path, bytes) {
         await idb.filePut(path, bytes, null);
         storedFiles.add(path);
+      },
+
+      /*
+       * One request to the account server (game/task_accounts_io.h): a form
+       * POST to this page's own origin, which is io_server's sign-in gate, so
+       * the gate's cookie rides along without the client ever holding it
+       * ('same-origin' credentials; the cookie is HttpOnly). The answer is the
+       * body whatever the status -- an OAuth refusal is JSON that says why --
+       * and null only when nothing answered.
+       */
+      async authPost(endpoint, bytes) {
+        const routes = { token: 'oauth/token', play: 'game/play', revoke: 'oauth/revoke' };
+        const route = routes[endpoint];
+        if (!route) { return null; }
+        let response;
+        try {
+          response = await fetch(`${authBase || '/'}${route}`, {
+            method: 'POST',
+            cache: 'no-store',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: bytes,
+          });
+        } catch (err) {
+          return null;
+        }
+        return new Uint8Array(await response.arrayBuffer());
       },
 
       /*

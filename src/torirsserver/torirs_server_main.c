@@ -37,14 +37,19 @@
  *   TORIRSSERVER_DEV=1   development mode: logins skip the password check
  *                       (also `--dev`; 0 turns the check back on in the
  *                       dev_torirsserver build). See torirs_server_auth.h.
+ *   TORIRSSERVER_GATE=1  behind io_server's sign-in gate (also `--gate`):
+ *                       WebSockets need its ticket, a web login made from
+ *                       an invite (`--account invite`). torirs_server_auth.h.
  */
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"
 #include "torirs_server.h"
 
+#include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
 #include "torirs_server_host.h"
+#include "torirs_server_save.h"
 #include "torirs_server_session.h"
 #include "torirs_server_shop.h"
 
@@ -110,6 +115,61 @@ on_stop_signal(int sig)
     ToriRSServer_HostRequestShutdown();
 }
 
+/*
+ * `torirsserver --account ...`: the operator's side of the sign-in gate
+ * (torirs_server_auth.h). Touches only `<saves>/accounts/`, so it runs beside
+ * a live world without loading one.
+ *
+ *   --account invite [name]           print a one-time invite to make a web
+ *                                     login for the gate; with a name only
+ *                                     that name can redeem it
+ *   --account admin <name> on|off     set or clear a PLAYER account's admin
+ *                                     flag (staff: jmod crown, cheats); it
+ *                                     takes effect at the next login
+ *
+ * TORIRSSERVER_GATE_URL (e.g. https://torirs.example.com) makes the invite a
+ * whole link.
+ */
+static int
+account_command(
+    int argc,
+    char** argv)
+{
+    if( argc >= 3 && argc <= 4 && strcmp(argv[2], "invite") == 0 )
+    {
+        char code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1];
+        const char* name = argc == 4 ? argv[3] : NULL;
+        const char* base = getenv("TORIRSSERVER_GATE_URL");
+
+        if( name && ToriRSServer_AuthNameProblem(name) )
+        {
+            fprintf(stderr, "torirsserver: '%s': %s\n", name, ToriRSServer_AuthNameProblem(name));
+            return 1;
+        }
+        if( !ToriRSServer_InviteCreate(name, code) )
+            return 1;
+        printf("%s/invite/%s\n", base ? base : "", code);
+        fprintf(stderr, "torirsserver: web login invite for %s, in %s/gate/invites/\n",
+                name ? name : "a name of the visitor's choosing", ToriRSServer_SaveDir());
+        return 0;
+    }
+    if( argc == 5 && strcmp(argv[2], "admin") == 0 &&
+        (strcmp(argv[4], "on") == 0 || strcmp(argv[4], "off") == 0) )
+    {
+        int admin = strcmp(argv[4], "on") == 0;
+
+        if( !ToriRSServer_AuthSetAdmin(argv[3], admin) )
+        {
+            fprintf(stderr, "torirsserver: '%s' has no usable account record (%s)\n", argv[3],
+                    ToriRSServer_AccountPath(argv[3]));
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
+        return 0;
+    }
+    return 2;
+}
+
 int
 main(
     int argc,
@@ -126,6 +186,16 @@ main(
     /* --scriptrun: the same sessionless bots, each running a quest-driver test
      * script on a Lua state inside this process (torirs_server_scriptrun.c). */
     int scriptrun = argc > 1 && strcmp(argv[1], "--scriptrun") == 0;
+    if( argc > 1 && strcmp(argv[1], "--account") == 0 )
+    {
+        int status = account_command(argc, argv);
+
+        if( status == 2 )
+            fprintf(stderr, "usage: %s --account invite [name]\n"
+                            "       %s --account admin <name> on|off\n",
+                    argv[0], argv[0]);
+        return status;
+    }
     /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0
      * and bind wherever the kernel likes. */
     int port = (argc > 1 && strncmp(argv[1], "--", 2) != 0) ? atoi(argv[1]) : TORIRSSERVER_DEFAULT_PORT;
@@ -356,6 +426,30 @@ main(
             fprintf(stderr, "torirsserver: %s\n",
                     dev ? "development mode: logins do not check passwords"
                         : "logins check passwords (accounts in <saves>/accounts/)");
+    }
+    {
+        /* `--gate` or TORIRSSERVER_GATE=1: behind io_server's sign-in gate
+         * (torirs_server_auth.h). Meaningless without passwords -- the gate's
+         * ticket names an account, and a development server has none -- so the
+         * two together are refused rather than half-honoured. */
+        char const* gate_env = getenv("TORIRSSERVER_GATE");
+        int gate = gate_env && gate_env[0] && strcmp(gate_env, "0") != 0;
+
+        for( int i = 1; i < argc; i++ )
+            if( strcmp(argv[i], "--gate") == 0 )
+                gate = 1;
+        if( gate && !selftest && !botrun && !scriptrun )
+        {
+            if( !srv.check_passwords )
+            {
+                fprintf(stderr, "torirsserver: --gate needs passwords; drop --dev / TORIRSSERVER_DEV\n");
+                return 1;
+            }
+            ToriRSServer_GateKeyLoad();
+            srv.gate = 1;
+            fprintf(stderr, "torirsserver: behind the sign-in gate: WebSockets need its cookie, "
+                            "raw TCP is refused, only staff may cheat\n");
+        }
     }
     /* Shop definitions are global (ToriRSServer_ContentLoad populated them);
      * seeding their containers is per-server-instance, so it happens once the

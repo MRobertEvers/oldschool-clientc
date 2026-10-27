@@ -37,6 +37,15 @@ _Static_assert(
 _Static_assert(
     (int)RS_TITLE_ACTION_TOGGLE_MUSIC == (int)UITREE_TITLE_ACTION_TOGGLE_MUSIC,
     "title action toggle_music");
+_Static_assert(
+    (int)RS_TITLE_ACTION_PLAY_ACCOUNT == (int)UITREE_TITLE_ACTION_PLAY_ACCOUNT,
+    "title action play_account");
+_Static_assert(
+    (int)RS_TITLE_ACTION_OTHER_ACCOUNT == (int)UITREE_TITLE_ACTION_OTHER_ACCOUNT,
+    "title action other_account");
+_Static_assert(
+    (int)RS_TITLE_ACTION_SHOW_ACCOUNTS == (int)UITREE_TITLE_ACTION_SHOW_ACCOUNTS,
+    "title action show_accounts");
 
 void
 RS_Title_Init(struct RS_Title* title)
@@ -44,8 +53,35 @@ RS_Title_Init(struct RS_Title* title)
     assert(title);
     memset(title, 0, sizeof(*title));
     title->screen = RS_TITLE_MAIN_MENU;
+    title->home = RS_TITLE_MAIN_MENU;
+    title->play_requested = -1;
     title->focus = RS_TITLE_FIELD_USERNAME;
     title->progress_percent = -1;
+}
+
+void
+RS_Title_SetHome(
+    struct RS_Title* title,
+    enum RS_TitleScreen home)
+{
+    assert(title);
+    assert(home == RS_TITLE_MAIN_MENU || home == RS_TITLE_ACCOUNTS);
+    if( title->screen == title->home )
+        title->screen = home;
+    title->home = home;
+}
+
+int
+RS_Title_PlayAccount(
+    struct RS_Title* title,
+    int index)
+{
+    assert(title);
+    assert(index >= 0);
+    if( title->play_requested >= 0 || title->screen != RS_TITLE_ACCOUNTS )
+        return 0;
+    title->play_requested = index;
+    return 1;
 }
 
 static void
@@ -249,7 +285,7 @@ RS_Title_HandleKey(
 
     if( key_typed == TORIRS_OSRSKEY_ESCAPE )
     {
-        RS_Title_SetScreen(title, RS_TITLE_MAIN_MENU);
+        RS_Title_SetScreen(title, title->home);
         return 1;
     }
 
@@ -292,7 +328,19 @@ RS_Title_HandleAction(
          * after the player backed out is a password nobody asked us to keep. */
         title->fields[RS_TITLE_FIELD_USERNAME][0] = '\0';
         title->fields[RS_TITLE_FIELD_PASSWORD][0] = '\0';
-        RS_Title_SetScreen(title, RS_TITLE_MAIN_MENU);
+        RS_Title_SetScreen(title, title->home);
+        return 1;
+
+    case RS_TITLE_ACTION_OTHER_ACCOUNT:
+        /* A different account than any shown, so nothing is prefilled. */
+        title->fields[RS_TITLE_FIELD_USERNAME][0] = '\0';
+        title->fields[RS_TITLE_FIELD_PASSWORD][0] = '\0';
+        RS_Title_SetScreen(title, RS_TITLE_LOGIN_FORM);
+        return 1;
+
+    case RS_TITLE_ACTION_SHOW_ACCOUNTS:
+        title->fields[RS_TITLE_FIELD_PASSWORD][0] = '\0';
+        RS_Title_SetScreen(title, RS_TITLE_ACCOUNTS);
         return 1;
 
     case RS_TITLE_ACTION_FOCUS_USERNAME:
@@ -318,6 +366,8 @@ RS_Title_HandleAction(
 
     /* The App's: the setting lives in the option store, not in this model. */
     case RS_TITLE_ACTION_TOGGLE_MUSIC:
+    /* Carries an index: RS_Title_PlayAccount. */
+    case RS_TITLE_ACTION_PLAY_ACCOUNT:
     case RS_TITLE_ACTION_NONE:
         return 0;
     }
@@ -348,5 +398,11 @@ RS_Title_ActionFromName(char const* name)
         return RS_TITLE_ACTION_TOGGLE_HIDE;
     if( strcmp(name, "toggle_music") == 0 )
         return RS_TITLE_ACTION_TOGGLE_MUSIC;
+    if( strcmp(name, "play_account") == 0 )
+        return RS_TITLE_ACTION_PLAY_ACCOUNT;
+    if( strcmp(name, "other_account") == 0 )
+        return RS_TITLE_ACTION_OTHER_ACCOUNT;
+    if( strcmp(name, "show_accounts") == 0 )
+        return RS_TITLE_ACTION_SHOW_ACCOUNTS;
     return RS_TITLE_ACTION_NONE;
 }

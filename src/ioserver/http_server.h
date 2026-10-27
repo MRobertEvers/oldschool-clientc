@@ -53,7 +53,11 @@ struct HttpResponse
      * that follows it re-requests, so the handler that set it does no work for
      * the destination.
      */
-    char location[256];
+    char location[768];
+    /** When set, sent as one Set-Cookie header (io_gate.c's ticket). */
+    char set_cookie[256];
+    /** When set, sent as WWW-Authenticate (a Bearer refusal, RFC 6750 3). */
+    char www_authenticate[96];
 };
 
 /**

@@ -290,6 +290,7 @@ host_accept(struct ToriRSServerHost* host)
      * kind of connection as far as this file is concerned.
      */
     ToriRSServer_ConnBegin(&host->conns[index].conn, fd);
+    host->conns[index].conn.require_ticket = host->srv->gate;
     fprintf(stderr, "torirsserver: client connected (slot %d)\n", index);
 }
 
@@ -414,6 +415,7 @@ host_stage_login(
     c->session.player = player;
     ToriRSServer_WorldPlayerInit(player);
     ToriRSServer_WorldSetDisplayName(player, c->session.display_name);
+    player->staff_level = c->session.staff_level;
     ToriRSServer_WorldLogin(player);
     fprintf(stderr, "torirsserver: %s logged in (pid %d)\n", player->display_name, player->pid);
 

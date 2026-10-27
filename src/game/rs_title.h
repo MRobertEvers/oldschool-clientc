@@ -40,6 +40,14 @@ enum RS_TitleScreen
     /** Static prose plus one dismiss button: the reference's "create a free
      *  account" page, and where a rejected login's explanation lands. */
     RS_TITLE_INFO = 3,
+    /**
+     * The accounts this device has signed in with, each a "Play Now": the
+     * mobile client's front screen when it holds a launcher session, where the
+     * account comes from a token rather than a typed password (the deob's
+     * launcher login; torirs_server_oauth.h). Its own number, past the deob's
+     * loginIndex values, because the desktop deob has no such screen.
+     */
+    RS_TITLE_ACCOUNTS = 10,
 };
 
 enum RS_TitleField
@@ -69,6 +77,13 @@ enum RS_TitleAction
     /** The title music button (deob: the `title_mute` corner icon). Not model
      *  state: it flips device option 4, which the App owns and persists. */
     RS_TITLE_ACTION_TOGGLE_MUSIC,
+    /** A Play Now plate; the button's index= says which account. Taken by
+     *  RS_Title_PlayAccount, since it carries an index. */
+    RS_TITLE_ACTION_PLAY_ACCOUNT,
+    /** "Log in with another account": the credential form, empty. */
+    RS_TITLE_ACTION_OTHER_ACCOUNT,
+    /** The account icon on the form: back to the accounts. */
+    RS_TITLE_ACTION_SHOW_ACCOUNTS,
 };
 
 /** Which of the title's toggles a login_toggle is. Parallel to RS_TitleAction's
@@ -132,6 +147,16 @@ struct RS_Title
      * rather than in a varp for that reason.
      */
     int toggles[RS_TITLE_TOGGLE_COUNT];
+
+    /**
+     * Where Cancel and Escape go back to: the front menu, or the accounts
+     * screen once this device holds any (RS_Title_SetHome). The model does not
+     * know about accounts; the app says which.
+     */
+    enum RS_TitleScreen home;
+    /** A Play Now was pressed: the account's index, or -1. The app takes it,
+     *  as it takes submit_requested. */
+    int play_requested;
 };
 
 /** Zero the model and put it on the front menu with no bar. */
@@ -157,6 +182,20 @@ void
 RS_Title_SetScreen(
     struct RS_Title* title,
     enum RS_TitleScreen screen);
+
+/** Where Cancel and Escape return to (RS_TITLE_MAIN_MENU or
+ *  RS_TITLE_ACCOUNTS). Moves the screen too when it is showing the old home. */
+void
+RS_Title_SetHome(
+    struct RS_Title* title,
+    enum RS_TitleScreen home);
+
+/** A Play Now plate for account `index`. Returns nonzero when the model
+ *  changed; a press while one is already pending is ignored. */
+int
+RS_Title_PlayAccount(
+    struct RS_Title* title,
+    int index);
 
 /** Text of one field. Never NULL. */
 char const*

@@ -303,7 +303,25 @@ ToriRS_Network_ConnectLogin(
     resume = net->resume_armed;
     net->resume_armed = 0;
     net->resume_in_flight = resume;
+    net->login_auth_type = 0;
     connect_login(net, host, username, password, /* reconnect */ resume);
+}
+
+void
+ToriRS_Network_ConnectLoginToken(
+    struct ToriRS_Network* net,
+    char const* host,
+    char const* username,
+    char const* token)
+{
+    assert(net);
+    assert(token);
+    /* No resume: a token is spent on first use, and a seed reconnect never
+     * reads the password slot anyway. */
+    net->resume_armed = 0;
+    net->resume_in_flight = 0;
+    net->login_auth_type = 2;
+    connect_login(net, host, username, token, /* reconnect */ 0);
 }
 
 int

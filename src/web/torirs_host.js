@@ -865,7 +865,7 @@
    */
   if (typeof window.ToriRS_CreateHostIO === 'function') {
     Module.torirsHostIO = window.ToriRS_CreateHostIO(
-      () => cacheKey, bootUrl, { js5: js5Producer, onDemand: onDemandProducer });
+      () => cacheKey, bootUrl, { js5: js5Producer, onDemand: onDemandProducer }, pageDir);
   }
 
   Module.arguments = args;

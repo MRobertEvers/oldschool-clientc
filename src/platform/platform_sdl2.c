@@ -3048,6 +3048,62 @@ PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
         SDL_StopTextInput();
 }
 
+#if defined(__EMSCRIPTEN__)
+/* The page's half: src/web/torirs_credentials.js. Boxes in canvas CSS pixels,
+ * which is what an SDL window point is on the browser. */
+EM_JS(void, sdl_web_credential_form,
+      (int showing, int connecting, int in_game, int ux, int uy, int uw, int uh, int px, int py,
+       int pw, int ph, int focus, int password_len, char const* username),
+{
+    if( typeof Module.torirsCredentialForm !== 'function' )
+        return;
+    Module.torirsCredentialForm({
+        showing: showing !== 0, connecting: connecting !== 0, inGame: in_game !== 0,
+        fields: [ { x: ux, y: uy, w: uw, h: uh }, { x: px, y: py, w: pw, h: ph } ],
+        focus: focus, passwordLen: password_len, username: UTF8ToString(username),
+    });
+});
+#endif
+
+void
+PlatformWindow_SetCredentialForm(
+    struct PlatformWindow* platform,
+    struct PlatformCredentialForm const* form)
+{
+    assert(platform);
+    assert(form);
+#if defined(__EMSCRIPTEN__)
+    {
+        struct PlatformPointerGeometry geometry;
+        int box[2][4] = { { 0 } };
+
+        /* Each field's corners through the present, so the inputs land on the
+         * fields however the canvas is scaled or letterboxed. */
+        sdl_pointer_geometry(platform, &geometry);
+        for( int i = 0; i < 2 && form->showing; i++ )
+        {
+            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+
+            if( geometry.layout_w <= 0 || geometry.layout_h <= 0 ||
+                !PlatformPointer_LayoutToWindow(&platform->client_scale, &geometry, form->x[i],
+                                                form->y[i], &x0, &y0) ||
+                !PlatformPointer_LayoutToWindow(&platform->client_scale, &geometry,
+                                                form->x[i] + form->w[i], form->y[i] + form->h[i],
+                                                &x1, &y1) )
+                continue;
+            box[i][0] = x0;
+            box[i][1] = y0;
+            box[i][2] = x1 - x0;
+            box[i][3] = y1 - y0;
+        }
+        sdl_web_credential_form(form->showing, form->connecting, form->in_game, box[0][0],
+                                box[0][1], box[0][2], box[0][3], box[1][0], box[1][1],
+                                box[1][2], box[1][3], form->focus, form->password_len,
+                                form->username);
+    }
+#endif
+}
+
 int
 PlatformWindow_HasScreenKeyboard(struct PlatformWindow* platform)
 {

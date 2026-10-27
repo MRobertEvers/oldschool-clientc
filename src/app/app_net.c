@@ -236,7 +236,9 @@ App_Logout(struct App* app)
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_USERNAME, NULL);
     RS_Title_SetFieldText(&app->title, RS_TITLE_FIELD_PASSWORD, NULL);
     RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
-    RS_Title_SetScreen(&app->title, RS_TITLE_MAIN_MENU);
+    /* Home, not the front menu: on an account-server world that is the
+     * Play Now cards, with the account just left among them. */
+    RS_Title_SetScreen(&app->title, app->title.home);
     /* The one automatic submit has already been spent on the session that just
      * ended; re-arming it here would dial straight back into the world the
      * player asked to leave. @see RS_TitleSession_Abandon. */

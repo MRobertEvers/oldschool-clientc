@@ -47,7 +47,16 @@ REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src"
 CONTENT = REPO / "OSRS-Content" / "osrs-content"
 SCRIPT_PACK = CONTENT / "server" / "scripts" / "build"
+# The world this package serves: osrs239 unless --world says otherwise
+# (osrs241 is the current revision). Every name below that says osrs239 --
+# the cache, the manifest, the revconfig, the scripts' text -- is rewritten to
+# it, so the templates keep their one spelling.
+WORLD = "osrs239"
 PACKAGE_NAME = "torirs-osrs239"
+
+
+def for_world(text: str) -> str:
+    return text.replace("osrs239", WORLD).replace("Osrs239", WORLD.capitalize())
 IS_WINDOWS = os.name == "nt"
 EXE = ".exe" if IS_WINDOWS else ""
 
@@ -215,16 +224,20 @@ def stage_web(stage: Path) -> None:
     log(f"build-web: {total / 1e6:.0f} MB")
 
 
-def write_manifest(stage: Path, game_port: int, ws_host: str) -> None:
+def write_manifest(stage: Path, game_port: int, ws_host: str, auth: str) -> None:
     """manifests/manifest_osrs239.ini, rewritten for the package's layout:
     the cache beside it, a WebSocket transport on the game port, and the
     launcher-only [derived:*] blocks dropped. Comments and order survive."""
-    src = REPO / "manifests" / "manifest_osrs239.ini"
+    src = REPO / "manifests" / f"manifest_{WORLD}.ini"
     out_lines: list[str] = []
     section = ""
     seen_ws_keys: set[str] = set()
 
     def close_net_boot() -> None:
+        # How players sign in: `oauth` puts the account server's Play Now
+        # cards on the title (game/task_accounts_io.h), which needs io_server
+        # run with --gate; `password` is the plain form.
+        out_lines.append(f"auth={auth}\n")
         if "ws_host" not in seen_ws_keys:
             out_lines.append(f"ws_host={ws_host}\n")
         if "ws_port" not in seen_ws_keys:
@@ -244,7 +257,7 @@ def write_manifest(stage: Path, game_port: int, ws_host: str) -> None:
             continue
         key = stripped.split("=", 1)[0].strip() if "=" in stripped else ""
         if section == "cache:boot" and key == "dir":
-            line = "dir=../cache.osrs239\n"
+            line = f"dir=../cache.{WORLD}\n"
         elif section == "net:boot" and key == "transport":
             line = "transport=ws\n"
         elif section == "net:boot" and key == "port":
@@ -252,13 +265,15 @@ def write_manifest(stage: Path, game_port: int, ws_host: str) -> None:
         elif section == "net:boot" and key == "ws_host":
             line = f"ws_host={ws_host}\n"
             seen_ws_keys.add("ws_host")
+        elif section == "net:boot" and key == "auth":
+            continue
         elif section == "net:boot" and key == "ws_port":
             line = f"ws_port={game_port}\n"
             seen_ws_keys.add("ws_port")
         out_lines.append(line)
     if section == "net:boot":
         close_net_boot()
-    dst = stage / "manifests" / "manifest_osrs239.ini"
+    dst = stage / "manifests" / f"manifest_{WORLD}.ini"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text("".join(out_lines), encoding="utf-8")
 
@@ -473,13 +488,13 @@ def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
                   sha: str, content_sha: str, date: str) -> None:
     fmt = dict(game_port=game_port, web_port=web_port, ws_host=ws_host,
                sha=sha, content_sha=content_sha, date=date)
-    (stage / "run.cmd").write_text(RUN_CMD.format(**fmt), encoding="utf-8", newline="\r\n")
-    (stage / "run.sh").write_text(RUN_SH.format(**fmt), encoding="utf-8", newline="\n")
-    (stage / "supervise.ps1").write_text(SUPERVISE_PS1.format(**fmt), encoding="utf-8", newline="\r\n")
-    (stage / "install-windows-task.ps1").write_text(INSTALL_PS1.format(**fmt), encoding="utf-8", newline="\r\n")
-    (stage / "README.md").write_text(README.format(**fmt), encoding="utf-8")
+    (stage / "run.cmd").write_text(for_world(RUN_CMD.format(**fmt)), encoding="utf-8", newline="\r\n")
+    (stage / "run.sh").write_text(for_world(RUN_SH.format(**fmt)), encoding="utf-8", newline="\n")
+    (stage / "supervise.ps1").write_text(for_world(SUPERVISE_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
+    (stage / "install-windows-task.ps1").write_text(for_world(INSTALL_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
+    (stage / "README.md").write_text(for_world(README.format(**fmt)), encoding="utf-8")
     (stage / "VERSION.txt").write_text(
-        f"torirs-osrs239\ncommit={sha}\ncontent={content_sha}\nbuilt={date}\n"
+        f"{PACKAGE_NAME}\ncommit={sha}\ncontent={content_sha}\nbuilt={date}\n"
         f"host={platform.platform()}\n", encoding="utf-8")
     if not IS_WINDOWS:
         os.chmod(stage / "run.sh", 0o755)
@@ -512,7 +527,20 @@ def main() -> int:
     ap.add_argument("--skip-web", action="store_true", help="reuse build-web/")
     ap.add_argument("--skip-build", action="store_true", help="all three of the above")
     ap.add_argument("--no-zip", action="store_true", help="stage only")
+    ap.add_argument("--auth", choices=("password", "oauth"), default="password",
+                    help="how players sign in: the password form, or the account "
+                         "server's Play Now flow (oauth; needs io_server --gate)")
+    ap.add_argument("--world", default="osrs239",
+                    help="which world: its cache.<world>, manifests/manifest_<world>.ini and "
+                         "revconfig/<world> (default osrs239; osrs241 is current)")
     args = ap.parse_args()
+    global WORLD, PACKAGE_NAME
+    WORLD = args.world
+    PACKAGE_NAME = f"torirs-{WORLD}"
+    for need in (REPO / f"cache.{WORLD}", REPO / "manifests" / f"manifest_{WORLD}.ini",
+                 REPO / "revconfig" / WORLD):
+        if not need.exists():
+            die(f"--world {WORLD}: {need} does not exist")
     if args.skip_build:
         args.skip_servers = args.skip_scripts = args.skip_web = True
 
@@ -555,11 +583,11 @@ def main() -> int:
     log(f"servers: {game_bin.relative_to(REPO)}, {io_bin.relative_to(REPO)}")
     stage_runtime_dlls(stage / "bin")
     stage_web(stage)
-    cache_bytes = copy_tree(REPO / "cache.osrs239", stage / "cache.osrs239")
-    log(f"cache.osrs239: {cache_bytes / 1e6:.0f} MB")
+    cache_bytes = copy_tree(REPO / f"cache.{WORLD}", stage / f"cache.{WORLD}")
+    log(f"cache.{WORLD}: {cache_bytes / 1e6:.0f} MB")
     stage_content(stage)
-    write_manifest(stage, args.game_port, args.ws_host)
-    copy_tree(REPO / "revconfig" / "osrs239", stage / "revconfig" / "osrs239")
+    write_manifest(stage, args.game_port, args.ws_host, args.auth)
+    copy_tree(REPO / "revconfig" / WORLD, stage / "revconfig" / WORLD)
     copy_tree(REPO / "script", stage / "script")
     stage_scripts(stage, args.game_port, args.web_port, args.ws_host, sha, content_sha, date)
     log(f"staged {stage}")

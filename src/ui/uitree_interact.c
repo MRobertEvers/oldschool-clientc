@@ -1714,6 +1714,7 @@ interact_click(
             struct UITreeHostRequest action_req = {
                 .kind = UITREE_HOST_TITLE_ACTION,
                 .u.title_action.action = hit_c->u.login_button.action,
+                .u.title_action.index = hit_c->u.login_button.index,
             };
             UITree_Host(ui_host, &action_req);
             out->need_redraw = 1;

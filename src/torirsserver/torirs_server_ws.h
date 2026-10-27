@@ -59,6 +59,17 @@ struct ToriRSServerConn
     /** 1 once the first byte said 'G': this is an HTTP upgrade, not raw TCP. */
     int upgrade;
 
+    /**
+     * Set by the host before the first step when the server is behind the
+     * sign-in gate (ToriRSServer.gate): an upgrade without the gate's ticket
+     * cookie is answered 403 and closed, and raw TCP -- which cannot carry the
+     * cookie -- is closed at its first byte. Nothing reaches the game or JS5
+     * protocol without the cookie.
+     */
+    int require_ticket;
+    /** The ticket's web login, once one was required and checked; else "". */
+    char ticket_name[64];
+
     /* Bytes off the socket that are not yet whole frames (raw mode leaves this
      * empty — there is nothing to reassemble). */
     uint8_t raw[TORIRSSERVER_CONN_RAW_MAX];

@@ -710,6 +710,17 @@ bm_set_kv(
             snprintf(bm->ws_host, sizeof(bm->ws_host), "%s", value);
             return;
         }
+        if( strcmp(key, "auth") == 0 )
+        {
+            if( strcmp(value, "oauth") == 0 )
+                bm->auth_oauth = 1;
+            else if( strcmp(value, "password") == 0 )
+                bm->auth_oauth = 0;
+            else
+                TORIRS_LOG("bootmanifest: [net:boot] auth must be password|oauth, got '%s'\n",
+                           value);
+            return;
+        }
         if( strcmp(key, "ws_port") == 0 )
         {
             bm->ws_port = atoi(value);
@@ -1625,6 +1636,7 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->rev_name = bm->rev_name;
     if( bm->host[0] )
         cfg->connect_target = bm->host;
+    cfg->connect_oauth = bm->auth_oauth;
     if( bm->port > 0 )
         cfg->connect_port = bm->port;
     if( bm->client_version > 0 )

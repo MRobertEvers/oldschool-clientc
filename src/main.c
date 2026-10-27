@@ -5182,6 +5182,13 @@ frame_loop_step(void)
                 PlatformWindow_SetTextInput(platform, keyboard_on);
         }
         {
+            /* The login form for a browser's password manager: only changes
+             * cross, and only the browser does anything with them. */
+            struct PlatformCredentialForm credential_form;
+            if( App_TakeCredentialForm(&app, &credential_form) )
+                PlatformWindow_SetCredentialForm(platform, &credential_form);
+        }
+        {
             char url[512];
             if( App_TakeOpenUrl(&app, url, (int)sizeof(url)) )
                 PlatformWindow_OpenUrl(platform, url);
@@ -6175,6 +6182,31 @@ static int web_pump_armed;
  *
  * Returns 1 when it stepped anything, 0 when it was not armed.
  */
+/*
+ * The page's password-manager form (src/web/torirs_credentials.js), back into
+ * the title: what its inputs now hold, which one has the focus, and Enter.
+ * Each is a no-op once the credential form is no longer the screen.
+ */
+EMSCRIPTEN_KEEPALIVE void
+torirs_credential_input(
+    int field,
+    char const* text)
+{
+    App_CredentialInput(&app, field, text);
+}
+
+EMSCRIPTEN_KEEPALIVE void
+torirs_credential_focus(int field)
+{
+    App_CredentialFocus(&app, field);
+}
+
+EMSCRIPTEN_KEEPALIVE void
+torirs_credential_submit(void)
+{
+    App_CredentialSubmit(&app);
+}
+
 EMSCRIPTEN_KEEPALIVE int
 torirs_web_io_pump(void)
 {

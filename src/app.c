@@ -1260,6 +1260,9 @@ App_Init(
                 RS_TitleSession_ArmResume(&app->title_session);
         }
         RS_TitleSession_SetConnectTarget(&app->title_session, cfg->connect_target);
+        app->oauth = cfg->connect_oauth;
+        app->accounts_path = RS_Accounts_Path();
+        RS_Accounts_Init(&app->accounts);
     }
 }
 

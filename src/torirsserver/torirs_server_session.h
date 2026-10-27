@@ -161,10 +161,12 @@ struct ToriRSServerSession
      */
     int login_ok_pending;
 
-    /** The staffModLevel the pending response will carry
-     *  (TORIRSSERVER_STAFF_LEVEL). Resolved during the handshake, with the
-     *  rest of the response's fields, so the deferral moved only the send. */
-    int login_ok_staff_level;
+    /** The staffModLevel this login or reconnect is given: 2 for an account
+     *  with `admin = 1` on a server that checks passwords, else
+     *  TORIRSSERVER_STAFF_LEVEL (a harness's), else 0. Resolved during the
+     *  handshake; the pending response carries it and the host copies it onto
+     *  the player (`ToriRSServerPlayer.staff_level`). */
+    int staff_level;
 
     /** The login header's clientType / platformType (rsprot LoginClientType /
      *  LoginPlatformType), kept for the player the session becomes: a mobile

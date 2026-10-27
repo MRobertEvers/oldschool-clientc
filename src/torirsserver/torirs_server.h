@@ -4815,6 +4815,16 @@ struct ToriRSServerPlayer
      *  answer than the one the client already sent. */
     char display_name[32];
 
+    /**
+     * The staffModLevel this login was given (0 player, 1 player moderator,
+     * 2 Jagex moderator): the account's `admin = 1` makes it 2
+     * (torirs_server_auth.h), TORIRSSERVER_STAFF_LEVEL can raise it for a
+     * harness. It is the crown on the player's chat and private messages and,
+     * where passwords are checked, the permission to cheat
+     * (ToriRSServer_PlayerMayCheat).
+     */
+    int staff_level;
+
     /*
      * `display_name` packed base 37 — the key everything social is filed under.
      *
@@ -5413,6 +5423,16 @@ struct ToriRSServer
      * (`--dev`, TORIRSSERVER_DEV, the dev_/alt_/bank_torirsserver builds).
      */
     int check_passwords;
+
+    /**
+     * Behind io_server's sign-in gate (`--gate`, TORIRSSERVER_GATE=1;
+     * torirs_server_auth.h): a WebSocket must present the gate's ticket
+     * cookie and raw TCP is refused, so the game socket is as closed as the
+     * page. The ticket is a
+     * web login, not a player; the game login is checked as ever after it.
+     * Only with check_passwords.
+     */
+    int gate;
 
     /** Non-NULL only under the selftest; see ToriRSServer_CaptureBegin. */
     /** Generation of the reservation the current scene was built from, 0 when
@@ -6146,6 +6166,20 @@ void
 ToriRSServer_WorldSetDisplayName(
     struct ToriRSServerPlayer* player,
     const char* name);
+
+/**
+ * May this player run a cheat -- a `::command` (CLIENT_CHEAT) or a world-map
+ * click teleport? Everyone may on a server that does not check passwords (a
+ * development server, the embedded world, the harnesses), because there a
+ * name proves nothing. Where passwords are checked only staff may
+ * (`staff_level >= 2`, an account with `admin = 1`), as OldSchool's own client
+ * sends CLIENT_CHEAT only for a staffModLevel of 2 or more -- which is a
+ * courtesy of the client, not a rule a modified one has to keep.
+ */
+int
+ToriRSServer_PlayerMayCheat(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player);
 
 /**
  * Build the world: the scene at this origin zone, the npc roster and the map

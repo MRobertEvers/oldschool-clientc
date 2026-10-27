@@ -536,6 +536,9 @@ enum UITreeTitleAction
     UITREE_TITLE_ACTION_TOGGLE_REMEMBER = 7,
     UITREE_TITLE_ACTION_TOGGLE_HIDE = 8,
     UITREE_TITLE_ACTION_TOGGLE_MUSIC = 9,
+    UITREE_TITLE_ACTION_PLAY_ACCOUNT = 10,
+    UITREE_TITLE_ACTION_OTHER_ACCOUNT = 11,
+    UITREE_TITLE_ACTION_SHOW_ACCOUNTS = 12,
 };
 
 struct UITreeLoginInputConfig
@@ -1166,6 +1169,9 @@ struct UITreeComponent
             /** Resolved RS_TitleAction; 0 = none, and a button with none is a
              *  typo in an INI announcing itself by doing nothing. */
             int action;
+            /** INI index=: which of a row of like buttons this is -- the
+             *  account a play_account plate plays. 0 when unstated. */
+            int index;
         } login_button;
         struct
         {
@@ -1999,6 +2005,7 @@ struct UITreeNodeSpec
             int scene_id;
             int atlas_index;
             int action;
+            int index;
         } login_button;
         struct
         {

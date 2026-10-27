@@ -12971,6 +12971,17 @@ handle_cheat(
      * leading "::". */
     rsab_gjstr(&buf, text, sizeof(text), RSAB_JSTR_NEWLINE);
 
+    /* Before anything runs or is logged as run: a client only sends this for
+     * staff, so a player's CLIENT_CHEAT is a modified client. Logged, so an
+     * operator can see it was tried; the player is told nothing, as a packet
+     * the real client would never send gets no answer. */
+    if( !ToriRSServer_PlayerMayCheat(srv, srv->active_player) )
+    {
+        fprintf(stderr, "torirsserver: %s is not staff; refused cheat '%s'\n",
+                srv->active_player->display_name, text);
+        return;
+    }
+
     /* `::~foo` arrives as `~foo`: the client owns/removes `::`, while `~` is
      * the explicit server-side namespace escape. memmove includes the NUL. */
     if( text[0] == '~' )
@@ -14769,6 +14780,9 @@ handle_window_status(
  * *client's* job (and this client does not do it yet — recorded as a parity gap
  * in FRIENDS_PRIVATE_CHAT.md §9).
  */
+static int
+player_chat_crown(const struct ToriRSServerPlayer* player);
+
 static void
 handle_message_private(
     struct ToriRSServer* srv,
@@ -14807,7 +14821,7 @@ handle_message_private(
     target_player = social_player_by_name37(srv, target);
     if( target_player )
         ToriRSServer_SendMessagePrivate(
-            target_player, me, ToriRSServer_FriendsNextPmId(), /* staff */ 0, text);
+            target_player, me, ToriRSServer_FriendsNextPmId(), player_chat_crown(player), text);
 
     if( srv->verbose )
     {
@@ -14840,9 +14854,11 @@ handle_message_private(
 /*
  * The crown a public line carries: an index into the client's crown table
  * (src/game/rs_chat.c `k_chat_crowns`), which is the reference's class292.
- * 0 is no crown; 1 and 2 are the staff crowns, which nothing here grants.
- * The rest of what this server can say is the account-mode helm, by the
- * value of `varb1777_ironman`.
+ * 0 is no crown; 1 and 2 are the staff crowns -- the player moderator's
+ * silver and the Jagex moderator's gold -- by the login's staff level, which
+ * an account's `admin = 1` sets to 2. Staff outrank the account-mode helm,
+ * as on OldSchool. The rest is that helm, by the value of
+ * `varb1777_ironman`. A private message carries the same crown.
  */
 static int
 player_chat_crown(const struct ToriRSServerPlayer* player)
@@ -14854,6 +14870,10 @@ player_chat_crown(const struct ToriRSServerPlayer* player)
     int mode;
 
     assert(player);
+    if( player->staff_level >= 2 )
+        return 2;
+    if( player->staff_level == 1 )
+        return 1;
     if( ids->varbit_ironman < 0 )
         return 0;
     mode = ToriRSServer_VarbitGet(player, ids->varbit_ironman);
@@ -16326,6 +16346,16 @@ ToriRSServer_WorldSetDisplayName(
     player->name37 = (int64_t)strtobase37(player->display_name);
 }
 
+int
+ToriRSServer_PlayerMayCheat(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player)
+{
+    assert(srv);
+    assert(player);
+    return !srv->check_passwords || player->staff_level >= 2;
+}
+
 /*
  * Build the world. Runs once per world, however many players log in.
  *
@@ -17065,7 +17095,7 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      */
     ToriRSServer_FriendsLogin(player->name37, player->saved_chat_public_mode,
                           player->saved_chat_private_mode,
-                          player->saved_chat_trade_mode, /* staff level */ 0);
+                          player->saved_chat_trade_mode, player->staff_level);
 
     /*
      * 1. The scene.

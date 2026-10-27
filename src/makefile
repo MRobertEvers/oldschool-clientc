@@ -865,6 +865,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	game/rs_minimenu_world.c \
 	game/task_gameproto_exec.c game/task_exec_entity_info.c game/task_entity_assets.c game/rs_entity_sync.c game/rs_audio.c \
 	game/rs_prefs.c game/task_prefs_io.c game/preview_state.c \
+	game/rs_accounts.c game/task_accounts_io.c \
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
@@ -903,7 +904,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
 	platform/net_transport_embed.c platform/launch_sessions.c \
 	platform/net_transport_replay.c net/rsprox_recording.c \
-	net/sha256.c net/pow_sha256.c net/proto/proto_info.c \
+	net/sha256.c net/pow_sha256.c net/flat_json.c net/proto/proto_info.c \
 	torirsserver/wire/osrs241_clientprot.c \
 	$(PROTO_SRCS) $(REV_EXEC_SRCS) \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
@@ -1010,8 +1011,8 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_shop.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
-	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c content/content_register.c content/content_fields.c $(INI_SRC) \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
@@ -1034,7 +1035,7 @@ CFLAGS += -DTORIRS_EMBED_SERVER=1
 # below.  Adding them again generates duplicate recipes for the same flat
 # OBJ_DIR basename (and, depending on rule order, can select the wrong recipe).
 EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
-	net/proto/proto_info.c \
+	net/proto/proto_info.c net/flat_json.c \
 	torirsserver/wire/osrs241_clientprot.c \
 	world/wev.c \
 	platform/net_transport_ws_frame.c \
@@ -1431,7 +1432,8 @@ WEB_ASSETS = $(SRC_DIR)/web/index.html $(SRC_DIR)/web/torirs_host.js \
 	$(SRC_DIR)/web/torirs_hostio.js $(SRC_DIR)/web/torirs_idb.js \
 	$(SRC_DIR)/web/torirs_js5.js $(SRC_DIR)/web/torirs_ondemand.js \
 	$(SRC_DIR)/web/torirs_chrome.js \
-	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html
+	$(SRC_DIR)/web/torirs_channel.js $(SRC_DIR)/web/panel.html \
+	$(SRC_DIR)/web/torirs_credentials.js
 # The page's icons, generated from res/torirs_icon.jpg by
 # tools/make_app_icons.py. index.html links the first four by name and
 # site.webmanifest names the last three, so every one of them has to land
@@ -1568,7 +1570,9 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
-	pokesprite/pokesprite_store.c $(INI_SRC)
+	pokesprite/pokesprite_store.c $(INI_SRC) \
+	ioserver/io_gate.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
 IO_SERVER_SQLITE_LIBS := -lsqlite3
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
@@ -4175,6 +4179,13 @@ test-rs-title: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_title_test \
 		game/test/rs_title_test.c game/rs_title.c
 	./$(OBJ_DIR)/rs_title_test
+
+# The device's saved accounts (the title's Play Now cards) and the flat JSON
+# reader the account server's answers go through. No IO: the file's text.
+test-rs-accounts: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_accounts_test \
+		game/test/rs_accounts_test.c game/rs_accounts.c net/flat_json.c $(TORIMEM_SRCS)
+	./$(OBJ_DIR)/rs_accounts_test
 
 # The startup progress bar, against the references' own measurements. Asserted
 # rather than screenshotted: the exit-frame capture re-renders after boot, so
@@ -7377,6 +7388,7 @@ clean:
 		$(REPO_ROOT)/build-web/torirs_hostio.js $(REPO_ROOT)/build-web/torirs_idb.js \
 		$(REPO_ROOT)/build-web/torirs_js5.js $(REPO_ROOT)/build-web/torirs_ondemand.js \
 		$(REPO_ROOT)/build-web/torirs_channel.js $(REPO_ROOT)/build-web/torirs_chrome.js \
+		$(REPO_ROOT)/build-web/torirs_credentials.js \
 		$(REPO_ROOT)/build-web/panel.html \
 		$(REPO_ROOT)/build-web/viewer.html \
 		$(REPO_ROOT)/build-web/favicon.ico $(REPO_ROOT)/build-web/icon-16.png \

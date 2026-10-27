@@ -85,4 +85,20 @@ PlatformX_HttpGetTimed(
     int connect_sec,
     int read_sec);
 
+/*
+ * POST a form-encoded body and return the response's body whatever its status
+ * (an OAuth refusal is a 400 with JSON that says why). `cookie` is the whole
+ * Cookie header value, or NULL. NET-allocated, like the GETs; NULL when no
+ * response arrived at all.
+ */
+char*
+PlatformX_HttpPostForm(
+    const char* host,
+    int port,
+    const char* route,
+    const char* cookie,
+    const char* body,
+    int body_size,
+    int* out_size,
+    int* out_status);
 #endif

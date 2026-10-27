@@ -848,6 +848,7 @@ push_builtin_op(
         spec.u.login_button.scene_id = sprite_id;
         spec.u.login_button.atlas_index = atlas_index;
         spec.u.login_button.action = RS_Title_ActionFromName(op->title_action);
+        spec.u.login_button.index = op->title_message_index;
         /* A button whose action= did not resolve would sit there swallowing
          * clicks and doing nothing, which is the hardest kind of INI typo to
          * see. Name it here instead. */

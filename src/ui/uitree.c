@@ -3248,6 +3248,7 @@ UITree_Push(
         component->u.login_button.scene_id = spec->u.login_button.scene_id;
         component->u.login_button.atlas_index = spec->u.login_button.atlas_index;
         component->u.login_button.action = spec->u.login_button.action;
+        component->u.login_button.index = spec->u.login_button.index;
         break;
 
     case UIELEM_BUILTIN_LOGIN_TOGGLE:
