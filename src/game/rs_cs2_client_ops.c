@@ -17,7 +17,6 @@
  */
 
 #include "game/rs_cs2_host.h"
-#include "mem/torirs_mem.h"
 
 #include "cs2vm2/cs2_opcode.h"
 #include "cs2vm2/cs2vm2.h"
@@ -26,9 +25,9 @@
 #include "game/rs_chat.h"
 #include "game/rs_player_stats.h"
 #include "log/torirs_log.h"
+#include "toridraw_font.h"
 
 #include <assert.h>
-#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,64 +59,8 @@ RS_CS2ClientState_Free(struct RS_CS2ClientState* state)
 {
     if( !state )
         return;
-    for( int i = 0; i < state->translation_count; i++ )
-    {
-        ToriMem_Free(ToriMem_Script(), state->translations[i].key);
-        ToriMem_Free(ToriMem_Script(), state->translations[i].value);
-    }
-    ToriMem_Free(ToriMem_Script(), state->translations);
-    state->translations = NULL;
-    state->translation_count = 0;
-    state->translation_cap = 0;
-}
-
-char const*
-RS_CS2ClientState_Translation(
-    struct RS_CS2ClientState const* state,
-    char const* key)
-{
-    assert(state);
-    assert(key);
-    for( int i = 0; i < state->translation_count; i++ )
-        if( strcasecmp(state->translations[i].key, key) == 0 )
-            return state->translations[i].value;
-    return NULL;
-}
-
-/* translations_set: `map.put(key.toLowerCase(), value)`. */
-static void
-translation_set(
-    struct RS_CS2ClientState* state,
-    char const* key,
-    char const* value)
-{
-    for( int i = 0; i < state->translation_count; i++ )
-    {
-        if( strcasecmp(state->translations[i].key, key) != 0 )
-            continue;
-        char* const copy = ToriMem_Strdup(ToriMem_Script(), value);
-        assert(copy);
-        ToriMem_Free(ToriMem_Script(), state->translations[i].value);
-        state->translations[i].value = copy;
-        return;
-    }
-    if( state->translation_count == state->translation_cap )
-    {
-        int const cap = state->translation_cap ? state->translation_cap * 2 : 16;
-        void* const grown = ToriMem_Realloc(ToriMem_Script(), state->translations, (size_t)cap * sizeof(state->translations[0]));
-        assert(grown);
-        state->translations = grown;
-        state->translation_cap = cap;
-    }
-    char* const key_copy = ToriMem_Strdup(ToriMem_Script(), key);
-    char* const value_copy = ToriMem_Strdup(ToriMem_Script(), value);
-    assert(key_copy);
-    assert(value_copy);
-    for( char* c = key_copy; *c; c++ )
-        *c = (char)tolower((unsigned char)*c);
-    state->translations[state->translation_count].key = key_copy;
-    state->translations[state->translation_count].value = value_copy;
-    state->translation_count++;
+    /* 3228/3229's table is the font's, which expands it on every draw. */
+    ToriDraw_FontClearTranslations();
 }
 
 /* Java's isDecimalLong + parseLong (Statics method10036/method3796): an
@@ -472,12 +415,13 @@ RS_CS2Host_ExecClientOp(
     case CS2_OP_RT7_GETENABLED:
         return push_bool(vm, state->rt7_enabled);
 
-    /* translations_set(key, value) / translations_clear (later client). */
+    /* translations_set(key, value) / translations_clear (later client): the
+     * `@key@` macros every font draw expands (deob class202.field2713). */
     case CS2_OP_TRANSLATIONS_SET:
-        translation_set(state, strs[0] ? strs[0] : "", strs[1] ? strs[1] : "");
+        ToriDraw_FontSetTranslation(strs[0] ? strs[0] : "", strs[1] ? strs[1] : "");
         return CS2VM_EXECNO_OK;
     case CS2_OP_TRANSLATIONS_CLEAR:
-        RS_CS2ClientState_Free(state);
+        ToriDraw_FontClearTranslations();
         return CS2VM_EXECNO_OK;
 
     /* The reboot countdown in client cycles, 0 when none is running. */

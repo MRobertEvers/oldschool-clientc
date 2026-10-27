@@ -401,6 +401,166 @@ font_apply_tag(
         *style = font_markup_style_init(default_color);
 }
 
+/*
+ * `@key@` macros (deob class202.field2713: CS2 translations_set fills it,
+ * translations_clear empties it). The draw loops replace `@key@` -- a key of
+ * letters, digits and '_' -- with the key's value, nothing when it has none
+ * (class11 method224), and the measuring walks skip the token outright
+ * (class11 method187): the values are markup, `q_mes` is `<col=0ab0ff>`, so a
+ * token takes no width and only its tags reach the style. The server sends
+ * the key, not the colour: "you've completed a quest: @q_mes@Imp Catcher".
+ *
+ * With no table -- the 2004 clients, or before the CS2 that fills it has run --
+ * the grammar is theirs: any five bytes `@xyz@`, the colour of that name if it
+ * is one (`@red@`), and every other `@` is text. Once a table exists a key
+ * with no entry still falls back to that colour.
+ */
+struct FontTranslation
+{
+    char* key; /* lower-cased */
+    char* value;
+};
+
+static struct FontTranslation* s_font_translations;
+static int s_font_translation_count;
+static int s_font_translation_cap;
+
+static char*
+font_strdup(char const* s)
+{
+    size_t const n = strlen(s) + 1;
+    char* const copy = TORIDRAW_MALLOC(n);
+    assert(copy);
+    memcpy(copy, s, n);
+    return copy;
+}
+
+/* The entry for the `n`-byte `key`, any case, or NULL. */
+static struct FontTranslation*
+font_translation_find(
+    char const* key,
+    int n)
+{
+    for( int t = 0; t < s_font_translation_count; t++ )
+    {
+        struct FontTranslation* const entry = &s_font_translations[t];
+        if( (int)strlen(entry->key) == n && font_match_icase_literal(key, entry->key, n) )
+            return entry;
+    }
+    return NULL;
+}
+
+void
+ToriDraw_FontSetTranslation(
+    char const* key,
+    char const* value)
+{
+    assert(key);
+    assert(value);
+    int const n = (int)strlen(key);
+    struct FontTranslation* entry = font_translation_find(key, n);
+    if( entry )
+    {
+        char* const copy = font_strdup(value);
+        TORIDRAW_FREE(entry->value);
+        entry->value = copy;
+        return;
+    }
+    if( s_font_translation_count == s_font_translation_cap )
+    {
+        int const cap = s_font_translation_cap ? s_font_translation_cap * 2 : 64;
+        void* const grown =
+            TORIDRAW_REALLOC(s_font_translations, (size_t)cap * sizeof(*s_font_translations));
+        assert(grown);
+        s_font_translations = grown;
+        s_font_translation_cap = cap;
+    }
+    entry = &s_font_translations[s_font_translation_count++];
+    entry->key = font_strdup(key);
+    entry->value = font_strdup(value);
+    for( char* c = entry->key; *c; c++ )
+    {
+        if( *c >= 'A' && *c <= 'Z' )
+            *c = (char)(*c + ('a' - 'A'));
+    }
+}
+
+void
+ToriDraw_FontClearTranslations(void)
+{
+    for( int t = 0; t < s_font_translation_count; t++ )
+    {
+        TORIDRAW_FREE(s_font_translations[t].key);
+        TORIDRAW_FREE(s_font_translations[t].value);
+    }
+    TORIDRAW_FREE(s_font_translations);
+    s_font_translations = NULL;
+    s_font_translation_count = 0;
+    s_font_translation_cap = 0;
+}
+
+/* Statics.method580: a key is one or more of [A-Za-z0-9_]. */
+static bool
+font_is_macro_key_char(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+/* Bytes of the `@key@` token at text[i], or 0 when there is none there. */
+static int
+font_macro_length(
+    char const* text,
+    int len,
+    int i)
+{
+    int j = i + 1;
+
+    if( text[i] != '@' )
+        return 0;
+    if( s_font_translation_count == 0 )
+        return i + 4 < len && text[i + 4] == '@' ? 5 : 0;
+    while( j < len && text[j] != '@' )
+    {
+        if( !font_is_macro_key_char(text[j]) )
+            return 0;
+        j++;
+    }
+    if( j >= len || j == i + 1 )
+        return 0;
+    return j - i + 1;
+}
+
+/* What `@key@` does to the style: its value's tags, in order. A key with no
+ * value is the 2004 colour of that name, if it is one. */
+static void
+font_apply_macro(
+    char const* key,
+    int n,
+    int default_color,
+    struct FontMarkupStyle* style)
+{
+    struct FontTranslation const* const entry = font_translation_find(key, n);
+
+    if( entry )
+    {
+        int const value_len = (int)strlen(entry->value);
+        for( int k = 0; k < value_len; )
+        {
+            int const consumed = entry->value[k] == '<'
+                                     ? font_try_consume_markup(entry->value, value_len, k, default_color, style, NULL)
+                                     : 0;
+            k += consumed > 0 ? consumed : 1;
+        }
+        return;
+    }
+    if( n == 3 )
+    {
+        int const tagged = ToriDraw_FontEvaluateColorTag(key);
+        if( tagged >= 0 )
+            style->color = tagged;
+    }
+}
+
 /**
  * `style` is optional: pass NULL to only measure the token grammar (how many
  * bytes the token spans and what character it renders), which is what the
@@ -422,15 +582,22 @@ font_try_consume_markup(
     if( emit_char_out )
         *emit_char_out = 0;
 
-    if( text[i] == '@' && i + 4 < len && text[i + 4] == '@' )
+    int const macro = font_macro_length(text, len, i);
+    if( macro > 0 )
     {
         if( style )
-        {
-            int const tagged = ToriDraw_FontEvaluateColorTag(&text[i + 1]);
-            if( tagged >= 0 )
-                style->color = tagged;
-        }
-        return 5;
+            font_apply_macro(&text[i + 1], macro - 2, default_color, style);
+        return macro;
+    }
+
+    /* `<at>` is the '@' a string escapes so it is not read as a macro
+     * (class11 method235 writes it, the draw loop reads it back). */
+    if( text[i] == '<' && len - i >= 4 &&
+        font_match_icase_literal(&text[i + 1], "at>", 3) )
+    {
+        if( emit_char_out )
+            *emit_char_out = '@';
+        return 4;
     }
 
     if( text[i] == '<' && len - i >= 4 &&

@@ -426,6 +426,47 @@ main(void)
         check(canvas_count(canvas, (int)0xFFFF0000u) == 0, "<img=1> past the table draws nothing");
         ToriDraw_FontSetIcons(NULL, 0);
     }
+    /* `@key@` is CS2's translations_set table (deob class202.field2713): the
+     * server sends "you've completed a quest: @q_mes@Imp Catcher" and the
+     * draw puts the key's value, `<col=0ab0ff>`, in its place. The token takes
+     * no width (class11 method187 skips it); an unknown key draws nothing. */
+    printf("@key@ expands through the translations table\n");
+    {
+        ToriDraw_FontClearTranslations();
+        check(
+            ToriDraw2D_MeasureString(font, "@q_mes@abcd") > plain_w,
+            "with no table, @q_mes@ is text, as the 2004 clients drew it");
+        check(ToriDraw2D_MeasureString(font, "@red@abcd") == plain_w, "with no table, @red@ is still a colour code");
+        canvas_draw(canvas, font, "@red@abcd");
+        check(canvas_count(canvas, (int)0xFFFF0000) > 0, "and paints red");
+
+        ToriDraw_FontSetTranslation("Q_MES", "<col=0ab0ff>");
+        ToriDraw_FontSetTranslation("red", "<col=00ff00>");
+        check(ToriDraw2D_MeasureString(font, "@q_mes@abcd") == plain_w, "@q_mes@ measures as nothing");
+        check(
+            visit_glyph_count(font, "@q_mes@abcd</col>") == visit_glyph_count(font, "abcd"),
+            "the glyph walk emits no glyphs for @q_mes@");
+        canvas_draw(canvas, font, "@q_mes@abcd</col>");
+        check(canvas_count(canvas, (int)0xFF0AB0FF) > 0, "@q_mes@ paints its value's colour");
+        canvas_draw(canvas, font, "@Q_MES@abcd");
+        check(canvas_count(canvas, (int)0xFF0AB0FF) > 0, "keys match in any case");
+        canvas_draw(canvas, font, "@red@abcd");
+        check(
+            canvas_count(canvas, (int)0xFF00FF00) > 0 && canvas_count(canvas, (int)0xFFFF0000) == 0,
+            "a table entry outranks the 2004 colour of the same name");
+        check(ToriDraw2D_MeasureString(font, "@no_such@abcd") == plain_w, "an unknown key draws nothing");
+        check(
+            ToriDraw2D_MeasureString(font, "@a b@abcd") > plain_w,
+            "a key with a space is no key: the text is drawn");
+        check(
+            ToriDraw2D_MeasureString(font, "x@abcd") > ToriDraw2D_MeasureString(font, "xabcd"),
+            "an unclosed @ is drawn");
+        unsigned char emitted = 0;
+        check(
+            ToriDraw_FontMarkupTokenLength("<at>", 4, 0, &emitted) == 4 && emitted == '@',
+            "<at> renders as @");
+        ToriDraw_FontClearTranslations();
+    }
     free(canvas);
 
     if( Failures > 0 )

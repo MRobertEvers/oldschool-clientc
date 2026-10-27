@@ -529,15 +529,6 @@ struct RS_CS2ClientState
     /* 3113: a url waiting for the platform to open; "" when none. */
     char pending_open_url[RS_CS2_HOST_SOCIAL_TEXT_LEN];
 
-    /* 3228/3229 */
-    struct
-    {
-        char* key; /* lower-cased */
-        char* value;
-    }* translations;
-    int translation_count;
-    int translation_cap;
-
     /* Mirrored by the App. */
     int loading_percent;             /* 3153 */
     int preload_progress;            /* 3154, out of 10000 */
@@ -558,12 +549,6 @@ RS_CS2ClientState_Init(struct RS_CS2ClientState* state);
 
 void
 RS_CS2ClientState_Free(struct RS_CS2ClientState* state);
-
-/** translations_set's value for `key` (any case), or NULL. */
-char const*
-RS_CS2ClientState_Translation(
-    struct RS_CS2ClientState const* state,
-    char const* key);
 
 /** A CC_TRIGGEROP request: which component's on_op to run, and the op index
  *  to report to it as event_opindex. */

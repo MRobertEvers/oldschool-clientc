@@ -378,6 +378,7 @@ test_markup_and_noise(void)
 
     TEST_ASSERT(chat("@red@Oh dear, you are dead!", &ev), "classic colour codes too");
     TEST_ASSERT(ev.kind == RS_GAME_EVENT_DEATH, "still a death");
+    TEST_ASSERT(chat("@q_mes@Oh dear, you are dead!", &ev), "and any @key@ macro (rev 241's @q_mes@)");
 
     /* An unterminated '<' is ordinary text, not the start of a tag. */
     TEST_ASSERT(!chat("i < 3 and that is all", &ev), "a bare less-than is left alone");

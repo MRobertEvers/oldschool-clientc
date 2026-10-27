@@ -55,9 +55,10 @@ ToriDraw_FontParseHexColor(
 /**
  * Length in bytes of the markup token starting at text[i], or 0 if there is no
  * token there. `*emit_char_out` receives the character the token renders as
- * (`<lt>` -> '<', `<gt>` -> '>') or 0 when it renders nothing.
+ * (`<lt>` -> '<', `<gt>` -> '>', `<at>` -> '@') or 0 when it renders nothing.
  *
- * The grammar: `@xyz@`, `<lt>`, `<gt>`, and every other `<...>` is a tag
+ * The grammar: `@key@` (ToriDraw_FontSetTranslation), `<lt>`, `<gt>`, `<at>`,
+ * and every other `<...>` is a tag
  * (`<col=…>`, `<u>`, `<str>`, `<img=N>`, ...) that draws no characters; an
  * `<img=N>` draws its icon instead (ToriDraw_FontMarkupIconAdvance).
  *
@@ -97,6 +98,20 @@ ToriDraw_FontSetIcons(
 /** Icon `index`, or NULL when the table has none there. */
 struct ToriDraw_FontIcon const*
 ToriDraw_FontIconAt(int index);
+
+/*
+ * The `@key@` macro table (deob class202.field2713), one for every font: CS2
+ * translations_set puts `key` (any case) -> `value`, translations_clear empties
+ * it. Every draw expands `@key@` to the value's tags; an unknown key expands
+ * to nothing. Both strings are copied.
+ */
+void
+ToriDraw_FontSetTranslation(
+    char const* key,
+    char const* value);
+
+void
+ToriDraw_FontClearTranslations(void);
 
 /** The pen advance of the markup token at text[index] when it is an `<img=N>`
  *  naming a known icon, else 0 -- for walkers that measure text themselves

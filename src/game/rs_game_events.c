@@ -77,11 +77,23 @@ RS_GameEvent_SkillName(int skill)
 
 /* ------------------------------------------------------------------ text */
 
+/* Letters, digits and '_' before the closing '@' (deob Statics.method580). */
+static int
+macro_key_length(char const* key)
+{
+    int n = 0;
+    while( (key[n] >= 'a' && key[n] <= 'z') || (key[n] >= 'A' && key[n] <= 'Z') ||
+           (key[n] >= '0' && key[n] <= '9') || key[n] == '_' )
+        n++;
+    return n;
+}
+
 /*
  * Drop the colour/markup the chatbox paints with, so a pattern below matches a
  * line the game coloured the same as a plain one. Two grammars, because the
- * client renders both: the modern <col=ef1020>...</col> tag and the classic
- * five-character @red@ code.
+ * client renders both: the modern <col=ef1020>...</col> tag and the @key@
+ * macro the font expands through CS2's translations_set table -- the classic
+ * @red@, and "@q_mes@" on a quest completion.
  *
  * An unterminated '<' is left alone rather than eating the rest of the line: a
  * message containing a bare less-than is ordinary text, and a recogniser that
@@ -107,10 +119,14 @@ strip_markup(char const* in, char* out, int out_size)
                 continue;
             }
         }
-        else if( *in == '@' && in[1] && in[2] && in[3] && in[4] == '@' )
+        else if( *in == '@' )
         {
-            in += 5;
-            continue;
+            int const key = macro_key_length(in + 1);
+            if( key > 0 && in[1 + key] == '@' )
+            {
+                in += key + 2;
+                continue;
+            }
         }
         out[at++] = *in++;
     }
