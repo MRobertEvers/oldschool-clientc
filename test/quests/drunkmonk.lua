@@ -5,13 +5,13 @@
 --   OSRS-Content/osrs-content/server/scripts/quests/quest_drunkmonk/scripts/drunkmonk_journal.rs2
 --   OSRS-Content/osrs-content/server/scripts/areas/ardougne_east/scripts/brother_omad.rs2
 --   OSRS-Content/osrs-content/server/scripts/areas/ardougne_east/scripts/brother_cedric.rs2
---   OSRS-Content/osrs-content/server/scripts/areas/wilderness/scripts/lava_maze.rs2 (wildymirrorladdertop1)
 --
 -- Flow: Brother Omad (south of East Ardougne monastery) sends the player to
 -- a secret cave under a ring of stones for a stolen child's blanket, then to
 -- sober up and re-equip Brother Cedric (logs/water) so he can bring wine
 -- back for a party. Rewards: 2000 Woodcutting XP, 8 Law runes, 1 QP
--- (quest_drunkmonk.rs2 [queue,drunkmonk_complete]).
+-- (quest_drunkmonk.rs2 ~drunkmonk_complete). Rebuilt against RSProx index 4393
+-- (docs/rsprox-analysis/quests/monks_friend.md).
 
 return {
     id = "drunkmonk",
@@ -30,6 +30,8 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start()
+        t.ticklog.mark("leg.omad_start")
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp30_drunkmonkquest",
             constants = {
@@ -69,7 +71,7 @@ return {
             "player:I suppose that's what kids do.",
             "npc:He was fine, up until last wee",
             "npc:Now he won't rest until it's r",
-            "choose:Can I help at all?",
+            "choose:Yes.",
             "player:Can I help at all?",
             "npc:Please do. We won't be able to",
             "player:Where are they?",
@@ -77,26 +79,27 @@ return {
         })
         t.expect("quest.stage.spoken_to_omad", t.quest.expect_stage("spoken_to_omad"))
 
-        -- ---- The hidden ladder: settimer(blanket_ladder,1) armed by omad_help above.
-        -- [timer,blanket_ladder] adds loc wildymirrorladdertop1 at ^blanket_ladder_coord
+        -- ---- The hidden ladder: the zone watcher arms [timer,blanket_ladder], which adds
+        -- loc ladder_outside_to_underground (16680, RSProx 4393 [392]) at ^blanket_ladder_coord
         -- (0_40_50_1_22 = 2561,3222,0) once the player is within 2 tiles of it. ----
         -- Land BESIDE the ladder's coord, not on it (the loc is added on 2561,3222 itself);
         -- distance <= 2 still fires the timer. Open ground: reach.py 2604,3210 -> 2562,3222.
+        t.ticklog.mark("leg.cave")
         t.exec("goto-blanketLadder", t.player.goto_tile, 2562, 3222, 0)
         local ladder_wait_result, ladder_wait_detail = t.await({
             level = function()
-                local r = t.world.loc_near("wildymirrorladdertop1", 3)
+                local r = t.world.loc_near("ladder_outside_to_underground", 3)
                 return r == "ok"
             end,
             note = "blanket ladder loc_add",
         }, 5)
         t.check("blanketLadder.spawned", ladder_wait_result == "ok",
-            "t.world.loc_near(wildymirrorladdertop1,3) after goto -> " .. tostring(ladder_wait_result)
+            "t.world.loc_near(ladder_outside_to_underground,3) after goto -> " .. tostring(ladder_wait_result)
             .. " (" .. tostring(ladder_wait_detail) .. ")")
-        -- lava_maze.rs2 [oploc1,wildymirrorladdertop1]: loc_coord=^blanket_ladder_coord ->
+        -- quest_drunkmonk.rs2 [oploc1,ladder_outside_to_underground]: loc_coord=^blanket_ladder_coord ->
         -- climb down, p_telejump(0_40_150_1_21) (square 40,150 local 1,21 = 2561,9621,0):
         -- the same level in the dungeon frame, so a climb row graded on the landing.
-        t.exec("goDownLadder", t.player.climb, { loc = "wildymirrorladdertop1", op = 1, op_name = "Climb-down",
+        t.exec("goDownLadder", t.player.climb, { loc = "ladder_outside_to_underground", op = 1, op_name = "Climb-down",
             at = { 2561, 3222, 0 }, src = { 2562, 3222 }, dest = { 2561, 9621, 0 } })
 
         -- ---- The secret cave: fetch the child's blanket (obj childs_blanket, m40_150.spawn
@@ -147,9 +150,9 @@ return {
             "npc:*yawn*...oh, hello again...*ya",
             "npc:Please tell me you have the bl",
             "player:Yes! I've recovered it from",
-            "mesbox:You hand the monk the child",
+            "objbox:You hand the monk the child",
             "npc:Really, that's excellent, well",
-            "npc:I'm off to bed! Farewell brave",
+            "npc:*yawn*..I'm off to bed! Farewe",
         })
         t.expect("quest.stage.retrieved_blanket", t.quest.expect_stage("retrieved_blanket"))
         -- t.inv.expect_absent is always hollow on ok (trap 12) -- poll for the
@@ -170,6 +173,7 @@ return {
                 .. " (await " .. tostring(blanket_wait_result) .. ")")
 
         -- ---- Ask Omad about the party (omad_organize_party -> omad_where_look) ----
+        t.ticklog.mark("leg.cedric")
         t.exec("askAboutCedric", t.player.talk_to, "brother_omad", 1)
         t.exec("askAboutCedric-dialog", t.chat.play, {
             "player:Hello, how are you?",
@@ -211,8 +215,7 @@ return {
             "npc:Hic up! Oh my head! I need a ",
             "player:Cedric! Here, drink! I hav",
             "npc:Good stuff, my head's spinnin",
-            -- (npc_say("Gulp...gulp!") is an overhead line, not a dialogue page -- skipped)
-            "mesbox:You hand the monk a jug of w",
+            "objbox:You hand the monk a jug of w",
             "npc:Aah! That's better!",
             "npc:Now I just need to fix this c",
             "npc:Could you help?",
@@ -240,7 +243,7 @@ return {
         t.exec("talkToCedricWithLog", t.player.talk_to, "brother_cedric", 1)
         t.exec("talkToCedricWithLog-dialog", t.chat.play, {
             "npc:Did you manage to get some wo",
-            "mesbox:You show Cedric some logs.",
+            "objbox:You show Cedric some logs.",
             "player:Here you go!",
             "npc:Well done! Now I'll fix this ",
             "player:Ok! I'll see you later!",
@@ -268,32 +271,26 @@ return {
         -- ---- Tell Omad Cedric is on the way (omad_party -> drunkmonk_party). The party's
         -- own npc_anim/npc_say/anim/say lines are overhead speech, not dialogue pages, and
         -- the reward itself lands two ticks later via [queue,drunkmonk_complete]. ----
+        t.ticklog.mark("leg.party")
         t.exec("goto-finishQuest", t.player.goto_tile, 2604, 3209, 0)
         t.exec("finishQuest", t.player.talk_to, "brother_omad", 1)
         t.exec("finishQuest-dialog", t.chat.play, {
             "player:Hi Omad, Brother Cedric is o",
             "npc:Good! Good! Now we can party!",
             "npc:I have little to repay you wit",
-            "mesbox:Brother Omad gives you 8 La",
+            "objbox:Brother Omad gives you 8 La",
             "player:Thanks Brother Omad!",
             "npc:OK, let's party!",
         })
-        -- [label,omad_party] falls straight into @drunkmonk_party (no further
-        -- click): brother_omad.rs2's full-party scene is now ported
-        -- (quest_drunkmonk.rs2 header, 2026-09-23 content-parity pass) --
-        -- Omad's own ~monk_dance/~player_monkdance calls plus five
-        -- ~spawn_drunkmonk_balloons rounds, THEN nine p_delay(2)'s (three
-        -- monk_dance/player_monkdance rounds each ending p_delay(2)) before
-        -- queue(drunkmonk_complete,0,0) -- ~18-32 ticks of scripted dancing,
-        -- not a fixed "settle" wait, so poll the stage instead of a bare
-        -- t.ticks(3) (that undercounted it: RE-AUTHOR after fc44e385e0,
-        -- quest.varp_complete stuck client=70 server=70).
+        -- [label,omad_party] falls straight into @drunkmonk_party on the last
+        -- page's click K: the completion lands at K+30 (RSProx 4393 [613]->[643]),
+        -- so poll the stage instead of a bare t.ticks.
         local party_wait_result, party_wait_detail = t.await({
             level = function()
                 local r, v = t.quest.stage()
                 return r == "ok" and v == 80
             end,
-            note = "drunkmonk_party (balloon drops + three-round monk dance) -> [queue,drunkmonk_complete]",
+            note = "drunkmonk_party (balloon drops + dance lines) -> ~drunkmonk_complete at K+30",
         }, 60)
         t.check("party.completes", party_wait_result == "ok",
             "t.quest.stage() polled for complete(80) after finishQuest-dialog -> "
