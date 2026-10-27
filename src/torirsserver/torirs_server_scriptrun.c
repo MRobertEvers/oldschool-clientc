@@ -5702,7 +5702,7 @@ ToriRSServer_ScriptRun(
              * party the login and that boundary's world tick are one pump,
              * torirs_server_embed.c), so the earliest MAP_BUILD_COMPLETE is
              * the NEXT boundary's input. Acking at the login itself started
-             * the login burst -- and [login]'s newplayer_inv grant, and so
+             * the login burst -- and [login]'s new-player seed, and so
              * every later tick -- one tick ahead of the live client: every
              * absolute stamp in the two tick logs differed by one
              * (2026-10-12, relay f1/f2). A rebuild later on is acked from

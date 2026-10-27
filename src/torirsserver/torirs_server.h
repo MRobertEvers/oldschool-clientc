@@ -4825,6 +4825,15 @@ struct ToriRSServerPlayer
      */
     int staff_level;
 
+    /**
+     * 1 for an account with `admin = 1`, whatever the server's settings
+     * (`ToriRSServerSession.account_admin`). Unlike `staff_level`, which every
+     * scriptrun harness raises to 2 for ::commands, this is the account: it may
+     * always cheat (ToriRSServer_PlayerMayCheat), and a new admin character
+     * skips Tutorial Island (ToriRSServer_WorldPlaceNewCharacter).
+     */
+    int account_admin;
+
     /*
      * `display_name` packed base 37 — the key everything social is filed under.
      *
@@ -6055,7 +6064,9 @@ ToriRSServer_WorldSetTutorialHome(
  *
  * Called from the login path, once, when ToriRSServer_LoadPlayer reports no save.
  * A no-op when the tutorial tile IS the home tile (a world with the tutorial
- * turned off) or when the caller has already placed the character somewhere.
+ * turned off), for an admin account (`account_admin`: staff start in
+ * Lumbridge, graduated), or when the caller has already placed the character
+ * somewhere.
  */
 void
 ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player);
@@ -6171,7 +6182,8 @@ ToriRSServer_WorldSetDisplayName(
  * May this player run a cheat -- a `::command` (CLIENT_CHEAT) or a world-map
  * click teleport? Everyone may on a server that does not check passwords (a
  * development server, the embedded world, the harnesses), because there a
- * name proves nothing. Where passwords are checked only staff may
+ * name proves nothing. An admin account (`account_admin`) always may, whatever
+ * the server's settings. Where passwords are checked only staff may
  * (`staff_level >= 2`, an account with `admin = 1`), as OldSchool's own client
  * sends CLIENT_CHEAT only for a staffModLevel of 2 or more -- which is a
  * courtesy of the client, not a rule a modified one has to keep.

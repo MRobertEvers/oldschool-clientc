@@ -162,11 +162,17 @@ struct ToriRSServerSession
     int login_ok_pending;
 
     /** The staffModLevel this login or reconnect is given: 2 for an account
-     *  with `admin = 1` on a server that checks passwords, else
+     *  with `admin = 1`, else
      *  TORIRSSERVER_STAFF_LEVEL (a harness's), else 0. Resolved during the
      *  handshake; the pending response carries it and the host copies it onto
      *  the player (`ToriRSServerPlayer.staff_level`). */
     int staff_level;
+
+    /** 1 when this login is an account with `admin = 1`, whatever the
+     *  server's settings -- the account itself, not the staff level, which a
+     *  harness's TORIRSSERVER_STAFF_LEVEL also raises. The host copies it onto
+     *  the player (`ToriRSServerPlayer.account_admin`). */
+    int account_admin;
 
     /** The login header's clientType / platformType (rsprot LoginClientType /
      *  LoginPlatformType), kept for the player the session becomes: a mobile

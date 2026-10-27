@@ -444,8 +444,8 @@ auth_write_record(
     snprintf(text, sizeof(text),
              "; ToriRSServer account. Written by torirs_server_auth.c.\n"
              "; Delete this file to reset the password: the next login sets it.\n"
-             "; admin = 1 is staff: the jmod crown, and ::commands on a world\n"
-             "; that checks passwords (torirsserver --account admin <name> on).\n"
+             "; admin = 1 is staff: the jmod crown, and ::commands on any world\n"
+             "; (torirsserver --account admin <name> on).\n"
              "; managed_by = <web login> is an account linked to that login: it signs\n"
              "; in only through the gate's session presenting the link token whose\n"
              "; hash is link_hash, never with this password\n"

@@ -11846,9 +11846,8 @@ ToriRSServer_RunCheatLadder(
         /*
          * `::clearinv` — `::give` run backwards over the whole backpack.
          *
-         * Why a quest suite needs it: a fresh character in this tree boots
-         * carrying fourteen slots of tutorial kit (content's
-         * `[proc,newplayer_inv]`, player/newplayer.rs2:119), and a quest that has to
+         * Why a quest suite needs it: the suite's fresh character
+         * (fresh_lumbridge.ini) carries fourteen slots of kit, and a quest that has to
          * hold twenty of something (Sheep Shearer's twenty balls of wool)
          * cannot fit them. The 2026-09-19 Haiku pilot's author dropped those
          * fourteen one `player.drop` at a time, which is fourteen clicks of a
@@ -15787,12 +15786,22 @@ ToriRSServer_WorldSetTutorialHome(
  * fixture logs a saved coord of 2495,5112 in with no save file behind it -- is
  * stating a position, and overwriting it would be this function deciding it
  * knew better.
+ *
+ * AN ADMIN ACCOUNT STARTS ON THE HOME TILE. Staff have no use for the island,
+ * so their character is created where a world without a tutorial creates
+ * everyone, and `~newplayer_setup` takes it from there exactly as it does for
+ * that world: `%tutorial` recorded as complete, every side tab open, and no
+ * kit. `account_admin`, not `staff_level` -- the scriptrun
+ * harnesses give every session staff level 2, Tutorial Island's own test
+ * among them.
  */
 void
 ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player)
 {
     assert(player);
     if( player->x != g_home_x || player->z != g_home_z || player->level != 0 )
+        return;
+    if( player->account_admin )
         return;
     if( player->x == g_tutorial_home_x && player->z == g_tutorial_home_z )
         return;
@@ -16353,7 +16362,7 @@ ToriRSServer_PlayerMayCheat(
 {
     assert(srv);
     assert(player);
-    return !srv->check_passwords || player->staff_level >= 2;
+    return !srv->check_passwords || player->account_admin || player->staff_level >= 2;
 }
 
 /*
@@ -16669,9 +16678,8 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     ToriRSServer_ContainerAdopt(player, ToriRSServer_Ids()->inv_worn, player->worn, TORIRSSERVER_WORN_SLOTS,
                             &player->worn_dirty, NULL, 1);
 
-    /* The containers exist empty. What goes in them the first time a character
-     * connects is content's — `[proc,newplayer_inv]` and `[proc,newplayer_bank]`
-     * in player/newplayer.rs2, called from [login,_]. */
+    /* The containers exist empty, and a new character keeps them that way:
+     * `[proc,newplayer_setup]` (player/newplayer.rs2) deals no kit. */
     ToriRSServer_BankInitPlayer(player);
     /* This client has no names for anybody yet. Explicit rather than relying on
      * the memset above, because 0 is a valid client slot and -1 is "free". */

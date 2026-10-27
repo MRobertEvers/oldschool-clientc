@@ -26,8 +26,8 @@
  *   <saves>/accounts/<name>.ini
  *     [account]
  *     password = pbkdf2-sha256$<iterations>$<salt hex>$<key hex>
- *     admin = 1        optional; staff: the jmod crown, and ::commands where
- *                      passwords are checked (ToriRSServer_PlayerMayCheat)
+ *     admin = 1        optional; staff: the jmod crown, and ::commands on any
+ *                      server, whatever its settings (ToriRSServer_PlayerMayCheat)
  *     managed_by = matt   optional; the account is LINKED to that web login
  *                      (ToriRSServer_AuthLink) and its password no longer signs
  *                      it in -- see "Linked player accounts" below

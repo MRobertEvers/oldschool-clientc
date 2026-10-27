@@ -416,6 +416,7 @@ host_stage_login(
     ToriRSServer_WorldPlayerInit(player);
     ToriRSServer_WorldSetDisplayName(player, c->session.display_name);
     player->staff_level = c->session.staff_level;
+    player->account_admin = c->session.account_admin;
     ToriRSServer_WorldLogin(player);
     fprintf(stderr, "torirsserver: %s logged in (pid %d)\n", player->display_name, player->pid);
 

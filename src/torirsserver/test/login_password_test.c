@@ -663,8 +663,8 @@ main(void)
     world->check_passwords = 1;
 
     /* 5b. An account with `admin = 1` logs in as staff: the jmod crown, and
-     *     cheats on a server that checks passwords. Without it, no cheats --
-     *     except in development mode, where a name proves nothing. */
+     *     cheats on any server. Without it, no cheats -- except in development
+     *     mode, where a name proves nothing. */
     check(ToriRSServer_AuthSetAdmin("alice", 1), "(make alice an admin)");
     check(ToriRSServer_AuthIsAdmin("alice"), "the record says so");
     check(ToriRSServer_AuthLogin("alice", "correcthorse9") == TORIRSSERVER_AUTH_OK,
@@ -674,9 +674,25 @@ main(void)
         struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, staff.client_id);
 
         check(player && player->staff_level == 2, "an admin account logs in at staff level 2");
+        check(player && player->account_admin, "as an admin account (no Tutorial Island)");
         check(player && ToriRSServer_PlayerMayCheat(world, player), "and may cheat");
     }
     ToriRSServer_EmbedDisconnect(embed, staff.client_id);
+    /* The admin flag holds whatever the server's settings: in development mode
+     * too, or the rev-239 client would never send her ::commands as cheats. */
+    world->check_passwords = 0;
+    login(embed, &dev, NULL, "alice", "anything");
+    {
+        struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, dev.client_id);
+
+        check(player && player->staff_level == 2,
+              "an admin account is staff in development mode too");
+        check(player && player->account_admin, "and an admin account there");
+        world->check_passwords = 1;
+        check(player && ToriRSServer_PlayerMayCheat(world, player),
+              "and may cheat whatever the server checks");
+    }
+    ToriRSServer_EmbedDisconnect(embed, dev.client_id);
     check(ToriRSServer_AuthSetAdmin("alice", 0), "(and not an admin)");
     check(!ToriRSServer_AuthIsAdmin("alice"), "the record says so");
     login(embed, &plain, NULL, "alice", "correcthorse9");
@@ -684,6 +700,7 @@ main(void)
         struct ToriRSServerPlayer* player = ToriRSServer_EmbedPlayer(embed, plain.client_id);
 
         check(player && player->staff_level == 0, "a plain account logs in at staff level 0");
+        check(player && !player->account_admin, "and not as an admin account");
         check(player && !ToriRSServer_PlayerMayCheat(world, player),
               "and may not cheat where passwords are checked");
         world->check_passwords = 0;

@@ -539,7 +539,7 @@ ToriRSServer_ContainerSet(
  * `always_stacks()` below (the bank and the collection log; see
  * torirs_server_ids.h for why each). That is a smaller and more honest gap than the
  * old one: those two are the whole of what this tree adds an unstackable pile
- * to in bulk (`[proc,newplayer_bank]` says `inv_add(bank, logs, 100)`), and
+ * to in bulk (`[proc,selftest_kit_bank]` says `inv_add(bank, logs, 100)`), and
  * everything else now behaves the way `~pickup_obj_check_for_space` already
  * assumed it did when it asked `inv_itemspace` for one free slot per unit.
  *

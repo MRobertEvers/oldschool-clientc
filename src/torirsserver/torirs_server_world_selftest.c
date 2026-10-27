@@ -1360,12 +1360,13 @@ selftest_settle(
 }
 
 /*
- * Give the player its opening kit, bank stock and stats.
+ * Give the player the selftest's backpack and bank fixture, and its stats.
  *
  * `ToriRSServer_WorldInit` used to do this and no longer does: what a new character
- * owns is content's, in `[proc,newplayer_setup]` (player/newplayer.rs2), and a
- * freshly initialised world now correctly has an empty backpack and an empty
- * bank. A section that wants to *test* the fixture has to ask for it.
+ * owns is content's, in `[proc,newplayer_setup]` (player/newplayer.rs2), and that
+ * is nothing -- an empty backpack and an empty bank. A section that wants
+ * something to act on asks for `[proc,selftest_kit_inv]` and
+ * `[proc,selftest_kit_bank]` (selftest_kit.rs2), which game content never calls.
  *
  * The seeding proc rather than the whole [login] trigger, deliberately: the
  * login burst arms interfaces and pushes a dozen varps, none of which a bank
@@ -1386,6 +1387,8 @@ selftest_seed_new_player(struct ToriRSServer* srv)
     if( !loaded )
         return 0;
     ToriRSServer_ScriptsRunProc(srv, "[proc,newplayer_setup]", NULL, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_kit_inv]", NULL, 0);
+    ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_kit_bank]", NULL, 0);
     ToriRSServer_ScriptsFree(srv);
     return 1;
 }
@@ -17485,11 +17488,10 @@ ToriRSServer_WorldSelftest(void)
                            login_x, login_z, login_level, player->x, player->z, player->level);
 
             /*
-             * The opening fixture, which [login] seeds through
-             * `~newplayer_setup` and ToriRSServer_WorldInit deliberately no longer
-             * does. Three assertions because the three moved separately and
-             * fail separately: the backpack, the bank behind the API that used
-             * to be written past, and the stat block.
+             * What [login] gives a new character through `~newplayer_setup`:
+             * the stat block, and no kit -- an empty backpack and an empty
+             * bank. Three assertions because the three moved separately and
+             * fail separately.
              */
             {
                 int kit = 0;
@@ -17498,10 +17500,11 @@ ToriRSServer_WorldSelftest(void)
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     if( player->inv[i].obj_id >= 0 )
                         kit++;
-                SELFTEST_CHECK(kit == 14,
-                               "[login] should deal the 14-item opening kit, got %d", kit);
-                SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 250000,
-                               "and stock the bank with 250000 coins, got %d",
+                SELFTEST_CHECK(kit == 0,
+                               "[login] should deal a new character no kit, got %d item(s)",
+                               kit);
+                SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 0,
+                               "and leave the bank empty, got %d coins",
                                ToriRSServer_BankCount(srv, 995));
                 SELFTEST_CHECK(player->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10 &&
                                    hitpoints_xp == 11540,
@@ -17516,19 +17519,33 @@ ToriRSServer_WorldSelftest(void)
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     if( player->inv[i].obj_id >= 0 )
                         kit++;
-                SELFTEST_CHECK(kit == 14,
-                               "running the seed twice should deal nothing more, got %d",
+                SELFTEST_CHECK(kit == 0,
+                               "running the seed twice should deal nothing either, got %d",
                                kit);
+
+                /* The fixture every later stanza equips, drags and withdraws
+                 * from (selftest_kit.rs2): asked for here, by name, because no
+                 * login deals it. */
+                ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_kit_inv]", NULL, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_kit_bank]", NULL, 0);
+                kit = 0;
+                for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    if( player->inv[i].obj_id >= 0 )
+                        kit++;
+                SELFTEST_CHECK(kit == 14 && ToriRSServer_BankCount(srv, 995) == 250000,
+                               "the selftest kit deals 14 objs and 250000 banked coins, "
+                               "got %d / %d",
+                               kit, ToriRSServer_BankCount(srv, 995));
             }
 
             /*
              * Tutorial Island, which is the other half of the same fixture.
              *
              * The block above proves what a character created OFF the island
-             * gets, and that is the arm every other stanza in this suite runs
-             * through -- `g_tutorial_home_*` defaults to the home tile, so a
-             * world that boots no config (this one) creates characters exactly
-             * where it always did and `~newplayer_setup` deals the kit.
+             * gets -- no kit -- and that is the arm every other stanza in this
+             * suite runs through: `g_tutorial_home_*` defaults to the home
+             * tile, so a world that boots no config (this one) creates
+             * characters exactly where it always did.
              *
              * This proves the other arm, which is the one a real server takes:
              * move the tutorial tile somewhere else and a character with no
@@ -17539,9 +17556,8 @@ ToriRSServer_WorldSelftest(void)
              * than a flag.
              *
              * `~tutorial_finish` closes it: the graduate is on the home tile
-             * with `%tutorial` past the client's `< 1000` gate and this world's
-             * development kit finally dealt. Without that last check the kit
-             * could simply have been lost rather than deferred.
+             * with `%tutorial` past the client's `< 1000` gate, holding the
+             * island's graduation kit and nothing of the selftest kit.
              */
             {
                 int tutorial_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
@@ -17728,12 +17744,9 @@ ToriRSServer_WorldSelftest(void)
                          * apart. This check used to assert the bank coins were
                          * there, which is to say it pinned the bug.
                          *
-                         * The fixture still reaches a world whose characters
-                         * are created on the mainland (`~newplayer_setup`,
-                         * player/newplayer.rs2) -- the stanza above this one
-                         * covers that, and every selftest fixture takes it,
-                         * because `tools/content_selftest.py` points
-                         * TORIRSSERVER_TUTORIAL_HOME at the home tile.
+                         * That fixture is now `[proc,selftest_kit_inv]`
+                         * (selftest_kit.rs2), dealt only when a selftest asks
+                         * for it; no character is given it.
                          *
                          * The count is the assertion that matters: a free slot
                          * is the same statement as "nothing extra", and it
@@ -17766,13 +17779,13 @@ ToriRSServer_WorldSelftest(void)
                                     TORIRSSERVER_PACK_OBJ, not_dealt[i]);
 
                                 SELFTEST_CHECK(selftest_count(tut, obj) == 0,
-                                               "and none of this world's development "
-                                               "kit: %s is in the backpack",
+                                               "and none of the selftest kit: %s is "
+                                               "in the backpack",
                                                not_dealt[i]);
                             }
                             /* The reference's label ends inv_clear(bank);
                              * inv_add(bank, coins, 25): the island's 25, not
-                             * the development kit's coins. */
+                             * the selftest kit's coins. */
                             SELFTEST_CHECK(ToriRSServer_BankCount(srv, 995) == 25,
                                            "and the bank holds the island's 25 coins and "
                                            "no kit, got %d coins",
@@ -17780,6 +17793,41 @@ ToriRSServer_WorldSelftest(void)
                         }
                     }
                     ToriRSServer_WorldRemovePlayer(srv, tut);
+                }
+                /* An admin account's new character is not sent to the island:
+                 * it stays on the home tile, where `~newplayer_setup` records
+                 * the tutorial as done. A harness's staff level is not enough. */
+                {
+                    struct ToriRSServerPlayer* staff = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+                    SELFTEST_CHECK(staff != NULL, "the pool should admit an admin session");
+                    if( staff )
+                    {
+                        ToriRSServer_WorldPlayerInit(staff);
+                        ToriRSServer_WorldSetActive(srv, staff);
+                        staff->staff_level = 2;
+                        ToriRSServer_WorldPlaceNewCharacter(staff);
+                        SELFTEST_CHECK(staff->x == tut_x && staff->z == tut_z,
+                                       "staff level 2 alone still starts on the tutorial "
+                                       "tile, got %d,%d",
+                                       staff->x, staff->z);
+                        ToriRSServer_WorldRemovePlayer(srv, staff);
+                    }
+                    staff = ToriRSServer_WorldAddPlayer(srv, NULL);
+                    SELFTEST_CHECK(staff != NULL, "the pool should admit an admin session");
+                    if( staff )
+                    {
+                        ToriRSServer_WorldPlayerInit(staff);
+                        ToriRSServer_WorldSetActive(srv, staff);
+                        staff->account_admin = 1;
+                        ToriRSServer_WorldPlaceNewCharacter(staff);
+                        SELFTEST_CHECK(staff->x == g_home_x && staff->z == g_home_z &&
+                                           staff->level == 0,
+                                       "an admin account's new character starts on the "
+                                       "home tile, got %d,%d,%d",
+                                       staff->x, staff->z, staff->level);
+                        ToriRSServer_WorldRemovePlayer(srv, staff);
+                    }
                 }
                 /* Back to the default, or every stanza after this one creates
                  * its characters on Tutorial Island. */
@@ -21346,10 +21394,9 @@ ToriRSServer_WorldSelftest(void)
                  * Put the world back the way it was found.
                  *
                  * This section is the only one that empties the backpack, and
-                 * the equip/drag sections after it assert against the opening
+                 * the equip/drag sections after it assert against the selftest
                  * kit — so the fixture is re-seeded here rather than left for
-                 * them to discover missing. `%newplayer_seeded` makes the proc
-                 * idempotent, so the deal has to be asked for explicitly.
+                 * them to discover missing.
                  */
                 selftest_clear_inv(player);
                 ToriRSServer_VarbitSet(srv, vb_rake, 0);
@@ -21358,7 +21405,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_VarbitSet(srv, vb_b0, 0);
                 ToriRSServer_VarbitSet(srv, vb_b1, 0);
                 ToriRSServer_VarbitSet(srv, vb_b2, 0);
-                ToriRSServer_ScriptsRunProc(srv, "[proc,newplayer_inv]", NULL, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_kit_inv]", NULL, 0);
             }
 
             ToriRSServer_ScriptsFree(srv);
@@ -24623,9 +24670,9 @@ ToriRSServer_WorldSelftest(void)
     {
         static struct ToriRSServerCapture capture;
         /*
-         * This is the fixture's FIRST `[login]`, so `~newplayer_setup` hands
-         * out the opening kit on top of the kit the fixture already carries:
-         * 14 slots became 26. Every later section was measured on whatever a
+         * This is the fixture's FIRST `[login]`, and `~newplayer_setup` used
+         * to hand out an opening kit on top of the kit the fixture already
+         * carries: 14 slots became 26 (it deals none now). Every later section was measured on whatever a
          * goblin fight happened to leave behind -- on the 1-hitpoint fixture
          * the goblin killed the player, the death kept three items and the
          * inventory had room. With the fight on real hitpoints (seam28) the
@@ -32725,9 +32772,8 @@ ToriRSServer_WorldSelftest(void)
                  *
                  * This stanza is about the wield refusal and its wording; a
                  * full backpack is not a fact about either. It fills honestly —
-                 * the opening kit is dealt twice (once at `player_init`, once by
-                 * `[login,_]` after the login-burst stanza reloads a save that
-                 * predates the seed varp) and the fight stanzas leave bones and
+                 * the selftest kit is dealt more than once (the login stanza
+                 * and every section that reseeds it) and the fight stanzas leave bones and
                  * coins in it — so the cell count here is a running total of
                  * every earlier section rather than anything this one arranged.
                  * Emptying the last cell is what "make room for the fixture"
@@ -64825,7 +64871,7 @@ ToriRSServer_WorldSelftest(void)
                                p->hitpoints, p->stat_level[TORIRSSERVER_STAT_HITPOINTS]);
                 for( int slot = 0; slot < backpack->slots; slot++ )
                     kit += backpack->items[slot].obj_id >= 0 && backpack->items[slot].obj_id != 1925;
-                SELFTEST_CHECK(kit > 0, "the starter kit is in the backpack (~newplayer_inv), %d", kit);
+                SELFTEST_CHECK(kit > 0, "the fixture's own backpack is restored, %d", kit);
             }
             ToriRSServer_ScriptsFree(srv);
         }

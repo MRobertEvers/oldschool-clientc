@@ -2086,9 +2086,7 @@ def generate(
 
     # ::clearinv is ALWAYS the first setup line -- the fresh character
     # (fresh_lumbridge.ini) carries fourteen occupied backpack slots --
-    # content's [proc,newplayer_inv] (player/newplayer.rs2:119) is what
-    # puts them there, and build/quest_gate/closer_setup2 counted them --
-    # and they block a
+    # build/quest_gate/closer_setup2 counted them -- and they block a
     # non-stackable requirement fitting in the backpack (H2,
     # docs/QUEST_SUITE_KIT.md: sheep's REJECTED pass had to drop tutorial
     # items one by one by hand to fit 20 balls of wool). It is on the engine

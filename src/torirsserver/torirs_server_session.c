@@ -227,7 +227,7 @@ login_is_239(const struct ToriRSServer* srv)
 
 /*
  * TORIRSSERVER_STAFF_LEVEL: the staffModLevel every login is given at least
- * (an account with `admin = 1` gets 2 where passwords are checked).
+ * (an account with `admin = 1` always gets 2).
  *
  * Keep normal sessions at the golden value 0, but let an isolated integration
  * run opt into the client's own CLIENT_CHEAT path.  The mock already exposes
@@ -791,10 +791,12 @@ step_login(
 
     /* The staff level, for a login and a reconnect alike: the response below
      * carries it at 239, and the player gets it whatever the revision. An
-     * account's admin flag means something only where the password was
-     * checked; elsewhere a name proves nothing. */
+     * account's admin flag holds whatever the server's settings: an admin
+     * may cheat everywhere, and the rev-239 client sends a `::command` as a
+     * cheat only when this level says staff. */
+    session->account_admin = ToriRSServer_AuthIsAdmin(user);
     session->staff_level = login_staff_level();
-    if( srv->check_passwords && session->staff_level < 2 && ToriRSServer_AuthIsAdmin(user) )
+    if( session->account_admin && session->staff_level < 2 )
         session->staff_level = 2;
     if( session->staff_level > 0 )
         fprintf(stderr, "torirsserver: '%s' is staff, staffModLevel=%d\n", user,

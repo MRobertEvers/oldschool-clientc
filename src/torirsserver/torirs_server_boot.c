@@ -63,8 +63,9 @@
  * coordinate, and `TORIRSSERVER_TUTORIAL_HOME=x,z` overrides it the same way
  * `TORIRSSERVER_HOME` overrides the other. Setting it to the home tile is how
  * a world opts out of the tutorial: content's `~newplayer_setup` asks whether
- * the character it is seeding is standing on the island, and deals this
- * world's opening kit immediately when it is not.
+ * the character it is seeding is standing on the island, and records the
+ * tutorial as done when it is not. An admin account skips the island too
+ * (ToriRSServer_WorldPlaceNewCharacter).
  */
 #define DEFAULT_TUTORIAL_HOME_X 3094
 #define DEFAULT_TUTORIAL_HOME_Z 3106
