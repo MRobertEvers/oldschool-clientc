@@ -73,13 +73,26 @@ is green.
 8. **Recurring frames.** A shape that repeats (a guide's fade-teleport-page, a scene lock) is
    one proc copied from the recording packet for packet, and checked once on a
    `TORIRSSERVER_TRACE_OUT=2` run (the tick log has no interface rows).
-9. **The quest journal.** Rev 241 opens it from the quest list's op as `questjournal_overview`
-   (782, clientscript `questjournal_overview_setup` 6821 with the quest's dbrow and the start
-   text) and the full journal (`questjournal`, 119, its `qj*` lines). Search for a recording that
-   opens it at any stage (`rsprox_index.py search interface 782`, `... 119`, then `grep -n
-   "questjournal" <txt>` for the quest's dbrow or name) and diff every line per stage. With no
-   recording, the journal is UNVERIFIED in the doc: a LostCity `*_journal.rs2` is 2004 text
-   (§16). The test's `quest.journal` row only checks that a title exists.
+9. **The quest journal.** Its text is NOT in the cache and is sent ONLY when the player opens
+   it, so only a recording that opens it at a stage can verify that stage's text. The packets:
+   - The quest list's op sets varp `latest_quest_journal` (3679) to the quest's id.
+   - Not started (index 4332 [35]): `questjournal_overview` (782) opens. Its title is an
+     `if_settext`. Clientscript `questjournal_overview_setup` (6821) gets the quest's dbrow and
+     one server string, the start text ("talking to <col=800000>Brundt the Chieftain...").
+   - Started (index 3437): title `if_settext questjournal:title (119:5)`, `quest_journal_reset`
+     (5240), one `if_settext questjournal:qjN` per line, then `if_opensub questjournal (119)`.
+     The server wraps each line with Jagex's own `<col>` tags. Copy them verbatim.
+   - The cache's `quest` dbtable holds only metadata: name, start npc/loc/coord,
+     requirements, quest points, xp, `unstartedstate`/`endstate`. The overview and the quest
+     list draw from it. The list's colour compares the quest varp against those states, so our
+     stage numbers must equal Jagex's. The varp and varbits go out whenever they change,
+     journal open or not: any recording shows the stage it was at.
+
+   Search for a recording that opens it (`rsprox_index.py search interface 119`, `... 782`,
+   then `grep -n "questjournal" <txt>` for the quest's title or dbrow). Read the stage varp at
+   that tick, and diff every line for that stage. A stage no recording opens is UNVERIFIED in
+   the doc: a LostCity `*_journal.rs2` is 2004 text (§16). The test's `quest.journal` row only
+   checks that a title exists.
 10. **The rewards' features.** What the scroll grants must work: TGV's "Spirit Tree Access"
     is the spirit trees' menu (`menu` 217 "Spirit Tree Locations", recorded in 311 and 3976).
 11. **Fights** get one agent each (owner rule: Opus 5.5, max effort, sequential): §13, §13b,
