@@ -553,12 +553,17 @@ check_links(void)
     check(ToriRSServer_AuthLogin("frank", "blue7horse") == TORIRSSERVER_AUTH_OK,
           "link: and his password his own again");
 
-    check(ToriRSServer_AuthLink("gina", "short", "matt", token) == TORIRSSERVER_LINK_WEAK,
-          "link: an unclaimed name is held to the password rules");
-    check(!file_exists(ToriRSServer_AccountPath("gina")), "link: and nothing is written");
+    check(ToriRSServer_AuthLink("gina", "green9owl", "matt", token) ==
+                  TORIRSSERVER_LINK_NO_ACCOUNT &&
+              !token[0],
+          "link: a name with no account cannot be linked");
+    check(!file_exists(ToriRSServer_AccountPath("gina")),
+          "link: and the link does not create the account");
+    check(ToriRSServer_AuthLogin("gina", "green9owl") == TORIRSSERVER_AUTH_CLAIMED,
+          "link: (gina logs in, which makes her account)");
     check(ToriRSServer_AuthLink("gina", "green9owl", "matt", token) == TORIRSSERVER_LINK_OK &&
               ToriRSServer_AuthLinkVerify("gina", "matt", token),
-          "link: a good one claims and links the name in one go");
+          "link: and now it links");
 }
 
 /* Session history (torirs_server_history.h): what the account site reads. */
@@ -805,6 +810,8 @@ main(void)
 
         remove(ToriRSServer_AccountPath("henry"));
         remove(ToriRSServer_HistoryPath("henry"));
+        check(ToriRSServer_AuthLogin("henry", "red8fox99") == TORIRSSERVER_AUTH_CLAIMED,
+              "(henry makes his account)");
         check(ToriRSServer_AuthLink("henry", "red8fox99", "matt", token) == TORIRSSERVER_LINK_OK,
               "(link henry to matt)");
         login(embed, &by_password, NULL, "henry", "red8fox99");

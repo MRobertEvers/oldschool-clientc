@@ -1148,11 +1148,13 @@ IoGate_LinkPlayer(
         return IO_GATE_LINK_REFUSED;
     }
     result = ToriRSServer_AuthLink(username, password, who, token);
-    if( result == TORIRSSERVER_LINK_WEAK )
-        *out_message = ToriRSServer_AuthPasswordProblem(username, password);
     memset(password, 0, password_cap);
-    if( result == TORIRSSERVER_LINK_WEAK )
+    if( result == TORIRSSERVER_LINK_NO_ACCOUNT )
+    {
+        *out_message = "There is no player account by that name. Log in to the game to make it "
+                       "first, then link it.";
         return IO_GATE_LINK_REFUSED;
+    }
     if( result == TORIRSSERVER_LINK_REFUSED )
     {
         throttle->failures++;

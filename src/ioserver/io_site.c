@@ -1319,7 +1319,8 @@ page_account(
                  "<button class=\"btn\">Link account</button></form>"
                  "<p class=\"note\" style=\"margin-top:12px\">The password proves the account "
                  "is yours. After linking, that password stops working: the account plays "
-                 "through this login. A name nobody has yet is created and linked at once.</p>"
+                 "through this login. The account must already exist: make it by logging in to "
+                 "the game.</p>"
                  "</section>\n</div>\n");
     ToriMem_Free(ToriMem_Net(), mine);
     page_send(&b, res, status);

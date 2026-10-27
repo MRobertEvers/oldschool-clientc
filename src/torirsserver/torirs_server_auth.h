@@ -59,7 +59,9 @@
  *
  * **Linked player accounts.** A web login may take player accounts under it:
  * on the gate's `/account/link` the visitor proves the player account is theirs
- * with its password (a gate session alone must never be able to take a name),
+ * with its password (a gate session alone must never be able to take a name).
+ * The account must already exist -- a link never creates one; a name is made
+ * by logging in to the game --
  * and the link mints a random LINK TOKEN: the web login's links database
  * (`<saves>/gate/links.sqlite`, io_gate_links.c) keeps the token, and the
  * record gains `managed_by = <web login>` and `link_hash = SHA-256(token)`.
@@ -190,9 +192,9 @@ enum ToriRSServerLinkResult
     TORIRSSERVER_LINK_OK,
     /** Wrong password, an unusable name, or an unreadable record. */
     TORIRSSERVER_LINK_REFUSED,
-    /** No record, and the password breaks the rules, so the name was not
-     *  claimed. */
-    TORIRSSERVER_LINK_WEAK,
+    /** No player account by that name (no record): only an existing account
+     *  can be linked. Nothing was written. */
+    TORIRSSERVER_LINK_NO_ACCOUNT,
     /** The account is linked to a different web login: one owner only. */
     TORIRSSERVER_LINK_OTHER_USER,
     TORIRSSERVER_LINK_WRITE_FAILED,
@@ -202,9 +204,9 @@ enum ToriRSServerLinkResult
  * Link the player account `display_name` to the web login `user`, the
  * account's own `password` proving it is the linker's, and mint the link's
  * token into `out_token` (OK only) for the caller to keep: the record holds
- * only its hash. A name with no record is claimed under the password rules and
- * linked in the same write; an account linked to `user` already is re-linked
- * with a new token. Only the record changes here; revoking the account's
+ * only its hash. The account must exist: a name with no record is NO_ACCOUNT
+ * and nothing is written (accounts are made by logging in to the game). An
+ * account linked to `user` already is re-linked with a new token. Only the record changes here; revoking the account's
  * refresh tokens is the caller's (ToriRSServer_OAuthRevokeAccount).
  */
 enum ToriRSServerLinkResult

@@ -348,7 +348,7 @@ accounts on Play Now cards ahead of the device's own.
 | route | what it does |
 | --- | --- |
 | `POST /account/players` | `{"user": <web login>, "players": "A\nB"}`: the linked accounts, newline separated |
-| `POST /account/link` | `username` + `password` of a player account: proves it is the linker's, links it, and answers a one-time login (`{"token","name"}`) so linking also plays |
+| `POST /account/link` | `username` + `password` of an existing player account: proves it is the linker's, links it, and answers a one-time login (`{"token","name"}`) so linking also plays. A name with no account is refused; accounts are made by logging in to the game |
 | `POST /account/play` | `player`: a one-time login for a linked account, on this session |
 
 Submitting the password form while signed in to the gate opens a prompt:
@@ -363,6 +363,9 @@ token; the player's own record, `<saves>/accounts/<name>.ini`, gains
 mints a one-time login only when the record names the session's login AND the
 stored token hashes to `link_hash`. So:
 
+- **Only an existing account.** A link never creates a player account: a name
+  with no record in `<saves>/accounts/` is refused (`There is no player
+  account by that name.`). Log in to the game once to make it, then link it.
 - **One owner.** Another login cannot link the account even with its password
   (`That account is already linked to another login.`).
 - **One live link.** Linking again, even by the owner, mints a new token; the

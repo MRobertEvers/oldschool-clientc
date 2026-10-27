@@ -726,11 +726,9 @@ ToriRSServer_AuthLink(
     char out_token[TORIRSSERVER_LINK_TOKEN_HEX + 1])
 {
     char path[1024];
-    char record[TORIRSSERVER_AUTH_RECORD_MAX];
     char owner[64];
     char hash[TORIRSSERVER_LINK_TOKEN_HEX + 1];
     struct AuthFile file;
-    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
     int have;
     int written;
 
@@ -749,20 +747,10 @@ ToriRSServer_AuthLink(
     have = auth_read_record(path, &file);
     if( have < 0 )
         return TORIRSSERVER_LINK_REFUSED;
+    /* Only an account that exists can be linked: a link never creates one.
+     * The name is made the ordinary way, by logging in to the game. */
     if( have == 0 )
-    {
-        /* A name nobody holds yet: claimed and linked in one write, under
-         * the rules a claim always meets. */
-        if( ToriRSServer_AuthPasswordProblem(display_name, password) )
-            return TORIRSSERVER_LINK_WEAK;
-        auth_random(salt, sizeof(salt));
-        ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
-        auth_link_mint(out_token, hash);
-        if( auth_write_record(path, record, 0, owner, hash) )
-            return TORIRSSERVER_LINK_OK;
-        out_token[0] = '\0';
-        return TORIRSSERVER_LINK_WRITE_FAILED;
-    }
+        return TORIRSSERVER_LINK_NO_ACCOUNT;
     /* The password is the proof the player account is the linker's to give:
      * a gate session alone must not be able to take a name. */
     if( !ToriRSServer_AuthVerify(password, file.password) )

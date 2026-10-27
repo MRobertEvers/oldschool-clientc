@@ -100,8 +100,8 @@ IoGate_PathIs(
 enum IoGateLinkResult
 {
     IO_GATE_LINK_LINKED,
-    /** The visitor's mistake (wrong password, another owner, a weak password
-     *  for a new name, too many tries); the message says which. */
+    /** The visitor's mistake (no such account, wrong password, another
+     *  owner, too many tries); the message says which. */
     IO_GATE_LINK_REFUSED,
     IO_GATE_LINK_FAILED,
 };
