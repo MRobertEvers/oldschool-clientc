@@ -1044,6 +1044,7 @@ static int lua_world_npc_next(lua_State* L) { struct ToriRS_Api* a=lua_current_a
 static int lua_world_npc_by_slot(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_NpcSnapshot v; if(!a->world.npc_by_slot(a,(int)luaL_checkinteger(L,1),&v)){lua_pushnil(L);return 1;}lua_push_npc(L,&v);return 1; }
 static int lua_world_player_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_PlayerSnapshot v; int n=a->world.player_next(a,(int)luaL_optinteger(L,1,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_push_player(L,&v);return 2; }
 static int lua_world_item_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_GroundItemSnapshot v; int n=a->world.item_next(a,(int)luaL_optinteger(L,1,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_push_obj(L,&v);return 2; }
+static int lua_world_loc_anim_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_LocAnimSnapshot v; int n=a->world.loc_anim_next(a,(int)luaL_optinteger(L,1,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_createtable(L,0,6);lua_pushinteger(L,v.tile_x);lua_setfield(L,-2,"x");lua_pushinteger(L,v.tile_z);lua_setfield(L,-2,"z");lua_pushinteger(L,v.level);lua_setfield(L,-2,"level");lua_pushinteger(L,v.shape);lua_setfield(L,-2,"shape");lua_pushinteger(L,v.seq_id);lua_setfield(L,-2,"seq_id");lua_pushinteger(L,v.cycle);lua_setfield(L,-2,"cycle");return 2; }
 static int lua_world_scenery_next(lua_State* L) { struct ToriRS_Api* a=lua_current_api(L); struct ToriRS_ScenerySnapshot v; int n=a->world.scenery_next(a,(int)luaL_optinteger(L,1,-1),&v);if(n<0){lua_pushnil(L);return 1;}lua_pushinteger(L,n);lua_push_loc(L,&v);return 2; }
 
 /* -------------------------------------------------------------- api.input */
@@ -3528,7 +3529,7 @@ static struct LuaFn const LUA_CONFIG_FNS[] = {
 static struct LuaFn const LUA_WORLD_FNS[] = {
     {"scene_origin",lua_world_scene_origin},{"instance_zone",lua_world_instance_zone},{"local_player",lua_world_local_player},{"npc_next",lua_world_npc_next},
     {"npc_by_slot",lua_world_npc_by_slot},{"player_next",lua_world_player_next},
-    {"item_next",lua_world_item_next},{"scenery_next",lua_world_scenery_next},{NULL,NULL}
+    {"item_next",lua_world_item_next},{"scenery_next",lua_world_scenery_next},{"loc_anim_next",lua_world_loc_anim_next},{NULL,NULL}
 };
 static struct LuaFn const LUA_INPUT_FNS[] = {
     {"key_held",lua_input_key_held},{"pointer",lua_input_pointer},{"hover_tile",lua_input_hover_tile},

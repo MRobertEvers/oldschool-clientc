@@ -232,6 +232,7 @@ warn = nil
 ---@field player_next fun(cursor?: integer): integer?, torirs.PlayerSnap?
 ---@field item_next fun(cursor?: integer): integer?, torirs.ItemSnap?
 ---@field scenery_next fun(cursor?: integer): integer?, torirs.ScenerySnap?
+---@field loc_anim_next fun(cursor?: integer): integer?, table? The recent LOC_ANIMs, oldest first: { x, z, level, shape, seq_id, cycle } (absolute tile; cycle the client cycle it was applied on -- dedupe by cycle, tile and seq)
 
 ---@class torirs.InputApi
 ---@field key_held fun(key: torirs.KeyName|integer): boolean

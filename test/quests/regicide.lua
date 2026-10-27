@@ -1091,7 +1091,7 @@ return {
             travel("walk-goReturnToIorwerth-camp", 2203, 3253)
             t.exec("goReturnToIorwerth-talk", t.player.talk_to, "lord_iorwerth_vis")
             t.exec("goReturnToIorwerth-dialog", t.chat.play, {
-                "npc:Good day", "player:Your scout refused", "npc:Bless his loyalty", "mesbox:Lord Iorwerth gives you a crystal pendant",
+                "npc:Good day", "player:Your scout refused", "npc:Bless his loyalty", "objbox:Lord Iorwerth gives you a crystal pendant",
             })
             t.ticks(2)
             t.expect("pendant.held", t.inv.expect_has("regicide_crystal_pendant", 1))
@@ -1359,7 +1359,7 @@ return {
             t.exec("goToIorwerthAfterCamp-talk", t.player.talk_to, "lord_iorwerth_vis")
             t.exec("goToIorwerthAfterCamp-dialog", t.chat.play, {
                 "npc:how goes your search", "player:I've finally tracked", "npc:Good job", "npc:I have this book",
-                "player:Well that should", "npc:Indeed", "mesbox:Lord Iorwerth gives you a book",
+                "player:Well that should", "npc:Indeed", "objbox:Lord Iorwerth gives you a book",
             })
             t.ticks(2)
             t.expect("quest.stage.spoken_iorwerth2", t.quest.expect_stage(11))
@@ -1960,7 +1960,7 @@ return {
             t.exec("talkToIorwerthAfterRegicide", t.player.talk_to, "lord_iorwerth_vis")
             t.exec("talkToIorwerthAfterRegicide-dialog", t.chat.play, {
                 "player:Lord Iorwerth, it is done", "npc:Good good", "npc:I'm sure you will want",
-                "mesbox:Lord Iorwerth gives you a scroll", "npc:As a token", "player:Thank you my lord",
+                "objbox:Lord Iorwerth gives you a scroll", "npc:As a token", "player:Thank you my lord",
             })
             t.ticks(2)
             t.expect("quest.stage.reported_iorwerth", t.quest.expect_stage(13))

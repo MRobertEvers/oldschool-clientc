@@ -279,7 +279,7 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.expect(p .. ".seaman.paid", t.msg.expect("pay the 30 coins and board the ship"))
+            t.expect(p .. ".seaman.paid", t.msg.expect("You pay 30 coins and board the ship"))
             local sail_r, sail_d = t.await({
                 level = function()
                     return t.chat.kind() == "mesbox"

@@ -540,6 +540,18 @@ v2_world_scenery_next(
     return api_loc_next(runtime->context, iterator, out);
 }
 
+static int
+v2_world_loc_anim_next(
+    struct ToriRS_Api* api,
+    int iterator,
+    struct ToriRS_LocAnimSnapshot* out)
+{
+    struct PluginV2Runtime* runtime = v2_runtime(api);
+
+    assert(out);
+    return api_loc_anim_next(runtime->context, iterator, out);
+}
+
 static bool
 v2_input_key_held(
     struct ToriRS_Api* api,
@@ -3402,6 +3414,7 @@ v2_runtime_init(
             .item_next = v2_world_item_next,
             .scenery_next = v2_world_scenery_next,
             .instance_zone = v2_world_instance_zone,
+            .loc_anim_next = v2_world_loc_anim_next,
         },
         .input = {
             .struct_size = sizeof(runtime->api.input),

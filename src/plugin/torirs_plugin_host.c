@@ -1098,6 +1098,19 @@ api_loc_next(
 }
 
 static int
+api_loc_anim_next(
+    struct PluginContext* ctx,
+    int iter,
+    struct ToriRS_LocAnimSnapshot* out)
+{
+    assert(ctx);
+    assert(out);
+    if( !ctx->host->engine.loc_anim_next )
+        return -1;
+    return ctx->host->engine.loc_anim_next(ctx->host->engine.user, iter, out);
+}
+
+static int
 api_highlight_next(
     struct PluginContext* ctx,
     int iter,

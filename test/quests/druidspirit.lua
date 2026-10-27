@@ -238,9 +238,9 @@ return {
         local fil = t.player.by_symbol("npc", "filliman_tarlock_spirit")
         t.exec("useMirrorOnFilliman", t.player.use_on, "mirror", fil)
         t.exec("useMirrorOnFilliman-dialog", t.chat.play, {
-            "mesbox:You use the mirror on the spirit",
+            "objbox:You use the mirror on the spirit",
             "player:Here take a look at this",
-            "mesbox:The spirit of Filliman reaches forwards",
+            "objbox:The spirit of Filliman reaches forwards",
             "npc:Well, that is the most peculiar thing",
             "npc:visage apparent",
             "player:That's because you're dead!",
@@ -263,10 +263,10 @@ return {
         fil = t.player.by_symbol("npc", "filliman_tarlock_spirit")
         t.exec("useJournalOnFilliman", t.player.use_on, "filliman_journal", fil)
         t.exec("useJournalOnFilliman-dialog", t.chat.play, {
-            "mesbox:You give the journal to Filliman Tarlock.",
+            "objbox:You give the journal to Filliman Tarlock.",
             "player:Here, I found this",
             "npc:My journal!",
-            "mesbox:The spirit starts leafing through the journal",
+            "objbox:The spirit starts leafing through the journal",
             "npc:It's all coming back to me now",
         })
         t.expect("quest.stage.given_journal", t.quest.expect_stage("given_journal"))
@@ -278,7 +278,7 @@ return {
             "npc:Well, the book says",
             "player:Well, that does seem a bit vague.",
             "npc:Hmm, it does and I could understand",
-            "mesbox:The druid produces a small sheet of papyrus",
+            "objbox:The druid produces a small sheet of papyrus",
             "npc:This spell needs to be cast in the swamp",
             "player:Blessed, what does that do?",
             "npc:It is required if you're to cast this druid spell",
@@ -347,7 +347,7 @@ return {
         t.exec("showFungus-door", t.player.click_loc, "grotto_door_druidicspirit", 1)
         t.exec("showFungus-dialog", t.chat.play, {
             "npc:Did you manage to get something from nature?",
-            "mesbox:You show the fungus to Filliman.",
+            "objbox:You show the fungus to Filliman.",
             "player:Yes, I have a fungus here that I picked.",
             "npc:Wonderful, the mushroom represents",
             "choose:What are the things that are needed?",
@@ -454,14 +454,14 @@ return {
             "end",
         })
         t.expect("blessSickle-reopen", t.await({
-            level = function() return t.chat.kind() == "mesbox" end,
+            level = function() return t.chat.kind() == "objbox" end,
             note = "sickle reopen",
         }, 20))
         t.exec("blessSickle-dialog2", t.chat.play, {
-            "mesbox:Your sickle has been blessed!",
+            "objbox:Your sickle has been blessed!",
             "npc:Now you can go forth and make the swamp bloom.",
             "npc:Before I can make this grotto into an Altar of Nature",
-            "mesbox:The nature spirit gives you an empty pouch.",
+            "objbox:The nature spirit gives you an empty pouch.",
             "npc:You'll need this in order to collect together",
         })
         t.chat.close()
@@ -472,7 +472,7 @@ return {
         -- the empty pouch before the sickle has bloomed anything (quest_druidspirit.rs2:333), asked
         -- inside the grotto: out in the swamp a ghast's swing closes the mesbox a tick later
         t.exec("fillPouches-early", t.player.inv_op, "druid_pouch_empty", 1)
-        t.exec("fillPouches-early-text", t.chat.play, { "mesbox:You've not been told how to use this item yet." })
+        t.exec("fillPouches-early-text", t.chat.play, { "objbox:You've not been told how to use this item yet." })
         t.chat.close()
 
         -- fillPouches: out of the grotto, off the island, bloom the swamp with the blessed sickle, pick

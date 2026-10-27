@@ -216,8 +216,8 @@ return {
             "player:Impressive", "npc:In the last two months", "player:You mean the tree is ill", "npc:In effect yes", "options",
             "choose:I'd be happy to help!", "player:I'd be happy to help", "npc:Thank Guthix", "npc:The first task",
             "player:Do you have an idea", "npc:My top tree guardian", "player:Who's Hazelmere", "npc:Hazelmere is one of the mages",
-            "mesbox:The king has given you a sample of bark", "npc:The mage only talks",
-            "mesbox:The king has given you a translation book", "player:What is it", "npc:It's a translation book",
+            "objbox:The king has given you a sample of bark", "npc:The mage only talks",
+            "objbox:The king has given you a translation book", "player:What is it", "npc:It's a translation book",
             "npc:I'll show you the way back up" })
         -- the king walks to the roots' ladder and the player is telejumped back up beside the
         -- tree's trapdoor (king_narnode.rs2:271-290: 0_38_54_32_41 = 2464,3497,0)
@@ -242,9 +242,9 @@ return {
             at = { 2677, 3087, 0 }, src = { 2677, 3086 }, dest = { 2677, 3086, 1 } })
         t.exec("talkToHazelmere", t.player.talk_to, "grandtree_hazelmere", 1)
         t.exec("talkToHazelmere-dialog", t.chat.play, {
-            "mesbox:The mage starts to speak", "npc:Blah. Blah, blah", "mesbox:You give the bark sample",
+            "mesbox:The mage starts to speak", "npc:Blah. Blah, blah", "objbox:You give the bark sample",
             "mesbox:The mage carefully examines", "npc:Blah, blah...Daconia", "player:Can you write this down",
-            "npc:Blah, blah?", "mesbox:You make a writing motion", "mesbox:Hazelmere has given you the scroll" })
+            "npc:Blah, blah?", "mesbox:You make a writing motion", "objbox:Hazelmere has given you the scroll" })
         t.ticks(2)
         t.expect("quest.stage.spoken_hazelmere", t.quest.expect_stage("spoken_hazelmere"))
 
@@ -478,8 +478,8 @@ return {
         t.exec("takeInvasionPlansToKing", t.player.talk_to, "grandtree_narnode", 1)
         t.exec("takeInvasionPlansToKing-dialog", t.chat.play, {
             "player:Hi, your highness, did you think", "npc:Look, if you're right about Glough",
-            "player:Look, I found this at Glough's home", "mesbox:You give the King the invasion plans",
-            "npc:If these are to be believed", "npc:But it's not proof", "mesbox:The King has given you some twigs",
+            "player:Look, I found this at Glough's home", "objbox:You give the King the invasion plans",
+            "npc:If these are to be believed", "npc:But it's not proof", "objbox:The King has given you some twigs",
             "npc:On the other hand", "npc:The Grand Tree's still slowly dying" })
         t.ticks(2)
         t.expect("quest.stage.given_twigs", t.quest.expect_stage("given_twigs"))
@@ -574,7 +574,7 @@ return {
         t.exec("giveDaconiaStoneToKingNarnode", t.player.talk_to, "grandtree_narnode", 1)
         t.exec("giveDaconiaStoneToKingNarnode-dialog", t.chat.play, {
             "npc:Traveller, have you managed to find the Daconia", "player:Is this it", "npc:Yes! Excellent, well done",
-            "mesbox:You give the King the Daconia rock", "npc:It's incredible", "npc:To think Glough had me fooled",
+            "objbox:You give the King the Daconia rock", "npc:It's incredible", "npc:To think Glough had me fooled",
             "player:All that matters now", "npc:I'll drink to that", "npc:From now on I vow", "player:Thanks!",
             "player:I think!", "npc:It should make your stay", "player:Mine?", "npc:Very few know", "player:Strange!",
             "npc:That's magic trees for you", "npc:All the best Traveller", "player:You too, your highness", "end" })

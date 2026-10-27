@@ -259,7 +259,7 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("pay the 30 coins and board the ship"))
+        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
         local sail_r, sail_d = t.await({
             level = function() return t.chat.kind() == "mesbox" end,
             note = "seaman: the arrival mesbox after p_delay(2) + telejump",

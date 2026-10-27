@@ -189,3 +189,59 @@ A beat of 4 ticks: a **volley** at random tiles, one in each of the three views 
   - one pair of three swaps at +10 and takes 1 + ⌊4.3d⌋ at +11; on one tile, no swap and no hit;
   - the burn spreads to the raider beside its target and never to the one four tiles off.
 - `test/raids/cox_olm_solo.lua`: 5 of 5 seeds green. Its own model checks (autos, specials, the clock) show the same misses on HEAD content as on this change. They come from the lifecycle retiming earlier on 2026-10-18 (`^cox_olm_first_act_p1` 6 against the solver's `FIRST_P1` 9), not from this pass.
+
+## Index 4392 (rev 241, normal world, 2026-10-26)
+
+The first normal-world, rev-241 Olm kill (solo; the recorder kills the mage hand first, so the left claw's
+gripping casts appear). Where it disagrees with the Grid Master rows above, it wins. Tools: `tools/rsprox_tells.py
+--anchor 7550-7555,7558 <idx4392> --ours <ticklog>`; `tools/cox/rsprox_olm_party.py <idx4392> turns`; the steer and
+scuffed replays below (scratch scripts, logic summarised).
+
+### The head's steer (fixed)
+
+| Rule | 4392 (155 null/special turns) | rsprox.net 3282 / 3285 / 843 |
+|---|---|---|
+| a damaging hitsplat LANDED in the 6 ticks before the step (was ours) | 142 | 32/33, 53/57, 13/13 |
+| a raider's attack on a claw that went out for damage > 0, in the 8 ticks before the step | **155** | 33/33, 54/57, 13/13 |
+
+The 13 misses of the old rule: a trident cast landing on the step's own tick [4246] [4278] [5060]; a cast still in
+the air [4350] [5470] [5830]; an attack 7-8 back [4678] [5342]; the rest a launch inside the window whose splat
+landed after. A 0 or a splash never steers (4190, 5172, 5196, 4566, 5398 all have one, and do not turn). The window's
+edges: 7 ticks 153, 9 153, the step's own tick counted 151, splashes counted 151. Ours now counts the attack in
+`~cox_olm_prepare_hit` (`~cox_olm_hand_attacked`, `^cox_olm_steer_ticks = 8`); the solver (`CO.launched_in`) too.
+
+### The scuffed Olm (fixed)
+
+Every recording runs in stretches: the head's idle stance 2 ticks after a turn or an attack (normal) or 3 (scuffed,
+Synq 2:44:51). 4392: +3 [4186-4856], +2 [4860-5410], +3 [5414-6034], +2 [6038-6314] (416 turns and attacks);
+rsprox.net 820 flips 24 times (stretches 98-320 ticks), 3282/3285 too. In a scuffed stretch every delayed event is one
+tick later: the fire wall (6 of 6), the bombs (12 of 12), the shower's crystals (110 of 110 bursts at +4, against 311 of
+312 at +3 normal). What flips it is not found (not the wall clock: best fixed threshold 243/416). Ours:
+`^cox_olm_v_scuffed`, a stretch of 20-620 ticks (`^cox_olm_scuffed_min`, `_spread`).
+
+### Fire wall, bombs, crystals, lightning (fixed)
+
+| Tell | Recorded (normal; scuffed +1) | Was |
+|---|---|---|
+| fire wall | 20 `invisible_type8_blocking` locs on the flame tiles and the rows judged at C+1; `olm_firewall_npc` at C+3; both gone and the row burnt at C+10 (6 of 6) | flame npcs only, C+1 to C+9 |
+| crystal bomb throw | `olm_crystalrock_falling` from the face, start 32, end 46 + 10/tile (12 of 12, distances 3-10), angle 5, progress 0, the head's shot height | `olm_crystal_bomb_travel`, 60 cycles, height 250 (also rsprox.net 3285 [16550]: the old table conflated the two) |
+| bomb landing / blast | each at C + end/30; all of a throw at C+10: `olm_crystal_bomb_explode` height 40 + `100_cauldron_explodes` range 10 | placed C+4, blast C+9 (no height, silent), hit C+10 |
+| crystal power landing | `olm_crystalwave_shatter` height 10 + `kr_smash_window` range 3 ([5438]-[5458], [6085]) | `raids_olm_central_shattercrystal` (the burst's) |
+| shower | `cam_shake` axes 0, 1, 2 at random 2-5 every 2 ticks (212 of 212); `cam_reset` with the rising forms and the last death | no camera |
+| lightning hit [5123] | `human_killerwatt_electricshock`, `paralyze` (154), "`@mes_hl_red@You've been injured and can't use protection prayers!</col>`", bound 4 | `human_stunned`, silent, plain line, 8 |
+| acid spray | `barbassault_splat` range 3 as each spit lands (94); drip pools silent (152/152) | silent |
+| deep burn | `salamander_scorch` synth every burn (43/43) | silent |
+| solo teleport | `teleport_all` range 3 on the tile left ([4828], [5140]) | silent |
+| life siphon | `crumble_hit` range 10 at the head ([6058], [6226]) | silent |
+| head / claws | no defend or death sequence (the generated block's `human_unarmedblock` / `human_death` went out on ~470 hits) | fixed in cox.npc |
+| swamp trident | impact 92 (100/100), splash 124 (59/59) | 124 / 92 |
+
+Every bolt step's `olm_shockwave` + `godwars_saradomin_magic_impact` matched already; our tick log logs an area sound
+only for a raider in range (the wire sends it to the zone), so 20 vs 442 there is the log. A special still fires on a
+step the head turns away from a raider in its old view (5/36 casts in 4392; 45/248 in 820) -- unchanged.
+
+### Open
+
+- The scuffed flip's trigger. The solver's `olm_step` check: 2/390 mismatches on ol1 after the steer change (its
+  orphan-hitsplat launch is dated a tick before the splat, wrong for a trident cast).
+- Rate rows (the recorder's kit and position): head attack variants per view, acid spit sound delays 10/12.

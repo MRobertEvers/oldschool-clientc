@@ -399,7 +399,7 @@ return {
                 "npc:And so I ask you",
                 "choose:/^Yes/",
                 "player:Ok, I'll do it.",
-                "mesbox:Narnode hands you a copy of the Royal Seal.",
+                "objbox:Narnode hands you a copy of the Royal Seal.",
                 "npc:Thank you very much",
                 "npc:Please report to me",
             })
@@ -479,7 +479,7 @@ return {
             })
             t.ticks(6) -- Narnode writes the glyphs: mes() then p_delay(3)
             t.exec("talkToNarnodeAfterShipyard-hand", t.chat.play, {
-                "mesbox:Narnode hands you some handwritten orders.",
+                "objbox:Narnode hands you some handwritten orders.",
                 "player:Where will I find Daero?",
                 "npc:You will find him",
             })
@@ -495,7 +495,7 @@ return {
                 "npc:I see. You must be the individual",
                 "player:I have been asked to give you orders",
                 "npc:Well hand them over here then.",
-                "mesbox:You hand King Narnode's orders to Daero.",
+                "objbox:You hand King Narnode's orders to Daero.",
                 "npc:It is written in an old military code.",
             })
             t.ticks(6) -- Daero decodes: mes() then p_delay(3)
@@ -533,7 +533,7 @@ return {
                 "player:Who is it?",
                 "npc:His name is Flight Commander Waydar.",
                 "npc:We must go now and meet Waydar.",
-                "mesbox:You wear the blindfold Daero hands you.",
+                "objbox:You wear the blindfold Daero hands you.",
             })
             t.exec("talkToDaero-blindfold", t.chat.drain, {})
             t.ticks(6)
@@ -644,7 +644,7 @@ return {
                 "player:We are to investigate the disappearance",
                 "npc:I might be.",
                 "player:I have the Gnome Royal Seal.",
-                "mesbox:You show Lumdo the Royal Seal.",
+                "objbox:You show Lumdo the Royal Seal.",
                 "npc:I see. Sorry for my distrust.",
                 "player:So are you Lumdo of the 10th squad?",
                 "npc:I am indeed",
@@ -1164,7 +1164,7 @@ return {
             -- useDentures: mm_zooknock.rs2:89 opnpcu, case mm_monkey_dentures
             t.exec("useDentures", t.player.use_on, "mm_monkey_dentures", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("useDentures-dialog", t.chat.play, {
-                "mesbox:You hand Zooknock the magical monkey dentures.",
+                "objbox:You hand Zooknock the magical monkey dentures.",
                 "*",
                 "*",
             })
@@ -1191,7 +1191,7 @@ return {
             -- useMould: mm_zooknock.rs2:89 opnpcu, case mm_monkey_amulet_mould (varbit_111 set by the first talk)
             t.exec("useMould", t.player.use_on, "mm_monkey_amulet_mould", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("useMould-dialog", t.chat.play, {
-                "mesbox:You hand Zooknock the monkey amulet mould.",
+                "objbox:You hand Zooknock the monkey amulet mould.",
                 "*",
                 "npc:We still need the gold bar",
             })
@@ -1201,7 +1201,7 @@ return {
             -- useBar: mm_zooknock.rs2:89 opnpcu, case gold_bar; with all three items handed he enchants the bar (mm_zooknock_amulet_check)
             t.exec("useBar", t.player.use_on, "gold_bar", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("useBar-dialog", t.chat.play, {
-                "mesbox:You hand Zooknock the gold bar.",
+                "objbox:You hand Zooknock the gold bar.",
                 "*",
                 "npc:Now listen closely",
                 "npc:You must then smith",
@@ -1533,7 +1533,7 @@ return {
                 "player:Yes, I have some here.",
                 "npc:Wow that's a lot of bananas",
                 "player:Yes, of course there are.",
-                "mesbox:You give the monkey child your bananas.",
+                "objbox:You give the monkey child your bananas.",
                 "npc:Aunty will be so happy",
             })
             t.ticks(2)
@@ -1548,7 +1548,7 @@ return {
                 "npc:But I only just got it",
                 "player:Please?",
                 "npc:Ok then",
-                "mesbox:The monkey child gives you some kind of talisman.",
+                "objbox:The monkey child gives you some kind of talisman.",
             })
             t.ticks(2)
             t.expect("talkToChildForTalisman-stage", t.var.await_server("varb119_varbit_119", 7, 10))
@@ -1574,7 +1574,7 @@ return {
                 "npc:Only if you promise",
                 "choose:Ok, I promise!",
                 "player:Ok, I promise!",
-                "mesbox:The monkey child gives you some kind of talisman.",
+                "objbox:The monkey child gives you some kind of talisman.",
             })
             t.ticks(2)
             t.expect("talkToChildFor4Talismans-stage", t.var.await_server("varb119_varbit_119", 7, 10))
@@ -1741,7 +1741,7 @@ return {
             walk_to_zooknock(t, "useTalisman")
             -- useTalisman: mm_zooknock.rs2 opnpcu case mm_monkey_talisman
             t.exec("useTalisman", t.player.use_on, "mm_monkey_talisman", t.player.by_symbol("npc", "mm_zooknock"))
-            t.exec("useTalisman-dialog", t.chat.play, { "mesbox:You hand Zooknock the monkey talisman.", "*", "*" })
+            t.exec("useTalisman-dialog", t.chat.play, { "objbox:You hand Zooknock the monkey talisman.", "*", "*" })
             t.ticks(3)
             -- talkToZooknockForTalisman
             t.exec("talkToZooknockForTalisman", t.player.talk_to, "mm_zooknock", 1)
@@ -1756,13 +1756,13 @@ return {
             local ch3_mark = t.cutscene.mark()
             t.exec("useBones", t.player.use_on, "mm_small_zombie_monkey_bones", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("useBones-dialog", t.chat.play, {
-                "mesbox:You hand Zooknock the monkey remains.",
+                "objbox:You hand Zooknock the monkey remains.",
                 "*",
                 "npc:Bear with me human: I must now cast",
             })
             t.ticks(8) -- if_close + p_delay(4), then the talisman is added (mm_zooknock.rs2:238-244)
             t.exec("useBones-talisman-dialog", t.chat.play, {
-                "mesbox:Zooknock hands you back the talisman.",
+                "objbox:Zooknock hands you back the talisman.",
                 "npc:I am afraid I have not been able",
                 "npc:The range at which I will be able",
                 "npc:Furthermore, you will not be able to attack",
@@ -1803,17 +1803,17 @@ return {
             })
             t.ticks(2)
             t.exec("leaveDungeonWithGreeGree-talisman", t.player.use_on, "mm_monkey_talisman", t.player.by_symbol("npc", "mm_zooknock"))
-            t.exec("leaveDungeonWithGreeGree-talisman-dialog", t.chat.play, { "mesbox:You hand Zooknock the monkey talisman.", "*", "*" })
+            t.exec("leaveDungeonWithGreeGree-talisman-dialog", t.chat.play, { "objbox:You hand Zooknock the monkey talisman.", "*", "*" })
             t.ticks(3)
             t.exec("leaveDungeonWithGreeGree-bones", t.player.use_on, "mm_normal_monkey_bones", t.player.by_symbol("npc", "mm_zooknock"))
             t.exec("leaveDungeonWithGreeGree-bones-dialog", t.chat.play, {
-                "mesbox:You hand Zooknock the monkey remains.",
+                "objbox:You hand Zooknock the monkey remains.",
                 "*",
                 "npc:Bear with me human: I must now cast",
             })
             t.ticks(8)
             t.exec("leaveDungeonWithGreeGree-greegree-dialog", t.chat.play, {
-                "mesbox:Zooknock hands you back the talisman.",
+                "objbox:Zooknock hands you back the talisman.",
                 "npc:I am afraid I have not been able",
                 "npc:The range at which I will be able",
                 "npc:Furthermore, you will not be able to attack",
@@ -2098,7 +2098,7 @@ return {
                 "player:What?",
                 "npc:Zooknock knows Glough's grasp of magic well.",
                 "npc:It is these sigils",
-                "mesbox:Garkor hands you some kind of medallion.",
+                "objbox:Garkor hands you some kind of medallion.",
                 "npc:Welcome to the 10th squad",
                 "player:What is it?",
                 "npc:It is a replica Waymottin has made",
@@ -2217,13 +2217,13 @@ return {
                 "player:They all live",
                 "npc:'We',",
                 "player:I, uh, I'm part of the 10th squad now.",
-                "mesbox:You show King Narnode your sigil.",
+                "objbox:You show King Narnode your sigil.",
                 "npc:Well, now. It appears I cannot argue with that.",
             })
             t.ticks(3) -- if_close, then p_delay(0) before the reward label (mm_narnode.rs2:44-47)
             t.exec("talkToNarnodeToFinish-reward", t.chat.play, {
                 "npc:No service such as what you have done for me goes unrewarded",
-                "mesbox:King Narnode hands you a huge stack",
+                "objbox:King Narnode hands you a huge stack",
             })
             t.ticks(4)
             t.exec("talkToNarnodeToFinish-after", t.chat.drain, {})

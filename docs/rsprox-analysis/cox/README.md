@@ -34,6 +34,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | 843 | 234 | Grid Master | solo, normal | Olm, Vasa, Vespula (the start, the clear), Muttadiles, Tightrope (two rooms, the dump) |
 | 3285 | 234 | Grid Master | solo, normal | Olm (the fullest solo kill), Vasa, Muttadiles (the fullest solo room), Skeletal Mystics (the unturned room: the template tiles), Tightrope |
 | 3389 | 235 | Grid Master | solo, **Challenge Mode** | excluded from damage numbers; Vespula's CW room; Muttadiles' CM hitpoints; shamans (the acid in the raid, the clear); Skeletal Mystics (a room turned 180), Tightrope, Crystal crabs and Thieving (the only recording of either room) |
+| index 4392 | 241 | normal (w438) | two solo raids, normal mode (the second complete: ice demon, crabs, mystics, shamans, muttadiles, scavengers, thieving, Olm) | authoritative where it disagrees: Olm (the steer, the scuffed Olm, walls, bombs, sounds), crabs (4 crabs, the re-sends), ice demon (the only rev-241 room: the thaw fitted with the Grid Master rooms, chops, lights, fuel, fiends, the add's face, 100 boulders, the death); the ledger is [AUDIT.tsv](AUDIT.tsv) |
 | 3276 | 234 | Grid Master | not a raid: the Molch temple's surface shamans (8565, 2x2), a public area, transcribed with every player shown | shamans: the attack set's timing, odds, jump, spawns |
 
 **Caveats:**
@@ -63,6 +64,7 @@ All recordings are submissions to the public archive, [rsprox.net/database](http
 | `tools/cox/rsprox_thieving.py` | Thieving, in INSTANCE tiles: every chest search (timing, result, grubs), the trough deposits, the scavenger's meals, bar and bedtime, the reward |
 | `tools/cox/los_probe.c` | The server's own collision answers (line of sight, line of walk, flags) for a built template scene, over a pipe; `rsprox_mystics.py --probe` asks it whether a mystic saw the raider |
 | `tools/cox/rsprox_icedemon.py` | Ice Demon, in INSTANCE tiles: his attacks (projectiles, the burst's nine, sounds), the pop, the fiends, the braziers, blocks, death |
+| `tools/cox/rsprox_icedemon_thaw.py` | Ice Demon: every recorded room's thaw bar against the content's thaw model (pool, drain, heal, burn), and each fiend's brazier and side |
 | `tools/cox/rsprox_vasa_teleport.py` | Vasa's teleport special in INSTANCE tiles (an untranslated transcript, below): every raider's distance from his middle, the stun, the explosion |
 | `tools/cox/rsprox_skilling.py` | Skilling as the server answers it: every rake, plant, herb pick, clean, mix, fire and cook click with the seqs, sounds, messages, pack changes and xp after it |
 | `tools/cox/rsprox_shamans.py` | Lizardman shamans (raid and surface): each swing's projectile against the gap, the acid's landing and reach, the choice against reach, the cadence, the jump, the summon's spawns and bursts, the sounds; follows every player |

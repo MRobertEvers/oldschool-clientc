@@ -155,7 +155,7 @@ return {
         -- RSProx index 4360 [690..694]: the box with nothing to click under the black, the fall three
         -- ticks on, then the same box to click
         t.ticks(5)
-        t.exec("digHole-dialog", t.chat.play, { "mesbox:You dig deep into the soft soil" })
+        t.exec("digHole-dialog", t.chat.play, { "objbox:You dig deep into the soft soil" })
         t.ticks(1)
         local _, dig_tile = t.world.tile()
         t.check("digHole.landing", dig_tile ~= nil and dig_tile.z > 9000, "landed in the sewer at " .. tostring(dig_tile and dig_tile.x) .. "," .. tostring(dig_tile and dig_tile.z))

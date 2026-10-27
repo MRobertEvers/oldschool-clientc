@@ -238,6 +238,24 @@ struct ToriRS_ScenerySnapshot
     uint8_t visible_ops;
 };
 
+/** One LOC_ANIM the server sent: a loc's animation started on a tile. The
+ *  client keeps the recent ones (App_DriveLocAnimNote: the last ~40 server
+ *  ticks); a loc's own snapshot carries no animation, so this is the only way
+ *  a plugin sees one -- the Great Olm's head turning, its claw's signs. */
+struct ToriRS_LocAnimSnapshot
+{
+    /** ABSOLUTE tile and level the animation was sent for. */
+    int tile_x;
+    int tile_z;
+    int level;
+    /** Placed shape (RSCACHE_LOC_SHAPE_*). */
+    int shape;
+    int seq_id;
+    /** The client cycle it was applied on: with the tile and the seq, a
+     *  row's identity (newer rows have larger cycles). */
+    int cycle;
+};
+
 struct ToriRS_GroundItemSnapshot
 {
     /** The obj id of the item on TOP of the stack -- the one the tile draws

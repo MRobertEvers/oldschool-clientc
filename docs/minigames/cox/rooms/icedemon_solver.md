@@ -1,5 +1,12 @@
 # Ice demon — solver plan (2026-10-18)
 
+> 2026-10-26: the room's thaw, chop, light and fiend rules were rebuilt from RSProx
+> (`icedemon_spec.md`, "Superseded by the recordings"). The solver's own fuel model
+> (`CI.V`: a 480 pool, 2 a unit, 5 units a kindling burning one a tick) predates that
+> and is now conservative: it under-counts what a stack thaws, so it never stops
+> chopping early. Green on ice0, ice3, ice7 after the rebuild (49-54 kindling, two
+> braziers, the thaw 121-142 ticks after the first light).
+
 Room file to write after F3/F4: `script/plugins/quest_driver/cox2_icedemon.lua` (a
 `QD.T2` room, `cox_icedemon`), test `test/raids/cox_icedemon.lua`, entered with
 `QD.raid.cox_test_enter("icedemon", n)` (`::coxtest 3 n`). Every number and tell:

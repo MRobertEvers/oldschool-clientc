@@ -678,7 +678,7 @@ return {
             function(tt) return tt.x == 3188 and tt.z == 3388 end, "the stand tile 3188,3388 one floor up")
         t.exec("cupboard.search", t.player.click_loc, "blackarmcupboardshut", 1)
         t.exec("cupboard.dismiss", t.chat.play, {
-            "mesbox:You find half a shield, which you take.",
+            "objbox:You find half a shield, which you take.",
         })
         -- The grant lands inside the mesbox's own script, transmitted only
         -- at the tick boundary chat.play already waits out (trap 25) --
@@ -801,7 +801,7 @@ return {
         t.exec("talkToRoald-dialog", t.chat.play, {
             "player:Greetings, your majesty.",
             "player:I have come to claim the reward",
-            "mesbox:You show the certificate to the king.",
+            "objbox:You show the certificate to the king.",
             "npc:My goodness! This claim is for the reward",
             "npc:I never thought I'd see anyone claim this reward!",
             "npc:I see you are claiming half the reward",

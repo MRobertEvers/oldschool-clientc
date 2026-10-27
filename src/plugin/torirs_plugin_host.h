@@ -273,6 +273,11 @@ struct ToriRS_PluginEngine
         void* user,
         int iter,
         struct ToriRS_ScenerySnapshot* out);
+    /** Optional (NULL: no rows). */
+    int (*loc_anim_next)(
+        void* user,
+        int iter,
+        struct ToriRS_LocAnimSnapshot* out);
     int (*highlight_next)(
         void* user,
         int iter,

@@ -97,9 +97,9 @@ CO.V = {
     -- (RECORDED: the rain's beats run 6-34 ticks after the head's death, 3
     -- after the last claw's; the last crystal lands 4 after its throw)
     RAIN_TICKS = 41,
-    -- THE HAND STEER: a claw hitsplat landed in the 6 ticks before a step
-    -- (^cox_olm_steer_ticks, RSProx 820)
-    STEER = 6,
+    -- THE HAND STEER: an attack of mine on a claw that went out for damage
+    -- in the 8 ticks before a step (^cox_olm_steer_ticks, index 4392 155/155)
+    STEER = 8,
     -- the solo teleport: the move this many ticks after the tile's colour
     -- is first seen (cast + 2 -> cast + 8, cox_olm_portal_tick)
     PORTAL_MOVE = 6,
@@ -354,21 +354,21 @@ function CO.portal_damage(d)
     return 1 + (43 * d) // 10
 end
 
--- Does a hand steer step A? A hit of mine on it LANDED in the STEER ticks
--- before A (cox_olm_steers: by the landing, ~cox_olm_hand_landed). A launch
--- still in the air counts when it went out in the STEER + 1 before A (the
--- plan assumes it lands in time).
-function CO.landed_in(list, t0, t1)
-    assert(list, "cox_olm: landed_in without a launch list")
+-- Does a hand steer step A? An attack of mine on it that WENT OUT in the STEER
+-- ticks before A for damage (cox_olm_steers: by the attack's tick,
+-- ~cox_olm_hand_attacked; a 0 or a splash does not steer). A launch whose
+-- hitsplat is still to come counts (the plan assumes it hits).
+function CO.launched_in(list, t0, t1)
+    assert(list, "cox_olm: launched_in without a launch list")
     for _, h in ipairs(list) do
-        if h.dmg and h.dmg > 0 and h.land and h.land >= t0 and h.land <= t1 then return true end
+        if h.dmg and h.dmg > 0 and h.t >= t0 and h.t <= t1 then return true end
     end
     return false
 end
 
 function CO.steers(list, A)
     local V = CO.V
-    return CO.landed_in(list, A - V.STEER, A - 1) or CO.hit_open(list, A - V.STEER - 1, A - 1)
+    return CO.launched_in(list, A - V.STEER, A - 1) or CO.hit_open(list, A - V.STEER, A - 1)
 end
 
 -- Will the next even step clench (cox_olm_clench_check)? Only a special
@@ -1111,7 +1111,7 @@ function CO.advance(S, F)
                       side = o.side or 0, got = (seen and seen.kind == "turn") and seen.dir or o.dir, mate = mate }
         if dying then
             -- (no check: the head is down)
-        elseif CO.hit_open(o.lhits, A - V.STEER - 1, A - 1) or CO.hit_open(o.rhits, A - V.STEER - 1, A - 1) then
+        elseif CO.hit_open(o.lhits, A - V.STEER, A - 1) or CO.hit_open(o.rhits, A - V.STEER, A - 1) then
             o.defer[#o.defer + 1] = { due = A + 6, run = function(F2) CO.judge_step(S, F2, rec) end }
         else
             CO.judge_step(S, F, rec)
@@ -1157,8 +1157,8 @@ end
 function CO.judge_step(S, F, r)
     local o = S.o
     local V = CO.V
-    local el = CO.landed_in(o.lhits, r.A - V.STEER, r.A - 1)
-    local er = CO.landed_in(o.rhits, r.A - V.STEER, r.A - 1)
+    local el = CO.launched_in(o.lhits, r.A - V.STEER, r.A - 1)
+    local er = CO.launched_in(o.rhits, r.A - V.STEER, r.A - 1)
     local dir = CO.step(r.dir, r.skipped, r.kind, r.bin, r.side, el, er, r.can, r.mate)
     S.mon.rules.olm_step.checked = S.mon.rules.olm_step.checked + 1
     if dir ~= r.got then

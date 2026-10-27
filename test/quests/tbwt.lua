@@ -255,7 +255,7 @@ return {
                 "choose:Yes please.",
                 "player:Yes please.",
             })
-            t.expect("seaman.paidMessage", t.msg.expect("pay the 30 coins and board the ship"))
+            t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
             local sail_r, sail_d = t.await({
                 level = function() return t.chat.kind() == "mesbox" end,
                 note = "seaman: the arrival mesbox after p_delay(2) + telejump",
@@ -426,7 +426,7 @@ return {
                 "choose:Yes!",
                 "player:Yes!",
                 "npc:I'm glad to hear it",
-                "mesbox:Lubufu teaches you a new fishing technique.",
+                "objbox:Lubufu teaches you a new fishing technique.",
                 "npc:In our language",
                 "npc:There are two aspects",
                 "npc:You already know",
@@ -436,7 +436,7 @@ return {
                 "npc:If this vessel is loaded",
                 "npc:I will now give you",
                 "player:Yes, I understand.",
-                "mesbox:Lubufu hands you a Karambwan vessel.",
+                "objbox:Lubufu hands you a Karambwan vessel.",
                 "npc:Feel free to practise",
             })
             t.ticks(2)
@@ -458,7 +458,7 @@ return {
                 "player:... a shark ate it!",
                 "npc:Well you'd better hope",
                 "npc:In the meantime",
-                "mesbox:Lubufu hands you a Karambwan vessel.",
+                "objbox:Lubufu hands you a Karambwan vessel.",
                 "player:Thank you so much.",
                 "npc:Don't mention it",
             })
@@ -536,7 +536,7 @@ return {
             t.exec("giveVessel", t.player.use_on, "tbwt_karambwan_vessel_loaded_with_karambwanji", t.player.by_symbol("npc", "tbwt_tiadeche"))
             t.exec("giveVessel-dialog1", t.chat.play, {
                 "player:Tiadeche, instead of using your net",
-                "mesbox:You hand over the Karambwan vessel",
+                "objbox:You hand over the Karambwan vessel",
                 "npc:What is it?",
                 "player:It has been specially constructed",
                 "player:Also, it has been loaded",
@@ -548,7 +548,7 @@ return {
                 "npc:I, Tiadeche",
                 "npc:Let me offer",
                 "choose:Yes",
-                "mesbox:Tiadeche hands you his first catch",
+                "objbox:Tiadeche hands you his first catch",
                 "player:Your father would be proud",
                 "npc:Hmph",
                 "player:Speaking of your father",
@@ -718,7 +718,7 @@ return {
             t.exec("givePotion", t.player.use_on, "4dose1agility", t.player.by_symbol("npc", "tbwt_tamayu"))
             t.exec("givePotion-dialog", t.chat.play, {
                 "player:I've noticed you commenting",
-                "mesbox:You hand over the agility potion",
+                "objbox:You hand over the agility potion",
                 "npc:Thank you Bwana",
             })
             t.ticks(6)
@@ -774,10 +774,10 @@ return {
             t.exec("useCorpseOnTamayu", t.player.use_on, "tbwt_monkey_corpse", t.player.by_symbol("npc", "tbwt_tamayu"))
             t.exec("useCorpseOnTamayu-dialog", t.chat.play, {
                 "npc:Let me guess",
-                "mesbox:You hand over the monkey corpse to Tamayu",
+                "objbox:You hand over the monkey corpse to Tamayu",
             })
             t.ticks(6)
-            t.exec("useCorpseOnTamayu-skin", t.chat.play, { "mesbox:Tamayu hands you some monkey skin and bones" })
+            t.exec("useCorpseOnTamayu-skin", t.chat.play, { "objbox:Tamayu hands you some monkey skin and bones" })
             t.ticks(2)
             local _, skin = t.inv.count("tbwt_monkey_skin")
             t.check("useCorpseOnTamayu.has", skin == 1, "monkey skin in the backpack: " .. tostring(skin))
@@ -832,7 +832,7 @@ return {
                 "options",
                 "choose:Yes.",
                 "player:Yes, I have it right here",
-                "mesbox:You hand Tinsay the sliced bananas",
+                "objbox:You hand Tinsay the sliced bananas",
             })
             t.ticks(8)
             t.exec("talkToTinsay-banana-dialog2", t.chat.play, {
@@ -863,7 +863,7 @@ return {
                 "options",
                 "choose:Yes.",
                 "player:Yes, I have it right here",
-                "mesbox:You hand Tinsay the seaweed in monkey skin sandwich",
+                "objbox:You hand Tinsay the seaweed in monkey skin sandwich",
             })
             t.ticks(8)
             t.exec("talkToTinsay-sandwich-dialog2", t.chat.play, {
@@ -903,7 +903,7 @@ return {
                 "options",
                 "choose:Yes.",
                 "player:Yes, I have it right here",
-                "mesbox:You hand Tinsay the burnt Jogre bones marinated",
+                "objbox:You hand Tinsay the burnt Jogre bones marinated",
             })
             t.ticks(14)
             t.exec("talkToTinsay-bones-dialog2", t.chat.play, {
@@ -928,11 +928,11 @@ return {
             t.exec("useVesselOnTinsay-dialog", t.chat.play, {
                 "player:Your brother Tiadeche has sent me",
                 "npc:Very well - hand it over",
-                "mesbox:You hand over the Karambwan vessel to Tinsay",
+                "objbox:You hand over the Karambwan vessel to Tinsay",
             })
             t.ticks(6)
             t.exec("useVesselOnTinsay-dialog2", t.chat.play, {
-                "mesbox:Tinsay hands you a Karambwan vessel crafting manual",
+                "objbox:Tinsay hands you a Karambwan vessel crafting manual",
                 "npc:I hope that's what he wanted",
             })
             t.ticks(2)
@@ -949,7 +949,7 @@ return {
             t.exec("goto-goToTiadecheFinal", t.player.goto_tile, 2912, 3114, 0)
             t.exec("goToTiadecheFinal", t.player.use_on, "tbwt_crafting_manual", t.player.by_symbol("npc", "tbwt_tiadeche"))
             t.exec("goToTiadecheFinal-dialog", t.chat.play, {
-                "mesbox:You hand over the crafting manual to Tiadeche",
+                "objbox:You hand over the crafting manual to Tiadeche",
                 "npc:Thank you so much",
                 "player:Will you return to the village now",
                 "npc:Yes. I will do as I promised",
@@ -981,7 +981,7 @@ return {
                 "player:Oh it was nothing really",
                 "npc:It was? Very well",
                 "player:Of course.",
-                "mesbox:Timfraku hands you a big stack of gold coins",
+                "objbox:Timfraku hands you a big stack of gold coins",
             })
             t.ticks(4)
             -- the quest-complete queue also runs tbwt_timfraku_talk_to_sons (quest_tbwt.rs2:317): dismiss it before the scroll check
@@ -1033,7 +1033,7 @@ return {
                 "npc:but there are some areas",
                 "player:Such as?",
                 "npc:Let me show you.",
-                "mesbox:Tinsay trains you in cooking technique.",
+                "objbox:Tinsay trains you in cooking technique.",
                 "mesbox:Tinsay teaches you how to cook Karambwan",
                 "player:Thanks.",
                 "npc:Oh, and before you go",
@@ -1051,7 +1051,7 @@ return {
                 "player:So I see.",
                 "npc:I wish to reward you",
                 "npc:I have refined my Karambwan fishing technique",
-                "mesbox:Tiadeche trains you in fishing technique.",
+                "objbox:Tiadeche trains you in fishing technique.",
                 "npc:Thanks to you, Lubufu's Karambwan monopoly is over",
                 "player:Thanks.",
             })
@@ -1070,7 +1070,7 @@ return {
                 "mesbox:Tamayu trains you in fighting technique.",
                 "player:Thanks.",
                 "npc:This is the one thing I can give",
-                "mesbox:Tamayu hands you some kind of spear.",
+                "objbox:Tamayu hands you some kind of spear.",
                 "npc:Take care, Bwana.",
             })
             t.ticks(2)

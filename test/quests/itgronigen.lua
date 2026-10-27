@@ -272,7 +272,7 @@ return {
             "npc:My crafting skill",
             "npc:You can use the mould with molten glass",
             "npc:As long as you have practiced",
-            "mesbox:The professor gives you back the molten glass.",
+            "objbox:The professor gives you back the molten glass.",
             "end",
         })
         t.ticks(2)
@@ -445,7 +445,7 @@ return {
         t.exec("assistant.wine.dialog", t.chat.play, {
             "npc:Well, hello again.",
             "npc:You've made my life much easier!",
-            "mesbox:The assistant gives you some wine.",
+            "objbox:The assistant gives you some wine.",
             "player:Thanks very much.",
             "end",
         })

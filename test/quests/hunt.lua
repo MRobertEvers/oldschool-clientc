@@ -245,7 +245,7 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("hunt.seaman_paid_msg", t.msg.expect("pay the 30 coins and board the ship"))
+        t.expect("hunt.seaman_paid_msg", t.msg.expect("You pay 30 coins and board the ship"))
 
         local sail_reopen_result, sail_reopen_detail = t.await({
             level = function()
@@ -614,7 +614,7 @@ return {
             "npc:Now a deal's a deal, I'll tell ye about the treasure. I used to serve under a pirate captain called One-Eyed Hector.",
             "npc:Hector were very successful and became very rich. But about a year ago we were boarded by the Customs and Excise Agents.",
             "npc:Hector were killed along with many of the crew, I were one of the few to escape and I escaped with this.",
-            "mesbox:Frank happily takes the rum... ... and hands you a key.",
+            "objbox:Frank happily takes the rum... ... and hands you a key.",
             "npc:This be Hector's key. I believe it opens his chest in his old room in the Blue Moon Inn in Varrock.",
             "npc:With any luck his treasure will be in there.",
             "options",

@@ -47,7 +47,7 @@ every transition (old -> new, at the event):
 | 300 | 585 | pickaxe given: mine tin | | 630 | 1216 | talking: open magic |
 | 310 | 595 | tin | | 640 | 1221 | magic opened |
 | 320 | 607 | copper: smelt | | 650 | 1232 | runes given |
-| 330 | 619 | bar | | 660, 670 | 1240 | spell cast (splashed) |
+| 330 | 619 | bar | | 660, 670 | 1240 | spell cast (it HIT for 1 at [1243]; the boxes are scripted) |
 | 340 | 644 | talking: given hammer | | 671 | 1241 | Learning the Ropes complete |
 | 350 | 652 | anvil menu opened | | 680 | 1335 | told Terrova "go to the mainland" |
 | | | | | 1000 | 1361 | Home Teleport landed |
@@ -225,7 +225,9 @@ Refusals: all text matched ours.
 
 There are no modal boxes. **Implemented:** both lines go through `~tutorial_mesoverlay`.
 
-**Anvil:** opening the menu is step 350 ([652]); every re-open re-sends the box. The dagger: seq 898 and the menu closed on the click; the dagger and step 360 at C+3. **Implemented:** 350. Not checked: our smithing's C+3.
+**Anvil:** opening the menu is step 350 ([652]); every re-open re-sends the box. The dagger: seq 898 and the menu closed on the click; the dagger and step 360 at C+3. **Implemented:** 350, with its own box ("Use an anvil to open the smithing menu...") on the first open, then the menu's box and the anvil's arrow cleared; re-opens send the menu's box alone. The dagger is the tutorial's own make (`~tutorial_smith`): seq 898 on the click, the dagger, xp and 360 at C+3, and none of the ordinary anvil's `anvil_4` synth or "You hammer the bronze" line (neither is on the wire at [672..675]). The no-hammer refusal re-sends the bar's box and the arrow to Dezzick ([635]).
+
+**Implemented 2026-10-26, every anvil:** the `smithing` interface (312) replaces our `skillmulti` chain. Open: `smithing_bar_type` (varbit 3216), `makexcrafting` (varp 2224) = bars held capped at 28, clientscript 2524, the modal. A cell's IF_BUTTON: the lasttype varbits, seq 898, the modal closed, `smithing_close` (6123); products at C+3 then every 5 ticks (index 3449 [7275..7288]), spam-typed "You hammer..." lines, no synth. The quantity buttons set 2224 (index 800 [12729]). A cell finds its row through the new `smithing:component` column. Unverified: which bar "Smith" picks when several kinds are held (lowest tier here), and the X button's prompt.
 
 ## Dialogue findings
 
@@ -241,6 +243,8 @@ There are no modal boxes. **Implemented:** both lines go through `~tutorial_meso
 
 - **Inventory and interface highlights:** rev-241 clientscripts that are not in our cache (above).
 - **`busy` varbit 12393:** Jagex sets it while the player is held. Delays: 1 on the delayed tick, 0 on resume. Dialogues: 1 a tick after the page opens, 0 on close. Our engine never sets it.
-- **Steps 183, 270, 460, 490, 580, 660, 670, 680:** in-script transitions. 460 and 490 need an attack-start hook. 680 needs Terrova's mainland branch.
+- **Steps 183, 270, 460, 490, 580:** in-script transitions. 460 and 490 need an attack-start hook.
+- **Wind Strike ([1240..1243], implemented 2026-10-26):** on the cast's tick 650 -> 660 ("Magic casting: You cast a spell! Sadly it didn't have any effect this time...", arrow still on the chicken) -> 670 ("To the mainland!", arrow on Terrova, overlay hint 20); 671 with the quest's line on C+1 (`[queue,tutorial_quest_complete]`). The cast resolves on the chicken BEFORE the tutorial is told: the 670 hint's `npc_find` repoints the active npc, and run first it put the chicken's hit on Terrova. Open: our scroll and jingle land at C+2, not C+1 -- `~quest_scroll_paint` opens the scroll through a queue, and a queue raised from a queue lands a tick later.
+- **Terrova's goodbye ([1253..1335], implemented 2026-10-26):** Yes./No.; then "Do you want to go to the mainland? Or would you like to talk to the Ironman tutor first..." with three options; "Yes, I'd like to go to the mainland" -> Adventurer Jon's two pages, the `ap_guide_icon_dummy` objbox, overlay hint 23 with "Excellent...", and on its continue 680 with two "To the mainland!" boxes. "I'll talk to the Ironman tutor." was never chosen: its player line is unverified.
 - **Display name (step 0 → 1)**, the "Setting your name" box, and the familiarity interface: our flow starts at the design panel.
-- **Terrova's mainland and Ironman ending** ([1253..1335]) and **Adventurer Jon** in Lumbridge ([1364..1384]): pages and options differ from ours or are absent.
+- **Leaving ([1336..1364]):** Jagex's Home Teleport plays the full channel, sets 1000 and lands on **3232,3232** (by Adventurer Jon, `ap_guide_parent` at 3232,3235 in m50_50.spawn), with "Welcome to Old School RuneScape." (type 108), six music unlocks and Jon's "Hey <name>! Come over here." ([1364]). Ours lands at the castle with a Lumbridge Guide objbox. Jon has no scripts here.

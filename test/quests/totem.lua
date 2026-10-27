@@ -94,7 +94,7 @@ return {
             "choose:Yes please.",
             "player:Yes please.",
         })
-        t.expect("seaman.paidMessage", t.msg.expect("pay the 30 coins and board the ship"))
+        t.expect("seaman.paidMessage", t.msg.expect("You pay 30 coins and board the ship"))
         sail_wait("seaman")
         t.exec("seaman.arrive", t.chat.play, { "mesbox:The ship arrives at Karamja." })
         deck_check("seaman.onDeckAtMusaPoint", 2956, 3143, coins0)

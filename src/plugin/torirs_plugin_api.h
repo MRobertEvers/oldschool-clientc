@@ -660,7 +660,13 @@ struct ToriRS_WorldApi
         int zone_x,
         int zone_z,
         struct ToriRS_InstanceZone* out);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
+    /** The recent LOC_ANIMs, oldest first (@see ToriRS_LocAnimSnapshot):
+     *  iterator -1 starts, the return is the next iterator or -1 at the end. */
+    int (*loc_anim_next)(
+        struct ToriRS_Api* api,
+        int iterator,
+        struct ToriRS_LocAnimSnapshot* out);
+    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
 };
 
 struct ToriRS_InputApi

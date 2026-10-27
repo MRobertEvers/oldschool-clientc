@@ -1,1 +1,43 @@
 id	room	finding	evidence	status
+OLM01	olm	head steer counted landed damaging hitsplats in 6 ticks	4392 155/155 for a damaging attack launched in the 8 ticks before (142 old); 3282 33/33, 3285 54/57, 843 13/13	fixed
+OLM02	olm	no scuffed Olm: idle always +2, walls/bombs/shower never a tick late	4392 4 stretches (+3/+2), 6/6 walls, 12/12 bombs, 110/110 bursts shifted; 820 24 flips	fixed (flip trigger open)
+OLM03	olm	fire wall had no blocking locs and flames C+1..C+9	4392 locs C+1, flames C+3, out C+10 (6/6)	fixed
+OLM04	olm	bomb throw used the crystal power's projectile, fixed 60-cycle flight, blast C+9 at height 0, silent	4392 crystalrock_falling 46+10d (12/12), blast C+10 h40 + cauldron range 10; 3285 [16550] same	fixed
+OLM05	olm	crystal power landing drew the burst's shatter	4392 olm_crystalwave_shatter h10 (11/11)	fixed
+OLM06	olm	no camera shake in the showers	4392 3 axes every 2 ticks (212/212), reset at rise and death	fixed
+OLM07	olm	lightning hit: human_stunned, silent, plain line, bound 8	4392 [5123] killerwatt shock, paralyze, highlighted line, bound 4	fixed (one sample)
+OLM08	olm	acid spray landing, burn tick, solo teleport, siphon silent	4392 barbassault_splat 94, salamander_scorch 43/43, teleport_all 2, crumble_hit 2	fixed
+OLM09	olm	head/claws played human_unarmedblock and human_death	4392 none on any hit or death	fixed (cox.npc; generated lines removed)
+OLM10	olm	swamp trident impact 124, splash 92	4392 impact 92 100/100, splash 124 59/59	fixed (powered_staff.rs2)
+CRAB01	crabs	3 crabs in a normal solo room	4392 4	fixed
+CRAB02	crabs	wall end always the wind pair, loops 1	4392 colour's bolt impact + hit, loops 6 (11/11)	fixed
+CRAB03	crabs	big crystal re-sent only on a stage change	4392 every 3 ticks (128/130)	fixed
+CRAB04	crabs	orb type not re-sent per step	4392 every step	fixed
+CRAB05	crabs	crab max hit unidentified	4392 19 unprayed swings: 16x0, 1, 1, 10	open
+ICE01	icedemon	thaw pool and drain were a 480 pool, 2 a unit, 1 unit/tick a brazier (NR shape)	4392 + 6 GM rooms: pool 600, ceil(k/8)+1 a brazier, heal 1/tick always, 1 kindling/6 ticks; 4392 [1015]-[1084] exact (rsprox_icedemon_thaw.py)	fixed
+ICE02	icedemon	thaw bar sent only on change, as hp of 140	4392 143/143 ticks in view, 1+pool*99/600, 0 at the pop [1140]	fixed
+ICE03	icedemon	chop rolled the normal-tree chance every 3-4 ticks	no fail: first at O+5, then every 5; 107/107 gaps, 6 sessions, WC 60-99	fixed
+ICE04	icedemon	chop seq every 4 ticks; first line 'You swing your axe at the sapling.'	4392 seq every tick [963]-[997]; 'You swing your axe...' spam 4/4	fixed
+ICE05	icedemon	chop: invented 'You get some kindling.'; no tree_creak_1; wrong full-pack line; tree_fall a synth; stump 15 ticks	4392 [955]/[1026]/[1118]; 10 stumps 45-64; clientscript 5474	fixed
+ICE06	icedemon	axe/tinderbox take: item on the seq tick, no pick2	4392 [950]-[952], [946]-[947]	fixed
+ICE07	icedemon	fiend on a random brazier	solo brazier 1 in 6/6 rooms (4392 [948]); 820 all four	fixed (parties 2-3 unverified)
+ICE08	icedemon	fiend fixed NR tile, default angle, no face on action	side varies (6 rooms), spawnangle away 10/10, face_angle to brazier (3282 [6717])	fixed
+ICE09	icedemon	fiend death sent no enabled_ops	4392 [1142] enabled_ops 0b00000 with pyrefiend_death; tick P+1 7/10	fixed (tick: rate)
+ICE10	icedemon	frozen demon faced a square 28 out, no coord face of the walk end	4392 [949]/[998]/[1004] spawnangle + [facing] coord= sw+7, 3/3	fixed
+ICE11	icedemon	light: 3-then-4-tick cadence, deposit then light a tick later, 3 invented lines	4392 [1012]-[1014]: attempt (torch, crackle, busy), lit+deposit next tick; retry next tick (3285, 820)	fixed
+ICE12	icedemon	fuel on the op tick with an invented line	4392 [1126]-[1127]: O+1 pickuptable + crackle	fixed
+ICE13	icedemon	walk out sent no face reset	4392 [1141] [facing] type=reset with the first step	fixed
+ICE14	icedemon	points one write a deposit	4392 [1014] +336 +704, [1085] +324 +680, [1127] +180 +360	fixed
+ICE15	icedemon	Firemaking xp 5 a kindling	4392 light 100 x2, fuel 45 for 15; 820 x15 1500/1260/810	fixed
+ICE16	icedemon	smokepuff 1 loop	4392 [1140] loops=4 (7/7 pops)	fixed
+ICE17	icedemon	projectile heights 348->8 on the v2 wire (quartered units)	4392 100/100 350->10	fixed
+ICE18	icedemon	shot in flight at his death never landed (his queue cleared)	4392 cast [1446], death [1448], landing+sound [1449]	fixed
+ICE19	icedemon	Cryo No More (CA 316) never awarded; ~ca_task_complete sends no message/notification/jingle for any task	4392 [1448] CA_ID:316 line, CA varbits; [1449] notification + midi_jingle 76	open (CA framework, every task)
+ICE20	icedemon	private fiendish ashes go out public, no reveal	4392 [1453] ownership=self reveal=100 despawn=200; our 241 OBJ_ADD writes ownership 0 reveal 0	open (engine)
+ICE21	icedemon	death face reset a tick after demon_death; death seq on the hit tick vs a tick after	4392 [1448] reset+ops with demon_death; 5/7 kills seq on the hit tick (4392, 843 +1)	rate (hit phase) / open (reset tick)
+ICE22	icedemon	raids_storage_hotspot never re-sent	4392 every 10 ticks raid-wide, 51 in the window	open (cox_resource, not this room)
+ICE23	icedemon	light xp after the first lights	3285 later lights 98/96/94 (x15)	open
+ICE24	icedemon	burn timer fixed 6 vs random 5-7	both fit the 6 rooms; fixed 6 exact on 4392	open (rate)
+ICE25	icedemon	first attack on the transform tick P+8	4392 transform [1148], first boulder [1149] P+9	fixed
+ICE26	icedemon	Attack on the frozen demon unbound	4392 [1145]-[1147] 'It's protected by the ice storm.' 3/3, from range	fixed
+ICE27	icedemon	secondaries sent despawn 200	4392 [1453] despawn=199 3/3	fixed

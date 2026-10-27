@@ -44,7 +44,7 @@ return {
             open_account = 531, opened_account = 532, account_exit = 540,
             talk_to_brace = 550, open_prayer = 560, opened_prayer = 570, chapel_exit = 610,
             talk_to_terrova = 620, open_magic = 630, opened_magic = 640, cast_wind_strike = 650,
-            quest_complete = 671, complete = 1000,
+            quest_complete = 671, to_the_mainland = 680, complete = 1000,
         }
 
         local function stage(name, ticks)
@@ -427,18 +427,16 @@ return {
         })
         stage("smith_dagger")
         t.exec("talkToMining2.hammer", t.inv.await, "hammer", 1, 5)
-        -- The anvil's answer is the make-menu (~skill_multi4), which the
-        -- press's settle does not count as a page; the menu row grades it.
+        -- The anvil's answer is interface 312 `smithing` (RSProx index 4289
+        -- [652]), which the press's settle does not count as a page; the
+        -- modal and its dagger cell grade it.
         snapshot()
         local ar, ad = t.player.use_on("bronze_bar", loc("anvil"))
         t.note("use bronze_bar on anvil: " .. tostring(ar) .. " " .. tostring(ad))
-        t.exec("smithDagger", t.ui.await_open, "skillmulti", 10)
-        local fa_r, fa = t.ui.widget("skillmulti:a")
-        t.check("smithDagger.weapons", t.ui.invoke(fa, 1), "skillmulti:a " .. tostring(fa_r))
-        t.ticks(2)
-        t.exec("smithDagger.menu", t.ui.await_open, "skillmulti", 10)
-        local da_r, da = t.ui.widget("skillmulti:a")
-        t.check("smithDagger.dagger", t.ui.invoke(da, 1), "skillmulti:a " .. tostring(da_r))
+        t.exec("smithDagger", t.ui.await_open, "smithing", 10)
+        local da_r, da = t.ui.widget("smithing:dagger")
+        t.check("smithDagger.dagger", t.ui.invoke(da, 1), "smithing:dagger " .. tostring(da_r))
+        closed_check("smithDagger.closed", "smithing")
         t.exec("smithDagger.made", t.inv.await, "bronze_dagger", 1, 10)
         -- 12.5 xp: 6.2 -> 18.7, which the whole-xp reading shows as 6 -> 18.
         gain("smithDagger.xp", "smithing", 12)
@@ -614,15 +612,19 @@ return {
         t.check("castWindStrike.terrovaUntouched",
             (tr == "ok" and terrova.health_ratio < 0 and terrova.seq_tick < cast_tick) and "ok" or "hollow",
             tr == "ok" and t.npc.state_text(terrova) or tostring(terrova))
+        -- RSProx index 4289 [1253..1335].
         talk("talkToMagic3", "newbie_magic_instructor", {
             "npc:I'll give you a reasonable number of runes when you leave",
             "choose:Yes.",
-            "npc:talk to my friend the Lumbridge Guide",
-            "npc:a question mark on the end",
+            "npc:talk to the Ironman tutor first",
+            "choose:Yes, I'd like to go to the mainland",
+            "player:Yes, I'd like to go to the mainland",
+            "npc:talk to my friend Adventurer Jon",
+            "npc:a huge sword",
             "*",
             "npc:use your home teleport spell to teleport to Lumbridge!",
         })
-        stage("quest_complete")
+        stage("to_the_mainland")
 
         ---------------------------------------------------------------
         -- Graduation

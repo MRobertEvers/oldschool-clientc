@@ -370,6 +370,37 @@ app_plugin_fill_loc(
  * hold on to, unlike an npc's slot, so its tile IS its identity and a plugin
  * that wants to remember one remembers that.
  */
+/*
+ * The recent LOC_ANIMs (App_DriveLocAnimNote's ring, fed from every applied
+ * packet in play, not only under the driver), oldest first. `iter` is the
+ * ring index; the ring is rewritten as rows retire, so a plugin reads it
+ * whole within one callback.
+ */
+static int
+app_plugin_loc_anim_next(void* user, int iter, struct ToriRS_LocAnimSnapshot* out)
+{
+    struct App* app = (struct App*)user;
+    struct App_DriveRing const* ring;
+    struct App_DriveLocAnim const* a;
+    int i = iter < 0 ? 0 : iter;
+
+    assert(app);
+    assert(out);
+    if( !app->world )
+        return -1;
+    ring = &app->drive_events;
+    if( i >= ring->loc_anim_count )
+        return -1;
+    a = &ring->loc_anims[i];
+    out->tile_x = a->x;
+    out->tile_z = a->z;
+    out->level = a->level;
+    out->shape = a->shape;
+    out->seq_id = a->seq;
+    out->cycle = a->cycle;
+    return i + 1;
+}
+
 static int
 app_plugin_loc_next(void* user, int iter, struct ToriRS_ScenerySnapshot* out)
 {
@@ -6573,6 +6604,7 @@ app_plugin_engine(struct App* app)
     engine.player_next = app_plugin_player_next;
     engine.obj_next = app_plugin_obj_next;
     engine.loc_next = app_plugin_loc_next;
+    engine.loc_anim_next = app_plugin_loc_anim_next;
     engine.highlight_next = app_plugin_highlight_next;
     engine.notify = app_plugin_notify;
     engine.key_held = app_plugin_key_held;

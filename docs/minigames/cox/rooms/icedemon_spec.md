@@ -6,6 +6,49 @@ the ice demon blocks of `configs/cox.constant` / `cox.npc` / `cox.loc`. Solver p
 `icedemon_solver.md`. Ruling order (plan): Jagex > recorded data > wiki > plugin
 constants > Near-Reality > our code.
 
+## Superseded by the recordings (2026-10-26)
+
+RSProx index 4392 (rev 241, normal world, solo) and the six Grid Master rooms were
+read end to end (`docs/rsprox-analysis/cox/icedemon.md`, "Index 4392"; ledger
+ICE01-ICE27). Where a row below disagrees, this list wins:
+
+- **I2 chop:** no success roll. The first kindling lands 5 ticks after the op, walked
+  or not, then one every 5 (107 of 107 gaps, WC 60-99); the axe seq every tick;
+  "You swing your axe..." (spam) on the first swing; `tree_creak_1` with each
+  kindling; no "You get some kindling."; a full pack: "You don't have enough space
+  to hold any more wood."
+- **I3 sapling falls:** the stump stands 45-64 ticks (10 recorded), timed by
+  clientscript 5474; `tree_fall` is an area sound (range 4).
+- **I1 take axe / tinderbox:** the seq, then the item and `pick2` a tick later
+  (`p_arrivedelay; anim; p_delay(0); inv_add`).
+- **I4 light:** an attempt a tick (torch + `fire_crackling_med`), a failure retried
+  the NEXT tick, the success lighting the brazier the tick after the attempt with the
+  points and xp; no message at all. 100 Firemaking xp a light.
+- **I5 fuel:** O+1 after a walk: `human_pickuptable`, the crackle, the deposit; 3 xp a
+  kindling; no message.
+- **I6 thaw (R1 is withdrawn):** pool 600 a raider; each lit brazier drains
+  `ceil(kindling / 8) + 1` a tick, the demon heals 1 a tick always (capped); each lit
+  brazier burns one kindling every 6 ticks, the first 4 after it catches. The bar is
+  `1 + pool x 99 / 600` (0 only when empty), sent every tick. Party scaling
+  unverified (all of it x party). Two braziers of 24 lit together just thaw a solo
+  demon.
+- **I7 icefiends (R2's "a charge" is one kindling, kept; R3 settled):** solo, the fiend
+  is on brazier 1, always (6 of 6 rooms); parties 2-3 take the next braziers
+  (unverified), four all four (820). It stands on a random side of its brazier, added
+  facing away, and turns to it (`face_angle`) on each action.
+- **I9 pop:** the fiends die at P+1 (7 of 10; P+2 or P+3 in the rest), with
+  `enabled_ops 0b00000`; he resets his face with his first step; the fighting form at
+  P+8 and his first attack at P+9; `smokepuff` 4 loops.
+- **I12 / I14 projectiles:** raw heights 350 / 325 -> 10 (`projanim_map_raw`); a shot in
+  flight at his death still lands (its graphics ride the target's queue).
+- **I18 points:** sent as two writes a deposit, 12 a kindling then 24 a kindling + 32 a
+  light.
+- **I19 drops:** the secondaries' stack is sent `despawn=199`. Attack on the frozen
+  demon (his op1): "It's protected by the ice storm."
+- **Open:** Cryo No More (CA 316) is not awarded and the CA framework announces
+  nothing; the private ashes' ownership/reveal (engine); a random 5-7 tick burn fits
+  as well as the fixed 6; 3285's later lights gave 98/96/94 xp.
+
 ## 0. Sources
 
 | tag | source | file |

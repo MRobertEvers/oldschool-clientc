@@ -4,7 +4,8 @@
 -- dragon hunter lance worn, the trident switch and the rune pouch carried.
 --
 -- GREEN: the lance and the fire cape worn, the trident, the rune pouch and
--- two overloads (+) carried, the account's starting items gone from the
+-- Synq's potions carried (3 overloads (+), 3 prayer enhances (+), 6 Xeric's
+-- aids (+), 3 revitalisations (+), 2 staminas), the account's starting items gone from the
 -- pack, Attack, Strength, Defence and Hitpoints at 99, and the kit's message.
 --
 --   ./src/build_olmtr_opt/torirsserver --scriptrun test/raids/cox_olm_trainer_kit.lua --bots 1 \
@@ -29,7 +30,9 @@ local function run(t)
         local r, n = t.ui._worn_count(item)
         t.check("oltk.worn." .. item, r == "ok" and n == 1, tostring(r) .. " " .. tostring(n))
     end
-    for _, want in ipairs({ { "toxic_tots_charged", 1 }, { "bh_rune_pouch", 1 }, { "raids_vial_overload_strong_4", 2 } }) do
+    for _, want in ipairs({ { "toxic_tots_charged", 1 }, { "bh_rune_pouch", 1 }, { "raids_vial_overload_strong_4", 3 },
+        { "raids_vial_prayer_strong_4", 3 }, { "raids_vial_xericaid_strong_4", 6 },
+        { "raids_vial_revitalisation_strong_4", 3 }, { "4dosestamina", 2 } }) do
         local r, n = t.inv.count(want[1])
         t.check("oltk.inv." .. want[1], r == "ok" and n == want[2], tostring(r) .. " " .. tostring(n))
     end

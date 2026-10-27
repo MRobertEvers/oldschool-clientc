@@ -74,3 +74,17 @@ It was read **untranslated** (instance tiles).
 | Wander | Ours wanders on the engine's random cadence, not every 4-5 ticks. |
 | Paint length | 5-14 ticks recorded, a spread no rule fits yet; ours is 8. |
 | The orb's start | One room's start tile and heading; ours follows NR per variant. |
+
+## Index 4392 (rev 241, normal world, 2026-10-26)
+
+The first normal-mode recording of the room (solo; [1576]-[1966]; `tools/cox/rsprox_crabs.py` on the `--raw` transcript).
+
+| Row | Recorded | Was | Now |
+|---|---|---|---|
+| crab count | **4** (normal solo, as 3389's CM) | 3 | 4 (`^cox_crab_min`) |
+| wall end | the orb's colour: `windbolt_impact` + `windbolt_hit` loops 6 (white, 7/7); `firebolt_impact` + `firebolt_hit` loops 6 (red, 4/4) | wind pair, loops 1, every colour | colour's pair, `sound_area_loops` 6 |
+| big crystal | re-sent every 3 ticks at every stage, stage 0 too (131 sends, 128/130 gaps 3) | only on a stage change | every 3 ticks |
+| orb step | teleport + `level_change 0` + `enabled_ops` + the orb's own `transformation`, every step (never on a still tick) | teleport only | `~cox_crab_beam_step` |
+| stun | the stunned crab swings 1 tick after the smash (14 of 22) | (RC-S2 already) | unchanged |
+| crab hits | 19 unprayed swings: 16 zeros, 1, 1, 10 (protect melee from [1655]: all 0) | max from strength | open (A17: too few to identify) |
+| paint length | 6-15 ticks after a smash | 8 | open |

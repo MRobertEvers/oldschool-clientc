@@ -795,6 +795,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
         {"performance_display.lua","performance-display"},
         {"screenshot.lua","screenshot"}, {"tile_indicator.lua","tile-indicator-lua"},
         {"script_runner.lua","script-runner"},
+        {"visual_metronome.lua","visual-metronome"},
     };
     char path[512];
 
@@ -811,7 +812,7 @@ test_bundled_scripts(struct ToriRS_PluginHost* host)
             free(source);
         }
     }
-    CHECK(g_registered == 18, "all eighteen bundled scripts registered");
+    CHECK(g_registered == 19, "all nineteen bundled scripts registered");
 }
 
 /* --------------------------------------------------- the real porcelain lane */
@@ -1247,6 +1248,11 @@ main(void)
         "plugin/test/entity_highlighter_behavior.lua","entity-behavior");
     test_product_behavior(&host,"../script/plugins/npc_indicators.lua",
         "plugin/test/npc_indicators_behavior.lua","npc-indicators-behavior");
+    test_product_behavior(&host,"../script/plugins/visual_metronome.lua",
+        "plugin/test/visual_metronome_behavior.lua","visual-metronome-behavior");
+    /* (olm_cycle.lua is loaded only here: the script table is full) */
+    test_product_behavior(&host,"../script/plugins/olm_cycle.lua",
+        "plugin/test/olm_cycle_behavior.lua","olm-cycle-behavior");
     test_product_behavior(&host,"../script/plugins/ground_items.lua",
         "plugin/test/ground_items_behavior.lua","ground-behavior");
     test_product_behavior(&host,"../script/plugins/loot_beam.lua",
@@ -1257,6 +1263,12 @@ main(void)
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-gi-count");
     test_product_behavior(&host,"../script/plugins/_drawprobe.lua",
         "plugin/test/overlay_probe_behavior.lua","overlay-probe-behavior-drawprobe");
+    /* The script table holds PLUGIN_LUA_MAX_SCRIPTS (32), and the bundled
+     * scripts and products above fill it; the pump probes start an empty one.
+     * The disable count is not reset_fake's, so the check below still spans
+     * both halves. */
+    PluginLua_Shutdown();
+    reset_fake();
     test_real_porcelain_pump(&host);
     test_lua_within_placement(&host);
     test_pump_costs_an_idle_plugin_nothing(&host);
@@ -1272,6 +1284,6 @@ main(void)
         fprintf(stderr, "lua plugin test: %d failure(s)\n", g_failures);
         return 1;
     }
-    puts("lua plugin test: runtime, reload, descriptors, builders, and 18 bundled scripts passed");
+    puts("lua plugin test: runtime, reload, descriptors, builders, and 19 bundled scripts passed");
     return 0;
 }
