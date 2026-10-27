@@ -384,3 +384,21 @@ Open, shared:
 - Every fighter's add tick also sends an entity-face reset beside its coord face
   (`npc_attackplayer` then `npc_facesquare`); the recording sends the coord face alone. Starting
   the fight a tick later would remove it and step a tick late instead.
+
+## Stats: the wiki's, where the recordings cannot identify them (owner, 2026-10-27)
+
+Accuracy and max hits that one or two recorded fights cannot pin down (most swings landed under
+Protect from Melee) are the OSRS Wiki's: each fighter's block in `quest_arena.npc` was checked
+against the current infobox (retrieved 2026-10-27) and matches it field for field, and our
+formula's max equals the wiki's.
+
+| npc | wiki hp / att / str / def, bonuses, speed | wiki max | ours |
+|---|---|---|---|
+| Khazard Ogre | 60 / 54 / 53 / 53, crush +22, str +20, 6 | 8 | 8 |
+| Khazard Scorpion | 40 / 40 / 39 / 34, def stab 5 slash 15 crush 15 ranged 5, 4; fire 25% | 5 | 5 |
+| Bouncer | 116 / 120 / 120 / 120, 4 | 13 | 13 |
+| General Khazard | 170 / 75 / 78 / 80, slash, 4 | 9 | 9 |
+
+The one departure is the ogre's earth weakness (40%), which the wiki does not list and the
+recording proves (varp 5536 = the earth rune, 4395 [625]). The safespots follow the wiki ("all
+can be safespotted"); the scorpion's was probed on ours and holds. Both items are closed.
