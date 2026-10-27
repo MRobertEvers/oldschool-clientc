@@ -178,12 +178,18 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   /* The VISIBLE height: on a phone 100vh is the height with the browser's bars
      hidden, so while they show, the bottom of the canvas sat under them. */
   @supports (height: 100dvh) { body.fullcanvas { height: 100dvh; } }
-  body.fullcanvas #game-region { padding: 0; gap: 0; }
+  /* Clear of a phone's notch, rounded corners and home bar (viewport-fit=cover
+     lets the page under them; every inset is 0 on a desktop). */
+  body.fullcanvas #game-region {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    gap: 0;
+  }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
   body.fullcanvas header {
     position: fixed;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     /* Clear of the plugin window docked beside the canvas, whose width
        torirs_chrome.js publishes here — 0px whenever nothing is docked. A
        corner pinned to the viewport instead lands on that window's title bar,
@@ -228,6 +234,25 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed { padding: 0.25rem 0.4rem; }
   body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed #viewctl { display: flex; }
   body.fullcanvas #torirs-app.torirs-chrome-exclusive > header.drawer-closed #memtrace:not([hidden]) { display: flex; }
+  /* What the fullscreen button says where a page cannot go fullscreen (an
+     iPhone): open the game from the Home Screen instead. */
+  #fullscreen-hint {
+    position: fixed;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 2.5rem);
+    transform: translateX(-50%);
+    z-index: 20;
+    width: min(22rem, calc(100vw - 2rem));
+    padding: 0.75rem 0.9rem;
+    border: 1px solid #6b5426;
+    background: rgba(20, 16, 12, 0.96);
+    color: #e0d5b8;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  #fullscreen-hint[hidden] { display: none; }
+  #fullscreen-hint p { margin: 0 0 0.5rem; }
+  #fullscreen-hint button { float: right; }
   .panel {
     display: flex;
     flex-direction: column;
@@ -308,6 +333,14 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     </button>
   </span>
 </header>
+<div id="fullscreen-hint" role="dialog" aria-label="Playing without the browser bars" hidden>
+  <p>This browser cannot take a page fullscreen on an iPhone (Safari and Chrome
+     alike: only videos may).</p>
+  <p>To play without the browser bars, add ToriRS to your Home Screen: tap
+     <b>Share</b>, then <b>Add to Home Screen</b>, and open it from there. It
+     downloads the game data once more the first time.</p>
+  <button type="button" id="btn-fullscreen-hint-close">OK</button>
+</div>
 <main id="app-content">
   <div id="game-region">
   <div id="stage">
@@ -476,9 +509,25 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
 
   document.addEventListener('fullscreenchange', syncFullscreenButton);
   document.addEventListener('webkitfullscreenchange', syncFullscreenButton);
-  if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
-    btnFull.disabled = true;
-    btnFull.title = 'Fullscreen is not available in this browser or frame.';
+  // Opened from the Home Screen: no browser bars to hide, nothing to press.
+  const launchedAsApp = window.navigator.standalone === true ||
+      ['fullscreen', 'standalone'].some(m =>
+          window.matchMedia && window.matchMedia('(display-mode: ' + m + ')').matches);
+  if (launchedAsApp) {
+    btnFull.hidden = true;
+  } else if (!(document.fullscreenEnabled || document.webkitFullscreenEnabled)) {
+    const device = globalThis.torirsMobileDevice;
+    if (device && device.ios) {
+      // Every iOS browser is WebKit, and WebKit on an iPhone takes only a
+      // video fullscreen; the Home Screen is the way to lose the bars.
+      const hint = document.getElementById('fullscreen-hint');
+      btnFull.title = 'How to play without the browser bars on this device.';
+      btnFull.onclick = () => { hint.hidden = !hint.hidden; };
+      document.getElementById('btn-fullscreen-hint-close').onclick = () => { hint.hidden = true; };
+    } else {
+      btnFull.disabled = true;
+      btnFull.title = 'Fullscreen is not available in this browser or frame.';
+    }
   }
 
   // Three things move the fit: the window, the stage (a panel appearing or

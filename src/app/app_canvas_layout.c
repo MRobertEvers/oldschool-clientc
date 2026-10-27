@@ -256,7 +256,7 @@ int
 App_CanvasFloorHeight(struct App const* app)
 {
     int plugin_min_w = 0;
-    int min_h = APP_CANVAS_MIN_H;
+    int min_h = CS2VM2_OnMobile() ? APP_CANVAS_MIN_H_MOBILE : APP_CANVAS_MIN_H;
 
     assert(app);
     /* Height only: the width floor already carries the frame's own and the
@@ -404,6 +404,42 @@ App_SetHighDpiAuto(
     app->host.client_scale_dirty = true;
 }
 
+/*
+ * The mobile client, lowered to fit: a whole step, not the fraction.
+ *
+ * The cache's own settings script sets a phone's interface scale to 400%
+ * (deviceoption 27), which no phone holds, so ClientScale_LowerToFloor lowers
+ * it to exactly what fits -- 116% on an iPhone in landscape. Nearest-neighbour
+ * at a fraction draws some font pixels twice and others once, and the chat
+ * reads as broken letters. From 100% up the whole step at or below the fit
+ * keeps every font pixel one size; below 100% there is none. Desktop keeps
+ * the exact fit (a Retina laptop's 147% is a size its player chose), so this
+ * is the mobile client's alone.
+ */
+static void
+app_mobile_whole_step(
+    struct ClientScaleSettings const* settings,
+    int window_w,
+    int window_h,
+    struct ClientScaleLayout* layout)
+{
+    int const density = ClientScale_LayoutDensityPercent(settings);
+    int whole;
+
+    assert(settings);
+    assert(layout);
+    if( !CS2VM2_OnMobile() || !layout->lowered_to_fit ||
+        settings->output_filter != CLIENT_SCALE_FILTER_NEAREST || layout->percent < 100 )
+        return;
+    whole = layout->percent / 100 * 100;
+    if( whole == layout->percent )
+        return;
+    layout->percent = whole;
+    layout->shown_percent = (int)((long long)whole * 100 / density);
+    layout->w = (int)((long long)window_w * 100 / whole);
+    layout->h = (int)((long long)window_h * 100 / whole);
+}
+
 int
 App_ApplyWindowLayout(
     struct App* app,
@@ -431,6 +467,7 @@ App_ApplyWindowLayout(
         window_w,
         window_h,
         &app->client_scale.layout);
+    app_mobile_whole_step(&settings, window_w, window_h, &app->client_scale.layout);
     if( getenv("TORIRS_RESIZE_DEBUG") )
         TORIRS_REPORT(
             "resize: chose %d%% hidpi %d density %d limit %dx%d; window %dx%d -> buffer %dx%d at "
