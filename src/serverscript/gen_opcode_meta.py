@@ -1293,6 +1293,15 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # by a respawn.
     "NPC_SETPASSTHRU": (11291, 1, 0, 0, 0),
 
+    # adventure_log(int $kind, int $amount, string $label)
+    #
+    # One line of the active player's adventure log on the account site
+    # (torirs_server_accountlog.h): `kind` says what happened (1 = a quest
+    # completed, `amount` its quest points, `label` its name). Content decides
+    # what is worth a line; the engine only records it, and only on a world
+    # whose accounts mean something (one that checks passwords).
+    "ADVENTURE_LOG": (11292, 2, 1, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -1934,6 +1943,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_FACEDIR": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETBLOCKWALK": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETPASSTHRU": (1 << POINTER_BITS["active_npc"], 0),
+    "ADVENTURE_LOG": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETBASESTAT": (1 << POINTER_BITS["active_npc"], 0),
     "LOC_ADD_REVERT": (0, 0),
     "NPC_ROUTEAPPROACH": (1 << POINTER_BITS["active_npc"], 0),

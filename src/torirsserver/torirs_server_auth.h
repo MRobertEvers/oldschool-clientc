@@ -46,8 +46,9 @@
  * **The sign-in gate is a second, separate account.** A world served to the
  * internet runs io_server with `--gate` in front of it (docs/WEB_SERVERS.md
  * "The sign-in gate"): a plain HTML page that serves nothing else until the
- * visitor signs in with a web login. Web logins live in `<saves>/gate/`, not
- * beside the players, and come only from invites an operator made
+ * visitor signs in with a web login. Web logins live in the account
+ * database (`<saves>/accounts.sqlite`, torirs_server_accounts.h), not beside
+ * the players, and come only from invites an operator made
  * (`torirsserver --account invite [name]`), redeemed on the gate's /invite page
  * under the same password rules. Past the page the game asks for a player
  * account exactly as above; the two are unrelated, and the gate's login makes
@@ -141,16 +142,6 @@ ToriRSServer_AuthLogin(
     const char* display_name,
     const char* password);
 
-/**
- * Check a web login for the sign-in gate (`<saves>/gate/<name>.ini`). Never
- * claims: a name with no login is REFUSED, because every one came from an
- * invite. Not a player account; see the top of this file.
- */
-enum ToriRSServerAuthResult
-ToriRSServer_GateLogin(
-    const char* name,
-    const char* password);
-
 /** NULL when `password` may be set for `display_name`; otherwise the rule it
  *  breaks, as a sentence for the person who typed it. */
 const char*
@@ -229,24 +220,9 @@ ToriRSServer_AuthLinkVerify(
 int
 ToriRSServer_AuthUnlink(const char* display_name);
 
-/**
- * Write an invite: `<saves>/gate/invites/<code>.ini`, redeemed at the gate's
- * `/invite/<code>` for a web login. `name` NULL lets the visitor choose the
- * name; otherwise only that name can redeem it (it must pass AuthNameProblem).
- * Returns 1 when written.
- */
-int
-ToriRSServer_InviteCreate(
-    const char* name,
-    char out_code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1]);
-
-/** 1 when `code` is an unredeemed invite; `out_name` gets the name it is for,
- *  "" when the player chooses. */
-int
-ToriRSServer_InviteLookup(
-    const char* code,
-    char* out_name,
-    size_t cap);
+/* Web logins and invites live in the account database: their functions are
+ * torirs_server_accounts.h's (ToriRSServer_GateLogin, ToriRSServer_Invite*),
+ * which only the processes that open it link. */
 
 enum ToriRSServerInviteResult
 {
@@ -263,15 +239,6 @@ enum ToriRSServerInviteResult
     TORIRSSERVER_INVITE_WEAK,
     TORIRSSERVER_INVITE_WRITE_FAILED,
 };
-
-/** Spend `code` on a new web login `name` / `password`, deleting the
- *  invite. `*out_problem` is a sentence for BAD_NAME and WEAK, else NULL. */
-enum ToriRSServerInviteResult
-ToriRSServer_InviteRedeem(
-    const char* code,
-    const char* name,
-    const char* password,
-    const char** out_problem);
 
 enum ToriRSServerCreateResult
 {
@@ -295,14 +262,6 @@ ToriRSServer_AuthCreate(
     const char* display_name,
     const char* password,
     int admin,
-    const char** out_problem);
-
-/** An operator making a web login for the gate without an invite
- *  (`torirsserver --account login`). Same rules as an invite's. */
-enum ToriRSServerCreateResult
-ToriRSServer_GateLoginCreate(
-    const char* name,
-    const char* password,
     const char** out_problem);
 
 /** Replace an existing player account's password, keeping its admin flag and

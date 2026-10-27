@@ -3,7 +3,7 @@
  * reference server's content/scripts/engine.rs2. Do not edit by hand --
  * re-run the generator.
  *
- * 420 commands.
+ * 421 commands.
  */
 
 #ifndef SRC_SERVERSCRIPT_SSC_COMMAND_KINDS_GEN_H
@@ -446,6 +446,7 @@ static const struct SSC_CommandTypes g_ssc_command_types[] = {
     { 11289, "projanim_npc_raw", "coord npc_uid spotanim int int int int int int", "" },
     { 11290, "p_headbar_clear", "healthbar", "" },
     { 11291, "npc_setpassthru", "boolean", "" },
+    { 11292, "adventure_log", "int int string", "" },
 };
 
 #endif

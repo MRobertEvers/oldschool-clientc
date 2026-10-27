@@ -6,31 +6,30 @@
 #include "io_gate.h"
 #include "io_gate_links.h"
 #include "mem/torirs_mem.h"
+#include "torirsserver/torirs_server_accounts.h"
 #include "torirsserver/torirs_server_auth.h"
-#include "torirsserver/torirs_server_history.h"
 #include "torirsserver/torirs_server_savefile.h"
 
 #include <assert.h>
 #include <ctype.h>
-#include <dirent.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <time.h>
 
 /* The skills the site shows, in the hiscores' order -- which is the stat ids'
  * own, 0..23. Stat 24 (Summoning) is a feature-flagged port and not listed. */
-#define SITE_SKILLS 24
+#define SITE_SKILLS TORIRSSERVER_ACCOUNTS_SKILLS
 #define SITE_HITPOINTS 3
-/* torirs_server.h's varp for quest points (configs/all.varp varp101_qp). */
-#define SITE_VARP_QP 101
-#define SITE_PLAYERS_MAX 1024
-#define SITE_NAME_MAX 64
+#define SITE_NAME_MAX TORIRSSERVER_ACCOUNTS_NAME_MAX
 #define SITE_SESSIONS_SHOWN 15
+#define SITE_EVENTS_SHOWN 20
 #define SITE_TOP_ON_HOME 5
+#define SITE_HISCORES_PAGE 50
+/* The chart's reach: the newest this many days with experience recorded. */
+#define SITE_CHART_DAYS 365
 
 static char const* const k_skill_names[SITE_SKILLS] = {
     "Attack",   "Defence",    "Strength",    "Hitpoints",  "Ranged",    "Prayer",
@@ -184,21 +183,22 @@ buf_num(
     }
 }
 
+/* "26 Oct 2026": a day of the history (unix time / 86400), in UTC as the
+ * days are counted. */
 static void
-buf_date(
+buf_day(
     struct SiteBuf* b,
-    long long when)
+    long long day)
 {
-    time_t t = (time_t)when;
-    struct tm local;
-    char text[64];
+    time_t t = (time_t)(day * 86400);
+    struct tm utc;
+    char text[32];
 
-    localtime_r(&t, &local);
-    strftime(text, sizeof(text), "%d %b %Y, %H:%M", &local);
+    gmtime_r(&t, &utc);
+    strftime(text, sizeof(text), "%d %b %Y", &utc);
     buf_puts(b, text);
 }
 
-/* "3 days ago", or "just now". */
 /* "26 Oct 18:53": the sessions table's, where the year is noise. */
 static void
 buf_when(
@@ -416,9 +416,10 @@ redirect(
 
 struct SitePlayer
 {
-    /** As the save is keyed: the file name, and the page's URL. */
+    /** The account database's id; 0 for a linked account never played. */
+    long long id;
+    /** As the save is keyed: the page's URL. */
     char key[SITE_NAME_MAX];
-    /** [player] name. */
     char name[SITE_NAME_MAX];
     long long xp[SITE_SKILLS];
     int level[SITE_SKILLS];
@@ -426,36 +427,11 @@ struct SitePlayer
     long long total_xp;
     int combat;
     int quest_points;
-    /** When the save was last written. */
+    /** When the game last wrote the player's stats; 0 never played. */
     long long saved_at;
+    /** Staff (`admin = 1` in the account record): never ranked. */
+    int admin;
 };
-
-/* OldSchool's experience table: the least experience for each level. */
-static long long g_level_xp[100];
-
-static void
-levels_init(void)
-{
-    double points = 0;
-
-    if( g_level_xp[2] )
-        return;
-    for( int level = 1; level < 99; level++ )
-    {
-        points += floor(level + 300.0 * pow(2.0, level / 7.0));
-        g_level_xp[level + 1] = (long long)floor(points / 4);
-    }
-}
-
-static int
-level_for_xp(long long xp)
-{
-    int level = 1;
-
-    while( level < 99 && xp >= g_level_xp[level + 1] )
-        level++;
-    return level;
-}
 
 static int
 combat_level(int const* level)
@@ -478,154 +454,35 @@ player_finish(struct SitePlayer* p)
     p->total_xp = 0;
     for( int i = 0; i < SITE_SKILLS; i++ )
     {
-        p->level[i] = level_for_xp(p->xp[i]);
+        p->level[i] = ToriRSServer_AccountsLevelForXp(p->xp[i]);
         p->total_level += p->level[i];
         p->total_xp += p->xp[i];
     }
     p->combat = combat_level(p->level);
 }
 
-/* A key as saves are named: [a-z0-9_] only. */
-static int
-key_ok(char const* key)
-{
-    if( !key[0] || strlen(key) >= SITE_NAME_MAX )
-        return 0;
-    for( char const* scan = key; *scan; scan++ )
-        if( !islower((unsigned char)*scan) && !isdigit((unsigned char)*scan) && *scan != '_' )
-            return 0;
-    return 1;
-}
-
-/*
- * The save `<saves>/<key>.ini` into `out`: its name, [stats] experience and
- * the quest-point varp. 0 when there is no such character.
- */
+/* The player saved under `key`, from the account database. 0 when there is
+ * none. */
 static int
 player_read(
     char const* key,
     struct SitePlayer* out)
 {
-    char path[1024];
-    char line[512];
-    char section[64] = "";
-    struct stat info;
-    FILE* file;
+    struct ToriRSServerAccountsPlayer row;
 
-    levels_init();
     memset(out, 0, sizeof(*out));
-    if( !key_ok(key) )
+    if( !ToriRSServer_AccountsPlayer(key, &row) )
         return 0;
-    snprintf(path, sizeof(path), "%s/%s.ini", ToriRSServer_SaveDir(), key);
-    if( stat(path, &info) != 0 || !S_ISREG(info.st_mode) )
-        return 0;
-    file = fopen(path, "rb");
-    if( !file )
-        return 0;
-    snprintf(out->key, sizeof(out->key), "%s", key);
-    out->saved_at = (long long)info.st_mtime;
-    /* A fresh character's: level 10 Hitpoints, 1 elsewhere. */
-    out->xp[SITE_HITPOINTS] = 1154;
-    while( fgets(line, sizeof(line), file) )
-    {
-        char* eq;
-        char* value;
-        char* end = line + strcspn(line, "\r\n");
-
-        *end = '\0';
-        if( line[0] == '[' )
-        {
-            snprintf(section, sizeof(section), "%.*s", (int)strcspn(line + 1, "]"), line + 1);
-            continue;
-        }
-        if( line[0] == ';' || !(eq = strchr(line, '=')) )
-            continue;
-        *eq = '\0';
-        value = eq + 1;
-        while( *value == ' ' )
-            value++;
-        for( char* trim = eq - 1; trim >= line && *trim == ' '; trim-- )
-            *trim = '\0';
-        if( strcmp(section, "player") == 0 && strcmp(line, "name") == 0 )
-            snprintf(out->name, sizeof(out->name), "%s", value);
-        else if( strcmp(section, "stats") == 0 )
-        {
-            /* `<stat> = <boosted> <xp_tenths>` */
-            int stat = atoi(line);
-            char* xp = strchr(value, ' ');
-
-            if( stat >= 0 && stat < SITE_SKILLS && xp )
-                out->xp[stat] = strtoll(xp + 1, NULL, 10) / 10;
-        }
-        else if( strcmp(section, "varps") == 0 && atoi(line) == SITE_VARP_QP )
-            out->quest_points = atoi(value);
-    }
-    fclose(file);
-    if( !out->name[0] )
-        return 0;
+    out->id = row.id;
+    snprintf(out->key, sizeof(out->key), "%s", row.key);
+    snprintf(out->name, sizeof(out->name), "%s", row.name);
+    for( int i = 0; i < SITE_SKILLS; i++ )
+        out->xp[i] = row.xp[i];
+    out->quest_points = row.quest_points;
+    out->saved_at = row.last_seen;
+    out->admin = !row.ranked;
     player_finish(out);
     return 1;
-}
-
-/* Every character save. The caller frees the list (ToriMem_Net). */
-static int
-players_all(struct SitePlayer** out)
-{
-    struct SitePlayer* list = ToriMem_Alloc(ToriMem_Net(), SITE_PLAYERS_MAX * sizeof(*list));
-    DIR* dir;
-    struct dirent* entry;
-    int count = 0;
-
-    assert(list);
-    *out = list;
-    dir = opendir(ToriRSServer_SaveDir());
-    if( !dir )
-        return 0;
-    while( (entry = readdir(dir)) != NULL && count < SITE_PLAYERS_MAX )
-    {
-        char key[SITE_NAME_MAX];
-        size_t len = strlen(entry->d_name);
-
-        if( len <= 4 || len - 4 >= sizeof(key) || strcmp(entry->d_name + len - 4, ".ini") != 0 )
-            continue;
-        snprintf(key, sizeof(key), "%.*s", (int)(len - 4), entry->d_name);
-        if( player_read(key, &list[count]) )
-            count++;
-    }
-    closedir(dir);
-    return count;
-}
-
-/* The ranking: overall (skill -1) by total level then experience, else by the
- * skill's experience; ties by name, so the order is stable. */
-static int g_rank_skill;
-
-static int
-rank_compare(
-    void const* a_void,
-    void const* b_void)
-{
-    struct SitePlayer const* a = a_void;
-    struct SitePlayer const* b = b_void;
-    long long ka = g_rank_skill < 0 ? a->total_level : a->xp[g_rank_skill];
-    long long kb = g_rank_skill < 0 ? b->total_level : b->xp[g_rank_skill];
-
-    if( ka != kb )
-        return ka > kb ? -1 : 1;
-    if( g_rank_skill < 0 && a->total_xp != b->total_xp )
-        return a->total_xp > b->total_xp ? -1 : 1;
-    return strcmp(a->key, b->key);
-}
-
-static void
-players_rank(
-    struct SitePlayer* list,
-    int count,
-    int skill)
-{
-    g_rank_skill = skill;
-    if( count > 1 )
-        qsort(list, (size_t)count, sizeof(*list), rank_compare);
 }
 
 /* The accounts linked to `who`, as players; the caller frees (ToriMem_Net). */
@@ -655,8 +512,7 @@ linked_players(
             memset(&list[count], 0, sizeof(list[count]));
             snprintf(list[count].key, sizeof(list[count].key), "%s", key);
             snprintf(list[count].name, sizeof(list[count].name), "%s", names[i]);
-            for( int s = 0; s < SITE_SKILLS; s++ )
-                list[count].xp[s] = s == SITE_HITPOINTS ? 1154 : 0;
+            list[count].xp[SITE_HITPOINTS] = 1154;
             player_finish(&list[count]);
             count++;
         }
@@ -686,15 +542,24 @@ owns(
 }
 
 static void
+player_link_to(
+    struct SiteBuf* b,
+    char const* key,
+    char const* name)
+{
+    buf_puts(b, "<a href=\"/players/");
+    buf_esc(b, key);
+    buf_puts(b, "\">");
+    buf_esc(b, name);
+    buf_puts(b, "</a>");
+}
+
+static void
 player_link(
     struct SiteBuf* b,
     struct SitePlayer const* p)
 {
-    buf_puts(b, "<a href=\"/players/");
-    buf_esc(b, p->key);
-    buf_puts(b, "\">");
-    buf_esc(b, p->name);
-    buf_puts(b, "</a>");
+    player_link_to(b, p->key, p->name);
 }
 
 /* The linked accounts as cards, with a link to each page. */
@@ -737,6 +602,20 @@ linked_cards(
     buf_puts(b, "</div>");
 }
 
+/* A rank from ToriRSServer_AccountsRank, after `prefix`; a dash for an
+ * unranked (staff) one. */
+static void
+buf_rank(
+    struct SiteBuf* b,
+    int rank,
+    char const* prefix)
+{
+    if( rank > 0 )
+        buf_printf(b, "%s%d", prefix, rank);
+    else
+        buf_puts(b, "&ndash;");
+}
+
 /* ------------------------------------------------------------------ */
 /* Pages                                                               */
 /* ------------------------------------------------------------------ */
@@ -749,11 +628,11 @@ page_home(
 {
     struct SiteBuf b;
     struct SitePlayer* mine;
-    struct SitePlayer* all;
+    struct ToriRSServerAccountsRow top[SITE_TOP_ON_HOME];
     int mine_count = linked_players(gate, who, &mine);
-    int all_count = players_all(&all);
+    int top_count =
+        ToriRSServer_AccountsHiscores(TORIRSSERVER_ACCOUNTS_OVERALL, 0, SITE_TOP_ON_HOME, top);
 
-    players_rank(all, all_count, -1);
     page_begin(&b, gate, who, "Home", "/");
     buf_puts(&b, "<section class=\"hero\"><h1>ToriRS</h1>"
                  "<p>An old world, kept by a few. Pick up where you left off.</p>"
@@ -773,19 +652,23 @@ page_home(
                  "accounts</a></p></section>\n");
 
     buf_puts(&b, "<section class=\"panel\"><h2>Top players</h2>");
-    if( all_count == 0 )
+    if( top_count == 0 )
         buf_puts(&b, "<p>Nobody has played yet.</p>");
     else
     {
         buf_puts(&b, "<div class=\"scroll\"><table><thead><tr><th class=\"num\">Rank</th>"
                      "<th>Name</th><th class=\"num\">Total</th><th class=\"num\">XP</th></tr>"
                      "</thead><tbody>");
-        for( int i = 0; i < all_count && i < SITE_TOP_ON_HOME; i++ )
+        for( int i = 0; i < top_count; i++ )
         {
+            int total_level;
+            long long total_xp;
+
+            ToriRSServer_AccountsOverallSplit(top[i].score, &total_level, &total_xp);
             buf_printf(&b, "<tr><td class=\"num\">%d</td><td>", i + 1);
-            player_link(&b, &all[i]);
-            buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">", all[i].total_level);
-            buf_num(&b, all[i].total_xp);
+            player_link_to(&b, top[i].key, top[i].name);
+            buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">", total_level);
+            buf_num(&b, total_xp);
             buf_puts(&b, "</td></tr>");
         }
         buf_puts(&b, "</tbody></table></div>"
@@ -794,7 +677,6 @@ page_home(
     }
     buf_puts(&b, "</section>\n</div>\n");
     ToriMem_Free(ToriMem_Net(), mine);
-    ToriMem_Free(ToriMem_Net(), all);
     page_send(&b, res, 200);
 }
 
@@ -806,18 +688,35 @@ page_hiscores(
     struct HttpResponse* res)
 {
     struct SiteBuf b;
-    struct SitePlayer* all;
-    int all_count = players_all(&all);
-    char skill_text[8] = "";
+    struct ToriRSServerAccountsRow* rows;
+    char field[16] = "";
     int skill = -1;
+    int page = 0;
+    int ranked;
+    int pages;
+    int count;
+    int category;
 
-    if( IoGate_QueryField(req, "skill", skill_text, sizeof(skill_text)) )
+    if( IoGate_QueryField(req, "skill", field, sizeof(field)) )
     {
-        skill = atoi(skill_text);
+        skill = atoi(field);
         if( skill < 0 || skill >= SITE_SKILLS )
             skill = -1;
     }
-    players_rank(all, all_count, skill);
+    if( IoGate_QueryField(req, "page", field, sizeof(field)) )
+        page = atoi(field) - 1;
+    category = skill < 0 ? TORIRSSERVER_ACCOUNTS_OVERALL : skill;
+    ranked = ToriRSServer_AccountsRankedCount(category);
+    pages = ranked > 0 ? (ranked + SITE_HISCORES_PAGE - 1) / SITE_HISCORES_PAGE : 1;
+    if( page < 0 )
+        page = 0;
+    if( page >= pages )
+        page = pages - 1;
+    rows = ToriMem_Alloc(ToriMem_Net(), SITE_HISCORES_PAGE * sizeof(*rows));
+    assert(rows);
+    count = ToriRSServer_AccountsHiscores(category, page * SITE_HISCORES_PAGE, SITE_HISCORES_PAGE,
+                                          rows);
+
     page_begin(&b, gate, who, "Hiscores", "/hiscores");
     buf_printf(&b, "<div class=\"title\"><h1>Hiscores<small>%s</small></h1></div>\n",
                skill < 0 ? "Overall" : k_skill_names[skill]);
@@ -831,65 +730,57 @@ page_hiscores(
                  "<form class=\"search\" method=\"get\" action=\"/players\">"
                  "<input name=\"name\" placeholder=\"Look up a player\" maxlength=\"12\" "
                  "aria-label=\"Player name\"><button class=\"btn quiet\">Search</button></form>");
-    if( all_count == 0 )
+    if( count == 0 )
         buf_puts(&b, "<p>Nobody has played yet.</p>");
     else
     {
         buf_puts(&b, "<div class=\"scroll\"><table><thead><tr><th class=\"num\">Rank</th>"
                      "<th>Name</th><th class=\"num\">Level</th><th class=\"num\">XP</th></tr>"
                      "</thead><tbody>");
-        for( int i = 0; i < all_count; i++ )
+        for( int i = 0; i < count; i++ )
         {
-            struct SitePlayer const* p = &all[i];
+            int level;
+            long long xp;
 
+            if( skill < 0 )
+                ToriRSServer_AccountsOverallSplit(rows[i].score, &level, &xp);
+            else
+            {
+                xp = rows[i].score;
+                level = ToriRSServer_AccountsLevelForXp(xp);
+            }
             buf_printf(&b, "<tr%s><td class=\"num\">%d</td><td>",
-                       owns(gate, who, p->key) ? " class=\"me\"" : "", i + 1);
-            player_link(&b, p);
-            buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">",
-                       skill < 0 ? p->total_level : p->level[skill]);
-            buf_num(&b, skill < 0 ? p->total_xp : p->xp[skill]);
+                       owns(gate, who, rows[i].key) ? " class=\"me\"" : "",
+                       page * SITE_HISCORES_PAGE + i + 1);
+            player_link_to(&b, rows[i].key, rows[i].name);
+            buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">", level);
+            buf_num(&b, xp);
             buf_puts(&b, "</td></tr>");
         }
         buf_puts(&b, "</tbody></table></div>");
+        if( pages > 1 )
+        {
+            buf_puts(&b, "<div class=\"row\" style=\"margin-top:12px\">");
+            if( page > 0 )
+                buf_printf(&b, "<a href=\"/hiscores?skill=%d&amp;page=%d\">Previous</a>", skill,
+                           page);
+            buf_printf(&b, "<span class=\"note\">Page %d of %d</span>", page + 1, pages);
+            if( page + 1 < pages )
+                buf_printf(&b, "<a href=\"/hiscores?skill=%d&amp;page=%d\">Next</a>", skill,
+                           page + 2);
+            buf_puts(&b, "</div>");
+        }
     }
     buf_puts(&b, "</section></div>\n");
-    ToriMem_Free(ToriMem_Net(), all);
+    ToriMem_Free(ToriMem_Net(), rows);
     page_send(&b, res, 200);
 }
 
-/* A player's rank in `skill` (-1 overall) among `all`, 1-based. */
-static int
-rank_of(
-    struct SitePlayer const* all,
-    int count,
-    struct SitePlayer const* p,
-    int skill)
-{
-    int rank = 1;
-
-    g_rank_skill = skill;
-    for( int i = 0; i < count; i++ )
-        if( strcmp(all[i].key, p->key) != 0 && rank_compare(&all[i], p) < 0 )
-            rank++;
-    return rank;
-}
-
-/* The sum of the listed skills' experience in a logout entry, whole xp. */
-static long long
-entry_total(struct ToriRSServerHistoryEntry const* e)
-{
-    long long total = 0;
-
-    for( int i = 0; i < SITE_SKILLS; i++ )
-        total += e->xp_tenths[i] / 10;
-    return total;
-}
-
-/* Total experience over time, one point per logout: inline SVG. */
+/* Total experience over time, one point per day it changed: inline SVG. */
 static void
 history_chart(
     struct SiteBuf* b,
-    struct ToriRSServerHistory const* h)
+    struct SitePlayer const* p)
 {
     enum
     {
@@ -900,40 +791,36 @@ history_chart(
         PAD_T = 16,
         PAD_B = 34,
     };
-    long long t0 = 0;
-    long long t1 = 0;
-    long long lo = 0;
-    long long hi = 0;
-    int points = 0;
+    long long* days = ToriMem_Alloc(ToriMem_Net(), SITE_CHART_DAYS * sizeof(long long));
+    long long* xps = ToriMem_Alloc(ToriMem_Net(), SITE_CHART_DAYS * sizeof(long long));
+    int points;
+    long long t0;
+    long long t1;
+    long long lo;
+    long long hi;
 
-    for( int i = 0; i < h->count; i++ )
-    {
-        struct ToriRSServerHistoryEntry const* e = &h->entries[i];
-        long long total;
-
-        if( e->kind != TORIRSSERVER_HISTORY_LOGOUT )
-            continue;
-        total = entry_total(e);
-        if( points == 0 )
-        {
-            t0 = e->time;
-            lo = hi = total;
-        }
-        t1 = e->time;
-        if( total < lo )
-            lo = total;
-        if( total > hi )
-            hi = total;
-        points++;
-    }
+    assert(days);
+    assert(xps);
+    points = ToriRSServer_AccountsXpDays(p->id, TORIRSSERVER_ACCOUNTS_TOTAL_XP, days, xps,
+                                         SITE_CHART_DAYS);
     if( points < 2 )
     {
-        buf_puts(b, "<p class=\"note\">The experience chart appears after two recorded "
-                    "sessions.</p>");
+        buf_puts(b, "<p class=\"note\">The experience chart appears once two days have "
+                    "experience recorded.</p>");
+        ToriMem_Free(ToriMem_Net(), days);
+        ToriMem_Free(ToriMem_Net(), xps);
         return;
     }
-    if( t1 == t0 )
-        t1 = t0 + 1;
+    t0 = days[0];
+    t1 = days[points - 1];
+    lo = hi = xps[0];
+    for( int i = 1; i < points; i++ )
+    {
+        if( xps[i] < lo )
+            lo = xps[i];
+        if( xps[i] > hi )
+            hi = xps[i];
+    }
     if( hi == lo )
         hi = lo + 1;
 
@@ -957,23 +844,17 @@ history_chart(
     /* The area, then the line over it. */
     {
         struct SiteBuf line;
-        int first = 1;
         double last_x = PAD_L;
 
         buf_init(&line);
-        for( int i = 0; i < h->count; i++ )
+        for( int i = 0; i < points; i++ )
         {
-            struct ToriRSServerHistoryEntry const* e = &h->entries[i];
-            double x;
-            double y;
+            double x = PAD_L + (double)(W - PAD_L - PAD_R) * (double)(days[i] - t0) /
+                                   (double)(t1 - t0);
+            double y = PAD_T + (double)(H - PAD_T - PAD_B) *
+                                   (1.0 - (double)(xps[i] - lo) / (double)(hi - lo));
 
-            if( e->kind != TORIRSSERVER_HISTORY_LOGOUT )
-                continue;
-            x = PAD_L + (double)(W - PAD_L - PAD_R) * (double)(e->time - t0) / (double)(t1 - t0);
-            y = PAD_T + (double)(H - PAD_T - PAD_B) *
-                            (1.0 - (double)(entry_total(e) - lo) / (double)(hi - lo));
-            buf_printf(&line, "%s%.1f,%.1f", first ? "" : " ", x, y);
-            first = 0;
+            buf_printf(&line, "%s%.1f,%.1f", i == 0 ? "" : " ", x, y);
             last_x = x;
         }
         buf_printf(b, "<polygon fill=\"rgba(240,192,96,.18)\" points=\"%d,%d %s %.1f,%d\"/>", PAD_L,
@@ -983,76 +864,60 @@ history_chart(
                    line.data);
         ToriMem_Free(ToriMem_Net(), line.data);
     }
-    /* The time axis: first and last session. */
+    /* The time axis: the first and the last day. */
     buf_printf(b, "<text x=\"%d\" y=\"%d\" fill=\"#cdbf9e\" font-size=\"12\" "
                   "font-family=\"Georgia,serif\">",
                PAD_L, H - 10);
-    buf_date(b, t0);
+    buf_day(b, t0);
     buf_printf(b, "</text><text x=\"%d\" y=\"%d\" fill=\"#cdbf9e\" font-size=\"12\" "
                   "text-anchor=\"end\" font-family=\"Georgia,serif\">",
                W - PAD_R, H - 10);
-    buf_date(b, t1);
+    buf_day(b, t1);
     buf_puts(b, "</text></svg>");
+    ToriMem_Free(ToriMem_Net(), days);
+    ToriMem_Free(ToriMem_Net(), xps);
 }
 
-/* The newest logout at or before `when`, else the oldest logout; NULL when
- * there is none. `*out_partial` says the window reaches past the history. */
-static struct ToriRSServerHistoryEntry const*
-baseline_at(
-    struct ToriRSServerHistory const* h,
-    long long when,
-    int* out_partial)
-{
-    struct ToriRSServerHistoryEntry const* found = NULL;
-    struct ToriRSServerHistoryEntry const* oldest = NULL;
-
-    for( int i = 0; i < h->count; i++ )
-    {
-        struct ToriRSServerHistoryEntry const* e = &h->entries[i];
-
-        if( e->kind != TORIRSSERVER_HISTORY_LOGOUT )
-            continue;
-        if( !oldest )
-            oldest = e;
-        if( e->time <= when )
-            found = e;
-    }
-    *out_partial = found == NULL;
-    return found ? found : oldest;
-}
-
-/* Gains over the last day, week and month, per skill that gained. */
+/* Gains over the last day, week and month, per skill that gained: the
+ * experience now against the end of the day before each window. A window
+ * older than the history measures from the first recorded day (marked). */
 static void
 history_gains(
     struct SiteBuf* b,
-    struct ToriRSServerHistory const* h,
     struct SitePlayer const* p)
 {
-    static long long const k_windows[3] = { 86400, 7 * 86400, 30 * 86400 };
+    static int const k_window_days[3] = { 1, 7, 30 };
     static char const* const k_window_names[3] = { "Day", "Week", "Month" };
-    struct ToriRSServerHistoryEntry const* base[3];
-    int partial[3];
-    long long now = (long long)time(NULL);
+    long long today = (long long)time(NULL) / 86400;
+    int partial[3] = { 0, 0, 0 };
 
-    for( int w = 0; w < 3; w++ )
-        base[w] = baseline_at(h, now - k_windows[w], &partial[w]);
-    if( !base[2] )
+    if( ToriRSServer_AccountsXpFirstDay(p->id, TORIRSSERVER_ACCOUNTS_TOTAL_XP) < 0 )
         return;
     buf_puts(b, "<h2>Experience gained</h2><div class=\"scroll\"><table><thead><tr>"
                 "<th>Skill</th>");
+    for( int w = 0; w < 3; w++ )
+        partial[w] = ToriRSServer_AccountsXpAt(p->id, TORIRSSERVER_ACCOUNTS_TOTAL_XP,
+                                               today - k_window_days[w]) < 0;
     for( int w = 0; w < 3; w++ )
         buf_printf(b, "<th class=\"num\">%s%s</th>", k_window_names[w], partial[w] ? "*" : "");
     buf_puts(b, "</tr></thead><tbody>");
     for( int s = -1; s < SITE_SKILLS; s++ )
     {
+        int stat = s < 0 ? TORIRSSERVER_ACCOUNTS_TOTAL_XP : s;
+        long long current = s < 0 ? p->total_xp : p->xp[s];
         long long gain[3];
         int gained = 0;
 
         for( int w = 0; w < 3; w++ )
         {
-            long long then = s < 0 ? entry_total(base[w]) : base[w]->xp_tenths[s] / 10;
-            long long current = s < 0 ? p->total_xp : p->xp[s];
+            long long then = ToriRSServer_AccountsXpAt(p->id, stat, today - k_window_days[w]);
 
+            if( then < 0 )
+            {
+                long long first = ToriRSServer_AccountsXpFirstDay(p->id, stat);
+
+                then = first < 0 ? current : ToriRSServer_AccountsXpAt(p->id, stat, first);
+            }
             gain[w] = current - then;
             if( gain[w] > 0 )
                 gained = 1;
@@ -1072,62 +937,21 @@ history_gains(
     }
     buf_puts(b, "</tbody></table></div>");
     if( partial[0] || partial[1] || partial[2] )
-        buf_puts(b, "<p class=\"note\">* since the first recorded session.</p>");
+        buf_puts(b, "<p class=\"note\">* since the first recorded day.</p>");
 }
 
 /* The newest sessions: when, how long, what was gained, mostly where. */
 static void
 history_sessions(
     struct SiteBuf* b,
-    struct ToriRSServerHistory const* h)
+    struct SitePlayer const* p)
 {
-    struct
-    {
-        long long start;
-        long long end;
-        long long gained;
-        int top_skill;
-        long long top_gain;
-        int known_gain;
-    } sessions[TORIRSSERVER_HISTORY_MAX];
-    int count = 0;
-    long long open_login = 0;
-    long long played = 0;
-    struct ToriRSServerHistoryEntry const* previous = NULL;
+    struct ToriRSServerAccountsSession sessions[SITE_SESSIONS_SHOWN];
+    int count;
+    int total;
+    long long played;
 
-    for( int i = 0; i < h->count; i++ )
-    {
-        struct ToriRSServerHistoryEntry const* e = &h->entries[i];
-
-        if( e->kind == TORIRSSERVER_HISTORY_LOGIN )
-        {
-            open_login = e->time;
-            continue;
-        }
-        sessions[count].start = open_login;
-        sessions[count].end = e->time;
-        sessions[count].known_gain = previous != NULL;
-        sessions[count].gained = previous ? entry_total(e) - entry_total(previous) : 0;
-        sessions[count].top_skill = -1;
-        sessions[count].top_gain = 0;
-        if( previous )
-            for( int s = 0; s < SITE_SKILLS; s++ )
-            {
-                long long gain = (e->xp_tenths[s] - previous->xp_tenths[s]) / 10;
-
-                if( gain > sessions[count].top_gain )
-                {
-                    sessions[count].top_gain = gain;
-                    sessions[count].top_skill = s;
-                }
-            }
-        if( open_login && e->time >= open_login )
-            played += e->time - open_login;
-        open_login = 0;
-        previous = e;
-        count++;
-    }
-
+    count = ToriRSServer_AccountsSessions(p->id, sessions, SITE_SESSIONS_SHOWN, &total, &played);
     buf_puts(b, "<h2>Recent sessions</h2>");
     if( count == 0 )
     {
@@ -1135,34 +959,31 @@ history_sessions(
                     "account's next log out.</p>");
         return;
     }
-    buf_printf(b, "<p class=\"note\">%d session%s recorded, ", count, count == 1 ? "" : "s");
+    buf_printf(b, "<p class=\"note\">%d session%s recorded, ", total, total == 1 ? "" : "s");
     buf_duration(b, played);
     buf_puts(b, " played.</p><div class=\"scroll\"><table><thead><tr><th>Logged in</th>"
                 "<th class=\"num\">Length</th><th class=\"num\">XP gained</th>"
                 "<th>Most trained</th></tr></thead><tbody>");
-    for( int i = count - 1; i >= 0 && i >= count - SITE_SESSIONS_SHOWN; i-- )
+    for( int i = 0; i < count; i++ )
     {
+        struct ToriRSServerAccountsSession const* s = &sessions[i];
+
         buf_puts(b, "<tr><td class=\"when\">");
-        buf_when(b, sessions[i].start ? sessions[i].start : sessions[i].end);
+        buf_when(b, s->start ? s->start : s->end);
         buf_puts(b, "</td><td class=\"num\">");
-        if( sessions[i].start && sessions[i].end >= sessions[i].start )
-            buf_duration(b, sessions[i].end - sessions[i].start);
+        if( s->start && s->end >= s->start )
+            buf_duration(b, s->end - s->start);
         else
             buf_puts(b, "&ndash;");
         buf_puts(b, "</td><td class=\"num\">");
-        if( sessions[i].known_gain )
-        {
-            if( sessions[i].gained > 0 )
-                buf_puts(b, "+");
-            buf_num(b, sessions[i].gained);
-        }
-        else
-            buf_puts(b, "&ndash;");
+        if( s->xp_gained > 0 )
+            buf_puts(b, "+");
+        buf_num(b, s->xp_gained);
         buf_puts(b, "</td><td>");
-        if( sessions[i].top_skill >= 0 )
+        if( s->top_stat >= 0 && s->top_stat < SITE_SKILLS )
         {
-            buf_printf(b, "%s (+", k_skill_names[sessions[i].top_skill]);
-            buf_num(b, sessions[i].top_gain);
+            buf_printf(b, "%s (+", k_skill_names[s->top_stat]);
+            buf_num(b, s->top_gain);
             buf_puts(b, ")");
         }
         else
@@ -1170,6 +991,47 @@ history_sessions(
         buf_puts(b, "</td></tr>");
     }
     buf_puts(b, "</tbody></table></div>");
+}
+
+/* The adventure log: the newest lines, newest first. */
+static void
+adventure_log(
+    struct SiteBuf* b,
+    struct SitePlayer const* p)
+{
+    struct ToriRSServerAccountsEvent events[SITE_EVENTS_SHOWN];
+    int count = ToriRSServer_AccountsEvents(p->id, events, SITE_EVENTS_SHOWN);
+    long long now = (long long)time(NULL);
+
+    buf_puts(b, "<section class=\"panel\" style=\"margin:0 0 24px\"><h2>Adventure log</h2>");
+    if( count == 0 )
+    {
+        buf_puts(b, "<p class=\"note\">Nothing yet: completed quests appear here.</p>"
+                    "</section>\n");
+        return;
+    }
+    buf_puts(b, "<div class=\"scroll\"><table><tbody>");
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSServerAccountsEvent const* e = &events[i];
+
+        buf_puts(b, "<tr><td class=\"when\">");
+        buf_ago(b, e->time, now);
+        buf_puts(b, "</td><td>");
+        if( e->kind == TORIRSSERVER_ADVENTURE_QUEST )
+        {
+            buf_puts(b, "Completed the quest <b>");
+            buf_esc(b, e->label);
+            buf_puts(b, "</b>");
+            if( e->amount > 0 )
+                buf_printf(b, " <span class=\"note\">(+%d quest point%s)</span>", e->amount,
+                           e->amount == 1 ? "" : "s");
+        }
+        else
+            buf_esc(b, e->label);
+        buf_puts(b, "</td></tr>");
+    }
+    buf_puts(b, "</tbody></table></div></section>\n");
 }
 
 static void
@@ -1181,10 +1043,7 @@ page_player(
 {
     struct SiteBuf b;
     struct SitePlayer p;
-    struct SitePlayer* all;
-    int all_count;
     int mine;
-    struct ToriRSServerHistory* history = NULL;
     long long now = (long long)time(NULL);
 
     if( !player_read(key, &p) )
@@ -1196,7 +1055,6 @@ page_player(
         page_send(&b, res, 404);
         return;
     }
-    all_count = players_all(&all);
     mine = owns(gate, who, p.key);
     page_begin(&b, gate, who, p.name, "/hiscores");
     buf_puts(&b, "<div class=\"title\"><h1>");
@@ -1210,57 +1068,58 @@ page_player(
     buf_num(&b, p.total_xp);
     buf_puts(&b, "</b><span>Total XP</span></div>");
     buf_printf(&b, "<div class=\"tile\"><b>%d</b><span>Quest points</span></div>", p.quest_points);
-    buf_printf(&b, "<div class=\"tile\"><b>#%d</b><span>Overall rank</span></div>",
-               rank_of(all, all_count, &p, -1));
+    buf_puts(&b, "<div class=\"tile\"><b>");
+    buf_rank(&b, ToriRSServer_AccountsRank(p.id, TORIRSSERVER_ACCOUNTS_OVERALL), "#");
+    buf_puts(&b, "</b><span>Overall rank</span></div>");
     buf_puts(&b, "<div class=\"tile\"><b>");
     buf_ago(&b, p.saved_at, now);
     buf_puts(&b, "</b><span>Last played</span></div></div>\n");
 
     /* An owner's history: the chart across the page, the tables beside the
-     * skills. ~106 KB, so off the stack. */
+     * skills. */
     if( mine )
     {
-        history = ToriMem_Alloc(ToriMem_Net(), sizeof(struct ToriRSServerHistory));
-        assert(history);
-        ToriRSServer_HistoryRead(p.key, history);
         buf_puts(&b, "<section class=\"panel\" style=\"margin:0 0 24px\"><h2>Total experience"
                      "</h2>");
-        history_chart(&b, history);
+        history_chart(&b, &p);
         buf_puts(&b, "</section>\n");
     }
+    /* Everyone's adventure log is public, except staff's: theirs is only on
+     * their own page. */
+    if( !p.admin || mine )
+        adventure_log(&b, &p);
     buf_puts(&b, "<div class=\"grid\">\n");
 
     buf_puts(&b, "<section class=\"panel\"><h2>Skills</h2><div class=\"scroll\"><table><thead>"
                  "<tr><th>Skill</th><th class=\"num\">Rank</th><th class=\"num\">Level</th>"
                  "<th class=\"num\">XP</th></tr></thead><tbody>");
-    buf_printf(&b, "<tr><td><a href=\"/hiscores\"><b>Overall</b></a></td><td class=\"num\">%d</td>"
-                   "<td class=\"num\">%d</td><td class=\"num\">",
-               rank_of(all, all_count, &p, -1), p.total_level);
+    buf_puts(&b, "<tr><td><a href=\"/hiscores\"><b>Overall</b></a></td><td class=\"num\">");
+    buf_rank(&b, ToriRSServer_AccountsRank(p.id, TORIRSSERVER_ACCOUNTS_OVERALL), "");
+    buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">", p.total_level);
     buf_num(&b, p.total_xp);
     buf_puts(&b, "</td></tr>");
     for( int s = 0; s < SITE_SKILLS; s++ )
     {
-        buf_printf(&b, "<tr><td><a href=\"/hiscores?skill=%d\">%s</a></td><td class=\"num\">%d</td>"
-                       "<td class=\"num\">%d</td><td class=\"num\">",
-                   s, k_skill_names[s], rank_of(all, all_count, &p, s), p.level[s]);
+        buf_printf(&b, "<tr><td><a href=\"/hiscores?skill=%d\">%s</a></td><td class=\"num\">", s,
+                   k_skill_names[s]);
+        buf_rank(&b, ToriRSServer_AccountsRank(p.id, s), "");
+        buf_printf(&b, "</td><td class=\"num\">%d</td><td class=\"num\">", p.level[s]);
         buf_num(&b, p.xp[s]);
         buf_puts(&b, "</td></tr>");
     }
     buf_puts(&b, "</tbody></table></div></section>\n");
 
     buf_puts(&b, "<section class=\"panel\">");
-    if( history )
+    if( mine )
     {
-        history_gains(&b, history, &p);
-        history_sessions(&b, history);
-        ToriMem_Free(ToriMem_Net(), history);
+        history_gains(&b, &p);
+        history_sessions(&b, &p);
     }
     else
         buf_puts(&b, "<h2>History</h2><p>Session history is private to the login this account "
                      "is linked to.</p><p class=\"note\">Your own linked accounts show their "
                      "sessions, play time and experience gained here.</p>");
     buf_puts(&b, "</section>\n</div>\n");
-    ToriMem_Free(ToriMem_Net(), all);
     page_send(&b, res, 200);
 }
 

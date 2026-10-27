@@ -4835,6 +4835,17 @@ struct ToriRSServerPlayer
      */
     int account_admin;
 
+    /**
+     * The account site's view of this player (torirs_server_accountlog.h),
+     * kept only when the world has an `account_log`: the stats and quest
+     * points as last queued, which the periodic flush compares against, and
+     * the session's start and the experience it started with.
+     */
+    int account_log_xp_tenths[TORIRSSERVER_STAT_COUNT];
+    int account_log_quest_points;
+    long long account_log_session_start;
+    int account_log_session_xp_tenths[TORIRSSERVER_STAT_COUNT];
+
     /*
      * `display_name` packed base 37 — the key everything social is filed under.
      *
@@ -5448,6 +5459,14 @@ struct ToriRSServer
      * (`--dev`, TORIRSSERVER_DEV, the dev_/alt_/bank_torirsserver builds).
      */
     int check_passwords;
+
+    /**
+     * The account database's queue (torirs_server_accountlog.h): logins,
+     * stats, logouts and adventure log lines, emptied by the socket host after
+     * every tick. NULL records nothing; torirs_server_main.c makes one only
+     * for a world that checks passwords.
+     */
+    struct ToriRSServerAccountLog* account_log;
 
     /**
      * Behind io_server's sign-in gate (`--gate`, TORIRSSERVER_GATE=1;

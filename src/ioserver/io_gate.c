@@ -6,6 +6,7 @@
 #include "io_site.h"
 
 #include "mem/torirs_mem.h"
+#include "torirsserver/torirs_server_accounts.h"
 #include "torirsserver/torirs_server_auth.h"
 #include "torirsserver/torirs_server_oauth.h"
 #include "torirsserver/torirs_server_savefile.h"
@@ -1320,6 +1321,9 @@ IoGate_Init(
     snprintf(gate->landing, sizeof(gate->landing), "%s", landing);
     ToriRSServer_GateKeyLoad();
     ToriRSServer_OAuthKeyLoad();
+    /* The web logins, invites and hiscores (torirs_server_accounts.h): opened
+     * now, so a database that cannot be opened stops the gate at boot. */
+    ToriRSServer_AccountsOpen();
     {
         char path[1024];
 

@@ -27,6 +27,7 @@
 #include <assert.h>
 
 #include "torirs_server.h"
+#include "torirs_server_accountlog.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_packcheck.h"
 
@@ -5832,6 +5833,37 @@ script_command(
             return 1;
         }
         ToriRSServer_SendMessageTyped(player, (int)type, text);
+        return 1;
+    }
+
+    /*
+     * `[command,adventure_log](int $kind, int $amount, string $label)` -- a
+     * line of the active player's adventure log on the account site
+     * (torirs_server_accountlog.h). Content decides what deserves one; a world
+     * with no account log (no password check) records nothing.
+     */
+    case SS_OP_ADVENTURE_LOG:
+    {
+        int32_t kind;
+        int32_t amount;
+        const char* label;
+
+        if( !SSVM_PopStr(state, &label) || !SSVM_PopInt(state, &amount) ||
+            !SSVM_PopInt(state, &kind) )
+            return 1;
+        if( !player )
+        {
+            SSVM_Abort(state, "adventure_log with no active player");
+            return 1;
+        }
+        if( kind != TORIRSSERVER_ADVENTURE_QUEST )
+        {
+            SSVM_Abort(state, "adventure_log %d: not a kind the engine knows", (int)kind);
+            return 1;
+        }
+        if( srv->account_log )
+            ToriRSServer_AccountLogEvent(srv->account_log, player, (long long)time(NULL),
+                                         (enum ToriRSServerAdventureKind)kind, (int)amount, label);
         return 1;
     }
 

@@ -457,22 +457,6 @@ auth_write_record(
     return ToriRSServer_SaveWriteText(path, text);
 }
 
-static int
-auth_write_gate_record(
-    const char* path,
-    const char* record)
-{
-    char text[512];
-
-    snprintf(text, sizeof(text),
-             "; A web login for the sign-in gate, made from an invite. Not a player\n"
-             "; account: it only opens the page. Delete it to revoke the login.\n"
-             "\n[account]\n"
-             "password = %s\n",
-             record);
-    return ToriRSServer_SaveWriteText(path, text);
-}
-
 const char*
 ToriRSServer_AuthNameProblem(const char* display_name)
 {
@@ -602,31 +586,6 @@ ToriRSServer_AuthLogin(
     if( !auth_write_record(path, record, 0, "", "") )
         return TORIRSSERVER_AUTH_REFUSED;
     return TORIRSSERVER_AUTH_CLAIMED;
-}
-
-enum ToriRSServerAuthResult
-ToriRSServer_GateLogin(
-    const char* name,
-    const char* password)
-{
-    char path[1024];
-    struct AuthFile file;
-    int have;
-    int ok;
-
-    assert(name);
-    assert(password);
-
-    snprintf(path, sizeof(path), "%s", ToriRSServer_GateAccountPath(name));
-    if( !path[0] || !password[0] )
-        return TORIRSSERVER_AUTH_UNUSABLE;
-    /* Never a claim: every web login was made by an invite. */
-    have = auth_read_record(path, &file);
-    if( have <= 0 )
-        return TORIRSSERVER_AUTH_REFUSED;
-    ok = ToriRSServer_AuthVerify(password, file.password);
-    auth_wipe(&file, sizeof(file));
-    return ok ? TORIRSSERVER_AUTH_OK : TORIRSSERVER_AUTH_REFUSED;
 }
 
 int
@@ -817,134 +776,6 @@ ToriRSServer_AuthLinkVerify(
          strlen(file.link_hash) == TORIRSSERVER_LINK_TOKEN_HEX && diff == 0;
     auth_wipe(&file, sizeof(file));
     return ok;
-}
-
-/* ------------------------------------------------------------------ */
-/* Invites                                                             */
-/* ------------------------------------------------------------------ */
-
-/* `<saves>/gate/invites/<code>.ini`, or "" when `code` is not exactly a
- * code's worth of lowercase hex -- it arrives in a URL, so it is a path
- * component an attacker chose. */
-static void
-auth_invite_path(
-    const char* code,
-    char* out,
-    size_t cap)
-{
-    size_t len = strlen(code);
-
-    out[0] = '\0';
-    if( len != TORIRSSERVER_INVITE_CODE_BYTES * 2 )
-        return;
-    for( size_t i = 0; i < len; i++ )
-        if( !isdigit((unsigned char)code[i]) && (code[i] < 'a' || code[i] > 'f') )
-            return;
-    snprintf(out, cap, "%s/gate/invites/%s.ini", ToriRSServer_SaveDir(), code);
-}
-
-int
-ToriRSServer_InviteCreate(
-    const char* name,
-    char out_code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1])
-{
-    uint8_t bytes[TORIRSSERVER_INVITE_CODE_BYTES];
-    char path[1024];
-    char text[256];
-
-    assert(!name || !ToriRSServer_AuthNameProblem(name));
-    assert(out_code);
-    auth_random(bytes, sizeof(bytes));
-    auth_hex(bytes, sizeof(bytes), out_code);
-    auth_invite_path(out_code, path, sizeof(path));
-    assert(path[0]);
-    snprintf(text, sizeof(text),
-             "; A ToriRS sign-in gate invite. Redeemed (and deleted) at\n"
-             "; /invite/<this file's name>; it makes a web login, not a player.\n"
-             "\n[invite]\n%s%s%s",
-             name ? "name = " : "", name ? name : "", name ? "\n" : "");
-    return ToriRSServer_SaveWriteText(path, text);
-}
-
-int
-ToriRSServer_InviteLookup(
-    const char* code,
-    char* out_name,
-    size_t cap)
-{
-    char path[1024];
-    struct AuthFile file;
-
-    assert(code);
-    assert(out_name);
-    auth_invite_path(code, path, sizeof(path));
-    if( !path[0] || auth_read_file(path, "invite", &file) <= 0 )
-        return 0;
-    snprintf(out_name, cap, "%s", file.name);
-    return 1;
-}
-
-enum ToriRSServerInviteResult
-ToriRSServer_InviteRedeem(
-    const char* code,
-    const char* name,
-    const char* password,
-    const char** out_problem)
-{
-    char invite_path[1024];
-    char account_path[1024];
-    char record[TORIRSSERVER_AUTH_RECORD_MAX];
-    char want[64];
-    char got[64];
-    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
-    struct AuthFile invite;
-    struct AuthFile existing;
-    const char* problem;
-
-    assert(code);
-    assert(name);
-    assert(password);
-    assert(out_problem);
-    *out_problem = NULL;
-
-    auth_invite_path(code, invite_path, sizeof(invite_path));
-    if( !invite_path[0] || auth_read_file(invite_path, "invite", &invite) <= 0 )
-        return TORIRSSERVER_INVITE_UNKNOWN;
-    if( invite.name[0] )
-    {
-        ToriRSServer_SaveFileName(invite.name, want, sizeof(want));
-        ToriRSServer_SaveFileName(name, got, sizeof(got));
-        if( strcmp(want, got) != 0 )
-            return TORIRSSERVER_INVITE_WRONG_NAME;
-    }
-    problem = ToriRSServer_AuthNameProblem(name);
-    if( problem )
-    {
-        *out_problem = problem;
-        return TORIRSSERVER_INVITE_BAD_NAME;
-    }
-    snprintf(account_path, sizeof(account_path), "%s", ToriRSServer_GateAccountPath(name));
-    assert(account_path[0]); /* AuthNameProblem passed, so the name has a letter */
-    if( auth_read_record(account_path, &existing) != 0 )
-        return TORIRSSERVER_INVITE_NAME_TAKEN;
-    problem = ToriRSServer_AuthPasswordProblem(name, password);
-    if( problem )
-    {
-        *out_problem = problem;
-        return TORIRSSERVER_INVITE_WEAK;
-    }
-
-    auth_random(salt, sizeof(salt));
-    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
-    if( !auth_write_gate_record(account_path, record) )
-        return TORIRSSERVER_INVITE_WRITE_FAILED;
-    /* The login exists now, so an invite that cannot be deleted is one that
-     * can be spent twice -- on another name. Loud, not fatal: the login the
-     * visitor just made is real. */
-    if( remove(invite_path) != 0 )
-        fprintf(stderr, "torirsserver: INVITE %s WAS REDEEMED BUT NOT DELETED: %s\n",
-                invite_path, strerror(errno));
-    return TORIRSSERVER_INVITE_OK;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1226,30 +1057,6 @@ ToriRSServer_AuthCreate(
     ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
     return auth_write_record(path, record, admin, "", "") ? TORIRSSERVER_CREATE_OK
                                                           : TORIRSSERVER_CREATE_WRITE_FAILED;
-}
-
-enum ToriRSServerCreateResult
-ToriRSServer_GateLoginCreate(
-    const char* name,
-    const char* password,
-    const char** out_problem)
-{
-    char path[1024];
-    char record[TORIRSSERVER_AUTH_RECORD_MAX];
-    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
-    enum ToriRSServerCreateResult result;
-
-    assert(name);
-    assert(password);
-    assert(out_problem);
-    snprintf(path, sizeof(path), "%s", ToriRSServer_GateAccountPath(name));
-    result = auth_create_check(name, password, path, out_problem);
-    if( result != TORIRSSERVER_CREATE_OK )
-        return result;
-    auth_random(salt, sizeof(salt));
-    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
-    return auth_write_gate_record(path, record) ? TORIRSSERVER_CREATE_OK
-                                                : TORIRSSERVER_CREATE_WRITE_FAILED;
 }
 
 int

@@ -17,8 +17,9 @@
  *   anything else          the game's own routes, with a good ticket; without
  *                          one a GET goes to /login and the rest are 401
  *
- * The logins are web logins, not players: records in `<saves>/gate/`
- * (TORIRSSERVER_SAVES; torirs_server_auth.h) that come only from invites. Past
+ * The logins are web logins, not players: rows of the account database
+ * (`<saves>/accounts.sqlite`, TORIRSSERVER_SAVES; torirs_server_accounts.h)
+ * that come only from invites and the operator. Past
  * the page the game asks for a player account of its own. The ticket is the
  * one torirsserver checks on the game WebSocket, under the key file both
  * processes load, so a signed-in browser reaches the game's socket and nobody

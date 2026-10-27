@@ -9,6 +9,7 @@
 #include <signal.h>
 
 #include "torirs_server.h"
+#include "torirs_server_accounts.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_claim.h"
 #include "torirs_server_session.h"
@@ -513,6 +514,9 @@ host_logout_everyone(struct ToriRSServerHost* host)
             "torirsserver: shutting down — saving %d player(s)\n",
             live);
     host_drain_queue(host);
+    /* Their logouts, which the loop will not reach to write. */
+    if( host->srv->account_log )
+        ToriRSServer_AccountsApply(host->srv->account_log);
 }
 
 /* ------------------------------------------------------------------ */
@@ -674,6 +678,10 @@ ToriRSServer_HostRun(
              */
             if( host->srv->world_built )
                 ToriRSServer_WorldTick(host->srv);
+            /* What the tick and the logins/logouts drained above told the
+             * account database (torirs_server_accountlog.h). */
+            if( host->srv->account_log )
+                ToriRSServer_AccountsApply(host->srv->account_log);
 
             /* Anchor to the schedule rather than to "now", so a slow tick does
              * not push every later tick out. */

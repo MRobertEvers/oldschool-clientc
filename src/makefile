@@ -1011,7 +1011,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_shop.c \
 	torirsserver/torirs_server_friends.c \
 	torirsserver/torirs_server_ids.c \
-	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_history.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
+	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_savefile.c torirsserver/torirs_server_history.c torirsserver/torirs_server_accountlog.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c torirsserver/torirs_server_claim.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c net/flat_json.c content/content_register.c content/content_fields.c $(INI_SRC) \
 	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	world/wev.c \
@@ -1572,6 +1572,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
 	pokesprite/pokesprite_store.c $(INI_SRC) \
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_history.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
+	torirsserver/torirs_server_accounts.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
 # The 2D client's sheet store is indexed by sqlite (pokesprite_store.c).
 IO_SERVER_SQLITE_LIBS := -lsqlite3
@@ -4964,7 +4965,13 @@ test-revconfig: $(OBJ_DIR)
 # list is also what EMBED_SERVER=1 links into the client, which has no listener
 # and drives ToriRSServer_EmbedPump itself.
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
+	torirsserver/torirs_server_accounts.c \
 	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
+# The account database (torirs_server_accounts.c: hiscores, history, the gate's
+# logins) is sqlite, and standalone only: the core list above is also the
+# embedded client's and the browser build's, which have no sqlite and keep no
+# accounts -- their worlds have no `account_log`.
+TORIRSSERVER_SQLITE_LIBS := -lsqlite3
 # --scriptrun (torirsserver/torirs_server_scriptrun.c): the in-process script
 # runner, standalone server only -- never TORIRSSERVER_CORE_SRCS, which the
 # embedded client also compiles and which would then carry a second copy of the
@@ -5053,7 +5060,7 @@ $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/is
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
 		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o \
-		-lm $(JS5_SOCKET_LIBS)
+		-lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
 	@echo "built $(OBJ_DIR)/torirsserver"
 
 # ---- ToriRSMapEd -----------------------------------------------------------
@@ -5122,7 +5129,7 @@ torirsserver-dev: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
 	@echo "built $(OBJ_DIR)/dev_torirsserver"
 
 # MallocScribble is not a debugging flourish here, it is what makes this
@@ -5174,7 +5181,7 @@ torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tomm
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
 	@echo "built $(OBJ_DIR)/alt_torirsserver"
 
 test-torirsserver-alt: torirsserver-alt
@@ -5196,7 +5203,7 @@ torirsserver-bank: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tom
 		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \
-		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS)
+		$(OBJ_DIR)/rsprot_unity.o $(OBJ_DIR)/rsprot_packets_unity.o $(OBJ_DIR)/pkt_exec.o -lm $(JS5_SOCKET_LIBS) $(TORIRSSERVER_SQLITE_LIBS)
 	@echo "built $(OBJ_DIR)/bank_torirsserver"
 
 test-torirsserver-bank: torirsserver-bank
@@ -6729,8 +6736,8 @@ test-torirsserver-reconnect-claim: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o 
 test-torirsserver-login-password: $(OBJ_DIR) $(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/ToriRSServer_LoginPasswordTest \
 		torirsserver/test/login_password_test.c $(filter-out net/proto/proto_info.c torirsserver/wire/osrs241_clientprot.c,$(TORIRSSERVER_CORE_SRCS)) \
-		net/net_out.c \
-		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm
+		net/net_out.c torirsserver/torirs_server_accounts.c \
+		$(NET_CORE_OBJS) $(OBJ_DIR)/net.o $(OBJ_DIR)/cmdring.o -lm $(TORIRSSERVER_SQLITE_LIBS)
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/ToriRSServer_LoginPasswordTest
 
 # mDNS response parser: name compression (including a pointer chain and a

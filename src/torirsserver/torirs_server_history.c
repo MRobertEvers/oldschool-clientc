@@ -1,12 +1,11 @@
 /*
- * Session history. See torirs_server_history.h.
+ * The old session history files, read once. See torirs_server_history.h.
  */
 #include "torirs_server_history.h"
 
 #include "torirs_server_savefile.h"
 
 #include <assert.h>
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,64 +29,6 @@ ToriRSServer_HistoryPath(const char* display_name)
     }
     snprintf(path, sizeof(path), "%s/history/%s.log", ToriRSServer_SaveDir(), name);
     return path;
-}
-
-/* One line, written whole with a single fwrite so a concurrent reader sees it
- * complete or not at all. */
-static void
-history_append(
-    const char* display_name,
-    const char* line)
-{
-    char path[1024];
-    FILE* file;
-    size_t len = strlen(line);
-
-    snprintf(path, sizeof(path), "%s", ToriRSServer_HistoryPath(display_name));
-    if( !path[0] )
-        return;
-    ToriRSServer_SaveMkdirParent(path);
-    file = fopen(path, "ab");
-    if( !file )
-    {
-        fprintf(stderr, "torirsserver: history: cannot open %s: %s\n", path, strerror(errno));
-        return;
-    }
-    if( fwrite(line, 1, len, file) != len )
-        fprintf(stderr, "torirsserver: history: short write to %s\n", path);
-    fclose(file);
-}
-
-void
-ToriRSServer_HistoryLogin(
-    const char* display_name,
-    long long now)
-{
-    char line[64];
-
-    assert(display_name);
-    snprintf(line, sizeof(line), "%lld login\n", now);
-    history_append(display_name, line);
-}
-
-void
-ToriRSServer_HistoryLogout(
-    const char* display_name,
-    long long now,
-    const int xp_tenths[TORIRSSERVER_HISTORY_STATS])
-{
-    char line[64 + TORIRSSERVER_HISTORY_STATS * 12];
-    size_t used;
-
-    assert(display_name);
-    assert(xp_tenths);
-    used = (size_t)snprintf(line, sizeof(line), "%lld logout", now);
-    for( int i = 0; i < TORIRSSERVER_HISTORY_STATS; i++ )
-        used += (size_t)snprintf(line + used, sizeof(line) - used, " %d", xp_tenths[i]);
-    assert(used + 2 < sizeof(line));
-    line[used++] = '\n';
-    line[used] = '\0';
-    history_append(display_name, line);
 }
 
 /* One line into `out`; 0 for a line that is not an entry (torn, foreign). */

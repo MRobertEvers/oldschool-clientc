@@ -284,13 +284,19 @@ URL given to `--gate`. torirsserver reads the same cookie off the upgrade
 request; the two processes share only the key, `<saves>/gate/gate.key`, which
 whichever starts first writes.
 
-**Two accounts, unrelated.** The gate's login is a *web login*, kept in
-`<saves>/gate/<name>.ini` and made only from an invite:
+**Two accounts, unrelated.** The gate's login is a *web login*, kept in the
+account database (`<saves>/accounts.sqlite`, `torirs_server_accounts.h`) with
+the invites, and made only from an invite or by the operator:
 
 ```sh
 TORIRSSERVER_SAVES=saves TORIRSSERVER_GATE_URL=https://torirs.example.com \
     torirsserver --account invite [name]      # prints the link; one use
+torirsserver --account revoke <login>         # it cannot sign in again
 ```
+
+The database's first open imports what the files held before it --
+`<saves>/gate/<name>.ini`, `gate/invites/<code>.ini`, every save's stats and
+each `history/<name>.log` -- and nothing reads those files again.
 
 Past the page, the game asks for a *player account* (`<saves>/accounts/`) the
 usual way: the first login claims a name. Both are held to the same password
@@ -303,7 +309,7 @@ wrong passwords for one web login lock it for ten minutes.
 the binary on stdin, never as an argument): `create-admin <name>`,
 `create-player <name>`, `admin <name> on|off`, `password <name>`,
 `unlink <name>`, `create-login <name>` (a web login without an invite),
-`invite [name]` and `list`. It runs beside the live servers: every record is
+`revoke-login <name>`, `invite [name]` and `list`. It runs beside the live servers: every record is
 read again at each login.
 
 **Staff.** `torirsserver --account admin <name> on` sets `admin = 1` on a
@@ -403,17 +409,24 @@ still the landing URL given to `--gate` (`/?args=...`), which every page's
 | page | what it shows |
 | --- | --- |
 | `/` | Play Now, this login's linked accounts, the top five players |
-| `/hiscores[?skill=N]` | everyone ranked overall (total level, then XP) or by one skill, with a player search |
-| `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, and every skill's level, XP and rank. For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
+| `/hiscores[?skill=N&page=P]` | everyone ranked overall (total level, then XP) or by one skill, 50 to a page, with a player search |
+| `/players/<name>` | combat and total level, total XP, quest points, overall rank, last played, every skill's level, XP and rank, and the adventure log (quests completed). For an account linked to the viewer, also total XP over time (SVG), XP gained over the last day, week and month, and the recent sessions with their length, XP gained and most-trained skill |
 | `/account` | the linked accounts (Stats, Unlink) and a form to link another one with its name and password, under the same rules as the game's Link account |
 
-Stats come straight from the character saves (`[stats]`, and varp 101 for
-quest points), so every player is on the hiscores. A session history is
-private to the login its account is linked to.
+**Hiscores and history live in the account database**, which a world that
+checks passwords keeps (`torirs_server_accountlog.h`). The world queues a
+record when a login finishes, once a minute per player when the stats moved
+(compared, not hooked, so every writer of experience is seen), at the logout
+save, and for each `adventure_log` line content writes (a completed quest,
+from `~quest_complete_rewards_at`); the socket host writes the queue after each
+tick in one transaction. A session dropped before its scene loaded records
+nothing. The site reads it with prepared queries -- a page of the hiscores is a
+range of one index, a rank a count along it -- and never lists the saves.
 
-**History.** A world that checks passwords appends to
-`<saves>/history/<name>.log` (`torirs_server_history.h`): a `login` line when
-a login finishes, and a `logout` line carrying the whole stat table as saved.
-A session dropped before its scene loaded writes neither line. The file is
-append-only text, and the site reads its newest 512 entries. An account's
-history starts with its first logout after this was deployed.
+Staff (`admin = 1` in the account record) are not ranked: they appear on no
+hiscore list and push nobody down, and their adventure log shows only on their
+own page. The flag is read at every login, and `--account admin` and `--account
+create ... admin` apply it at once. Experience over time is kept per day: a
+stat's row for each day it changed, so a gain over a day, a week or a month is
+one lookup per skill. Session history is private to the login its account is
+linked to.

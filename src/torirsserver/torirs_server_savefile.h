@@ -12,9 +12,11 @@
  *   <TORIRSSERVER_SAVES, default "saves">/
  *     <name>.ini                 the character (torirs_server_save.h)
  *     accounts/<name>.ini        the player account: password and privileges
- *     gate/<name>.ini            a web login for io_server's sign-in gate --
- *                                a separate account, not a player
- *     gate/invites/<code>.ini    an unredeemed invite to make one
+ *     accounts.sqlite            web logins for io_server's sign-in gate (a
+ *                                separate account, not a player), invites,
+ *                                hiscores, history (torirs_server_accounts.h)
+ *     gate/<name>.ini            before accounts.sqlite: a web login, and
+ *     gate/invites/<code>.ini    an invite; imported once, read no more
  *     gate/gate.key              the key the gate's ticket is signed with
  */
 
@@ -58,10 +60,10 @@ const char*
 ToriRSServer_AccountPath(const char* display_name);
 
 /**
- * Where a web login for the sign-in gate lives: `<save dir>/gate/<name>.ini`,
- * sanitised the same way. Not a player account: the gate's accounts only open
- * the page, and the game then asks for a player account of its own.
- * Static storage; "" for an unusable name.
+ * Where a web login for the sign-in gate lived before the account database:
+ * `<save dir>/gate/<name>.ini`, sanitised the same way. Only the database's
+ * one-time import reads it (torirs_server_accounts.h). Static storage; "" for
+ * an unusable name.
  */
 const char*
 ToriRSServer_GateAccountPath(const char* name);

@@ -479,6 +479,7 @@ on the command line):
     ./torirsctl password <name>         new password for a player account
     ./torirsctl unlink <name>           release a player from its web login
     ./torirsctl create-login <name>     new web login (the sign-in gate)
+    ./torirsctl revoke-login <name>     delete a web login
     ./torirsctl invite [name]           one-time link to make a web login
     ./torirsctl list                    every account
 
@@ -511,6 +512,7 @@ TORIRSCTL = r"""#!/usr/bin/env bash
 #   ./torirsctl password <name>         new password for a player account
 #   ./torirsctl unlink <name>           release a player from its web login
 #   ./torirsctl create-login <name>     new web login (site + game page)
+#   ./torirsctl revoke-login <name>     delete a web login: it cannot sign in
 #   ./torirsctl invite [name]           one-time link to make a web login
 #   ./torirsctl list                    every account
 #
@@ -577,6 +579,9 @@ case "$command" in
     create-login)
         [ $# -eq 1 ] || usage
         with_password "$1" login "$1" ;;
+    revoke-login)
+        [ $# -eq 1 ] || usage
+        "$BIN" --account revoke "$1" ;;
     invite)
         [ $# -le 1 ] || usage
         "$BIN" --account invite "$@" ;;

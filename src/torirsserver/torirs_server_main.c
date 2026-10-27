@@ -45,6 +45,8 @@
 #include "mem/torirs_mem_libs.h"
 #include "torirs_server.h"
 
+#include "torirs_server_accountlog.h"
+#include "torirs_server_accounts.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_container.h"
@@ -120,9 +122,10 @@ on_stop_signal(int sig)
 
 /*
  * `torirsserver --account ...`: the operator's side of the sign-in gate
- * (torirs_server_auth.h). Touches only `<saves>/accounts/` and
- * `<saves>/gate/`, so it runs beside a live world without loading one; the
- * world reads a record at each login, so a change applies at the next one.
+ * (torirs_server_auth.h). Touches only `<saves>/accounts/` and the account
+ * database (`<saves>/accounts.sqlite`, torirs_server_accounts.h), so it runs
+ * beside a live world without loading one; the world reads a record at each
+ * login, so a change applies at the next one.
  * torirsctl (the deploy package's) is the friendly face of these.
  *
  * A password is never an argument (it would sit in `ps` and the shell's
@@ -136,12 +139,17 @@ on_stop_signal(int sig)
  *                                     outright, without an invite
  *   --account list                    every player account (admin, linked
  *                                     to) and every web login
+ *   --account revoke <login>          delete a web login: it cannot sign in
+ *                                     again (a ticket already issued lasts
+ *                                     until it expires)
  *   --account invite [name]           print a one-time invite to make a web
  *                                     login for the gate; with a name only
  *                                     that name can redeem it
  *   --account admin <name> on|off     set or clear a PLAYER account's admin
  *                                     flag (staff: jmod crown, cheats); it
- *                                     takes effect at the next login
+ *                                     takes effect at the next login, except
+ *                                     on the hiscores, which drop or list the
+ *                                     player at once
  *   --account unlink <name>           release a PLAYER account from the web
  *                                     login it is linked to: its own password
  *                                     signs it in again
@@ -241,6 +249,10 @@ account_command(
                     account_create_problem(result, problem));
             return 1;
         }
+        /* A character saved before its account was made may already be on
+         * the hiscores: staff come off them now. */
+        if( argc == 5 )
+            ToriRSServer_AccountsSetRanked(argv[3], 0);
         fprintf(stderr, "torirsserver: player account '%s' created%s\n", argv[3],
                 argc == 5 ? " as an admin (staff)" : "");
         return 0;
@@ -293,9 +305,18 @@ account_command(
         printf("player accounts (%s/accounts):\n", ToriRSServer_SaveDir());
         snprintf(dir, sizeof(dir), "%s/accounts", ToriRSServer_SaveDir());
         account_each_record(dir, account_list_player);
-        printf("web logins (%s/gate):\n", ToriRSServer_SaveDir());
-        snprintf(dir, sizeof(dir), "%s/gate", ToriRSServer_SaveDir());
-        account_each_record(dir, account_list_login);
+        printf("web logins (%s):\n", ToriRSServer_AccountsPath());
+        ToriRSServer_GateLoginEach(account_list_login);
+        return 0;
+    }
+    if( argc == 4 && strcmp(argv[2], "revoke") == 0 )
+    {
+        if( !ToriRSServer_GateLoginRevoke(argv[3]) )
+        {
+            fprintf(stderr, "torirsserver: there is no web login '%s'\n", argv[3]);
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: web login '%s' revoked\n", argv[3]);
         return 0;
     }
     if( argc >= 3 && argc <= 4 && strcmp(argv[2], "invite") == 0 )
@@ -309,11 +330,10 @@ account_command(
             fprintf(stderr, "torirsserver: '%s': %s\n", name, ToriRSServer_AuthNameProblem(name));
             return 1;
         }
-        if( !ToriRSServer_InviteCreate(name, code) )
-            return 1;
+        ToriRSServer_InviteCreate(name, code);
         printf("%s/invite/%s\n", base ? base : "", code);
-        fprintf(stderr, "torirsserver: web login invite for %s, in %s/gate/invites/\n",
-                name ? name : "a name of the visitor's choosing", ToriRSServer_SaveDir());
+        fprintf(stderr, "torirsserver: web login invite for %s, in %s\n",
+                name ? name : "a name of the visitor's choosing", ToriRSServer_AccountsPath());
         return 0;
     }
     if( argc == 5 && strcmp(argv[2], "admin") == 0 &&
@@ -327,6 +347,8 @@ account_command(
                     ToriRSServer_AccountPath(argv[3]));
             return 1;
         }
+        /* The hiscores now, not at the next login: staff are not ranked. */
+        ToriRSServer_AccountsSetRanked(argv[3], !admin);
         fprintf(stderr, "torirsserver: '%s' admin %s\n", argv[3], admin ? "on" : "off");
         return 0;
     }
@@ -374,10 +396,11 @@ main(
                             "       %s --account password <name>         (password on stdin)\n"
                             "       %s --account login <name>            (password on stdin)\n"
                             "       %s --account list\n"
+                            "       %s --account revoke <login>\n"
                             "       %s --account invite [name]\n"
                             "       %s --account admin <name> on|off\n"
                             "       %s --account unlink <name>\n",
-                    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+                    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
         return status;
     }
     /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0
@@ -610,6 +633,17 @@ main(
             fprintf(stderr, "torirsserver: %s\n",
                     dev ? "development mode: logins do not check passwords"
                         : "logins check passwords (accounts in <saves>/accounts/)");
+        /* A world whose accounts mean something keeps hiscores and history
+         * (torirs_server_accounts.h). Opened now, so a database that cannot
+         * be opened, or the one-time import of the old files, happens at
+         * boot rather than at the first login. */
+        if( srv.check_passwords && !selftest && !botrun && !scriptrun )
+        {
+            ToriRSServer_AccountsOpen();
+            srv.account_log = ToriRSServer_AccountLogCreate();
+            fprintf(stderr, "torirsserver: hiscores and history in %s\n",
+                    ToriRSServer_AccountsPath());
+        }
     }
     {
         /* `--gate` or TORIRSSERVER_GATE=1: behind io_server's sign-in gate
@@ -689,6 +723,9 @@ main(
 
     status = ToriRSServer_HostRun(&srv, &config, listener);
 
+    ToriRSServer_AccountLogFree(srv.account_log);
+    srv.account_log = NULL;
+    ToriRSServer_AccountsClose();
     ToriRSServer_BankShutdown(&srv);
     ToriRSServer_ContainerShutdown(&srv);
     ToriRSServer_ScriptsFree(&srv);

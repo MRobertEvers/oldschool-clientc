@@ -2,20 +2,17 @@
 #define SRC_TORIRSSERVER_TORIRS_SERVER_HISTORY_H
 
 /*
- * A player account's session history: one line per login and per logout,
- * appended by torirsserver and read by the account site (io_server's
- * io_site.c), which is the only reason it exists.
+ * The session history files the account database replaced, read once.
  *
  *   <saves>/history/<name>.log
  *     1793112345 login
  *     1793114000 logout <xp_tenths of stat 0> ... <xp_tenths of stat 24>
  *
- * A logout carries the whole stat table as it was saved, so a session's gain
- * is the difference between two logouts and a skill's history is the column
- * over time. Append-only text: one write per line, so a crash leaves at worst
- * a torn last line, which the reader skips. Written only where passwords are
- * checked (a world whose accounts mean something); the embedded world, bots
- * and the selftest leave no history.
+ * torirsserver appended a line per login and per logout until the account
+ * database (torirs_server_accounts.h) took over: its first open imports each
+ * file into the per-day experience and the session table, and nothing writes
+ * these any more. The reader keeps the newest TORIRSSERVER_HISTORY_MAX
+ * entries and skips a torn line.
  */
 
 #include <stddef.h>
@@ -50,20 +47,6 @@ struct ToriRSServerHistory
  *  Static storage, overwritten by the next call. */
 const char*
 ToriRSServer_HistoryPath(const char* display_name);
-
-/** Append `<now> login`. A failure is logged and dropped: history is a record
- *  for the site, never a reason to refuse a login. */
-void
-ToriRSServer_HistoryLogin(
-    const char* display_name,
-    long long now);
-
-/** Append `<now> logout` with the stat table's experience in tenths. */
-void
-ToriRSServer_HistoryLogout(
-    const char* display_name,
-    long long now,
-    const int xp_tenths[TORIRSSERVER_HISTORY_STATS]);
 
 /** The newest entries of the name's history into `out`, oldest first. 0 entries
  *  when there is no file yet. */
