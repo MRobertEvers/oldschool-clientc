@@ -156,6 +156,34 @@ loose railing.", `railing_squeeze` (3844) with no delay and the exact move 15..9
 off two ticks later; all three crossings north. Ours had `human_into_sidestep` delay 30,
 one tick early, as a game message. Fixed.
 
+## Every teleport and maplink in the session
+
+Every player `[teleport]` in 4394, with what caused it:
+
+| R | what | ours | verdict |
+|---|---|---|---|
+| [226] [1386] [1974] | the loose railing | above | fixed |
+| [303] [1438] | Bolren's guided exits | `~tree_elkoy_guide` | fixed |
+| [311] [317] [1379] [1967] | Elkoy's Follow | `~tree_elkoy_guide` | fixed (missing) |
+| [325] | Varrock teleport tablet, broken at [321] | `[opheld1,poh_tablet_varrockteleport]` | **fixed: no standard tablet had a Break** |
+| [498] [640] | Ardougne teleport tablet, [494] [636] | the same | fixed |
+| [1309] | the crumbled wall | above | matched |
+| [1319] / [1335] | the stronghold's ladder up / laddertop down (2503,3252) | `~climb_ladder(±1)` | matched: up from standing, 828 on C, the move C+1 (ours [341] [342]); down after a walk, the face L+1, 827 L+2, the move L+3 (ours [362..364]) |
+| [1982..2048] | the village's five house ladders, up (`ladder_directional`) and down (`laddertop`, `laddertop_directional`, `laddertop_norim`), each ±1 plane on its own tile | all bound to `_climb_up_ladder` / `_climb_down_ladder`, no maplink row on any of the six tiles | matched (category and destination; not run) |
+| [1014] [1123] | the Molly random event | macro_evil_twin | the other session's |
+
+The tablets (`skill_magic/scripts/spells/teleport_tablet.rs2`, all three breaks the
+same): on the click `poh_smash_magic_tablet` (4069) delay 16 and synth
+`poh_tablet_break_teleport` (965) delay 15; C+2 `poh_absorb_tablet_magic` (678),
+`poh_absorb_tablet_teleport` (4071) and the tablet gone; C+4 the teleport, the seq
+cleared, `cam_reset`. Varrock lands on its spell's tile (3213,3424); Ardougne beside
+its spell's (2661,3301) at (2662,3301) and (2662,3302). Ours, `test/magic/
+teleport_tablets.lua` (6/6): [9] 4069/16 + 965/15, [11] 678 + 4071, [13] at
+(3213,3424); [22], [24], [26] at (2661,3301). Bound: Varrock, Lumbridge, Falador,
+Camelot, Ardougne, Watchtower, Kourend. Not bound: the house tablet (POH) and Fortis
+(no spell row). The Arceuus `teletab_*` above them still use the spell's cast
+animation: no recording here shows one broken.
+
 ## The battlefield (tree_battlefield.rs2)
 
 Nothing of it existed: the 134 spawned soldiers wandered. Recorded, ~1,400 ticks on
