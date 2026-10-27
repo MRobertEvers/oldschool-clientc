@@ -26,6 +26,9 @@ return {
     },
 
     run = function(t)
+        -- The wire audit's tick log (build/quest_gate/<run>/ticklog.tsv) against
+        -- RSProx index 4341 (docs/rsprox-analysis/quests/restless_ghost.md).
+        t.note(select(2, t.ticklog.start()))
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp107_prieststart",
             constants = {
@@ -38,7 +41,6 @@ return {
                 priest_spoken_ghost = 3,
                 priest_spoken_urhney = 2,
                 priest_started = 1,
-                restless_ghost_vanish_ticks = 2,
             },
             row = "quest_therestlessghost",
             display = "The Restless Ghost",
@@ -111,10 +113,14 @@ return {
             "choose:I'm looking for a quest!",
             "player:I'm looking for a quest.",
             "npc:That's lucky, I need someone t",
-            "player:Ok, let me help then.",
+            -- RSProx index 4341 [170..176]: the fixture is combat level 3
+            "mesbox:Before starting this quest, be aware that",
+            "options", "choose:Yes.",
+            "player:Okay, let me help then.",
             "npc:Thank you. The problem is, the",
             "npc:If you need any help, my frien",
-            "npc:I believe he is currently livi",
+            "npc:I believe he is currently living as a hermit in Lumbridge",
+            "npc:Exit the graveyard through the south gate",
             "npc:My name is Father Aereck by th",
             "player:Likewise.",
             "npc:Take care travelling through t",
@@ -146,7 +152,7 @@ return {
             "npc:(sigh)",
             "npc:Well, I can't go back and exor",
             "npc:Tell you what I can do though;",
-            "mesbox:Father Urhney hands you an amu",
+            "objbox:Father Urhney hands you an amu",
             "npc:It is an Amulet of Ghostspeak.",
             "npc:So called, because when you we",
             "npc:Maybe if you know what this ta",
@@ -158,6 +164,10 @@ return {
         t.ticks(3)
         t.check("inv_has_amulet", t.inv.expect_has("amulet_of_ghostspeak", 1))
         t.exec("equip_amulet", t.player.equip, "amulet_of_ghostspeak")
+        t.ticks(1)
+        local wr, wv = t.var.server("varb3732_wearing_ghost_speak_amulet")
+        t.check("equip_amulet.varbit", wr == "ok" and wv == 1,
+            "varb3732_wearing_ghost_speak_amulet after the equip -> " .. tostring(wv) .. " (" .. tostring(wr) .. "; want 1, RSProx index 4341 [328])")
 
         pass_door("shedOut", "farming_shed_poordoor", "farming_shed_poordoor", 3147, 3172, 3147, 3173, 3147, 3171,
             function(tt) return tt.z <= 3172 end, "outside the shed, z <= 3172")
@@ -170,7 +180,8 @@ return {
         -- Open the coffin in the Lumbridge Graveyard to spawn the ghost.
         t.exec("openCoffin", t.player.click_loc, "shutghostcoffin", 1)
 
-        t.ticks(3)
+        -- the lid at O+1, the coffin open at O+2, the ghost at O+4 (index 4341 [201..205])
+        t.ticks(6)
 
         -- Speak to the Ghost that appears whilst wearing your Ghostspeak Amulet.
         t.exec("speakToGhost", t.player.talk_to, "ghostx", 1)
@@ -190,14 +201,15 @@ return {
             "npc:I should think it is probably",
             "player:Do you know where this warlock",
             "npc:I think it was one of the warlocks",
-            "player:Ok. I will try and get",
+            "player:Ok. I will try and get the skull back for you, then you",
             "npc:Ooh, thank you",
             "npc:It is so dull being a ghost",
         })
 
         -- Search the coffin in the Lumbridge Graveyard to spawn the ghost.
         -- Try searching the open coffin variant
-        t.exec("searchCoffin", t.player.click_loc, "openghostcoffin_no_head", 1)
+        -- The open coffin is the multiloc `openghostcoffin` (15061, index 4341 [203]).
+        t.exec("searchCoffin", t.player.click_loc, "openghostcoffin", 1)
         -- searchCoffin's mesbox ("There's a skeleton without a skull in
         -- here.") is still open -- close it before moving on, or the next
         -- real click just dismisses this leftover page and
@@ -257,21 +269,30 @@ return {
                 .. (type(prayer_before) == "table" and tostring(prayer_before.experience) or tostring(prayer_before))
                 .. " (want 0: the fresh character has earned no prayer xp before the reward)")
 
-        -- The coffin was opened earlier (openCoffin) and never closed since, so it is
-        -- still the openghostcoffin_no_head loc -- use the skull on it to finish the
-        -- quest ([oplocu,openghostcoffin_no_head] -> priest_coffin_use_skull).
-        local coffin = t.player.by_symbol("loc", "openghostcoffin_no_head")
+        -- The coffin was opened earlier (openCoffin) and closes 300 ticks after (index
+        -- 4341 [203] -> [502]); open it again if it has, then use the skull on it.
+        local open_r = t.world.loc_near("openghostcoffin", 4)
+        if open_r ~= "ok" then
+            t.exec("reopenCoffin", t.player.click_loc, "shutghostcoffin", 1)
+            t.ticks(6)
+        end
+        -- The release (index 4341 [518..541]): the skull in, the copy, the ghost's
+        -- "Release! Thank you stranger..", the camera at 350 looking at 200, up to
+        -- 900 looking down at 25, out of the copy, the scroll three ticks on.
+        local coffin = t.player.by_symbol("loc", "openghostcoffin")
+        local scene_mark = t.cutscene.mark()
         t.exec("putSkullInCoffin", t.player.use_on, "ghostskull", coffin)
-        -- priest_coffin_use_skull opens a three-mesbox chain and queues the
-        -- actual completion (priest_quest_complete) at 0 ticks -- click
-        -- through the chain, then let the queued completion land (section 8:
-        -- completion is asynchronous, the settle tick is load-bearing).
-        t.exec("putSkullInCoffin-dialog", t.chat.play, {
-            "mesbox:You put the skull in the coffin.",
-            "mesbox:The ghost vanishes.",
-            "mesbox:You think you hear a faint voice",
-        })
-        t.ticks(3)
+        t.exec("putSkullInCoffin.cutscene", t.cutscene.await, "putSkullInCoffin", { since = scene_mark, quiet = 200, expect = {
+            { op = "moveto", height = 350 },
+            { op = "lookat", height = 200 },
+            { op = "moveto", height = 900 },
+            { op = "lookat", height = 25 },
+            { op = "reset" },
+        } })
+        t.ticks(5)
+        local back_r, back_at = t.world.tile()
+        t.check("putSkullInCoffin.back", back_r == "ok" and back_at.x == 3247 and back_at.z == 3193 and back_at.level == 0,
+            "after the scene -> " .. tile_text(back_r, back_at) .. " (want 3247,3193,0: index 4341 [538])")
 
         t.quest.expect_complete()
 
