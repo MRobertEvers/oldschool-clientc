@@ -1,6 +1,6 @@
 ---
 name: rsprox-content
-description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, cutscenes and cameras (instance copies, the lock/unlock frame, cam_moveto/cam_lookat/cam_shake/cam_reset, fades, the cast's walks and seqs; tools/rsprox/rsprox_cutscene.py drafts them), loc/obj/inventory interaction shapes (pickups, searches, use-on, locked and walk-through doors, ground items, notes), area-triggered scenes, player facing/movement/teleports/exactmove, damage (splats on the player, accuracy, max hits, prayer). Trigger on "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
+description: Implement or correct OSRS content (RuneScript in OSRS-Content) from RSProx recordings — loc/npc/obj ops and ap triggers, ladders/stairs/maplinks, doors and loc adds/changes, projectiles, area sounds and synths, spotanims and anims, interface packets (open/close/hide/move/text/highlights/hint arrows), npc info (movement, facing, transforms, ops), dialogues, cutscenes and cameras (instance copies, the lock/unlock frame, cam_moveto/cam_lookat/cam_shake/cam_reset, fades, the cast's walks and seqs; tools/rsprox/rsprox_cutscene.py drafts them), loc/obj/inventory interaction shapes (pickups, searches, use-on, locked and walk-through doors, ground items, notes), area-triggered scenes, player facing/movement/teleports/exactmove, damage (splats on the player, accuracy, max hits, prayer); and the step-by-step procedure for porting a whole QUEST or any session recorded end to end (every action and teleport in the recording given a verdict incl. teleport tablets and other generic interactions, stages and varp transmit, the start confirm and completion, every page, every op, the zone ambience, the quest journal, rewards). Trigger on "port/rebuild/correct <quest> from RSProx", "implement X from RSProx", "make this match the recording", "port this content from RSProx", or any content work where a recording shows the behaviour.
 ---
 
 # Implementing content from RSProx recordings
@@ -11,6 +11,85 @@ writing RuneScript that sends the same thing on the same tick.
 
 **[PACKETS.md](PACKETS.md) explains every packet kind**: its fields, units, revision variants, and
 the script command that emits it. Keep it open.
+
+## Porting a quest (or anything recorded end to end): do every step, in order
+
+**The scope is the RECORDING, not the files you were pointed at.** Tree Gnome Village
+(2026-10-27, index 4394) was rebuilt from its quest's npcs and locs, and went to commit with
+the same session's three teleport-tablet breaks unbound in our tree (Break did nothing), its ten
+ladder climbs, chopping, drinking, drops and pickups never looked at, the battlefield's
+npc-vs-npc fight found only by accident, and the journal never checked. Every one was in the
+recording. A quest is done when every row of steps 1-3 has a verdict, not when the quest gate
+is green.
+
+1. **Inventory every action the recorder took.**
+   `python3 tools/rsprox/rsprox_actions.py <idx.txt>` lists each distinct op (npc, loc, obj,
+   held item, use-on, interface button, objdialog answer) with its first tick and count, and
+   every player `[teleport]` with the action before it. Copy both lists into the analysis doc
+   and give EVERY row a verdict:
+   - **this content** -> its own section, built and audited below;
+   - **generic content the session exercises** (teleport tablets and spells, ladders, stairs,
+     doors, banks, shops, woodcutting, drinking, eating, equipping, dropping, picking up,
+     prayers) -> find our script for it and diff that one interaction (§1b, §2, §12), once;
+     a click our tree has no binding for is a defect even if it is "not the quest";
+   - **the recorder's own kit** (their weapon's swing, their autocast) -> say so.
+   Never filter inventory clicks (`if_buttonx com=inventory`) or `opheld` out of an event
+   list: that is exactly where the tablets were.
+2. **Every move.** Each TELEPORTS row: what caused it, the shape (§2 ladders: face L+1, anim
+   L+2, move L+3; from standing, anim on C, move C+1), the landing tile (copy it; check
+   `maplink.dbrow` / `maplink_landings.dbrow` and the spell rows' `tele_coord`), and ours from
+   a tick log. Teleport tablets, all recorded breaks the same: C `poh_smash_magic_tablet` (4069)
+   delay 16 + synth `poh_tablet_break_teleport` (965) delay 15; C+2 `poh_absorb_tablet_magic`
+   (678) + `poh_absorb_tablet_teleport` (4071), the tablet gone; C+4 the teleport
+   (`skill_magic/scripts/spells/teleport_tablet.rs2`).
+3. **The zone's ambience is content.** Count what happens near the player that the player did
+   not cause: `sound_area`, `map_projanim`, npc seqs/says/hits between npcs, `loc_anim`,
+   `map_anim`. `rsprox_npcinfo.py --match '<area prefix>'` per npc type; a type with attack
+   seqs and splats but no player target is fighting something (the TGV battlefield: 568 arrows,
+   a catapult every 10 ticks, 130 soldiers we had standing still). Spawned types with no script
+   wander on the generated default (step 3 of the loop).
+4. **Stages and every var.** A table of every quest varp/varbit write: value, the page or
+   click it goes out with, tick. For every base varp a quest varbit sits on, check the
+   generated block's `scope`/`transmit` (`_explicit/configs/server_fields.generated.varp`): TGV's
+   five varbits sat on `varp279_awarded_points`, `temp, transmit=no` -- never sent, lost at
+   logout. A varbit set once to an odd value at a stage (`ballista` = 2) is a per-player ROLL:
+   find what reads it (a riddle, an answer) and roll it there with `random(n)`.
+5. **The start and the end.** Recorded rev 241 quests start: the combat-level warning mesbox
+   ("Before starting this quest, be aware that your combat level is lower than the recommended
+   level of N.") when below, `~p_choice2_header("Yes.", 1, "No.", 2, "Start the <Quest> quest?")`,
+   then the stage and `mes("You've started a new quest: @q_mes@<Quest></col>")` going out with
+   the next page. The completion (stage, `~quest_complete_rewards` with the recorded scroll
+   lines) goes out on the recorded click, usually the last page's -- never queued at the start
+   of a closing scene (TGV completed before its ceremony began).
+6. **Every page** (§10): `tools/rsprox/rsprox_pages.py <txt>`, then check mechanically that each
+   recorded page's text (`<br>` -> space) is in our scripts verbatim with its mood. Our layout
+   wraps where the client does: delete every forced `|`; keep Jagex's double spaces; write a
+   coloured aside with Jagex's own breaks (`"...to be<br><col=ffffff>singing.)"`). Menu option
+   ORDER is recorded too.
+7. **Every op the cache gives each npc and loc.** A multinpc rung's ops (`elkoy_2ops`: Talk-to,
+   Follow) bind on the parent (`[opnpc3,elkoy]`); a recorded op with no binding (Elkoy's
+   Follow) is a defect. ap vs op from the player's tile when the answer comes (§1): a page
+   opened from two tiles is `[apnpc1]` + `p_aprange(2)`.
+8. **Recurring frames.** A shape that repeats (a guide's fade-teleport-page, a scene lock) is
+   one proc copied from the recording packet for packet, and checked once on a
+   `TORIRSSERVER_TRACE_OUT=2` run (the tick log has no interface rows).
+9. **The quest journal.** Rev 241 opens it from the quest list's op as `questjournal_overview`
+   (782, clientscript `questjournal_overview_setup` 6821 with the quest's dbrow and the start
+   text) and the full journal (`questjournal`, 119, its `qj*` lines). Search for a recording that
+   opens it at any stage (`rsprox_index.py search interface 782`, `... 119`, then `grep -n
+   "questjournal" <txt>` for the quest's dbrow or name) and diff every line per stage. With no
+   recording, the journal is UNVERIFIED in the doc: a LostCity `*_journal.rs2` is 2004 text
+   (§16). The test's `quest.journal` row only checks that a title exists.
+10. **The rewards' features.** What the scroll grants must work: TGV's "Spirit Tree Access"
+    is the spirit trees' menu (`menu` 217 "Spirit Tree Locations", recorded in 311 and 3976).
+11. **Fights** get one agent each (owner rule: Opus 5.5, max effort, sequential): §13, §13b,
+    §9 for every encounter, including npcs that attack on sight in a quest area.
+12. **The test follows the recorded flow**, waits out no-continue boxes and fades before
+    reading the next page, and stands where the recording stood (a wandering npc behind bars
+    read from 3 tiles instead of 2 made the route leave the room).
+13. **Write the doc as you go**: one table per section (R / ours / verdict), the action and
+    teleport inventories with a verdict per row, and an Open list. A row with no verdict means
+    the port is not done.
 
 ## The loop
 
@@ -814,6 +893,12 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 
 ## Traps that have each cost a wrong fix
 
+- **The scope is the recording, not the files.** Run `rsprox_actions.py` before anything and
+  give every action and every teleport a verdict; a click that is "not the quest" (a tablet
+  break) still has to work (Tree Gnome Village, 2026-10-27: no standard tablet had a Break).
+- **The varp under a varbit decides whether it is sent.** A quest varbit on a `temp,
+  transmit=no` base varp never reaches the client (TGV's 598-602 on varp 279).
+- **A journal nobody opened in a recording is unverified**, however green `quest.journal` is.
 - One recording = one roll. Count across sessions and quote counts ("37/37").
 - Recorded ids are from that session's revision. Name them in our cache (rev 241) first.
 - A seasonal recorder (Leagues, Grid Master) changes damage, attack rate and party scaling.

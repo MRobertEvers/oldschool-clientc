@@ -156,6 +156,38 @@ loose railing.", `railing_squeeze` (3844) with no delay and the exact move 15..9
 off two ticks later; all three crossings north. Ours had `human_into_sidestep` delay 30,
 one tick early, as a game message. Fixed.
 
+## Every action in the session (`tools/rsprox/rsprox_actions.py`)
+
+| first R | action (count) | verdict |
+|---|---|---|
+| [221] | treegnomelooserailing op1 (3) | fixed (below) |
+| [244] [259] [613] [952] [1178] [1202] | Bolren, chanters, Montai, trackers 1-3 talk | fixed (pages) |
+| [248] | ent (spirit tree) op2 Talk-to: "The tree doesn't feel like talking." | matched (`spirit_tree.rs2`) |
+| [308] [314] | Elkoy / elkoy_village op3 Follow | fixed (missing) |
+| [826] | logs used on Montai: engine "Nothing interesting happens." | matched (no binding, engine default) |
+| [930] [936] [998] [1321] [1328] | stronghold door, low wall, ballista, chest | fixed (below) |
+| [1174] | poordoor op1 (the jail): `loc_del` + `poordooropen` on (2524,3255) rot 2, synth 62 | matched in the test (pass_door); shape not diffed |
+| [1314] [1332] [1978..2047] | ladders up/down, the house ladders | matched (below) |
+| [1504] [1521] | the warlord talk / attack | fixed; the fight's audit: its own section |
+| [1887] | orbs_of_protection pickup (private drop) | fixed |
+| [321] [494] | teleport tablets (Varrock, Ardougne) | **fixed: no Break existed** |
+| [119] [510] [761] [1634] | stamina / prayer potion drinks | generic, NOT checked |
+| [264] [696] [706] | tree, willowtree, tree2 chop (logs for Montai) | generic, NOT checked |
+| [366..512] [653] | GE clerks, offers, bank booths, banker | generic, NOT checked |
+| [400] [461] [652] [1762] | equip earth battlestaff / staff of earth / priest gown, unequip weapon | generic, NOT checked |
+| [846] [856] | drop spade, lobster | generic, NOT checked |
+| [1885] [1890] | bones pickup, bury | generic, NOT checked |
+| [2004] | treevillage_shopkeeper1 Trade | generic, NOT checked |
+| [659] [661] [1311] | autocast, Protect from Melee | the recorder's kit |
+| [2] [1580] [2139] [2150] | welcome screen, chat filter, scroll close, logout | client / engine |
+
+## The quest journal
+
+Unverified. 4394 never opens it, and no session on the index shows Tree Gnome Village's
+(3976 and 311 name the quest only in the spirit trees' menu; 4332 opens other quests'
+`questjournal_overview`). `quests/quest_tree/scripts/tree_journal.rs2` is LostCity's 2004
+text, unchanged.
+
 ## Every teleport and maplink in the session
 
 Every player `[teleport]` in 4394, with what caused it:
@@ -209,3 +241,6 @@ the field: 568 arrows, 43 catapult shots, ~970 npc lives.
   and the gnome archers further back rarely find a target within 6 tiles.
 - Unrecorded branches (Elkoy's talk, Remsai, Kalron, Bolkoy, stage 0 Elkoy) are the
   wiki's or LostCity's.
+- The journal (no recording) and the reward's spirit trees (the "Spirit Tree Locations"
+  menu, recorded in 311 and 3976) are not audited.
+- The generic interactions marked NOT checked in the action table.
