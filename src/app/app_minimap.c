@@ -18,6 +18,24 @@ app_minimap_push_dot(
     int scene_id,
     int atlas_index);
 
+/*
+ * A flattened hull is left off the map whole: its icon, and every actor
+ * standing on its deck. The deob's minimap loop gates each hull on
+ * class467.method10407 (the view's scale is the 0.01 that method10419 writes
+ * when the overlap rule flattens it) and only inside that gate draws the
+ * icon and the view's npcs and players -- so a crowd of boats at a salvage
+ * spot shows one hull, the one the overlap rule kept, not twenty stacked
+ * icons under a heap of crew dots.
+ */
+static bool
+app_minimap_view_flattened(
+    struct App* app,
+    int view_id)
+{
+    return view_id != WORLDVIEW_ROOT && Wevs_IsLive(&app->wevs, view_id) &&
+           Wevs_Get(&app->wevs, view_id)->flattened;
+}
+
 /* `mapmarker` frame 0 is the destination flag and frame 1 the hint arrow --
  * the reference's GetSpriteHintMapMarkersID is this pack, not one of its own
  * (deob method1943 plots [0] for the flag, method2135 [1] for the hint). */
@@ -321,7 +339,7 @@ App_MinimapBuildDots(
             /* Every live Wev carries a config (Wevs_Spawn asserts it); a hull
              * without an authored icon is the legitimate absence here. */
             assert(wev->config);
-            if( wev->config->minimap_sprite_id < 0 )
+            if( wev->config->minimap_sprite_id < 0 || app_minimap_view_flattened(app, wev->id) )
                 continue;
             sprite = CacheProvider_SpriteGet(app->provider, wev->config->minimap_sprite_id);
             if( !sprite || sprite->frame_count <= 0 )
@@ -431,7 +449,8 @@ App_MinimapBuildDots(
              * `interactable=no` and says nothing at all about opcode 93, so
              * the cache was right and the gate was half of one.
              */
-            if( !npc || npc->multinpc_hidden || !npc->minimap_visible || !npc->interactable )
+            if( !npc || npc->multinpc_hidden || !npc->minimap_visible || !npc->interactable ||
+                app_minimap_view_flattened(app, npc->view_placement.view_id) )
                 continue;
             /* An aboard actor's draw position is deck-local (wire homing) —
              * push it out through the hull before differencing against the
@@ -453,7 +472,8 @@ App_MinimapBuildDots(
              i = World_EntityPoolNext(pool, i) )
         {
             struct WorldEntity_Player* player = World_EntityPoolGet(pool, i);
-            if( !player || player == local )
+            if( !player || player == local ||
+                app_minimap_view_flattened(app, player->view_placement.view_id) )
                 continue;
             {
                 int fx = (int)player->draw_position.x;

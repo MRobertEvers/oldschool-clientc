@@ -439,6 +439,50 @@ test_a_coord_hint_marks_the_tile_it_names(void)
     fixture_free(&fx);
 }
 
+/*
+ * A flattened hull takes its crew off the map with it.
+ *
+ * The deob draws a hull's npcs and players only inside its
+ * `!class467.method10407()` gate, so the boats the overlap rule flattens at a
+ * crowded salvage spot (RSProx 4281: twenty-five hulls within ten tiles) show
+ * neither their icon nor a single crew dot. Without the gate every flattened
+ * deck's crew piled onto the one hull the map should show.
+ */
+static void
+test_a_flattened_hull_hides_its_crew(void)
+{
+    struct DotFixture fx;
+    struct UITreeMinimapDot const* dots = NULL;
+    struct WevConfig config = { .minimap_sprite_id = -1 };
+    struct WorldEntityFacet_IdleAnimations idle = World_TestDefaultIdle();
+    struct WorldEntity_NPC* npc;
+    struct WorldEntity_Player* rider;
+    struct Wev* hull;
+    int count;
+
+    printf("TEST: a flattened hull's crew draw no minimap dots\n");
+
+    fixture_init(&fx);
+    Wevs_Init(&fx.app.wevs);
+    hull = Wevs_Spawn(&fx.app.wevs, 1, WORLDVIEW_ROOT, &config, 3, 0, 0, 0, 1, 0);
+    npc = spawn_npc(&fx, 10, 26, 25);
+    npc->view_placement.view_id = hull->id;
+    rider = World_EntityPoolGet(
+        &fx.app.world->entities.player, World_PlayerSpawn(fx.app.world, 2, 0, 24, 25, idle));
+    rider->view_placement.view_id = hull->id;
+
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 1) == 1, "the kept hull's npc draws");
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 2) == 1, "the kept hull's rider draws");
+
+    hull->flattened = true;
+    count = App_MinimapBuildDots(&fx.app, &dots);
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 1) == 0, "the flattened hull's npc does not");
+    TEST_ASSERT(count_dots(dots, count, fx.dots_scene, 2) == 0, "nor its rider");
+
+    fixture_free(&fx);
+}
+
 int
 main(void)
 {
@@ -450,6 +494,7 @@ main(void)
     test_the_hint_blinks();
     test_a_hint_off_the_map_points_from_the_rim();
     test_a_coord_hint_marks_the_tile_it_names();
+    test_a_flattened_hull_hides_its_crew();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

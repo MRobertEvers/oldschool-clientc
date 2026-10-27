@@ -600,12 +600,20 @@ return {
         })
         stage("cast_wind_strike")
         t.exec("talkToMagic2.runes", t.inv.await_all, { airrune = 5, mindrune = 5 }, 5)
+        local _, cast_tick = t.tick()
         cast_chicken("castWindStrike", "quest_complete")
         t.exec("questComplete", t.ui.await_open, "questscroll", 10)
         t.exec("questComplete.title", t.ui.expect_text, "questscroll:quest_title", "Learning the Ropes")
         local qr, qclose = t.ui.widget("questscroll:close_button")
         t.check("questComplete.close", t.ui.invoke(qclose, 1), "questscroll:close_button " .. tostring(qr))
         closed_check("questComplete.closed", "questscroll")
+        -- The cast is the chicken's alone. Completing the quest hints Terrova
+        -- with an npc_find; run before the hit resolved, that repointed the
+        -- active npc and the instructor took the splat and blocked.
+        local tr, terrova = t.npc.state("newbie_magic_instructor")
+        t.check("castWindStrike.terrovaUntouched",
+            (tr == "ok" and terrova.health_ratio < 0 and terrova.seq_tick < cast_tick) and "ok" or "hollow",
+            tr == "ok" and t.npc.state_text(terrova) or tostring(terrova))
         talk("talkToMagic3", "newbie_magic_instructor", {
             "npc:I'll give you a reasonable number of runes when you leave",
             "choose:Yes.",
