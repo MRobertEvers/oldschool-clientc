@@ -1172,3 +1172,117 @@ ToriRSServer_GateCookieTicket(
     }
     return 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Accounts made by an operator (torirsserver --account, torirsctl)    */
+/* ------------------------------------------------------------------ */
+
+/* The name and password rules every new account meets, and that no record
+ * exists at `path` (a damaged one counts: it is not to be overwritten). */
+static enum ToriRSServerCreateResult
+auth_create_check(
+    const char* name,
+    const char* password,
+    const char* path,
+    const char** out_problem)
+{
+    struct AuthFile existing;
+    int have;
+
+    *out_problem = ToriRSServer_AuthNameProblem(name);
+    if( *out_problem )
+        return TORIRSSERVER_CREATE_BAD_NAME;
+    assert(path[0]); /* AuthNameProblem passed, so the name has a letter */
+    have = auth_read_record(path, &existing);
+    auth_wipe(&existing, sizeof(existing));
+    if( have != 0 )
+        return TORIRSSERVER_CREATE_EXISTS;
+    *out_problem = ToriRSServer_AuthPasswordProblem(name, password);
+    if( *out_problem )
+        return TORIRSSERVER_CREATE_WEAK;
+    return TORIRSSERVER_CREATE_OK;
+}
+
+enum ToriRSServerCreateResult
+ToriRSServer_AuthCreate(
+    const char* display_name,
+    const char* password,
+    int admin,
+    const char** out_problem)
+{
+    char path[1024];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
+    enum ToriRSServerCreateResult result;
+
+    assert(display_name);
+    assert(password);
+    assert(out_problem);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    result = auth_create_check(display_name, password, path, out_problem);
+    if( result != TORIRSSERVER_CREATE_OK )
+        return result;
+    auth_random(salt, sizeof(salt));
+    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
+    return auth_write_record(path, record, admin, "", "") ? TORIRSSERVER_CREATE_OK
+                                                          : TORIRSSERVER_CREATE_WRITE_FAILED;
+}
+
+enum ToriRSServerCreateResult
+ToriRSServer_GateLoginCreate(
+    const char* name,
+    const char* password,
+    const char** out_problem)
+{
+    char path[1024];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
+    enum ToriRSServerCreateResult result;
+
+    assert(name);
+    assert(password);
+    assert(out_problem);
+    snprintf(path, sizeof(path), "%s", ToriRSServer_GateAccountPath(name));
+    result = auth_create_check(name, password, path, out_problem);
+    if( result != TORIRSSERVER_CREATE_OK )
+        return result;
+    auth_random(salt, sizeof(salt));
+    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
+    return auth_write_gate_record(path, record) ? TORIRSSERVER_CREATE_OK
+                                                : TORIRSSERVER_CREATE_WRITE_FAILED;
+}
+
+int
+ToriRSServer_AuthSetPassword(
+    const char* display_name,
+    const char* password,
+    const char** out_problem)
+{
+    char path[1024];
+    char record[TORIRSSERVER_AUTH_RECORD_MAX];
+    uint8_t salt[TORIRSSERVER_AUTH_SALT_BYTES];
+    struct AuthFile file;
+    int written;
+
+    assert(display_name);
+    assert(password);
+    assert(out_problem);
+    *out_problem = ToriRSServer_AuthPasswordProblem(display_name, password);
+    if( *out_problem )
+        return 0;
+    snprintf(path, sizeof(path), "%s", ToriRSServer_AccountPath(display_name));
+    if( !path[0] || auth_read_record(path, &file) <= 0 )
+    {
+        *out_problem = "There is no player account by that name.";
+        return 0;
+    }
+    auth_random(salt, sizeof(salt));
+    ToriRSServer_AuthRecord(password, salt, TORIRSSERVER_AUTH_ITERATIONS, record);
+    /* Admin and any link stay as they were: this is the password only. */
+    written = auth_write_record(path, record, file.admin, file.managed_by, file.link_hash);
+    auth_wipe(&file, sizeof(file));
+    auth_wipe(record, sizeof(record));
+    if( !written )
+        *out_problem = "The record could not be written.";
+    return written;
+}

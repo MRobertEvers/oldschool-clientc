@@ -52,6 +52,9 @@
 #include "torirs_server_save.h"
 #include "torirs_server_session.h"
 #include "torirs_server_shop.h"
+#include "torirs_server_savefile.h"
+
+#include <dirent.h>
 
 #include <signal.h>
 
@@ -117,9 +120,22 @@ on_stop_signal(int sig)
 
 /*
  * `torirsserver --account ...`: the operator's side of the sign-in gate
- * (torirs_server_auth.h). Touches only `<saves>/accounts/`, so it runs beside
- * a live world without loading one.
+ * (torirs_server_auth.h). Touches only `<saves>/accounts/` and
+ * `<saves>/gate/`, so it runs beside a live world without loading one; the
+ * world reads a record at each login, so a change applies at the next one.
+ * torirsctl (the deploy package's) is the friendly face of these.
  *
+ * A password is never an argument (it would sit in `ps` and the shell's
+ * history): `create`, `password` and `login` read it as one line of stdin.
+ *
+ *   --account create <name> [admin]   make a PLAYER account with that
+ *                                     password; `admin` makes it staff
+ *   --account password <name>         set a PLAYER account's password,
+ *                                     keeping its admin flag and any link
+ *   --account login <name>            make a web login for the gate
+ *                                     outright, without an invite
+ *   --account list                    every player account (admin, linked
+ *                                     to) and every web login
  *   --account invite [name]           print a one-time invite to make a web
  *                                     login for the gate; with a name only
  *                                     that name can redeem it
@@ -133,11 +149,155 @@ on_stop_signal(int sig)
  * TORIRSSERVER_GATE_URL (e.g. https://torirs.example.com) makes the invite a
  * whole link.
  */
+/* One line of stdin, without its newline: the password `create`, `password`
+ * and `login` take. 0 when there is none. */
+static int
+account_read_password(
+    char* out,
+    size_t cap)
+{
+    if( !fgets(out, (int)cap, stdin) )
+        return 0;
+    out[strcspn(out, "\r\n")] = '\0';
+    return out[0] != '\0';
+}
+
+static const char*
+account_create_problem(
+    enum ToriRSServerCreateResult result,
+    const char* problem)
+{
+    if( result == TORIRSSERVER_CREATE_EXISTS )
+        return "that name has an account already";
+    if( result == TORIRSSERVER_CREATE_WRITE_FAILED )
+        return "the record could not be written";
+    return problem ? problem : "refused";
+}
+
+/* `<dir>`'s `*.ini` names, each handed to `each`. */
+static void
+account_each_record(
+    const char* dir,
+    void (*each)(const char* key))
+{
+    DIR* handle = opendir(dir);
+    struct dirent* entry;
+
+    if( !handle )
+        return;
+    while( (entry = readdir(handle)) != NULL )
+    {
+        char key[64];
+        size_t len = strlen(entry->d_name);
+
+        if( len <= 4 || len - 4 >= sizeof(key) || strcmp(entry->d_name + len - 4, ".ini") != 0 )
+            continue;
+        snprintf(key, sizeof(key), "%.*s", (int)(len - 4), entry->d_name);
+        each(key);
+    }
+    closedir(handle);
+}
+
+static void
+account_list_player(const char* key)
+{
+    char owner[64];
+    int managed = ToriRSServer_AuthManagedBy(key, owner, sizeof(owner));
+
+    printf("  %-14s %-6s %s%s\n", key, ToriRSServer_AuthIsAdmin(key) ? "admin" : "",
+           managed > 0 ? "linked to " : managed < 0 ? "UNREADABLE RECORD" : "",
+           managed > 0 ? owner : "");
+}
+
+static void
+account_list_login(const char* key)
+{
+    printf("  %s\n", key);
+}
+
 static int
 account_command(
     int argc,
     char** argv)
 {
+    char password[128];
+
+    if( (argc == 4 || argc == 5) && strcmp(argv[2], "create") == 0 &&
+        (argc == 4 || strcmp(argv[4], "admin") == 0) )
+    {
+        const char* problem = NULL;
+        enum ToriRSServerCreateResult result;
+
+        if( !account_read_password(password, sizeof(password)) )
+        {
+            fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
+            return 1;
+        }
+        result = ToriRSServer_AuthCreate(argv[3], password, argc == 5, &problem);
+        memset(password, 0, sizeof(password));
+        if( result != TORIRSSERVER_CREATE_OK )
+        {
+            fprintf(stderr, "torirsserver: '%s': %s\n", argv[3],
+                    account_create_problem(result, problem));
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: player account '%s' created%s\n", argv[3],
+                argc == 5 ? " as an admin (staff)" : "");
+        return 0;
+    }
+    if( argc == 4 && strcmp(argv[2], "password") == 0 )
+    {
+        const char* problem = NULL;
+        int written;
+
+        if( !account_read_password(password, sizeof(password)) )
+        {
+            fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
+            return 1;
+        }
+        written = ToriRSServer_AuthSetPassword(argv[3], password, &problem);
+        memset(password, 0, sizeof(password));
+        if( !written )
+        {
+            fprintf(stderr, "torirsserver: '%s': %s\n", argv[3], problem);
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: '%s' has a new password\n", argv[3]);
+        return 0;
+    }
+    if( argc == 4 && strcmp(argv[2], "login") == 0 )
+    {
+        const char* problem = NULL;
+        enum ToriRSServerCreateResult result;
+
+        if( !account_read_password(password, sizeof(password)) )
+        {
+            fprintf(stderr, "torirsserver: give the password as one line on stdin\n");
+            return 1;
+        }
+        result = ToriRSServer_GateLoginCreate(argv[3], password, &problem);
+        memset(password, 0, sizeof(password));
+        if( result != TORIRSSERVER_CREATE_OK )
+        {
+            fprintf(stderr, "torirsserver: '%s': %s\n", argv[3],
+                    account_create_problem(result, problem));
+            return 1;
+        }
+        fprintf(stderr, "torirsserver: web login '%s' created\n", argv[3]);
+        return 0;
+    }
+    if( argc == 3 && strcmp(argv[2], "list") == 0 )
+    {
+        char dir[1024];
+
+        printf("player accounts (%s/accounts):\n", ToriRSServer_SaveDir());
+        snprintf(dir, sizeof(dir), "%s/accounts", ToriRSServer_SaveDir());
+        account_each_record(dir, account_list_player);
+        printf("web logins (%s/gate):\n", ToriRSServer_SaveDir());
+        snprintf(dir, sizeof(dir), "%s/gate", ToriRSServer_SaveDir());
+        account_each_record(dir, account_list_login);
+        return 0;
+    }
     if( argc >= 3 && argc <= 4 && strcmp(argv[2], "invite") == 0 )
     {
         char code[TORIRSSERVER_INVITE_CODE_BYTES * 2 + 1];
@@ -210,10 +370,14 @@ main(
         int status = account_command(argc, argv);
 
         if( status == 2 )
-            fprintf(stderr, "usage: %s --account invite [name]\n"
+            fprintf(stderr, "usage: %s --account create <name> [admin]   (password on stdin)\n"
+                            "       %s --account password <name>         (password on stdin)\n"
+                            "       %s --account login <name>            (password on stdin)\n"
+                            "       %s --account list\n"
+                            "       %s --account invite [name]\n"
                             "       %s --account admin <name> on|off\n"
                             "       %s --account unlink <name>\n",
-                    argv[0], argv[0], argv[0]);
+                    argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
         return status;
     }
     /* A leading flag is not a port: `torirsserver --dev` must not atoi to 0

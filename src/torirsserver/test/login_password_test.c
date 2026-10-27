@@ -609,6 +609,45 @@ check_history(void)
           "history: past the cap, the newest are kept in order");
 }
 
+/* Accounts an operator makes (torirsserver --account, torirsctl). */
+static void
+check_operator_accounts(void)
+{
+    const char* why = NULL;
+    char token[TORIRSSERVER_LINK_TOKEN_HEX + 1];
+
+    remove(ToriRSServer_AccountPath("jack"));
+    remove(ToriRSServer_GateAccountPath("kate"));
+    check(ToriRSServer_AuthCreate("jack", "short", 1, &why) == TORIRSSERVER_CREATE_WEAK && why,
+          "create: a weak password is refused, with the rule");
+    check(!file_exists(ToriRSServer_AccountPath("jack")), "create: and writes nothing");
+    check(ToriRSServer_AuthCreate("../x", "blue7horse", 1, &why) == TORIRSSERVER_CREATE_BAD_NAME,
+          "create: a bad name is refused");
+    check(ToriRSServer_AuthCreate("Jack", "blue7horse", 1, &why) == TORIRSSERVER_CREATE_OK,
+          "create: an admin player account");
+    check(ToriRSServer_AuthIsAdmin("jack") &&
+              ToriRSServer_AuthLogin("jack", "blue7horse") == TORIRSSERVER_AUTH_OK,
+          "create: it is staff, and its password logs in");
+    check(ToriRSServer_AuthCreate("jack", "other8pass", 0, &why) == TORIRSSERVER_CREATE_EXISTS &&
+              ToriRSServer_AuthLogin("jack", "blue7horse") == TORIRSSERVER_AUTH_OK,
+          "create: never over an existing account");
+    check(ToriRSServer_AuthLink("jack", "blue7horse", "matt", token) == TORIRSSERVER_LINK_OK,
+          "(link jack)");
+    check(!ToriRSServer_AuthSetPassword("jack", "short", &why) && why,
+          "password: a weak one is refused");
+    check(ToriRSServer_AuthSetPassword("jack", "red8fox99", &why),
+          "password: a new one is set");
+    check(ToriRSServer_AuthIsAdmin("jack") && ToriRSServer_AuthLinkVerify("jack", "matt", token),
+          "password: keeping the admin flag and the link");
+    check(!ToriRSServer_AuthSetPassword("nobody_here", "red8fox99", &why),
+          "password: only for an account that exists");
+    check(ToriRSServer_GateLoginCreate("kate", "blue7horse", &why) == TORIRSSERVER_CREATE_OK &&
+              ToriRSServer_GateLogin("kate", "blue7horse") == TORIRSSERVER_AUTH_OK,
+          "login: a web login made without an invite signs in");
+    check(ToriRSServer_GateLoginCreate("kate", "other8pass", &why) == TORIRSSERVER_CREATE_EXISTS,
+          "login: never over an existing one");
+}
+
 /* The gate's ticket: what io_server sets and torirsserver reads. */
 static void
 check_tickets(void)
@@ -879,6 +918,7 @@ main(void)
     check_oauth();
     check_links();
     check_history();
+    check_operator_accounts();
 
     if( g_failures )
     {

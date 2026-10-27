@@ -298,6 +298,14 @@ rules -- 8 to 20 characters, a letter and a digit, no spaces, not one character
 repeated, not containing the name (`ToriRSServer_AuthPasswordProblem`). Five
 wrong passwords for one web login lock it for ten minutes.
 
+**Accounts from the shell.** The package ships `torirsctl`, which wraps
+`torirsserver --account` with no-echo password prompts (the password reaches
+the binary on stdin, never as an argument): `create-admin <name>`,
+`create-player <name>`, `admin <name> on|off`, `password <name>`,
+`unlink <name>`, `create-login <name>` (a web login without an invite),
+`invite [name]` and `list`. It runs beside the live servers: every record is
+read again at each login.
+
 **Staff.** `torirsserver --account admin <name> on` sets `admin = 1` on a
 player account; the next login is staff level 2 -- the Jagex moderator's gold
 crown on public chat and private messages, and permission to cheat. Wherever

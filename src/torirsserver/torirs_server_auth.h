@@ -273,6 +273,47 @@ ToriRSServer_InviteRedeem(
     const char* password,
     const char** out_problem);
 
+enum ToriRSServerCreateResult
+{
+    TORIRSSERVER_CREATE_OK,
+    /** The name breaks AuthNameProblem; `*out_problem` says how. */
+    TORIRSSERVER_CREATE_BAD_NAME,
+    /** The name has a record already (or a damaged one, which is kept). */
+    TORIRSSERVER_CREATE_EXISTS,
+    /** The password breaks AuthPasswordProblem; `*out_problem` says how. */
+    TORIRSSERVER_CREATE_WEAK,
+    TORIRSSERVER_CREATE_WRITE_FAILED,
+};
+
+/**
+ * An operator making a PLAYER account outright (`torirsserver --account
+ * create`, torirsctl), `admin` 1 for staff: the same record a first login
+ * claims, under the same name and password rules. Never over an existing one.
+ */
+enum ToriRSServerCreateResult
+ToriRSServer_AuthCreate(
+    const char* display_name,
+    const char* password,
+    int admin,
+    const char** out_problem);
+
+/** An operator making a web login for the gate without an invite
+ *  (`torirsserver --account login`). Same rules as an invite's. */
+enum ToriRSServerCreateResult
+ToriRSServer_GateLoginCreate(
+    const char* name,
+    const char* password,
+    const char** out_problem);
+
+/** Replace an existing player account's password, keeping its admin flag and
+ *  any link. 0 with `*out_problem` set when it breaks the rules, there is no
+ *  account, or it could not be written. */
+int
+ToriRSServer_AuthSetPassword(
+    const char* display_name,
+    const char* password,
+    const char** out_problem);
+
 /** `len` bytes of key from the hex file at `path`, writing a fresh random key
  *  there first if there is none. Aborts when it cannot: a key that silently
  *  failed to load signs nothing anyone can check. `len` is at most 64. */

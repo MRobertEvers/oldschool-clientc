@@ -469,6 +469,19 @@ that file and the next login sets it again. A character saved before
 passwords existed is claimed the same way by whoever logs into it first.
 TORIRSSERVER_DEV=1 turns the check off -- never on a world others can reach.
 
+Accounts, from this directory, beside the running servers (no restart; a
+record is read at each login, and passwords are prompted for, never typed
+on the command line):
+
+    ./torirsctl create-admin <name>     new player account that is staff
+    ./torirsctl create-player <name>    new player account
+    ./torirsctl admin <name> on|off     make an existing player staff, or not
+    ./torirsctl password <name>         new password for a player account
+    ./torirsctl unlink <name>           release a player from its web login
+    ./torirsctl create-login <name>     new web login (the sign-in gate)
+    ./torirsctl invite [name]           one-time link to make a web login
+    ./torirsctl list                    every account
+
 Starting it over SSH on Windows: a process started from an OpenSSH session
 dies with the session. Either register the startup task (above) or create
 the supervisor outside the session:
@@ -484,12 +497,111 @@ Built from {sha} on {date} (content {content_sha}).
 """
 
 
+TORIRSCTL = r"""#!/usr/bin/env bash
+# torirsctl: make and manage this world's accounts, beside the running servers.
+#
+# Player accounts are what you play as (the admin flag = staff: the jmod
+# crown and ::commands). Web logins open the site and the game page (the
+# sign-in gate). Changes need no restart: a record is read at each login.
+# Passwords are asked for twice and never echoed or put on a command line.
+#
+#   ./torirsctl create-admin <name>     new PLAYER account that is staff
+#   ./torirsctl create-player <name>    new PLAYER account
+#   ./torirsctl admin <name> on|off     make an existing player staff, or not
+#   ./torirsctl password <name>         new password for a player account
+#   ./torirsctl unlink <name>           release a player from its web login
+#   ./torirsctl create-login <name>     new web login (site + game page)
+#   ./torirsctl invite [name]           one-time link to make a web login
+#   ./torirsctl list                    every account
+#
+# Piped stdin (not a terminal) is read as the password, once, for scripts.
+set -euo pipefail
+cd "$(dirname "$0")"
+export TORIRSSERVER_SAVES="${TORIRSSERVER_SAVES:-saves}"
+: "${TORIRSSERVER_GATE_URL:=https://@WS_HOST@}"
+export TORIRSSERVER_GATE_URL
+BIN=./bin/torirsserver
+
+usage() {
+    # The comment block at the top of this file, up to the first code line.
+    awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"
+    exit 2
+}
+
+# Read a password into PW: twice and silent at a terminal, one line from a pipe.
+ask_password() {
+    local again
+    if [ -t 0 ]; then
+        read -rs -p "Password for $1: " PW; echo >&2
+        read -rs -p "Again: " again; echo >&2
+        if [ "$PW" != "$again" ]; then
+            echo "torirsctl: the passwords do not match" >&2
+            exit 1
+        fi
+    else
+        IFS= read -r PW || true
+    fi
+    if [ -z "$PW" ]; then
+        echo "torirsctl: no password given" >&2
+        exit 1
+    fi
+}
+
+# Run an --account command with the password on its stdin (printf is a shell
+# builtin, so the password never appears in a process list).
+with_password() {
+    local name="$1"; shift
+    ask_password "$name"
+    printf '%s\n' "$PW" | "$BIN" --account "$@"
+    PW=
+}
+
+[ $# -ge 1 ] || usage
+command="$1"; shift
+case "$command" in
+    create-admin)
+        [ $# -eq 1 ] || usage
+        with_password "$1" create "$1" admin ;;
+    create-player)
+        [ $# -eq 1 ] || usage
+        with_password "$1" create "$1" ;;
+    admin)
+        [ $# -eq 2 ] || usage
+        "$BIN" --account admin "$1" "$2" ;;
+    password)
+        [ $# -eq 1 ] || usage
+        with_password "$1" password "$1" ;;
+    unlink)
+        [ $# -eq 1 ] || usage
+        "$BIN" --account unlink "$1" ;;
+    create-login)
+        [ $# -eq 1 ] || usage
+        with_password "$1" login "$1" ;;
+    invite)
+        [ $# -le 1 ] || usage
+        "$BIN" --account invite "$@" ;;
+    list)
+        [ $# -eq 0 ] || usage
+        "$BIN" --account list ;;
+    -h|--help|help)
+        usage ;;
+    *)
+        echo "torirsctl: unknown command '$command'" >&2
+        usage ;;
+esac
+"""
+
+
 def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
                   sha: str, content_sha: str, date: str) -> None:
     fmt = dict(game_port=game_port, web_port=web_port, ws_host=ws_host,
                sha=sha, content_sha=content_sha, date=date)
     (stage / "run.cmd").write_text(for_world(RUN_CMD.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "run.sh").write_text(for_world(RUN_SH.format(**fmt)), encoding="utf-8", newline="\n")
+    # Not .format: the shell's own braces would all need doubling. One
+    # placeholder, the public host its invite links name.
+    (stage / "torirsctl").write_text(TORIRSCTL.replace("@WS_HOST@", ws_host),
+                                     encoding="utf-8", newline="\n")
     (stage / "supervise.ps1").write_text(for_world(SUPERVISE_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "install-windows-task.ps1").write_text(for_world(INSTALL_PS1.format(**fmt)), encoding="utf-8", newline="\r\n")
     (stage / "README.md").write_text(for_world(README.format(**fmt)), encoding="utf-8")
@@ -498,6 +610,7 @@ def stage_scripts(stage: Path, game_port: int, web_port: int, ws_host: str,
         f"host={platform.platform()}\n", encoding="utf-8")
     if not IS_WINDOWS:
         os.chmod(stage / "run.sh", 0o755)
+        os.chmod(stage / "torirsctl", 0o755)
 
 
 def zip_stage(stage: Path, zip_path: Path) -> None:
