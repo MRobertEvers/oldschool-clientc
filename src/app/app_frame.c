@@ -418,6 +418,35 @@ app_drain_command(
                 0);
             break;
         }
+        /* The page's password-manager form (platform_credential_form.h).
+         * Built by page script, not by this program, so a malformed frame is
+         * refused rather than asserted -- torirs_cmdbus_push_bytes's rule. */
+        case TORIRS_CMD_INPUT_CREDENTIAL_TEXT:
+        {
+            char text[TORIRS_CMD_MAX_PAYLOAD + 1];
+
+            if( header.length < 1 || payload[0] > 1 )
+            {
+                TORIRS_ERR("cmd: malformed CREDENTIAL_TEXT frame (length %u)\n",
+                           (unsigned)header.length);
+                break;
+            }
+            memcpy(text, payload + 1, (size_t)header.length - 1);
+            text[header.length - 1] = '\0';
+            App_CredentialInput(app, payload[0], text);
+            break;
+        }
+        case TORIRS_CMD_INPUT_CREDENTIAL_FOCUS:
+            if( header.length < 1 || payload[0] > 1 )
+            {
+                TORIRS_ERR("cmd: malformed CREDENTIAL_FOCUS frame\n");
+                break;
+            }
+            App_CredentialFocus(app, payload[0]);
+            break;
+        case TORIRS_CMD_INPUT_CREDENTIAL_SUBMIT:
+            App_CredentialSubmit(app);
+            break;
         case TORIRS_CMD_EXEC_TEXT:
         {
             /* Not NUL-terminated on the wire; the header's length is the

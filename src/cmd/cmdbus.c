@@ -304,6 +304,42 @@ CmdBus_PushUiRunScript(
 }
 
 int
+CmdBus_PushCredentialText(
+    struct ToriRS_CmdBus* bus,
+    int field,
+    char const* text)
+{
+    uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+    size_t length;
+
+    assert(field == 0 || field == 1);
+    assert(text);
+    length = strlen(text);
+    if( length + 1 > TORIRS_CMD_MAX_PAYLOAD )
+        return 0;
+    payload[0] = (uint8_t)field;
+    memcpy(payload + 1, text, length);
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_CREDENTIAL_TEXT, payload, (uint16_t)(length + 1));
+}
+
+int
+CmdBus_PushCredentialFocus(
+    struct ToriRS_CmdBus* bus,
+    int field)
+{
+    uint8_t payload = (uint8_t)field;
+
+    assert(field == 0 || field == 1);
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_CREDENTIAL_FOCUS, &payload, 1);
+}
+
+int
+CmdBus_PushCredentialSubmit(struct ToriRS_CmdBus* bus)
+{
+    return CmdBus_Push(bus, TORIRS_CMD_INPUT_CREDENTIAL_SUBMIT, NULL, 0);
+}
+
+int
 CmdBus_PushExecText(
     struct ToriRS_CmdBus* bus,
     char const* text)

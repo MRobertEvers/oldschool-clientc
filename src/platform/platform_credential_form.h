@@ -26,7 +26,10 @@ struct PlatformCredentialForm
     int connecting;
     /** The login went through: the moment a password manager offers to save. */
     int in_game;
-    /** The two fields' boxes in layout pixels: [0] username, [1] password. */
+    /** The two fields' drawn text lines in layout pixels, [0] username and
+     *  [1] password: from one ascent above the baseline the row is drawn on,
+     *  as tall as the font's line box, as wide as the field. The platform maps
+     *  them through its present (scale, stretch, letterbox). */
     int x[2];
     int y[2];
     int w[2];

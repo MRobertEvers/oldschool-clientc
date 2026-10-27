@@ -9,9 +9,15 @@
  *   client -> page   Module.torirsCredentialForm(state), whenever the form
  *                    changes: where the fields are, which has the caret, the
  *                    username, and whether the password was cleared
- *   page -> client   _torirs_credential_input(field, text) on every change
- *                    (typing, or the browser filling), _torirs_credential_focus
- *                    and _torirs_credential_submit (Enter)
+ *   page -> client   command-bus frames, like every other input
+ *                    (src/cmd/cmdbus.h): INPUT_CREDENTIAL_TEXT on every change
+ *                    (typing, or the browser filling), _FOCUS and _SUBMIT
+ *                    (Enter) -- so an autofilled login records and replays
+ *
+ * The client sends each field's drawn text line in canvas BACKING pixels,
+ * already through its present (scale, stretch, letterbox); this maps them to
+ * CSS pixels from the canvas's own size, so the inputs cover the drawn fields
+ * at any scale, and their font follows the line's height.
  *
  * The inputs are transparent -- the canvas still draws the form, caret and
  * all -- but they are where the clicks and keys land, so the browser offers
@@ -19,9 +25,11 @@
  * (except Escape, the form's own way back), or SDL would type them a second
  * time into the client's field.
  *
- * When the login goes through, the page offers to save: a submit event the
- * password manager watches for, and navigator.credentials.store where the
- * Credential Management API exists.
+ * When the form opens, the browser is asked for a saved login
+ * (navigator.credentials.get, where the Credential Management API exists),
+ * which is its account chooser; when the login goes through, the page offers
+ * to save: a submit event the password manager watches for, and
+ * navigator.credentials.store.
  */
 (function () {
   'use strict';
@@ -40,16 +48,41 @@
   let wasConnecting = false;
   let wasInGame = false;
 
-  function call(name, types, args) {
-    if (typeof Module === 'undefined' || typeof Module.ccall !== 'function') { return; }
-    Module.ccall(name, null, types, args);
+  /* src/cmd/cmdbus.h */
+  const CMD_CREDENTIAL_TEXT = 26;
+  const CMD_CREDENTIAL_FOCUS = 27;
+  const CMD_CREDENTIAL_SUBMIT = 28;
+  /* TORIRS_CMD_MAX_PAYLOAD less the field byte, with room to spare. */
+  const MAX_TEXT_BYTES = 320;
+  const encoder = new TextEncoder();
+
+  /* One frame onto the client's command bus: [u32 type][u16 length][payload],
+   * little-endian (cmdring.h), through torirs_cmdbus_push_bytes. */
+  function sendFrame(type, payload) {
+    if (typeof Module === 'undefined' || typeof Module._torirs_cmdbus_push_bytes !== 'function') {
+      return;
+    }
+    const length = 6 + payload.length;
+    const ptr = Module._malloc(length);
+    /* Read after the malloc: a heap that grew has new views. */
+    const heap = Module.HEAPU8;
+    const view = new DataView(heap.buffer, ptr, length);
+    view.setUint32(0, type, true);
+    view.setUint16(4, payload.length, true);
+    heap.set(payload, ptr + 6);
+    Module._torirs_cmdbus_push_bytes(ptr, length);
+    Module._free(ptr);
   }
 
   function push(field) {
     const value = inputs[field].value;
     if (value === pushed[field]) { return; }
     pushed[field] = value;
-    call('torirs_credential_input', ['number', 'string'], [field, value]);
+    const text = encoder.encode(value).subarray(0, MAX_TEXT_BYTES);
+    const payload = new Uint8Array(1 + text.length);
+    payload[0] = field;
+    payload.set(text, 1);
+    sendFrame(CMD_CREDENTIAL_TEXT, payload);
   }
 
   function pushBoth() {
@@ -82,7 +115,7 @@
       input.addEventListener('change', () => push(field));
       input.addEventListener('focus', () => {
         push(field);
-        call('torirs_credential_focus', ['number'], [field]);
+        sendFrame(CMD_CREDENTIAL_FOCUS, new Uint8Array([field]));
       });
       /* Enter in the username goes on to the password, as the client's own
        * form does (RS_Title_HandleKey); only the password's Enter submits. */
@@ -114,7 +147,7 @@
        * password manager sees a submission: nothing more to do. */
       if (form.dataset.saving === '1') { return; }
       pushBoth();
-      call('torirs_credential_submit', [], []);
+      sendFrame(CMD_CREDENTIAL_SUBMIT, new Uint8Array(0));
     });
     const style = document.createElement('style');
     style.textContent =
@@ -134,20 +167,42 @@
     window.addEventListener('scroll', place, true);
   }
 
-  /* The inputs over the drawn fields: the client's boxes are canvas CSS
-   * pixels, the inputs are positioned in the viewport. */
+  /* The inputs over the drawn fields. The client's boxes are canvas backing
+   * pixels; the canvas's content box (inside any border) is what those
+   * stretch across on the page, at whatever CSS size the page gives it. */
   function place() {
     if (!form || !state || !state.showing) { return; }
     const canvas = document.getElementById('canvas');
-    if (!canvas) { return; }
+    if (!canvas || !canvas.width || !canvas.height) { return; }
     const rect = canvas.getBoundingClientRect();
+    const sx = canvas.clientWidth / (state.backingW || canvas.width);
+    const sy = canvas.clientHeight / (state.backingH || canvas.height);
+    const left = rect.left + canvas.clientLeft;
+    const top = rect.top + canvas.clientTop;
     state.fields.forEach((box, field) => {
       const input = inputs[field];
-      input.style.left = `${rect.left + box.x}px`;
-      input.style.top = `${rect.top + box.y}px`;
-      input.style.width = `${Math.max(1, box.w)}px`;
-      input.style.height = `${Math.max(1, box.h)}px`;
+      const height = Math.max(1, box.h * sy);
+      input.style.left = `${left + box.x * sx}px`;
+      input.style.top = `${top + box.y * sy}px`;
+      input.style.width = `${Math.max(1, box.w * sx)}px`;
+      input.style.height = `${height}px`;
+      input.style.fontSize = `${Math.max(1, Math.round(height * 0.8))}px`;
+      input.style.lineHeight = `${height}px`;
     });
+  }
+
+  /* The browser's account chooser, once per showing of the form: a saved
+   * login it hands back is put in the inputs as if it had been filled. */
+  let asked = false;
+  function askForSaved() {
+    if (asked || !navigator.credentials || !window.PasswordCredential) { return; }
+    asked = true;
+    navigator.credentials.get({ password: true, mediation: 'optional' }).then((credential) => {
+      if (!credential || !state || !state.showing || credential.type !== 'password') { return; }
+      inputs[0].value = credential.id;
+      inputs[1].value = credential.password || '';
+      pushBoth();
+    }).catch(() => {});
   }
 
   function offerSave(credentials) {
@@ -200,10 +255,12 @@
     if (!next.showing) {
       if (form.contains(document.activeElement)) { document.activeElement.blur(); }
       form.style.display = 'none';
+      asked = false;
       return;
     }
     form.style.display = 'block';
     place();
+    if (!next.username) { askForSaved(); }
     /* The client's caret is the focus: keys go where it is drawn, and the
      * browser offers its saved logins on that input. */
     const wanted = inputs[next.focus === 1 ? 1 : 0];

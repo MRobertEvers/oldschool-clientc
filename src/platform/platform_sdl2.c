@@ -3053,13 +3053,15 @@ PlatformWindow_SetTextInput(struct PlatformWindow* platform, int on)
  * which is what an SDL window point is on the browser. */
 EM_JS(void, sdl_web_credential_form,
       (int showing, int connecting, int in_game, int ux, int uy, int uw, int uh, int px, int py,
-       int pw, int ph, int focus, int password_len, char const* username),
+       int pw, int ph, int backing_w, int backing_h, int focus, int password_len,
+       char const* username),
 {
     if( typeof Module.torirsCredentialForm !== 'function' )
         return;
     Module.torirsCredentialForm({
         showing: showing !== 0, connecting: connecting !== 0, inGame: in_game !== 0,
         fields: [ { x: ux, y: uy, w: uw, h: uh }, { x: px, y: py, w: pw, h: ph } ],
+        backingW: backing_w, backingH: backing_h,
         focus: focus, passwordLen: password_len, username: UTF8ToString(username),
     });
 });
@@ -3075,31 +3077,45 @@ PlatformWindow_SetCredentialForm(
 #if defined(__EMSCRIPTEN__)
     {
         struct PlatformPointerGeometry geometry;
+        struct ClientScalePresent present;
+        int area_w = 0;
+        int area_h = 0;
         int box[2][4] = { { 0 } };
 
-        /* Each field's corners through the present, so the inputs land on the
-         * fields however the canvas is scaled or letterboxed. */
+        /*
+         * Each field's line through the present, in the canvas's BACKING
+         * pixels: the same scale, stretch and letterbox the frame is drawn
+         * with (PlatformPointer_LayoutToWindow's arithmetic, edges rather than
+         * centres). The page maps backing pixels to CSS pixels itself, from the
+         * canvas's own size -- the one mapping only it knows.
+         */
         sdl_pointer_geometry(platform, &geometry);
-        for( int i = 0; i < 2 && form->showing; i++ )
+        PlatformPointer_GameArea(&geometry, &area_w, &area_h);
+        if( geometry.layout_w > 0 && geometry.layout_h > 0 && area_w > 0 && area_h > 0 )
         {
-            int x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+            ClientScale_Present(&platform->client_scale, geometry.layout_w, geometry.layout_h,
+                                area_w, area_h, &present);
+            for( int i = 0; i < 2 && form->showing; i++ )
+            {
+                long long x0 = present.output.x +
+                               (long long)form->x[i] * present.output.w / geometry.layout_w;
+                long long y0 = present.output.y +
+                               (long long)form->y[i] * present.output.h / geometry.layout_h;
+                long long x1 = present.output.x + (long long)(form->x[i] + form->w[i]) *
+                                                      present.output.w / geometry.layout_w;
+                long long y1 = present.output.y + (long long)(form->y[i] + form->h[i]) *
+                                                      present.output.h / geometry.layout_h;
 
-            if( geometry.layout_w <= 0 || geometry.layout_h <= 0 ||
-                !PlatformPointer_LayoutToWindow(&platform->client_scale, &geometry, form->x[i],
-                                                form->y[i], &x0, &y0) ||
-                !PlatformPointer_LayoutToWindow(&platform->client_scale, &geometry,
-                                                form->x[i] + form->w[i], form->y[i] + form->h[i],
-                                                &x1, &y1) )
-                continue;
-            box[i][0] = x0;
-            box[i][1] = y0;
-            box[i][2] = x1 - x0;
-            box[i][3] = y1 - y0;
+                box[i][0] = (int)x0;
+                box[i][1] = (int)y0;
+                box[i][2] = (int)(x1 - x0);
+                box[i][3] = (int)(y1 - y0);
+            }
         }
         sdl_web_credential_form(form->showing, form->connecting, form->in_game, box[0][0],
                                 box[0][1], box[0][2], box[0][3], box[1][0], box[1][1],
-                                box[1][2], box[1][3], form->focus, form->password_len,
-                                form->username);
+                                box[1][2], box[1][3], geometry.drawable_w, geometry.drawable_h,
+                                form->focus, form->password_len, form->username);
     }
 #endif
 }

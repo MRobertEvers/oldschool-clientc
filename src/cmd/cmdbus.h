@@ -48,6 +48,16 @@ enum ToriRS_CmdType
      * move -- the last position stays, because the popup a tap opened is
      * anchored to it and a move off it would dismiss the popup. */
     TORIRS_CMD_INPUT_MOUSE_LEAVE = 25,
+    /* The page's password-manager form over the title's login form
+     * (src/web/torirs_credentials.js, platform_credential_form.h): what one of
+     * its inputs now holds -- typed there, or filled by the browser -- which
+     * input took the focus, and its Enter. Input like any other, so on the bus
+     * for the same reason: an autofilled login records and replays. Only the
+     * browser pushes them, and it builds the frames itself. */
+    TORIRS_CMD_INPUT_CREDENTIAL_TEXT = 26,   /* u8 field (0 username, 1 password), then
+                                                the text, not NUL-terminated */
+    TORIRS_CMD_INPUT_CREDENTIAL_FOCUS = 27,  /* u8 field */
+    TORIRS_CMD_INPUT_CREDENTIAL_SUBMIT = 28, /* no payload */
 
     /* -> ToriRS_Network (raw-byte semantics, v0 net ring parity) */
     TORIRS_CMD_NET_CONNECT = 32, /* "host:port" string, not NUL-terminated */
@@ -398,6 +408,22 @@ CmdBus_PushUiRunScript(
     int32_t script_id,
     int32_t const* args,
     int argc);
+
+/** TORIRS_CMD_INPUT_CREDENTIAL_TEXT: `field` 0 username, 1 password. 0 when
+ *  the text does not fit a frame. */
+int
+CmdBus_PushCredentialText(
+    struct ToriRS_CmdBus* bus,
+    int field,
+    char const* text);
+
+int
+CmdBus_PushCredentialFocus(
+    struct ToriRS_CmdBus* bus,
+    int field);
+
+int
+CmdBus_PushCredentialSubmit(struct ToriRS_CmdBus* bus);
 
 /** `text` is the command WITHOUT the leading "::", matching App_SendCommand. */
 int

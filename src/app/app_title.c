@@ -1173,10 +1173,25 @@ App_TakeCredentialForm(
     for( int i = 0; i < 2 && now.showing; i++ )
     {
         int32_t node = UITree_RoleNodeByName(app->tree, &app->ui_roles, k_roles[i]);
+        struct ToriDraw_Font* font;
 
         if( node < 0 ||
             !UITree_NodeDrawnBounds(app->tree, node, &now.x[i], &now.y[i], &now.w[i], &now.h[i]) )
+        {
             now.showing = 0;
+            continue;
+        }
+        /* A login_input's row y is the text's BASELINE (the deob's
+         * drawString(s, x, y); uitree_emit.c), so the line it draws starts one
+         * ascent above it and is as tall as the font's line box. That line,
+         * not the node's box below it, is where the input has to be. */
+        font = ToriDraw_SceneFontGet(app->scene,
+                                     UITree_LoginInput(&app->tree->components[node])->font_id);
+        if( font )
+        {
+            now.y[i] -= font->line_height;
+            now.h[i] = ToriDraw_FontLineBoxHeight(font);
+        }
     }
     now.focus = app->title.focus;
     now.password_len = (int)strlen(RS_Title_FieldText(&app->title, RS_TITLE_FIELD_PASSWORD));
