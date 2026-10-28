@@ -508,6 +508,19 @@ PlatformWindow_SetCredentialForm(
 void
 PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url);
 
+#if defined(TORIRS_PLATFORM_WEB)
+/**
+ * What the page decided this device is (index.html, torirsMobileDevice): 0 a
+ * desktop, 1 a phone or tablet, 2 one running iOS. In a browser this is the
+ * answer the Android build has at compile time, and everything that build
+ * keys on TORIRS_PLATFORM_ANDROID for being a touch device -- the client
+ * identity, the revconfig `@mobile` sections, the finger camera -- asks here.
+ * A page that does not say is a desktop.
+ */
+int
+PlatformWeb_MobileDevice(void);
+#endif
+
 /**
  * Does this device have an ON-SCREEN keyboard -- one the client can raise, and
  * therefore one a person can be offered a switch for?

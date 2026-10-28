@@ -3027,11 +3027,21 @@ PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url)
  * bus (main.c torirs_web_text_input). The platform request Android answers
  * through JNI (PlatformAndroidJni_SetSoftKeyboard).
  */
-EM_JS(int, web_soft_keyboard_available, (void), {
-    return typeof globalThis.torirsSoftKeyboard === 'function' && !!globalThis.torirsMobileDevice &&
-                   globalThis.torirsMobileDevice.mobile
-               ? 1
-               : 0;
+EM_JS(int, web_mobile_device, (void), {
+    const d = globalThis.torirsMobileDevice;
+    if (!d || !d.mobile)
+        return 0;
+    return d.ios ? 2 : 1;
+});
+
+int
+PlatformWeb_MobileDevice(void)
+{
+    return web_mobile_device();
+}
+
+EM_JS(int, web_soft_keyboard_page, (void), {
+    return typeof globalThis.torirsSoftKeyboard === 'function' ? 1 : 0;
 });
 EM_JS(void, web_soft_keyboard, (int on), {
     if (typeof globalThis.torirsSoftKeyboard === 'function')
@@ -3155,7 +3165,7 @@ PlatformWindow_HasScreenKeyboard(struct PlatformWindow* platform)
      * browser is the page's to answer: SDL's emscripten backend says no there,
      * and the page has one (web_soft_keyboard). */
 #if defined(TORIRS_PLATFORM_WEB)
-    if( web_soft_keyboard_available() )
+    if( PlatformWeb_MobileDevice() && web_soft_keyboard_page() )
         return 1;
 #endif
     return SDL_HasScreenKeyboardSupport() ? 1 : 0;

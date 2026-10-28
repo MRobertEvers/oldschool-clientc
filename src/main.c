@@ -4793,6 +4793,8 @@ frame_loop_step(void)
          */
 #if defined(TORIRS_PLATFORM_ANDROID)
         app.touch_camera = 1;
+#elif defined(TORIRS_PLATFORM_WEB)
+        app.touch_camera = PlatformWeb_MobileDevice() != 0;
 #endif
         /*
          * touch_ui is NOT set here any more, and neither is touch_scroll.

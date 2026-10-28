@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "log/torirs_log.h"
+#if defined(TORIRS_PLATFORM_WEB)
+#include "platform/platform_window.h"
+#endif
 
 /* Current [type:name] header `type` for keyval dispatch (component, layout, inv, sprite, …). */
 static char s_ini_item_type[64];
@@ -42,10 +45,13 @@ static char s_ini_item_type[64];
 /**
  * Does `tag` describe this build?
  *
- * `mobile` is the touch lane -- Android today, and whatever joins it. It is
- * keyed off the PLATFORM rather than off "is there a touchscreen", because a
- * profile is chosen at boot and cannot be re-baked when someone plugs a mouse
- * into a tablet.
+ * `mobile` is the touch lane -- Android, and a phone's or tablet's browser. It
+ * is keyed off the PLATFORM rather than off "is there a touchscreen", because
+ * a profile is chosen at boot and cannot be re-baked when someone plugs a
+ * mouse into a tablet; in a browser the page's device answer is the platform
+ * (PlatformWeb_MobileDevice). Keyed on the Android build alone, every phone's
+ * browser loaded the desktop sections: a red click cross for a tap, and the
+ * desktop chat prompt (2026-10-27).
  *
  * TORIRS_REVCONFIG_PLATFORM overrides the built-in tag, which is what lets the
  * mobile layout be looked at on a desktop without a device attached. A
@@ -64,6 +70,8 @@ revconfig_platform_tag_matches(char const* tag)
     {
 #if defined(TORIRS_PLATFORM_ANDROID)
         self = "mobile";
+#elif defined(TORIRS_PLATFORM_WEB)
+        self = PlatformWeb_MobileDevice() ? "mobile" : "desktop";
 #else
         self = "desktop";
 #endif
