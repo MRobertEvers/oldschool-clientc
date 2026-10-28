@@ -1401,6 +1401,17 @@ IoGate_Handle(
         return 1;
     }
 
+    /* The home-screen icon and the manifest that lists the others, to anyone.
+     * "Add to Home Screen" fetches them without the gate's cookie, so behind
+     * the gate a phone got the sign-in page and drew a letter instead of the
+     * icon. Static files from the page's root, nothing else. */
+    if( is_get && (path_is(req->path, "/apple-touch-icon.png") ||
+                   path_is(req->path, "/site.webmanifest") ||
+                   path_is(req->path, "/icon-192.png") ||
+                   path_is(req->path, "/icon-512.png") ||
+                   path_is(req->path, "/icon-maskable-512.png")) )
+        return 0;
+
     if( !signed_in(req, who, sizeof(who)) )
     {
         if( is_get )
