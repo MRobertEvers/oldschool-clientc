@@ -364,7 +364,7 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
      downloads the game data once more the first time.</p>
   <button type="button" id="btn-fullscreen-hint-close">OK</button>
 </div>
-<input id="torirs-keyboard" type="text" autocomplete="off" autocorrect="off"
+<input id="torirs-keyboard" type="text" inputmode="none" autocomplete="off" autocorrect="off"
        autocapitalize="none" spellcheck="false" enterkeyhint="send" aria-hidden="true" tabindex="-1">
 <main id="app-content">
   <div id="game-region">
@@ -538,28 +538,51 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   // sends Android's keyCode 229 for most of them. The value always starts with
   // one space, so a Backspace with nothing typed still has something to take.
   //
-  // iOS raises the keyboard only for a focus made inside a tap. The request
-  // arrives a frame after the tap that caused it, so there it is kept, and
-  // the next tap focuses the field.
+  // iOS raises a keyboard only for a focus made inside a tap, and the request
+  // arrives a frame after the tap that caused it: the chatbox's keyboard
+  // button is a script the click runs (chatbox_open_input ->
+  // MOBILE_KEYBOARDSHOWSTRING). Focusing on the NEXT tap made that button a
+  // two-tap toggle whose second tap put the keyboard away again. So on a
+  // phone every tap on the canvas focuses the field, inside the tap, with
+  // inputmode="none" -- focused, no keyboard -- and the request only changes
+  // the inputmode, which raises or lowers the keyboard over a field that
+  // already has the focus, with no tap needed. Off the canvas the focus is
+  // left alone: the page's own fields and buttons keep their taps.
+  //
+  // While nothing wants typing the field still has the focus, so its keys
+  // go on to SDL like any other (a tablet's hardware keyboard turns the
+  // camera) and whatever lands in it is dropped.
   const keyboard = document.getElementById('torirs-keyboard');
   const KEYBOARD_SEED = ' ';
   let keyboardWanted = false;
   let keyboardLast = KEYBOARD_SEED;
   let keyboardComposing = false;
-  function keyboardReset() { keyboard.value = KEYBOARD_SEED; keyboardLast = KEYBOARD_SEED; }
+  // The caret goes back after the seed as well: an arrow key from a hardware
+  // keyboard, let through while nothing wants typing, leaves it before the
+  // seed, where the next letter would read as a Backspace and that letter.
+  function keyboardReset() {
+    keyboard.value = KEYBOARD_SEED;
+    keyboardLast = KEYBOARD_SEED;
+    keyboard.setSelectionRange(KEYBOARD_SEED.length, KEYBOARD_SEED.length);
+  }
   function keyboardText(text) {
     if (text && window.Module && Module.ccall) { Module.ccall('torirs_web_text_input', null, ['string'], [text]); }
   }
   function keyboardKey(which) {
     if (window.Module && Module.ccall) { Module.ccall('torirs_web_key', null, ['number'], [which]); }
   }
+  function keyboardMode() { keyboard.setAttribute('inputmode', keyboardWanted ? 'text' : 'none'); }
   function keyboardFocus() {
-    if (keyboardWanted && document.activeElement !== keyboard) {
-      keyboardReset();
-      keyboard.focus({ preventScroll: true });
-    }
+    if (document.activeElement === keyboard) { return; }
+    keyboardReset();
+    keyboardMode();
+    keyboard.focus({ preventScroll: true });
+  }
+  function keyboardTap(e) {
+    if (e.target && e.target.id === 'canvas') { keyboardFocus(); }
   }
   keyboard.addEventListener('input', () => {
+    if (!keyboardWanted) { keyboardReset(); return; }
     const now = keyboard.value;
     let same = 0;
     while (same < keyboardLast.length && same < now.length && keyboardLast[same] === now[same]) { same++; }
@@ -570,10 +593,12 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   });
   keyboard.addEventListener('compositionstart', () => { keyboardComposing = true; });
   keyboard.addEventListener('compositionend', () => { keyboardComposing = false; });
-  // Its own keys go no further: the client hears them as the input above, and
-  // SDL, listening on the window, would hear them a second time.
+  // While typing is wanted its own keys go no further: the client hears them
+  // as the input above, and SDL, listening on the window, would hear them a
+  // second time.
   ['keydown', 'keypress', 'keyup'].forEach(type => {
     keyboard.addEventListener(type, e => {
+      if (!keyboardWanted) { return; }
       e.stopPropagation();
       if (type === 'keydown' && e.key === 'Enter') {
         e.preventDefault();
@@ -582,9 +607,33 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
       }
     });
   });
+  // A show re-asked while it is up is how the client brings back a keyboard
+  // the person put away (App_TakeTextInputChange pushes again on a request).
   globalThis.torirsSoftKeyboard = on => {
+    const was = keyboardWanted;
     keyboardWanted = on && mobileDevice;
-    if (keyboardWanted) { keyboardFocus(); } else if (document.activeElement === keyboard) { keyboard.blur(); }
+    if (!mobileDevice) { return; }
+    if (!keyboardWanted) {
+      keyboardMode();
+      if (document.activeElement === keyboard) { keyboard.blur(); }
+      return;
+    }
+    if (document.activeElement !== keyboard) {
+      // Not focused (put away with the keyboard's own Done, or no tap on the
+      // canvas yet). Chrome raises it for a focus within a few seconds of the
+      // tap; iOS will on the next tap on the canvas, which focuses it.
+      keyboardFocus();
+      return;
+    }
+    if (!was) { keyboardReset(); }
+    keyboardMode();
+    // Chrome raises its keyboard for a focus, not for an inputmode change:
+    // focused again, inside the activation the tap left. Never on iOS, where
+    // a focus outside the tap is the one that raises nothing.
+    if (!globalThis.torirsMobileDevice.ios) {
+      keyboard.blur();
+      keyboard.focus({ preventScroll: true });
+    }
   };
   // Two fingers are the game's: a pinch is its zoom, a two-finger drag its
   // camera (ToriRS_Touch). WebKit -- every iOS browser, Chrome included --
@@ -601,9 +650,10 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   }
 
   if (mobileDevice) {
-    // Inside the tap: what iOS needs to raise it, and a tap on the canvas
-    // would otherwise take the focus (and the keyboard) away mid-sentence.
-    document.addEventListener('touchend', keyboardFocus, { capture: true, passive: true });
+    // Inside the tap: the focus iOS raises a keyboard on later, and a tap on
+    // the canvas would otherwise take the focus (and the keyboard) away
+    // mid-sentence.
+    document.addEventListener('touchend', keyboardTap, { capture: true, passive: true });
   }
 
   function syncFullscreenButton() {

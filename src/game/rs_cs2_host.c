@@ -12252,6 +12252,11 @@ rs_cs2_host_exec_dispatch(
         host->logout_requested = true;
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOW:
+        (void)request->u.MOBILE_KEYBOARDSHOW._unused;
+        host->keyboard_request = 1;
+        return CS2VM_EXECNO_OK;
+
     case CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOWSTRING:
         (void)request->u.MOBILE_KEYBOARDSHOWSTRING.text;
         (void)request->u.MOBILE_KEYBOARDSHOWSTRING.limit;

@@ -14539,6 +14539,16 @@ CS2VM2_RunOp(
         }
         return vm->vm->host_exec(vm, &request);
     }
+    case CS2_OP_MOBILE_KEYBOARDSHOW:
+    {
+        /* No operands: the keyboard with no line to open on. The rev-239
+         * desktop client (Statics opcode 6520) has no keyboard and returns;
+         * the mobile client's is the platform's, as for 6522/6523. */
+        struct CS2VM_HostRequest request;
+        request.kind = CS2VM_HOST_REQUEST_MOBILE_KEYBOARDSHOW;
+        memset(&request.u.MOBILE_KEYBOARDSHOW, 0, sizeof(request.u.MOBILE_KEYBOARDSHOW));
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_MOBILE_KEYBOARDHIDE:
     {
         struct CS2VM_HostRequest request;

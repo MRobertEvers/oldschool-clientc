@@ -1326,7 +1326,7 @@ struct RS_CS2Host
      *  session then ends when the server answers it, not here. */
     bool logout_requested;
 
-    /** Set by MOBILE_KEYBOARDSHOWSTRING / SHOWINTEGER (6522/6523) and
+    /** Set by MOBILE_KEYBOARDSHOW / SHOWSTRING / SHOWINTEGER (6520/6522/6523) and
      *  MOBILE_KEYBOARDHIDE (6521): 1 = show, -1 = hide, 0 = nothing pending.
      *  Drained by the App's tick into the chat line's focus, which is what
      *  raises and lowers the platform's soft keyboard (app_wants_text_input).
