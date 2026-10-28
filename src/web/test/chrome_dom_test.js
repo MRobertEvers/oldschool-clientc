@@ -36,7 +36,15 @@ function node(tag) {
   value.addEventListener = (name, fn) => {
     (value._events[name] = value._events[name] || []).push(fn);
   };
-  value.fire = name => (value._events[name] || []).forEach(fn => fn({ target: value }));
+  value.fire = name => {
+    const event = {
+      target: value, defaultPrevented: false, propagationStopped: false,
+      preventDefault() { event.defaultPrevented = true; },
+      stopPropagation() { event.propagationStopped = true; },
+    };
+    (value._events[name] || []).forEach(fn => fn(event));
+    return event;
+  };
   value.getBoundingClientRect = () => ({ width: value.clientWidth, height: value.clientHeight });
   value.focus = () => { value.focused = true; };
   if (value.tagName === 'IFRAME') value.contentWindow = {};
@@ -397,6 +405,15 @@ assert.strictEqual(built.mount.hidden, true, 'the drawer starts shut: the game k
 assert.strictEqual(built.document.documentElement.style['--torirs-dock-width'], '0px',
   'the edge tab never docks beside the game');
 assert.strictEqual(built.game.hidden, false);
+
+/* The finger lifts over the canvas once the tab has slid away: unless the
+ * tab cancels its touches, the browser clicks the game there. */
+['touchstart', 'touchend', 'touchcancel'].forEach(type => {
+  const touch = tab.fire(type);
+  assert.ok(touch.defaultPrevented, `the tab cancels its ${type}: no click lands in the game`);
+  assert.ok(touch.propagationStopped, `the tab keeps its ${type} from the page`);
+});
+assert.strictEqual(built.mount.hidden, true, 'a touch alone does not toggle: the down does');
 
 tab.fire('click');
 assert.strictEqual(built.mount.hidden, false, 'a tap slides the rail of plugin buttons out');

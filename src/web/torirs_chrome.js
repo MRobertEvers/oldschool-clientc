@@ -395,6 +395,18 @@
         if (Date.now() - pointerAt < 700) return;
         toggle();
       });
+      /* The tap is the tab's alone. It acts on the DOWN and then rides the
+       * drawer edge away, so when the finger lifts the game canvas is under
+       * it -- and the browser's compatibility mousedown/mouseup/click land
+       * where the finger is, not on the tab: a click into the game. A
+       * cancelled pointerdown does not stop those on WebKit; a cancelled
+       * touch does, everywhere. */
+      const swallow = event => {
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+      };
+      ['touchstart', 'touchend', 'touchcancel'].forEach(type =>
+        tab.addEventListener(type, swallow, { passive: false }));
       const parent = this.document.getElementById('torirs-app') || this.document.body;
       if (!parent) return false;
       parent.appendChild(tab);
