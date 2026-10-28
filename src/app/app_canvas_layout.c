@@ -331,6 +331,12 @@ App_ClientScaleSettings(
      * legal enum value here. */
     out->fit = (enum ClientScaleFit)RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_CLIENT_FIT);
+    /* A phone's canvas IS the screen at the floor's scale (app_mobile_fit_floor),
+     * so there is nothing for a stretch mode to decide: integer whole-multiples
+     * of a 2.56 scale showed the frame at 2x, 78% of an iPhone with a black
+     * band all round, and stretch could only distort a rounding pixel. */
+    if( CS2VM2_OnMobile() )
+        out->fit = CLIENT_SCALE_FIT_KEEP_ASPECT;
     out->max_pixel_width = RS_CS2Host_GetOption(
         &app->host, RS_CS2_OPTION_DEVICE, RS_CS2_DEVICEOPTION_MAX_PIXEL_WIDTH);
     out->max_pixel_height = RS_CS2Host_GetOption(
