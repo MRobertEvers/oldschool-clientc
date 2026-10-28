@@ -18,6 +18,24 @@
 
 #include <stddef.h>
 
+/**
+ * How a request reaches the account server, for a process that must not open
+ * a blocking socket: io_server routes it through its loop
+ * (HttpServer_Exchange). Same contract as PlatformX_HttpPostForm: the body
+ * NET-allocated whatever the status, `*out_status` 0 when nothing answered.
+ * `body` NULL is a GET. Unset, a call is plain blocking HTTP.
+ */
+typedef char* (*AccountClientExchange)(
+    char const* host,
+    int port,
+    char const* route,
+    char const* body,
+    int* out_size,
+    int* out_status);
+
+void
+AccountClient_SetExchange(AccountClientExchange exchange);
+
 enum ToriRSServerAuthResult
 AccountClient_GateLogin(
     const char* name,

@@ -65,6 +65,7 @@
 #include "http_server.h"
 #include "io_gate.h"
 #include "accountserver/account_server.h"
+#include "accountserver/account_client.h"
 #include "torirsserver/torirs_server_savefile.h"
 
 #include "bootmanifest/bootmanifest.h"
@@ -1861,6 +1862,25 @@ usage(char const* argv0)
         IO_SERVER_DEFAULT_POKESPRITE);
 }
 
+/*
+ * The account server, asked through the loop (HttpServer_Exchange) rather
+ * than on a socket of the handler's own: io_server does no blocking IO. The
+ * timeout is the blocking client's connect and read together.
+ */
+static char*
+io_server_account_exchange(
+    char const* host,
+    int port,
+    char const* route,
+    char const* body,
+    int* out_size,
+    int* out_status)
+{
+    return HttpServer_Exchange(host, port, body ? "POST" : "GET", route,
+                               body ? "application/x-www-form-urlencoded" : NULL, body,
+                               body ? (int)strlen(body) : 0, 7000, out_size, out_status);
+}
+
 int
 main(
     int argc,
@@ -2043,6 +2063,7 @@ main(
         port);
     fflush(stdout);
 
+    AccountClient_SetExchange(io_server_account_exchange);
     if( HttpServer_Run(port, io_server_handler, &server) != 0 )
         return 1;
 

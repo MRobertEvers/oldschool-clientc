@@ -20,6 +20,13 @@
 #define CLIENT_LINES_MAX (ACCOUNT_CHART_DAYS + 128)
 
 static char g_problem[256];
+static AccountClientExchange g_exchange;
+
+void
+AccountClient_SetExchange(AccountClientExchange exchange)
+{
+    g_exchange = exchange;
+}
 
 static void
 server_address(
@@ -97,7 +104,18 @@ ask(
     char* text;
 
     server_address(host, sizeof(host), &port);
-    if( body )
+    if( g_exchange )
+    {
+        raw = g_exchange(host, port, route, body, &size, &status);
+        /* A GET answers its body only when it is a 200, as the blocking GET
+         * does: a 404 is "no such player", not an answer to read. */
+        if( raw && !body && status != 200 )
+        {
+            ToriMem_Free(ToriMem_Net(), raw);
+            raw = NULL;
+        }
+    }
+    else if( body )
         raw = PlatformX_HttpPostForm(host, port, route, NULL, body, (int)strlen(body), &size,
                                      &status);
     else

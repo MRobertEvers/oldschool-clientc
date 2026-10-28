@@ -81,10 +81,36 @@ HttpRequest_MatchesETag(
  * Handle one request. Fill `res`; leaving it untouched sends 404.
  * Called from the server's thread with the whole body already read.
  */
+/**
+ * A request's answer. Runs on the server's worker thread, never beside another
+ * handler, so handlers share their state without locks; the thread that called
+ * HttpServer_Run owns the sockets and never waits on a handler.
+ */
 typedef void (*HttpHandler)(
     void* user,
     struct HttpRequest const* req,
     struct HttpResponse* res);
+
+/**
+ * One HTTP request to `host`:`port`, from a handler: the server's loop makes
+ * it without blocking while the worker waits for the answer, so a handler
+ * never holds a socket of its own. The response body NET-allocated (free with
+ * ToriMem_Net), whatever its status, with `*out_status` the status; NULL with
+ * status 0 when nothing answered within `timeout_ms`. `content_type` NULL for
+ * none; `body_len` 0 for no body.
+ */
+char*
+HttpServer_Exchange(
+    char const* host,
+    int port,
+    char const* method,
+    char const* route,
+    char const* content_type,
+    void const* body,
+    int body_len,
+    int timeout_ms,
+    int* out_size,
+    int* out_status);
 
 /**
  * Bind, listen and serve until the process is interrupted.

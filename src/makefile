@@ -1602,7 +1602,9 @@ IO_SERVER_SQLITE_OBJ = $(IO_SERVER_OBJ_DIR)/sqlite3.o
 ifeq ($(OS),Windows_NT)
 IO_SERVER_SOCKET_LIBS := -lws2_32
 else
-IO_SERVER_SOCKET_LIBS :=
+# http_server.c runs its handlers on a worker thread (the loop owns the
+# sockets); Windows uses its own threads, everything else pthreads.
+IO_SERVER_SOCKET_LIBS := -lpthread
 endif
 io-server:
 	$(MAKE) $(IO_SERVER_FLAVOR) $(IO_SERVER_OBJ_DIR)/io_server
