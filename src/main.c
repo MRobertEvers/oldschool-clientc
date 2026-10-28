@@ -7183,6 +7183,16 @@ main_rsprox_replay_open(void)
                       "the manifest's)\n",
                       rev_name, cfg.rev_name);
     cfg.rev_name = rev_name;
+    /* A replay plays in the mode it was recorded in, whatever device watches
+     * it: the packets were written for the recorder's client, so the cache's
+     * scripts are told they are that client. A phone's server opens the
+     * mobile toplevel (601), and run as the desktop client its scripts lay
+     * the chatbox out as the desktop's and the plugin rail stands up beside
+     * it (CS2VM2_OnMobile); a desktop recording watched on a phone is the
+     * same mismatch the other way round. TORIRS_CLIENTTYPE /
+     * TORIRS_ON_MOBILE still outrank it. */
+    cfg.clienttype = rsprox_replay_rec.client_type;
+    cfg.on_mobile = RsproxRecording_Mobile(&rsprox_replay_rec) ? 1 : -1;
     cfg.connect_target = "replay";
     if( !cfg.connect_user || !cfg.connect_user[0] )
         cfg.connect_user = "replay";

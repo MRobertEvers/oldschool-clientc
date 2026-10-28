@@ -162,6 +162,11 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
+/** Whether an Enhanced mobile client (clientType 7 or 8) made the recording:
+ *  it speaks osrsm<N>, and its server laid the session out for the phone. */
+int
+RsproxRecording_Mobile(struct RsproxRecording const* rec);
+
 /** The client protocol this recording is played with: its revision's
  *  generated executor (src/net/rev/revisions.ini) for the client that made it
  *  -- "osrs<N>", or "osrsm<N>" for the Enhanced Android client -- or NULL

@@ -373,6 +373,14 @@ RsproxRecording_Index(
     return 0;
 }
 
+int
+RsproxRecording_Mobile(struct RsproxRecording const* rec)
+{
+    assert(rec);
+    return rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID ||
+           rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_IOS;
+}
+
 struct GameProtoRevTable const*
 RsproxRecording_Rev(struct RsproxRecording const* rec)
 {
@@ -387,8 +395,7 @@ RsproxRecording_Rev(struct RsproxRecording const* rec)
      * A recording of an Enhanced mobile client is that client's protocol,
      * not the desktop's: its opcodes, payloads and info-stream bits are its
      * own (src/net/rev/osrsm<N>/). */
-    if( rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID ||
-        rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_IOS )
+    if( RsproxRecording_Mobile(rec) )
         return GameProtoRev_OsrsMobile(rec->revision);
     return GameProtoRev_Osrs(rec->revision);
 }
