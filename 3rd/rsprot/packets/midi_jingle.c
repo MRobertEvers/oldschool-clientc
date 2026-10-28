@@ -158,7 +158,7 @@ packet_midi_jingle_v18_out(RsprotExec *x, MsgMidiJingle *m)
 void
 packet_midi_jingle_v19_out(RsprotExec *x, MsgMidiJingle *m)
 {
-    RSPROT_U3_321(x, m->length_in_millis);
+    RSPROT_U3_132(x, m->length_in_millis);
     RSPROT_U2_21_ADD128(x, m->id);
 }
 
