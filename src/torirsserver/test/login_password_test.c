@@ -797,6 +797,98 @@ check_spool(void)
     ToriRSServer_AccountLogFree(log);
 }
 
+/* A spool an older build left: a record in the old format (a field short) and
+ * a crash's torn tail. Their numbers were spent at the account server, so the
+ * count goes on past them; they are moved out once, not re-reported. */
+static void
+check_spool_old_format(void)
+{
+    static struct ToriRSServerPlayer pat;
+    struct ToriRSServerAccountLog* log = ToriRSServer_AccountLogCreate();
+    struct ToriRSServerAccountRecord record;
+    struct ToriRSServerAccountLink* link;
+    char path[1024];
+    char unreadable[1024];
+    char line[ACCOUNT_RECORD_LINE_MAX];
+    char older[ACCOUNT_RECORD_LINE_MAX];
+    char what[128];
+    long long last_seq = 0;
+    int spool_lines = 0;
+    int moved = 0;
+    FILE* f;
+
+    snprintf(path, sizeof(path), "%s/account_spool.tsv", ToriRSServer_SaveDir());
+    snprintf(unreadable, sizeof(unreadable), "%s/account_spool.unreadable.tsv",
+             ToriRSServer_SaveDir());
+    remove(path);
+    remove(unreadable);
+    memset(&record, 0, sizeof(record));
+    record.kind = TORIRSSERVER_ACCOUNTLOG_LOGIN;
+    snprintf(record.name, sizeof(record.name), "pat");
+    f = fopen(path, "wb");
+    assert(f);
+    fprintf(f, "next\t1000\n");
+    AccountProto_RecordFormat(&record, 1003, line);
+    fputs(line, f);
+    /* The same record a field short, as the build before the display-name
+     * column wrote it. */
+    AccountProto_RecordFormat(&record, 1005, older);
+    *strrchr(older, '\t') = '\n';
+    older[strcspn(older, "\n") + 1] = '\0';
+    fputs(older, f);
+    fputs("1006\t1\t12", f);
+    fclose(f);
+
+    setenv("TORIRS_ACCOUNT_SERVER", "127.0.0.1:1", 1);
+    link = ToriRSServer_AccountLinkOpen();
+    ToriRSServer_WorldSetDisplayName(&pat, "Pat");
+    ToriRSServer_AccountLogLogin(log, &pat, 100);
+    ToriRSServer_AccountLinkWrite(link, log);
+    ToriRSServer_AccountLinkClose(link);
+
+    f = fopen(path, "rb");
+    assert(f);
+    while( fgets(line, sizeof(line), f) )
+    {
+        spool_lines++;
+        last_seq = strtoll(line, NULL, 10);
+    }
+    fclose(f);
+    snprintf(what, sizeof(what), "spool: the count goes past unreadable lines (%lld)", last_seq);
+    check(last_seq == 1007, what);
+    snprintf(what, sizeof(what), "spool: only the header and readable records stay (%d)",
+             spool_lines);
+    check(spool_lines == 3, what);
+    f = fopen(unreadable, "rb");
+    check(f != NULL, "spool: unreadable lines are moved aside, not lost");
+    if( f )
+    {
+        while( fgets(line, sizeof(line), f) )
+            moved++;
+        fclose(f);
+    }
+    snprintf(what, sizeof(what), "spool: both unreadable lines are moved (%d)", moved);
+    check(moved == 2, what);
+
+    link = ToriRSServer_AccountLinkOpen();
+    ToriRSServer_AccountLinkClose(link);
+    moved = 0;
+    f = fopen(unreadable, "rb");
+    if( f )
+    {
+        while( fgets(line, sizeof(line), f) )
+            moved++;
+        fclose(f);
+    }
+    snprintf(what, sizeof(what), "spool: and only once (%d after a second start)", moved);
+    check(moved == 2, what);
+
+    unsetenv("TORIRS_ACCOUNT_SERVER");
+    remove(path);
+    remove(unreadable);
+    ToriRSServer_AccountLogFree(log);
+}
+
 /* With ACCOUNT_SERVER_LIVE=<host:port>, the link against a running account
  * server: two records over a real socket, until the spool is empty. */
 static void
@@ -1235,6 +1327,7 @@ main(void)
     check_accounts();
     check_display_names();
     check_spool();
+    check_spool_old_format();
     check_link_live();
     check_operator_accounts();
 

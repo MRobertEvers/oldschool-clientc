@@ -166,16 +166,67 @@ spool_reset(
     link->acked = next - 1;
 }
 
-/* Read what an earlier run left: the header's number, and the records not
- * known to be acknowledged. */
+/* The number a line starts with, or 0 when it does not start with one. */
+static long long
+line_seq(char const* line)
+{
+    char* end;
+    long long seq = strtoll(line, &end, 10);
+
+    if( end == line || (*end != '\t' && *end != '\n' && *end != '\0') )
+        return 0;
+    return seq;
+}
+
+static int
+line_fields(char const* line)
+{
+    int fields = 1;
+
+    for( ; *line && *line != '\n'; line++ )
+        fields += *line == '\t';
+    return fields;
+}
+
+/* How many fields this build writes a record with. */
+static int
+record_fields(void)
+{
+    static struct ToriRSServerAccountRecord blank;
+    char line[ACCOUNT_RECORD_LINE_MAX];
+
+    snprintf(blank.name, sizeof(blank.name), "x");
+    AccountProto_RecordFormat(&blank, 1, line);
+    return line_fields(line);
+}
+
+/*
+ * Read what an earlier run left: the header's number, and the records not
+ * known to be acknowledged.
+ *
+ * The next number is past EVERY line's, read or not. A line this build cannot
+ * read -- a crash's torn tail, or a record an older build wrote in an older
+ * format -- still spent its number at the account server, which drops anything
+ * at or below the last number it holds. Taken from the readable lines alone,
+ * the count started over when the display-name column was added (60 fields to
+ * 61), and the server dropped the next fourteen records as already seen
+ * (2026-10-27).
+ *
+ * Unreadable lines are moved out to account_spool.unreadable.tsv and said once:
+ * nothing can deliver them, and left in place every start re-reported them.
+ */
 static void
 spool_load(struct ToriRSServerAccountLink* link)
 {
     char line[ACCOUNT_RECORD_LINE_MAX];
+    char parsed[ACCOUNT_RECORD_LINE_MAX];
     long long base;
     long long first = 0;
-    long long last = 0;
-    int torn = 0;
+    long long highest = 0;
+    int unreadable = 0;
+    int first_bad_line = 0;
+    int first_bad_fields = 0;
+    int number = 1;
 
     fseek(link->spool, 0, SEEK_SET);
     if( !fgets(line, sizeof(line), link->spool) || strncmp(line, "next\t", 5) != 0 )
@@ -184,32 +235,95 @@ spool_load(struct ToriRSServerAccountLink* link)
         return;
     }
     base = strtoll(line + 5, NULL, 10);
-    link->send_offset = ftell(link->spool);
     while( fgets(line, sizeof(line), link->spool) )
     {
         struct ToriRSServerAccountRecord record;
-        long long seq;
+        long long seq = line_seq(line);
         size_t len = strlen(line);
 
-        torn = len == 0 || line[len - 1] != '\n';
-        line[strcspn(line, "\n")] = '\0';
-        if( !AccountProto_RecordParse(line, &record, &seq) )
+        number++;
+        if( seq > highest )
+            highest = seq;
+        snprintf(parsed, sizeof(parsed), "%s", line);
+        parsed[strcspn(parsed, "\n")] = '\0';
+        if( len == 0 || line[len - 1] != '\n' || !AccountProto_RecordParse(parsed, &record, &seq) )
+        {
+            if( !unreadable )
+            {
+                first_bad_line = number;
+                first_bad_fields = line_fields(line);
+            }
+            unreadable++;
             continue;
+        }
         if( !first )
             first = seq;
-        last = seq;
     }
-    /* A crash in the middle of a write leaves a last line without its end:
-     * end it, so the next record starts a line of its own. The fragment is
-     * skipped when it comes up in a batch. */
-    fseek(link->spool, 0, SEEK_END);
-    if( torn )
-    {
-        fputc('\n', link->spool);
-        fflush(link->spool);
-    }
-    link->next_seq = last >= base ? last + 1 : base;
+    link->next_seq = highest >= base ? highest + 1 : base;
     link->acked = (first ? first : link->next_seq) - 1;
+
+    if( unreadable )
+    {
+        char kept_path[sizeof(link->path) + 8];
+        char out_path[1024];
+        FILE* kept;
+        FILE* out;
+
+        snprintf(kept_path, sizeof(kept_path), "%s.tmp", link->path);
+        snprintf(out_path, sizeof(out_path), "%s/account_spool.unreadable.tsv",
+                 ToriRSServer_SaveDir());
+        kept = fopen(kept_path, "wb");
+        out = fopen(out_path, "ab");
+        if( !kept || !out )
+        {
+            fprintf(stderr, "torirsserver: cannot rewrite the account spool %s: %s\n", link->path,
+                    strerror(errno));
+            abort();
+        }
+        fprintf(kept, "next\t%lld\n", link->next_seq);
+        fseek(link->spool, 0, SEEK_SET);
+        if( !fgets(line, sizeof(line), link->spool) )
+            abort();
+        while( fgets(line, sizeof(line), link->spool) )
+        {
+            struct ToriRSServerAccountRecord record;
+            long long seq;
+            size_t len = strlen(line);
+            int ok;
+
+            snprintf(parsed, sizeof(parsed), "%s", line);
+            parsed[strcspn(parsed, "\n")] = '\0';
+            ok = len > 0 && line[len - 1] == '\n' && AccountProto_RecordParse(parsed, &record, &seq);
+            fputs(line, ok ? kept : out);
+            if( !ok && line[len - 1] != '\n' )
+                fputc('\n', out);
+        }
+        fclose(out);
+        fclose(kept);
+        fclose(link->spool);
+        link->spool = NULL;
+#ifdef _WIN32
+        remove(link->path);
+#endif
+        if( rename(kept_path, link->path) != 0 )
+        {
+            fprintf(stderr, "torirsserver: cannot replace the account spool %s: %s\n", link->path,
+                    strerror(errno));
+            abort();
+        }
+        spool_open(link, "a+b");
+        fprintf(stderr,
+                "torirsserver: account spool: %d line(s) this build cannot read moved to %s "
+                "(line %d has %d fields, this build writes %d); the count goes on at %lld\n",
+                unreadable, out_path, first_bad_line, first_bad_fields, record_fields(),
+                link->next_seq);
+    }
+    /* Past the header, which the rewrite above may have changed the length of. */
+    fseek(link->spool, 0, SEEK_SET);
+    if( !fgets(line, sizeof(line), link->spool) )
+        abort();
+    link->send_offset = ftell(link->spool);
+    fseek(link->spool, 0, SEEK_END);
 }
 
 struct ToriRSServerAccountLink*
@@ -342,10 +456,15 @@ link_build(struct ToriRSServerAccountLink* link)
         ok = AccountProto_RecordParse(parsed, &record, &seq);
         if( !ok || seq <= link->acked )
         {
-            /* A torn fragment, or a record already acknowledged: passed
-             * over for good when it leads the spool. */
+            /* A record already acknowledged, or one this build cannot read
+             * (spool_load moved every such line out, so this is a line
+             * written since that did not come back): passed over for good
+             * when it leads the spool. */
             if( !ok )
-                fprintf(stderr, "torirsserver: account spool: a torn line passed over\n");
+                fprintf(stderr,
+                        "torirsserver: account spool: a line of %d fields at offset %ld does not "
+                        "read as a record; skipped\n",
+                        line_fields(line), offset);
             offset += (long)len;
             if( count == 0 )
                 link->send_offset = offset;

@@ -219,7 +219,6 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     int varp_elena;
     int varp_qp;
     int vb_home;
-    int vb_omart;
     int obj_feed;
     int obj_pigeons;
     int obj_apple;
@@ -297,7 +296,6 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     varp_elena = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp165_elenaquest");
     varp_qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
     vb_home = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1784_plaguecity_elena_at_home");
-    vb_omart = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb9104_biohazard_met_omart");
     obj_feed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "birdfeed");
     obj_pigeons = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "pigeons");
     obj_apple = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "rottenapples");
