@@ -586,6 +586,20 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     keyboardWanted = on && mobileDevice;
     if (keyboardWanted) { keyboardFocus(); } else if (document.activeElement === keyboard) { keyboard.blur(); }
   };
+  // Two fingers are the game's: a pinch is its zoom, a two-finger drag its
+  // camera (ToriRS_Touch). WebKit -- every iOS browser, Chrome included --
+  // takes a pinch for its own page zoom first (gesturestart), and ignores
+  // user-scalable=no for that; cancelled here, the touches reach the canvas.
+  if (mobileDevice) {
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+      document.addEventListener(type, e => { e.preventDefault(); }, { passive: false });
+    });
+    document.addEventListener('touchmove', e => {
+      if (e.touches.length > 1) { e.preventDefault(); }
+    }, { passive: false });
+    document.addEventListener('dblclick', e => { e.preventDefault(); }, { passive: false });
+  }
+
   if (mobileDevice) {
     // Inside the tap: what iOS needs to raise it, and a tap on the canvas
     // would otherwise take the focus (and the keyboard) away mid-sentence.

@@ -16,6 +16,7 @@
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <fcntl.h>
 #include <netinet/tcp.h>
 #include <sys/select.h>
 #include <sys/socket.h>
@@ -27,8 +28,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define HTTP_MAX_CLIENTS 64
+
+/* How long a client may take nothing of its response before it is dropped.
+ *
+ * Responses are written without blocking: what a client's socket will not take
+ * now waits in the client's own buffer, and the loop sends more when select()
+ * says the socket can take it, serving everyone else in between. Writing each
+ * response to the end before looking at the next request meant one client
+ * that stopped reading held all of them -- a phone that went to the
+ * background mid-download through the proxy (75 KB stuck in the send queue)
+ * hung torirs.mrobertevers.com until io_server was restarted (2026-10-27). */
+#define HTTP_SEND_STALL_MS 30000
 /* A request body is an IO batch of a few dozen records; anything past this is
  * a client bug or an attack, and refusing beats growing without bound. */
 #define HTTP_MAX_BODY (16 * 1024 * 1024)
@@ -84,6 +97,13 @@ struct HttpClient
     uint8_t* buf;
     int len;
     int cap;
+    /* The response not yet taken by the socket: out[out_off..out_len). */
+    uint8_t* out;
+    int out_len;
+    int out_off;
+    int out_cap;
+    /* When the socket last took a byte of it. */
+    long long out_progress_ms;
 };
 
 static volatile sig_atomic_t g_stop = 0;
@@ -131,10 +151,22 @@ client_reset(struct HttpClient* client)
     if( client->fd != SOCK_INVALID )
         close(client->fd);
     ToriMem_Free(ToriMem_Net(), client->buf);
+    ToriMem_Free(ToriMem_Net(), client->out);
     client->fd = SOCK_INVALID;
     client->buf = NULL;
     client->len = 0;
     client->cap = 0;
+    client->out = NULL;
+    client->out_len = 0;
+    client->out_off = 0;
+    client->out_cap = 0;
+    client->out_progress_ms = 0;
+}
+
+static int
+client_has_out(struct HttpClient const* client)
+{
+    return client->out_off < client->out_len;
 }
 
 static int
@@ -160,30 +192,70 @@ client_append(
     return 0;
 }
 
-static int
-write_all(
-    sock_t fd,
+/* Milliseconds on a clock that only goes forward. */
+static long long
+now_ms(void)
+{
+#ifdef _WIN32
+    return (long long)GetTickCount64();
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
+
+/* Add to the response waiting for the client's socket. */
+static void
+client_queue_out(
+    struct HttpClient* client,
     void const* data,
     int count)
 {
-    uint8_t const* p = (uint8_t const*)data;
-    int written = 0;
-    while( written < count )
+    if( client->out_off > 0 && client->out_off == client->out_len )
+        client->out_off = client->out_len = 0;
+    if( client->out_len + count > client->out_cap )
     {
-        int n = send(fd, (char const*)(p + written), count - written, 0);
-        if( n <= 0 )
-        {
-#ifdef _WIN32
-            if( n < 0 && WSAGetLastError() == WSAEINTR )
-                continue;
-#else
-            if( n < 0 && (errno == EINTR || errno == EAGAIN) )
-                continue;
-#endif
-            return -1;
-        }
-        written += n;
+        int cap = client->out_cap ? client->out_cap : 16384;
+        while( cap < client->out_len + count )
+            cap *= 2;
+        client->out = ToriMem_Realloc(ToriMem_Net(), client->out, (size_t)cap);
+        assert(client->out);
+        client->out_cap = cap;
     }
+    memcpy(client->out + client->out_len, data, (size_t)count);
+    client->out_len += count;
+}
+
+/* Send what the socket takes now. 0 when the rest can wait for the socket,
+ * -1 when the connection is gone. */
+static int
+client_flush(struct HttpClient* client)
+{
+    while( client_has_out(client) )
+    {
+        int n = send(client->fd, (char const*)(client->out + client->out_off),
+                     client->out_len - client->out_off, 0);
+        if( n > 0 )
+        {
+            client->out_off += n;
+            client->out_progress_ms = now_ms();
+            continue;
+        }
+#ifdef _WIN32
+        if( n < 0 && WSAGetLastError() == WSAEWOULDBLOCK )
+            return 0;
+        if( n < 0 && WSAGetLastError() == WSAEINTR )
+            continue;
+#else
+        if( n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) )
+            return 0;
+        if( n < 0 && errno == EINTR )
+            continue;
+#endif
+        return -1;
+    }
+    client->out_off = client->out_len = 0;
     return 0;
 }
 
@@ -241,7 +313,7 @@ status_text(int status)
 
 static int
 send_response(
-    sock_t fd,
+    struct HttpClient* client,
     struct HttpResponse const* res)
 {
     char header[2048];
@@ -295,11 +367,14 @@ send_response(
 
     if( header_len < 0 || header_len >= (int)sizeof(header) )
         return -1;
-    if( write_all(fd, header, header_len) != 0 )
-        return -1;
-    if( body_len > 0 && write_all(fd, res->body, body_len) != 0 )
-        return -1;
-    return 0;
+    /* Copied: the body is the handler's and is freed when this returns. The
+     * stall clock starts with the response, not with an older one. */
+    if( !client_has_out(client) )
+        client->out_progress_ms = now_ms();
+    client_queue_out(client, header, header_len);
+    if( body_len > 0 )
+        client_queue_out(client, res->body, body_len);
+    return client_flush(client);
 }
 
 char const*
@@ -479,7 +554,7 @@ client_try_request(
         res.owns_body = 0;
     }
 
-    rc = send_response(client->fd, &res);
+    rc = send_response(client, &res);
     if( res.owns_body )
         ToriMem_Free(ToriMem_Net(), res.body); /* every owned body is net's (http_server.h) */
 
@@ -510,13 +585,9 @@ HttpServer_RunOn(
     sock_t listen_fd;
     int one = 1;
 
+    memset(clients, 0, sizeof(clients));
     for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
-    {
         clients[i].fd = SOCK_INVALID;
-        clients[i].buf = NULL;
-        clients[i].len = 0;
-        clients[i].cap = 0;
-    }
 
 #ifndef _WIN32
     /* A peer that closes mid-write must fail the send, not kill the process.
@@ -574,6 +645,7 @@ HttpServer_RunOn(
     while( !g_stop )
     {
         fd_set readable;
+        fd_set writable;
         struct timeval timeout = { 0, 200 * 1000 };
         int ready;
 #ifndef _WIN32
@@ -584,12 +656,19 @@ HttpServer_RunOn(
 #endif
 
         FD_ZERO(&readable);
+        FD_ZERO(&writable);
         FD_SET(listen_fd, &readable);
         for( int i = 0; i < HTTP_MAX_CLIENTS; i++ )
         {
             if( clients[i].fd == SOCK_INVALID )
                 continue;
-            FD_SET(clients[i].fd, &readable);
+            /* A client with a response still going out is not read from:
+             * its next request waits behind the answer to this one, and a
+             * client that will not read cannot pile up more answers. */
+            if( client_has_out(&clients[i]) )
+                FD_SET(clients[i].fd, &writable);
+            else
+                FD_SET(clients[i].fd, &readable);
 #ifndef _WIN32
             if( clients[i].fd > max_fd )
                 max_fd = clients[i].fd;
@@ -597,9 +676,9 @@ HttpServer_RunOn(
         }
 
 #ifdef _WIN32
-        ready = select(0, &readable, NULL, NULL, &timeout);
+        ready = select(0, &readable, &writable, NULL, &timeout);
 #else
-        ready = select(max_fd + 1, &readable, NULL, NULL, &timeout);
+        ready = select(max_fd + 1, &readable, &writable, NULL, &timeout);
 #endif
         if( ready < 0 )
         {
@@ -633,6 +712,16 @@ HttpServer_RunOn(
                      * small one, which on a per-frame request loop is the
                      * whole frame budget. */
                     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&one, sizeof(one));
+                    /* Non-blocking: a send takes what the socket will, and
+                     * the rest waits in the client (client_flush). */
+#ifdef _WIN32
+                    {
+                        u_long nonblocking = 1;
+                        ioctlsocket(fd, FIONBIO, &nonblocking);
+                    }
+#else
+                    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+#endif
                     clients[slot].fd = fd;
                 }
             }
@@ -642,26 +731,46 @@ HttpServer_RunOn(
         {
             uint8_t chunk[16384];
             int n;
-            int rc;
+            int rc = 1;
 
-            if( clients[i].fd == SOCK_INVALID || !FD_ISSET(clients[i].fd, &readable) )
+            if( clients[i].fd == SOCK_INVALID )
                 continue;
 
-            n = recv(clients[i].fd, (char*)chunk, sizeof(chunk), 0);
-            if( n <= 0 )
+            if( client_has_out(&clients[i]) )
             {
-                client_reset(&clients[i]);
-                continue;
+                if( FD_ISSET(clients[i].fd, &writable) && client_flush(&clients[i]) != 0 )
+                {
+                    client_reset(&clients[i]);
+                    continue;
+                }
+                if( client_has_out(&clients[i]) )
+                {
+                    if( now_ms() - clients[i].out_progress_ms >= HTTP_SEND_STALL_MS )
+                        client_reset(&clients[i]);
+                    continue;
+                }
+                /* Drained: requests that arrived behind it are answered now,
+                 * whether or not the socket has anything new to read. */
             }
-            if( client_append(&clients[i], chunk, n) != 0 )
+            else if( FD_ISSET(clients[i].fd, &readable) )
             {
-                client_reset(&clients[i]);
-                continue;
+                n = recv(clients[i].fd, (char*)chunk, sizeof(chunk), 0);
+                if( n <= 0 )
+                {
+                    client_reset(&clients[i]);
+                    continue;
+                }
+                if( client_append(&clients[i], chunk, n) != 0 )
+                {
+                    client_reset(&clients[i]);
+                    continue;
+                }
             }
-            do
-            {
+            else
+                continue;
+
+            while( rc == 1 && clients[i].len > 0 && !client_has_out(&clients[i]) )
                 rc = client_try_request(&clients[i], handler, user);
-            } while( rc == 1 && clients[i].len > 0 );
             if( rc < 0 )
                 client_reset(&clients[i]);
         }
