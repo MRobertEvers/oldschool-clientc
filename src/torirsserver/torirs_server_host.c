@@ -1,7 +1,24 @@
 /*
- * The poll loop, the connection table and the tick-boundary work queue.
- * See torirs_server_host.h for why the socket server stopped serving one
- * connection at a time.
+ * The standalone server's core loop: one thread that waits on every socket,
+ * resumes the coroutine that owns whichever one is ready, and runs the tick
+ * when it is due. See torirs_server_host.h for why the socket server stopped
+ * serving one connection at a time, and torirs_server_core.h for the
+ * coroutines.
+ *
+ * What runs where:
+ *
+ *   loop thread    the wait, every coroutine resume, the tick. It never makes
+ *                  a call that can block: sockets are non-blocking, and
+ *                  everything else goes to the pool.
+ *   pool threads   a password check (account file + PBKDF2), a login's save
+ *                  read, a logout's save write. One job at a time per
+ *                  account, in order (torirs_server_pool.h).
+ *
+ * Each connection is a coroutine (host_conn_step): it sniffs the stream, runs
+ * the handshake, sends its login's password check and save read to the pool
+ * and waits for them, hands the login to the tick, and from then on moves
+ * bytes between the socket and the session. The world is touched only at the
+ * tick boundary, by the work queue (host_drain_queue), as before.
  */
 #include "mem/torirs_mem.h"
 #include "torirs_server_host.h"
@@ -10,8 +27,14 @@
 
 #include "torirs_server.h"
 #include "torirs_server_accountlink.h"
+#include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
 #include "torirs_server_claim.h"
+#include "torirs_server_core.h"
+#include "torirs_server_poll.h"
+#include "torirs_server_pool.h"
+#include "torirs_server_save.h"
+#include "torirs_server_savefile.h"
 #include "torirs_server_session.h"
 #include "torirs_server_transport.h"
 #include "torirs_server_ws.h"
@@ -23,65 +46,101 @@
 #define close closesocket
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <sys/select.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
 #endif
 
 #include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define TORIRSSERVER_TICK_MS 600
 
-/* ------------------------------------------------------------------ */
-/* Connections                                                         */
-/* ------------------------------------------------------------------ */
+/*
+ * Pool threads for blocking calls. Logins and saves of different accounts run
+ * in parallel up to this many; a password hash is the long pole (tens of ms),
+ * so four keep a mass re-login after a restart off the critical path without
+ * competing with the loop for cores. TORIRSSERVER_POOL_THREADS overrides.
+ */
+#define TORIRSSERVER_HOST_POOL_THREADS 4
 
 enum ToriRSServerHostConnState
 {
-    /** Nothing here. */
-    TORIRSSERVER_HOST_CONN_FREE = 0,
     /**
      * Accepted, but the stream has not said what it is yet: the first byte has
      * not arrived, or a WebSocket upgrade is still being read. No session
      * exists, so nothing may be sent or decoded.
      */
-    TORIRSSERVER_HOST_CONN_OPENING,
+    TORIRSSERVER_HOST_CONN_OPENING = 1,
     /** A session owns it — a game login, or JS5. */
     TORIRSSERVER_HOST_CONN_LIVE,
     /**
-     * Dead, and waiting for the tick boundary to be torn down. It stays out of
-     * the poll set and out of every service pass from here; what it is still
-     * doing in the table is holding the player pointer that the queued logout
-     * job needs.
+     * Dead, and waiting for the tick boundary to be torn down. Out of the
+     * poller and never resumed again; what it is still doing in the table is
+     * holding the player pointer that the queued logout job needs.
      */
     TORIRSSERVER_HOST_CONN_CLOSING,
 };
 
+/* A password check, run on a pool thread. Copies in, verdict out. */
+struct ToriRSServerHostAuthJob
+{
+    struct ToriRSServerPoolJob job;
+    char user[64];
+    char pass[64];
+    int result;
+    int admin;
+};
+
+/* A login's save file, read on a pool thread into a plain malloc block (the
+ * ToriMem groups belong to the loop thread); the coroutine copies it over. */
+struct ToriRSServerHostReadJob
+{
+    struct ToriRSServerPoolJob job;
+    char path[1024];
+    uint8_t* bytes;
+    long len;
+};
+
+struct ToriRSServerHost;
+
 struct ToriRSServerHostConn
 {
+    /* First: a poll event's owner and a pool job's owner are this pointer. */
+    struct ToriRSServerCo co;
+    struct ToriRSServerHost* host;
+    int index;
     enum ToriRSServerHostConnState state;
     int fd;
-    struct ToriRSServerConn conn;
-    struct ToriRSServerSession session;
-    struct ToriRSServerTransport transport;
-
+    /** Watched for reading / writing right now (mirrors the poller). */
+    int watching_read;
+    int watching_write;
     /**
      * The handshake completed and a login job is queued.
      *
-     * While this is set the connection is not polled and not pumped, which is
-     * not an optimisation: the session stops decoding the moment the stream
-     * arms (`login_raised`), so anything the client sent behind its login
-     * block must not be dispatched until there is a player to dispatch it to.
-     * Leaving the descriptor in the read set instead would spin on bytes this
-     * pass has already decided not to read.
+     * While this is set the connection is not read, which is not an
+     * optimisation: the session stops decoding the moment the stream arms
+     * (`login_raised`), so anything the client sent behind its login block
+     * must not be dispatched until there is a player to dispatch it to.
      */
     int awaiting_login;
+    /** Set by the login stage when the save read for this login is older than
+     *  a save of the same account the world has written since: read again. */
+    int refetch;
+    /** `host->save_seq` when this login's save read was submitted. */
+    uint64_t read_seq;
+    struct ToriRSServerHostAuthJob auth;
+    struct ToriRSServerHostReadJob read;
+    struct ToriRSServerConn conn;
+    struct ToriRSServerSession session;
+    struct ToriRSServerTransport transport;
 };
 
 /* ------------------------------------------------------------------ */
@@ -102,24 +161,50 @@ struct ToriRSServerHostJob
     int conn;
 };
 
+/*
+ * Connections held at once, game and JS5 together: two per player (a client
+ * keeps its JS5 connection open beside its game one) and room for clients
+ * still priming their cache or being refused. The table holds pointers; a
+ * connection's buffers are allocated when it is accepted.
+ */
+#define TORIRSSERVER_HOST_CONN_CAP (2 * TORIRSSERVER_PLAYER_MAX + 64)
+
+/* Saves of one account remembered for staleness checks, by key modulo this.
+ * A collision only costs a login a second read. */
+#define TORIRSSERVER_HOST_SAVE_SLOTS 4096
+
 struct ToriRSServerHost
 {
     struct ToriRSServer* srv;
     const struct ToriRSServerBootConfig* config;
     int listener;
+    struct ToriRSServerCore core;
+    /* The listener's own coroutine: an accept per readiness. */
+    struct ToriRSServerCo accept_co;
 
-    struct ToriRSServerHostConn conns[TORIRSSERVER_HOST_CONN_MAX];
+    struct ToriRSServerHostConn* conns[TORIRSSERVER_HOST_CONN_CAP];
+    int conn_count;
 
     /*
      * Sized so it cannot overflow rather than sized by guess: a connection can
      * have at most one login and one logout outstanding at a time, and both are
      * cleared by the drain that runs before any further work is discovered.
      */
-    struct ToriRSServerHostJob jobs[2 * TORIRSSERVER_HOST_CONN_MAX];
+    struct ToriRSServerHostJob jobs[2 * TORIRSSERVER_HOST_CONN_CAP];
     int job_head;
     int job_count;
 
     long next_tick;
+
+    /*
+     * Every save handed to the pool bumps `save_seq` and stamps its account's
+     * slot. A login whose save read was submitted before its account's slot
+     * moved read a file a newer save is replacing (a session that took over
+     * its own character, a logout that crossed a login), and reads again.
+     */
+    uint64_t save_seq;
+    uint64_t save_stamp[TORIRSSERVER_HOST_SAVE_SLOTS];
+    int saves_in_flight;
 
     /* Recently ended sessions, for a GAMERECONNECT to reclaim. */
     struct ToriRSServerClaims claims;
@@ -135,7 +220,7 @@ host_job_push(
 
     assert(host);
     assert(conn >= 0);
-    assert(conn < TORIRSSERVER_HOST_CONN_MAX);
+    assert(conn < TORIRSSERVER_HOST_CONN_CAP);
     /* Not a runtime condition — see the sizing note on `jobs`. A full queue
      * means a connection queued the same job twice, which is a bug in the
      * caller and not a load level. */
@@ -184,30 +269,199 @@ now_ms(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Accounts                                                            */
+/* ------------------------------------------------------------------ */
+
+/* The pool's ordering key for a name as the login or the save states it. Both
+ * go through the save file's own name, so "Bob" and "bob" share a turn. */
+static uint32_t
+host_account_key(const char* name)
+{
+    char file[64];
+
+    assert(name);
+    ToriRSServer_SaveFileName(name, file, sizeof(file));
+    return ToriRSServer_PoolKey(file);
+}
+
+/* ------------------------------------------------------------------ */
+/* Pool jobs                                                           */
+/* ------------------------------------------------------------------ */
+
+static void
+host_auth_run(struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostAuthJob* auth = (struct ToriRSServerHostAuthJob*)job;
+
+    auth->result = (int)ToriRSServer_AuthLogin(auth->user, auth->pass);
+    memset(auth->pass, 0, sizeof(auth->pass));
+    auth->admin = (auth->result == TORIRSSERVER_AUTH_OK ||
+                   auth->result == TORIRSSERVER_AUTH_CLAIMED) &&
+                  ToriRSServer_AuthIsAdmin(auth->user);
+}
+
+static void
+host_read_run(struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostReadJob* read = (struct ToriRSServerHostReadJob*)job;
+    FILE* file;
+
+    read->bytes = NULL;
+    read->len = 0;
+    file = fopen(read->path, "rb");
+    if( !file )
+        return; /* a new character, not an error */
+    if( fseek(file, 0, SEEK_END) == 0 )
+        read->len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    if( read->len > 0 )
+    {
+        read->bytes = (uint8_t*)malloc((size_t)read->len);
+        assert(read->bytes);
+        if( fread(read->bytes, 1, (size_t)read->len, file) != (size_t)read->len )
+        {
+            fprintf(stderr, "torirsserver: could not read %s\n", read->path);
+            free(read->bytes);
+            read->bytes = NULL;
+            read->len = 0;
+        }
+    }
+    else
+        read->len = 0;
+    fclose(file);
+}
+
+/* A logout's save, written on a pool thread. */
+struct ToriRSServerHostSaveJob
+{
+    struct ToriRSServerCoreJob core; /* first */
+    struct ToriRSServerHost* host;
+    char path[1024];
+    char* text;
+    int ok;
+};
+
+static void
+host_save_run(struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostSaveJob* save = (struct ToriRSServerHostSaveJob*)job;
+
+    save->ok = ToriRSServer_SaveWriteText(save->path, save->text);
+}
+
+static void
+host_save_done(
+    struct ToriRSServerCore* core,
+    struct ToriRSServerPoolJob* job)
+{
+    struct ToriRSServerHostSaveJob* save = (struct ToriRSServerHostSaveJob*)job;
+
+    (void)core;
+    if( !save->ok )
+        fprintf(stderr, "torirsserver: SAVE FAILED for %s\n", save->path);
+    save->host->saves_in_flight--;
+    ToriMem_Free(ToriMem_ServerPlayers(), save->text);
+    ToriMem_Free(ToriMem_ServerNet(), save);
+}
+
+/* ToriRSServerSaveSink: the world composed a save on the tick; write it on
+ * the pool, after anything else of this account's already queued there. */
+static void
+host_save_sink(
+    void* ctx,
+    const char* account,
+    const char* path,
+    char* text,
+    size_t len)
+{
+    struct ToriRSServerHost* host = (struct ToriRSServerHost*)ctx;
+    struct ToriRSServerHostSaveJob* save;
+    uint32_t key;
+
+    (void)len;
+    assert(host);
+    assert(account);
+    assert(path);
+    assert(text);
+    save = ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*save));
+    assert(save);
+    key = host_account_key(account);
+    save->host = host;
+    save->text = text;
+    snprintf(save->path, sizeof(save->path), "%s", path);
+    save->core.job.fn = host_save_run;
+    save->core.job.key = key;
+    host->save_seq++;
+    host->save_stamp[key % TORIRSSERVER_HOST_SAVE_SLOTS] = host->save_seq;
+    host->saves_in_flight++;
+    ToriRSServer_CoreSubmitDetached(&host->core, &save->core, host_save_done);
+}
+
+/* ------------------------------------------------------------------ */
 /* Connection lifecycle                                                */
 /* ------------------------------------------------------------------ */
+
+static void
+host_watch(
+    struct ToriRSServerHostConn* c,
+    int read,
+    int write)
+{
+    struct ToriRSServerPoll* poll = c->host->core.poll;
+
+    if( read && !c->watching_read )
+    {
+        ToriRSServer_PollAdd(poll, c->fd, &c->co);
+        c->watching_read = 1;
+        c->watching_write = 0;
+    }
+    else if( !read && c->watching_read )
+    {
+        ToriRSServer_PollRemove(poll, c->fd);
+        c->watching_read = 0;
+        c->watching_write = 0;
+    }
+    /* Writability rides on the read registration: only worth asking while
+     * there is something queued, or the wait turns into a spin. */
+    write = write && c->watching_read;
+    if( write != c->watching_write )
+    {
+        ToriRSServer_PollWantWrite(poll, c->fd, &c->co, write);
+        c->watching_write = write;
+    }
+}
 
 /*
  * Take a connection out of service and queue its teardown.
  *
  * Nothing is freed here, and that is the point: this is reached from inside a
- * pump, from a failed flush, and from the login stage, and in the first two of
- * those the world may still be holding this session's player. The tick
+ * resume, from a failed flush, and from the login stage, and in the first two
+ * of those the world may still be holding this session's player. The tick
  * boundary is the one place where nothing is mid-flight.
  */
 static void
 host_conn_kill(
     struct ToriRSServerHost* host,
-    int index)
+    struct ToriRSServerHostConn* c)
 {
-    struct ToriRSServerHostConn* c = &host->conns[index];
-
-    if( c->state == TORIRSSERVER_HOST_CONN_FREE ||
-        c->state == TORIRSSERVER_HOST_CONN_CLOSING )
+    if( c->state == TORIRSSERVER_HOST_CONN_CLOSING )
         return;
     c->state = TORIRSSERVER_HOST_CONN_CLOSING;
+    host_watch(c, 0, 0);
     ToriRSServer_SessionKill(&c->session);
-    host_job_push(host, TORIRSSERVER_HOST_JOB_LOGOUT, index);
+    host_job_push(host, TORIRSSERVER_HOST_JOB_LOGOUT, c->index);
+}
+
+static void
+host_conn_free(struct ToriRSServerCo* co)
+{
+    struct ToriRSServerHostConn* c = (struct ToriRSServerHostConn*)co;
+
+    /* A job that finished after its connection went: whatever it produced is
+     * not anyone's now. */
+    free(c->read.bytes);
+    memset(c->auth.pass, 0, sizeof(c->auth.pass));
+    ToriMem_Free(ToriMem_ServerNet(), c);
 }
 
 /* The teardown itself, from the logout stage only. */
@@ -216,8 +470,9 @@ host_conn_release(
     struct ToriRSServerHost* host,
     int index)
 {
-    struct ToriRSServerHostConn* c = &host->conns[index];
+    struct ToriRSServerHostConn* c = host->conns[index];
 
+    assert(c);
     /*
      * The world lets go of the player while the session is still addressable,
      * because that is what makes the packets a logout generates reach everyone
@@ -239,18 +494,149 @@ host_conn_release(
     ToriRSServer_ConnFree(&c->conn);
     if( c->fd >= 0 )
         close(c->fd);
-    memset(c, 0, sizeof(*c));
-    c->state = TORIRSSERVER_HOST_CONN_FREE;
     c->fd = -1;
+    host->conns[index] = NULL;
+    host->conn_count--;
+    /* A coroutine waiting on its password check or save read is freed when
+     * that job comes back (the job's memory is inside it). */
+    if( ToriRSServer_CoreDrop(&host->core, &c->co, host_conn_free) )
+        host_conn_free(&c->co);
     fprintf(stderr, "torirsserver: client disconnected\n");
 }
 
+/*
+ * One connection's whole life. A coroutine (torirs_server_core.h): resumed
+ * when its socket has something, when a job it waits on is done, or when the
+ * tick has output for it. No `switch` in here (CLAUDE.md).
+ */
+static int
+host_conn_step(
+    struct ToriRSServerCore* core,
+    struct ToriRSServerCo* co)
+{
+    struct ToriRSServerHostConn* c = (struct ToriRSServerHostConn*)co;
+    struct ToriRSServerHost* host = c->host;
+
+    PT_BEGIN(&co->pt);
+
+    /* The stream says what it is: raw TCP, or a WebSocket upgrade to finish. */
+    for( ;; )
+    {
+        enum ToriRSServerConnOpen open = ToriRSServer_ConnOpenStep(&c->conn);
+
+        if( open == TORIRSSERVER_CONN_OPEN_FAILED )
+        {
+            host_conn_kill(host, c);
+            PT_EXIT(&co->pt);
+        }
+        if( open != TORIRSSERVER_CONN_OPENING )
+            break;
+        host_watch(c, 1, ToriRSServer_ConnPending(&c->conn) > 0);
+        PT_YIELD(&co->pt);
+    }
+    ToriRSServer_TransportSocket(&c->transport, &c->conn);
+    ToriRSServer_SessionInit(&c->session, &c->transport, host->srv->verbose);
+    c->session.auth_async = 1;
+    c->state = TORIRSSERVER_HOST_CONN_LIVE;
+
+    for( ;; )
+    {
+        /* What the tick or a reply queued goes first. A JS5 download that
+         * stopped building answers at its backlog (TORIRSSERVER_JS5_BACKLOG_MAX)
+         * builds more in the pump right after. */
+        if( ToriRSServer_ConnPending(&c->conn) > 0 && !ToriRSServer_ConnFlush(&c->conn) )
+        {
+            host_conn_kill(host, c);
+            PT_EXIT(&co->pt);
+        }
+        if( !ToriRSServer_SessionPump(&c->session, host->srv) )
+        {
+            /* A refused login's answer is already queued; give it one try. */
+            ToriRSServer_ConnFlush(&c->conn);
+            host_conn_kill(host, c);
+            PT_EXIT(&co->pt);
+        }
+
+        if( c->session.state == TORIRSSERVER_SESSION_AUTH )
+        {
+            /* The password check, off the loop. Not read meanwhile: the
+             * session decodes nothing until it has the answer. */
+            host_watch(c, 0, 0);
+            snprintf(c->auth.user, sizeof(c->auth.user), "%s", c->session.auth_user);
+            memcpy(c->auth.pass, c->session.auth_pass, sizeof(c->auth.pass));
+            memset(c->session.auth_pass, 0, sizeof(c->session.auth_pass));
+            c->auth.job.fn = host_auth_run;
+            c->auth.job.key = host_account_key(c->auth.user);
+            TORIRSSERVER_CO_AWAIT_JOB(core, co, &c->auth.job);
+            ToriRSServer_SessionAuthDone(&c->session, host->srv, c->auth.result, c->auth.admin);
+            host_watch(c, 1, 0);
+            continue;
+        }
+
+        if( ToriRSServer_SessionTakeLogin(&c->session) )
+        {
+            /* The save, read off the loop: queued behind any save of this
+             * account still being written, so it is the newest. The login
+             * stage checks that nothing newer was queued after it. */
+            host_watch(c, 0, 0);
+            do
+            {
+                c->refetch = 0;
+                snprintf(c->read.path, sizeof(c->read.path), "%s",
+                         ToriRSServer_SavePath(c->session.display_name));
+                c->read.job.fn = host_read_run;
+                c->read.job.key = host_account_key(c->session.display_name);
+                c->read_seq = host->save_seq;
+                TORIRSSERVER_CO_AWAIT_JOB(core, co, &c->read.job);
+                ToriMem_Free(ToriMem_ServerPlayers(), c->session.save_bytes);
+                c->session.save_bytes = NULL;
+                c->session.save_len = c->read.len;
+                if( c->read.len > 0 )
+                {
+                    c->session.save_bytes =
+                        (uint8_t*)ToriMem_Alloc(ToriMem_ServerPlayers(), (size_t)c->read.len);
+                    assert(c->session.save_bytes);
+                    memcpy(c->session.save_bytes, c->read.bytes, (size_t)c->read.len);
+                }
+                free(c->read.bytes);
+                c->read.bytes = NULL;
+                c->session.save_prefetched = 1;
+
+                /* The world comes up in the login stage rather than here,
+                 * because a session carries bytes and knows nothing about
+                 * ticks, npcs or scripts. */
+                c->awaiting_login = 1;
+                host_job_push(host, TORIRSSERVER_HOST_JOB_LOGIN, c->index);
+                PT_WAIT_UNTIL(&co->pt, !c->awaiting_login);
+            } while( c->refetch );
+            if( c->state != TORIRSSERVER_HOST_CONN_LIVE )
+                PT_EXIT(&co->pt);
+            host_watch(c, 1, 0);
+            continue;
+        }
+
+        host_watch(c, 1, ToriRSServer_ConnPending(&c->conn) > 0);
+        /*
+         * Bytes already in hand beat any descriptor. A framed transport reads
+         * whole frames, so one read can leave a complete request deframed
+         * and queued while the socket has nothing further to say -- and the
+         * client that sent it is waiting for the answer, so nothing further
+         * ever arrives. Without this the request would wait out the tick.
+         */
+        if( ToriRSServer_ConnBuffered(&c->conn) > 0 )
+            ToriRSServer_CoreReady(core, co);
+        PT_YIELD(&co->pt);
+    }
+    PT_END(&co->pt);
+}
+
 static void
-host_accept(struct ToriRSServerHost* host)
+host_accept_one(struct ToriRSServerHost* host)
 {
     int nodelay = 1;
     int fd = (int)accept(host->listener, NULL, NULL);
     int index;
+    struct ToriRSServerHostConn* c;
 
     if( fd < 0 )
         return;
@@ -266,92 +652,65 @@ host_accept(struct ToriRSServerHost* host)
      */
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
 
-    for( index = 0; index < TORIRSSERVER_HOST_CONN_MAX; index++ )
-        if( host->conns[index].state == TORIRSSERVER_HOST_CONN_FREE )
+    for( index = 0; index < TORIRSSERVER_HOST_CONN_CAP; index++ )
+        if( !host->conns[index] )
             break;
-    if( index == TORIRSSERVER_HOST_CONN_MAX )
+    if( index == TORIRSSERVER_HOST_CONN_CAP )
     {
         /* Closed at once rather than left in the backlog: a client that is
          * refused says so, and a client that is ignored hangs on a blank
          * screen. */
         fprintf(stderr, "torirsserver: %d connections already; refusing\n",
-                TORIRSSERVER_HOST_CONN_MAX);
+                TORIRSSERVER_HOST_CONN_CAP);
         close(fd);
         return;
     }
 
-    memset(&host->conns[index], 0, sizeof(host->conns[index]));
-    host->conns[index].state = TORIRSSERVER_HOST_CONN_OPENING;
-    host->conns[index].fd = fd;
+    /* ~150 KB of buffers, held only while the connection is. */
+    c = ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*c));
+    assert(c);
+    ToriRSServer_CoInit(&c->co, host_conn_step);
+    c->host = host;
+    c->index = index;
+    c->state = TORIRSSERVER_HOST_CONN_OPENING;
+    c->fd = fd;
+    host->conns[index] = c;
+    host->conn_count++;
     /*
-     * No sniff here for what the connection carries. It used to matter — 15
-     * meant a JS5 download and was handed to a forked child, 14 stayed — and
-     * it does not any more: the session's own state machine reads that byte
-     * (step_init) and both services run in this loop. One accept path, one
-     * kind of connection as far as this file is concerned.
+     * No sniff here for what the connection carries: the session's own state
+     * machine reads that byte (step_init) and both services run in this loop.
+     * One accept path, one kind of connection as far as this file is
+     * concerned.
      */
-    ToriRSServer_ConnBegin(&host->conns[index].conn, fd);
-    host->conns[index].conn.require_ticket = host->srv->gate;
+    ToriRSServer_ConnBegin(&c->conn, fd);
+    c->conn.require_ticket = host->srv->gate;
     fprintf(stderr, "torirsserver: client connected (slot %d)\n", index);
+    ToriRSServer_CoreReady(&host->core, &c->co);
 }
 
-/* ------------------------------------------------------------------ */
-/* Service                                                             */
-/* ------------------------------------------------------------------ */
-
-/*
- * Advance one connection as far as the bytes it has allow.
- *
- * Called for every live connection after every wakeup rather than only for the
- * descriptors select() named, because "readable" is not the same question as
- * "has something to do": a WebSocket read takes whole frames, so a pump can
- * leave application bytes deframed and buffered while the socket has nothing
- * further to say — and the peer that sent them is waiting for the reply. A
- * recv that finds nothing costs one syscall.
- */
-static void
-host_service(
-    struct ToriRSServerHost* host,
-    int index)
+/* The listener's coroutine: readiness on the listening socket means a
+ * connection (or several) is waiting. The socket is non-blocking, so a
+ * spurious wake costs one failed accept. */
+static int
+host_accept_step(
+    struct ToriRSServerCore* core,
+    struct ToriRSServerCo* co)
 {
-    struct ToriRSServerHostConn* c = &host->conns[index];
+    struct ToriRSServerHost* host =
+        (struct ToriRSServerHost*)((char*)co - offsetof(struct ToriRSServerHost, accept_co));
 
-    if( c->state == TORIRSSERVER_HOST_CONN_OPENING )
+    (void)core;
+    /* Bounded so a connection storm cannot hold the loop off the tick; the
+     * listener stays readable and is resumed again. */
+    for( int i = 0; i < 64; i++ )
     {
-        enum ToriRSServerConnOpen step = ToriRSServer_ConnOpenStep(&c->conn);
+        int before = host->conn_count;
 
-        if( step == TORIRSSERVER_CONN_OPENING )
-            return;
-        if( step == TORIRSSERVER_CONN_OPEN_FAILED )
-        {
-            host_conn_kill(host, index);
-            return;
-        }
-        ToriRSServer_TransportSocket(&c->transport, &c->conn);
-        ToriRSServer_SessionInit(&c->session, &c->transport, host->srv->verbose);
-        c->state = TORIRSSERVER_HOST_CONN_LIVE;
+        host_accept_one(host);
+        if( host->conn_count == before )
+            break;
     }
-
-    if( c->state != TORIRSSERVER_HOST_CONN_LIVE || c->awaiting_login )
-        return;
-
-    if( !ToriRSServer_SessionPump(&c->session, host->srv) )
-    {
-        host_conn_kill(host, index);
-        return;
-    }
-
-    /*
-     * The handshake completed inside that pump. The world comes up in the
-     * login stage rather than here, because a session carries bytes and knows
-     * nothing about ticks, npcs or scripts — and because building a world and
-     * running a save load is not work to do between two ticks.
-     */
-    if( ToriRSServer_SessionTakeLogin(&c->session) )
-    {
-        c->awaiting_login = 1;
-        host_job_push(host, TORIRSSERVER_HOST_JOB_LOGIN, index);
-    }
+    return PT_YIELDED;
 }
 
 /* ------------------------------------------------------------------ */
@@ -363,15 +722,19 @@ host_stage_login(
     struct ToriRSServerHost* host,
     int index)
 {
-    struct ToriRSServerHostConn* c = &host->conns[index];
+    struct ToriRSServerHostConn* c = host->conns[index];
     struct ToriRSServerPlayer* player;
     struct ToriRSServerPlayer* evict;
     int claim;
 
-    c->awaiting_login = 0;
     /* The peer can leave between raising the login and this stage running. */
-    if( c->state != TORIRSSERVER_HOST_CONN_LIVE )
+    if( !c )
         return;
+    if( c->state != TORIRSSERVER_HOST_CONN_LIVE )
+    {
+        c->awaiting_login = 0;
+        return;
+    }
 
     claim = ToriRSServer_ClaimSlot(&host->claims, host->srv, &c->session, now_ms(), &evict);
     if( evict )
@@ -379,12 +742,12 @@ host_stage_login(
         /* Kill before removing, the order host_conn_release keeps: the session
          * is closing but still addressable while the world lets go. Its queued
          * release then finds no player and only frees the session. */
-        for( int other = 0; other < TORIRSSERVER_HOST_CONN_MAX; other++ )
+        for( int other = 0; other < TORIRSSERVER_HOST_CONN_CAP; other++ )
         {
-            if( host->conns[other].session.player != evict )
+            if( !host->conns[other] || host->conns[other]->session.player != evict )
                 continue;
-            host_conn_kill(host, other);
-            host->conns[other].session.player = NULL;
+            host_conn_kill(host, host->conns[other]);
+            host->conns[other]->session.player = NULL;
         }
         ToriRSServer_WorldRemovePlayer(host->srv, evict);
     }
@@ -392,7 +755,23 @@ host_stage_login(
     {
         /* The client reads the closed link as a failed reconnect and logs in
          * with its password instead (ToriRS_Network_TakeResumeRefused). */
-        host_conn_kill(host, index);
+        c->awaiting_login = 0;
+        host_conn_kill(host, c);
+        return;
+    }
+
+    /*
+     * The save this login read is the newest only if no save of the account
+     * was queued after the read: the eviction just above queues one, and so
+     * does a logout that crossed this login. Read again, behind it, and come
+     * back on a later tick.
+     */
+    if( host->save_stamp[host_account_key(c->session.display_name) % TORIRSSERVER_HOST_SAVE_SLOTS] >
+        c->read_seq )
+    {
+        c->refetch = 1;
+        c->awaiting_login = 0;
+        ToriRSServer_CoreReady(&host->core, &c->co);
         return;
     }
 
@@ -406,11 +785,12 @@ host_stage_login(
     player = claim == TORIRSSERVER_CLAIM_ANY_SLOT
                  ? ToriRSServer_WorldAddPlayer(host->srv, &c->session)
                  : ToriRSServer_WorldAddPlayerAt(host->srv, &c->session, claim);
+    c->awaiting_login = 0;
     if( !player )
     {
         /* The world is full and said so. The connection goes rather than
          * hanging on a login screen that will never answer. */
-        host_conn_kill(host, index);
+        host_conn_kill(host, c);
         return;
     }
     c->session.player = player;
@@ -424,11 +804,15 @@ host_stage_login(
     /*
      * Anything the client sent behind its login block is still in the session
      * buffer, and there is a player to dispatch it to now. Pumping here rather
-     * than leaving it to the next service pass is what keeps the first packets
-     * of a session in front of the tick that follows.
+     * than leaving it to the next resume is what keeps the first packets of a
+     * session in front of the tick that follows.
      */
     if( !ToriRSServer_SessionPump(&c->session, host->srv) )
-        host_conn_kill(host, index);
+    {
+        host_conn_kill(host, c);
+        return;
+    }
+    ToriRSServer_CoreReady(&host->core, &c->co);
 }
 
 /*
@@ -449,15 +833,24 @@ host_drain_queue(struct ToriRSServerHost* host)
 
     while( host_job_pop(host, &job) )
     {
-        switch( job.kind )
-        {
-        case TORIRSSERVER_HOST_JOB_LOGIN:
+        if( job.kind == TORIRSSERVER_HOST_JOB_LOGIN )
             host_stage_login(host, job.conn);
-            break;
-        case TORIRSSERVER_HOST_JOB_LOGOUT:
+        else
             host_conn_release(host, job.conn);
-            break;
-        }
+    }
+}
+
+/* After a tick, every connection with output gets a resume to send it. */
+static void
+host_ready_output(struct ToriRSServerHost* host)
+{
+    for( int i = 0; i < TORIRSSERVER_HOST_CONN_CAP; i++ )
+    {
+        struct ToriRSServerHostConn* c = host->conns[i];
+
+        if( c && c->state == TORIRSSERVER_HOST_CONN_LIVE && !c->awaiting_login &&
+            ToriRSServer_ConnPending(&c->conn) > 0 )
+            ToriRSServer_CoreReady(&host->core, &c->co);
     }
 }
 
@@ -492,23 +885,23 @@ ToriRSServer_HostShutdownRequested(void)
  * walked the player table and called `ToriRSServer_SavePlayer` would be a
  * second definition of what "logged out" means, and would drift from this one.
  *
- * Draining after the kills is what actually runs those jobs: `host_conn_kill`
- * only queues them, and the loop is on its way out and will not reach
- * `host_drain_queue` again.
+ * The saves themselves go to the pool; ToriRSServer_CoreShutdown waits every
+ * one of them out before the process goes.
  */
 static void
 host_logout_everyone(struct ToriRSServerHost* host)
 {
     int live = 0;
 
-    for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
+    for( int i = 0; i < TORIRSSERVER_HOST_CONN_CAP; i++ )
     {
-        if( host->conns[i].state == TORIRSSERVER_HOST_CONN_FREE ||
-            host->conns[i].state == TORIRSSERVER_HOST_CONN_CLOSING )
+        struct ToriRSServerHostConn* c = host->conns[i];
+
+        if( !c || c->state == TORIRSSERVER_HOST_CONN_CLOSING )
             continue;
-        if( host->conns[i].session.player )
+        if( c->session.player )
             live++;
-        host_conn_kill(host, i);
+        host_conn_kill(host, c);
     }
     fprintf(stderr,
             "torirsserver: shutting down — saving %d player(s)\n",
@@ -528,6 +921,53 @@ host_logout_everyone(struct ToriRSServerHost* host)
 /* Loop                                                                */
 /* ------------------------------------------------------------------ */
 
+static void
+host_listener_nonblocking(int listener)
+{
+#ifdef _WIN32
+    u_long on = 1;
+
+    ioctlsocket((SOCKET)listener, FIONBIO, &on);
+#else
+    int flags = fcntl(listener, F_GETFL, 0);
+
+    if( flags >= 0 )
+        fcntl(listener, F_SETFL, flags | O_NONBLOCK);
+#endif
+}
+
+/* Two descriptors per player and some to spare. The macOS default soft limit
+ * is 256, which a few hundred players exhaust long before the cap. */
+static void
+host_raise_fd_limit(void)
+{
+#ifndef _WIN32
+    struct rlimit limit;
+    rlim_t want = (rlim_t)TORIRSSERVER_HOST_CONN_CAP + 64;
+
+    if( getrlimit(RLIMIT_NOFILE, &limit) != 0 || limit.rlim_cur >= want )
+        return;
+    limit.rlim_cur = limit.rlim_max == RLIM_INFINITY || limit.rlim_max >= want ? want
+                                                                                : limit.rlim_max;
+    if( setrlimit(RLIMIT_NOFILE, &limit) != 0 || limit.rlim_cur < want )
+        fprintf(stderr,
+                "torirsserver: descriptor limit is %llu, below the %llu %d players need; "
+                "raise it (ulimit -n / LimitNOFILE)\n",
+                (unsigned long long)limit.rlim_cur, (unsigned long long)want,
+                TORIRSSERVER_PLAYER_MAX);
+#endif
+}
+
+static int
+host_pool_threads(void)
+{
+    const char* configured = getenv("TORIRSSERVER_POOL_THREADS");
+
+    if( configured && configured[0] )
+        return atoi(configured) > 0 ? atoi(configured) : 0;
+    return TORIRSSERVER_HOST_POOL_THREADS;
+}
+
 int
 ToriRSServer_HostRun(
     struct ToriRSServer* srv,
@@ -540,139 +980,45 @@ ToriRSServer_HostRun(
     assert(config);
     assert(listener >= 0);
 
-    /* ~3 MB of per-connection buffers. Heap rather than a static, so a host
-     * that is never run costs nothing, and rather than the stack for the
-     * obvious reason. */
     host = (struct ToriRSServerHost*)ToriMem_Calloc(ToriMem_ServerNet(), 1, sizeof(*host));
     assert(host);
     host->srv = srv;
     host->config = config;
     host->listener = listener;
     host->next_tick = now_ms() + TORIRSSERVER_TICK_MS;
-    for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
-        host->conns[i].fd = -1;
+    host_raise_fd_limit();
+    host_listener_nonblocking(listener);
+    ToriRSServer_CoreInit(&host->core, host_pool_threads());
+    ToriRSServer_CoInit(&host->accept_co, host_accept_step);
+    ToriRSServer_PollAdd(host->core.poll, listener, &host->accept_co);
+    ToriRSServer_SaveSetSink(host_save_sink, host);
+    fprintf(stderr, "torirsserver: core loop up — %d players, %d connections, %d pool thread(s)\n",
+            TORIRSSERVER_PLAYER_MAX, TORIRSSERVER_HOST_CONN_CAP, host_pool_threads());
 
     for( ;; )
     {
-        fd_set readable;
-        fd_set writable;
-        struct timeval timeout;
+        long wait_ms;
 
         /*
-         * Checked here, at the top, because that is where every path lands:
-         * a signal makes select() fail with EINTR (select is never restarted
-         * by SA_RESTART, so `signal()`'s BSD semantics do not hide it), and
-         * the EINTR arm below `continue`s straight back to this line. With no
-         * signal at all the tick timeout brings us here within 600 ms, which
-         * is what Windows relies on — there a signal does not interrupt the
-         * select at all.
+         * Checked here, at the top, because that is where every path lands: a
+         * signal ends the wait early (EINTR comes back as zero events), and
+         * with no signal at all the tick deadline brings us here within
+         * 600 ms, which is what Windows relies on -- there a signal does not
+         * interrupt the wait at all.
          */
         if( ToriRSServer_HostShutdownRequested() )
         {
             host_logout_everyone(host);
+            ToriRSServer_CoreShutdown(&host->core);
+            ToriRSServer_SaveSetSink(NULL, NULL);
             ToriMem_Free(ToriMem_ServerNet(), host);
             return 0;
         }
-        int top = listener;
-        int immediate = 0;
-        long wait_ms;
-        int ready;
 
-        FD_ZERO(&readable);
-        FD_ZERO(&writable);
-        FD_SET(listener, &readable);
-
-        for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
-        {
-            struct ToriRSServerHostConn* c = &host->conns[i];
-
-            if( c->state == TORIRSSERVER_HOST_CONN_FREE ||
-                c->state == TORIRSSERVER_HOST_CONN_CLOSING )
-                continue;
-            assert(c->fd >= 0);
-
-            if( !c->awaiting_login )
-                FD_SET(c->fd, &readable);
-            /*
-             * Writability is only interesting when there is something to
-             * write. A descriptor left in the write set with an empty queue is
-             * readable-for-write essentially always, which turns this select
-             * into a spin.
-             */
-            if( ToriRSServer_ConnPending(&c->conn) > 0 )
-                FD_SET(c->fd, &writable);
-            if( c->fd > top )
-                top = c->fd;
-
-            /*
-             * Bytes already in hand beat any descriptor.
-             *
-             * A framed transport reads whole frames, so one read can leave a
-             * complete request deframed and queued while the socket has
-             * nothing further to say — and the client that sent it is waiting
-             * for the answer, so nothing further ever arrives. Sleeping there
-             * waits out the whole timeout with the request sitting in the
-             * buffer: 600 ms on a game connection, where the tick deadline
-             * hides it, and unbounded on a JS5 one, where it looks exactly
-             * like a server that accepted the handshake and then went silent.
-             */
-            if( !c->awaiting_login && ToriRSServer_ConnBuffered(&c->conn) > 0 )
-                immediate = 1;
-        }
-
-        /* The account server's socket, so its answer wakes the loop. */
-        if( host->srv->account_link )
-            ToriRSServer_AccountLinkWatch(host->srv->account_link, &readable, &writable, &top);
-
-        wait_ms = immediate ? 0 : host->next_tick - now_ms();
+        wait_ms = host->next_tick - now_ms();
         if( wait_ms < 0 )
             wait_ms = 0;
-        timeout.tv_sec = wait_ms / 1000;
-        timeout.tv_usec = (wait_ms % 1000) * 1000;
-
-        ready = select(top + 1, &readable, &writable, NULL, &timeout);
-        if( ready < 0 )
-        {
-#ifdef _WIN32
-            if( WSAGetLastError() == WSAEINTR )
-                continue;
-            fprintf(stderr, "torirsserver: select failed (WSA %d)\n", WSAGetLastError());
-#else
-            if( errno == EINTR )
-                continue;
-            perror("select");
-#endif
-            ToriMem_Free(ToriMem_ServerNet(), host);
-            return 1;
-        }
-
-        if( ready > 0 && FD_ISSET(listener, &readable) )
-            host_accept(host);
-
-        /*
-         * Drain what the kernel refused earlier, before servicing. A
-         * connection whose queue clears is a JS5 download that stopped
-         * building answers (see TORIRSSERVER_JS5_BACKLOG_MAX) and can build
-         * more the moment the service pass below re-enters it.
-         */
-        for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
-        {
-            struct ToriRSServerHostConn* c = &host->conns[i];
-
-            if( c->state == TORIRSSERVER_HOST_CONN_FREE ||
-                c->state == TORIRSSERVER_HOST_CONN_CLOSING )
-                continue;
-            if( ready > 0 && FD_ISSET(c->fd, &writable) && !ToriRSServer_ConnFlush(&c->conn) )
-                host_conn_kill(host, i);
-        }
-
-        for( int i = 0; i < TORIRSSERVER_HOST_CONN_MAX; i++ )
-        {
-            if( host->conns[i].state == TORIRSSERVER_HOST_CONN_FREE ||
-                host->conns[i].state == TORIRSSERVER_HOST_CONN_CLOSING )
-                continue;
-            host_service(host, i);
-        }
+        ToriRSServer_CoreStep(&host->core, wait_ms);
 
         if( now_ms() >= host->next_tick )
         {
@@ -692,6 +1038,7 @@ ToriRSServer_HostRun(
              * (torirs_server_accountlink.h): an append, never a wait. */
             if( host->srv->account_link )
                 ToriRSServer_AccountLinkWrite(host->srv->account_link, host->srv->account_log);
+            host_ready_output(host);
 
             /* Anchor to the schedule rather than to "now", so a slow tick does
              * not push every later tick out. */

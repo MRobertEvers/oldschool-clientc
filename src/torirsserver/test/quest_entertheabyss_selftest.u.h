@@ -290,12 +290,12 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
         player->worn[i].obj_id = -1;
         player->worn[i].count = 0;
     }
-    player->varps[varp_eta] = 0;
-    player->varps[varp_rm] = 0;
+    ToriRSServer_VarpPut(player, varp_eta, 0);
+    ToriRSServer_VarpPut(player, varp_rm, 0);
     if( varp_warp >= 0 && varp_warp < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_warp] = 0;
+        ToriRSServer_VarpPut(player, varp_warp, 0);
     if( varp_skull >= 0 && varp_skull < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_skull] = 0;
+        ToriRSServer_VarpPut(player, varp_skull, 0);
 
     selftest_park_player(srv, 3106, 3558);
     fprintf(stderr, "PASS entertheabyss snap trigger=SNAP tile=3106,3558,0\n");
@@ -311,11 +311,11 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
 
     /* ---- not started, no Rune Mysteries ---- */
     eta_talk(srv, player, npc_wildy, slot_w, NULL, 0);
-    SELFTEST_CHECK(player->varps[varp_eta] == 0, "no RM should leave state 0, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 0, "no RM should leave state 0, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     eta_pass("refuse_rm", "OPNPC1", "state=0");
 
-    player->varps[varp_rm] = 6;
+    ToriRSServer_VarpPut(player, varp_rm, 6);
 
     /* ---- god-item block Talk ---- */
     if( obj_cape >= 0 )
@@ -323,8 +323,8 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
         player->worn[1].obj_id = obj_cape;
         player->worn[1].count = 1;
         eta_talk(srv, player, npc_wildy, slot_w, go_wildy, 1);
-        SELFTEST_CHECK(player->varps[varp_eta] == 0, "worn Saradomin cape must block Talk, got %d",
-                       player->varps[varp_eta]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 0, "worn Saradomin cape must block Talk, got %d",
+                       ToriRSServer_Varp(player, varp_eta));
         player->worn[1].obj_id = -1;
         player->worn[1].count = 0;
         eta_pass("god_block", "OPNPC1", "cape blocked Talk");
@@ -332,21 +332,21 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
 
     /* ---- Wilderness start 0 -> 1 ---- */
     eta_talk(srv, player, npc_wildy, slot_w, go_wildy, 1);
-    SELFTEST_CHECK(player->varps[varp_eta] == 1, "wildy accept should write state 1, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 1, "wildy accept should write state 1, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     eta_pass("wildy_start", "OPNPC1", "state=1");
 
     /* ---- Varrock refuse stays 1 ---- */
     eta_talk(srv, player, npc_varrock, slot_v, refuse_varrock, 1);
-    SELFTEST_CHECK(player->varps[varp_eta] == 1, "Varrock refuse must stay 1, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 1, "Varrock refuse must stay 1, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     SELFTEST_CHECK(selftest_count(player, obj_empty) == 0, "refuse must not grant an orb");
     eta_pass("varrock_refuse", "OPNPC1", "state=1 no orb");
 
     /* ---- Varrock accept 1 -> 2, one empty orb ---- */
     eta_talk(srv, player, npc_varrock, slot_v, accept_varrock, 4);
-    SELFTEST_CHECK(player->varps[varp_eta] == 2, "accept via live mage should write state 2, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 2, "accept via live mage should write state 2, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     SELFTEST_CHECK(selftest_count(player, obj_empty) == 1,
                    "accept should grant exactly 1 empty orb, have %d",
                    selftest_count(player, obj_empty));
@@ -427,8 +427,8 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
 
     /* ---- handover 2 -> 3 ---- */
     eta_talk(srv, player, npc_varrock, slot_v, NULL, 0);
-    SELFTEST_CHECK(player->varps[varp_eta] == 3, "handover should write state 3, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 3, "handover should write state 3, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     SELFTEST_CHECK(selftest_count(player, obj_full) == 0, "handover consumes the charged orb");
     eta_pass("handover", "OPNPC1", "state=3");
 
@@ -437,8 +437,8 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         selftest_give(player, obj_junk >= 0 ? obj_junk : obj_empty, 1);
     eta_talk(srv, player, npc_varrock, slot_v, leave_topics, 1);
-    SELFTEST_CHECK(player->varps[varp_eta] == 3, "full inv must not complete, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 3, "full inv must not complete, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     SELFTEST_CHECK(selftest_count(player, obj_book) == 0 && selftest_count(player, obj_pouch) == 0,
                    "full inv must not drop rewards on the floor");
     eta_pass("reward_full", "OPNPC1", "state stayed 3");
@@ -448,8 +448,8 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     xp_before = player->stat_xp_tenths[stat_rc];
     eta_talk(srv, player, npc_varrock, slot_v, leave_topics, 1);
     eta_drain_scroll_queue(srv, player);
-    SELFTEST_CHECK(player->varps[varp_eta] == 4, "reward should write state 4, got %d",
-                   player->varps[varp_eta]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_eta) == 4, "reward should write state 4, got %d",
+                   ToriRSServer_Varp(player, varp_eta));
     SELFTEST_CHECK(selftest_count(player, obj_book) == 1, "reward should grant the Abyssal book");
     SELFTEST_CHECK(selftest_count(player, obj_pouch) == 1, "reward should grant the small pouch");
     SELFTEST_CHECK(player->stat_xp_tenths[stat_rc] == xp_before + 10000,
@@ -477,7 +477,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     if( stat_pray >= 0 )
         ToriRSServer_CombatSetLevel(player, stat_pray, 99);
     if( varp_skull >= 0 && varp_skull < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_skull] = 0;
+        ToriRSServer_VarpPut(player, varp_skull, 0);
     if( slot_wb < 0 || !srv->npcs[slot_wb].active )
     {
         if( slot_wb >= 0 )
@@ -503,7 +503,7 @@ selftest_quest_entertheabyss(struct ToriRSServer* srv, struct ToriRSServerPlayer
     SELFTEST_CHECK(!(player->x == 3040 && player->z == 4832),
                    "entry must not land on the inner-ring centre 3040,4832");
     if( varp_skull >= 0 && varp_skull < TORIRSSERVER_VARP_COUNT )
-        SELFTEST_CHECK(player->varps[varp_skull] > 0, "entry without bracelet should skull");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_skull) > 0, "entry without bracelet should skull");
     eta_pass("wildy_teleport", "OPNPC4", "outer ring");
     selftest_ack_scene(srv);
     selftest_park_player(srv, player->x, player->z);

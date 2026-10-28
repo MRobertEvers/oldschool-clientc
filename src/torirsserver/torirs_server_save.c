@@ -14,6 +14,7 @@
 #include "3rd/ini/ini.h"
 #include "content/content_register.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,25 +34,108 @@
 /* Write                                                               */
 /* ------------------------------------------------------------------ */
 
+/*
+ * A save's text, composed in memory.
+ *
+ * The writer used to fprintf straight into the file, which made every logout
+ * a disk write inside the tick. Composing first splits the two halves: the
+ * text needs the player and is built on the tick, the write needs only the
+ * text and goes to the blocking-call pool when a sink is installed
+ * (ToriRSServer_SaveSetSink).
+ */
+struct SaveText
+{
+    char* data;
+    size_t len;
+    size_t cap;
+};
+
+static void
+save_printf(
+    struct SaveText* out,
+    const char* fmt,
+    ...)
+{
+    va_list args;
+    int need;
+
+    assert(out);
+    assert(fmt);
+    va_start(args, fmt);
+    need = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+    assert(need >= 0);
+    if( out->len + (size_t)need + 1 > out->cap )
+    {
+        size_t cap = out->cap ? out->cap : 4096;
+
+        while( cap < out->len + (size_t)need + 1 )
+            cap *= 2;
+        out->data = ToriMem_Realloc(ToriMem_ServerPlayers(), out->data, cap);
+        assert(out->data);
+        out->cap = cap;
+    }
+    va_start(args, fmt);
+    vsnprintf(out->data + out->len, out->cap - out->len, fmt, args);
+    va_end(args);
+    out->len += (size_t)need;
+}
+
+static ToriRSServerSaveSink g_save_sink;
+static void* g_save_sink_ctx;
+
+void
+ToriRSServer_SaveSetSink(
+    ToriRSServerSaveSink sink,
+    void* ctx)
+{
+    g_save_sink = sink;
+    g_save_sink_ctx = ctx;
+}
+
+/* Hand the composed text to the sink, or write it here when there is none
+ * (the embedded world, scriptrun, the selftests) and for a checkpoint, whose
+ * caller reads the result back at once. Takes the text either way. */
+static int
+save_commit(
+    const struct ToriRSServerPlayer* player,
+    const char* path,
+    struct SaveText* text,
+    int checkpoint)
+{
+    int ok;
+
+    if( !text->data )
+        save_printf(text, "%s", "");
+    if( g_save_sink && !checkpoint )
+    {
+        g_save_sink(g_save_sink_ctx, player->account_name, path, text->data, text->len);
+        return 1;
+    }
+    ok = ToriRSServer_SaveWriteText(path, text->data);
+    ToriMem_Free(ToriMem_ServerPlayers(), text->data);
+    return ok;
+}
+
 static void
 write_items(
-    FILE* file,
+    struct SaveText* file,
     const char* section,
     const struct ToriRSServerItem* slots,
     int slot_count)
 {
-    fprintf(file, "\n[%s]\n; <slot> = <obj> <count>\n", section);
+    save_printf(file, "\n[%s]\n; <slot> = <obj> <count>\n", section);
     for( int slot = 0; slot < slot_count; slot++ )
     {
         if( slots[slot].obj_id < 0 || slots[slot].count <= 0 )
             continue;
-        fprintf(file, "%d = %d %d\n", slot, slots[slot].obj_id, slots[slot].count);
+        save_printf(file, "%d = %d %d\n", slot, slots[slot].obj_id, slots[slot].count);
     }
 }
 
 static void
 write_item_vars(
-    FILE* file,
+    struct SaveText* file,
     const char* section,
     const struct ToriRSServerItem* slots,
     int slot_count)
@@ -68,10 +152,10 @@ write_item_vars(
                 continue;
             if( !any )
             {
-                fprintf(file, "\n[%s]\n; <slot> <key_obj> = <value>\n", section);
+                save_printf(file, "\n[%s]\n; <slot> <key_obj> = <value>\n", section);
                 any = 1;
             }
-            fprintf(file, "%d %d = %d\n", slot, slots[slot].var_key[v],
+            save_printf(file, "%d %d = %d\n", slot, slots[slot].var_key[v],
                     slots[slot].var_val[v]);
         }
     }
@@ -79,10 +163,10 @@ write_item_vars(
 
 static void
 write_poh(
-    FILE* file,
+    struct SaveText* file,
     const struct ToriRSServerPohState* poh)
 {
-    fprintf(file,
+    save_printf(file,
             "\n[poh]\n"
             "schema_version = %d\n"
             "owns_house = %d\n"
@@ -125,25 +209,25 @@ write_poh(
             poh->treasure_ready_minute, poh->boss_jars, poh->dummy_variants,
             poh->games_prize_coins, poh->style_unlocks);
 
-    fprintf(file,
+    save_printf(file,
             "\n[poh_rooms]\n"
             "; <slot> = <room_dbrow> <x> <z> <level> <rotation> <door_mask>\n");
     for( int i = 0; i < poh->room_count; i++ )
     {
         const struct ToriRSServerPohRoom* room = &poh->rooms[i];
 
-        fprintf(file, "%d = %d %d %d %d %d %d\n", i, room->dbrow, room->x,
+        save_printf(file, "%d = %d %d %d %d %d %d\n", i, room->dbrow, room->x,
                 room->z, room->level, room->rotation, room->door_mask);
     }
 
-    fprintf(file,
+    save_printf(file,
             "\n[poh_decorations]\n"
             "; <slot> = <room> <hotspot> <furniture_dbrow> <rotation> <flags>\n");
     for( int i = 0; i < poh->decoration_count; i++ )
     {
         const struct ToriRSServerPohDecoration* decoration = &poh->decorations[i];
 
-        fprintf(file, "%d = %d %d %d %d %d\n", i, decoration->room,
+        save_printf(file, "%d = %d %d %d %d %d\n", i, decoration->room,
                 decoration->hotspot, decoration->furniture_dbrow,
                 decoration->rotation, decoration->flags);
     }
@@ -168,8 +252,8 @@ save_player_write(
     const char* path,
     int checkpoint)
 {
-    char temp[1100];
-    FILE* file;
+    struct SaveText text = { 0 };
+    struct SaveText* file = &text;
     struct ToriRSServerSailingSave sailing;
     ToriRSServer_VesselCapturePlayer(player, &sailing);
     int save_x = player->x, save_z = player->z, save_level = player->level;
@@ -187,23 +271,10 @@ save_player_write(
     if( !*path )
         return 0;
 
-    /* The file's own directory, not the save directory: a checkpoint lives one level
-     * below it (`<saves>/checkpoints/<k>.ini`). For a logout save the two are
-     * the same directory. */
-    ToriRSServer_SaveMkdirParent(path);
+    /* The text is composed here, on the tick, because it reads the player;
+     * writing it is IO and goes wherever the sink says (save_commit). */
 
-    /* Write-then-rename: a crash mid-write leaves the previous save intact
-     * rather than a truncated one. For a save file that is the difference
-     * between losing a session and losing a character. */
-    snprintf(temp, sizeof(temp), "%s.tmp", path);
-    file = fopen(temp, "wb");
-    if( !file )
-    {
-        fprintf(stderr, "torirsserver: cannot write %s\n", temp);
-        return 0;
-    }
-
-    fprintf(file,
+    save_printf(file,
             "; ToriRSServer player save. Written by torirs_server_save.c; safe to hand-edit.\n"
             "; A key this server does not know is skipped, and a missing one keeps\n"
             "; whatever a fresh character would have — so an old save still loads.\n"
@@ -224,7 +295,7 @@ save_player_write(
      * as leaving the area"), so the regions and the count are part of the
      * character: x z level of each region, then the ticks. */
     if( player->tolerance_set )
-        fprintf(file, "tolerance = %d %d %d %d %d %d %d\n",
+        save_printf(file, "tolerance = %d %d %d %d %d %d %d\n",
                 player->tolerance_x[0], player->tolerance_z[0], player->tolerance_level[0],
                 player->tolerance_x[1], player->tolerance_z[1], player->tolerance_level[1],
                 player->tolerance_ticks);
@@ -254,24 +325,24 @@ save_player_write(
 
         ToriRSServer_FriendsChatModes(player->name37, &public_mode, &private_mode,
                                       &trade_mode);
-        fprintf(file, "\n[chat]\n; public 0-3, private 0-2, trade 0-2; 0 is ON in each\n"
+        save_printf(file, "\n[chat]\n; public 0-3, private 0-2, trade 0-2; 0 is ON in each\n"
                       "public = %d\nprivate = %d\ntrade = %d\n",
                 public_mode, private_mode, trade_mode);
     }
 
-    fprintf(file, "\n[sailing]\nshore = %d %d %d\naboard = %d %d %d\n",
+    save_printf(file, "\n[sailing]\nshore = %d %d %d\naboard = %d %d %d\n",
             sailing.shore_x, sailing.shore_z, sailing.shore_level,
             sailing.aboard_slot, sailing.deck_x, sailing.deck_z);
     for( int slot = 0; slot < 5; ++slot )
     {
         const struct ToriRSServerSavedBoat* boat = &sailing.boats[slot];
         if( boat->config_id < 1 || boat->config_id > 3 ) continue;
-        fprintf(file, "boat%d = %d %d %d %d %d %d %d %d %d\n", slot + 1,
+        save_printf(file, "boat%d = %d %d %d %d %d %d %d %d %d\n", slot + 1,
                 boat->config_id, boat->fine_x, boat->fine_z, boat->angle, boat->hp,
                 boat->name_descriptor, boat->name_noun, boat->anchored, boat->motes);
         for( int h = 0; h < 13; ++h )
             if( boat->resources[h][0] || boat->resources[h][1] )
-                fprintf(file, "resource%d_%d = %d %d\n", slot + 1, h,
+                save_printf(file, "resource%d_%d = %d %d\n", slot + 1, h,
                         boat->resources[h][0], boat->resources[h][1]);
     }
 
@@ -285,17 +356,17 @@ save_player_write(
      * a character who has never been through the design panel, which is
      * exactly what an old save is.
      */
-    fprintf(file, "\n[appearance]\n; gender, then <wearpos> = <idk> and colours\n");
-    fprintf(file, "gender = %d\n", player->gender);
+    save_printf(file, "\n[appearance]\n; gender, then <wearpos> = <idk> and colours\n");
+    save_printf(file, "gender = %d\n", player->gender);
     for( int i = 0; i < TORIRSSERVER_APPEARANCE_SLOTS; i++ )
         if( player->appearance_kit[i] >= 0 )
-            fprintf(file, "kit%d = %d\n", i, player->appearance_kit[i]);
-    fprintf(file, "colours =");
+            save_printf(file, "kit%d = %d\n", i, player->appearance_kit[i]);
+    save_printf(file, "colours =");
     for( int i = 0; i < TORIRSSERVER_APPEARANCE_COLOURS; i++ )
-        fprintf(file, " %d", player->body_colour[i]);
-    fprintf(file, "\n");
+        save_printf(file, " %d", player->body_colour[i]);
+    save_printf(file, "\n");
 
-    fprintf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
+    save_printf(file, "\n[stats]\n; <stat> = <boosted> <xp_tenths>\n");
     for( int stat = 0; stat < TORIRSSERVER_STAT_COUNT; stat++ )
     {
         /* Skip the untouched majority: 23 stats of `1 0` is noise in a file
@@ -303,7 +374,7 @@ save_player_write(
          * on load, so it is not written. */
         if( player->stat_xp_tenths[stat] == 0 && player->stat_boosted[stat] <= 1 )
             continue;
-        fprintf(file, "%d = %d %d\n", stat, player->stat_boosted[stat],
+        save_printf(file, "%d = %d %d\n", stat, player->stat_boosted[stat],
                 player->stat_xp_tenths[stat]);
     }
 
@@ -354,17 +425,17 @@ save_player_write(
      * default: if content never said the variable exists, the engine has no
      * business making it outlive the session.
      */
-    fprintf(file, "\n[varps]\n; only varps whose .varp config says scope=perm\n");
+    save_printf(file, "\n[varps]\n; only varps whose .varp config says scope=perm\n");
     for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
     {
         const struct ToriRSServerVarpDef* def;
 
-        if( player->varps[varp] == 0 )
+        if( ToriRSServer_Varp(player, varp) == 0 )
             continue;
         def = ToriRSServer_ContentVarp(varp);
         if( !checkpoint && (!def || !def->scope_perm) )
             continue;
-        fprintf(file, "%d = %d\n", varp, (int)player->varps[varp]);
+        save_printf(file, "%d = %d\n", varp, (int)ToriRSServer_Varp(player, varp));
     }
 
     write_poh(file, &player->poh);
@@ -378,7 +449,7 @@ save_player_write(
      * every session landed, and the next three swings were 0, 0 and a
      * near-certain miss, every login (2026-10-15). A fixture carries no
      * [random], so a test still starts from the name seed, as before. */
-    fprintf(file,
+    save_printf(file,
             "\n[random]\n; the player's own streams, continued across sessions\n"
             "engine = %u\nscript = %llu\nseeded = %d\n",
             (unsigned)player->random.engine, (unsigned long long)player->random.script,
@@ -393,19 +464,11 @@ save_player_write(
          * two scope=temp (LostCity saves none of them) -- and each is only
          * meaningful against the clock it was stamped on. */
         assert(player->world);
-        fprintf(file, "\n[clock]\n; map_clock when this checkpoint was written\nmap_clock = %d\n",
+        save_printf(file, "\n[clock]\n; map_clock when this checkpoint was written\nmap_clock = %d\n",
                 player->world->tick);
     }
 
-    fclose(file);
-
-    if( ToriRSServer_SaveReplace(temp, path) != 0 )
-    {
-        fprintf(stderr, "torirsserver: cannot replace %s\n", path);
-        remove(temp);
-        return 0;
-    }
-    return 1;
+    return save_commit(player, path, &text, checkpoint);
 }
 
 int
@@ -574,14 +637,7 @@ ToriRSServer_LoadPlayer(
     FILE* file;
     long size;
     uint8_t* data;
-    struct INIReader reader;
-    struct INIElement element;
-    enum SaveSection section = SAVE_NONE;
-    int section_inv = -1;
-    struct ToriRSServerContainer* section_row = NULL;
-    int version = 0;
-    int poh_version = 0;
-    int checkpoint_clock = -1;
+    int ok;
 
     assert(path);
     if( !*path )
@@ -608,6 +664,33 @@ ToriRSServer_LoadPlayer(
         return 0;
     }
     fclose(file);
+    ok = ToriRSServer_LoadPlayerFrom(player, data, size, path);
+    ToriMem_Free(ToriMem_ServerPlayers(), data);
+    return ok;
+}
+
+int
+ToriRSServer_LoadPlayerFrom(
+    struct ToriRSServerPlayer* player,
+    const uint8_t* data,
+    long size,
+    const char* path)
+{
+    struct INIReader reader;
+    struct INIElement element;
+    enum SaveSection section = SAVE_NONE;
+    int section_inv = -1;
+    struct ToriRSServerContainer* section_row = NULL;
+    int version = 0;
+    int poh_version = 0;
+    int checkpoint_clock = -1;
+
+
+    assert(player);
+    assert(data);
+    assert(path);
+    if( size <= 0 )
+        return 0;
 
     /* Loading overlays a live player in selftests as well as a fresh login.
      * Clear the old house first so absent rows cannot survive from the previous
@@ -624,7 +707,7 @@ ToriRSServer_LoadPlayer(
     player->saved_chat_trade_mode = 0;
 
     ini_reader_init(&reader);
-    while( ini_reader_next(&reader, data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
+    while( ini_reader_next(&reader, (uint8_t*)data, (uint32_t)size, &element) == TORI_INI_ERR_OK )
     {
         const char* key;
         const char* value;
@@ -921,7 +1004,7 @@ ToriRSServer_LoadPlayer(
             int varp = atoi(key);
 
             if( varp >= 0 && varp < TORIRSSERVER_VARP_COUNT )
-                player->varps[varp] = (int32_t)atoi(value);
+                ToriRSServer_VarpPut(player, varp, (int32_t)atoi(value));
             break;
         }
 
@@ -1054,8 +1137,6 @@ ToriRSServer_LoadPlayer(
             break;
         }
     }
-
-    ToriMem_Free(ToriMem_ServerPlayers(), data);
 
     if( version > TORIRSSERVER_SAVE_VERSION )
         fprintf(stderr,

@@ -152,7 +152,7 @@ ahoy_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -337,9 +337,9 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     if( varbit_lobster >= 0 )
         ToriRSServer_VarbitSet(srv, varbit_lobster, 0);
     if( varp_priest >= 0 )
-        player->varps[varp_priest] = 0;
+        ToriRSServer_VarpPut(player, varp_priest, 0);
     if( varp_pip >= 0 )
-        player->varps[varp_pip] = 0;
+        ToriRSServer_VarpPut(player, varp_pip, 0);
     ahoy_set_skill(player, stat_agi, 25);
     ahoy_release(srv, player);
 
@@ -360,9 +360,9 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         ahoy_pass("prereq_block", "opnpc1,ahoy_velorina", "ahoy_questvar=0");
 
     if( varp_priest >= 0 )
-        player->varps[varp_priest] = 5;
+        ToriRSServer_VarpPut(player, varp_priest, 5);
     if( varp_pip >= 0 )
-        player->varps[varp_pip] = 60;
+        ToriRSServer_VarpPut(player, varp_pip, 60);
 
     ahoy_talk(srv, player, srv->npcs[vel_slot].type, vel_slot);
     ahoy_choose(srv, player, 2);
@@ -579,7 +579,7 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             ahoy_pass("necro_command", "opnpc1,ahoy_necrovarus", "ahoy_questvar=7");
     }
 
-    qp_before = (varp_qp >= 0) ? player->varps[varp_qp] : 0;
+    qp_before = (varp_qp >= 0) ? ToriRSServer_Varp(player, varp_qp) : 0;
     ahoy_snap(srv, player, 0, 3677, 3508);
     vel_slot = ahoy_spawn_npc(srv, npc_vel, 3677, 3508, 0, &spawned_vel);
     SELFTEST_CHECK(vel_slot >= 0, "Velorina should still be available at completion");
@@ -595,7 +595,7 @@ selftest_quest_ghostsahoy(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     SELFTEST_CHECK(ahoy_state(player, varbit_ahoy) == 8, "completion should write 8, got %d",
                    ahoy_state(player, varbit_ahoy));
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 2, "completion should award 2 QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 2, "completion should award 2 QP");
     SELFTEST_CHECK(selftest_count_obj(player, obj_ecto) >= 1 || selftest_count_obj(player, obj_empty) >= 1,
                    "completion should deliver an ectophial");
     if( ahoy_state(player, varbit_ahoy) == 8 )

@@ -78,6 +78,15 @@ ToriRSServer_SessionFree(struct ToriRSServerSession* session)
     isaac_free(session->cipher_in);
     session->cipher_out = NULL;
     session->cipher_in = NULL;
+    ToriMem_Free(ToriMem_ServerNet(), session->in);
+    session->in = NULL;
+    session->in_len = 0;
+    session->in_cap = 0;
+    /* A login that never reached the world leaves its prefetched save. */
+    ToriMem_Free(ToriMem_ServerPlayers(), session->save_bytes);
+    session->save_bytes = NULL;
+    session->save_prefetched = 0;
+    memset(session->auth_pass, 0, sizeof(session->auth_pass));
     if( session->transport.close )
         session->transport.close(session->transport.ctx);
     session->state = TORIRSSERVER_SESSION_DEAD;
@@ -150,6 +159,9 @@ ToriRSServer_SessionTakeLogin(struct ToriRSServerSession* session)
 /* ------------------------------------------------------------------ */
 
 /** Drop `count` consumed bytes off the front. */
+/* The input buffer's starting size, and what a drained one shrinks to. */
+#define SESSION_IN_MIN 4096
+
 static void
 consume(
     struct ToriRSServerSession* session,
@@ -160,6 +172,14 @@ consume(
     if( count >= session->in_len )
     {
         session->in_len = 0;
+        /* Drained: back to the starting size, so a session between packets
+         * holds 4 KB rather than whatever its largest packet needed. */
+        if( session->in_cap > SESSION_IN_MIN )
+        {
+            session->in = ToriMem_Realloc(ToriMem_ServerNet(), session->in, SESSION_IN_MIN);
+            assert(session->in);
+            session->in_cap = SESSION_IN_MIN;
+        }
         return;
     }
     memmove(session->in, session->in + count, (size_t)(session->in_len - count));
@@ -181,9 +201,22 @@ consume(
 static int
 fill(struct ToriRSServerSession* session)
 {
-    int space = TORIRSSERVER_SESSION_IN_MAX - session->in_len;
+    int space;
     int got;
 
+    /* Room for at least a few KB more, doubling toward the maximum. */
+    if( session->in_cap - session->in_len < SESSION_IN_MIN &&
+        session->in_cap < TORIRSSERVER_SESSION_IN_MAX )
+    {
+        int cap = session->in_cap ? session->in_cap * 2 : SESSION_IN_MIN;
+
+        if( cap > TORIRSSERVER_SESSION_IN_MAX )
+            cap = TORIRSSERVER_SESSION_IN_MAX;
+        session->in = ToriMem_Realloc(ToriMem_ServerNet(), session->in, (size_t)cap);
+        assert(session->in);
+        session->in_cap = cap;
+    }
+    space = session->in_cap - session->in_len;
     if( space <= 0 )
     {
         /*
@@ -512,6 +545,150 @@ step_init(
  * straight-line version this re-enters cleanly on a block split across reads —
  * nothing is consumed until the whole thing is present.
  */
+/* A password check's refusal: say so to the client and end the session.
+ * Returns 1 when the login was refused. */
+static int
+login_refused(
+    struct ToriRSServerSession* session,
+    const char* user,
+    int auth,
+    int auth_type)
+{
+    if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE ||
+        auth == TORIRSSERVER_AUTH_WEAK || auth == TORIRSSERVER_AUTH_MANAGED )
+    {
+        uint8_t refused = OSRS_LOGINRES_INVALID_USER_OR_PASS;
+
+        fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
+                auth == TORIRSSERVER_AUTH_REFUSED
+                    ? (auth_type == OSRS_LOGIN_AUTH_TOKEN ? "one-time login token not valid for this account"
+                                                          : "wrong password")
+                : auth == TORIRSSERVER_AUTH_WEAK
+                    ? "no account, and the password breaks the rules, so it was not claimed"
+                : auth == TORIRSSERVER_AUTH_MANAGED
+                    ? "the account is linked to a site login; it signs in only through it"
+                    : "unusable name or empty password");
+        /* 3 is "invalid username or password" at 230 and 239 alike. */
+        ToriRSServer_SessionSend(session, &refused, 1);
+        session->state = TORIRSSERVER_SESSION_DEAD;
+        return 1;
+    }
+    if( auth == TORIRSSERVER_AUTH_CLAIMED )
+        fprintf(stderr, "torirsserver: '%s' had no password; the one it logged in with is now its password\n",
+                user);
+    return 0;
+}
+
+/* Everything a login does once its password (if any) is settled: the name,
+ * the staff level, the response, the ciphers. Shared by the inline check and
+ * ToriRSServer_SessionAuthDone. */
+static int
+login_finish(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv,
+    const char* user,
+    const int32_t seed[4],
+    uint64_t claimed,
+    int payload_len,
+    int admin)
+{
+    int32_t seed_in[4];
+    uint8_t ok = 2;
+
+    /*
+     * The session keeps the name; it does NOT write it onto the player here.
+     * ToriRSServer_WorldInit memsets the whole player struct and runs after this,
+     * so a name written now is a name silently erased — which is exactly what
+     * used to happen, and why `displayname` in a script reported nothing. The
+     * caller copies it across with ToriRSServer_WorldSetDisplayName once the
+     * world is up.
+     */
+    snprintf(session->display_name, sizeof(session->display_name), "%s",
+             user[0] ? user : "Player");
+
+    /* The staff level, for a login and a reconnect alike: the response below
+     * carries it at 239, and the player gets it whatever the revision. An
+     * account's admin flag holds whatever the server's settings: an admin
+     * may cheat everywhere, and the rev-239 client sends a `::command` as a
+     * cheat only when this level says staff. */
+    session->account_admin = admin;
+    session->staff_level = login_staff_level();
+    if( session->account_admin && session->staff_level < 2 )
+        session->staff_level = 2;
+    if( session->staff_level > 0 )
+        fprintf(stderr, "torirsserver: '%s' is staff, staffModLevel=%d\n", user,
+                session->staff_level);
+    fprintf(stderr, "torirsserver: %s user='%s' session=%s\n",
+            session->reconnect ? "reconnect" : "login", user,
+            claimed == SESSION_ID ? "ok" : "MISMATCH");
+
+    consume(session, 3 + payload_len);
+
+    /*
+     * A reconnect's response is deferred, not skipped.
+     *
+     * RECONNECT_OK carries the player-info init block, and that block states
+     * where the player is — which is not known until the world is up and the
+     * save has been read. So the world's login path sends it (see
+     * ToriRSServer_WorldLogin), and the only thing that happens here is arming the
+     * ciphers, exactly as a fresh login does. Nothing is sent in between, so
+     * the client still sees the response ahead of the first game packet.
+     */
+    if( session->reconnect )
+    {
+        /* fall through to the cipher arming below */
+    }
+    else if( login_is_239(srv) )
+    {
+        /*
+         * LoginResponse.Ok is composed here and sent by the world login.
+         *
+         * Everything it carries except one field is known now; that field is
+         * `index`, the slot the client will treat as itself, and it is not.
+         * See `login_ok_pending` in torirs_server_session.h — the pool slot is
+         * handed out by whichever host answers the login this function is
+         * about to raise, so reading `session->player` here named nobody and
+         * every client was told it was index 1.
+         *
+         * The body below is therefore written by
+         * ToriRSServer_SessionSendLoginOk, which runs once there is a player
+         * to ask. The staff level was resolved above, because it is a
+         * property of the account rather than of the slot.
+         *
+         * A bare `0x02` is what this server used to send, and at 239 that is
+         * not "a shorter response", it is a desync: the client reads a length
+         * and then 34 bytes, so it swallows the first 35 bytes of the login
+         * burst as though they were the response body. The burst that follows
+         * then starts mid-packet. Nothing reports an error — the client simply
+         * never sees the packets it ate, which reads as "the server didn't send
+         * them".
+         */
+        session->login_ok_pending = 1;
+    }
+    else if( ToriRSServer_SessionSend(session, &ok, 1) < 0 )
+    {
+        session->state = TORIRSSERVER_SESSION_DEAD;
+        return 1;
+    }
+
+    /* The client seeds its out-cipher with the raw seed and its in-cipher with
+     * seed + 50, so the server is the mirror image. */
+    for( int i = 0; i < 4; i++ )
+        seed_in[i] = seed[i] + 50;
+    session->cipher_out = isaac_new(seed_in, 4);
+    session->cipher_in = isaac_new((int32_t*)seed, 4);
+    if( !session->cipher_out || !session->cipher_in )
+    {
+        fprintf(stderr, "torirsserver: isaac_new failed\n");
+        session->state = TORIRSSERVER_SESSION_DEAD;
+        return 1;
+    }
+
+    session->state = TORIRSSERVER_SESSION_ONLINE;
+    session->login_raised = 1;
+    return 1;
+}
+
 static int
 step_login(
     struct ToriRSServerSession* session,
@@ -524,7 +701,6 @@ step_login(
     int rsa_size;
     int plain_len;
     int32_t seed[4];
-    int32_t seed_in[4];
     uint64_t claimed;
     char user[64];
     char pass[64];
@@ -533,7 +709,6 @@ step_login(
     int auth_type = OSRS_LOGIN_AUTH_PASSWORD;
     int body_off = 0;
     int body_len = 0;
-    uint8_t ok = 2;
 
     assert(srv);
     if( session->in_len < 3 )
@@ -742,134 +917,38 @@ step_login(
      */
     if( !session->reconnect && srv->check_passwords )
     {
-        /* A token is the deob's one-time login (class660.field7035): minted by
-         * the play endpoint for exactly one account, spent here. It is never
-         * a claim -- the account it names already signed in to get it. */
-        enum ToriRSServerAuthResult auth =
-            auth_type == OSRS_LOGIN_AUTH_TOKEN
-                ? (ToriRSServer_OAuthRedeemOtl(pass, user, (long long)time(NULL))
-                       ? TORIRSSERVER_AUTH_OK
-                       : TORIRSSERVER_AUTH_REFUSED)
-                : ToriRSServer_AuthLogin(user, pass);
-
-        memset(pass, 0, sizeof(pass));
-        if( auth == TORIRSSERVER_AUTH_REFUSED || auth == TORIRSSERVER_AUTH_UNUSABLE ||
-            auth == TORIRSSERVER_AUTH_WEAK || auth == TORIRSSERVER_AUTH_MANAGED )
+        if( session->auth_async && auth_type == OSRS_LOGIN_AUTH_PASSWORD )
         {
-            uint8_t refused = OSRS_LOGINRES_INVALID_USER_OR_PASS;
-
-            fprintf(stderr, "torirsserver: login refused for '%s': %s\n", user,
-                    auth == TORIRSSERVER_AUTH_REFUSED
-                        ? (auth_type == OSRS_LOGIN_AUTH_TOKEN ? "one-time login token not valid for this account"
-                                                              : "wrong password")
-                    : auth == TORIRSSERVER_AUTH_WEAK
-                        ? "no account, and the password breaks the rules, so it was not claimed"
-                    : auth == TORIRSSERVER_AUTH_MANAGED
-                        ? "the account is linked to a site login; it signs in only through it"
-                        : "unusable name or empty password");
-            /* 3 is "invalid username or password" at 230 and 239 alike. */
-            ToriRSServer_SessionSend(session, &refused, 1);
-            session->state = TORIRSSERVER_SESSION_DEAD;
+            /* Off the loop: the host hands user and password to its pool and
+             * answers with ToriRSServer_SessionAuthDone. */
+            snprintf(session->auth_user, sizeof(session->auth_user), "%s", user);
+            snprintf(session->auth_pass, sizeof(session->auth_pass), "%s", pass);
+            memset(pass, 0, sizeof(pass));
+            memcpy(session->auth_seed, seed, sizeof(session->auth_seed));
+            session->auth_claimed = claimed;
+            session->auth_payload_len = payload_len;
+            session->state = TORIRSSERVER_SESSION_AUTH;
             return 1;
         }
-        if( auth == TORIRSSERVER_AUTH_CLAIMED )
-            fprintf(stderr, "torirsserver: '%s' had no password; the one it logged in with is now its password\n",
-                    user);
+        {
+            /* A token is the deob's one-time login (class660.field7035): minted by
+             * the play endpoint for exactly one account, spent here. It is never
+             * a claim -- the account it names already signed in to get it. */
+            enum ToriRSServerAuthResult auth =
+                auth_type == OSRS_LOGIN_AUTH_TOKEN
+                    ? (ToriRSServer_OAuthRedeemOtl(pass, user, (long long)time(NULL))
+                           ? TORIRSSERVER_AUTH_OK
+                           : TORIRSSERVER_AUTH_REFUSED)
+                    : ToriRSServer_AuthLogin(user, pass);
+
+            memset(pass, 0, sizeof(pass));
+            if( login_refused(session, user, auth, auth_type) )
+                return 1;
+        }
     }
     memset(pass, 0, sizeof(pass));
-
-    /*
-     * The session keeps the name; it does NOT write it onto the player here.
-     * ToriRSServer_WorldInit memsets the whole player struct and runs after this,
-     * so a name written now is a name silently erased — which is exactly what
-     * used to happen, and why `displayname` in a script reported nothing. The
-     * caller copies it across with ToriRSServer_WorldSetDisplayName once the
-     * world is up.
-     */
-    snprintf(session->display_name, sizeof(session->display_name), "%s",
-             user[0] ? user : "Player");
-
-    /* The staff level, for a login and a reconnect alike: the response below
-     * carries it at 239, and the player gets it whatever the revision. An
-     * account's admin flag holds whatever the server's settings: an admin
-     * may cheat everywhere, and the rev-239 client sends a `::command` as a
-     * cheat only when this level says staff. */
-    session->account_admin = ToriRSServer_AuthIsAdmin(user);
-    session->staff_level = login_staff_level();
-    if( session->account_admin && session->staff_level < 2 )
-        session->staff_level = 2;
-    if( session->staff_level > 0 )
-        fprintf(stderr, "torirsserver: '%s' is staff, staffModLevel=%d\n", user,
-                session->staff_level);
-    fprintf(stderr, "torirsserver: %s user='%s' session=%s\n",
-            session->reconnect ? "reconnect" : "login", user,
-            claimed == SESSION_ID ? "ok" : "MISMATCH");
-
-    consume(session, 3 + payload_len);
-
-    /*
-     * A reconnect's response is deferred, not skipped.
-     *
-     * RECONNECT_OK carries the player-info init block, and that block states
-     * where the player is — which is not known until the world is up and the
-     * save has been read. So the world's login path sends it (see
-     * ToriRSServer_WorldLogin), and the only thing that happens here is arming the
-     * ciphers, exactly as a fresh login does. Nothing is sent in between, so
-     * the client still sees the response ahead of the first game packet.
-     */
-    if( session->reconnect )
-    {
-        /* fall through to the cipher arming below */
-    }
-    else if( login_is_239(srv) )
-    {
-        /*
-         * LoginResponse.Ok is composed here and sent by the world login.
-         *
-         * Everything it carries except one field is known now; that field is
-         * `index`, the slot the client will treat as itself, and it is not.
-         * See `login_ok_pending` in torirs_server_session.h — the pool slot is
-         * handed out by whichever host answers the login this function is
-         * about to raise, so reading `session->player` here named nobody and
-         * every client was told it was index 1.
-         *
-         * The body below is therefore written by
-         * ToriRSServer_SessionSendLoginOk, which runs once there is a player
-         * to ask. The staff level was resolved above, because it is a
-         * property of the account rather than of the slot.
-         *
-         * A bare `0x02` is what this server used to send, and at 239 that is
-         * not "a shorter response", it is a desync: the client reads a length
-         * and then 34 bytes, so it swallows the first 35 bytes of the login
-         * burst as though they were the response body. The burst that follows
-         * then starts mid-packet. Nothing reports an error — the client simply
-         * never sees the packets it ate, which reads as "the server didn't send
-         * them".
-         */
-        session->login_ok_pending = 1;
-    }
-    else if( ToriRSServer_SessionSend(session, &ok, 1) < 0 )
-    {
-        session->state = TORIRSSERVER_SESSION_DEAD;
-        return 1;
-    }
-
-    /* The client seeds its out-cipher with the raw seed and its in-cipher with
-     * seed + 50, so the server is the mirror image. */
-    for( int i = 0; i < 4; i++ )
-        seed_in[i] = seed[i] + 50;
-    session->cipher_out = isaac_new(seed_in, 4);
-    session->cipher_in = isaac_new((int32_t*)seed, 4);
-    if( !session->cipher_out || !session->cipher_in )
-    {
-        fprintf(stderr, "torirsserver: isaac_new failed\n");
-        session->state = TORIRSSERVER_SESSION_DEAD;
-        return 1;
-    }
-
-    session->state = TORIRSSERVER_SESSION_ONLINE;
-    session->login_raised = 1;
-    return 1;
+    return login_finish(session, srv, user, seed, claimed, payload_len,
+                        ToriRSServer_AuthIsAdmin(user));
 }
 
 int
@@ -1171,6 +1250,9 @@ ToriRSServer_SessionPump(
         case TORIRSSERVER_SESSION_JS5:
             advanced = step_js5_serve(session);
             break;
+        case TORIRSSERVER_SESSION_AUTH:
+            /* Waiting on the host's answer (ToriRSServer_SessionAuthDone). */
+            break;
         case TORIRSSERVER_SESSION_ONLINE:
             advanced = step_online(session, srv);
             break;
@@ -1187,4 +1269,25 @@ ToriRSServer_SessionPump(
     }
 
     return session->state != TORIRSSERVER_SESSION_DEAD;
+}
+
+void
+ToriRSServer_SessionAuthDone(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv,
+    int auth,
+    int admin)
+{
+    char user[64];
+
+    assert(session);
+    assert(srv);
+    assert(session->state == TORIRSSERVER_SESSION_AUTH);
+    memset(session->auth_pass, 0, sizeof(session->auth_pass));
+    snprintf(user, sizeof(user), "%s", session->auth_user);
+    session->state = TORIRSSERVER_SESSION_LOGIN;
+    if( login_refused(session, user, auth, OSRS_LOGIN_AUTH_PASSWORD) )
+        return;
+    login_finish(session, srv, user, session->auth_seed, session->auth_claimed,
+                 session->auth_payload_len, admin);
 }

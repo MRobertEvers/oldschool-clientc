@@ -87,12 +87,21 @@ world_static_npcs_sync(struct ToriRSServer* srv);
 static void
 world_static_npcs_reset(void);
 
-/* And the loc replay, for the same reason: the window build helper sits with
- * the rebuild machinery, the ZoneMap replay sits with the loc mutations. */
+/* And the loc replay, for the same reason: the square load hook sits with the
+ * rebuild machinery, the ZoneMap replay sits with the loc mutations. */
+struct ToriRSServerZoneLoc;
+/* A box of tiles, inclusive: the map square that just loaded. */
+struct WorldTileBox
+{
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+};
 static void
-world_locs_reapply_window(
-    struct ToriRSServer* srv,
-    struct ToriRSServerSceneWindow* window);
+reapply_loc(
+    struct ToriRSServerZoneLoc* loc,
+    void* user);
 
 static void
 ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player);
@@ -1499,11 +1508,11 @@ scene_bind_covering(
 {
     if( ToriRSServer_SceneWindowContains(ToriRSServer_SceneBoundWindow(), tile_x, tile_z) )
         return;
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    for( int i = 0; i < ToriRSServer_SceneWindowTop(); i++ )
     {
-        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowPeek(i);
 
-        if( !ToriRSServer_SceneWindowBuilt(window) ||
+        if( !window || !ToriRSServer_SceneWindowBuilt(window) ||
             !ToriRSServer_SceneWindowContains(window, tile_x, tile_z) )
             continue;
         ToriRSServer_SceneBindWindow(window);
@@ -3588,7 +3597,7 @@ player_process_locstep(struct ToriRSServer* srv)
     if( !player || player->steps_taken <= 0 )
         return;
 
-    for( int slot = 0;; slot++ )
+    for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
         int type;
@@ -3652,6 +3661,45 @@ zone_centre_generation(
     return handle ? ToriRSServer_MapInstanceGeneration(handle) : 0;
 }
 
+/* Every live hull's padding rule, onto whatever squares are loaded. */
+static void
+world_apply_deck_rules(struct ToriRSServer* srv)
+{
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
+    {
+        const struct ToriRSServerVessel* vessel = &srv->vessels[i];
+        int bx, bz, width, height, x0, z0, x1, z1;
+        if( !vessel->in_use ||
+            !ToriRSServer_MapInstanceBounds(vessel->instance, &bx, &bz, &width, &height) ||
+            !ToriRSServer_VesselDeckWalkBounds(vessel, &x0, &z0, &x1, &z1) ) continue;
+        ToriRSServer_SceneRestrictDeckWalk(bx, bz, width, height, x0, z0, x1, z1);
+    }
+}
+
+/*
+ * A map square just loaded into the collision store (torirs_server_scene.c),
+ * built from the cache alone. Bring it up to what the world knows: the
+ * ZoneMap's runtime loc changes inside it, the occupancy of whoever stands
+ * there, and every hull's deck rule. Each is idempotent, so a square loading
+ * while its neighbours already carry some of this costs time, not truth.
+ */
+static void
+world_square_loaded(
+    void* ctx,
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    struct ToriRSServer* srv = (struct ToriRSServer*)ctx;
+    struct WorldTileBox box = { x0, z0, x1, z1 };
+
+    assert(srv);
+    ToriRSServer_ZoneLocsForeach(srv, reapply_loc, &box);
+    world_occupancy_restamp(srv);
+    world_apply_deck_rules(srv);
+}
+
 static void
 world_window_scene_build(
     struct ToriRSServer* srv,
@@ -3675,21 +3723,8 @@ world_window_scene_build(
         ToriRSServer_SceneBuildInstance(ToriRSServer_WorldCacheDir(), zone_x, zone_z,
                                         &instance_window);
     }
-    /* A build reads the cache, so the fresh window has forgotten every runtime
-     * loc change. The durable record is the ZoneMap's; replay it onto the
-     * window just built — the other windows still carry theirs. */
-    world_locs_reapply_window(srv, window);
-    /* A window may cover several retained deck reservations. Apply every
-     * live hull's padding rule so overlapping collision windows agree. */
-    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
-    {
-        const struct ToriRSServerVessel* vessel = &srv->vessels[i];
-        int bx, bz, width, height, x0, z0, x1, z1;
-        if( !vessel->in_use ||
-            !ToriRSServer_MapInstanceBounds(vessel->instance, &bx, &bz, &width, &height) ||
-            !ToriRSServer_VesselDeckWalkBounds(vessel, &x0, &z0, &x1, &z1) ) continue;
-        ToriRSServer_SceneRestrictDeckWalk(bx, bz, width, height, x0, z0, x1, z1);
-    }
+    /* Every square this view needed is loaded now, and each one that loaded
+     * here has had the ZoneMap replayed onto it (world_square_loaded). */
     ToriRSServer_SceneBindWindow(bound);
 
     /* The entities' own collision, which the rebuilt map does not carry.
@@ -3844,6 +3879,42 @@ ToriRSServer_PlayerReachLevel(
     return deck->level;
 }
 
+/*
+ * Players holding scene-window pool index `index` (ToriRSServerPlayer.scene_window),
+ * `except` aside. A scan rather than a count kept beside the pool: it runs
+ * when a window is built or let go, not per tick, and it cannot drift.
+ */
+static int
+world_window_holders(
+    const struct ToriRSServer* srv,
+    int index,
+    const struct ToriRSServerPlayer* except)
+{
+    int holders = 0;
+
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        const struct ToriRSServerPlayer* other = &srv->players[pid];
+
+        if( other != except && other->active && other->scene_window == index )
+            holders++;
+    }
+    return holders;
+}
+
+/* Let go of the player's window, releasing it if nobody else holds it. */
+static void
+world_player_window_drop(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    int const index = player->scene_window;
+
+    player->scene_window = 0;
+    if( index > 0 && world_window_holders(srv, index, player) == 0 )
+        ToriRSServer_SceneWindowRelease(ToriRSServer_SceneWindowPeek(index));
+}
+
 /* Build (or re-centre) one PLAYER's window on where they stand — or, for a
  * rider, on the hull under them (see player_scene_anchor) — moving their wire
  * origin with it. */
@@ -3862,6 +3933,10 @@ world_player_scene_build(
      * and maybe_rebuild's skip test must key off the attempt or it re-builds
      * every tick. See scene_build_attempted in torirs_server.h. */
     player->scene_build_attempted = 1;
+
+    /* The window is only an origin and the squares it holds (the collision
+     * store is shared), so each player keeps their own. */
+    player->scene_window = 1 + player->pid;
     world_window_scene_build(srv, ToriRSServer_PlayerSceneWindow(player), player->zone_x,
                              player->zone_z);
     player->scene_built_generation = zone_centre_generation(player->zone_x, player->zone_z);
@@ -4460,6 +4535,9 @@ npc_spawn(
         if( generation == 0 )
             generation = 1;
         memset(npc, 0, sizeof(*npc));
+        /* The death handoffs live on the world, so the memset cannot clear
+         * them; a previous life's rows would otherwise hold this one's reap. */
+        ToriRSServer_CombatDeathHandoffDrop(srv, slot);
         npc->generation = generation;
         /* A new life: its death has not been shown yet (`death_seq_tick < 0`
          * is "the phase-cleanup stamp has not run", which the memset's 0 is
@@ -7849,7 +7927,7 @@ ToriRSServer_WorldPlayerLevelChanged(struct ToriRSServerPlayer* player)
      * level — so this is not only "forget what you were told", it is what makes
      * the next flush compute a new active window. */
     ToriRSServer_ZonePlayerReset(player);
-    memset(player->player_tracked, 0, sizeof(player->player_tracked));
+    ToriRSServer_PidSetClear(&player->player_tracked);
     player->tracked_player_count = 0;
 }
 
@@ -9649,7 +9727,7 @@ reset_character_var(
     else
     {
         assert(id < TORIRSSERVER_VARP_COUNT);
-        if( player->varps[id] == 0 )
+        if( ToriRSServer_Varp(player, id) == 0 )
             return;
         ToriRSServer_WorldSetVarpOn(srv, player, id, 0);
     }
@@ -9719,7 +9797,7 @@ reset_character_leave_raid(
         return;
     }
     assert(id < TORIRSSERVER_VARP_COUNT);
-    if( player->varps[id] == 0 )
+    if( ToriRSServer_Varp(player, id) == 0 )
         return;
     if( reset_character_proc(srv, leave_proc, tally) )
         reset_character_append(tally->raids_left, sizeof(tally->raids_left), raid_name);
@@ -10057,7 +10135,7 @@ reset_character_apply_fixture(
     {
         const struct ToriRSServerVarpDef* def;
 
-        if( player->varps[varp] == 0 )
+        if( ToriRSServer_Varp(player, varp) == 0 )
             continue;
         def = ToriRSServer_ContentVarp(varp);
         if( !def || !def->scope_perm )
@@ -10103,7 +10181,7 @@ reset_character_apply_fixture(
 
     /* 3. [login]'s first-login step, armed by the zeroed seeded varp. */
     seeded = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6973_newplayer_seeded");
-    if( seeded >= 0 && player->varps[seeded] != 0 )
+    if( seeded >= 0 && ToriRSServer_Varp(player, seeded) != 0 )
         ToriRSServer_WorldSetVarpOn(srv, player, seeded, 0);
     ToriRSServer_ScriptsRunProc(srv, "[proc,newplayer_setup]", NULL, 0);
     ToriRSServer_ScriptsRunProc(srv, "[proc,update_bas]", NULL, 0);
@@ -11740,7 +11818,7 @@ ToriRSServer_RunCheatLadder(
         if( cheat_run_kit(srv, player, text, kit, sizeof(kit) / sizeof(kit[0])) !=
             TORIRSSERVER_TRIGGER_RAN )
             return TORIRSSERVER_TRIGGER_FAILED;
-        if( player->varps[cox_active] == 0 )
+        if( ToriRSServer_Varp(player, cox_active) == 0 )
         {
             say(srv, "::%s: kit on, but no raid started; still where you were.", text);
             return TORIRSSERVER_TRIGGER_FAILED;
@@ -13014,9 +13092,10 @@ ToriRSServer_WorldTeleport(
     struct ToriRSServerVessel* old_boat = ToriRSServer_VesselAtTile(srv, player->x, player->z);
     if( old_boat && ToriRSServer_MapInstanceFind(abs_x, abs_z) != old_boat->instance )
     {
-        old_boat->navigator_generation[player->pid] = 0;
+        if( player->pid < TORIRSSERVER_VESSEL_NAVIGATOR_MAX )
+            old_boat->navigator_generation[player->pid] = 0;
         int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
-        if( varp >= 0 && player->varps[varp] == old_boat->instance )
+        if( varp >= 0 && ToriRSServer_Varp(player, varp) == old_boat->instance )
             ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
         player->sailing.aboard_slot = 0;
     }
@@ -15487,7 +15566,7 @@ ToriRSServer_WorldAttackStyle(const struct ToriRSServer* srv)
 
     if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         return TORIRSSERVER_STYLE_ACCURATE;
-    return srv->active_player->varps[varp];
+    return ToriRSServer_Varp(srv->active_player, varp);
 }
 
 /*
@@ -15580,7 +15659,7 @@ ToriRSServer_WorldMarkVarp(
      * chosen per value rather than per call site, so content never has to know
      * there are two packets.
      */
-    value = player->varps[varp];
+    value = ToriRSServer_Varp(player, varp);
     if( value >= -128 && value <= 127 )
         ToriRSServer_SendVarpSmall(player, varp, (int)value);
     else
@@ -15736,9 +15815,9 @@ ToriRSServer_WorldSetVarpOn(
     int varp,
     int value)
 {
-    if( !player || varp < 0 || varp >= TORIRSSERVER_VARP_COUNT || player->varps[varp] == value )
+    if( !player || varp < 0 || varp >= TORIRSSERVER_VARP_COUNT || ToriRSServer_Varp(player, varp) == value )
         return;
-    player->varps[varp] = value;
+    ToriRSServer_VarpPut(player, varp, value);
     ToriRSServer_WorldMarkVarp(player, varp);
     if( player == srv->active_player )
         varp_side_effects(srv, varp, value);
@@ -15837,16 +15916,19 @@ ToriRSServer_WorldPlaceNewCharacter(struct ToriRSServerPlayer* player)
 }
 
 /*
- * The scene window a player's movement and view are judged against: pool slot
- * `1 + pid` (slot 0 is the root window, the world's boot anchor). The slot is
- * the player's for the lifetime of the pid — it may simply not be built yet,
- * which `ToriRSServer_SceneWindowBuilt` reports.
+ * The scene window a player's movement and view are judged against: the pool
+ * slot they hold (`scene_window`, shared with every player whose window has
+ * the same origin; slot 0 is the root window, the world's boot anchor). A
+ * player who holds none yet gets the never-built placeholder, which is what
+ * `ToriRSServer_SceneWindowBuilt` then reports.
  */
 struct ToriRSServerSceneWindow*
 ToriRSServer_PlayerSceneWindow(const struct ToriRSServerPlayer* player)
 {
     assert(player);
-    return ToriRSServer_SceneWindowByIndex(1 + player->pid);
+    if( player->scene_window <= 0 )
+        return ToriRSServer_SceneWindowNone();
+    return ToriRSServer_SceneWindowByIndex(player->scene_window);
 }
 
 /*
@@ -15909,6 +15991,8 @@ world_seat_player(
      * (WorldRemovePlayer does): the memset below would otherwise drop its
      * heap bank on the floor. */
     assert(!player->bank.slots);
+    assert(!player->varps.ids);
+    assert(!player->input_queue);
     generation = player->login_generation + 1;
     if( generation == 0 )
         generation = 1;
@@ -16026,6 +16110,8 @@ ToriRSServer_WorldPlayerFree(
      * that left it (every direct caller but WorldRemovePlayer, which saves
      * and releases first) dropped it on the floor. Idempotent. */
     ToriRSServer_BankShutdownPlayer(player);
+    ToriRSServer_VarpsFree(&player->varps);
+    ToriRSServer_WorldInputFree(player);
 
     if( srv->player_free_queue_count < TORIRSSERVER_PLAYER_MAX )
     {
@@ -16044,7 +16130,7 @@ ToriRSServer_WorldPlayerFree(
      * of somebody else's map. Release also rebinds the root window if this
      * one happened to be bound. Then let the static-npc roster retire spawns
      * that only this window's centre kept in range. */
-    ToriRSServer_SceneWindowRelease(ToriRSServer_PlayerSceneWindow(player));
+    world_player_window_drop(srv, player);
     world_static_npcs_sync(srv);
 }
 
@@ -16302,6 +16388,9 @@ ToriRSServer_WorldRemovePlayer(
      * registry calloc'd them, and the memset in ToriRSServer_WorldAddPlayer would
      * otherwise hand the next player into this slot a pointer to them. */
     ToriRSServer_ContainerShutdownPlayer(player);
+    /* And the varp map, after the save above has read it. */
+    ToriRSServer_VarpsFree(&player->varps);
+    ToriRSServer_WorldInputFree(player);
     /*
      * The friend service is told before the slot goes, because it is keyed by
      * name and the name is about to be unreachable. Only presence is dropped —
@@ -16508,7 +16597,8 @@ ToriRSServer_WorldInit(
 
     /* Collision before anything is placed: a spawn on a blocked tile is worth
      * knowing about, and the walk helpers consult the scene from their first
-     * call. */
+     * call. Every square that loads from here on is told to this world. */
+    ToriRSServer_SceneSetSquareHook(world_square_loaded, srv);
     ToriRSServer_WorldSceneRebuild(srv);
 
     ToriRSServer_WorldBuildEntities(srv);
@@ -16523,13 +16613,20 @@ ToriRSServer_WorldReset(struct ToriRSServer* srv)
      * first login a stamped 104x104 of the previous world's map. The next
      * WorldInit rebuilds the root; the player windows must start unbuilt. This
      * also rebinds the root, so no dangling preference survives the reset. */
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-        ToriRSServer_SceneWindowRelease(ToriRSServer_SceneWindowByIndex(i));
+    for( int i = ToriRSServer_SceneWindowTop() - 1; i >= 0; i-- )
+        ToriRSServer_SceneWindowRelease(ToriRSServer_SceneWindowPeek(i));
+    /* And the squares they held: the next world's are built from its own
+     * ZoneMap, not this one's. */
+    ToriRSServer_SceneSquaresDropUnheld();
     /* The windows are gone, so no player's placement survives either: a stale
      * attempt flag would make maybe_rebuild skip the next world's first
      * build for any player kept across the reset. */
     for( int i = 0; i < srv->player_count; i++ )
+    {
         srv->players[i].scene_build_attempted = 0;
+        /* The pool was just released whole: nobody holds a slot now. */
+        srv->players[i].scene_window = 0;
+    }
     /* The ZoneMap is the world's memory of every runtime loc change and of
      * where every entity stands, so a world that is being thrown away has to
      * throw it away too — the selftest runs many worlds in one process, and a
@@ -16574,6 +16671,8 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
      * has to release the old container before the struct is cleared. */
     ToriRSServer_BankShutdownPlayer(player);
     ToriRSServer_ContainerShutdownPlayer(player);
+    ToriRSServer_VarpsFree(&player->varps);
+    ToriRSServer_WorldInputFree(player);
 
     /*
      * The memset clears the *game* state, not the player's identity.
@@ -16839,6 +16938,11 @@ ToriRSServer_WorldShutdown(struct ToriRSServer* srv)
 {
     assert(srv);
     ToriRSServer_WorldReset(srv);
+    ToriRSServer_SceneWindowsShutdown();
+    ToriMem_Free(ToriMem_ServerWorld(), srv->death_handoffs);
+    srv->death_handoffs = NULL;
+    srv->death_handoff_count = 0;
+    srv->death_handoff_capacity = 0;
     ToriMem_Free(ToriMem_ServerWorld(), g_static_realised);
     g_static_realised = NULL;
     g_static_realised_count = 0;
@@ -17143,7 +17247,23 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * man stood blocked at 3222,3217 on scriptrun, and the two lanes' logs
      * parted on it). Restamped below, once the boat has placed them too. */
     player_set_occupancy(player, 0);
-    if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->account_name)) )
+    if( player->session && player->session->save_prefetched )
+    {
+        /* Read by the host's pool, after any save of this account it was
+         * still writing (torirs_server_pool.h's key order): no disk here. */
+        struct ToriRSServerSession* session = player->session;
+        int loaded = session->save_len > 0 &&
+                     ToriRSServer_LoadPlayerFrom(player, session->save_bytes, session->save_len,
+                                                 ToriRSServer_SavePath(player->account_name));
+
+        ToriMem_Free(ToriMem_ServerPlayers(), session->save_bytes);
+        session->save_bytes = NULL;
+        session->save_len = 0;
+        session->save_prefetched = 0;
+        if( !loaded )
+            ToriRSServer_WorldPlaceNewCharacter(player);
+    }
+    else if( !ToriRSServer_LoadPlayer(player, ToriRSServer_SavePath(player->account_name)) )
         ToriRSServer_WorldPlaceNewCharacter(player);
     /* The save may carry a display name set on Tutorial Island; the friend
      * service is told this player's name below, by this key. */
@@ -17276,7 +17396,7 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * (RECONNECT_OK already sent the init) and a login on the normal map are
      * untouched: the first is tracked already, the second is this packet.
      */
-    if( !player->player_tracked[player->pid] )
+    if( !ToriRSServer_PidSetHas(&player->player_tracked, player->pid) )
     {
         int anchor_x = player->x;
         int anchor_z = player->z;
@@ -17324,7 +17444,7 @@ login_shows_welcome(struct ToriRSServerPlayer const* player)
     if( getenv("TORIRS_CONTENT_TEST") || getenv("TORIRSSERVER_SKIP_WELCOME") )
         return 0;
     if( varp_tutorial < 0 || tutorial_complete < 0 ||
-        player->varps[varp_tutorial] < tutorial_complete )
+        ToriRSServer_Varp(player, varp_tutorial) < tutorial_complete )
         return 0;
     return ids->iface_toplevel_display > 0 && ids->iface_welcome_screen > 0 &&
            ids->com_toplevel_display_displaymodal > 0;
@@ -17553,7 +17673,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
     for( int varp = 0; varp < TORIRSSERVER_VARP_COUNT; varp++ )
     {
         const struct ToriRSServerVarpDef* def;
-        int32_t value = player->varps[varp];
+        int32_t value = ToriRSServer_Varp(player, varp);
 
         if( value == 0 )
             continue;
@@ -17866,6 +17986,19 @@ ToriRSServer_WorldInput(
     assert(len >= 0);
     assert(len == 0 || payload);
     assert(ToriRSServer_WorldInputRoom(player, len));
+    if( player->input_queue_len + WORLD_INPUT_HEADER + len > player->input_queue_capacity )
+    {
+        int capacity = player->input_queue_capacity ? player->input_queue_capacity : 256;
+
+        while( capacity < player->input_queue_len + WORLD_INPUT_HEADER + len )
+            capacity *= 2;
+        if( capacity > TORIRSSERVER_INPUT_QUEUE_BYTES )
+            capacity = TORIRSSERVER_INPUT_QUEUE_BYTES;
+        player->input_queue = ToriMem_Realloc(ToriMem_ServerPlayers(), player->input_queue,
+                                              (size_t)capacity);
+        assert(player->input_queue);
+        player->input_queue_capacity = capacity;
+    }
     at = player->input_queue + player->input_queue_len;
     memcpy(at, &name, sizeof(int));
     memcpy(at + sizeof(int), &len, sizeof(int));
@@ -17894,36 +18027,61 @@ phase_clients_in(struct ToriRSServer* srv)
     for( int pid = 0; pid < srv->player_count; pid++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[pid];
-        int len = player->input_queue_len;
+        uint8_t* records = player->input_queue;
+        int const capacity = player->input_queue_capacity;
+        int const len = player->input_queue_len;
         int at = 0;
 
         if( !player->active || len == 0 )
             continue;
+        /* Take this tick's records off the player before handling them. A
+         * handler that queues more input lands it in a fresh buffer, so the
+         * one being read here never moves under the payload pointer it was
+         * handed. */
+        player->input_queue = NULL;
+        player->input_queue_len = 0;
+        player->input_queue_capacity = 0;
         while( at < len && player->active )
         {
             int name;
             int body;
 
             assert(at + WORLD_INPUT_HEADER <= len);
-            memcpy(&name, player->input_queue + at, sizeof(int));
-            memcpy(&body, player->input_queue + at + sizeof(int), sizeof(int));
+            memcpy(&name, records + at, sizeof(int));
+            memcpy(&body, records + at + sizeof(int), sizeof(int));
             at += WORLD_INPUT_HEADER;
             assert(body >= 0);
             assert(at + body <= len);
-            ToriRSServer_WorldHandle(player, name, body > 0 ? player->input_queue + at : NULL, body);
+            ToriRSServer_WorldHandle(player, name, body > 0 ? records + at : NULL, body);
             at += body;
         }
-        /* A player who left mid-drain has nothing more to say; otherwise keep
-         * only what arrived behind this tick's records. */
+        /* A player who left mid-drain has nothing more to say. Otherwise what
+         * arrived behind this tick's records waits for the next tick; with
+         * nothing behind them the drained buffer is kept for reuse. */
         if( !player->active )
-            player->input_queue_len = 0;
-        else
         {
-            memmove(player->input_queue, player->input_queue + len,
-                    (size_t)(player->input_queue_len - len));
-            player->input_queue_len -= len;
+            ToriRSServer_WorldInputFree(player);
+            ToriMem_Free(ToriMem_ServerPlayers(), records);
         }
+        else if( player->input_queue_len == 0 )
+        {
+            ToriMem_Free(ToriMem_ServerPlayers(), player->input_queue);
+            player->input_queue = records;
+            player->input_queue_capacity = capacity;
+        }
+        else
+            ToriMem_Free(ToriMem_ServerPlayers(), records);
     }
+}
+
+void
+ToriRSServer_WorldInputFree(struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    ToriMem_Free(ToriMem_ServerPlayers(), player->input_queue);
+    player->input_queue = NULL;
+    player->input_queue_len = 0;
+    player->input_queue_capacity = 0;
 }
 
 /**
@@ -18578,60 +18736,6 @@ ToriRSServer_WorldLocSet(
     return ToriRSServer_WorldLocSetOps(srv, x, z, level, shape, loc_id, angle, kind, &ops);
 }
 
-/*
- * Replay one successful scene mutation into every OTHER built window covering
- * the tile — the second half of the window-coherence invariant (the first is
- * occupancy's broadcast in ToriRSServer_SceneChangeOccupancy). Slot numbers
- * are per-window, so each window runs its own lookup; the ZoneMap record the
- * caller writes covers windows built later.
- */
-static void
-world_loc_mirror(
-    int x,
-    int z,
-    int level,
-    int shape,
-    int loc_id,
-    int angle,
-    enum ToriRSServerLocSetKind kind,
-    const struct ToriRSServerLocOps* ops)
-{
-    struct ToriRSServerSceneWindow* primary = ToriRSServer_SceneBoundWindow();
-
-    assert(ops);
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
-        int slot;
-
-        if( window == primary )
-            continue;
-        if( !ToriRSServer_SceneWindowContains(window, x, z) )
-            continue;
-        ToriRSServer_SceneBindWindow(window);
-        slot = ToriRSServer_SceneFindLocExact(x, z, level, shape);
-        if( loc_id < 0 )
-        {
-            /* A delete: this window's own occupant goes; if it was a loc_add
-             * the window's static loc stands revealed underneath, same as in
-             * the primary. Nothing to remove is fine — the windows agreed
-             * before the mutation, so they agree after. */
-            ToriRSServer_SceneRemoveLoc(slot);
-        }
-        else if( kind == TORIRSSERVER_LOC_SET_ADD || !ToriRSServer_SceneLoc(slot) )
-        {
-            slot = ToriRSServer_SceneAddLoc(x, z, level, loc_id, shape, angle);
-            if( slot >= 0 )
-                ToriRSServer_SceneLocSetOps(slot, ops);
-        }
-        else if( ToriRSServer_SceneReplaceLoc(slot, loc_id, angle) )
-        {
-            ToriRSServer_SceneLocSetOps(slot, ops);
-        }
-    }
-    ToriRSServer_SceneBindWindow(primary);
-}
-
 /* The body of ToriRSServer_WorldLocSetOps, already bound to the window the
  * mutation lands in (`covered` says whether any built window holds the tile). */
 static int
@@ -18711,7 +18815,6 @@ world_loc_set_ops_in_window(
          * lookup, which reads the bound window's slot array) never finds
          * what every client is drawing. The mirror binds each covering
          * window, applies, and restores the binding. */
-        world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
         return 1;
     }
 
@@ -18735,7 +18838,6 @@ world_loc_set_ops_in_window(
         revealed = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
         if( revealed && revealed->active )
         {
-            world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
             /* The uncovered loc's own menu, not the caller's: this is the map
              * square's loc reappearing, and what it offers is what its loctype
              * offers. Passing the removal's `ops` here would leave a closed
@@ -18770,7 +18872,6 @@ world_loc_set_ops_in_window(
         ToriRSServer_SceneLocSetOps(added, ops);
     }
 
-    world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
     ToriRSServer_ZoneLocChanged(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
                              over_base, ops);
     return 1;
@@ -18809,18 +18910,22 @@ ToriRSServer_WorldLocSetOps(
     return result;
 }
 
-/** One recorded change, put back onto a window that has just been re-read from
- *  the cache. A record outside the bound window is left alone: it stays in the
- *  ZoneMap and re-applies if a window is ever built over it. */
+/** One recorded change, put back onto the collision store, which builds squares
+ *  from the cache alone. `user` is the square that just loaded (a
+ *  WorldTileBox), or NULL for every loaded square. A record whose square is
+ *  not loaded is left alone: it stays in the ZoneMap and re-applies when the
+ *  square loads. */
 static void
 reapply_loc(
     struct ToriRSServerZoneLoc* loc,
     void* user)
 {
+    const struct WorldTileBox* box = (const struct WorldTileBox*)user;
     int slot;
 
-    (void)user;
-    if( !ToriRSServer_SceneWindowContains(ToriRSServer_SceneBoundWindow(), loc->x, loc->z) )
+    if( box && (loc->x < box->x0 || loc->x > box->x1 || loc->z < box->z0 || loc->z > box->z1) )
+        return;
+    if( !ToriRSServer_SceneContains(loc->x, loc->z) )
         return;
     slot = ToriRSServer_SceneFindLocExact(loc->x, loc->z, loc->level, loc->shape);
     if( loc->loc_id < 0 )
@@ -18845,33 +18950,14 @@ reapply_loc(
     ToriRSServer_SceneLocSetOps(slot, &loc->ops);
 }
 
-static void
-world_locs_reapply_window(
-    struct ToriRSServer* srv,
-    struct ToriRSServerSceneWindow* window)
-{
-    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
-
-    assert(window);
-    ToriRSServer_SceneBindWindow(window);
-    ToriRSServer_ZoneLocsForeach(srv, reapply_loc, NULL);
-    ToriRSServer_SceneBindWindow(bound);
-}
 
 void
 ToriRSServer_WorldLocsReapply(struct ToriRSServer* srv)
 {
-    /* Every built window: the replay is idempotent per window (a delete on an
-     * already-deleted slot is a no-op, a change re-lands the same id), so a
-     * window that already carries a record just keeps it. */
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
-
-        if( !ToriRSServer_SceneWindowBuilt(window) )
-            continue;
-        world_locs_reapply_window(srv, window);
-    }
+    /* One store: the replay is idempotent (a delete on an already-deleted
+     * slot is a no-op, a change re-lands the same id), so a square that
+     * already carries a record just keeps it. */
+    ToriRSServer_ZoneLocsForeach(srv, reapply_loc, NULL);
 }
 
 /*
@@ -19371,7 +19457,7 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
             if( hotspot_bit>=0 && ToriRSServer_VarbitGet(player,hotspot_bit)!=operating_hotspot+1 )
                 ToriRSServer_VarbitSetOn(srv,player,hotspot_bit,operating_hotspot+1);
             int combat_data=ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,"varp5043_sailing_combat_facility_data");
-            int at_cannon=operating_hotspot>=0 && combat_data>=0 && player->varps[combat_data]>0;
+            int at_cannon=operating_hotspot>=0 && combat_data>=0 && ToriRSServer_Varp(player, combat_data)>0;
             for( int slot=0; slot<13; ++slot )
             {
                 char key[80];
@@ -19485,7 +19571,7 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
             if( boat_row < 0 )
                 boat_row = 0;
             if( ids->varp_sailing_boat_row >= 0 &&
-                player->varps[ids->varp_sailing_boat_row] != boat_row )
+                ToriRSServer_Varp(player, ids->varp_sailing_boat_row) != boat_row )
                 ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_sailing_boat_row,
                                             boat_row);
 
@@ -19850,7 +19936,7 @@ ToriRSServer_MusicPlay(
      * track the next tick and never the arena's again, 12/12). */
     if( row >= 0 && row != player->music_jingle_row )
         player->music_jingle_end_tick = -1;
-    if( row >= 0 && varp >= 0 && player->varps[varp] != row )
+    if( row >= 0 && varp >= 0 && ToriRSServer_Varp(player, varp) != row )
     {
         ToriRSServer_WorldSetVarpOn(srv, player, varp, row);
         player->music_end_tick = duration >= 0 ? srv->tick + duration + 1 : -1;
@@ -19879,7 +19965,7 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
         int const row = player->music_end_row;
 
         player->music_end_tick = -1;
-        if( player->varps[varp] == row )
+        if( ToriRSServer_Varp(player, varp) == row )
         {
             ToriRSServer_WorldSetVarpOn(srv, player, varp, -1);
             player->music_track = MUSIC_SILENCE_SONG;
@@ -19897,7 +19983,7 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
 
         player->music_replay_tick = -1;
         assert(row);
-        if( player->varps[varp] == -1 )
+        if( ToriRSServer_Varp(player, varp) == -1 )
             ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_no_fades,
                                    TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
     }
@@ -19935,9 +20021,9 @@ ToriRSServer_MusicJingleStarted(
     assert(srv);
     assert(length_ms >= 0);
     player->music_jingle_end_tick = -1;
-    if( varp < 0 || player->varps[varp] < 0 || !ToriRSServer_DbRow(player->varps[varp]) )
+    if( varp < 0 || ToriRSServer_Varp(player, varp) < 0 || !ToriRSServer_DbRow(ToriRSServer_Varp(player, varp)) )
         return;
-    player->music_jingle_row = player->varps[varp];
+    player->music_jingle_row = ToriRSServer_Varp(player, varp);
     player->music_jingle_end_tick = srv->tick + length_ms / 600;
 }
 
@@ -19972,7 +20058,7 @@ ToriRSServer_MusicEnterRegion(
         assert(track->varp < TORIRSSERVER_VARP_COUNT);
         assert(track->bit < 32);
         int mask = (int)(1u << track->bit);
-        if( (player->varps[track->varp] & mask) == 0 )
+        if( (ToriRSServer_Varp(player, track->varp) & mask) == 0 )
         {
             char line[128];
             /*
@@ -19987,7 +20073,7 @@ ToriRSServer_MusicEnterRegion(
              * it here -- the first version of this function used the whole-varp
              * setter and wiped bits belonging to unrelated content.
              */
-            player->varps[track->varp] |= mask;
+            ToriRSServer_VarpPut(player, track->varp, ToriRSServer_Varp(player, track->varp) | (mask));
             ToriRSServer_WorldMarkVarp(player, track->varp);
             /* As every rev 241 recording sends it (RSProx index 4336, 4340,
              * 4349, 4360, 4363, 4367): the track's name behind the
@@ -20669,6 +20755,8 @@ world_tick_body(struct ToriRSServer* srv)
     struct ToriRSServerPlayer* caller_active = srv->active_player;
 
     srv->tick++;
+    /* Squares nobody has held for their linger leave the collision store. */
+    ToriRSServer_SceneSquaresSweep(srv->tick);
 
     phase_world(srv);
     BD_MARK();

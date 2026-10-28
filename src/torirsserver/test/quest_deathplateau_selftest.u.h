@@ -185,7 +185,7 @@ death_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -332,7 +332,7 @@ death_place_ball(
     {
         int s;
 
-        for( s = 0;; s++ )
+        for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -350,7 +350,7 @@ death_place_ball(
         }
         if( loc_slot < 0 )
         {
-            for( s = 0;; s++ )
+            for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
             {
                 struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -509,12 +509,12 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     ToriRSServer_WorldSetActive(srv, player);
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
-    player->varps[varp_equip] = 0;
-    player->varps[varp_map] = 0;
+    ToriRSServer_VarpPut(player, varp_equip, 0);
+    ToriRSServer_VarpPut(player, varp_map, 0);
     if( varp_bits >= 0 )
-        player->varps[varp_bits] = 0;
+        ToriRSServer_VarpPut(player, varp_bits, 0);
     if( varp_troll >= 0 )
-        player->varps[varp_troll] = 0;
+        ToriRSServer_VarpPut(player, varp_troll, 0);
     spawned_den = spawned_eoh = spawned_har = spawned_saba = spawned_ten = spawned_dun = -1;
 
     ToriRSServer_ScriptsRunDebugproc(srv, "deathreset");
@@ -573,8 +573,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_choose(srv, player, 2);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 0, "refuse should leave death_equiproom=0, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 0, "refuse should leave death_equiproom=0, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("start_refuse", "opnpc1,death_ig_commander", "death_equiproom=0");
 
     death_talk(srv, player, npc_denulth, den_slot);
@@ -582,8 +582,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_choose(srv, player, 1);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 10, "accept should write death_equiproom=10, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 10, "accept should write death_equiproom=10, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("start_accept", "opnpc1,death_ig_commander", "death_equiproom=10");
 
     /* ---- Eohric identifies Harold ---- */
@@ -596,8 +596,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_choose(srv, player, 1);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 20, "Eohric should write death_equiproom=20, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 20, "Eohric should write death_equiproom=20, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("talk_eohric", "opnpc1,death_headservant", "death_equiproom=20");
 
     /* ---- Harold refuses ---- */
@@ -610,8 +610,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_choose(srv, player, 1);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 30, "Harold duty should write 30, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 30, "Harold duty should write 30, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("talk_harold", "opnpc1,death_guard_equiproom", "death_equiproom=30");
 
     /* ---- Eohric drink hint ---- */
@@ -619,8 +619,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_talk(srv, player, npc_eohric, eoh_slot);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 40, "return to Eohric should write 40, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 40, "return to Eohric should write 40, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("eohric_hint", "opnpc1,death_headservant", "death_equiproom=40");
 
     /* ---- ale then Blurberry then 101 wager ---- */
@@ -629,8 +629,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_use_on_npc(srv, player, npc_harold, har_slot, obj_ale);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 50, "ale should write death_equiproom=50, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 50, "ale should write death_equiproom=50, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("give_ale", "opnpcu,death_guard_equiproom", "death_equiproom=50");
 
     /* ---- a sober game, both ways ---- */
@@ -641,7 +641,7 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
 
         selftest_give(player, obj_coins, 50);
         before = selftest_count(player, obj_coins);
-        gold_before = (player->varps[varp_bits] >> 9) & 0x7fff;
+        gold_before = (ToriRSServer_Varp(player, varp_bits) >> 9) & 0x7fff;
         death_talk(srv, player, npc_harold, har_slot);
         death_choose(srv, player, 2);
         death_drain(srv, player, 0);
@@ -652,7 +652,7 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         after = selftest_count(player, obj_coins);
         SELFTEST_CHECK(after == before + 10 || after == before - 10,
                        "a rolled 10 gp stake should be won or lost outright, %d -> %d", before, after);
-        SELFTEST_CHECK(((player->varps[varp_bits] >> 9) & 0x7fff) == (after > before ? gold_before - 10 : gold_before + 10),
+        SELFTEST_CHECK(((ToriRSServer_Varp(player, varp_bits) >> 9) & 0x7fff) == (after > before ? gold_before - 10 : gold_before + 10),
                        "Harold's purse should move by the stake");
         death_pass("harold_dice_roll", "if_button,death_dice:death_gamble_roll_button", "coins settled");
 
@@ -684,9 +684,9 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         ToriRSServer_ScriptsResumeCountdialog(srv, 1000);
     death_dice_play(srv, player, 1);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 55 && selftest_count(player, obj_iou) >= 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 55 && selftest_count(player, obj_iou) >= 1,
                    "1000 Blurberry wager should grant IOU and write 55, got %d",
-                   player->varps[varp_equip]);
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("harold_iou", "opnpc1+countdialog+if_button", "death_equiproom=55 iou=1");
 
     /* ---- read IOU ---- */
@@ -699,9 +699,9 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         death_drain(srv, player, 0);
         death_release(srv, player);
     }
-    SELFTEST_CHECK(player->varps[varp_equip] == 60 && selftest_count(player, obj_combo) >= 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 60 && selftest_count(player, obj_combo) >= 1,
                    "Read IOU should write 60 and grant Combination, got %d",
-                   player->varps[varp_equip]);
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("read_iou", "opheld1,death_iou", "death_equiproom=60");
 
     /* ---- five-colour puzzle ---- */
@@ -725,8 +725,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_place_ball(srv, player, loc_corner, loc_side, obj_red, 2894, 3563);
     death_place_ball(srv, player, loc_corner, loc_side, obj_purple, 2895, 3563);
     death_place_ball(srv, player, loc_corner, loc_side, obj_green, 2895, 3564);
-    SELFTEST_CHECK(player->varps[varp_equip] == 70, "solved layout should unlock door (70), got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 70, "solved layout should unlock door (70), got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     death_pass("place_balls", "oplocu,death_stone_mechanism", "death_equiproom=70");
 
     /* ---- Saba / Tenzing / Dunstan / cert / supplies / scout ---- */
@@ -740,8 +740,8 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         death_drain(srv, player, 0);
         death_release(srv, player);
     }
-    SELFTEST_CHECK(player->varps[varp_map] == 1, "Saba should write death_map=1, got %d",
-                   player->varps[varp_map]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 1, "Saba should write death_map=1, got %d",
+                   ToriRSServer_Varp(player, varp_map));
     death_pass("talk_saba", "opnpc1,death_hermit", "death_map=1");
 
     death_snap(srv, player, 0, 2820, 3556);
@@ -754,9 +754,9 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         death_drain(srv, player, 0);
         death_release(srv, player);
     }
-    SELFTEST_CHECK(player->varps[varp_map] == 2 && selftest_count(player, obj_boots) >= 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 2 && selftest_count(player, obj_boots) >= 1,
                    "Tenzing accept should write death_map=2 and grant boots, got %d",
-                   player->varps[varp_map]);
+                   ToriRSServer_Varp(player, varp_map));
     death_pass("talk_tenzing", "opnpc1,death_sherpa", "death_map=2");
 
     death_snap(srv, player, 0, 2919, 3574);
@@ -768,16 +768,16 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         death_drain(srv, player, 0);
         death_release(srv, player);
     }
-    SELFTEST_CHECK(player->varps[varp_map] == 3, "Dunstan should write death_map=3, got %d",
-                   player->varps[varp_map]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 3, "Dunstan should write death_map=3, got %d",
+                   ToriRSServer_Varp(player, varp_map));
     death_pass("talk_dunstan", "opnpc1,death_smithy", "death_map=3");
 
     death_snap(srv, player, 0, 2896, 3528);
     death_talk(srv, player, npc_denulth, den_slot);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_map] == 4 && selftest_count(player, obj_cert) >= 1,
-                   "Denulth certificate should write death_map=4, got %d", player->varps[varp_map]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 4 && selftest_count(player, obj_cert) >= 1,
+                   "Denulth certificate should write death_map=4, got %d", ToriRSServer_Varp(player, varp_map));
     death_pass("denulth_cert", "opnpc1,death_ig_commander", "death_map=4");
 
     selftest_give(player, obj_iron, 1);
@@ -785,9 +785,9 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_talk(srv, player, npc_dunstan, dun_slot);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_map] == 5 && selftest_count(player, obj_spiked) >= 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 5 && selftest_count(player, obj_spiked) >= 1,
                    "Dunstan bargain should write 5 and grant spiked boots, got %d",
-                   player->varps[varp_map]);
+                   ToriRSServer_Varp(player, varp_map));
     death_pass("dunstan_spike", "opnpc1,death_smithy", "death_map=5");
 
     selftest_give(player, obj_bread, 10);
@@ -796,20 +796,20 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_talk(srv, player, npc_tenzing, ten_slot);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_map] == 7 && selftest_count(player, obj_map) >= 1,
-                   "Tenzing supplies should grant map and write 7, got %d", player->varps[varp_map]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 7 && selftest_count(player, obj_map) >= 1,
+                   "Tenzing supplies should grant map and write 7, got %d", ToriRSServer_Varp(player, varp_map));
     death_pass("tenzing_map", "opnpc1,death_sherpa", "death_map=7");
 
     death_snap(srv, player, 0, 2864, 3608);
     ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONE, 0, 2864, 3608);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_map] == 8, "scout zone should write death_map=8, got %d",
-                   player->varps[varp_map]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_map) == 8, "scout zone should write death_map=8, got %d",
+                   ToriRSServer_Varp(player, varp_map));
     death_pass("scout_path", "zone,0_44_56_48_24", "death_map=8");
 
     /* ---- final handin ---- */
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = stat_attack >= 0 ? player->stat_xp_tenths[stat_attack] : 0;
     if( selftest_count(player, obj_combo) < 1 )
         selftest_give(player, obj_combo, 1);
@@ -818,12 +818,12 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_snap(srv, player, 0, 2896, 3528);
     death_talk(srv, player, npc_denulth, den_slot);
     death_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 80, "hand-in should write death_equiproom=80, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 80, "hand-in should write death_equiproom=80, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     SELFTEST_CHECK(selftest_count(player, obj_claws) >= 1, "hand-in should grant steel claws");
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1, "hand-in should award 1 QP, %d -> %d",
-                       qp_before, player->varps[varp_qp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1, "hand-in should award 1 QP, %d -> %d",
+                       qp_before, ToriRSServer_Varp(player, varp_qp));
     if( stat_attack >= 0 )
         SELFTEST_CHECK(player->stat_xp_tenths[stat_attack] == xp_before + 30000,
                        "hand-in should award 30000 Attack tenths");
@@ -836,12 +836,12 @@ selftest_quest_deathplateau(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     death_choose(srv, player, 1);
     death_drain(srv, player, 0);
     death_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_equip] == 80, "postquest talk must stay at 80, got %d",
-                   player->varps[varp_equip]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_equip) == 80, "postquest talk must stay at 80, got %d",
+                   ToriRSServer_Varp(player, varp_equip));
     if( varp_troll >= 0 )
-        SELFTEST_CHECK(player->varps[varp_troll] >= 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_troll) >= 1,
                        "postquest Denulth should start Troll Stronghold, got %d",
-                       player->varps[varp_troll]);
+                       ToriRSServer_Varp(player, varp_troll));
     death_pass("postquest_troll", "opnpc1,death_ig_commander", "troll_quest started");
 
 death_done:

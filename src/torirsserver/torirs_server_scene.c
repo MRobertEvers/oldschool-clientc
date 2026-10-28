@@ -37,6 +37,7 @@
 #include <xtea_config.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,112 +59,228 @@ static struct ToriRS_FeatureTable const* g_features;
 static int g_trace_loc = -1;
 
 /*
- * One 104x104 window per watcher.
+ * ONE COLLISION STORE FOR THE WHOLE WORLD, KEPT PER 64x64 MAP SQUARE.
  *
- * This used to be a single set of file-scope globals — one scene for the whole
- * world — which put a hard ceiling on multiplayer: two players more than ~70
- * tiles apart fought over where the one window sat. Now the world keeps a pool
- * of windows: index 0 is the ROOT window (world logic with no player in hand —
- * npc wander, hunts, timers — and the anchor WorldInit builds at), and index
- * 1+pid is that player's own window, centred by the per-player rebuild.
+ * This used to be one 104x104 window per watcher: every player held a private
+ * copy of the map around them -- four levels of walk and boat collision, the
+ * tile tables and every loc -- and overlapping windows were kept equal by
+ * replaying each change into each copy. At ~2.2 MB a copy that was most of
+ * what a player cost (1,000 players measured 2.3 GB, 2026-10-28), and almost
+ * all of it duplicated.
  *
- * Windows that overlap are kept COHERENT: they are built from the same cache,
- * entity occupancy broadcasts into every built window covering the tile
- * (ToriRSServer_SceneChangeOccupancy), and loc mutations are replayed into
- * every covering window (ToriRSServer_WorldLocSetOps / WorldLocsReapply). That
- * invariant is what lets a query resolve through *any* built window containing
- * its tiles — the answer is window-independent — and the query functions below
- * lean on it.
+ * Now there is one store (`struct SceneSquare`, one per map square anyone
+ * needs) and a window is only an origin plus the squares it holds:
  *
- * Slot state (loc slot indices) is per-window and deliberately NOT
- * window-independent: a slot number means nothing outside the window that
- * handed it out. Every slot-based call resolves against the BOUND window, and
- * the world binds the acting player's window (ToriRSServer_WorldSetActive)
- * before running anything that holds slots.
+ *   - A square is a pure function of the cache and the ZoneMap (the world's
+ *     record of runtime changes), so it can be dropped when nobody needs it
+ *     and rebuilt identically. The ZoneMap stays the authority.
+ *   - A square is built from the cache's 3x3 squares around it, clipped to its
+ *     own 64x64: a wall on its edge, or a 2x2 loc whose origin is in the
+ *     neighbour, stamps the right tiles whichever square loads first. A
+ *     square loading next to loaded ones takes their runtime loc state across
+ *     the edge (square_take_neighbours), and the world replays the ZoneMap's
+ *     records for it (the load hook).
+ *   - A window holds the squares its 104x104 view overlaps plus a ring of one
+ *     square around them, so every square anybody can see has all eight
+ *     neighbours loaded: nothing whose collision reaches into a viewed square
+ *     is missing.
+ *   - Queries read the squares through a VIEW: the asked-about box (plus a
+ *     margin) copied into a scratch CollisionMap, so collision_map.c -- which
+ *     the client shares -- runs unchanged. A tile in a square that is not
+ *     loaded reads COLL_FLAG_BOUNDS, the same answer a window's outer ring
+ *     gave, except that now it is the edge of the loaded world rather than the
+ *     edge of whichever window happened to be bound.
+ *   - Loc slots are handles into the store (square slot, generation, index),
+ *     the same for every caller, so binding a window no longer changes what a
+ *     slot means.
  */
-struct ToriRSServerSceneWindow
+
+/* Map squares, and how far a square build reaches into its neighbours: the
+ * scratch build area is 104 tiles wide, so a square at its middle gets 24
+ * tiles of the squares west and south and 16 east and north. Every loc is far
+ * smaller than that, so every loc whose footprint reaches into the square is
+ * read. */
+enum
 {
-    struct CollisionMap* collision[SCENE_LEVELS];
-    /* Hull navigation is independent of player movement and occupancy. */
-    struct CollisionMap* boat_collision[SCENE_LEVELS];
-    uint8_t ocean[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
-    /* Empty reservation padding is not deck surface. Persist this alongside
-     * terrain so removing a facility cannot make the surrounding void walkable. */
-    uint8_t deck_padding[SCENE_TILES][SCENE_TILES];
-    /* Absolute tile of the window's (0,0); -1 = not built. */
-    int base_x;
-    int base_z;
-    uint64_t build_count;
-    /* Which scene columns have a bridge deck (LINK_BELOW at raw level 1),
-     * captured during apply_terrain and read by apply_loc_collision for
-     * place-time level shift (Client-TS / LostCity). Map-square terrain
-     * buffers are freed per square, so this has to be persisted for locs in
-     * the same build pass. */
-    unsigned char link_below[SCENE_TILES][SCENE_TILES];
-    /* The window's raw tile settings bytes, gathered before the collision
-     * rules run. See gather_terrain_square for why the two are separate
-     * passes. */
-    uint8_t settings[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
+    SQUARE_TILES = 64,
+    SQUARE_BUILD_MARGIN = 24,
+    /* Squares one window can hold: its view plus a square of ring each side
+     * spans at most five squares per axis. */
+    WINDOW_SQUARES_MAX = 25,
+    /* Loaded squares at once. The cache ships 2,934 map squares; instances
+     * add theirs. */
+    SQUARE_SLOTS = 4096,
+    /* How far west / south of a tile the origin of a loc covering it can be,
+     * in tiles: the largest loc footprint in the cache is well under this. */
+    LOC_REACH = 16,
+    /* Ticks an unreferenced square stays loaded, so a player pacing an edge
+     * does not reload the same square over and over. */
+    SQUARE_LINGER_TICKS = 100,
+};
+
+/* Map squares the coordinate space can name (the map-instance pool sits in
+ * the same 256x256). */
+#define SQUARE_GRID 256
+
+struct SceneSquare
+{
+    int square_x;
+    int square_z;
+    int slot;
+    /** Matches the slot's generation while this square is the one in it. */
+    int generation;
+    /** Windows holding it. */
+    int interest;
+    /** The tick it may be dropped after, once `interest` is 0; -1 = held. */
+    int linger_until;
+    /** Walk and boat collision, [level][x * 64 + z], collision_map.c's flag
+     *  layout. Boat collision is its own domain: hulls never see occupancy. */
+    int32_t walk[SCENE_LEVELS][SQUARE_TILES * SQUARE_TILES];
+    int32_t boat[SCENE_LEVELS][SQUARE_TILES * SQUARE_TILES];
+    uint8_t settings[SCENE_LEVELS][SQUARE_TILES][SQUARE_TILES];
+    uint8_t ocean[SCENE_LEVELS][SQUARE_TILES][SQUARE_TILES];
+    uint8_t link_below[SQUARE_TILES][SQUARE_TILES];
+    uint8_t deck_padding[SQUARE_TILES][SQUARE_TILES];
+    /** Locs whose ORIGIN tile is in this square. */
     struct ToriRSServerSceneLoc* locs;
     int loc_count;
     int loc_capacity;
 };
 
-/* torirs_server_scene.h cannot include torirs_server.h, so the pool size is
- * restated there; hold the two headers to the same arithmetic here. */
-typedef char scene_window_pool_is_root_plus_players_plus_vessels
-    [TORIRSSERVER_SCENE_WINDOW_MAX ==
-             1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX
-         ? 1
-         : -1];
-typedef char scene_vessel_window_base_is_root_plus_players
-    [TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE == 1 + TORIRSSERVER_PLAYER_MAX ? 1 : -1];
+static struct SceneSquare* g_square_at[SQUARE_GRID][SQUARE_GRID];
+static struct SceneSquare* g_square_slots[SQUARE_SLOTS];
+static int g_square_slot_generation[SQUARE_SLOTS];
+static int g_square_count;
+/* Where squares are read from: the cache directory the world builds with.
+ * Remembered from the first window built; NULL means no collision anywhere
+ * (the announced cacheless fallback). */
+static const char* g_cache_dir;
+static int g_cacheless;
+/* Told about every square that loads, so the world can replay its ZoneMap
+ * records, restamp who stands there and reapply hull rules. */
+static ToriRSServerSceneSquareHook g_square_hook;
+static void* g_square_hook_ctx;
 
-static struct ToriRSServerSceneWindow g_windows[TORIRSSERVER_SCENE_WINDOW_MAX];
+/*
+ * The scratch area: a 104x104 working copy the existing build and stamp code
+ * runs on. A square build fills the whole of it from the cache and keeps the
+ * middle 64x64; a runtime loc change copies in just the tiles its stamp can
+ * reach, runs the same stamp functions, and writes those tiles back. One area,
+ * because nothing uses it re-entrantly: the load hook runs after a build has
+ * been taken out of it.
+ */
+struct SceneArea
+{
+    struct CollisionMap* collision[SCENE_LEVELS];
+    struct CollisionMap* boat_collision[SCENE_LEVELS];
+    uint8_t ocean[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
+    uint8_t deck_padding[SCENE_TILES][SCENE_TILES];
+    /* Absolute tile of the area's (0,0); -1 = not built. */
+    int base_x;
+    int base_z;
+    unsigned char link_below[SCENE_TILES][SCENE_TILES];
+    uint8_t settings[SCENE_LEVELS][SCENE_TILES][SCENE_TILES];
+    /* A build's locs, or a stamp's neighbours (copies, for the re-stamp after
+     * a removal). */
+    struct ToriRSServerSceneLoc* locs;
+    int loc_count;
+    int loc_capacity;
+};
+
+static struct SceneArea* g_area;
+
+/* What a window is now: an origin and the squares it holds. */
+struct ToriRSServerSceneWindow
+{
+    /* Absolute tile of the window's (0,0); -1 = not built. */
+    int base_x;
+    int base_z;
+    uint64_t build_count;
+    struct SceneSquare* held[WINDOW_SQUARES_MAX];
+    int held_count;
+};
+
+/*
+ * The window pool, by index (0 = the root, 1 + pid = players, then vessel
+ * decks). A window is a few hundred bytes now; it is still allocated when
+ * first asked for and freed on release, which keeps "an index nobody uses
+ * costs a pointer" true.
+ */
+static struct ToriRSServerSceneWindow* g_windows[TORIRSSERVER_SCENE_WINDOW_MAX];
+static int g_window_top;
+/* What a player with no window is judged against: never built, never bound
+ * (WorldSetActive binds only a built window), never released. Not in the
+ * pool, so no walk visits it. */
+static struct ToriRSServerSceneWindow g_window_none = { .base_x = -1, .base_z = -1 };
 static struct ToriRSServerSceneWindow* g_bound;
 static int g_windows_ready;
 
-/* Static zero-initialisation would leave base_x == 0, which reads as "built at
- * tile 0" — every window has to start explicitly unbuilt. */
+_Static_assert(TORIRSSERVER_SCENE_WINDOW_MAX ==
+                   1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX,
+               "the window pool is the root, one per player slot, one per vessel deck");
+
+static struct ToriRSServerSceneWindow*
+scene_window_new(void)
+{
+    struct ToriRSServerSceneWindow* window =
+        ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*window));
+
+    assert(window);
+    /* Zero would read as "built at tile 0". */
+    window->base_x = -1;
+    window->base_z = -1;
+    return window;
+}
+
+static void
+scene_area_ensure(void)
+{
+    if( g_area )
+        return;
+    g_area = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*g_area));
+    assert(g_area);
+    for( int level = 0; level < SCENE_LEVELS; level++ )
+    {
+        g_area->collision[level] = collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
+        assert(g_area->collision[level]);
+        g_area->boat_collision[level] =
+            collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
+        assert(g_area->boat_collision[level]);
+    }
+    g_area->base_x = -1;
+    g_area->base_z = -1;
+}
+
 static void
 scene_windows_ensure(void)
 {
     if( g_windows_ready )
         return;
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        g_windows[i].base_x = -1;
-        g_windows[i].base_z = -1;
-    }
-    g_bound = &g_windows[0];
+    g_windows[0] = scene_window_new();
+    g_window_top = 1;
+    g_bound = g_windows[0];
     g_windows_ready = 1;
+    scene_area_ensure();
 }
 
-static struct ToriRSServerSceneWindow*
-scene_bound(void)
-{
-    scene_windows_ensure();
-    return g_bound;
-}
+static void scene_instance_changed(int x0, int z0, int x1, int z1);
 
 /*
- * The historical single-scene globals, re-aimed at whichever window is bound.
- * Everything below that builds, mutates or looks up slot state was written
- * against one global window and still reads that way — the bind is the only
- * thing that moved. The stateless queries (routes, LoS, occupancy) do NOT use
- * these: they resolve their own window per call, see window_containing.
+ * The scratch area's fields under the names the build and stamp code was
+ * written with. Everything that reads these runs against the area, which is
+ * either a square being built or the tiles of one runtime change.
  */
-#define g_collision (scene_bound()->collision)
-#define g_boat_collision (scene_bound()->boat_collision)
-#define g_ocean (scene_bound()->ocean)
-#define g_base_x (scene_bound()->base_x)
-#define g_base_z (scene_bound()->base_z)
-#define g_link_below (scene_bound()->link_below)
-#define g_settings (scene_bound()->settings)
-#define g_deck_padding (scene_bound()->deck_padding)
-#define g_locs (scene_bound()->locs)
-#define g_loc_count (scene_bound()->loc_count)
-#define g_loc_capacity (scene_bound()->loc_capacity)
+#define g_collision (g_area->collision)
+#define g_boat_collision (g_area->boat_collision)
+#define g_ocean (g_area->ocean)
+#define g_base_x (g_area->base_x)
+#define g_base_z (g_area->base_z)
+#define g_link_below (g_area->link_below)
+#define g_settings (g_area->settings)
+#define g_deck_padding (g_area->deck_padding)
+#define g_locs (g_area->locs)
+#define g_loc_count (g_area->loc_count)
+#define g_loc_capacity (g_area->loc_capacity)
 
 static int
 window_contains(
@@ -177,147 +294,407 @@ window_contains(
            z < window->base_z + SCENE_TILES;
 }
 
-static struct CollisionMap*
-window_collision(
-    struct ToriRSServerSceneWindow* window,
-    int level)
-{
-    if( level < 0 || level >= SCENE_LEVELS )
-        return NULL;
-    return window->collision[level];
-}
-
-/* The window a query at (x,z) resolves through: the bound window when it
- * covers the tile, else any built window that does. Coherence (see the pool
- * comment) is what makes "any" correct. NULL when nothing covers it. */
-/*
- * THE WINDOW A WORLD QUERY READS MUST NOT DEPEND ON WHO IS BOUND.
- *
- * Every window is built from the same world, so wherever two of them cover a
- * tile they agree -- except on each window's own outer ring, which
- * collision_map_reset paints COLL_FLAG_BOUNDS: the edge of a 104-tile view,
- * not a wall. The lookups below used to take the BOUND window first (the
- * active player's), so a tile on the bound window's ring read as a wall while
- * another player's window had the floor there, and the npc phase -- which
- * runs under whichever player the host bound last -- walked or stalled by
- * lane. A 3x3 Sotetseg realm tornado (plane 3, runner p2) stood still on the
- * live party, where the leader's window was bound, and walked on scriptrun
- * (2026-10-13, Normal Sotetseg n1, maze 2: x 6428 was the ring of one window
- * and open floor in the other).
- *
- * So a query first takes a window that holds the whole asked-about rectangle
- * INSIDE its ring -- the bound one if it does, else the first in pool order --
- * and only when none does falls back to plain containment, as before.
- */
 static int
-window_holds_inside(
-    const struct ToriRSServerSceneWindow* window,
-    int x0,
-    int z0,
-    int x1,
-    int z1)
-{
-    if( window->base_x < 0 )
-        return 0;
-    return x0 >= window->base_x + 1 && x1 <= window->base_x + SCENE_TILES - 2 &&
-           z0 >= window->base_z + 1 && z1 <= window->base_z + SCENE_TILES - 2;
-}
-
-static struct ToriRSServerSceneWindow*
-window_inside(
-    int x0,
-    int z0,
-    int x1,
-    int z1)
-{
-    assert(x0 <= x1);
-    assert(z0 <= z1);
-    scene_windows_ensure();
-    if( window_holds_inside(g_bound, x0, z0, x1, z1) )
-        return g_bound;
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        if( window_holds_inside(&g_windows[i], x0, z0, x1, z1) )
-            return &g_windows[i];
-    }
-    return NULL;
-}
-
-static struct ToriRSServerSceneWindow*
-window_containing(
+area_contains(
     int x,
     int z)
 {
-    struct ToriRSServerSceneWindow* inside = window_inside(x, z, x, z);
-
-    if( inside )
-        return inside;
-    if( window_contains(g_bound, x, z) )
-        return g_bound;
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        if( window_contains(&g_windows[i], x, z) )
-            return &g_windows[i];
-    }
-    return NULL;
+    if( g_area->base_x < 0 )
+        return 0;
+    return x >= g_area->base_x && x < g_area->base_x + SCENE_TILES && z >= g_area->base_z &&
+           z < g_area->base_z + SCENE_TILES;
 }
 
-/* Same, for a two-endpoint query: one window must cover both, because local
- * coordinates from two different windows cannot meet in one collision call. */
-static struct ToriRSServerSceneWindow*
-window_containing2(
+/* ------------------------------------------------------------------ */
+/* The store                                                           */
+/* ------------------------------------------------------------------ */
+
+/* The loaded square holding tile (x, z), or NULL. */
+static struct SceneSquare*
+square_of(
     int x,
-    int z,
-    int x2,
-    int z2)
+    int z)
 {
-    struct ToriRSServerSceneWindow* inside = window_inside(
-        x < x2 ? x : x2, z < z2 ? z : z2, x > x2 ? x : x2, z > z2 ? z : z2);
+    int sx = x >> 6;
+    int sz = z >> 6;
 
-    if( inside )
-        return inside;
-    if( window_contains(g_bound, x, z) && window_contains(g_bound, x2, z2) )
-        return g_bound;
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        if( window_contains(&g_windows[i], x, z) && window_contains(&g_windows[i], x2, z2) )
-            return &g_windows[i];
-    }
-    return NULL;
+    if( x < 0 || z < 0 || sx >= SQUARE_GRID || sz >= SQUARE_GRID )
+        return NULL;
+    return g_square_at[sx][sz];
 }
 
-/* Distinguishes "this tile is outside every window" (refuse) from "there is no
- * collision anywhere because the cache is missing" (the announced open-field
- * fallback in the route functions). */
-static int
-scene_any_window_built(void)
+static struct SceneSquare*
+square_at(
+    int sx,
+    int sz)
 {
-    scene_windows_ensure();
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    if( sx < 0 || sz < 0 || sx >= SQUARE_GRID || sz >= SQUARE_GRID )
+        return NULL;
+    return g_square_at[sx][sz];
+}
+
+static int
+square_any_loaded(void)
+{
+    return g_square_count > 0;
+}
+
+/* Copy one level of one domain for the box [x0, x0 + w) x [z0, z0 + h) into
+ * `flags` (collision_map.c's layout for a w x h map). Tiles in squares that are
+ * not loaded read COLL_FLAG_BOUNDS. Column by column, one memcpy per square a
+ * column crosses. */
+static void
+store_read_box(
+    int level,
+    int boat,
+    int x0,
+    int z0,
+    int w,
+    int h,
+    int* flags)
+{
+    for( int dx = 0; dx < w; dx++ )
     {
-        if( g_windows[i].base_x >= 0 )
-            return 1;
+        int x = x0 + dx;
+        int dz = 0;
+
+        while( dz < h )
+        {
+            int z = z0 + dz;
+            int run = SQUARE_TILES - (z & (SQUARE_TILES - 1));
+            struct SceneSquare* square = square_of(x, z);
+
+            if( z < 0 )
+                run = 1;
+            if( run > h - dz )
+                run = h - dz;
+            if( square )
+            {
+                const int32_t* src = boat ? square->boat[level] : square->walk[level];
+
+                memcpy(&flags[dx * h + dz], &src[(x & 63) * SQUARE_TILES + (z & 63)],
+                       (size_t)run * sizeof(int));
+            }
+            else
+            {
+                for( int i = 0; i < run; i++ )
+                    flags[dx * h + dz + i] = COLL_FLAG_BOUNDS;
+            }
+            dz += run;
+        }
     }
-    return 0;
+}
+
+/*
+ * A query's view: the box, plus a two-tile margin (collision_map.c reads a
+ * tile's neighbours, and treats a map's outer ring as its edge), copied out of
+ * the store into a scratch map. Valid until the next view of the same kind.
+ * NULL for a level outside the world.
+ */
+struct SceneView
+{
+    struct CollisionMap map;
+    int capacity;
+    int base_x;
+    int base_z;
+};
+
+static struct SceneView g_query_view;
+/* SceneCollision / SceneBoatCollision hand out a whole window's worth that a
+ * caller may hold across other scene calls, so those get their own. */
+static struct SceneView g_window_view[2][SCENE_LEVELS];
+
+static struct CollisionMap*
+view_fill(
+    struct SceneView* view,
+    int level,
+    int boat,
+    int x0,
+    int z0,
+    int w,
+    int h)
+{
+    if( level < 0 || level >= SCENE_LEVELS || w < 1 || h < 1 )
+        return NULL;
+    if( view->capacity < w * h )
+    {
+        view->map.flags =
+            ToriMem_Realloc(ToriMem_ServerWorld(), view->map.flags, (size_t)(w * h) * sizeof(int));
+        assert(view->map.flags);
+        view->capacity = w * h;
+    }
+    view->map.mem = ToriMem_ServerWorld();
+    view->map.size_x = w;
+    view->map.size_z = h;
+    view->map.route_window = ToriRSServer_SceneFeatures()->route_window_tiles;
+    view->base_x = x0;
+    view->base_z = z0;
+    store_read_box(level, boat, x0, z0, w, h, view->map.flags);
+    return &view->map;
+}
+
+/* The view a query between tiles A and B reads: the box between them, grown
+ * by `grow` tiles on the high sides for the footprints sitting on them. NULL
+ * when A and B are not both in loaded squares -- the answer a query outside
+ * every window got. */
+static struct CollisionMap*
+scene_view(
+    int level,
+    int ax,
+    int az,
+    int bx,
+    int bz,
+    int grow,
+    int* base_x,
+    int* base_z)
+{
+    struct CollisionMap* map;
+    int lo_x = ax < bx ? ax : bx;
+    int lo_z = az < bz ? az : bz;
+    int hi_x = (ax < bx ? bx : ax) + grow;
+    int hi_z = (az < bz ? bz : az) + grow;
+
+    if( !square_of(ax, az) || !square_of(bx, bz) )
+        return NULL;
+    map = view_fill(&g_query_view, level, 0, lo_x - 2, lo_z - 2, hi_x - lo_x + 5,
+                    hi_z - lo_z + 5);
+    if( map )
+    {
+        *base_x = g_query_view.base_x;
+        *base_z = g_query_view.base_z;
+    }
+    return map;
+}
+
+/* The origin of the first built window in the pool holding both tiles, or
+ * INT_MIN. */
+static int
+route_window_holding(
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    int* base_z)
+{
+    for( int i = 0; i < g_window_top; i++ )
+    {
+        const struct ToriRSServerSceneWindow* window = g_windows[i];
+
+        if( window && window_contains(window, from_x, from_z) &&
+            window_contains(window, to_x, to_z) )
+        {
+            *base_z = window->base_z;
+            return window->base_x;
+        }
+    }
+    return INT_MIN;
+}
+
+/*
+ * A route's view. A route searches outward from its start, so it needs room,
+ * not just the box between its ends. The acting player's own window when that
+ * holds both ends -- the same 104x104 the route was always judged in, so a
+ * player's paths do not change -- otherwise 104x104 centred on the two ends.
+ */
+static struct CollisionMap*
+scene_route_view(
+    int level,
+    int from_x,
+    int from_z,
+    int to_x,
+    int to_z,
+    int* base_x,
+    int* base_z)
+{
+    struct CollisionMap* map;
+    int x0;
+    int z0;
+
+    if( !square_of(from_x, from_z) || !square_of(to_x, to_z) )
+        return NULL;
+    if( g_bound && window_contains(g_bound, from_x, from_z) &&
+        window_contains(g_bound, to_x, to_z) )
+    {
+        x0 = g_bound->base_x;
+        z0 = g_bound->base_z;
+    }
+    else if( (x0 = route_window_holding(from_x, from_z, to_x, to_z, &z0)) != INT_MIN )
+    {
+        /* Another window that holds both ends, first in pool order: the
+         * region a route was judged in when windows were the store. */
+    }
+    else
+    {
+        /* Ends further apart than a window is wide were never routed. */
+        if( abs(to_x - from_x) > SCENE_TILES - 4 || abs(to_z - from_z) > SCENE_TILES - 4 )
+            return NULL;
+        x0 = (from_x + to_x) / 2 - SCENE_TILES / 2;
+        z0 = (from_z + to_z) / 2 - SCENE_TILES / 2;
+    }
+    map = view_fill(&g_query_view, level, 0, x0, z0, SCENE_TILES, SCENE_TILES);
+    if( map )
+    {
+        *base_x = x0;
+        *base_z = z0;
+    }
+    return map;
+}
+
+/* ------------------------------------------------------------------ */
+/* Window pool API                                                     */
+/* ------------------------------------------------------------------ */
+
+static void square_release(struct SceneSquare* square);
+
+/* Let go of every square the window holds. */
+static void
+window_drop_squares(struct ToriRSServerSceneWindow* window)
+{
+    for( int i = 0; i < window->held_count; i++ )
+        square_release(window->held[i]);
+    window->held_count = 0;
 }
 
 static void
 window_reset(struct ToriRSServerSceneWindow* window)
 {
-    for( int level = 0; level < SCENE_LEVELS; level++ )
-    {
-        if( window->collision[level] )
-            collision_map_free(window->collision[level]);
-        window->collision[level] = NULL;
-        collision_map_free(window->boat_collision[level]);
-        window->boat_collision[level] = NULL;
-    }
-    ToriMem_Free(ToriMem_ServerWorld(), window->locs);
-    window->locs = NULL;
-    window->loc_count = 0;
-    window->loc_capacity = 0;
+    window_drop_squares(window);
     window->base_x = -1;
     window->base_z = -1;
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowRoot(void)
+{
+    scene_windows_ensure();
+    return g_windows[0];
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowByIndex(int index)
+{
+    scene_windows_ensure();
+    assert(index >= 0);
+    assert(index < TORIRSSERVER_SCENE_WINDOW_MAX);
+    if( !g_windows[index] )
+    {
+        g_windows[index] = scene_window_new();
+        if( index >= g_window_top )
+            g_window_top = index + 1;
+    }
+    return g_windows[index];
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowNone(void)
+{
+    return &g_window_none;
+}
+
+int
+ToriRSServer_SceneWindowOriginIs(
+    const struct ToriRSServerSceneWindow* window,
+    int zone_x,
+    int zone_z)
+{
+    assert(window);
+    /* The build's own arithmetic (ToriRSServer_SceneBuild: base = (zone - 6) * 8). */
+    return window->base_x >= 0 && window->base_x == (zone_x - 6) * 8 &&
+           window->base_z == (zone_z - 6) * 8;
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowPeek(int index)
+{
+    scene_windows_ensure();
+    assert(index >= 0);
+    assert(index < TORIRSSERVER_SCENE_WINDOW_MAX);
+    return g_windows[index];
+}
+
+int
+ToriRSServer_SceneWindowTop(void)
+{
+    scene_windows_ensure();
+    return g_window_top;
+}
+
+void
+ToriRSServer_SceneBindWindow(struct ToriRSServerSceneWindow* window)
+{
+    scene_windows_ensure();
+    assert(window);
+    g_bound = window;
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneBoundWindow(void)
+{
+    scene_windows_ensure();
+    return g_bound;
+}
+
+int
+ToriRSServer_SceneWindowBuilt(const struct ToriRSServerSceneWindow* window)
+{
+    assert(window);
+    return window->base_x >= 0;
+}
+
+int
+ToriRSServer_SceneWindowContains(
+    const struct ToriRSServerSceneWindow* window,
+    int x,
+    int z)
+{
+    assert(window);
+    return window_contains(window, x, z);
+}
+
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowFind(
+    int x,
+    int z)
+{
+    scene_windows_ensure();
+    if( window_contains(g_bound, x, z) )
+        return g_bound;
+    for( int i = 0; i < g_window_top; i++ )
+    {
+        if( g_windows[i] && window_contains(g_windows[i], x, z) )
+            return g_windows[i];
+    }
+    return NULL;
+}
+
+void
+ToriRSServer_SceneWindowRelease(struct ToriRSServerSceneWindow* window)
+{
+    /* A deallocator: NULL accepted, like every *Free in the tree; so is the
+     * no-window placeholder, which owns nothing. */
+    if( !window || window == &g_window_none )
+        return;
+    scene_windows_ensure();
+    window_reset(window);
+    /* The bound window must always be a live pool entry; a released one falls
+     * back to the root, the same default a world with no player bound gets. */
+    if( g_bound == window )
+        g_bound = g_windows[0];
+    /* Every window but the root goes back to the heap; asking for its index
+     * again allocates a fresh, unbuilt one. */
+    if( window == g_windows[0] )
+        return;
+    for( int i = 1; i < g_window_top; i++ )
+    {
+        if( g_windows[i] != window )
+            continue;
+        ToriMem_Free(ToriMem_ServerWorld(), window);
+        g_windows[i] = NULL;
+        while( g_window_top > 1 && !g_windows[g_window_top - 1] )
+            g_window_top--;
+        return;
+    }
+    assert(0 && "released a window that is not in the pool");
 }
 
 /* Loc configs, decoded on demand: a door swap needs the *new* loc's
@@ -343,99 +720,43 @@ static int g_loc_clock_slots[LOC_CONFIG_CACHE_CAP];
 static int g_loc_clock_cursor;
 static struct RSCache g_loc_profile;
 
-/* ------------------------------------------------------------------ */
-/* Window pool API                                                     */
-/* ------------------------------------------------------------------ */
-
-struct ToriRSServerSceneWindow*
-ToriRSServer_SceneWindowRoot(void)
-{
-    scene_windows_ensure();
-    return &g_windows[0];
-}
-
-struct ToriRSServerSceneWindow*
-ToriRSServer_SceneWindowByIndex(int index)
-{
-    scene_windows_ensure();
-    assert(index >= 0);
-    assert(index < TORIRSSERVER_SCENE_WINDOW_MAX);
-    return &g_windows[index];
-}
-
-void
-ToriRSServer_SceneBindWindow(struct ToriRSServerSceneWindow* window)
-{
-    scene_windows_ensure();
-    assert(window);
-    g_bound = window;
-}
-
-struct ToriRSServerSceneWindow*
-ToriRSServer_SceneBoundWindow(void)
-{
-    return scene_bound();
-}
-
-int
-ToriRSServer_SceneWindowBuilt(const struct ToriRSServerSceneWindow* window)
-{
-    assert(window);
-    return window->base_x >= 0;
-}
-
-int
-ToriRSServer_SceneWindowContains(
-    const struct ToriRSServerSceneWindow* window,
-    int x,
-    int z)
-{
-    assert(window);
-    return window_contains(window, x, z);
-}
-
-struct ToriRSServerSceneWindow*
-ToriRSServer_SceneWindowFind(
-    int x,
-    int z)
-{
-    return window_containing(x, z);
-}
-
-void
-ToriRSServer_SceneWindowRelease(struct ToriRSServerSceneWindow* window)
-{
-    /* A deallocator: NULL accepted, like every *Free in the tree. */
-    if( !window )
-        return;
-    scene_windows_ensure();
-    window_reset(window);
-    /* The bound window must always be a live pool entry; a released one falls
-     * back to the root, the same default a world with no player bound gets. */
-    if( g_bound == window )
-        g_bound = &g_windows[0];
-}
+static struct ToriRSServerSceneLoc* square_loc_append(struct SceneSquare* square);
 
 /* ------------------------------------------------------------------ */
 /* Accessors                                                           */
 /* ------------------------------------------------------------------ */
 
+/* The bound window's whole 104x104, one view per domain and level. Valid until
+ * the next call for the same domain and level; a window that is not built has
+ * none. */
+static struct CollisionMap*
+bound_window_view(
+    int level,
+    int boat)
+{
+    struct ToriRSServerSceneWindow* window = ToriRSServer_SceneBoundWindow();
+
+    if( level < 0 || level >= SCENE_LEVELS || window->base_x < 0 )
+        return NULL;
+    return view_fill(&g_window_view[boat][level], level, boat, window->base_x, window->base_z,
+                     SCENE_TILES, SCENE_TILES);
+}
+
 struct CollisionMap*
 ToriRSServer_SceneCollision(int level)
 {
-    if( level < 0 || level >= SCENE_LEVELS )
-        return NULL;
-    return g_collision[level];
+    return bound_window_view(level, 0);
 }
 
 struct CollisionMap*
 ToriRSServer_SceneBoatCollision(int level)
 {
-    if( level < 0 || level >= SCENE_LEVELS )
-        return NULL;
-    return g_boat_collision[level];
+    return bound_window_view(level, 1);
 }
 
+/* Empty reservation padding around a hull is not deck: mark it and block it,
+ * in every loaded square it reaches. A square that loads later gets it from
+ * the world's load hook, which reapplies every live hull's rule. */
 void
 ToriRSServer_SceneRestrictDeckWalk(
     int base_x, int base_z, int width, int height,
@@ -446,25 +767,26 @@ ToriRSServer_SceneRestrictDeckWalk(
     for( int x = base_x; x < base_x + width; ++x )
         for( int z = base_z; z < base_z + height; ++z )
         {
-            int sx = x - g_base_x, sz = z - g_base_z;
-            if( sx < 0 || sz < 0 || sx >= SCENE_TILES || sz >= SCENE_TILES ||
-                (x >= min_x && x < max_x && z >= min_z && z < max_z) ) continue;
-            g_deck_padding[sx][sz] = 1;
+            struct SceneSquare* square = square_of(x, z);
+
+            if( !square || (x >= min_x && x < max_x && z >= min_z && z < max_z) )
+                continue;
+            square->deck_padding[x & 63][z & 63] = 1;
             for( int level = 0; level < SCENE_LEVELS; ++level )
-                if( g_collision[level] ) collision_map_add_floor(g_collision[level], sx, sz);
+                square->walk[level][(x & 63) * SQUARE_TILES + (z & 63)] |= COLL_FLAG_FLOOR;
         }
 }
 
 int
 ToriRSServer_SceneBaseX(void)
 {
-    return g_base_x;
+    return ToriRSServer_SceneBoundWindow()->base_x;
 }
 
 int
 ToriRSServer_SceneBaseZ(void)
 {
-    return g_base_z;
+    return ToriRSServer_SceneBoundWindow()->base_z;
 }
 
 uint64_t
@@ -474,14 +796,29 @@ ToriRSServer_SceneWindowBuildCount(const struct ToriRSServerSceneWindow* window)
     return window->build_count;
 }
 
-/* "Is this tile covered by built collision" — by ANY window, not just the
- * bound one: an npc in another player's part of the world is still in scene. */
 int
 ToriRSServer_SceneContains(
     int x,
     int z)
 {
-    return window_containing(x, z) != NULL;
+    return square_of(x, z) != NULL;
+}
+
+/* One tile's flags straight out of its square; BOUNDS-free tiles only. */
+static int
+store_tile(
+    int level,
+    int boat,
+    int x,
+    int z,
+    int* out)
+{
+    struct SceneSquare* square = square_of(x, z);
+
+    if( !square || level < 0 || level >= SCENE_LEVELS )
+        return 0;
+    *out = (boat ? square->boat[level] : square->walk[level])[(x & 63) * SQUARE_TILES + (z & 63)];
+    return 1;
 }
 
 int
@@ -490,12 +827,11 @@ ToriRSServer_SceneCollisionFlagsAt(
     int x,
     int z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing(x, z);
-    struct CollisionMap* collision = window ? window_collision(window, level) : NULL;
+    int flags;
 
-    if( !collision )
+    if( !store_tile(level, 0, x, z, &flags) )
         return -1;
-    return collision_map_tile(collision, x - window->base_x, z - window->base_z);
+    return flags;
 }
 
 int
@@ -504,23 +840,80 @@ ToriRSServer_SceneWalkBlocked(
     int x,
     int z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing(x, z);
-    struct CollisionMap* collision = window ? window_collision(window, level) : NULL;
+    int flags;
 
-    if( !collision )
+    if( !store_tile(level, 0, x, z, &flags) )
         return 1;
-    return (collision_map_tile(collision, x - window->base_x, z - window->base_z) &
-            COLL_FLAG_WALK_BLOCKED)
-               ? 1
-               : 0;
+    return (flags & COLL_FLAG_WALK_BLOCKED) ? 1 : 0;
+}
+
+/*
+ * Loc handles.
+ *
+ * (square slot << 19) | (generation << 15) | index: 12 bits of slot, 4 of the
+ * slot's generation, 15 of index, a positive int. A square that is dropped and
+ * loaded again (or a slot reused by another square) moves the generation, so a
+ * handle kept from before reads as no loc rather than as whichever loc now
+ * sits at that index -- unless the slot has been reloaded a multiple of 16
+ * times since, which a handle held across that many reloads of one square
+ * does not live to see.
+ *
+ * The index is wide because instances are dense: a Tombs of Amascut room
+ * square holds 9,442 locs (2026-10-28), past the 8,192 a 13-bit index held,
+ * and the overflow ran into the generation and made every later handle in the
+ * square read as stale.
+ */
+enum
+{
+    LOC_HANDLE_INDEX_BITS = 15,
+    LOC_HANDLE_GEN_BITS = 4,
+};
+_Static_assert(SQUARE_SLOTS <= (1 << (31 - LOC_HANDLE_INDEX_BITS - LOC_HANDLE_GEN_BITS)),
+               "a square slot fits the handle's slot bits");
+
+static int
+loc_handle(
+    const struct SceneSquare* square,
+    int index)
+{
+    assert(index >= 0);
+    assert(index < (1 << LOC_HANDLE_INDEX_BITS));
+    assert(square->slot < (1 << (31 - LOC_HANDLE_INDEX_BITS - LOC_HANDLE_GEN_BITS)));
+    return (square->slot << (LOC_HANDLE_INDEX_BITS + LOC_HANDLE_GEN_BITS)) |
+           ((square->generation & ((1 << LOC_HANDLE_GEN_BITS) - 1)) << LOC_HANDLE_INDEX_BITS) |
+           index;
+}
+
+static struct SceneSquare*
+loc_handle_square(
+    int handle,
+    int* index)
+{
+    int slot;
+    int generation;
+    struct SceneSquare* square;
+
+    if( handle < 0 )
+        return NULL;
+    slot = handle >> (LOC_HANDLE_INDEX_BITS + LOC_HANDLE_GEN_BITS);
+    generation = (handle >> LOC_HANDLE_INDEX_BITS) & ((1 << LOC_HANDLE_GEN_BITS) - 1);
+    *index = handle & ((1 << LOC_HANDLE_INDEX_BITS) - 1);
+    if( slot >= SQUARE_SLOTS )
+        return NULL;
+    square = g_square_slots[slot];
+    if( !square || (square->generation & ((1 << LOC_HANDLE_GEN_BITS) - 1)) != generation ||
+        *index >= square->loc_count )
+        return NULL;
+    return square;
 }
 
 struct ToriRSServerSceneLoc*
 ToriRSServer_SceneLoc(int slot)
 {
-    if( slot < 0 || slot >= g_loc_count )
-        return NULL;
-    return &g_locs[slot];
+    int index;
+    struct SceneSquare* square = loc_handle_square(slot, &index);
+
+    return square ? &square->locs[index] : NULL;
 }
 
 /* ------------------------------------------------------------------ */
@@ -863,7 +1256,7 @@ ToriRSServer_LocResolveTransform(
     else if( cfg->transform_varp != -1 )
     {
         if( cfg->transform_varp >= 0 && cfg->transform_varp < TORIRSSERVER_VARP_COUNT )
-            index = (int)player->varps[cfg->transform_varp];
+            index = (int)ToriRSServer_Varp(player, cfg->transform_varp);
     }
 
     /* Same rule as VarPManager_ResolveTransform / OpenRS2 getMultiLoc: a valid
@@ -1134,9 +1527,9 @@ record_loc_at(
 
     if( !config )
         return;
-    /* The BOUND window's bounds, not any-window: this records into the window
-     * being built. */
-    if( !window_contains(scene_bound(), abs_x, abs_z) )
+    /* The area being built: a square build reads the locs of the squares
+     * around it too, so the ones whose footprint reaches in are stamped. */
+    if( !area_contains(abs_x, abs_z) )
         return;
 
     if( g_link_below[abs_x - g_base_x][abs_z - g_base_z] )
@@ -1180,6 +1573,8 @@ record_loc_at(
      * reusable once something removes it — see ToriRSServer_SceneAddLoc. */
     loc->is_static = 1;
     loc->covered = 0;
+    loc->cache_loc_id = loc->loc_id;
+    loc->cache_angle = loc->angle;
     /* The map square carries no menu of its own: what this loc offers is what
      * its loctype offers. */
     ToriRSServer_LocOpsDefault(&loc->ops);
@@ -1435,11 +1830,10 @@ scene_build_begin(
     char keys[600];
 
     assert(profile);
-    /* Only the BOUND window is rebuilt; the other windows and the shared loc
-     * configs stay exactly as they are. */
-    window_reset(scene_bound());
-
-    scene_bound()->build_count++;
+    /* The scratch area is rebuilt; the store and the shared loc configs stay
+     * exactly as they are. */
+    scene_area_ensure();
+    g_area->loc_count = 0;
 
     g_base_x = (zone_x - 6) * 8;
     g_base_z = (zone_z - 6) * 8;
@@ -1468,14 +1862,8 @@ scene_build_begin(
 
     for( int level = 0; level < SCENE_LEVELS; level++ )
     {
-        g_collision[level] = collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
-        assert(g_collision[level]);
-        g_boat_collision[level] = collision_map_new(ToriMem_ServerWorld(), SCENE_TILES, SCENE_TILES);
-        assert(g_boat_collision[level]);
         collision_map_reset(g_collision[level]);
-        /* The router's window is the era's, not the scene's — see
-         * ToriRS_FeatureTable.route_window_tiles and
-         * docs/OSRS_PATHING_LOS.md §5.1. */
+        collision_map_reset(g_boat_collision[level]);
         collision_map_set_route_window(g_collision[level],
                                        ToriRSServer_SceneFeatures()->route_window_tiles);
     }
@@ -1490,8 +1878,8 @@ scene_build_begin(
     return disk;
 }
 
-int
-ToriRSServer_SceneBuild(
+static int
+area_build_cache(
     const char* cache_dir,
     int zone_x,
     int zone_z)
@@ -1544,8 +1932,9 @@ ToriRSServer_SceneBuild(
 
     locs_before = g_loc_count;
     RSCache_Dat2DiskFree(disk);
-    fprintf(stderr, "torirsserver: scene built at zone %d,%d (base %d,%d — %d locs)\n", zone_x,
-            zone_z, g_base_x, g_base_z, locs_before);
+    if( getenv("TORIRSSERVER_VERBOSE") )
+        fprintf(stderr, "torirsserver: square area built at zone %d,%d (base %d,%d — %d locs)\n",
+                zone_x, zone_z, g_base_x, g_base_z, locs_before);
     return 1;
 }
 
@@ -1716,8 +2105,8 @@ window_source_squares(
     return count;
 }
 
-int
-ToriRSServer_SceneBuildInstance(
+static int
+area_build_instance(
     const char* cache_dir,
     int zone_x,
     int zone_z,
@@ -1805,27 +2194,591 @@ ToriRSServer_SceneBuildInstance(
 
     locs_before = g_loc_count;
     RSCache_Dat2DiskFree(disk);
-    fprintf(stderr,
-            "torirsserver: instanced scene built at zone %d,%d (base %d,%d — %d source zones, %d "
-            "locs)\n",
-            zone_x, zone_z, g_base_x, g_base_z, window->set_count, locs_before);
+    if( getenv("TORIRSSERVER_VERBOSE") )
+        fprintf(stderr,
+                "torirsserver: instanced square area built at zone %d,%d (base %d,%d — %d source "
+                "zones, %d locs)\n",
+                zone_x, zone_z, g_base_x, g_base_z, window->set_count, locs_before);
     return 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* The store: loading, holding, dropping                               */
+/* ------------------------------------------------------------------ */
+
+static int g_scene_tick;
+
+/*
+ * Copy the tiles [x0..x1] x [z0..z1] -- every level, both domains, and their
+ * tile tables -- out of the store into the area, placed so a loc whose origin
+ * is up to LOC_REACH west or south of the box still lands inside it (the
+ * re-stamp after a removal puts such locs back whole). Tiles in squares that
+ * are not loaded read as the edge of the world.
+ */
+static void
+area_load_box(
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    scene_area_ensure();
+    assert(x1 - x0 + 1 + LOC_REACH + 2 <= SCENE_TILES);
+    assert(z1 - z0 + 1 + LOC_REACH + 2 <= SCENE_TILES);
+    g_area->base_x = x0 - LOC_REACH - 2;
+    g_area->base_z = z0 - LOC_REACH - 2;
+    g_area->loc_count = 0;
+    for( int x = x0; x <= x1; x++ )
+        for( int z = z0; z <= z1; z++ )
+        {
+            struct SceneSquare* square = square_of(x, z);
+            int ax = x - g_area->base_x;
+            int az = z - g_area->base_z;
+            int local = (x & 63) * SQUARE_TILES + (z & 63);
+
+            for( int level = 0; level < SCENE_LEVELS; level++ )
+            {
+                int index = collision_map_index_at(g_collision[level], ax, az);
+
+                g_collision[level]->flags[index] = square ? square->walk[level][local] : COLL_FLAG_BOUNDS;
+                g_boat_collision[level]->flags[index] =
+                    square ? square->boat[level][local] : COLL_FLAG_BOUNDS;
+                g_settings[level][ax][az] = square ? square->settings[level][x & 63][z & 63] : 0;
+                g_ocean[level][ax][az] = square ? square->ocean[level][x & 63][z & 63] : 0;
+            }
+            g_link_below[ax][az] = square ? square->link_below[x & 63][z & 63] : 0;
+            g_deck_padding[ax][az] = square ? square->deck_padding[x & 63][z & 63] : 0;
+        }
+}
+
+/* The box's collision back into whichever of its squares are loaded. */
+static void
+area_store_box(
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    for( int x = x0; x <= x1; x++ )
+        for( int z = z0; z <= z1; z++ )
+        {
+            struct SceneSquare* square = square_of(x, z);
+            int local = (x & 63) * SQUARE_TILES + (z & 63);
+
+            if( !square )
+                continue;
+            for( int level = 0; level < SCENE_LEVELS; level++ )
+            {
+                int index =
+                    collision_map_index_at(g_collision[level], x - g_area->base_x, z - g_area->base_z);
+
+                square->walk[level][local] = g_collision[level]->flags[index];
+                square->boat[level][local] = g_boat_collision[level]->flags[index];
+            }
+        }
+}
+
+/* Every other loc a removal's re-stamp may have to put back: active, not
+ * covered, its stamp touching the box. Copies, in the area's list. */
+static void
+area_gather_locs(
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    const struct ToriRSServerSceneLoc* except)
+{
+    for( int sx = (x0 - LOC_REACH) >> 6; sx <= x1 >> 6; sx++ )
+        for( int sz = (z0 - LOC_REACH) >> 6; sz <= z1 >> 6; sz++ )
+        {
+            struct SceneSquare* square = square_at(sx, sz);
+
+            if( !square )
+                continue;
+            for( int i = 0; i < square->loc_count; i++ )
+            {
+                const struct ToriRSServerSceneLoc* other = &square->locs[i];
+                int ox0, oz0, ox1, oz1;
+
+                if( other == except || !other->active || other->covered )
+                    continue;
+                loc_stamp_box(other, &ox0, &oz0, &ox1, &oz1);
+                if( ox1 < x0 || ox0 > x1 || oz1 < z0 || oz0 > z1 )
+                    continue;
+                if( g_loc_count == g_loc_capacity )
+                {
+                    int capacity = g_loc_capacity ? g_loc_capacity * 2 : 256;
+
+                    g_locs = ToriMem_Realloc(ToriMem_ServerWorld(), g_locs,
+                                             (size_t)capacity * sizeof(*g_locs));
+                    assert(g_locs);
+                    g_loc_capacity = capacity;
+                }
+                g_locs[g_loc_count++] = *other;
+            }
+        }
+}
+
+/*
+ * Stamp (add) or unstamp (remove, then put back whatever else still stands) one
+ * loc's collision in the store. The loc's own record is not in the copied
+ * neighbour list, so a removal never puts it back.
+ */
+static void
+store_stamp_loc(
+    struct ToriRSServerSceneLoc* loc,
+    int add)
+{
+    int x0, z0, x1, z1;
+
+    loc_stamp_box(loc, &x0, &z0, &x1, &z1);
+    area_load_box(x0, z0, x1, z1);
+    if( !add )
+        area_gather_locs(x0, z0, x1, z1, loc);
+    apply_loc_collision(loc, add);
+    area_store_box(x0, z0, x1, z1);
+}
+
+/*
+ * A square that loads next to loaded ones was built from the cache, which
+ * knows nothing of what happened to its neighbours' locs. Where one of those
+ * reaches across the edge, bring this square up to date: a map loc that was
+ * removed, covered or replaced takes the cache's stamp back off (and the
+ * re-stamp puts back what still stands, the loc's current self included), and
+ * a runtime add is stamped.
+ */
+static void
+square_take_neighbours(const struct SceneSquare* square)
+{
+    int x0 = square->square_x * SQUARE_TILES;
+    int z0 = square->square_z * SQUARE_TILES;
+    int x1 = x0 + SQUARE_TILES - 1;
+    int z1 = z0 + SQUARE_TILES - 1;
+
+    for( int sx = square->square_x - 1; sx <= square->square_x + 1; sx++ )
+        for( int sz = square->square_z - 1; sz <= square->square_z + 1; sz++ )
+        {
+            struct SceneSquare* other = square_at(sx, sz);
+
+            if( !other || other == square )
+                continue;
+            for( int i = 0; i < other->loc_count; i++ )
+            {
+                struct ToriRSServerSceneLoc* loc = &other->locs[i];
+                int lx0, lz0, lx1, lz1;
+
+                loc_stamp_box(loc, &lx0, &lz0, &lx1, &lz1);
+                if( lx1 < x0 || lx0 > x1 || lz1 < z0 || lz0 > z1 )
+                    continue;
+                if( loc->is_static && (!loc->active || loc->covered ||
+                                       loc->loc_id != loc->cache_loc_id ||
+                                       loc->angle != loc->cache_angle) )
+                {
+                    /* The cache's version of it, which is what this square
+                     * was built with. */
+                    struct ToriRSServerSceneLoc as_cached = *loc;
+                    const struct RSCache_Dat2ConfigLoc* config = loc_config(loc->cache_loc_id);
+
+                    if( !config )
+                        continue;
+                    as_cached.loc_id = loc->cache_loc_id;
+                    as_cached.angle = loc->cache_angle;
+                    as_cached.size_x = (as_cached.angle & 1) ? config->size_z : config->size_x;
+                    as_cached.size_z = (as_cached.angle & 1) ? config->size_x : config->size_z;
+                    store_stamp_loc(&as_cached, 0);
+                }
+                else if( !loc->is_static && loc->active && !loc->covered )
+                    store_stamp_loc(loc, 1);
+            }
+        }
+}
+
+static int square_reload(int sx, int sz);
+
+/* An instance was built or freed over these tiles: what the store holds there
+ * was built from what used to be there. Rebuild every loaded square of it, in
+ * place, keeping who holds it. */
+static void
+scene_instance_changed(
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    for( int sx = x0 >> 6; sx <= x1 >> 6; sx++ )
+        for( int sz = z0 >> 6; sz <= z1 >> 6; sz++ )
+            if( square_at(sx, sz) )
+                square_reload(sx, sz);
+}
+
+/*
+ * Before a square leaves the store: put what its locs stamped across its edges
+ * back to the cache's version, in whichever neighbours are loaded.
+ *
+ * A neighbour was built from the cache, so the cache's stamps of this square's
+ * locs are its baseline; runtime changes moved it from there. When this square
+ * loads again it is built from the cache and the world replays the ZoneMap
+ * onto it -- which re-applies every change still standing across the edge, but
+ * cannot take back one that was undone while the square was away (a door
+ * whose timer ran out, an add that was removed). Returning the neighbours to
+ * the baseline first makes the next load's replay the whole truth.
+ */
+static void
+square_revert_edges(struct SceneSquare* square)
+{
+    int x0 = square->square_x * SQUARE_TILES;
+    int z0 = square->square_z * SQUARE_TILES;
+    int x1 = x0 + SQUARE_TILES - 1;
+    int z1 = z0 + SQUARE_TILES - 1;
+
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        struct ToriRSServerSceneLoc* loc = &square->locs[i];
+        int lx0, lz0, lx1, lz1;
+
+        loc_stamp_box(loc, &lx0, &lz0, &lx1, &lz1);
+        if( lx0 >= x0 && lz0 >= z0 && lx1 <= x1 && lz1 <= z1 )
+            continue;
+        if( loc->is_static )
+        {
+            const struct RSCache_Dat2ConfigLoc* config;
+            struct ToriRSServerSceneLoc as_cached;
+
+            if( loc->active && !loc->covered && loc->loc_id == loc->cache_loc_id &&
+                loc->angle == loc->cache_angle )
+                continue;
+            config = loc_config(loc->cache_loc_id);
+            if( !config )
+                continue;
+            if( loc->active && !loc->covered )
+            {
+                /* Off the stamp of what it is now... */
+                loc->active = 0;
+                store_stamp_loc(loc, 0);
+                loc->active = 1;
+            }
+            /* ...and on with what the cache had. */
+            as_cached = *loc;
+            as_cached.loc_id = loc->cache_loc_id;
+            as_cached.angle = loc->cache_angle;
+            as_cached.size_x = (as_cached.angle & 1) ? config->size_z : config->size_x;
+            as_cached.size_z = (as_cached.angle & 1) ? config->size_x : config->size_z;
+            store_stamp_loc(&as_cached, 1);
+        }
+        else if( loc->active && !loc->covered )
+            store_stamp_loc(loc, 0);
+    }
+}
+
+static void
+square_free(struct SceneSquare* square)
+{
+    assert(square);
+    assert(square->interest == 0);
+    g_square_at[square->square_x][square->square_z] = NULL;
+    g_square_slots[square->slot] = NULL;
+    g_square_count--;
+    ToriMem_Free(ToriMem_ServerWorld(), square->locs);
+    ToriMem_Free(ToriMem_ServerWorld(), square);
+}
+
+/*
+ * Build square (sx, sz): a 104x104 area with the square 24 tiles in from its
+ * west and south edges, from the cache (or the map instance occupying it), of
+ * which the middle 64x64 is kept. NULL when there is no cache to read.
+ */
+static struct SceneSquare*
+square_load(
+    int sx,
+    int sz)
+{
+    struct SceneSquare* square;
+    /* The area's origin is (zone - 6) * 8; this puts the square
+     * SQUARE_BUILD_MARGIN tiles in from its west and south edges. */
+    int zone_x = sx * 8 + 6 - SQUARE_BUILD_MARGIN / 8;
+    int zone_z = sz * 8 + 6 - SQUARE_BUILD_MARGIN / 8;
+    int centre_x = sx * SQUARE_TILES + SQUARE_TILES / 2;
+    int centre_z = sz * SQUARE_TILES + SQUARE_TILES / 2;
+    int slot;
+    int built;
+
+    if( !g_cache_dir || g_cacheless )
+        return NULL;
+    if( ToriRSServer_MapInstanceFind(centre_x, centre_z) != 0 )
+    {
+        struct ToriRSServerMapInstanceWindow instance;
+
+        ToriRSServer_MapInstanceWindow(zone_x, zone_z, &instance);
+        built = area_build_instance(g_cache_dir, zone_x, zone_z, &instance);
+    }
+    else
+        built = area_build_cache(g_cache_dir, zone_x, zone_z);
+    if( !built )
+    {
+        g_cacheless = 1;
+        return NULL;
+    }
+    assert(g_base_x == sx * SQUARE_TILES - SQUARE_BUILD_MARGIN);
+    assert(g_base_z == sz * SQUARE_TILES - SQUARE_BUILD_MARGIN);
+
+    for( slot = 0; slot < SQUARE_SLOTS && g_square_slots[slot]; slot++ )
+        ;
+    /* More squares than the cache ships plus every instance: a leak of held
+     * windows, not a load level. Checked in release builds too -- a loc
+     * handle cannot name a slot past it. */
+    if( slot >= SQUARE_SLOTS )
+    {
+        fprintf(stderr, "torirsserver: %d map squares loaded, the store's limit\n", g_square_count);
+        abort();
+    }
+    square = ToriMem_Calloc(ToriMem_ServerWorld(), 1, sizeof(*square));
+    assert(square);
+    square->square_x = sx;
+    square->square_z = sz;
+    square->slot = slot;
+    square->generation = ++g_square_slot_generation[slot];
+    square->linger_until = -1;
+
+    for( int level = 0; level < SCENE_LEVELS; level++ )
+        for( int x = 0; x < SQUARE_TILES; x++ )
+        {
+            int from = collision_map_index_at(g_collision[level], x + SQUARE_BUILD_MARGIN,
+                                              SQUARE_BUILD_MARGIN);
+
+            memcpy(&square->walk[level][x * SQUARE_TILES], &g_collision[level]->flags[from],
+                   SQUARE_TILES * sizeof(int32_t));
+            memcpy(&square->boat[level][x * SQUARE_TILES], &g_boat_collision[level]->flags[from],
+                   SQUARE_TILES * sizeof(int32_t));
+            memcpy(square->settings[level][x], &g_settings[level][x + SQUARE_BUILD_MARGIN][SQUARE_BUILD_MARGIN],
+                   SQUARE_TILES);
+            memcpy(square->ocean[level][x], &g_ocean[level][x + SQUARE_BUILD_MARGIN][SQUARE_BUILD_MARGIN],
+                   SQUARE_TILES);
+        }
+    for( int x = 0; x < SQUARE_TILES; x++ )
+    {
+        memcpy(square->link_below[x], &g_link_below[x + SQUARE_BUILD_MARGIN][SQUARE_BUILD_MARGIN],
+               SQUARE_TILES);
+        memcpy(square->deck_padding[x], &g_deck_padding[x + SQUARE_BUILD_MARGIN][SQUARE_BUILD_MARGIN],
+               SQUARE_TILES);
+    }
+    for( int i = 0; i < g_loc_count; i++ )
+    {
+        const struct ToriRSServerSceneLoc* loc = &g_locs[i];
+
+        if( (loc->x >> 6) != sx || (loc->z >> 6) != sz )
+            continue;
+        *square_loc_append(square) = *loc;
+    }
+
+    g_square_at[sx][sz] = square;
+    g_square_slots[slot] = square;
+    g_square_count++;
+    square_take_neighbours(square);
+    if( g_square_hook )
+        g_square_hook(g_square_hook_ctx, sx * SQUARE_TILES, sz * SQUARE_TILES,
+                      sx * SQUARE_TILES + SQUARE_TILES - 1, sz * SQUARE_TILES + SQUARE_TILES - 1);
+    return square;
+}
+
+static struct SceneSquare*
+square_acquire(
+    int sx,
+    int sz)
+{
+    struct SceneSquare* square;
+
+    if( sx < 0 || sz < 0 || sx >= SQUARE_GRID || sz >= SQUARE_GRID )
+        return NULL;
+    square = g_square_at[sx][sz];
+    if( !square )
+        square = square_load(sx, sz);
+    if( !square )
+        return NULL;
+    square->interest++;
+    square->linger_until = -1;
+    return square;
+}
+
+static void
+square_release(struct SceneSquare* square)
+{
+    assert(square);
+    assert(square->interest > 0);
+    if( --square->interest == 0 )
+        square->linger_until = g_scene_tick + SQUARE_LINGER_TICKS;
+}
+
+void
+ToriRSServer_SceneSquaresSweep(int tick)
+{
+    g_scene_tick = tick;
+    for( int slot = 0; slot < SQUARE_SLOTS; slot++ )
+    {
+        struct SceneSquare* square = g_square_slots[slot];
+
+        if( square && square->interest == 0 && tick >= square->linger_until )
+        {
+            square_revert_edges(square);
+            square_free(square);
+        }
+    }
+}
+
+void
+ToriRSServer_SceneSquaresDropUnheld(void)
+{
+    for( int slot = 0; slot < SQUARE_SLOTS; slot++ )
+    {
+        struct SceneSquare* square = g_square_slots[slot];
+
+        if( square && square->interest == 0 )
+            square_free(square);
+    }
+    g_cacheless = 0;
+}
+
+int
+ToriRSServer_SceneSquareCount(void)
+{
+    return g_square_count;
+}
+
+void
+ToriRSServer_SceneSetSquareHook(
+    ToriRSServerSceneSquareHook hook,
+    void* ctx)
+{
+    g_square_hook = hook;
+    g_square_hook_ctx = ctx;
+    ToriRSServer_MapInstanceSetChangeHook(scene_instance_changed);
+}
+
+/*
+ * Point the bound window at the view whose zone origin is (zone_x, zone_z):
+ * hold every square its 104x104 overlaps and one ring of squares around them,
+ * loading any that are not loaded. The new squares are taken before the old
+ * are let go, so a window moving a few zones keeps the squares it still needs
+ * without a reload.
+ */
+static int
+window_attach(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z)
+{
+    struct ToriRSServerSceneWindow* window = ToriRSServer_SceneBoundWindow();
+    struct SceneSquare* held[WINDOW_SQUARES_MAX];
+    int count = 0;
+    int base_x = (zone_x - 6) * 8;
+    int base_z = (zone_z - 6) * 8;
+
+    assert(cache_dir);
+    if( !g_cache_dir )
+        g_cache_dir = cache_dir;
+    for( int sx = (base_x >> 6) - 1; sx <= ((base_x + SCENE_TILES - 1) >> 6) + 1; sx++ )
+        for( int sz = (base_z >> 6) - 1; sz <= ((base_z + SCENE_TILES - 1) >> 6) + 1; sz++ )
+        {
+            struct SceneSquare* square = square_acquire(sx, sz);
+
+            if( square )
+            {
+                assert(count < WINDOW_SQUARES_MAX);
+                held[count++] = square;
+            }
+        }
+    window_drop_squares(window);
+    memcpy(window->held, held, (size_t)count * sizeof(held[0]));
+    window->held_count = count;
+    window->build_count++;
+    if( g_cacheless )
+    {
+        fprintf(stderr,
+                "torirsserver: no cache at %s — collision disabled (walk through walls)\n",
+                cache_dir);
+        window->base_x = -1;
+        window->base_z = -1;
+        return 0;
+    }
+    window->base_x = base_x;
+    window->base_z = base_z;
+    return 1;
+}
+
+int
+ToriRSServer_SceneBuild(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z)
+{
+    return window_attach(cache_dir, zone_x, zone_z);
+}
+
+int
+ToriRSServer_SceneBuildInstance(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    const struct ToriRSServerMapInstanceWindow* window)
+{
+    /* The squares an instance occupies build themselves from it
+     * (square_load); the window only says where the view is. */
+    assert(window);
+    (void)window;
+    return window_attach(cache_dir, zone_x, zone_z);
+}
+
+void
+ToriRSServer_SceneWindowsShutdown(void)
+{
+    if( !g_windows_ready )
+        return;
+    for( int i = g_window_top - 1; i >= 1; i-- )
+        ToriRSServer_SceneWindowRelease(g_windows[i]);
+    window_reset(g_windows[0]);
+    ToriMem_Free(ToriMem_ServerWorld(), g_windows[0]);
+    g_windows[0] = NULL;
+    g_window_top = 0;
+    g_bound = NULL;
+    g_windows_ready = 0;
+    ToriRSServer_SceneSquaresDropUnheld();
+    for( int boat = 0; boat < 2; boat++ )
+        for( int level = 0; level < SCENE_LEVELS; level++ )
+        {
+            ToriMem_Free(ToriMem_ServerWorld(), g_window_view[boat][level].map.flags);
+            memset(&g_window_view[boat][level], 0, sizeof(g_window_view[boat][level]));
+        }
+    ToriMem_Free(ToriMem_ServerWorld(), g_query_view.map.flags);
+    memset(&g_query_view, 0, sizeof(g_query_view));
+    if( g_area )
+    {
+        for( int level = 0; level < SCENE_LEVELS; level++ )
+        {
+            collision_map_free(g_area->collision[level]);
+            collision_map_free(g_area->boat_collision[level]);
+        }
+        ToriMem_Free(ToriMem_ServerWorld(), g_area->locs);
+        ToriMem_Free(ToriMem_ServerWorld(), g_area);
+        g_area = NULL;
+    }
+    g_cache_dir = NULL;
 }
 
 void
 ToriRSServer_SceneFree(void)
 {
-    /* The historical whole-scene teardown: the bound window and the shared loc
-     * configs. Tests that build one scene and free it keep their old contract;
-     * the world releases the other windows itself (WorldReset / player
-     * teardown, via ToriRSServer_SceneWindowRelease). */
-    window_reset(scene_bound());
+    /* The bound window lets go of its squares; the store keeps whatever other
+     * windows still hold. */
+    window_reset(ToriRSServer_SceneBoundWindow());
     free_loc_configs();
 }
 
-/* ------------------------------------------------------------------ */
-/* Loc lookup and mutation                                             */
-/* ------------------------------------------------------------------ */
+/* Squares whose locs can cover tile (x, z): the tile's own and those up to
+ * LOC_REACH tiles west and south, in the order a window's loc list held them
+ * (map x, then map z) so "the first match" is the same match. */
+#define FOR_LOC_SQUARES_COVERING(x, z, square)                                                    \
+    for( int _sx = ((x) - LOC_REACH) >> 6; _sx <= (x) >> 6; _sx++ )                             \
+        for( int _sz = ((z) - LOC_REACH) >> 6; _sz <= (z) >> 6; _sz++ )                         \
+            if( ((square) = square_at(_sx, _sz)) != NULL )
 
 int
 ToriRSServer_SceneFindLoc(
@@ -1835,28 +2788,28 @@ ToriRSServer_SceneFindLoc(
     int loc_id)
 {
     int fallback = -1;
+    struct SceneSquare* square;
 
-    for( int i = 0; i < g_loc_count; i++ )
+    /* The click names a TILE; a large loc covering it may have its origin in
+     * a square to the west or south. */
+    FOR_LOC_SQUARES_COVERING(x, z, square)
     {
-        struct ToriRSServerSceneLoc* loc = &g_locs[i];
+        for( int i = 0; i < square->loc_count; i++ )
+        {
+            struct ToriRSServerSceneLoc* loc = &square->locs[i];
 
-        if( !loc->active || loc->level != level )
-            continue;
-        /* A loc's tile is its south-west corner, so a click on the far side of
-         * a 2x2 staircase has to match the footprint, not the corner. */
-        if( x < loc->x || x >= loc->x + loc->size_x || z < loc->z ||
-            z >= loc->z + loc->size_z )
-            continue;
-        if( loc_id >= 0 && loc->loc_id == loc_id )
-            return i;
-        if( fallback < 0 )
-            fallback = i;
+            if( !loc->active || loc->level != level )
+                continue;
+            if( x < loc->x || x >= loc->x + loc->size_x || z < loc->z ||
+                z >= loc->z + loc->size_z )
+                continue;
+            if( loc_id >= 0 && loc->loc_id == loc_id )
+                return loc_handle(square, i);
+            if( fallback < 0 )
+                fallback = loc_handle(square, i);
+        }
     }
-    /* An exact id match wins; otherwise the first loc on the tile. The client
-     * names the loc it drew, and by the time an OPLOC lands somebody may have
-     * already opened it — refusing the stale id would drop the second click on
-     * every door. */
-    return loc_id >= 0 ? fallback : fallback;
+    return fallback;
 }
 
 int
@@ -1866,26 +2819,28 @@ ToriRSServer_SceneFindLocId(
     int level,
     int loc_id)
 {
-    for( int i = 0; i < g_loc_count; i++ )
-    {
-        struct ToriRSServerSceneLoc* loc = &g_locs[i];
+    struct SceneSquare* square = square_of(x, z);
 
-        /* The loc's own south-west corner and its own id, both exact: this is
-         * `loc_find`'s question, and the reference answers it with
-         * `Zone.getLoc(x, z, locId)` — locs keyed by their corner tile,
-         * filtered by type. `ToriRSServer_SceneFindLoc`'s footprint-plus-fallback
-         * is the *click* resolver and deliberately answers a different
-         * question; asking it here made `loc_find(coord, X)` report true for
-         * any loc standing on the tile. */
+    if( !square )
+        return -1;
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        struct ToriRSServerSceneLoc* loc = &square->locs[i];
+
         if( !loc->active || loc->level != level )
             continue;
         if( loc->x != x || loc->z != z || loc->loc_id != loc_id )
             continue;
-        return i;
+        return loc_handle(square, i);
     }
     return -1;
 }
 
+/*
+ * The record at an exact (tile, level, shape) -- the wire's key -- preferring a
+ * runtime add over the map square's own, and that over a removed map loc's
+ * tombstone. Runtime adds are found newest first.
+ */
 int
 ToriRSServer_SceneFindLocExact(
     int x,
@@ -1893,31 +2848,16 @@ ToriRSServer_SceneFindLocExact(
     int level,
     int shape)
 {
+    struct SceneSquare* square = square_of(x, z);
     int added = -1;
     int from_square = -1;
     int tombstone = -1;
 
-    /*
-     * The loc's own corner and its own shape, and *not* its footprint: this is
-     * the mutation lookup, and a mutation addresses the loc the wire names
-     * rather than whatever a click landed on.
-     *
-     * Three tiers, and each one is load-bearing:
-     *
-     *   1. an active loc a `loc_add` put here. A `loc_add` leaves the map
-     *      square's own loc standing beside it (ToriRSServer_SceneAddLoc), so "the
-     *      loc on this tile" for a following `loc_change` / `loc_del` is the
-     *      added one. Answering with the square's instead would let a door that
-     *      swung past a wall close by deleting that wall.
-     *   2. the map square's loc, which is what every mutation on an untouched
-     *      tile means.
-     *   3. a static tombstone — inactive, but the square still has a loc here.
-     *      This is how a `loc_del` on a map-square loc is undone: the slot stays
-     *      addressable with nothing live on the tile.
-     */
-    for( int i = g_loc_count - 1; i >= 0; i-- )
+    if( !square )
+        return -1;
+    for( int i = square->loc_count - 1; i >= 0; i-- )
     {
-        struct ToriRSServerSceneLoc* loc = &g_locs[i];
+        struct ToriRSServerSceneLoc* loc = &square->locs[i];
 
         if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
             continue;
@@ -1935,11 +2875,13 @@ ToriRSServer_SceneFindLocExact(
             tombstone = i;
     }
     if( added >= 0 )
-        return added;
+        return loc_handle(square, added);
     if( from_square >= 0 )
-        return from_square;
-    return tombstone;
+        return loc_handle(square, from_square);
+    return tombstone >= 0 ? loc_handle(square, tombstone) : -1;
 }
+
+static void store_stamp_loc(struct ToriRSServerSceneLoc* loc, int add);
 
 int
 ToriRSServer_SceneReplaceLoc(
@@ -1955,16 +2897,10 @@ ToriRSServer_SceneReplaceLoc(
     config = loc_config(loc_id);
     if( !config )
         return 0;
-
-    /* An *inactive* slot is revived rather than refused, which is how a
-     * `loc_del` on a map-square loc is undone: the tombstone stays in the array
-     * (see ToriRSServer_SceneAddLoc) precisely so the tile can be put back without
-     * the caller having to know whether it is currently there. Its collision is
-     * already gone, so there is nothing to take away first. */
     if( getenv("TORIRSSERVER_DOORTRACE") && loc->x == 3226 && loc->z == 3223 && loc->level == 0 )
         fprintf(stderr, "  DOORTRACE replace slot=%d %d -> %d\n", slot, loc->loc_id, loc_id);
     if( loc->active && !loc->covered )
-        apply_loc_collision(loc, 0);
+        store_stamp_loc(loc, 0);
     loc->active = 1;
     loc->loc_id = loc_id;
     loc->angle = angle;
@@ -1979,44 +2915,35 @@ ToriRSServer_SceneReplaceLoc(
         loc->size_z = config->size_z;
     }
     if( !loc->covered )
-        apply_loc_collision(loc, 1);
+        store_stamp_loc(loc, 1);
     return 1;
 }
 
 /*
- * A `loc_add` over the map square's own loc of the same shape takes the tile,
- * as Jagex's LOC_ADD_CHANGE does: the client drops the square's loc from that
- * layer and draws the added one. The square's loc stays in the array (a later
- * `loc_del` of the cover reveals it, ToriRSServer_SceneAddLoc), but its
- * collision cannot stay with it -- ToA's room ends lay
- * `invisible_type8_nonblocking` over the map's `toa_path_barrier` (Apmeken's
- * (44,31..33), RSProx index 4292 [919]) and the raider was still walled in.
- *
- * `cover` 1 lifts the square loc's collision (before the cover stamps its
- * own: the flags are bits, so the order is what keeps a shared bit); 0 puts it
- * back once no added loc remains on the tile (after the cover's are gone).
+ * A runtime add over a map square's own loc covers it: the map loc keeps its
+ * record (so removing the add brings it back) but has no collision while the
+ * cover stands.
  */
 static void
 scene_cover_static(
+    struct SceneSquare* square,
     int x,
     int z,
     int level,
     int shape,
     int cover)
 {
-    /* Uncovering waits for the last cover: another added loc still on the
-     * tile keeps the square's loc out of the collision. */
-    for( int i = 0; !cover && i < g_loc_count; i++ )
+    for( int i = 0; !cover && i < square->loc_count; i++ )
     {
-        const struct ToriRSServerSceneLoc* loc = &g_locs[i];
+        const struct ToriRSServerSceneLoc* loc = &square->locs[i];
 
         if( loc->x == x && loc->z == z && loc->level == level && loc->shape == shape &&
             loc->active && !loc->is_static )
             return;
     }
-    for( int i = 0; i < g_loc_count; i++ )
+    for( int i = 0; i < square->loc_count; i++ )
     {
-        struct ToriRSServerSceneLoc* loc = &g_locs[i];
+        struct ToriRSServerSceneLoc* loc = &square->locs[i];
 
         if( loc->x != x || loc->z != z || loc->level != level || loc->shape != shape )
             continue;
@@ -2024,15 +2951,38 @@ scene_cover_static(
             continue;
         if( cover && !loc->covered )
         {
-            apply_loc_collision(loc, 0);
+            store_stamp_loc(loc, 0);
             loc->covered = 1;
         }
         else if( !cover && loc->covered )
         {
             loc->covered = 0;
-            apply_loc_collision(loc, 1);
+            store_stamp_loc(loc, 1);
         }
     }
+}
+
+static struct ToriRSServerSceneLoc*
+square_loc_append(struct SceneSquare* square)
+{
+    if( square->loc_count == square->loc_capacity )
+    {
+        int capacity = square->loc_capacity ? square->loc_capacity * 2 : 256;
+
+        square->locs = ToriMem_Realloc(ToriMem_ServerWorld(), square->locs,
+                                       (size_t)capacity * sizeof(*square->locs));
+        assert(square->locs);
+        square->loc_capacity = capacity;
+    }
+    /* A limit of the handle, so a release build must stop here too: past it,
+     * handles silently name the wrong loc. */
+    if( square->loc_count >= (1 << LOC_HANDLE_INDEX_BITS) )
+    {
+        fprintf(stderr, "torirsserver: map square %d,%d holds %d locs, the most a loc handle can name\n",
+                square->square_x, square->square_z, square->loc_count);
+        abort();
+    }
+    return &square->locs[square->loc_count++];
 }
 
 int
@@ -2045,30 +2995,16 @@ ToriRSServer_SceneAddLoc(
     int angle)
 {
     const struct RSCache_Dat2ConfigLoc* config = loc_config(loc_id);
+    struct SceneSquare* square = square_of(x, z);
     struct ToriRSServerSceneLoc* loc;
 
     if( !config )
         return -1;
-    /* The BOUND window's bounds: a loc slot lives in the window that hands the
-     * slot number out, so an add lands in the window the caller is bound to. */
-    if( !window_contains(scene_bound(), x, z) )
+    /* A loc lives in the square of its origin tile; one nobody has loaded is
+     * the ZoneMap's to carry until somebody does. */
+    if( !square )
         return -1;
 
-    /*
-     * The map square's own loc on this tile is left exactly where it is.
-     *
-     * That is the reference: `World.addLoc` stamps the new loc's collision and
-     * calls `Zone.addLoc`, which appends to the zone's list — neither one so
-     * much as looks at what is already there, and `Zone.removeLoc` puts a
-     * static loc back on the list rather than dropping it. Consuming it instead
-     * is what made a swinging door delete the wall it swung against: the wall's
-     * slot became the door, and closing the door left the tile empty.
-     *
-     * A *dynamic* loc already here is a different matter — the wire carries one
-     * loc per (tile, layer), so a second `loc_add` on the same tile is
-     * replacing the first, and stacking them would grow the array without bound
-     * for a world that cycles one on a timer.
-     */
     {
         int prior = ToriRSServer_SceneFindLocExact(x, z, level, shape);
         struct ToriRSServerSceneLoc* held = ToriRSServer_SceneLoc(prior);
@@ -2076,41 +3012,19 @@ ToriRSServer_SceneAddLoc(
         if( held && held->active && !held->is_static )
             ToriRSServer_SceneRemoveLoc(prior);
     }
-    scene_cover_static(x, z, level, shape, 1);
+    scene_cover_static(square, x, z, level, shape, 1);
 
-    /*
-     * A slot a `loc_del` freed is reused before the array grows. Slots are
-     * never compacted — a script can hold one across a suspend — so without
-     * this a world that adds and removes a loc on a timer grows a slot per
-     * cycle for as long as it runs.
-     */
     loc = NULL;
-    for( int i = 0; i < g_loc_count; i++ )
+    for( int i = 0; i < square->loc_count; i++ )
     {
-        /* A *static* loc's slot is never reused, even when it is inactive: it
-         * is a tombstone. The map square still has a loc on that tile, so
-         * "removed" is a fact about the world that outlives the removal, and
-         * handing the slot to something else would lose it. */
-        if( !g_locs[i].active && !g_locs[i].is_static )
+        if( !square->locs[i].active && !square->locs[i].is_static )
         {
-            loc = &g_locs[i];
+            loc = &square->locs[i];
             break;
         }
     }
     if( !loc )
-    {
-        if( g_loc_count == g_loc_capacity )
-        {
-            int capacity = g_loc_capacity ? g_loc_capacity * 2 : 1024;
-            struct ToriRSServerSceneLoc* grown =
-                ToriMem_Realloc(ToriMem_ServerWorld(), g_locs, (size_t)capacity * sizeof(*grown));
-
-            assert(grown);
-            g_locs = grown;
-            g_loc_capacity = capacity;
-        }
-        loc = &g_locs[g_loc_count++];
-    }
+        loc = square_loc_append(square);
 
     loc->loc_id = loc_id;
     loc->shape = shape;
@@ -2129,17 +3043,13 @@ ToriRSServer_SceneAddLoc(
         loc->size_z = config->size_z;
     }
     loc->active = 1;
-    /* Not from the map square, so its slot is free to be handed out again once
-     * something removes it. */
     loc->is_static = 0;
     loc->covered = 0;
-    /* Neutral until a caller says otherwise. A reused slot still holds the
-     * previous occupant's menu, so this is a reset and not an initialisation:
-     * without it, the second loc to land in a recycled slot would inherit the
-     * first one's overrides. */
+    loc->cache_loc_id = -1;
+    loc->cache_angle = 0;
     ToriRSServer_LocOpsDefault(&loc->ops);
-    apply_loc_collision(loc, 1);
-    return (int)(loc - g_locs);
+    store_stamp_loc(loc, 1);
+    return loc_handle(square, (int)(loc - square->locs));
 }
 
 void
@@ -2166,10 +3076,6 @@ ToriRSServer_SceneLocPlacementOp(
 
     if( op_num < 1 || op_num > 5 )
         return NULL;
-    /* No slot is a legitimate runtime state, not a contract violation: a loc
-     * beyond the scene window lives only in the ZoneMap, and the click on it
-     * still has to be judged against something. The type is what the client
-     * drew it from in that case, because nothing overrode it. */
     if( !loc )
         return type_op;
     return ToriRSServer_LocOpsLabel(&loc->ops, op_num, type_op);
@@ -2187,10 +3093,15 @@ ToriRSServer_SceneRemoveLoc(int slot)
     if( loc->covered )
         loc->covered = 0;
     else
-        apply_loc_collision(loc, 0);
+    {
+        /* Inactive first: the re-stamp after the removal puts back every
+         * other loc touching these tiles, and must not put this one back. */
+        loc->active = 0;
+        store_stamp_loc(loc, 0);
+    }
     loc->active = 0;
     if( !loc->is_static )
-        scene_cover_static(loc->x, loc->z, loc->level, loc->shape, 0);
+        scene_cover_static(square_of(loc->x, loc->z), loc->x, loc->z, loc->level, loc->shape, 0);
     return 1;
 }
 
@@ -2291,21 +3202,22 @@ ToriRSServer_SceneCanTravelTyped(
     int coll_type)
 {
     /* The footprint at both ends of the step, not two corners: a size-3 npc
-     * reads two tiles past its anchor (window_inside). */
+     * reads two tiles past its anchor. */
     int fx0 = offset_x < 0 ? x + offset_x : x;
     int fz0 = offset_z < 0 ? z + offset_z : z;
     int fx1 = (offset_x > 0 ? x + offset_x : x) + (size > 1 ? size - 1 : 0);
     int fz1 = (offset_z > 0 ? z + offset_z : z) + (size > 1 ? size - 1 : 0);
-    struct ToriRSServerSceneWindow* window = window_inside(fx0, fz0, fx1, fz1);
+    int view_x;
+    int view_z;
     struct CollisionMap* map;
 
-    if( !window )
-        window = window_containing2(x, z, x + offset_x, z + offset_z);
-    map = window ? window_collision(window, level) : NULL;
-    if( !map || size < 1 )
+    if( size < 1 || !square_of(x, z) || !square_of(x + offset_x, z + offset_z) )
         return 0;
-    return collision_map_can_travel_typed(map, x - window->base_x, z - window->base_z, offset_x,
-                                          offset_z, size, extra_flag, coll_type);
+    map = scene_view(level, fx0, fz0, fx1, fz1, 0, &view_x, &view_z);
+    if( !map )
+        return 0;
+    return collision_map_can_travel_typed(map, x - view_x, z - view_z, offset_x, offset_z, size,
+                                          extra_flag, coll_type);
 }
 
 /* Raw collision flags at an absolute tile, 0 outside the built scene. A probe
@@ -2315,23 +3227,21 @@ ToriRSServer_SceneCanTravelTyped(
 int
 ToriRSServer_SceneTileFlags(int level, int x, int z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing(x, z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int flags;
 
-    if( !map )
+    if( !store_tile(level, 0, x, z, &flags) )
         return 0;
-    return collision_map_tile(map, x - window->base_x, z - window->base_z);
+    return flags;
 }
 
 int
 ToriRSServer_SceneBoatTileFlags(int level, int x, int z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing(x, z);
+    int flags;
 
-    if( !window || level < 0 || level >= SCENE_LEVELS || !window->boat_collision[level] )
+    if( !store_tile(level, 1, x, z, &flags) )
         return COLL_FLAG_BOUNDS;
-    return collision_map_tile(window->boat_collision[level], x - window->base_x,
-                              z - window->base_z);
+    return flags;
 }
 
 int
@@ -2347,13 +3257,14 @@ ToriRSServer_SceneLineOfSight(
     int dh,
     int extra)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(sx, sz, dx, dz);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, sx, sz, dx, dz, LOC_REACH, &view_x, &view_z);
 
     if( !map )
         return 0;
-    return collision_map_line_of_sight(map, sx - window->base_x, sz - window->base_z,
-                                       dx - window->base_x, dz - window->base_z, sw, sh, dw, dh,
+    return collision_map_line_of_sight(map, sx - view_x, sz - view_z,
+                                       dx - view_x, dz - view_z, sw, sh, dw, dh,
                                        extra);
 }
 
@@ -2370,13 +3281,14 @@ ToriRSServer_SceneLineOfWalk(
     int dh,
     int extra)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(sx, sz, dx, dz);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, sx, sz, dx, dz, LOC_REACH, &view_x, &view_z);
 
     if( !map )
         return 0;
-    return collision_map_line_of_walk(map, sx - window->base_x, sz - window->base_z,
-                                      dx - window->base_x, dz - window->base_z, sw, sh, dw, dh,
+    return collision_map_line_of_walk(map, sx - view_x, sz - view_z,
+                                      dx - view_x, dz - view_z, sw, sh, dw, dh,
                                       extra);
 }
 
@@ -2410,13 +3322,14 @@ ToriRSServer_SceneApproached(
     int dw,
     int dh)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(sx, sz, dx, dz);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, sx, sz, dx, dz, LOC_REACH, &view_x, &view_z);
 
     if( !map )
         return 0;
-    return collision_map_approached(map, sx - window->base_x, sz - window->base_z,
-                                    dx - window->base_x, dz - window->base_z, sw, sh, dw, dh);
+    return collision_map_approached(map, sx - view_x, sz - view_z,
+                                    dx - view_x, dz - view_z, sw, sh, dw, dh);
 }
 
 int
@@ -2431,15 +3344,16 @@ ToriRSServer_SceneApproachedPvp(
     int dw,
     int dh)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(sx, sz, dx, dz);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, sx, sz, dx, dz, LOC_REACH, &view_x, &view_z);
 
     if( !map )
         return 0;
     if( !ToriRSServer_SceneFeatures()->los_symmetric_pvp )
         return ToriRSServer_SceneApproached(level, sx, sz, dx, dz, sw, sh, dw, dh);
-    return collision_map_approached_symmetric(map, sx - window->base_x, sz - window->base_z,
-                                              dx - window->base_x, dz - window->base_z, sw, sh,
+    return collision_map_approached_symmetric(map, sx - view_x, sz - view_z,
+                                              dx - view_x, dz - view_z, sw, sh,
                                               dw, dh);
 }
 
@@ -2462,20 +3376,25 @@ ToriRSServer_SceneChangeOccupancy(
 {
     if( size < 1 || mask == 0 )
         return;
-    scene_windows_ensure();
-    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
-    {
-        struct ToriRSServerSceneWindow* window = &g_windows[i];
-        struct CollisionMap* map;
+    if( level < 0 || level >= SCENE_LEVELS )
+        return;
+    /* Straight into the store, tile by tile, so a large npc standing across a
+     * square edge marks both squares. A tile in a square nobody has loaded is
+     * skipped; the world re-stamps whoever stands in a square when it loads. */
+    for( int dx = 0; dx < size; dx++ )
+        for( int dz = 0; dz < size; dz++ )
+        {
+            struct SceneSquare* square = square_of(x + dx, z + dz);
+            int32_t* flags;
 
-        if( !window_contains(window, x, z) )
-            continue;
-        map = window_collision(window, level);
-        if( !map )
-            continue;
-        collision_map_change_square(map, x - window->base_x, z - window->base_z, size, mask,
-                                    add);
-    }
+            if( !square )
+                continue;
+            flags = &square->walk[level][((x + dx) & 63) * SQUARE_TILES + ((z + dz) & 63)];
+            if( add )
+                *flags |= mask;
+            else
+                *flags &= ~mask;
+        }
 }
 
 int
@@ -2494,8 +3413,9 @@ ToriRSServer_SceneNaivePath(
     int* out_x,
     int* out_z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(src_x, src_z, dest_x, dest_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, src_x, src_z, dest_x, dest_z, LOC_REACH, &view_x, &view_z);
     int sx;
     int sz;
     int ok;
@@ -2504,15 +3424,15 @@ ToriRSServer_SceneNaivePath(
     assert(out_z);
     if( !map )
         return 0;
-    ok = collision_map_naive_path(map, src_x - window->base_x, src_z - window->base_z,
-                                  dest_x - window->base_x, dest_z - window->base_z, src_width,
+    ok = collision_map_naive_path(map, src_x - view_x, src_z - view_z,
+                                  dest_x - view_x, dest_z - view_z, src_width,
                                   src_height, dest_width, dest_height, extra_flag, rng, &sx,
                                   &sz);
     if( !ok )
         return 0;
-    *out_x = sx + window->base_x;
-    *out_z = sz + window->base_z;
-    if( !window_contains(window, *out_x, *out_z) )
+    *out_x = sx + view_x;
+    *out_z = sz + view_z;
+    if( !square_of(*out_x, *out_z) )
         return 0;
     return 1;
 }
@@ -2744,8 +3664,9 @@ ToriRSServer_SceneRoute(
     int* path_z,
     int max_steps)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(from_x, from_z, to_x, to_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_route_view(level, from_x, from_z, to_x, to_z, &view_x, &view_z);
     int steps;
     int nearest = 0;
     int arrive_x = to_x;
@@ -2758,7 +3679,7 @@ ToriRSServer_SceneRoute(
     {
         /* No collision anywhere (cache missing): the announced open-field
          * fallback. */
-        if( !scene_any_window_built() )
+        if( !square_any_loaded() )
             return route_straight(from_x, from_z, to_x, to_z, path_x, path_z, max_steps);
         /* Collision exists but no one window covers both endpoints: the target
          * is unreachable — do not straight-line through walls the map has not
@@ -2780,9 +3701,9 @@ ToriRSServer_SceneRoute(
 
         ToriRSServer_SceneGroundNearestOpts(&nearest_opts);
         steps = collision_map_route_tiles_blocked(
-            map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
-            to_z - window->base_z, NULL, &nearest_opts,
-            scene_player_enter_block(map, from_x - window->base_x, from_z - window->base_z),
+            map, from_x - view_x, from_z - view_z, to_x - view_x,
+            to_z - view_z, NULL, &nearest_opts,
+            scene_player_enter_block(map, from_x - view_x, from_z - view_z),
             path_x, path_z, max_steps, &nearest, &arrive_x, &arrive_z);
     }
     if( steps < 0 )
@@ -2792,11 +3713,11 @@ ToriRSServer_SceneRoute(
     }
     for( int i = 0; i < steps; i++ )
     {
-        path_x[i] += window->base_x;
-        path_z[i] += window->base_z;
+        path_x[i] += view_x;
+        path_z[i] += view_z;
     }
-    arrive_x += window->base_x;
-    arrive_z += window->base_z;
+    arrive_x += view_x;
+    arrive_z += view_z;
     route_trace(level, from_x, from_z, to_x, to_z, steps, nearest, arrive_x, arrive_z);
     return steps;
 }
@@ -2815,8 +3736,9 @@ ToriRSServer_SceneRouteOp(
     int* out_arrive_x,
     int* out_arrive_z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(from_x, from_z, to_x, to_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_route_view(level, from_x, from_z, to_x, to_z, &view_x, &view_z);
     struct CollisionNearestOpts nearest_opts;
     int steps;
     int nearest = 0;
@@ -2828,8 +3750,8 @@ ToriRSServer_SceneRouteOp(
     assert(path_z);
 
     if( from_x == to_x && from_z == to_z &&
-        ( !map || collision_map_reached(map, from_x - window->base_x, from_z - window->base_z,
-                                        to_x - window->base_x, to_z - window->base_z,
+        ( !map || collision_map_reached(map, from_x - view_x, from_z - view_z,
+                                        to_x - view_x, to_z - view_z,
                                         approach) ) )
     {
         if( out_arrive_x )
@@ -2843,7 +3765,7 @@ ToriRSServer_SceneRouteOp(
     {
         /* Same split as ToriRSServer_SceneRoute: open-field fallback only when
          * no collision exists anywhere; otherwise out-of-window is a refusal. */
-        if( !scene_any_window_built() )
+        if( !square_any_loaded() )
             return route_straight(from_x, from_z, to_x, to_z, path_x, path_z, max_steps);
         route_trace(level, from_x, from_z, to_x, to_z, -1, 0, to_x, to_z);
         return -1;
@@ -2851,9 +3773,9 @@ ToriRSServer_SceneRouteOp(
 
     ToriRSServer_SceneOpNearestOpts(&nearest_opts);
     steps = collision_map_route_tiles_blocked(
-        map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
-        to_z - window->base_z, approach, &nearest_opts,
-        scene_player_enter_block(map, from_x - window->base_x, from_z - window->base_z), path_x,
+        map, from_x - view_x, from_z - view_z, to_x - view_x,
+        to_z - view_z, approach, &nearest_opts,
+        scene_player_enter_block(map, from_x - view_x, from_z - view_z), path_x,
         path_z, max_steps, &nearest, &arrive_x, &arrive_z);
     if( steps < 0 )
     {
@@ -2862,11 +3784,11 @@ ToriRSServer_SceneRouteOp(
     }
     for( int i = 0; i < steps; i++ )
     {
-        path_x[i] += window->base_x;
-        path_z[i] += window->base_z;
+        path_x[i] += view_x;
+        path_z[i] += view_z;
     }
-    arrive_x += window->base_x;
-    arrive_z += window->base_z;
+    arrive_x += view_x;
+    arrive_z += view_z;
     if( out_arrive_x )
         *out_arrive_x = arrive_x;
     if( out_arrive_z )
@@ -2891,8 +3813,9 @@ ToriRSServer_SceneRouteSized(
     int* out_arrive_x,
     int* out_arrive_z)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(from_x, from_z, to_x, to_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_route_view(level, from_x, from_z, to_x, to_z, &view_x, &view_z);
     int arrive_x = to_x;
     int arrive_z = to_z;
     int steps;
@@ -2910,8 +3833,8 @@ ToriRSServer_SceneRouteSized(
         return -1;
     }
     steps = collision_map_route_tiles_sized(
-        map, from_x - window->base_x, from_z - window->base_z, to_x - window->base_x,
-        to_z - window->base_z, approach, approach->mover_size, extra_flag, coll_type, path_x,
+        map, from_x - view_x, from_z - view_z, to_x - view_x,
+        to_z - view_z, approach, approach->mover_size, extra_flag, coll_type, path_x,
         path_z, max_steps, &arrive_x, &arrive_z);
     if( steps < 0 )
     {
@@ -2920,11 +3843,11 @@ ToriRSServer_SceneRouteSized(
     }
     for( int i = 0; i < steps; i++ )
     {
-        path_x[i] += window->base_x;
-        path_z[i] += window->base_z;
+        path_x[i] += view_x;
+        path_z[i] += view_z;
     }
-    arrive_x += window->base_x;
-    arrive_z += window->base_z;
+    arrive_x += view_x;
+    arrive_z += view_z;
     if( out_arrive_x )
         *out_arrive_x = arrive_x;
     if( out_arrive_z )
@@ -2955,8 +3878,9 @@ ToriRSServer_SceneMeleeReached(
     int dst_z,
     int dst_size)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(x, z, dst_x, dst_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, x, z, dst_x, dst_z, LOC_REACH, &view_x, &view_z);
     struct CollisionApproach approach = {
         .kind = COLL_APPROACH_RECT_EXCLUSIVE,
         .loc_width = dst_size > 0 ? dst_size : 1,
@@ -2966,8 +3890,8 @@ ToriRSServer_SceneMeleeReached(
 
     if( !map )
         return 1;
-    return collision_map_reached(map, x - window->base_x, z - window->base_z,
-                                 dst_x - window->base_x, dst_z - window->base_z, &approach);
+    return collision_map_reached(map, x - view_x, z - view_z,
+                                 dst_x - view_x, dst_z - view_z, &approach);
 }
 
 int
@@ -2979,12 +3903,13 @@ ToriRSServer_SceneReached(
     int dst_z,
     struct CollisionApproach const* approach)
 {
-    struct ToriRSServerSceneWindow* window = window_containing2(x, z, dst_x, dst_z);
-    struct CollisionMap* map = window ? window_collision(window, level) : NULL;
+    int view_x;
+    int view_z;
+    struct CollisionMap* map = scene_view(level, x, z, dst_x, dst_z, LOC_REACH, &view_x, &view_z);
 
     if( !map )
     {
-        if( !scene_any_window_built() )
+        if( !square_any_loaded() )
         {
             /* No collision anywhere: fall back to Chebyshev adjacent / exact
              * for EXACT. */
@@ -3000,6 +3925,437 @@ ToriRSServer_SceneReached(
         }
         return 0;
     }
-    return collision_map_reached(map, x - window->base_x, z - window->base_z,
-                                 dst_x - window->base_x, dst_z - window->base_z, approach);
+    return collision_map_reached(map, x - view_x, z - view_z,
+                                 dst_x - view_x, dst_z - view_z, approach);
+}
+
+/* ------------------------------------------------------------------ */
+/* Store checks (tests)                                                */
+/* ------------------------------------------------------------------ */
+
+/* The tiles of the area that a fresh build fills honestly. Not its outer
+ * ring, which collision_map_reset paints as the edge; and not the strip along
+ * its west and south sides, where a large loc whose origin lies outside the
+ * area should reach in but is never read -- the very thing the store's squares
+ * get right by reading their neighbours. */
+static int
+area_interior(
+    int ax,
+    int az)
+{
+    return ax >= LOC_REACH + 1 && az >= LOC_REACH + 1 && ax < SCENE_TILES - 1 &&
+           az < SCENE_TILES - 1;
+}
+
+/* Is (x, z) within `reach` tiles of a map square edge? */
+static int
+near_square_edge(
+    int x,
+    int z,
+    int reach)
+{
+    int lx = x & 63;
+    int lz = z & 63;
+
+    return lx < reach || lx >= SQUARE_TILES - reach || lz < reach || lz >= SQUARE_TILES - reach;
+}
+
+int
+ToriRSServer_SceneDebugCompareFresh(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    struct ToriRSServerSceneCompare* out)
+{
+    struct CollisionMap* fresh;
+    int printed = 0;
+
+    assert(cache_dir);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    /* The reference: one area built straight from the cache with this view in
+     * its interior, the way every window used to be -- one build stamping both
+     * sides of every square edge inside it. */
+    if( !area_build_cache(cache_dir, zone_x, zone_z) )
+        return 0;
+    fresh = g_collision[0];
+
+    for( int ax = 0; ax < SCENE_TILES; ax++ )
+        for( int az = 0; az < SCENE_TILES; az++ )
+        {
+            int x = g_base_x + ax;
+            int z = g_base_z + az;
+
+            if( !area_interior(ax, az) || !square_of(x, z) )
+                continue;
+            for( int level = 0; level < SCENE_LEVELS; level++ )
+                for( int boat = 0; boat < 2; boat++ )
+                {
+                    int got;
+                    int want = collision_map_tile(boat ? g_boat_collision[level] : g_collision[level],
+                                                  ax, az);
+
+                    store_tile(level, boat, x, z, &got);
+                    out->tiles++;
+                    if( got == want )
+                        continue;
+                    out->tile_mismatches++;
+                    if( printed++ < 8 )
+                        fprintf(stderr,
+                                "  store differs at %d,%d level %d %s: store 0x%x, fresh 0x%x\n",
+                                x, z, level, boat ? "boat" : "walk", got, want);
+                }
+        }
+
+    /* Steps across and along every square edge in the interior, sizes 1-3:
+     * the step check reads a tile's neighbours, which on an edge are in the
+     * other square. */
+    for( int ax = LOC_REACH + 4; ax < SCENE_TILES - 4; ax++ )
+        for( int az = LOC_REACH + 4; az < SCENE_TILES - 4; az++ )
+        {
+            int x = g_base_x + ax;
+            int z = g_base_z + az;
+
+            if( !near_square_edge(x, z, 3) || !square_of(x, z) )
+                continue;
+            for( int size = 1; size <= 3; size++ )
+                for( int dir = 0; dir < 8; dir++ )
+                {
+                    int want = collision_map_can_travel_typed(fresh, ax, az, k_step_dx[dir],
+                                                              k_step_dz[dir], size, 0,
+                                                              COLL_TYPE_NORMAL);
+                    int got = ToriRSServer_SceneCanTravel(0, x, z, k_step_dx[dir], k_step_dz[dir],
+                                                         size, 0);
+
+                    out->steps++;
+                    if( got == want )
+                        continue;
+                    out->step_mismatches++;
+                    if( printed++ < 8 )
+                        fprintf(stderr, "  step differs at %d,%d dir %d size %d: store %d, fresh %d\n",
+                                x, z, dir, size, got, want);
+                }
+        }
+
+    /* Lines of sight and walk that cross an edge, from every edge tile to a
+     * spread of tiles on the far side. */
+    for( int ax = LOC_REACH + 12; ax < SCENE_TILES - 12; ax++ )
+        for( int az = LOC_REACH + 12; az < SCENE_TILES - 12; az++ )
+        {
+            int x = g_base_x + ax;
+            int z = g_base_z + az;
+            int along_x = (x & 63) == 63;
+            int along_z = (z & 63) == 63;
+
+            if( !along_x && !along_z )
+                continue;
+            for( int d = -6; d <= 6; d += 3 )
+            {
+                int dx = along_x ? 7 : d;
+                int dz = along_x ? d : 7;
+                int want_los = collision_map_line_of_sight(fresh, ax - 4, az - 1, ax + dx, az + dz,
+                                                           1, 1, 1, 1, 0);
+                int got_los = ToriRSServer_SceneLineOfSight(0, x - 4, z - 1, x + dx, z + dz, 1, 1,
+                                                          1, 1, 0);
+                int want_low = collision_map_line_of_walk(fresh, ax - 4, az - 1, ax + dx, az + dz,
+                                                          1, 1, 1, 1, 0);
+                int got_low = ToriRSServer_SceneLineOfWalk(0, x - 4, z - 1, x + dx, z + dz, 1, 1,
+                                                         1, 1, 0);
+
+                out->lines += 2;
+                if( want_los != got_los || want_low != got_low )
+                {
+                    out->line_mismatches++;
+                    if( printed++ < 8 )
+                        fprintf(stderr,
+                                "  line differs %d,%d -> %d,%d: sight %d/%d walk %d/%d (store/fresh)\n",
+                                x - 4, z - 1, x + dx, z + dz, got_los, want_los, got_low, want_low);
+                }
+            }
+        }
+    return 1;
+}
+
+/*
+ * Routes across square edges: a route searched on the fresh area and the same
+ * route searched on the store's view of the same 104x104 must arrive at the
+ * same tile by the same number of steps. The store's view is the bound
+ * window's, so bind a window at (zone_x, zone_z) first.
+ */
+int
+ToriRSServer_SceneDebugCompareRoutes(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    struct ToriRSServerSceneCompare* out)
+{
+    static int fresh_x[512], fresh_z[512], store_x[512], store_z[512];
+    struct CollisionNearestOpts nearest;
+    int printed = 0;
+
+    assert(cache_dir);
+    assert(out);
+    if( !area_build_cache(cache_dir, zone_x, zone_z) )
+        return 0;
+    ToriRSServer_SceneOpNearestOpts(&nearest);
+    for( int ax = LOC_REACH + 20; ax < SCENE_TILES - 20; ax += 3 )
+        for( int az = LOC_REACH + 20; az < SCENE_TILES - 20; az += 3 )
+        {
+            int x = g_base_x + ax;
+            int z = g_base_z + az;
+            int fresh_used = 0, store_used = 0;
+            int fresh_ax = 0, fresh_az = 0, store_ax = 0, store_az = 0;
+            int fresh_steps;
+            int store_steps;
+            int view_x;
+            int view_z;
+            struct CollisionMap* view;
+
+            if( !near_square_edge(x, z, 4) )
+                continue;
+            /* Across the nearest edge and back a little: 14 tiles east and 9
+             * north, so the search has to cross at least one edge. */
+            fresh_steps = collision_map_route_tiles(g_collision[0], ax - 7, az - 5, ax + 7, az + 4,
+                                                   NULL, &nearest, fresh_x, fresh_z, 512,
+                                                   &fresh_used, &fresh_ax, &fresh_az);
+            view = scene_route_view(0, x - 7, z - 5, x + 7, z + 4, &view_x, &view_z);
+            if( !view )
+                continue;
+            store_steps = collision_map_route_tiles(view, x - 7 - view_x, z - 5 - view_z,
+                                                   x + 7 - view_x, z + 4 - view_z, NULL, &nearest,
+                                                   store_x, store_z, 512, &store_used, &store_ax,
+                                                   &store_az);
+            out->routes++;
+            if( fresh_steps == store_steps && fresh_used == store_used &&
+                fresh_ax + g_base_x == store_ax + view_x && fresh_az + g_base_z == store_az + view_z )
+                continue;
+            out->route_mismatches++;
+            if( printed++ < 8 )
+                fprintf(stderr,
+                        "  route differs from %d,%d: store %d steps to %d,%d, fresh %d steps to %d,%d\n",
+                        x - 7, z - 5, store_steps, store_ax + view_x, store_az + view_z, fresh_steps,
+                        fresh_ax + g_base_x, fresh_az + g_base_z);
+        }
+    return 1;
+}
+
+/* A loc, in the store, whose collision crosses a square edge: a wall-shaped
+ * map loc on an edge tile, or a large loc reaching over one. -1 if none
+ * around (x, z). `skip` passes over that many earlier matches. */
+int
+ToriRSServer_SceneDebugFindEdgeLoc(
+    int x,
+    int z,
+    int skip)
+{
+    struct SceneSquare* square = square_of(x, z);
+
+    if( !square )
+        return -1;
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        const struct ToriRSServerSceneLoc* loc = &square->locs[i];
+        int x0, z0, x1, z1;
+        const struct RSCache_Dat2ConfigLoc* config = loc_config(loc->loc_id);
+
+        if( !loc->active || !loc->is_static || loc->level != 0 || !config ||
+            !config->declared_blocks_walk )
+            continue;
+        loc_stamp_box(loc, &x0, &z0, &x1, &z1);
+        /* Its stamp, inner tiles included, must touch two squares. */
+        if( ((x0 + 1) >> 6) == (x1 >> 6) && ((z0 + 1) >> 6) == (z1 >> 6) &&
+            (x0 >> 6) == ((x0 + 1) >> 6) && (z0 >> 6) == ((z0 + 1) >> 6) )
+            continue;
+        if( skip-- > 0 )
+            continue;
+        return loc_handle(square, i);
+    }
+    return -1;
+}
+
+/*
+ * After a runtime change to `handle`'s loc: build a fresh area around it, make
+ * the same change there with the same stamp code, and count the tiles of its
+ * stamp (plus a margin) where the store disagrees. `replace_id` < 0 means the
+ * loc was removed; otherwise it was replaced by that id at `replace_angle`.
+ */
+int
+ToriRSServer_SceneDebugCheckChange(
+    const char* cache_dir,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int replace_id,
+    int replace_angle)
+{
+    struct ToriRSServerSceneLoc* found = NULL;
+    int mismatches = 0;
+    int x0, z0, x1, z1;
+
+    assert(cache_dir);
+    /* Centred on the loc: zone origin so the area's base is 52 tiles west. */
+    if( !area_build_cache(cache_dir, ((x - 52) >> 3) + 6, ((z - 52) >> 3) + 6) )
+        return -1;
+    for( int i = 0; i < g_loc_count; i++ )
+        if( g_locs[i].x == x && g_locs[i].z == z && g_locs[i].level == level &&
+            g_locs[i].shape == shape && g_locs[i].is_static )
+            found = &g_locs[i];
+    if( !found )
+        return -1;
+    apply_loc_collision(found, 0);
+    found->active = 0;
+    if( replace_id >= 0 )
+    {
+        const struct RSCache_Dat2ConfigLoc* config = loc_config(replace_id);
+
+        assert(config);
+        found->active = 1;
+        found->loc_id = replace_id;
+        found->angle = replace_angle;
+        found->size_x = (replace_angle & 1) ? config->size_z : config->size_x;
+        found->size_z = (replace_angle & 1) ? config->size_x : config->size_z;
+        apply_loc_collision(found, 1);
+    }
+    loc_stamp_box(found, &x0, &z0, &x1, &z1);
+    for( int tx = x0 - 2; tx <= x1 + 2; tx++ )
+        for( int tz = z0 - 2; tz <= z1 + 2; tz++ )
+            for( int lvl = 0; lvl < SCENE_LEVELS; lvl++ )
+            {
+                int got;
+                int want = collision_map_tile(g_collision[lvl], tx - g_base_x, tz - g_base_z);
+
+                if( !store_tile(lvl, 0, tx, tz, &got) )
+                    continue;
+                /* Occupancy is the world's, and this check runs without one. */
+                if( got == want )
+                    continue;
+                if( mismatches++ < 6 )
+                    fprintf(stderr, "  change differs at %d,%d level %d: store 0x%x, fresh 0x%x\n",
+                            tx, tz, lvl, got, want);
+            }
+    return mismatches;
+}
+
+/* Drop square (sx, sz) and load it again from the cache, keeping who holds
+ * it: what a square goes through when it lingers out and is needed again. */
+int
+ToriRSServer_SceneDebugReloadSquare(
+    int sx,
+    int sz)
+{
+    return square_reload(sx, sz);
+}
+
+static int
+square_reload(
+    int sx,
+    int sz)
+{
+    struct SceneSquare* square = square_at(sx, sz);
+    struct SceneSquare* again;
+    int interest;
+    struct ToriRSServerSceneWindow* holders[TORIRSSERVER_SCENE_WINDOW_MAX];
+    int holder_slot[TORIRSSERVER_SCENE_WINDOW_MAX];
+    int holder_count = 0;
+
+    if( !square )
+        return 0;
+    interest = square->interest;
+    for( int i = 0; i < g_window_top; i++ )
+    {
+        if( !g_windows[i] )
+            continue;
+        for( int h = 0; h < g_windows[i]->held_count; h++ )
+            if( g_windows[i]->held[h] == square )
+            {
+                holders[holder_count] = g_windows[i];
+                holder_slot[holder_count++] = h;
+            }
+    }
+    square->interest = 0;
+    square_revert_edges(square);
+    square_free(square);
+    again = square_load(sx, sz);
+    if( !again )
+        return 0;
+    again->interest = interest;
+    for( int i = 0; i < holder_count; i++ )
+        holders[i]->held[holder_slot[i]] = again;
+    return 1;
+}
+
+/*
+ * Walk the locs of the bound window's view: every loc record whose origin is in
+ * its 104x104, square by square in the order the window holds them. Start with
+ * -1; -1 back means done. What a loop over a window's slots 0, 1, 2, ... was,
+ * now that a slot is a handle into the store.
+ */
+int
+ToriRSServer_SceneLocNext(int after)
+{
+    struct ToriRSServerSceneWindow* window = ToriRSServer_SceneBoundWindow();
+    int held = 0;
+    int index = 0;
+
+    if( window->base_x < 0 )
+        return -1;
+    if( after >= 0 )
+    {
+        int at;
+        struct SceneSquare* square = loc_handle_square(after, &at);
+
+        if( !square )
+            return -1;
+        for( held = 0; held < window->held_count && window->held[held] != square; held++ )
+            ;
+        if( held == window->held_count )
+            return -1;
+        index = at + 1;
+    }
+    for( ; held < window->held_count; held++, index = 0 )
+    {
+        struct SceneSquare* square = window->held[held];
+
+        for( ; index < square->loc_count; index++ )
+            if( window_contains(window, square->locs[index].x, square->locs[index].z) )
+                return loc_handle(square, index);
+    }
+    return -1;
+}
+
+/*
+ * Write tiles of a map ToriRSServer_SceneCollision / SceneBoatCollision handed
+ * out back into the store: the tiles [x0..x1] x [z0..z1] (absolute,
+ * inclusive) that a caller changed in it. Those maps are copies of the store,
+ * so a change made to one is a proposal until it is committed.
+ */
+void
+ToriRSServer_SceneCollisionCommit(
+    int level,
+    int boat,
+    int x0,
+    int z0,
+    int x1,
+    int z1)
+{
+    struct SceneView* view;
+
+    assert(level >= 0);
+    assert(level < SCENE_LEVELS);
+    assert(boat == 0 || boat == 1);
+    view = &g_window_view[boat][level];
+    assert(view->map.flags);
+    for( int x = x0; x <= x1; x++ )
+        for( int z = z0; z <= z1; z++ )
+        {
+            struct SceneSquare* square = square_of(x, z);
+            int vx = x - view->base_x;
+            int vz = z - view->base_z;
+
+            if( !square || vx < 0 || vz < 0 || vx >= view->map.size_x || vz >= view->map.size_z )
+                continue;
+            (boat ? square->boat[level] : square->walk[level])[(x & 63) * SQUARE_TILES + (z & 63)] =
+                view->map.flags[collision_map_index_at(&view->map, vx, vz)];
+        }
 }

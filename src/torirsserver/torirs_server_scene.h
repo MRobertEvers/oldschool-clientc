@@ -20,6 +20,7 @@
  * moving the collision with it.
  */
 
+#include "torirs_server_cap.h"
 #include <stdint.h>
 
 #include "engine/world_builder/collision_map.h"
@@ -117,6 +118,12 @@ struct ToriRSServerSceneLoc
      *  loc in that layer), so this one's collision is lifted until the cover
      *  goes; the slot stays active so the cover's removal reveals it. */
     int covered;
+    /** A map loc's id and angle as the cache placed it (-1 for a runtime add).
+     *  A square that loads next to one which was replaced at runtime (a door
+     *  swung open) has the cache's collision for it stamped across the edge,
+     *  and takes this to know what to remove. */
+    int cache_loc_id;
+    int cache_angle;
     /** This placement's own menu (see struct ToriRSServerLocOps). A map-square loc
      *  carries the neutral value; only a `loc_add_ops` puts anything else here.
      *  Held on the scene as well as in the ZoneMap because the OPLOC validator
@@ -318,19 +325,20 @@ struct ToriRSServerSceneWindow;
 /** Monotonic window construction counter for rebuild diagnostics. */
 uint64_t ToriRSServer_SceneWindowBuildCount(const struct ToriRSServerSceneWindow* window);
 
-/** 1 root + one per player slot + one per vessel-deck slot.
- *  torirs_server_scene.h cannot include torirs_server.h, so this restates
- *  1 + TORIRSSERVER_PLAYER_MAX + TORIRSSERVER_VESSEL_WINDOW_MAX; the scene
- *  module holds the arithmetic to the same values at compile time.
+/** 1 root + one per player slot + one per vessel-deck slot. The player
+ *  count comes from torirs_server_cap.h, the header torirs_server.h takes
+ *  TORIRSSERVER_PLAYER_MAX from. Windows are allocated when first asked for
+ *  and freed on release, so the pool's size costs a pointer per slot.
  *
  *  The vessel slots exist because a rider needs TWO collision domains at
  *  once: their own steps resolve against the deck instance (pool
  *  coordinates), while their scene window follows the hull across the
  *  water (observed coordinates). A vessel's deck window pins the former
  *  while the rider's own window serves the latter. */
-#define TORIRSSERVER_SCENE_WINDOW_MAX 24
-#define TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE 9
 #define TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX 15
+#define TORIRSSERVER_SCENE_VESSEL_WINDOW_BASE (1 + TORIRSSERVER_PLAYER_CAP)
+#define TORIRSSERVER_SCENE_WINDOW_MAX                                                             \
+    (1 + TORIRSSERVER_PLAYER_CAP + TORIRSSERVER_SCENE_VESSEL_WINDOW_MAX)
 
 /** The world's root window — the default binding, and what a fresh process is
  *  bound to before anything is built. */
@@ -341,6 +349,142 @@ ToriRSServer_SceneWindowRoot(void);
  *  index outside the pool — there is no "maybe" window. */
 struct ToriRSServerSceneWindow*
 ToriRSServer_SceneWindowByIndex(int index);
+
+/** The window a player who holds none is judged against: never built, and a
+ *  no-op to release. */
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowNone(void);
+
+/** Whether `window` is built and its origin is the one a build at
+ *  (zone_x, zone_z) would give it. */
+int
+ToriRSServer_SceneWindowOriginIs(
+    const struct ToriRSServerSceneWindow* window,
+    int zone_x,
+    int zone_z);
+
+/** Release every window, the root included. The next pool call starts a
+ *  fresh pool, so a process may build another world afterwards. */
+void
+ToriRSServer_SceneWindowsShutdown(void);
+
+/**
+ * Called after each map square loads into the store, with its tile bounds
+ * (inclusive). The world replays its ZoneMap records for the square, restamps
+ * whoever stands in it and reapplies every live hull's deck rule, because a
+ * square is built from the cache alone.
+ */
+typedef void (*ToriRSServerSceneSquareHook)(
+    void* ctx,
+    int x0,
+    int z0,
+    int x1,
+    int z1);
+
+void
+ToriRSServer_SceneSetSquareHook(
+    ToriRSServerSceneSquareHook hook,
+    void* ctx);
+
+/** Once a tick: squares nobody has held for their linger are dropped. */
+void
+ToriRSServer_SceneSquaresSweep(int tick);
+
+/** Drop every square no window holds, now (a world being thrown away). */
+void
+ToriRSServer_SceneSquaresDropUnheld(void);
+
+/** Squares in the store. */
+int
+ToriRSServer_SceneSquareCount(void);
+
+/** Write back tiles [x0..x1] x [z0..z1] (absolute, inclusive) of the map
+ *  ToriRSServer_SceneCollision (boat 0) / SceneBoatCollision (boat 1) last
+ *  handed out for `level`: those maps are copies, so a caller that changes
+ *  one commits the change with this. */
+void
+ToriRSServer_SceneCollisionCommit(
+    int level,
+    int boat,
+    int x0,
+    int z0,
+    int x1,
+    int z1);
+
+/** The next loc handle in the bound window's view after `after` (-1 to
+ *  start); -1 when there are no more. */
+int
+ToriRSServer_SceneLocNext(int after);
+
+/* Checks of the store against the build it replaced (square_test.c). Each
+ * rebuilds the scene module's scratch area, so none may run inside another
+ * scene call. */
+struct ToriRSServerSceneCompare
+{
+    int tiles;
+    int tile_mismatches;
+    int steps;
+    int step_mismatches;
+    int lines;
+    int line_mismatches;
+    int routes;
+    int route_mismatches;
+};
+
+/** One area built straight from the cache with (zone_x, zone_z)'s view in its
+ *  interior, compared tile by tile, step by step and line by line with the
+ *  store, wherever the store has the tile loaded. */
+int
+ToriRSServer_SceneDebugCompareFresh(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    struct ToriRSServerSceneCompare* out);
+
+/** Routes that cross square edges, searched on the fresh area and on the
+ *  store's view. Adds to `out`. */
+int
+ToriRSServer_SceneDebugCompareRoutes(
+    const char* cache_dir,
+    int zone_x,
+    int zone_z,
+    struct ToriRSServerSceneCompare* out);
+
+/** A walk-blocking map loc on level 0 whose collision crosses a square edge,
+ *  in the square of (x, z); `skip` passes over earlier ones. -1 if none. */
+int
+ToriRSServer_SceneDebugFindEdgeLoc(
+    int x,
+    int z,
+    int skip);
+
+/** The map loc at (x, z, level, shape) was removed (replace_id < 0) or
+ *  replaced: make the same change on a fresh area and count the tiles around
+ *  it where the store differs. -1 if the fresh build has no such loc. */
+int
+ToriRSServer_SceneDebugCheckChange(
+    const char* cache_dir,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int replace_id,
+    int replace_angle);
+
+/** Drop square (sx, sz) and load it again, keeping its holders. */
+int
+ToriRSServer_SceneDebugReloadSquare(
+    int sx,
+    int sz);
+
+/** The window at `index` if one is allocated, else NULL. For walks over the
+ *  whole pool, which must not allocate every slot they look at. */
+struct ToriRSServerSceneWindow*
+ToriRSServer_SceneWindowPeek(int index);
+
+/** One past the highest allocated index: a pool walk can stop here. */
+int
+ToriRSServer_SceneWindowTop(void);
 
 /** Direct every bound-window operation (builds, loc slots, mutations, the
  *  legacy accessors) at `window` until the next bind. */

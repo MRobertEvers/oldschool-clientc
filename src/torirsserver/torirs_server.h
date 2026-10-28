@@ -107,6 +107,7 @@ struct RSCache_ServerPack;
 #define TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs241"
 
 #include "torirs_server_bank.h"
+#include "torirs_server_varps.h"
 #include "torirs_server_interface_state.h"
 #include "torirs_server_poh.h"
 #include "torirs_server_wire.h"
@@ -184,6 +185,8 @@ ToriRSServer_CoordFine(int pos, int size)
 /* Limits                                                              */
 /* ------------------------------------------------------------------ */
 
+#include "torirs_server_cap.h"
+
 enum
 {
     /*
@@ -234,6 +237,9 @@ enum
      * repeated stream, never a crash. */
     TORIRSSERVER_NPC_SEED_LIVES = 1024,
     TORIRSSERVER_TRACKED_NPC_MAX = 255,
+    /** Other players one client tracks in the legacy PLAYER_INFO list: its
+     *  count is an 8-bit field, so this is the wire's ceiling. */
+    TORIRSSERVER_TRACKED_PLAYER_MAX = 255,
 
     /*
      * How many distinct npc names one client can have outstanding.
@@ -320,27 +326,22 @@ enum
      *  (docs/SHOPS_PLAN.md §1.3: 593 distinct shops) with headroom for the
      *  handful of non-shop shared containers (party chest, GE offer slots). */
     TORIRSSERVER_WORLD_CONTAINER_MAX = 640,
-    /** How many components may listen to one inv at once (`inv_transmit`).
-     *  For a player-owned row this is worn tab + equipment-stats + a side
-     *  panel; for a shared shop row it is one (component, player) pair per
-     *  player who has it open — TORIRSSERVER_PLAYER_MAX (8) players, shopmain and
-     *  shopside each, doubled for headroom. */
-    TORIRSSERVER_CONTAINER_LISTENERS_MAX = 16,
-
     /*
-     * Players this world can hold.
+     * Players this world can hold: TORIRSSERVER_PLAYER_CAP, above.
      *
      * The wire's own ceiling is 2047 (the 11-bit pid field), so this is a memory
-     * decision rather than a protocol one: a player is ~25 KB, most of it varps.
-     * Eight is what fits comfortably in the statically-allocated world the socket
-     * server keeps and is well past what any test drives.
+     * decision rather than a protocol one. It stopped being an expensive one
+     * when the per-player and per-npc state that scaled with it went sparse
+     * (varps: torirs_server_varps.h; npc facts about players:
+     * torirs_server_pidset.h). The pool is still statically sized, but a slot
+     * nobody has used costs no resident memory.
      *
      * Raising it is not what made multiplayer work and lowering it is not what
      * would break it: the pool was already here at 1. What made it work is that
      * the streams became per-player — see `ToriRSServerPlayer.tracked_*` and
      * `ToriRSServer_SendPlayerInfo`.
      */
-    TORIRSSERVER_PLAYER_MAX = 8,
+    TORIRSSERVER_PLAYER_MAX = TORIRSSERVER_PLAYER_CAP,
 
     /*
      * One player's client input waiting for the next tick's client-input
@@ -870,6 +871,17 @@ enum
      * 0xffff is the block's "none" sentinel.
      */
     TORIRSSERVER_NPC_CONFIG_MAX = 65534,
+};
+
+#include "torirs_server_pidset.h"
+
+/** One npc's death handed to one player's queue entries (`ToriRSServer.death_handoffs`). */
+struct ToriRSServerDeathHandoff
+{
+    /** Bit i = the player's `queue[i]` (TORIRSSERVER_QUEUE_MAX <= 64). */
+    uint64_t queues;
+    int slot;
+    int pid;
 };
 
 /*
@@ -2181,8 +2193,9 @@ struct ToriRSServerContainer
     /** A write to this container changes how its owner looks, so it also sets
      *  TORIRSSERVER_PMASK_APPEARANCE. True of the worn container and nothing else. */
     uint8_t appearance;
-    /** How many entries in `listeners` are live. */
-    uint8_t listener_count;
+    /** How many entries in `listeners` are live, and how many it has room for. */
+    uint16_t listener_count;
+    uint16_t listener_capacity;
 
     int32_t inv_id;
     int32_t slots;
@@ -2224,14 +2237,20 @@ struct ToriRSServerContainer
      * read-only to another player, such as a Costume Room collection. The row's
      * `owner` answers who owns the items; this field answers who sees them.
      */
-    struct
+    /*
+     * Heap, grown on demand and freed with the row: a player row has one to
+     * three listeners, while a shop row has one (component, player) pair per
+     * player who has it open, so a fixed array was either 256 bytes on every
+     * row or a 17th shopper refused.
+     */
+    struct ToriRSServerContainerListener
     {
         int32_t component;
         uint8_t first_seen;
         /** Native invother_* reads use the separate inventory namespace +32768. */
         uint8_t other_inventory;
         struct ToriRSServerPlayer* player;
-    } listeners[TORIRSSERVER_CONTAINER_LISTENERS_MAX];
+    }* listeners;
 };
 
 /*
@@ -3411,8 +3430,12 @@ struct ToriRSServerNpc
      * entry recorded here holds it in TORIRSSERVER_DEATH_REAP until the entry
      * has run and any script it left parked on this npc has finished. Written
      * at CORPSE, read and cleared at REAP.
+     *
+     * Kept on the world (`ToriRSServer.death_handoffs`, one row per npc and
+     * player that has one) rather than here: a per-pid array of masks was
+     * 16 KB per npc at a 2000-player cap, for a fact that names one or two
+     * players at a time.
      */
-    uint64_t death_handoff_queues[TORIRSSERVER_PLAYER_MAX];
     /**
      * Who was fighting this npc when it died, by pool slot.
      *
@@ -3421,8 +3444,12 @@ struct ToriRSServerNpc
      * killers have to be captured while they are still known. Copied into
      * `ToriRSServer.loot_credit_players` around the `[ai_queue3]` run, which is
      * what makes each `obj_add` name its earner to clientscript 7192.
+     *
+     * `death_credit_hitter` marks, within it, the one who landed the blow:
+     * the CORPSE stage runs `[ai_queue3]` as that player (`death_hero_pid`).
      */
-    unsigned char death_credit_players[TORIRSSERVER_PLAYER_MAX];
+    struct ToriRSServerPidSet death_credit;
+    struct ToriRSServerPidSet death_credit_hitter;
     /**
      * Who has damaged this npc AT ALL since it spawned, by pool slot.
      *
@@ -3437,16 +3464,16 @@ struct ToriRSServerNpc
      * Cleared on spawn and on respawn, not on death: a corpse that another
      * player damaged is still a corpse they damaged.
      */
-    unsigned char damaged_by_players[TORIRSSERVER_PLAYER_MAX];
+    struct ToriRSServerPidSet damaged_by;
     /** Who has already been told this npc's loot is restricted to them (setting
      *  183). The row's word is "occasionally"; once per npc per player is what
      *  that has to mean on a path that runs for every landed hit. Cleared with
-     *  `damaged_by_players`. */
-    unsigned char noloot_warned_players[TORIRSSERVER_PLAYER_MAX];
+     *  `damaged_by`. */
+    struct ToriRSServerPidSet noloot_warned;
     /** Who has already been SHOWN the restriction icon (setting 182). Separate
      *  from the message latch beside it because 182 and 183 are independent
      *  rows: a player may want the icon and not the chat line. */
-    unsigned char noloot_iconned_players[TORIRSSERVER_PLAYER_MAX];
+    struct ToriRSServerPidSet noloot_iconned;
     /** Stable tracker identity for a death script that parks on npc_delay. */
     int loot_credit_event_id;
     int loot_credit_npc_type;
@@ -4007,12 +4034,16 @@ struct ToriRSServerPlayer
     /**
      * Client input waiting for the next tick (ToriRSServer_WorldInput): records
      * of [int name][int len][len bytes] in arrival order, handled and emptied
-     * by the tick's client-input phase. Inline rather than on the heap so the
-     * slot's resets (world_seat_player, ToriRSServer_WorldPlayerInit) clear it
-     * with the rest of the player.
+     * by the tick's client-input phase.
+     *
+     * Heap, grown on demand up to TORIRSSERVER_INPUT_QUEUE_BYTES: a tick's
+     * input is usually a few hundred bytes, and an inline buffer cost every
+     * player 32 KB. Released by ToriRSServer_WorldInputFree wherever the slot
+     * is cleared (the same places the varp map is).
      */
-    uint8_t input_queue[TORIRSSERVER_INPUT_QUEUE_BYTES];
+    uint8_t* input_queue;
     int input_queue_len;
+    int input_queue_capacity;
     /**
      * The tick an inbound packet last carried a player INPUT, or
      * TORIRSSERVER_INPUT_TICK_NEVER when this slot has no client to hear from.
@@ -4484,15 +4515,16 @@ struct ToriRSServerPlayer
 
     /** The same pair for other players. `tracked_players` holds pool indices
      *  (pids), in the order PLAYER_INFO's tracked section writes them. */
-    int tracked_players[TORIRSSERVER_PLAYER_MAX];
+    int tracked_players[TORIRSSERVER_TRACKED_PLAYER_MAX];
     /** `srv->players[tracked_players[i]].login_generation` as of the tick that
      *  pid was last written into this list — the player equivalent of
      *  `tracked_generation`, guarding the same hazard: a pid freed by a
      *  logout and reused by a different login before this client's PLAYER_INFO
      *  caught up would otherwise read as the departed player, still there. */
-    uint32_t tracked_player_generation[TORIRSSERVER_PLAYER_MAX];
+    uint32_t tracked_player_generation[TORIRSSERVER_TRACKED_PLAYER_MAX];
     int tracked_player_count;
-    uint8_t player_tracked[TORIRSSERVER_PLAYER_MAX];
+    /** Which pids this client has been told about (either wire's list). */
+    struct ToriRSServerPidSet player_tracked;
 
     /*
      * ── This client's area ───────────────────────────────────────────
@@ -4620,6 +4652,15 @@ struct ToriRSServerPlayer
      *  forever. Cleared with the windows (WorldReset) and by the login
      *  memset. */
     int scene_build_attempted;
+    /**
+     * The scene-window pool index this player's movement and view are judged
+     * against; 0 = none yet. Not `1 + pid`: players whose windows would have
+     * the same origin share one (world_player_scene_build), because a window
+     * is a pure function of its origin and the windows are kept coherent, and
+     * at ~1.5 MB a window that was most of what a player cost. Released with
+     * the last player holding it.
+     */
+    int scene_window;
     /** Which map-instance build this client's scene is a copy of
      *  (`ToriRSServer_MapInstanceGeneration`); 0 = not in an instance. A mismatch
      *  against the instance the player is standing in means the scene it holds
@@ -4697,8 +4738,13 @@ struct ToriRSServerPlayer
     /** Player variables. No dirty list beside them: `ToriRSServer_WorldMarkVarp`
      *  encodes the packet at the point of the write, the way the reference's
      *  `Player.setVar` does, so that a script's own ordering against
-     *  `if_opensub` survives. */
-    int32_t varps[TORIRSSERVER_VARP_COUNT];
+     *  `if_opensub` survives.
+     *
+     *  Sparse (torirs_server_varps.h): read and write through
+     *  ToriRSServer_Varp / ToriRSServer_VarpPut, never the map directly. Heap
+     *  storage, so ToriRSServer_VarpsFree must run before the struct is
+     *  cleared, as the bank's shutdown does. */
+    struct ToriRSServerVarps varps;
 
     /** Durable POH model. Active instance coordinates and loc handles never
      *  enter this record; Construction content rebuilds those from these room
@@ -5051,6 +5097,38 @@ struct ToriRSServerPlayer
     int body_colour[TORIRSSERVER_APPEARANCE_COLOURS];
 
 };
+
+_Static_assert(TORIRSSERVER_VARP_COUNT < TORIRSSERVER_VARPS_EMPTY,
+               "a varp id must fit the sparse map's 16-bit slots below the empty marker");
+
+/** A player's varp. Unset reads 0, as the dense array's zero fill did. */
+static inline int32_t
+ToriRSServer_Varp(
+    const struct ToriRSServerPlayer* player,
+    int varp)
+{
+    assert(player);
+    assert(varp >= 0);
+    assert(varp < TORIRSSERVER_VARP_COUNT);
+    return ToriRSServer_VarpsGet(&player->varps, varp);
+}
+
+/**
+ * Store a player's varp and nothing else: no packet, no side effects. The raw
+ * write the loaders and the varbit writers make; script-visible writes go
+ * through ToriRSServer_WorldSetVarpOn, which calls this and marks the varp.
+ */
+static inline void
+ToriRSServer_VarpPut(
+    struct ToriRSServerPlayer* player,
+    int varp,
+    int32_t value)
+{
+    assert(player);
+    assert(varp >= 0);
+    assert(varp < TORIRSSERVER_VARP_COUNT);
+    ToriRSServer_VarpsPut(&player->varps, varp, value);
+}
 
 /*
  * LostCity PathingEntity.setFaceEntity for players.
@@ -5723,7 +5801,14 @@ struct ToriRSServer
      *  the direct measure of "it vanished instead of dying". Counted in
      *  `ToriRSServer_WorldNpcFree`; selftest asserts zero. */
     int silent_death_removals;
-    unsigned char loot_credit_players[TORIRSSERVER_PLAYER_MAX];
+    struct ToriRSServerPidSet loot_credit;
+    /** `ToriRSServerNpc`'s death handoffs (see the comment there): which of
+     *  each player's queue entries an npc's `[ai_queue3]` handed its death to.
+     *  One row per (npc slot, pid) with a non-zero mask, rows of one slot in
+     *  rising pid order. Heap, grown on demand; freed by WorldShutdown. */
+    struct ToriRSServerDeathHandoff* death_handoffs;
+    int death_handoff_count;
+    int death_handoff_capacity;
 
     /*
      * The same credited drops, held for the collection log.
@@ -6094,6 +6179,13 @@ void
 ToriRSServer_WorldMarkVarp(
     struct ToriRSServerPlayer* player,
     int varp);
+
+/** Forget every death handoff npc `slot` holds (`ToriRSServer.death_handoffs`):
+ *  its death is over, or the slot is about to hold a different npc. */
+void
+ToriRSServer_CombatDeathHandoffDrop(
+    struct ToriRSServer* srv,
+    int slot);
 
 /** The tile a session logs in on, and respawns at. Set from main() before
  *  ToriRSServer_WorldInit; defaults to the Lumbridge castle courtyard. */
@@ -6845,6 +6937,9 @@ ToriRSServer_WorldHandle(
  * ToriRSServer_WorldInputRoom before it decodes, and the harnesses queue far
  * less than a tick's worth.
  */
+void
+ToriRSServer_WorldInputFree(struct ToriRSServerPlayer* player);
+
 void
 ToriRSServer_WorldInput(
     struct ToriRSServerPlayer* player,

@@ -62,6 +62,7 @@ boat_obstacle(int dx, int dz, int blocked)
     int z = ocean_z + dz - ToriRSServer_SceneBaseZ();
     if( blocked ) collision_map_add_floor(map, x, z);
     else collision_map_del_floor(map, x, z);
+    ToriRSServer_SceneCollisionCommit(0, 1, ocean_x + dx, ocean_z + dz, ocean_x + dx, ocean_z + dz);
 }
 
 int main(int argc, char** argv)
@@ -130,11 +131,13 @@ int main(int argc, char** argv)
         int x = ocean_x + 4 - ToriRSServer_SceneBaseX();
         int z = ocean_z + 4 - ToriRSServer_SceneBaseZ();
         collision_map_add_wall(map, x, z, 0, COLL_ANGLE_WEST, 0);
+        ToriRSServer_SceneCollisionCommit(0, 1, ocean_x + 3, ocean_z + 3, ocean_x + 5, ocean_z + 5);
         CHECK(!ToriRSServer_VesselTileSailable(0, ocean_x + 4, ocean_z + 4),
               "directional wall flags block hull occupancy");
         CHECK(!ToriRSServer_VesselTileSailable(0, ocean_x + 3, ocean_z + 4),
               "wall's complementary edge also blocks hull occupancy");
         collision_map_del_wall(map, x, z, 0, COLL_ANGLE_WEST, 0);
+        ToriRSServer_SceneCollisionCommit(0, 1, ocean_x + 3, ocean_z + 3, ocean_x + 5, ocean_z + 5);
         CHECK(ToriRSServer_VesselTileSailable(0, ocean_x + 4, ocean_z + 4),
               "wall removal leaves boat ocean open");
     }
@@ -331,6 +334,7 @@ int main(int argc, char** argv)
         int x = 3222 - ToriRSServer_SceneBaseX();
         int z = 3218 - ToriRSServer_SceneBaseZ();
         collision_map_add_floor(player_map, x, z);
+        ToriRSServer_SceneCollisionCommit(0, 0, 3222, 3218, 3222, 3218);
         CHECK(!ToriRSServer_VesselTileSailable(0, 3222, 3218), "blocked inland ground cannot turn into sea");
     }
     ToriRSServer_SceneFree();

@@ -604,9 +604,11 @@ main(
          * the rest of this change exists: a client opens JS5 and its game
          * socket back to back, several clients arrive together when a world
          * comes up, and a connection that does not fit in the backlog is
-         * refused by the kernel before this process ever sees it.
+         * refused by the kernel before this process ever sees it. A world of
+         * TORIRSSERVER_PLAYER_MAX players reconnecting after a restart is
+         * thousands at once, so the backlog is the system's largest.
          */
-        listen(listener, 16);
+        listen(listener, SOMAXCONN);
     }
 
     /* No server pack, or a stale one: the message names the command that

@@ -241,14 +241,14 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     fflush(stderr);
 
     imp_clear_inv(player);
-    player->varps[varp_imp] = 0;
-    player->varps[varp_settle] = 0;
+    ToriRSServer_VarpPut(player, varp_imp, 0);
+    ToriRSServer_VarpPut(player, varp_settle, 0);
     player->last_slot = -1;
 
     miz_slot = npc_spawn(srv, npc_mizgog, player->x + 1, player->z, player->level);
     gray_slot = npc_spawn(srv, npc_grayzag, player->x + 2, player->z, player->level);
     fprintf(stderr, "PASS impcatcher setup trigger=SNAP miz=%d gray=%d imp=%d\n",
-            miz_slot, gray_slot, player->varps[varp_imp]);
+            miz_slot, gray_slot, ToriRSServer_Varp(player, varp_imp));
     fflush(stderr);
     SELFTEST_CHECK(miz_slot >= 0 && gray_slot >= 0,
                    "Imp Catcher should spawn Mizgog and Grayzag beside the player");
@@ -260,13 +260,13 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         const int choices[] = {1, 2};
 
         imp_talk(srv, player, npc_mizgog, miz_slot, choices, 2);
-        SELFTEST_CHECK(player->varps[varp_imp] == 0,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 0,
                        "decline must leave %%imp at 0, got %d",
-                       player->varps[varp_imp]);
-        SELFTEST_CHECK(player->varps[varp_settle] == 0,
+                       ToriRSServer_Varp(player, varp_imp));
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_settle) == 0,
                        "decline must not write a settlement receipt, got %d",
-                       player->varps[varp_settle]);
-        if( player->varps[varp_imp] == 0 )
+                       ToriRSServer_Varp(player, varp_settle));
+        if( ToriRSServer_Varp(player, varp_imp) == 0 )
             imp_pass("decline", "OPNPC1", "imp=0 beads untouched");
     }
 
@@ -275,29 +275,29 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         const int choices[] = {1, 1};
 
         imp_talk(srv, player, npc_mizgog, miz_slot, choices, 2);
-        SELFTEST_CHECK(player->varps[varp_imp] == 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 1,
                        "accept without beads must set %%imp=1, got %d",
-                       player->varps[varp_imp]);
-        if( player->varps[varp_imp] == 1 )
+                       ToriRSServer_Varp(player, varp_imp));
+        if( ToriRSServer_Varp(player, varp_imp) == 1 )
             imp_pass("accept", "OPNPC1", "imp=1 no beads");
     }
 
     /* ---- Grayzag started line ---- */
     imp_talk(srv, player, npc_grayzag, gray_slot, NULL, 0);
-    SELFTEST_CHECK(player->varps[varp_imp] == 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 1,
                    "Grayzag talk must not change %%imp, got %d",
-                   player->varps[varp_imp]);
+                   ToriRSServer_Varp(player, varp_imp));
     imp_pass("grayzag-started", "OPNPC1", "imp stays 1");
 
     /* ---- re-talk with no beads ---- */
     imp_talk(srv, player, npc_mizgog, miz_slot, NULL, 0);
-    SELFTEST_CHECK(player->varps[varp_imp] == 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 1,
                    "empty-hand re-talk must keep %%imp=1, got %d",
-                   player->varps[varp_imp]);
+                   ToriRSServer_Varp(player, varp_imp));
     imp_pass("retalk-none", "OPNPC1", "imp=1 still collecting");
 
     /* ---- hand-in of a gathered set ---- */
-    qp_before = player->varps[varp_qp];
+    qp_before = ToriRSServer_Varp(player, varp_qp);
     xp_before = player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC];
     imp_give_beads(player, obj_black, obj_white, obj_yellow, obj_red);
     SELFTEST_CHECK(selftest_count_obj(player, obj_black) == 1 &&
@@ -306,12 +306,12 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        selftest_count_obj(player, obj_red) == 1,
                    "hand-in setup should grant all four beads");
     imp_talk(srv, player, npc_mizgog, miz_slot, NULL, 0);
-    SELFTEST_CHECK(player->varps[varp_imp] == 2,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 2,
                    "full-set hand-in must complete %%imp=2, got %d",
-                   player->varps[varp_imp]);
-    SELFTEST_CHECK(player->varps[varp_settle] == 5,
+                   ToriRSServer_Varp(player, varp_imp));
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_settle) == 5,
                    "hand-in must fully receipt settlement, got %d",
-                   player->varps[varp_settle]);
+                   ToriRSServer_Varp(player, varp_settle));
     SELFTEST_CHECK(selftest_count_obj(player, obj_black) == 0 &&
                        selftest_count_obj(player, obj_white) == 0 &&
                        selftest_count_obj(player, obj_yellow) == 0 &&
@@ -320,27 +320,27 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     SELFTEST_CHECK(selftest_count_obj(player, obj_amulet) == 1,
                    "first completion must grant one amulet, got %d",
                    selftest_count_obj(player, obj_amulet));
-    SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1,
                    "first completion must award +1 QP, %d -> %d",
-                   qp_before, player->varps[varp_qp]);
+                   qp_before, ToriRSServer_Varp(player, varp_qp));
     SELFTEST_CHECK(player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC] ==
                        xp_before + 8750,
                    "first completion must award 875 Magic XP, %d -> %d",
                    xp_before, player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC]);
-    if( player->varps[varp_imp] == 2 && selftest_count_obj(player, obj_amulet) == 1 )
+    if( ToriRSServer_Varp(player, varp_imp) == 2 && selftest_count_obj(player, obj_amulet) == 1 )
         imp_pass("handin", "OPNPC1", "imp=2 amulet=1 qp+1 xp+875");
 
     /* ---- exactly-once: re-talk must not replay first rewards ---- */
     {
         int amulets = selftest_count_obj(player, obj_amulet);
-        int qp = player->varps[varp_qp];
+        int qp = ToriRSServer_Varp(player, varp_qp);
         int xp = player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC];
         const int more_quests[] = {1};
 
         imp_talk(srv, player, npc_mizgog, miz_slot, more_quests, 1);
         SELFTEST_CHECK(selftest_count_obj(player, obj_amulet) == amulets,
                        "postquest re-talk must not grant another first amulet");
-        SELFTEST_CHECK(player->varps[varp_qp] == qp,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp,
                        "postquest re-talk must not award a second QP");
         SELFTEST_CHECK(player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC] == xp,
                        "postquest re-talk must not award Magic XP again");
@@ -400,31 +400,31 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     }
 
     /* ---- already-holding-4-beads shortcut: one conversation ---- */
-    player->varps[varp_imp] = 0;
-    player->varps[varp_settle] = 0;
+    ToriRSServer_VarpPut(player, varp_imp, 0);
+    ToriRSServer_VarpPut(player, varp_settle, 0);
     imp_clear_inv(player);
     imp_give_beads(player, obj_black, obj_white, obj_yellow, obj_red);
-    qp_before = player->varps[varp_qp];
+    qp_before = ToriRSServer_Varp(player, varp_qp);
     xp_before = player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC];
     {
         const int choices[] = {1, 1};
 
         imp_talk(srv, player, npc_mizgog, miz_slot, choices, 2);
-        SELFTEST_CHECK(player->varps[varp_imp] == 2,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_imp) == 2,
                        "accepting with all four beads must complete in the same conversation, %%imp=%d",
-                       player->varps[varp_imp]);
-        SELFTEST_CHECK(player->varps[varp_settle] == 5,
+                       ToriRSServer_Varp(player, varp_imp));
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_settle) == 5,
                        "shortcut settlement must be fully receipted, got %d",
-                       player->varps[varp_settle]);
+                       ToriRSServer_Varp(player, varp_settle));
         SELFTEST_CHECK(selftest_count_obj(player, obj_amulet) == 1,
                        "shortcut must grant the first amulet, got %d",
                        selftest_count_obj(player, obj_amulet));
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1,
                        "shortcut must award +1 QP");
         SELFTEST_CHECK(player->stat_xp_tenths[TORIRSSERVER_STAT_MAGIC] ==
                            xp_before + 8750,
                        "shortcut must award 875 Magic XP");
-        if( player->varps[varp_imp] == 2 )
+        if( ToriRSServer_Varp(player, varp_imp) == 2 )
             imp_pass("shortcut-4beads", "OPNPC1", "imp=2 same conversation");
     }
 
@@ -436,8 +436,8 @@ selftest_quest_imp(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     ToriRSServer_WorldNpcFree(srv, gray_slot);
     ToriRSServer_WorldNpcReap(srv);
     imp_clear_inv(player);
-    player->varps[varp_imp] = 0;
-    player->varps[varp_settle] = 0;
+    ToriRSServer_VarpPut(player, varp_imp, 0);
+    ToriRSServer_VarpPut(player, varp_settle, 0);
     player->godmode = 0;
     imp_pass("cleanup", "WorldNpcFree", "spawns reaped");
 }

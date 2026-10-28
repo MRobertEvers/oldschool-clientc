@@ -1652,7 +1652,7 @@ main(void)
                 int home_x = 3222;
                 int home_z = 3218;
 
-                for( int slot = 0;; slot++ )
+                for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
                 {
                     struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
                     int dir_out;
@@ -1939,7 +1939,7 @@ main(void)
                 peers[0].saw_synth_count = 0;
                 peers[1].saw_synth_count = 0;
                 ToriRSServer_CombatHitNpc(world, npc_slot, 0, npc->hitpoints);
-                check(npc->death_credit_players[alice->pid] != 0,
+                check(ToriRSServer_PidSetHas(&npc->death_credit, alice->pid),
                       "the killing player keeps loot credit even without a live "
                       "combat-target latch");
                 for( int round = 0; round < 4; round++ )
@@ -2099,12 +2099,12 @@ main(void)
             alice->inv[0].count = 1;
             alice->inv[1].obj_id = bucket;
             alice->inv[1].count = 1;
-            alice->varps[progress] = 0;
+            ToriRSServer_VarpPut(alice, progress, 0);
 
             peer_opheldu(&peers[0], knife, 0, 0, bucket, 1, 0);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
-            check(alice->varps[progress] == 1,
+            check(ToriRSServer_Varp(alice, progress) == 1,
                   "a real OPHELDU from the client's own encoder reaches [opheldu,knife]");
             check(alice->last_item == knife && alice->last_useitem == bucket,
                   "with the clicked item as the subject and the other in last_useitem");
@@ -2112,14 +2112,14 @@ main(void)
             /* And the interaction form, which has a different component width
              * and a walk in front of it. Approach is west of the range
              * (forceapproach); park a few tiles west so the walk is short. */
-            alice->varps[progress] = 0;
+            ToriRSServer_VarpPut(alice, progress, 0);
             ToriRSServer_WorldTeleport(world, 0, 3208, 3215);
             for( int round = 0; round < 4; round++ )
                 pump(peers, 2, embed, 1, 64);
             peer_oplocu(&peers[0], 3212, 3215, range, bucket, 1, 0);
             for( int round = 0; round < 40; round++ )
                 pump(peers, 2, embed, 1, 64);
-            check(alice->varps[progress] == 10,
+            check(ToriRSServer_Varp(alice, progress) == 10,
                   "and a real OPLOCU reaches [oplocu,cooksquestrange]");
         }
     }

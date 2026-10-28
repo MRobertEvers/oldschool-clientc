@@ -149,7 +149,7 @@ fluffs_find_loc_at(int x, int z, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -272,8 +272,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     ToriRSServer_WorldSetActive(srv, player);
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
-    player->varps[varp] = 0;
-    player->varps[varp_crate] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
+    ToriRSServer_VarpPut(player, varp_crate, 0);
     spawned_g = -1;
     spawned_s = -1;
     spawned_f = -1;
@@ -293,16 +293,16 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     fluffs_talk(srv, player, npc_gert, g_slot);
     fluffs_choose(srv, player, 3);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "refuse must leave fluffs=0, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "refuse must leave fluffs=0, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS gertrudescat start_refuse trigger=opnpc1,gertrude observable=fluffs=0\n");
 
     /* ---- Gertrude accept ---- */
     fluffs_talk(srv, player, npc_gert, g_slot);
     fluffs_choose(srv, player, 1);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 1, "accept should write fluffs=1, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "accept should write fluffs=1, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS gertrudescat start_accept trigger=opnpc1,gertrude observable=fluffs=1\n");
 
     /* ---- Shilop pay ---- */
@@ -321,8 +321,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     fluffs_choose(srv, player, 2);
     fluffs_choose(srv, player, 2);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 2, "paid child should write fluffs=2, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "paid child should write fluffs=2, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_coins) == 0, "payment should consume 100 coins");
     fprintf(stderr, "PASS gertrudescat children_pay trigger=opnpc1,shilop observable=fluffs=2\n");
 
@@ -375,8 +375,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     player->last_useitem = obj_milk;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_fluffs, -1, f_slot);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 3, "milk should write fluffs=3, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "milk should write fluffs=3, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_milk) == 0, "milk should be consumed");
     if( obj_bucket > 0 )
         SELFTEST_CHECK(selftest_count(player, obj_bucket) == 1, "milk should leave an empty bucket");
@@ -398,8 +398,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     player->last_useitem = obj_seasoned;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_fluffs, -1, f_slot);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 4, "sardine should write fluffs=4, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "sardine should write fluffs=4, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS gertrudescat sardine trigger=opnpcu,gertrudescat observable=fluffs=4\n");
 
     /* ---- Force each crate roll; only the matching NPC grants the kitten ---- */
@@ -411,7 +411,7 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
         int other = fluffs_find_npc_at(srv, npc_crate, crate_xz[(i + 1) % 6][0],
                                       crate_xz[(i + 1) % 6][1], 0);
 
-        player->varps[varp_crate] = fluffs_coord_pack(0, nx, nz);
+        ToriRSServer_VarpPut(player, varp_crate, fluffs_coord_pack(0, nx, nz));
         selftest_clear_inv(player);
         if( other >= 0 )
         {
@@ -435,13 +435,13 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     /* ---- Rescue must not delete the shared Fluffs NPC ---- */
     selftest_clear_inv(player);
     selftest_give(player, obj_lost, 1);
-    player->varps[varp] = 4;
+    ToriRSServer_VarpPut(player, varp, 4);
     fluffs_release_park(srv, player);
     player->last_useitem = obj_lost;
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_fluffs, -1, f_slot);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 5, "rescue should write fluffs=5, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "rescue should write fluffs=5, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(srv->npcs[f_slot].active, "rescue must not npc_del the shared Fluffs");
     SELFTEST_CHECK(srv->npcs[f_slot].type == npc_fluffs, "Fluffs type must survive rescue");
     fprintf(stderr, "PASS gertrudescat rescue trigger=opnpcu,gertrudescat observable=fluffs=5 npc_kept\n");
@@ -459,12 +459,12 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     if( g_slot < 0 )
         goto fluffs_done;
     selftest_clear_inv(player);
-    qp_before = qp_varp >= 0 ? player->varps[qp_varp] : 0;
+    qp_before = qp_varp >= 0 ? ToriRSServer_Varp(player, qp_varp) : 0;
     xp_before = cooking >= 0 ? player->stat_xp_tenths[cooking] : 0;
     fluffs_talk(srv, player, npc_gert, g_slot);
     fluffs_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 6, "completion should commit fluffs=6, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "completion should commit fluffs=6, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(fluffs_kitten_total(player, kittens, 6) == 1,
                    "completion should grant exactly one inventory kitten");
     SELFTEST_CHECK(obj_cake < 0 || selftest_count(player, obj_cake) == 1,
@@ -476,9 +476,9 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
                        "completion should grant 1525 Cooking XP, %d -> %d", xp_before,
                        player->stat_xp_tenths[cooking]);
     if( qp_varp >= 0 )
-        SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 1,
                        "completion should award 1 QP, %d -> %d", qp_before,
-                       player->varps[qp_varp]);
+                       ToriRSServer_Varp(player, qp_varp));
     fprintf(stderr,
             "PASS gertrudescat complete trigger=opnpc1,gertrude observable=fluffs=6 "
             "kitten+cake+stew xp_delta=15250 qp_delta=1\n");
@@ -486,8 +486,8 @@ selftest_quest_fluffs(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     /* ---- Post-quest ---- */
     fluffs_talk(srv, player, npc_gert, g_slot);
     fluffs_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 6, "post-quest talk must stay at 6, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "post-quest talk must stay at 6, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS gertrudescat postquest trigger=opnpc1,gertrude observable=fluffs=6\n");
 
 fluffs_done:

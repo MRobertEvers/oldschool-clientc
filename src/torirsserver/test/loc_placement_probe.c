@@ -60,7 +60,7 @@ main(int argc, char** argv)
         return 1;
     }
 
-    for( slot = 0;; slot++ )
+    for( slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 

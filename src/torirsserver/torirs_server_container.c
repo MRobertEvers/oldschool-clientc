@@ -143,6 +143,18 @@ table_for(
     return player ? player->containers : NULL;
 }
 
+/* The listener array is the row's own heap block; every path that clears a
+ * row releases it first. */
+static void
+row_release_listeners(struct ToriRSServerContainer* row)
+{
+    assert(row);
+    ToriMem_Free(ToriMem_ServerPlayers(), row->listeners);
+    row->listeners = NULL;
+    row->listener_count = 0;
+    row->listener_capacity = 0;
+}
+
 static struct ToriRSServerContainer*
 find_row(
     struct ToriRSServerContainer* table,
@@ -174,6 +186,7 @@ row_init(
     int scope,
     struct ToriRSServerPlayer* owner)
 {
+    row_release_listeners(row);
     memset(row, 0, sizeof(*row));
     row->used = 1;
     row->owner_kind = (uint8_t)scope;
@@ -329,6 +342,7 @@ ToriRSServer_ContainerForget(
                                      row->listeners[i].component);
     if( row->owns_items )
         ToriMem_Free(ToriMem_ServerPlayers(), row->items);
+    row_release_listeners(row);
     memset(row, 0, sizeof(*row));
 }
 
@@ -346,6 +360,7 @@ ToriRSServer_ContainerShutdownPlayer(struct ToriRSServerPlayer* player)
                                          row->listeners[l].component);
         if( row->owns_items )
             ToriMem_Free(ToriMem_ServerPlayers(), row->items);
+        row_release_listeners(row);
         memset(row, 0, sizeof(*row));
     }
 }
@@ -362,6 +377,7 @@ ToriRSServer_ContainerShutdown(struct ToriRSServer* srv)
 
         if( row->owns_items )
             ToriMem_Free(ToriMem_ServerPlayers(), row->items);
+        row_release_listeners(row);
         memset(row, 0, sizeof(*row));
     }
 }
@@ -925,7 +941,7 @@ unbind_row(
         }
         row->listeners[w++] = row->listeners[r];
     }
-    row->listener_count = (uint8_t)w;
+    row->listener_count = (uint16_t)w;
     return dropped;
 }
 
@@ -995,12 +1011,15 @@ bind_row(
      * other listeners are other players and must not be touched. */
     ToriRSServer_ContainerUnbind(srv, viewer, component);
 
-    if( row->listener_count >= TORIRSSERVER_CONTAINER_LISTENERS_MAX )
+    if( row->listener_count == row->listener_capacity )
     {
-        fprintf(stderr,
-                "torirsserver: inv %d already has %d listeners; cannot bind component %d\n",
-                (int)inv_id, TORIRSSERVER_CONTAINER_LISTENERS_MAX, (int)component);
-        return 0;
+        uint16_t const capacity = row->listener_capacity ? (uint16_t)(row->listener_capacity * 2) : 2;
+
+        assert(capacity > row->listener_capacity);
+        row->listeners = ToriMem_Realloc(ToriMem_ServerPlayers(), row->listeners,
+                                         (size_t)capacity * sizeof(*row->listeners));
+        assert(row->listeners);
+        row->listener_capacity = capacity;
     }
 
     listener_i = row->listener_count++;

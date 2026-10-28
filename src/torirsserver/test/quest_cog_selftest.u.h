@@ -18,7 +18,7 @@ cog_progress(const struct ToriRSServerPlayer* player, int varp_cogquest)
     assert(player);
     if( varp_cogquest < 0 || varp_cogquest >= TORIRSSERVER_VARP_COUNT )
         return -1;
-    return player->varps[varp_cogquest] & 0xF;
+    return ToriRSServer_Varp(player, varp_cogquest) & 0xF;
 }
 
 static int
@@ -41,7 +41,7 @@ cog_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -283,8 +283,8 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     player->active = 1;
     ToriRSServer_WorldSetActive(srv, player);
     cog_clear_inv(player);
-    player->varps[varp_cogquest] = 0;
-    player->varps[varp_cog_bits] = 0;
+    ToriRSServer_VarpPut(player, varp_cogquest, 0);
+    ToriRSServer_VarpPut(player, varp_cog_bits, 0);
     player->last_slot = -1;
     player->godmode = 1;
     ToriRSServer_WorldCloseModal(srv);
@@ -406,9 +406,9 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     if( selftest_count_obj(player, obj_poison) < 1 )
         inv_set(player, inv_first_free(player), obj_poison, 1);
     cog_use_on_loc(srv, player, loc_ctfoodtrough, 2586, 9654, 0, obj_poison);
-    SELFTEST_CHECK((player->varps[varp_cogquest] & (1 << 4)) != 0,
+    SELFTEST_CHECK((ToriRSServer_Varp(player, varp_cogquest) & (1 << 4)) != 0,
                    "poisoning the trough should set the rat-door bit");
-    if( player->varps[varp_cogquest] & (1 << 4) )
+    if( ToriRSServer_Varp(player, varp_cogquest) & (1 << 4) )
         cog_pass("poison_trough", "OPLOCU", "rat_door_bit");
 
     ToriRSServer_WorldTeleport(srv, 0, 2575, 9651);
@@ -448,7 +448,7 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     SELFTEST_CHECK(kojo_slot >= 0, "Brother Kojo should exist for the hand-in");
     if( kojo_slot >= 0 )
     {
-        qp_before = (varp_qp > 0) ? player->varps[varp_qp] : 0;
+        qp_before = (varp_qp > 0) ? ToriRSServer_Varp(player, varp_qp) : 0;
         coins_before = selftest_count_obj(player, obj_coins);
 
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kojo, -1, kojo_slot);
@@ -460,19 +460,18 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        "finish should grant 500 coins, %d -> %d", coins_before,
                        selftest_count_obj(player, obj_coins));
         if( varp_qp > 0 )
-            SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1,
                            "finish should award 1 QP, %d -> %d", qp_before,
-                           player->varps[varp_qp]);
+                           ToriRSServer_Varp(player, varp_qp));
         if( progress == 8 )
             cog_pass("handin_complete", "OPNPC1", "progress=8 coins+500 qp+1");
 
         /* Native 6/7 must resume, not stay silent, and must not double-pay. */
         {
             int coins_mid = selftest_count_obj(player, obj_coins);
-            int qp_mid = (varp_qp > 0) ? player->varps[varp_qp] : 0;
+            int qp_mid = (varp_qp > 0) ? ToriRSServer_Varp(player, varp_qp) : 0;
 
-            player->varps[varp_cogquest] =
-                (player->varps[varp_cogquest] & ~0xF) | 6;
+            ToriRSServer_VarpPut(player, varp_cogquest, (ToriRSServer_Varp(player, varp_cogquest) & ~0xF) | 6);
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kojo, -1, kojo_slot);
             cog_drain_rewards(srv);
             progress = cog_progress(player, varp_cogquest);
@@ -480,13 +479,12 @@ selftest_quest_cog(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             SELFTEST_CHECK(selftest_count_obj(player, obj_coins) == coins_mid,
                            "state 6 resume must not grant coins again");
             if( varp_qp > 0 )
-                SELFTEST_CHECK(player->varps[varp_qp] == qp_mid,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_mid,
                                "state 6 resume must not award QP again");
             if( progress == 8 )
                 cog_pass("resume_state6", "OPNPC1", "progress=8 no second reward");
 
-            player->varps[varp_cogquest] =
-                (player->varps[varp_cogquest] & ~0xF) | 7;
+            ToriRSServer_VarpPut(player, varp_cogquest, (ToriRSServer_Varp(player, varp_cogquest) & ~0xF) | 7);
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kojo, -1, kojo_slot);
             cog_drain_rewards(srv);
             progress = cog_progress(player, varp_cogquest);
@@ -514,9 +512,9 @@ cog_selftest_done:
     cog_clear_inv(player);
     worn_set(player, TORIRSSERVER_WEAR_HANDS, -1, 0);
     if( varp_cogquest > 0 && varp_cogquest < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_cogquest] = 0;
+        ToriRSServer_VarpPut(player, varp_cogquest, 0);
     if( varp_cog_bits > 0 && varp_cog_bits < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_cog_bits] = 0;
+        ToriRSServer_VarpPut(player, varp_cog_bits, 0);
     player->godmode = 0;
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;

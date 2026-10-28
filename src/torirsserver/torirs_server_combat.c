@@ -46,11 +46,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* `ToriRSServerNpc.death_credit_players[pid]` for the player who landed the
- * killing blow; 1 marks the others still fighting it then. Every reader except
- * `death_hero_pid` (and SS_OP_NPC_FINDHERO, which spells the same 2) treats the
- * array as flags. */
-#define TORIRSSERVER_DEATH_CREDIT_HITTER 2
+/* `ToriRSServerNpc.death_credit` holds everyone owed the drop; the player who
+ * landed the killing blow is also in `death_credit_hitter`. Every reader except
+ * `death_hero_pid` (and SS_OP_NPC_FINDHERO) needs only the first. */
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -815,10 +813,9 @@ ToriRSServer_NpcLootRestrictedFor(
     if( ToriRSServer_VarbitGet(player, ids->varbit_ironman) == 0 )
         return 0;
 
-    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    for( int i = ToriRSServer_PidSetNext(&npc->damaged_by, 0); i >= 0;
+         i = ToriRSServer_PidSetNext(&npc->damaged_by, i + 1) )
     {
-        if( !npc->damaged_by_players[i] )
-            continue;
         if( player->pid >= 0 && i == player->pid )
             continue;
         return 1;
@@ -879,7 +876,7 @@ ToriRSServer_NpcLootIconWanted(
         return 0;
     if( viewer->pid < 0 || viewer->pid >= TORIRSSERVER_PLAYER_MAX )
         return 0;
-    if( npc->noloot_iconned_players[viewer->pid] )
+    if( ToriRSServer_PidSetHas(&npc->noloot_iconned, viewer->pid) )
         return 0;
     /* Inverted, as the gameval name says: 1 is OFF. */
     if( ToriRSServer_VarbitGet(viewer, ids->varbit_iron_noloot_icon_off) )
@@ -889,7 +886,7 @@ ToriRSServer_NpcLootIconWanted(
     if( !ToriRSServer_NpcLootRestrictedFor(srv, npc, viewer) )
         return 0;
 
-    npc->noloot_iconned_players[viewer->pid] = 1;
+    ToriRSServer_PidSetAdd(&npc->noloot_iconned, viewer->pid);
     return 1;
 }
 
@@ -921,12 +918,12 @@ ToriRSServer_LootRestrictionWarn(
     /* Inverted, as the gameval name says: 1 is OFF. */
     if( ToriRSServer_VarbitGet(player, ids->varbit_iron_noloot_message_off) )
         return;
-    if( npc->noloot_warned_players[player->pid] )
+    if( ToriRSServer_PidSetHas(&npc->noloot_warned, player->pid) )
         return;
     if( !ToriRSServer_NpcLootRestrictedFor(srv, npc, player) )
         return;
 
-    npc->noloot_warned_players[player->pid] = 1;
+    ToriRSServer_PidSetAdd(&npc->noloot_warned, player->pid);
     ToriRSServer_SendMessage(
         player, "Another player has damaged this creature - you will not receive any loot.");
 }
@@ -1655,24 +1652,24 @@ npc_death_begin(
      *
      * It is captured here and *spent* three ticks later, when the drop table
      * finally runs: by then neither side still names the other, so a credit
-     * read at that point would find nobody. `death_credit_players` is the
-     * carrier.
+     * read at that point would find nobody. `death_credit` is the carrier.
      */
-    memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+    ToriRSServer_PidSetClear(&npc->death_credit);
+    ToriRSServer_PidSetClear(&npc->death_credit_hitter);
     /* The active player delivered this hit and owns its loot even if their
      * combat_target was already cleared or moved to another npc before a
      * delayed projectile/poison splat landed. The scan below additionally
      * retains everybody still fighting this npc. */
-    /* Marked `TORIRSSERVER_DEATH_CREDIT_HITTER` rather than 1: every
-     * reader of the array is a truth test, and the CORPSE stage needs to
-     * tell the player who landed the blow from the ones merely still
-     * fighting, because that player is who `[ai_queue3]` runs as
-     * (`death_hero_pid`). */
+    /* Also marked in `death_credit_hitter`: the CORPSE stage needs to tell
+     * the player who landed the blow from the ones merely still fighting,
+     * because that player is who `[ai_queue3]` runs as (`death_hero_pid`). */
     if( srv->active_player && srv->active_player->active &&
         srv->active_player->pid >= 0 &&
         srv->active_player->pid < TORIRSSERVER_PLAYER_MAX )
-        npc->death_credit_players[srv->active_player->pid] =
-            TORIRSSERVER_DEATH_CREDIT_HITTER;
+    {
+        ToriRSServer_PidSetAdd(&npc->death_credit, srv->active_player->pid);
+        ToriRSServer_PidSetAdd(&npc->death_credit_hitter, srv->active_player->pid);
+    }
     {
         /*
          * The target goes now; the FACE goes on D+1 with the death sequence
@@ -1729,8 +1726,7 @@ npc_death_begin(
     {
         if( srv->players[i].active && srv->players[i].combat_target == slot )
         {
-            if( !npc->death_credit_players[i] )
-                npc->death_credit_players[i] = 1;
+            ToriRSServer_PidSetAdd(&npc->death_credit, i);
             ToriRSServer_CombatStopPlayerAt(&srv->players[i]);
         }
     }
@@ -1946,7 +1942,7 @@ ToriRSServer_CombatHitNpc(
         int const dealer = ToriRSServer_HitmarkDealerFromAttackerScript(srv);
 
         if( dealer >= 0 && dealer < TORIRSSERVER_PLAYER_MAX )
-            npc->damaged_by_players[dealer] = 1;
+            ToriRSServer_PidSetAdd(&npc->damaged_by, dealer);
     }
 
     {
@@ -3691,11 +3687,12 @@ death_hero_pid(
 
     assert(srv);
     assert(npc);
-    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    for( int i = ToriRSServer_PidSetNext(&npc->death_credit, 0); i >= 0;
+         i = ToriRSServer_PidSetNext(&npc->death_credit, i + 1) )
     {
-        if( !npc->death_credit_players[i] || !srv->players[i].active )
+        if( !srv->players[i].active )
             continue;
-        if( npc->death_credit_players[i] == TORIRSSERVER_DEATH_CREDIT_HITTER )
+        if( ToriRSServer_PidSetHas(&npc->death_credit_hitter, i) )
             return i;
         if( fallback < 0 )
             fallback = i;
@@ -3717,7 +3714,7 @@ death_npc_uid(
 }
 
 _Static_assert(TORIRSSERVER_QUEUE_MAX <= 64,
-               "death_handoff_queues holds one bit per player queue entry");
+               "a death handoff holds one bit per player queue entry");
 
 /* Which of each player's queue entries are live, so the CORPSE stage can tell
  * the entries `[ai_queue3]` added from the ones already there (a pending
@@ -3756,6 +3753,49 @@ death_queue_entry_names(
     return 0;
 }
 
+/* Every handoff row of npc `slot` goes: the death is over, or the npc is. */
+void
+ToriRSServer_CombatDeathHandoffDrop(
+    struct ToriRSServer* srv,
+    int slot)
+{
+    int kept = 0;
+
+    assert(srv);
+    for( int i = 0; i < srv->death_handoff_count; i++ )
+    {
+        if( srv->death_handoffs[i].slot != slot )
+            srv->death_handoffs[kept++] = srv->death_handoffs[i];
+    }
+    srv->death_handoff_count = kept;
+}
+
+static void
+death_handoff_append(
+    struct ToriRSServer* srv,
+    int slot,
+    int pid,
+    uint64_t queues)
+{
+    struct ToriRSServerDeathHandoff* row;
+
+    assert(srv);
+    assert(queues);
+    if( srv->death_handoff_count == srv->death_handoff_capacity )
+    {
+        int const capacity = srv->death_handoff_capacity ? srv->death_handoff_capacity * 2 : 16;
+
+        srv->death_handoffs = ToriMem_Realloc(ToriMem_ServerWorld(), srv->death_handoffs,
+                                              (size_t)capacity * sizeof(*srv->death_handoffs));
+        assert(srv->death_handoffs);
+        srv->death_handoff_capacity = capacity;
+    }
+    row = &srv->death_handoffs[srv->death_handoff_count++];
+    row->slot = slot;
+    row->pid = pid;
+    row->queues = queues;
+}
+
 /* After `[ai_queue3]`: record every queue entry it added that names this npc. */
 static void
 death_record_handoff(
@@ -3763,13 +3803,14 @@ death_record_handoff(
     int slot,
     const uint64_t before[TORIRSSERVER_PLAYER_MAX])
 {
-    struct ToriRSServerNpc* npc = &srv->npcs[slot];
     int32_t const uid = death_npc_uid(srv, slot);
 
     assert(before);
+    ToriRSServer_CombatDeathHandoffDrop(srv, slot);
     for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
     {
-        npc->death_handoff_queues[pid] = 0;
+        uint64_t queues = 0;
+
         if( !srv->players[pid].active )
             continue;
         for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
@@ -3779,8 +3820,10 @@ death_record_handoff(
             if( !entry->active || (before[pid] & ((uint64_t)1 << i)) )
                 continue;
             if( death_queue_entry_names(entry, uid) )
-                npc->death_handoff_queues[pid] |= (uint64_t)1 << i;
+                queues |= (uint64_t)1 << i;
         }
+        if( queues )
+            death_handoff_append(srv, slot, pid, queues);
     }
 }
 
@@ -3798,38 +3841,40 @@ death_handoff_pending(
     struct ToriRSServer* srv,
     int slot)
 {
-    struct ToriRSServerNpc* npc = &srv->npcs[slot];
     int32_t const uid = death_npc_uid(srv, slot);
     int pending = 0;
+    int kept = 0;
 
-    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    for( int row = 0; row < srv->death_handoff_count; row++ )
     {
-        const struct ToriRSServerPlayer* player = &srv->players[pid];
-        uint64_t mask = npc->death_handoff_queues[pid];
+        struct ToriRSServerDeathHandoff handoff = srv->death_handoffs[row];
+        const struct ToriRSServerPlayer* player = &srv->players[handoff.pid];
+        uint64_t mask = handoff.queues;
 
-        if( !mask )
-            continue;
-        if( !player->active )
+        if( handoff.slot == slot )
         {
-            npc->death_handoff_queues[pid] = 0;
-            continue;
-        }
-        for( int i = 0; i < TORIRSSERVER_QUEUE_MAX; i++ )
-        {
-            uint64_t const bit = (uint64_t)1 << i;
+            if( !player->active )
+                mask = 0;
+            for( int i = 0; i < TORIRSSERVER_QUEUE_MAX && mask; i++ )
+            {
+                uint64_t const bit = (uint64_t)1 << i;
 
-            if( !(mask & bit) )
-                continue;
-            if( player->queue[i].active && death_queue_entry_names(&player->queue[i], uid) )
-                continue;
-            if( player->active_script && player->active_script->host_tag == slot + 1 )
-                continue;
-            mask &= ~bit;
+                if( !(mask & bit) )
+                    continue;
+                if( player->queue[i].active && death_queue_entry_names(&player->queue[i], uid) )
+                    continue;
+                if( player->active_script && player->active_script->host_tag == slot + 1 )
+                    continue;
+                mask &= ~bit;
+            }
+            handoff.queues = mask;
+            if( mask )
+                pending = 1;
         }
-        npc->death_handoff_queues[pid] = mask;
-        if( mask )
-            pending = 1;
+        if( handoff.queues )
+            srv->death_handoffs[kept++] = handoff;
     }
+    srv->death_handoff_count = kept;
     return pending;
 }
 
@@ -3968,8 +4013,7 @@ npc_death_step(
         srv->loot_credit_armed = 1;
         srv->loot_credit_npc_type = npc->loot_credit_npc_type;
         srv->loot_credit_event_id = npc->loot_credit_event_id;
-        memcpy(srv->loot_credit_players, npc->death_credit_players,
-               sizeof(srv->loot_credit_players));
+        srv->loot_credit = npc->death_credit;
         /*
          * `[ai_queue3]` runs AS THE KILLER.
          *
@@ -4007,13 +4051,14 @@ npc_death_step(
         }
         srv->loot_credit_armed = 0;
         ToriRSServer_ScriptsFlushLootCredit(srv);
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        ToriRSServer_PidSetClear(&srv->loot_credit);
         /* A drop script may npc_delay before it reaches obj_add. Keep the
          * attribution on the npc until its parked state finishes; the resume
          * path re-arms the same event around each continuation. */
         if( !npc->active_script )
         {
-            memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+            ToriRSServer_PidSetClear(&npc->death_credit);
+            ToriRSServer_PidSetClear(&npc->death_credit_hitter);
             npc->loot_credit_event_id = 0;
             npc->loot_credit_npc_type = 0;
         }
@@ -4049,7 +4094,7 @@ npc_death_step(
              * animation (`death_seq_sent` is once per LIFE, and this is one). */
             npc->death_seq_sent = 0;
             npc->death_seq_tick = -1;
-            memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
+            ToriRSServer_CombatDeathHandoffDrop(srv, slot);
             npc->died_as = 0;
             /* And its menu, which the death hid (`npc_death_begin`). A revive
              * through `npc_changetype` has already restored it, and a menu the
@@ -4092,7 +4137,7 @@ npc_death_step(
         ToriRSServer_WorldNpcFree(srv, slot);
         npc->death_tick = -1;
         npc->death_stage = TORIRSSERVER_DEATH_NONE;
-        memset(npc->death_handoff_queues, 0, sizeof(npc->death_handoff_queues));
+        ToriRSServer_CombatDeathHandoffDrop(srv, slot);
         /*
          * Only a *world* npc comes back on its own — see `despawns_on_death`
          * for the two lifecycles and for what respawning both cost the Inferno.
@@ -4582,9 +4627,9 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * ironman who was warned about the LAST one must be warned about this
          * one. Left alone at death on purpose -- a corpse another player damaged
          * is still a corpse they damaged, and the drop table reads it. */
-        memset(npc->damaged_by_players, 0, sizeof(npc->damaged_by_players));
-        memset(npc->noloot_warned_players, 0, sizeof(npc->noloot_warned_players));
-        memset(npc->noloot_iconned_players, 0, sizeof(npc->noloot_iconned_players));
+        ToriRSServer_PidSetClear(&npc->damaged_by);
+        ToriRSServer_PidSetClear(&npc->noloot_warned);
+        ToriRSServer_PidSetClear(&npc->noloot_iconned);
         /*
          * And the npc's own queue, which is where DAMAGE lives.
          *

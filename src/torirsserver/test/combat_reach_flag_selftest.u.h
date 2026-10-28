@@ -163,7 +163,7 @@ selftest_combat_reach_flag(
             uint8_t payload[16];
             struct RSAreaBuf out;
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             player->clear_map_flag = 0;
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, slot));
@@ -174,9 +174,9 @@ selftest_combat_reach_flag(
             ToriRSServer_CaptureBegin(srv, &flag_capture);
             selftest_handle(player, PKTOUT_NAME_OPNPCT, payload, (int)rsab_len(&out));
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 50,
                            "combat_reach_flag: the cast resolved at range, progress %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->x == 3222 && player->z == 3218,
                            "combat_reach_flag: the caster did not move, at %d,%d", player->x,
                            player->z);
@@ -345,8 +345,8 @@ selftest_combat_reach_flag(
         SELFTEST_CHECK(option_nodef >= 0, "combat_reach_flag: option_nodef resolves");
         if( option_nodef < 0 )
             return;
-        saved_nodef = player->varps[option_nodef];
-        player->varps[option_nodef] = 1;
+        saved_nodef = ToriRSServer_Varp(player, option_nodef);
+        ToriRSServer_VarpPut(player, option_nodef, 1);
         selftest_park_player(srv, 3222, 3218);
         combat_reach_flag_quiet(srv, 3222, 3218);
         first = combat_reach_flag_spawn(srv, man, 3221, 3218);
@@ -396,7 +396,7 @@ selftest_combat_reach_flag(
             ToriRSServer_WorldNpcFree(srv, first);
         }
         combat_reach_flag_unquiet(srv);
-        player->varps[option_nodef] = saved_nodef;
+        ToriRSServer_VarpPut(player, option_nodef, saved_nodef);
         player->combat_claim_npc = -1;
         player->combat_claim_tick = 0;
         selftest_tick(srv);

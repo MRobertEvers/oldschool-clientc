@@ -4192,7 +4192,7 @@ selftest_style_memory(struct ToriRSServer* srv)
     };
     static struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
     static struct ToriRSServerItem saved_worn[TORIRSSERVER_WORN_SLOTS];
-    static int32_t saved_varps[TORIRSSERVER_VARP_COUNT];
+    struct ToriRSServerVarps saved_varps = { 0 };
     struct ToriRSServerPlayer* p = srv->active_player;
     int loaded;
     int com_mode;
@@ -4228,7 +4228,7 @@ selftest_style_memory(struct ToriRSServer* srv)
 
     memcpy(saved_inv, p->inv, sizeof(saved_inv));
     memcpy(saved_worn, p->worn, sizeof(saved_worn));
-    memcpy(saved_varps, p->varps, sizeof(saved_varps));
+    ToriRSServer_VarpsCopy(&saved_varps, &p->varps);
 
     /* A character that has never chosen a style for anything, unarmed. */
     selftest_park_player(srv, 3222, 3218);
@@ -4249,14 +4249,14 @@ selftest_style_memory(struct ToriRSServer* srv)
 
         SELFTEST_CHECK(varp >= 0, "%s should resolve", k_memory[k]);
         if( varp >= 0 )
-            p->varps[varp] = 0;
+            ToriRSServer_VarpPut(p, varp, 0);
     }
     ToriRSServer_VarbitSet(srv, category, 0);
-    p->varps[com_mode] = 0;
+    ToriRSServer_VarpPut(p, com_mode, 0);
 
     /* Unarmed: Kick. */
     selftest_style_memory_press(srv, 1);
-    SELFTEST_CHECK(p->varps[com_mode] == 1, "unarmed Kick is slot 1, got %d", p->varps[com_mode]);
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 1, "unarmed Kick is slot 1, got %d", ToriRSServer_Varp(p, com_mode));
 
     /* A scimitar has never been used: its first style, not Kick's slot. */
     selftest_style_memory_wield(srv, scimitar);
@@ -4264,32 +4264,32 @@ selftest_style_memory(struct ToriRSServer* srv)
     SELFTEST_CHECK(ToriRSServer_VarbitGet(p, category) == 9,
                    "a scimitar is weapon type 9 (slash sword), got %d",
                    ToriRSServer_VarbitGet(p, category));
-    SELFTEST_CHECK(p->varps[com_mode] == 0,
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 0,
                    "a category with no saved style starts on its first, got %d",
-                   p->varps[com_mode]);
+                   ToriRSServer_Varp(p, com_mode));
     selftest_style_memory_press(srv, 3);
-    SELFTEST_CHECK(p->varps[com_mode] == 3, "scimitar Block is slot 3, got %d", p->varps[com_mode]);
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 3, "scimitar Block is slot 3, got %d", ToriRSServer_Varp(p, com_mode));
 
     /* Another scimitar is the same category: the style stays. */
     selftest_style_memory_wield(srv, scimitar2);
     SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == scimitar2, "the iron scimitar is wielded");
-    SELFTEST_CHECK(p->varps[com_mode] == 3,
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 3,
                    "a second weapon of the same category keeps its style, got %d",
-                   p->varps[com_mode]);
+                   ToriRSServer_Varp(p, com_mode));
 
     /* A bow is a new category: first style again, then Longrange. */
     selftest_style_memory_wield(srv, shortbow);
     SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id == shortbow, "the shortbow is wielded");
-    SELFTEST_CHECK(p->varps[com_mode] == 0,
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 0,
                    "the bow has no saved style and starts on Accurate, got %d",
-                   p->varps[com_mode]);
+                   ToriRSServer_Varp(p, com_mode));
     selftest_style_memory_press(srv, 2);
 
     /* Back to a scimitar: Block, as the slash-sword category left it. */
     selftest_style_memory_wield(srv, scimitar);
-    SELFTEST_CHECK(p->varps[com_mode] == 3,
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 3,
                    "switching back to a scimitar restores its Block, got %d",
-                   p->varps[com_mode]);
+                   ToriRSServer_Varp(p, com_mode));
 
     /* Unwield: unarmed remembers Kick. */
     {
@@ -4305,16 +4305,17 @@ selftest_style_memory(struct ToriRSServer* srv)
         selftest_tick(srv);
     }
     SELFTEST_CHECK(p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id < 0, "the weapon is removed");
-    SELFTEST_CHECK(p->varps[com_mode] == 1, "unarmed restores Kick, got %d", p->varps[com_mode]);
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 1, "unarmed restores Kick, got %d", ToriRSServer_Varp(p, com_mode));
 
     /* And the bow its Longrange. */
     selftest_style_memory_wield(srv, shortbow);
-    SELFTEST_CHECK(p->varps[com_mode] == 2, "the bow restores Longrange, got %d",
-                   p->varps[com_mode]);
+    SELFTEST_CHECK(ToriRSServer_Varp(p, com_mode) == 2, "the bow restores Longrange, got %d",
+                   ToriRSServer_Varp(p, com_mode));
 
     memcpy(p->inv, saved_inv, sizeof(saved_inv));
     memcpy(p->worn, saved_worn, sizeof(saved_worn));
-    memcpy(p->varps, saved_varps, sizeof(saved_varps));
+    ToriRSServer_VarpsCopy(&p->varps, &saved_varps);
+    ToriRSServer_VarpsFree(&saved_varps);
     for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
         p->inv_dirty |= 1u << i;
     for( int i = 0; i < TORIRSSERVER_WORN_SLOTS; i++ )
@@ -4400,7 +4401,7 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
             int hp_level_before = p->stat_level[TORIRSSERVER_STAT_HITPOINTS];
             int hp_boost_before = p->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
             int hp_xp_before = p->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
-            int nodef_before = p->varps[option_nodef];
+            int nodef_before = ToriRSServer_Varp(p, option_nodef);
             int worn_before = p->worn[TORIRSSERVER_WEAR_WEAPON].obj_id;
             int worn_count_before = p->worn[TORIRSSERVER_WEAR_WEAPON].count;
             uint8_t opnpc[2];
@@ -4439,9 +4440,9 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                 selftest_park_player(srv, npc->x, npc->z + 6);
                 p->level = npc->level;
                 p->delayed_until = srv->tick;
-                p->varps[option_nodef] = 1; /* Off: no hit may re-arm it. */
-                p->varps[food_delay] = 0;
-                p->varps[potion_delay] = 0;
+                ToriRSServer_VarpPut(p, option_nodef, 1); /* Off: no hit may re-arm it. */
+                ToriRSServer_VarpPut(p, food_delay, 0);
+                ToriRSServer_VarpPut(p, potion_delay, 0);
                 worn_set(p, TORIRSSERVER_WEAR_WEAPON, -1, 0);
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     inv_set(p, i, -1, 0);
@@ -4488,8 +4489,8 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                 selftest_park_player(srv, npc->x + 1, npc->z);
                 p->level = npc->level;
                 p->delayed_until = srv->tick;
-                p->varps[option_nodef] = retaliate ? 0 : 1;
-                p->varps[food_delay] = 0;
+                ToriRSServer_VarpPut(p, option_nodef, retaliate ? 0 : 1);
+                ToriRSServer_VarpPut(p, food_delay, 0);
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     inv_set(p, i, -1, 0);
                 inv_set(p, 0, meat, 1);
@@ -4500,11 +4501,11 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                 for( int i = 0; i < 4; i++ )
                     selftest_tick(srv);
                 SELFTEST_CHECK(p->combat_target == goblin &&
-                                   p->varps[action_delay] > clicked,
+                                   ToriRSServer_Varp(p, action_delay) > clicked,
                                "retaliate %s: standing beside the goblin the Attack "
                                "should swing (target %d, action_delay %d, clicked %d)",
                                retaliate ? "on" : "off", p->combat_target,
-                               p->varps[action_delay], clicked);
+                               ToriRSServer_Varp(p, action_delay), clicked);
 
                 selftest_opheld(srv, 1, 0);
                 SELFTEST_CHECK(p->inv[0].obj_id == -1, "retaliate %s: the meat should be eaten",
@@ -4515,7 +4516,7 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                                "(kind %d, target %d)",
                                retaliate ? "on" : "off", (int)p->interaction.kind,
                                p->combat_target);
-                delay = p->varps[action_delay];
+                delay = ToriRSServer_Varp(p, action_delay);
 
                 for( int i = 0; i < 12 && reengaged < 0; i++ )
                 {
@@ -4528,11 +4529,11 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                                    "auto-retaliate on: the goblin's next hit should "
                                    "re-engage it within 12 ticks");
                 else
-                    SELFTEST_CHECK(reengaged < 0 && p->varps[action_delay] == delay,
+                    SELFTEST_CHECK(reengaged < 0 && ToriRSServer_Varp(p, action_delay) == delay,
                                    "auto-retaliate off: after the eat the player should "
                                    "stand idle (re-engaged on tick %d, action_delay "
                                    "%d, was %d)",
-                                   reengaged, p->varps[action_delay], delay);
+                                   reengaged, ToriRSServer_Varp(p, action_delay), delay);
             }
 
             /* 4. One tick, two packets, in both orders. */
@@ -4541,8 +4542,8 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
                 selftest_park_player(srv, npc->x, npc->z + 6);
                 p->level = npc->level;
                 p->delayed_until = srv->tick;
-                p->varps[option_nodef] = 1;
-                p->varps[food_delay] = 0;
+                ToriRSServer_VarpPut(p, option_nodef, 1);
+                ToriRSServer_VarpPut(p, food_delay, 0);
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     inv_set(p, i, -1, 0);
                 inv_set(p, 0, meat, 1);
@@ -4577,7 +4578,7 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
             selftest_park_player(srv, npc->x, npc->z + 6);
             p->level = npc->level;
             p->delayed_until = srv->tick;
-            p->varps[option_nodef] = 1;
+            ToriRSServer_VarpPut(p, option_nodef, 1);
             for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                 inv_set(p, i, -1, 0);
             inv_set(p, 0, meat, 1);
@@ -4619,7 +4620,7 @@ selftest_backpack_op_interrupts(struct ToriRSServer* srv)
             for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                 inv_set(p, i, -1, 0);
             worn_set(p, TORIRSSERVER_WEAR_WEAPON, worn_before, worn_count_before);
-            p->varps[option_nodef] = nodef_before;
+            ToriRSServer_VarpPut(p, option_nodef, nodef_before);
             p->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_level_before;
             p->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_boost_before;
             p->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
@@ -5825,8 +5826,8 @@ ToriRSServer_WorldSelftest(void)
                 if( handle != 0 && instance_varp >= 0 && faction_varp >= 0 )
                 {
                     ToriRSServer_MapInstanceSetOwner(handle, player->pid + 1);
-                    player->varps[instance_varp] = handle;
-                    player->varps[faction_varp] = 5;
+                    ToriRSServer_VarpPut(player, instance_varp, handle);
+                    ToriRSServer_VarpPut(player, faction_varp, 5);
                     SELFTEST_CHECK(
                         ToriRSServer_SavePlayer(player, path),
                         "GWD restart arm writes the owner save");
@@ -5842,8 +5843,8 @@ ToriRSServer_WorldSelftest(void)
                     "fresh server process reads the armed owner save");
                 SELFTEST_CHECK(
                     instance_varp >= 0 && faction_varp >= 0 &&
-                        player->varps[instance_varp] == 0 &&
-                        player->varps[faction_varp] == 0,
+                        ToriRSServer_Varp(player, instance_varp) == 0 &&
+                        ToriRSServer_Varp(player, faction_varp) == 0,
                     "restart cannot restore a private-room handle/faction");
                 remove(path);
             }
@@ -5954,7 +5955,7 @@ ToriRSServer_WorldSelftest(void)
             int td_stats[2] = { ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "fletching"),
                                 ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_STAT, "smithing") };
             int td_notes = ToriRSServer_WorldVarp("varp7584_td_notes_read");
-            int td_saved_notes = td_notes >= 0 ? player->varps[td_notes] : 0;
+            int td_saved_notes = td_notes >= 0 ? ToriRSServer_Varp(player, td_notes) : 0;
             int td_saved_level[2] = { 0, 0 };
             int td_saved_xp[2] = { 0, 0 };
             struct ToriRSServerItem td_saved_inv[TORIRSSERVER_INV_SLOTS];
@@ -5991,7 +5992,7 @@ ToriRSServer_WorldSelftest(void)
             memcpy(td_saved_inv, player->inv, sizeof(td_saved_inv));
             SELFTEST_CHECK(td_notes >= 0, "%%td_notes_read should resolve as a varp");
             if( td_notes >= 0 )
-                player->varps[td_notes] = 1;
+                ToriRSServer_VarpPut(player, td_notes, 1);
             for( size_t i = 0; i < sizeof(td_stats) / sizeof(td_stats[0]); i++ )
                 if( td_stats[i] >= 0 )
                 {
@@ -6029,7 +6030,7 @@ ToriRSServer_WorldSelftest(void)
                     player->stat_xp_tenths[td_stats[i]] = td_saved_xp[i];
                 }
             if( td_notes >= 0 )
-                player->varps[td_notes] = td_saved_notes;
+                ToriRSServer_VarpPut(player, td_notes, td_saved_notes);
             player->active_script = NULL;
             memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
         }
@@ -6088,7 +6089,7 @@ ToriRSServer_WorldSelftest(void)
                 for( int slot = 0; slot < TORIRSSERVER_INV_SLOTS; slot++ )
                     inv_set(player, slot, -1, 0);
                 if( varp >= 0 )
-                    player->varps[varp] = 0;
+                    ToriRSServer_VarpPut(player, varp, 0);
                 selftest_park_player(srv, td_x, td_z);
                 ToriRSServer_WorldObjAdd(srv, obj, count, td_x, td_z, player->level, 1000);
 
@@ -6115,9 +6116,9 @@ ToriRSServer_WorldSelftest(void)
                                "pickup.rs2's [opobj3,_], or the option in the cache is a lie",
                                td_ground[i].what, td_ground[i].obj);
                 if( varp >= 0 )
-                    SELFTEST_CHECK(player->varps[varp] > 0,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) > 0,
                                    "%s should arm its effect, %%%s = %d",
-                                   td_ground[i].what, td_ground[i].varp, player->varps[varp]);
+                                   td_ground[i].what, td_ground[i].varp, ToriRSServer_Varp(player, varp));
                 if( count > 1 )
                     SELFTEST_CHECK(on_floor == count - 1,
                                    "%s should leave %d bite(s) on the floor, got %d",
@@ -6130,7 +6131,7 @@ ToriRSServer_WorldSelftest(void)
                     if( srv->ground[slot].active && srv->ground[slot].obj_id == obj )
                         ToriRSServer_WorldGroundTake(srv, slot);
                 if( varp >= 0 )
-                    player->varps[varp] = 0;
+                    ToriRSServer_VarpPut(player, varp, 0);
             }
             player->active_script = NULL;
             memcpy(player->inv, td_saved_inv, sizeof(td_saved_inv));
@@ -6862,7 +6863,7 @@ ToriRSServer_WorldSelftest(void)
                 }
                 if( damagetype >= 0 && slash >= 0 )
                 {
-                    player->varps[damagetype] = slash;
+                    ToriRSServer_VarpPut(player, damagetype, slash);
                     for( size_t i = 0;
                          i < sizeof(aviansie) / sizeof(aviansie[0]); i++ )
                     {
@@ -7273,7 +7274,7 @@ ToriRSServer_WorldSelftest(void)
                 }
 
                 memset(player->queue, 0, sizeof(player->queue));
-                player->varps[mark_varp] = 0;
+                ToriRSServer_VarpPut(player, mark_varp, 0);
                 slot = ToriRSServer_WorldNpcSpawn(
                     srv, nex_id, player->x + 1, player->z, player->level);
                 SELFTEST_CHECK(slot >= 0,
@@ -7296,7 +7297,7 @@ ToriRSServer_WorldSelftest(void)
                                 srv, "[proc,ancient_godsword_mark]", slot),
                         "two Blood Sacrifice marks arm independently");
                     SELFTEST_CHECK(
-                        player->varps[mark_varp] == 2 &&
+                        ToriRSServer_Varp(player, mark_varp) == 2 &&
                             selftest_player_queue_match(
                                 player, sacrifice, 8, 0, uid) == 2 &&
                             selftest_player_queue_match(
@@ -7309,7 +7310,7 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,ancient_godsword_clear_marks]", NULL, 0) &&
-                            player->varps[mark_varp] == 0 &&
+                            ToriRSServer_Varp(player, mark_varp) == 0 &&
                             selftest_player_queue_match(
                                 player, sacrifice, -1, -1, 0) == 0,
                         "Blood Sacrifice cleanup clears every stacked mark");
@@ -7323,7 +7324,7 @@ ToriRSServer_WorldSelftest(void)
                     player->max_hitpoints = 99;
                     player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 40;
                     player->hitpoints = 40;
-                    player->varps[mark_varp] = 1;
+                    ToriRSServer_VarpPut(player, mark_varp, 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[queue,ancient_godsword_sacrifice]",
@@ -7331,7 +7332,7 @@ ToriRSServer_WorldSelftest(void)
                             player->hitpoints == 65 &&
                             player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] == 65 &&
                             target->spotanim_id == blood_spot &&
-                            player->varps[mark_varp] == 0,
+                            ToriRSServer_Varp(player, mark_varp) == 0,
                         "an unescaped mark deals 25 typeless damage, shows the "
                         "blood impact, and heals 25");
 
@@ -7339,36 +7340,36 @@ ToriRSServer_WorldSelftest(void)
                     target->x = player->x + 5;
                     player->hitpoints =
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 40;
-                    player->varps[mark_varp] = 1;
+                    ToriRSServer_VarpPut(player, mark_varp, 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[queue,ancient_godsword_sacrifice]",
                             land_args, 3) && target->hitpoints == 100 &&
                             player->hitpoints == 40 &&
-                            player->varps[mark_varp] == 0,
+                            ToriRSServer_Varp(player, mark_varp) == 0,
                         "a target at least five tiles away escapes Blood Sacrifice");
 
                     target->x = player->x + 1;
                     target->hitpoints = 100;
                     land_args[2] = instance + 1;
-                    player->varps[mark_varp] = 1;
+                    ToriRSServer_VarpPut(player, mark_varp, 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[queue,ancient_godsword_sacrifice]",
                             land_args, 3) && target->hitpoints == 100 &&
                             player->hitpoints == 40 &&
-                            player->varps[mark_varp] == 0,
+                            ToriRSServer_Varp(player, mark_varp) == 0,
                         "leaving the marked map instance cancels Blood Sacrifice");
 
                     land_args[2] = instance;
                     target->hitpoints = 10;
-                    player->varps[mark_varp] = 1;
+                    ToriRSServer_VarpPut(player, mark_varp, 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[queue,ancient_godsword_sacrifice]",
                             land_args, 3) && target->hitpoints == 0 &&
                             player->hitpoints == 50 &&
-                            player->varps[mark_varp] == 0,
+                            ToriRSServer_Varp(player, mark_varp) == 0,
                         "a 10-HP target transfers only the 10 damage actually dealt");
                     target->active = 0;
                 }
@@ -7383,7 +7384,7 @@ ToriRSServer_WorldSelftest(void)
 
                     selftest_clear_inv(player);
                     selftest_give(player, ancient_sword, 1);
-                    player->varps[mark_varp] = 1;
+                    ToriRSServer_VarpPut(player, mark_varp, 1);
                     out = 1;
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProcInt(
@@ -7394,7 +7395,7 @@ ToriRSServer_WorldSelftest(void)
                             selftest_count(player, blade) == 0,
                         "an active Blood Sacrifice blocks Ancient godsword "
                         "dismantling atomically");
-                    player->varps[mark_varp] = 0;
+                    ToriRSServer_VarpPut(player, mark_varp, 0);
                     selftest_clear_inv(player);
                 }
                 memset(player->queue, 0, sizeof(player->queue));
@@ -9656,8 +9657,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[boss].script_vars[2] = 4;
                         ToriRSServer_ScriptsRunProcOnNpc(
                             srv, "[proc,nex_update_zaros_overhead]", boss);
-                        player->varps[ToriRSServer_WorldVarp("varp6970_damagetype")] =
-                            TORIRSSERVER_DAMAGE_CRUSH;
+                        ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp6970_damagetype"), TORIRSSERVER_DAMAGE_CRUSH);
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
                         args[0] = 20;
@@ -9669,7 +9669,7 @@ ToriRSServer_WorldSelftest(void)
                                 player->hitpoints == 89,
                             "Nex Deflect Melee reflects half a 20 hit (out %d, hp %d)",
                             out, player->hitpoints);
-                        player->varps[ToriRSServer_WorldVarp("varp6970_damagetype")] = 4;
+                        ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp6970_damagetype"), 4);
                         player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = 99;
                         player->hitpoints = 99;
                         SELFTEST_CHECK(
@@ -10067,8 +10067,8 @@ ToriRSServer_WorldSelftest(void)
                     memset(player->queue, 0, sizeof(player->queue));
                     player->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 80;
                     player->stat_boosted[TORIRSSERVER_STAT_MAGIC] = 99;
-                    player->varps[ToriRSServer_ContentSymbol(
-                        TORIRSSERVER_PACK_VARP, "varp7285_nex_cough_until")] = srv->tick + 10;
+                    ToriRSServer_VarpPut(player, ToriRSServer_ContentSymbol(
+                        TORIRSSERVER_PACK_VARP, "varp7285_nex_cough_until"), srv->tick + 10);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProcOnNpc(
                             srv, "[queue,nex_cough_tick]", boss) &&
@@ -10325,9 +10325,9 @@ ToriRSServer_WorldSelftest(void)
                                 -1, -1, 0);
                         SELFTEST_CHECK(
                             remaining == 0 &&
-                                player->varps[ToriRSServer_ContentSymbol(
+                                ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(
                                     TORIRSSERVER_PACK_VARP,
-                                    "varp7285_nex_cough_until")] == 0,
+                                    "varp7285_nex_cough_until")) == 0,
                             "Nex cleanup removes every armed effect and cough "
                             "deadline (remaining %d)", remaining);
                     }
@@ -10408,23 +10408,23 @@ ToriRSServer_WorldSelftest(void)
                 if( kills >= 0 && best >= 0 && contribution_uid >= 0 &&
                     contribution_damage >= 0 && encounter_start >= 0 )
                 {
-                    player->varps[kills] = 0;
-                    player->varps[best] = 0;
+                    ToriRSServer_VarpPut(player, kills, 0);
+                    ToriRSServer_VarpPut(player, best, 0);
                     for( size_t i = 0;
                          i < sizeof(durations) / sizeof(durations[0]); i++ )
                     {
-                        player->varps[contribution_uid] = 100 + (int)i;
-                        player->varps[contribution_damage] = 25 + (int)i;
-                        player->varps[encounter_start] = 10 + (int)i;
+                        ToriRSServer_VarpPut(player, contribution_uid, 100 + (int)i);
+                        ToriRSServer_VarpPut(player, contribution_damage, 25 + (int)i);
+                        ToriRSServer_VarpPut(player, encounter_start, 10 + (int)i);
                         SELFTEST_CHECK(
                             ToriRSServer_ScriptsRunProc(
                                 srv, "[proc,nex_finish_personal_score]",
                                 &durations[i], 1) &&
-                                player->varps[kills] == (int)i + 1 &&
-                                player->varps[best] == expected_best[i] &&
-                                player->varps[contribution_uid] == 0 &&
-                                player->varps[contribution_damage] == 0 &&
-                                player->varps[encounter_start] == 0,
+                                ToriRSServer_Varp(player, kills) == (int)i + 1 &&
+                                ToriRSServer_Varp(player, best) == expected_best[i] &&
+                                ToriRSServer_Varp(player, contribution_uid) == 0 &&
+                                ToriRSServer_Varp(player, contribution_damage) == 0 &&
+                                ToriRSServer_Varp(player, encounter_start) == 0,
                             "Nex scoreboard duration %d yields kills/best "
                             "%zu/%d and clears contribution state",
                             durations[i], i + 1, expected_best[i]);
@@ -10492,7 +10492,8 @@ ToriRSServer_WorldSelftest(void)
                         selftest_clear_ground(srv);
                         memset(first->queue, 0, sizeof(first->queue));
                         memset(second->queue, 0, sizeof(second->queue));
-                        first->varps[kills] = second->varps[kills] = 0;
+                        ToriRSServer_VarpPut(second, kills, 0);
+                        ToriRSServer_VarpPut(first, kills, 0);
                         boss = ToriRSServer_WorldNpcSpawn(
                             srv, nex_id, 45 * 64 + 44, 81 * 64 + 18, 0);
                         SELFTEST_CHECK(
@@ -10505,15 +10506,12 @@ ToriRSServer_WorldSelftest(void)
                             ((int)srv->npcs[boss].generation << 16) | boss;
                         srv->npcs[boss].script_vars[6] =
                             cases[c].first_damage + cases[c].second_damage;
-                        first->varps[contribution_uid] =
-                            second->varps[contribution_uid] = boss_uid;
-                        first->varps[contribution_damage] =
-                            cases[c].first_damage;
-                        second->varps[contribution_damage] =
-                            cases[c].second_damage;
-                        first->varps[encounter_start] =
-                            second->varps[encounter_start] =
-                                srv->tick > 10 ? srv->tick - 10 : 1;
+                        ToriRSServer_VarpPut(second, contribution_uid, boss_uid);
+                        ToriRSServer_VarpPut(first, contribution_uid, boss_uid);
+                        ToriRSServer_VarpPut(first, contribution_damage, cases[c].first_damage);
+                        ToriRSServer_VarpPut(second, contribution_damage, cases[c].second_damage);
+                        ToriRSServer_VarpPut(second, encounter_start, srv->tick > 10 ? srv->tick - 10 : 1);
+                        ToriRSServer_VarpPut(first, encounter_start, srv->tick > 10 ? srv->tick - 10 : 1);
 
                         SELFTEST_CHECK(
                             ToriRSServer_ScriptsRunProcOnNpc(
@@ -10543,14 +10541,14 @@ ToriRSServer_WorldSelftest(void)
                             cases[c].label, cases[c].expected_mvp,
                             mvp_bones, other_bones);
                         SELFTEST_CHECK(
-                            first->varps[kills] ==
+                            ToriRSServer_Varp(first, kills) ==
                                     cases[c].expected_first_kills &&
-                                second->varps[kills] ==
+                                ToriRSServer_Varp(second, kills) ==
                                     cases[c].expected_second_kills &&
-                                first->varps[contribution_uid] == 0 &&
-                                first->varps[contribution_damage] == 0 &&
-                                second->varps[contribution_uid] == 0 &&
-                                second->varps[contribution_damage] == 0,
+                                ToriRSServer_Varp(first, contribution_uid) == 0 &&
+                                ToriRSServer_Varp(first, contribution_damage) == 0 &&
+                                ToriRSServer_Varp(second, contribution_uid) == 0 &&
+                                ToriRSServer_Varp(second, contribution_damage) == 0,
                             "%s gives eligible killcounts %d/%d and clears "
                             "both contribution records",
                             cases[c].label,
@@ -10559,19 +10557,19 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[boss].active = 0;
                     }
                     ToriRSServer_WorldSetActive(srv, second);
-                    second->varps[contribution_uid] = 123456;
-                    second->varps[contribution_damage] = 99;
-                    second->varps[encounter_start] = 10;
+                    ToriRSServer_VarpPut(second, contribution_uid, 123456);
+                    ToriRSServer_VarpPut(second, contribution_damage, 99);
+                    ToriRSServer_VarpPut(second, encounter_start, 10);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_private_on_logout]", NULL, 0) &&
-                            second->varps[contribution_uid] == 0 &&
-                            second->varps[contribution_damage] == 0 &&
-                            second->varps[encounter_start] == 0,
+                            ToriRSServer_Varp(second, contribution_uid) == 0 &&
+                            ToriRSServer_Varp(second, contribution_damage) == 0 &&
+                            ToriRSServer_Varp(second, encounter_start) == 0,
                         "Nex disconnect/logout clears personal contribution");
-                    first->varps[contribution_uid] = 654321;
-                    first->varps[contribution_damage] = 88;
-                    first->varps[encounter_start] = 10;
+                    ToriRSServer_VarpPut(first, contribution_uid, 654321);
+                    ToriRSServer_VarpPut(first, contribution_damage, 88);
+                    ToriRSServer_VarpPut(first, encounter_start, 10);
                     ToriRSServer_WorldSetActive(srv, first);
                     /*
                      * The public chamber's death hook, `~gwd_nex_on_death`
@@ -10587,22 +10585,22 @@ ToriRSServer_WorldSelftest(void)
                             TORIRSSERVER_PACK_VARP, "varp7284_nex_personal_deaths");
                         int items_varp = ToriRSServer_ContentSymbol(
                             TORIRSSERVER_PACK_VARP, "varp7279_gwd_nex_death_items");
-                        int deaths_before = deaths_varp >= 0 ? first->varps[deaths_varp] : 0;
-                        int items_before = items_varp >= 0 ? first->varps[items_varp] : 0;
+                        int deaths_before = deaths_varp >= 0 ? ToriRSServer_Varp(first, deaths_varp) : 0;
+                        int items_before = items_varp >= 0 ? ToriRSServer_Varp(first, items_varp) : 0;
 
                         SELFTEST_CHECK(
                             ToriRSServer_ScriptsRunProcInt(
                                 srv, "[proc,gwd_nex_on_death]", NULL, 0,
                                 &out) &&
                                 out == 1 &&
-                                first->varps[contribution_uid] == 0 &&
-                                first->varps[contribution_damage] == 0 &&
-                                first->varps[encounter_start] == 0,
+                                ToriRSServer_Varp(first, contribution_uid) == 0 &&
+                                ToriRSServer_Varp(first, contribution_damage) == 0 &&
+                                ToriRSServer_Varp(first, encounter_start) == 0,
                             "Nex death clears personal contribution");
                         if( deaths_varp >= 0 )
-                            first->varps[deaths_varp] = deaths_before;
+                            ToriRSServer_VarpPut(first, deaths_varp, deaths_before);
                         if( items_varp >= 0 )
-                            first->varps[items_varp] = items_before;
+                            ToriRSServer_VarpPut(first, items_varp, items_before);
                     }
                     ToriRSServer_WorldSetActive(srv, first);
                     ToriRSServer_WorldPlayerFree(srv, second->pid);
@@ -11575,7 +11573,7 @@ ToriRSServer_WorldSelftest(void)
                         TORIRSSERVER_PACK_VARP, perm_varp_names[i]);
                     resolved &= perm_varps[i] >= 0;
                     if( perm_varps[i] >= 0 )
-                        player->varps[perm_varps[i]] = perm_values[i];
+                        ToriRSServer_VarpPut(player, perm_varps[i], perm_values[i]);
                 }
                 for( size_t i = 0;
                      i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
@@ -11584,7 +11582,7 @@ ToriRSServer_WorldSelftest(void)
                         TORIRSSERVER_PACK_VARP, temp_varp_names[i]);
                     resolved &= temp_varps[i] >= 0;
                     if( temp_varps[i] >= 0 )
-                        player->varps[temp_varps[i]] = 1000 + (int)i;
+                        ToriRSServer_VarpPut(player, temp_varps[i], 1000 + (int)i);
                 }
                 for( size_t i = 0;
                      i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
@@ -11602,11 +11600,11 @@ ToriRSServer_WorldSelftest(void)
                 for( size_t i = 0;
                      i < sizeof(perm_values) / sizeof(perm_values[0]); i++ )
                     if( perm_varps[i] >= 0 )
-                        player->varps[perm_varps[i]] = 0;
+                        ToriRSServer_VarpPut(player, perm_varps[i], 0);
                 for( size_t i = 0;
                      i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
                     if( temp_varps[i] >= 0 )
-                        player->varps[temp_varps[i]] = 0;
+                        ToriRSServer_VarpPut(player, temp_varps[i], 0);
                 for( size_t i = 0;
                      i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
                     if( kc_varbits[i] >= 0 )
@@ -11617,11 +11615,11 @@ ToriRSServer_WorldSelftest(void)
                      i < sizeof(perm_values) / sizeof(perm_values[0]); i++ )
                     SELFTEST_CHECK(
                         perm_varps[i] >= 0 &&
-                            player->varps[perm_varps[i]] == perm_values[i],
+                            ToriRSServer_Varp(player, perm_varps[i]) == perm_values[i],
                         "%s survives relog with value %d (got %d)",
                         perm_varp_names[i], perm_values[i],
                         perm_varps[i] >= 0
-                            ? player->varps[perm_varps[i]] : -1);
+                            ? ToriRSServer_Varp(player, perm_varps[i]) : -1);
                 for( size_t i = 0;
                      i < sizeof(kc_varbits) / sizeof(kc_varbits[0]); i++ )
                     SELFTEST_CHECK(
@@ -11636,11 +11634,11 @@ ToriRSServer_WorldSelftest(void)
                      i < sizeof(temp_varps) / sizeof(temp_varps[0]); i++ )
                     SELFTEST_CHECK(
                         temp_varps[i] >= 0 &&
-                            player->varps[temp_varps[i]] == 0,
+                            ToriRSServer_Varp(player, temp_varps[i]) == 0,
                         "%s is not restored across relog (got %d)",
                         temp_varp_names[i],
                         temp_varps[i] >= 0
-                            ? player->varps[temp_varps[i]] : -1);
+                            ? ToriRSServer_Varp(player, temp_varps[i]) : -1);
                 remove(path);
             }
 
@@ -11788,7 +11786,7 @@ ToriRSServer_WorldSelftest(void)
 
                         selftest_clear_inv(player);
                         selftest_clear_ground(srv);
-                        player->varps[frozen_state] = 0;
+                        ToriRSServer_VarpPut(player, frozen_state, 0);
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
@@ -11798,7 +11796,7 @@ ToriRSServer_WorldSelftest(void)
                             armadyl_piece < 0,
                             "frozen-key piece is suppressed before the miniquest");
 
-                        player->varps[frozen_state] = 1;
+                        ToriRSServer_VarpPut(player, frozen_state, 1);
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
@@ -11822,7 +11820,7 @@ ToriRSServer_WorldSelftest(void)
 
                         selftest_clear_inv(player);
                         selftest_give(player, frozen_key, 1);
-                        player->varps[frozen_state] = 2;
+                        ToriRSServer_VarpPut(player, frozen_state, 2);
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_drop_frozen_key_piece]",
                             piece_args, 3);
@@ -11833,7 +11831,7 @@ ToriRSServer_WorldSelftest(void)
                     }
 
                     selftest_clear_inv(player);
-                    player->varps[frozen_state] = 1;
+                    ToriRSServer_VarpPut(player, frozen_state, 1);
                     for( int i = 0; i < 4; i++ )
                         selftest_give(player, pieces[i], 1);
                     SELFTEST_CHECK(
@@ -11845,12 +11843,12 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_assemble_frozen_key]", NULL, 0) &&
                             selftest_count(player, frozen_key) == 1 &&
-                            player->varps[frozen_state] == 2,
+                            ToriRSServer_Varp(player, frozen_state) == 2,
                         "duplicate frozen-key assembly creates no second key");
 
                     selftest_clear_inv(player);
                     selftest_give(player, frozen_key, 2);
-                    player->varps[frozen_state] = 2;
+                    ToriRSServer_VarpPut(player, frozen_state, 2);
                     ToriRSServer_CombatSetLevel(player, TORIRSSERVER_STAT_AGILITY, 70);
                     ToriRSServer_CombatSetLevel(player, TORIRSSERVER_STAT_RANGED, 70);
                     ToriRSServer_CombatSetLevel(player, TORIRSSERVER_STAT_STRENGTH, 70);
@@ -11859,13 +11857,13 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_frozen_door_enter]", NULL, 0) &&
                             selftest_count(player, frozen_key) == 1 &&
-                            player->varps[frozen_state] == 3,
+                            ToriRSServer_Varp(player, frozen_state) == 3,
                         "Frozen Door unlock consumes one key and commits state");
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,gwd_frozen_door_enter]", NULL, 0) &&
                             selftest_count(player, frozen_key) == 1 &&
-                            player->varps[frozen_state] == 3,
+                            ToriRSServer_Varp(player, frozen_state) == 3,
                         "duplicate Frozen Door input cannot consume another key");
                     selftest_clear_inv(player);
                     selftest_park_player(srv, 45 * 64 + 12, 81 * 64 + 19);
@@ -12786,10 +12784,10 @@ ToriRSServer_WorldSelftest(void)
                             srv, goblin_id, player->x, player->z,
                             player->level);
                         int saved_quest = quest_varp >= 0
-                                              ? player->varps[quest_varp]
+                                              ? ToriRSServer_Varp(player, quest_varp)
                                               : 0;
                         int saved_submit = submit_varp >= 0
-                                               ? player->varps[submit_varp]
+                                               ? ToriRSServer_Varp(player, submit_varp)
                                                : 0;
                         int rag_resolved = quest_varp >= 0 &&
                                            submit_varp >= 0 && goblin_id >= 0 &&
@@ -13194,10 +13192,9 @@ ToriRSServer_WorldSelftest(void)
                         "private GWD faction %d exposes translated bounds",
                         private_room_cases[c].faction);
                     if( instance_varp >= 0 )
-                        player->varps[instance_varp] = handle;
+                        ToriRSServer_VarpPut(player, instance_varp, handle);
                     if( faction_varp >= 0 )
-                        player->varps[faction_varp] =
-                            private_room_cases[c].faction;
+                        ToriRSServer_VarpPut(player, faction_varp, private_room_cases[c].faction);
                     player->x = base_x + 32;
                     player->z = base_z + 32;
                     player->level = private_room_cases[c].source_level;
@@ -13367,9 +13364,9 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_MapInstanceLiveCount() == 0 &&
                             roster_count == 0 &&
                             (instance_varp < 0 ||
-                             player->varps[instance_varp] == 0) &&
+                             ToriRSServer_Varp(player, instance_varp) == 0) &&
                             (faction_varp < 0 ||
-                             player->varps[faction_varp] == 0),
+                             ToriRSServer_Varp(player, faction_varp) == 0),
                         "private GWD faction %d departure releases owner, "
                         "reservation, and actors",
                         private_room_cases[c].faction);
@@ -13409,10 +13406,9 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_MapInstanceBounds(
                             handle, &base_x, &base_z, &width, &height);
                         if( instance_varp >= 0 )
-                            player->varps[instance_varp] = handle;
+                            ToriRSServer_VarpPut(player, instance_varp, handle);
                         if( faction_varp >= 0 )
-                            player->varps[faction_varp] =
-                                private_room_cases[c].faction;
+                            ToriRSServer_VarpPut(player, faction_varp, private_room_cases[c].faction);
                         player->x = base_x + 32;
                         player->z = base_z + 32;
                         player->level = private_room_cases[c].source_level;
@@ -13449,9 +13445,9 @@ ToriRSServer_WorldSelftest(void)
                                 player->level ==
                                     private_room_cases[c].exit_level &&
                                 (instance_varp < 0 ||
-                                 player->varps[instance_varp] == 0) &&
+                                 ToriRSServer_Varp(player, instance_varp) == 0) &&
                                 (faction_varp < 0 ||
-                                 player->varps[faction_varp] == 0),
+                                 ToriRSServer_Varp(player, faction_varp) == 0),
                             "private GWD faction %d logout moves to its safe "
                             "tile and releases all owned state",
                             private_room_cases[c].faction);
@@ -13479,10 +13475,9 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_MapInstanceBounds(
                             handle, &base_x, &base_z, &width, &height);
                         if( instance_varp >= 0 )
-                            player->varps[instance_varp] = handle;
+                            ToriRSServer_VarpPut(player, instance_varp, handle);
                         if( faction_varp >= 0 )
-                            player->varps[faction_varp] =
-                                private_room_cases[c].faction;
+                            ToriRSServer_VarpPut(player, faction_varp, private_room_cases[c].faction);
                         player->x = base_x + 32;
                         player->z = base_z + 32;
                         player->level = private_room_cases[c].source_level;
@@ -13529,9 +13524,9 @@ ToriRSServer_WorldSelftest(void)
                             ToriRSServer_MapInstanceLiveCount() == 1 &&
                                 roster_count == 0 &&
                                 (instance_varp < 0 ||
-                                 player->varps[instance_varp] == handle) &&
+                                 ToriRSServer_Varp(player, instance_varp) == handle) &&
                                 (faction_varp < 0 ||
-                                 player->varps[faction_varp] == 0),
+                                 ToriRSServer_Varp(player, faction_varp) == 0),
                             "private GWD faction %d corpse stage holds only the "
                             "reservation",
                             private_room_cases[c].faction);
@@ -13544,7 +13539,7 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(
                             ToriRSServer_MapInstanceLiveCount() == 0 &&
                                 (instance_varp < 0 ||
-                                 player->varps[instance_varp] == 0),
+                                 ToriRSServer_Varp(player, instance_varp) == 0),
                             "private GWD faction %d post-corpse stage releases "
                             "the reservation",
                             private_room_cases[c].faction);
@@ -13616,8 +13611,8 @@ ToriRSServer_WorldSelftest(void)
                     if( handle != 0 )
                     {
                         ToriRSServer_MapInstanceBase(handle, &base_x, &base_z);
-                        host->varps[instance_varp] = handle;
-                        host->varps[faction_varp] = 5;
+                        ToriRSServer_VarpPut(host, instance_varp, handle);
+                        ToriRSServer_VarpPut(host, faction_varp, 5);
                         host->x = base_x + 45;
                         host->z = base_z + 18;
                         host->level = 0;
@@ -13642,7 +13637,7 @@ ToriRSServer_WorldSelftest(void)
                             ToriRSServer_ScriptsResumeNamedialog(
                                 srv, host_reply,
                                 (int)sizeof(host_reply) - 1) &&
-                                guest->varps[instance_varp] == 0 &&
+                                ToriRSServer_Varp(guest, instance_varp) == 0 &&
                                 ToriRSServer_VarbitGet(guest, zaros_kc) == 40,
                             "one-way friendship cannot join or consume essence");
 
@@ -13658,8 +13653,8 @@ ToriRSServer_WorldSelftest(void)
                                     (int)sizeof(host_reply) - 1),
                             "online mutual friend completes the name-dialog join");
                         SELFTEST_CHECK(
-                            guest->varps[instance_varp] == handle &&
-                                guest->varps[faction_varp] == 5 &&
+                            ToriRSServer_Varp(guest, instance_varp) == handle &&
+                                ToriRSServer_Varp(guest, faction_varp) == 5 &&
                                 ToriRSServer_MapInstanceFind(
                                     guest->x, guest->z) == handle &&
                                 ToriRSServer_VarbitGet(guest, zaros_kc) == 0 &&
@@ -13674,8 +13669,8 @@ ToriRSServer_WorldSelftest(void)
                             ToriRSServer_ScriptsRunProc(
                                 srv, "[proc,gwd_private_altar_exit]", args, 1) &&
                                 ToriRSServer_MapInstanceLiveCount() == 1 &&
-                                guest->varps[instance_varp] == 0 &&
-                                host->varps[instance_varp] == handle,
+                                ToriRSServer_Varp(guest, instance_varp) == 0 &&
+                                ToriRSServer_Varp(host, instance_varp) == handle,
                             "guest exit preserves the host and reservation");
 
                         ToriRSServer_VarbitSet(srv, zaros_kc, 40);
@@ -13686,7 +13681,7 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_ScriptsResumeNamedialog(
                                     srv, host_reply,
                                     (int)sizeof(host_reply) - 1) &&
-                                guest->varps[instance_varp] == handle,
+                                ToriRSServer_Varp(guest, instance_varp) == handle,
                             "guest can rejoin the still-live host room");
 
                         release_args[0] = handle;
@@ -13697,8 +13692,8 @@ ToriRSServer_WorldSelftest(void)
                                 srv, "[proc,gwd_private_release]",
                                 release_args, 2) &&
                                 ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                host->varps[instance_varp] == 0 &&
-                                guest->varps[instance_varp] == 0 &&
+                                ToriRSServer_Varp(host, instance_varp) == 0 &&
+                                ToriRSServer_Varp(guest, instance_varp) == 0 &&
                                 guest->x == 45 * 64 + 20 &&
                                 guest->z == 81 * 64 + 19,
                             "owner release ejects the guest and frees the room");
@@ -13814,13 +13809,13 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_MapInstanceBase(
                             handle_b, &base_b_x, &base_b_z) )
                     {
-                        host_a->varps[instance_varp] = handle_a;
-                        host_a->varps[faction_varp] = 5;
+                        ToriRSServer_VarpPut(host_a, instance_varp, handle_a);
+                        ToriRSServer_VarpPut(host_a, faction_varp, 5);
                         host_a->x = base_a_x + 45;
                         host_a->z = base_a_z + 18;
                         host_a->level = 0;
-                        host_b->varps[instance_varp] = handle_b;
-                        host_b->varps[faction_varp] = 5;
+                        ToriRSServer_VarpPut(host_b, instance_varp, handle_b);
+                        ToriRSServer_VarpPut(host_b, faction_varp, 5);
                         host_b->x = base_b_x + 45;
                         host_b->z = base_b_z + 18;
                         host_b->level = 0;
@@ -13836,7 +13831,7 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_ScriptsResumeNamedialog(
                                     srv, host_a_reply,
                                     (int)sizeof(host_a_reply) - 1) &&
-                                guest_a->varps[instance_varp] == handle_a,
+                                ToriRSServer_Varp(guest_a, instance_varp) == handle_a,
                             "first guest joins only the first creator room");
 
                         guest_b->x = 45 * 64 + 20;
@@ -13850,7 +13845,7 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_ScriptsResumeNamedialog(
                                     srv, host_b_reply,
                                     (int)sizeof(host_b_reply) - 1) &&
-                                guest_b->varps[instance_varp] == handle_b &&
+                                ToriRSServer_Varp(guest_b, instance_varp) == handle_b &&
                                 ToriRSServer_MapInstanceFind(
                                     guest_a->x, guest_a->z) == handle_a &&
                                 ToriRSServer_MapInstanceFind(
@@ -13865,10 +13860,10 @@ ToriRSServer_WorldSelftest(void)
                                 srv, "[proc,gwd_private_release]",
                                 release_args, 2) &&
                                 ToriRSServer_MapInstanceLiveCount() == 1 &&
-                                host_a->varps[instance_varp] == 0 &&
-                                guest_a->varps[instance_varp] == 0 &&
-                                host_b->varps[instance_varp] == handle_b &&
-                                guest_b->varps[instance_varp] == handle_b &&
+                                ToriRSServer_Varp(host_a, instance_varp) == 0 &&
+                                ToriRSServer_Varp(guest_a, instance_varp) == 0 &&
+                                ToriRSServer_Varp(host_b, instance_varp) == handle_b &&
+                                ToriRSServer_Varp(guest_b, instance_varp) == handle_b &&
                                 ToriRSServer_MapInstanceFind(
                                     guest_b->x, guest_b->z) == handle_b,
                             "closing group one leaves group two intact");
@@ -13880,8 +13875,8 @@ ToriRSServer_WorldSelftest(void)
                                 srv, "[proc,gwd_private_release]",
                                 release_args, 2) &&
                                 ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                host_b->varps[instance_varp] == 0 &&
-                                guest_b->varps[instance_varp] == 0,
+                                ToriRSServer_Varp(host_b, instance_varp) == 0 &&
+                                ToriRSServer_Varp(guest_b, instance_varp) == 0,
                             "closing group two releases its remaining state");
                     }
 
@@ -13977,8 +13972,8 @@ ToriRSServer_WorldSelftest(void)
                             failed_cycle = cycle;
                             break;
                         }
-                        host->varps[instance_varp] = handle;
-                        host->varps[faction_varp] = 5;
+                        ToriRSServer_VarpPut(host, instance_varp, handle);
+                        ToriRSServer_VarpPut(host, faction_varp, 5);
                         host->x = base_x + 45;
                         host->z = base_z + 18;
                         host->level = 0;
@@ -13997,8 +13992,8 @@ ToriRSServer_WorldSelftest(void)
                         ok &= ToriRSServer_ScriptsResumeNamedialog(
                             srv, host_reply,
                             (int)sizeof(host_reply) - 1);
-                        ok &= guest->varps[instance_varp] == handle &&
-                              guest->varps[faction_varp] == 5 &&
+                        ok &= ToriRSServer_Varp(guest, instance_varp) == handle &&
+                              ToriRSServer_Varp(guest, faction_varp) == 5 &&
                               ToriRSServer_MapInstanceFind(
                                   guest->x, guest->z) == handle;
 
@@ -14030,10 +14025,10 @@ ToriRSServer_WorldSelftest(void)
                         }
 
                         ok &= ToriRSServer_MapInstanceLiveCount() == 0 &&
-                              host->varps[instance_varp] == 0 &&
-                              host->varps[faction_varp] == 0 &&
-                              guest->varps[instance_varp] == 0 &&
-                              guest->varps[faction_varp] == 0 &&
+                              ToriRSServer_Varp(host, instance_varp) == 0 &&
+                              ToriRSServer_Varp(host, faction_varp) == 0 &&
+                              ToriRSServer_Varp(guest, instance_varp) == 0 &&
+                              ToriRSServer_Varp(guest, faction_varp) == 0 &&
                               ToriRSServer_MapInstanceBase(
                                   handle, &base_x, &base_z) == 0;
                         if( !ok )
@@ -14135,10 +14130,10 @@ ToriRSServer_WorldSelftest(void)
                         second->x = x2 + 45;
                         second->z = z2 + 18;
                         second->level = 0;
-                        first->varps[instance_varp] = h1;
-                        second->varps[instance_varp] = h2;
-                        first->varps[faction_varp] =
-                            second->varps[faction_varp] = 5;
+                        ToriRSServer_VarpPut(first, instance_varp, h1);
+                        ToriRSServer_VarpPut(second, instance_varp, h2);
+                        ToriRSServer_VarpPut(second, faction_varp, 5);
+                        ToriRSServer_VarpPut(first, faction_varp, 5);
                         b1 = ToriRSServer_WorldNpcSpawn(
                             srv, nex_id, x1 + 44, z1 + 18, 0);
                         b2 = ToriRSServer_WorldNpcSpawn(
@@ -14232,10 +14227,10 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_VarbitSet(srv, zaros_kc, 11);
                         ToriRSServer_WorldSetActive(srv, second);
                         ToriRSServer_VarbitSet(srv, zaros_kc, 22);
-                        first->varps[altar_varp] = 111;
-                        second->varps[altar_varp] = 222;
-                        first->varps[kills_varp] =
-                            second->varps[kills_varp] = 0;
+                        ToriRSServer_VarpPut(first, altar_varp, 111);
+                        ToriRSServer_VarpPut(second, altar_varp, 222);
+                        ToriRSServer_VarpPut(second, kills_varp, 0);
+                        ToriRSServer_VarpPut(first, kills_varp, 0);
                         args[0] = 20;
                         ToriRSServer_WorldSetActive(srv, first);
                         ToriRSServer_ScriptsRunProc(
@@ -14243,10 +14238,10 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(
                             ToriRSServer_VarbitGet(first, zaros_kc) == 11 &&
                                 ToriRSServer_VarbitGet(second, zaros_kc) == 22 &&
-                                first->varps[altar_varp] == 111 &&
-                                second->varps[altar_varp] == 222 &&
-                                first->varps[kills_varp] == 1 &&
-                                second->varps[kills_varp] == 0,
+                                ToriRSServer_Varp(first, altar_varp) == 111 &&
+                                ToriRSServer_Varp(second, altar_varp) == 222 &&
+                                ToriRSServer_Varp(first, kills_varp) == 1 &&
+                                ToriRSServer_Varp(second, kills_varp) == 0,
                             "first Nex instance cannot alter the second's KC, "
                             "altar cooldown, or scoreboard");
                         args[0] = 30;
@@ -14254,27 +14249,28 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunProc(
                             srv, "[proc,nex_finish_personal_score]", args, 1);
                         SELFTEST_CHECK(
-                            first->varps[kills_varp] == 1 &&
-                                second->varps[kills_varp] == 1,
+                            ToriRSServer_Varp(first, kills_varp) == 1 &&
+                                ToriRSServer_Varp(second, kills_varp) == 1,
                             "parallel Nex scoreboards advance independently");
 
-                        first->varps[death_varp] =
-                            second->varps[death_varp] = 0;
+                        ToriRSServer_VarpPut(second, death_varp, 0);
+
+                        ToriRSServer_VarpPut(first, death_varp, 0);
                         ToriRSServer_WorldSetActive(srv, first);
                         SELFTEST_CHECK(
                             ToriRSServer_ScriptsRunProcInt(
                                 srv, "[proc,gwd_nex_on_death]", NULL, 0,
                                 &out) &&
-                                out == 1 && first->varps[death_varp] == 1 &&
-                                second->varps[death_varp] == 0,
+                                out == 1 && ToriRSServer_Varp(first, death_varp) == 1 &&
+                                ToriRSServer_Varp(second, death_varp) == 0,
                             "first Nex death bank cannot mark the second player");
                         ToriRSServer_WorldSetActive(srv, second);
                         SELFTEST_CHECK(
                             ToriRSServer_ScriptsRunProcInt(
                                 srv, "[proc,gwd_nex_on_death]", NULL, 0,
                                 &out) &&
-                                out == 1 && first->varps[death_varp] == 1 &&
-                                second->varps[death_varp] == 1,
+                                out == 1 && ToriRSServer_Varp(first, death_varp) == 1 &&
+                                ToriRSServer_Varp(second, death_varp) == 1,
                             "second Nex death bank advances independently");
 
                         for( int slot = 0; slot < srv->npc_slot_max; slot++ )
@@ -14734,19 +14730,19 @@ ToriRSServer_WorldSelftest(void)
                        track->varp);
         if( unlock_varp <= 0 )
             unlock_varp = 0;
-        old_unlock = player->varps[unlock_varp];
-        player->varps[unlock_varp] |= (int)(1u << track->bit);
+        old_unlock = ToriRSServer_Varp(player, unlock_varp);
+        ToriRSServer_VarpPut(player, unlock_varp, ToriRSServer_Varp(player, unlock_varp) | ((int)(1u << track->bit)));
         int const track_varp = ToriRSServer_WorldVarp("varp3883_music_current_track");
-        int const old_track_row = track_varp >= 0 ? player->varps[track_varp] : 0;
+        int const old_track_row = track_varp >= 0 ? ToriRSServer_Varp(player, track_varp) : 0;
 
         player->music_track = -1;
         ToriRSServer_CaptureBegin(srv, &capture);
         ToriRSServer_MusicEnterRegion(player, track->region >> 8, track->region & 0xff);
         ToriRSServer_CaptureEnd(srv);
         player->music_track = old_song;
-        player->varps[unlock_varp] = old_unlock;
+        ToriRSServer_VarpPut(player, unlock_varp, old_unlock);
         if( track_varp >= 0 )
-            player->varps[track_varp] = old_track_row;
+            ToriRSServer_VarpPut(player, track_varp, old_track_row);
         player->music_end_tick = -1;
         player->music_replay_tick = -1;
 
@@ -14788,8 +14784,8 @@ ToriRSServer_WorldSelftest(void)
         static struct ToriRSServerCapture capture;
         const struct ToriRSServerMusicRegion* track = ToriRSServer_MusicForRegion(14642);
         int old_song = player->music_track;
-        int old_multi18 = player->varps[1681];
-        int old_musicplay = player->varps[18];
+        int old_multi18 = ToriRSServer_Varp(player, 1681);
+        int old_musicplay = ToriRSServer_Varp(player, 18);
         int old_varp1681_expected;
 
         /* The generated table carries the musicmulti VARP id the variable maps
@@ -14808,20 +14804,20 @@ ToriRSServer_WorldSelftest(void)
                        "music variables 0 and 28 name no word");
         if( track != NULL )
         {
-            player->varps[1681] &= ~(1 << 8);
-            player->varps[18] &= ~(1 << 8);
-            old_varp1681_expected = player->varps[1681] | (1 << 8);
+            ToriRSServer_VarpPut(player, 1681, ToriRSServer_Varp(player, 1681) & (~(1 << 8)));
+            ToriRSServer_VarpPut(player, 18, ToriRSServer_Varp(player, 18) & (~(1 << 8)));
+            old_varp1681_expected = ToriRSServer_Varp(player, 1681) | (1 << 8);
             player->music_track = -1;
             ToriRSServer_CaptureBegin(srv, &capture);
             ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 1681) == old_varp1681_expected,
                            "entering 14642 should set bit 8 of varp 1681 musicmulti_18 and "
                            "nothing else, got %d want %d",
-                           player->varps[1681], old_varp1681_expected);
-            SELFTEST_CHECK((player->varps[18] & (1 << 8)) == 0,
+                           ToriRSServer_Varp(player, 1681), old_varp1681_expected);
+            SELFTEST_CHECK((ToriRSServer_Varp(player, 18) & (1 << 8)) == 0,
                            "entering 14642 must not write varp 18 musicplay, got %d",
-                           player->varps[18]);
+                           ToriRSServer_Varp(player, 18));
             SELFTEST_CHECK(
                 ToriRSServer_CaptureFind(
                     &capture, ToriRSServer_WireOpcode(srv->wire, PKT_NAME_MIDI_SONG), 0) >= 0,
@@ -14829,13 +14825,13 @@ ToriRSServer_WorldSelftest(void)
             /* A second crossing finds the bit set and says nothing more. */
             player->music_track = -1;
             ToriRSServer_MusicEnterRegion(player, 14642 >> 8, 14642 & 0xff);
-            SELFTEST_CHECK(player->varps[1681] == old_varp1681_expected,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 1681) == old_varp1681_expected,
                            "a second crossing should leave varp 1681 as it was, got %d",
-                           player->varps[1681]);
+                           ToriRSServer_Varp(player, 1681));
         }
         player->music_track = old_song;
-        player->varps[1681] = old_multi18;
-        player->varps[18] = old_musicplay;
+        ToriRSServer_VarpPut(player, 1681, old_multi18);
+        ToriRSServer_VarpPut(player, 18, old_musicplay);
     }
 
     fprintf(stderr, "ToriRSServer selftest: region music unlocks write musicmulti varps\n");
@@ -14874,20 +14870,20 @@ ToriRSServer_WorldSelftest(void)
         if( draynor )
         {
             int old_song = player->music_track;
-            int old_varp5 = player->varps[5];
-            int old_varp24 = player->varps[24];
+            int old_varp5 = ToriRSServer_Varp(player, 5);
+            int old_varp24 = ToriRSServer_Varp(player, 24);
 
-            player->varps[5] = 4;
-            player->varps[24] = 0;
+            ToriRSServer_VarpPut(player, 5, 4);
+            ToriRSServer_VarpPut(player, 24, 0);
             ToriRSServer_MusicEnterRegion(player, 48, 50);
-            SELFTEST_CHECK(player->varps[5] == 4,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 5) == 4,
                            "entering Draynor Village must leave varp5 (grail) at 4, got %d",
-                           player->varps[5]);
-            SELFTEST_CHECK(player->varps[24] == (1 << 5),
+                           ToriRSServer_Varp(player, 5));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 24) == (1 << 5),
                            "entering Draynor Village should set musicmulti_5 bit 5, varp24=%d",
-                           player->varps[24]);
-            player->varps[5] = old_varp5;
-            player->varps[24] = old_varp24;
+                           ToriRSServer_Varp(player, 24));
+            ToriRSServer_VarpPut(player, 5, old_varp5);
+            ToriRSServer_VarpPut(player, 24, old_varp24);
             player->music_track = old_song;
         }
     }
@@ -15547,8 +15543,8 @@ ToriRSServer_WorldSelftest(void)
                  * so a hand-built npc left at 0 is one no `npc_findfollower` can
                  * ever resolve — the fixture has to be as real as the check. */
                 familiar->generation = 1;
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
-                other->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
+                ToriRSServer_VarpPut(other, SELFTEST_VARP_QUEST_PROGRESS, 0);
 
                 {
                     uint16_t set_ops[] = { SS_OP_NPC_SETOWNER, SS_OP_RETURN };
@@ -15641,7 +15637,7 @@ ToriRSServer_WorldSelftest(void)
                                    "NPC_SETOWNER binds the active player login");
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &owner_script, slot) &&
-                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
+                                       ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) ==
                                            player->pid + 1,
                                    "NPC_OWNER returns the bound player's uid (pid + 1, "
                                    "what `uid` pushes and `p_finduid` takes)");
@@ -15661,20 +15657,20 @@ ToriRSServer_WorldSelftest(void)
                      * is a miss, and the script goes on running rather than
                      * aborting on an active npc it was never given.
                      */
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(
                                        srv, &miss_script, NULL, 0) &&
-                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                       ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                                    "an owned npc that is not the follower is NOT found, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &follow_script, slot),
                                    "NPC_SETFOLLOWER executes through the VM");
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHook(
                                        srv, &find_script, NULL, 0) &&
-                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] ==
+                                       ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) ==
                                            player->pid + 1,
                                    "NPC_FINDOWNED finds and activates the familiar");
                 }
@@ -15687,8 +15683,8 @@ ToriRSServer_WorldSelftest(void)
                                    srv, SS_TRIGGER_AI_TIMER, 1, -1, slot) ==
                                    TORIRSSERVER_TRIGGER_RAN,
                                "an owned npc's ai_timer executes");
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 77 &&
-                                   other->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 77 &&
+                                   ToriRSServer_Varp(other, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                                "ai_timer uses the owner, not active_player");
                 SELFTEST_CHECK(srv->active_player == other,
                                "ai dispatch restores the phase's active player");
@@ -15700,7 +15696,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_drop_player(other);
                 srv->player_count = player->pid + 1;
                 ToriRSServer_WorldSetActive(srv, player);
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             }
 
             /*
@@ -15716,9 +15712,9 @@ ToriRSServer_WorldSelftest(void)
                 const int v_a = SELFTEST_VARP_GREETING_COUNT;
                 const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
                 const int v_c = SELFTEST_VARP_LUMBRIDGE_VISITED;
-                const int32_t saved_a = player->varps[v_a];
-                const int32_t saved_b = player->varps[v_b];
-                const int32_t saved_c = player->varps[v_c];
+                const int32_t saved_a = ToriRSServer_Varp(player, v_a);
+                const int32_t saved_b = ToriRSServer_Varp(player, v_b);
+                const int32_t saved_c = ToriRSServer_Varp(player, v_c);
                 const int32_t here = ToriRSServer_CoordPack(player->level, player->x, player->z);
 
                 ToriRSServer_WorldSetActive(srv, player);
@@ -15771,24 +15767,24 @@ ToriRSServer_WorldSelftest(void)
                     other->level = player->level;
                     other->x = player->x;
                     other->z = player->z;
-                    player->varps[v_a] = -7;
-                    player->varps[v_b] = -7;
-                    player->varps[v_c] = -7;
+                    ToriRSServer_VarpPut(player, v_a, -7);
+                    ToriRSServer_VarpPut(player, v_b, -7);
+                    ToriRSServer_VarpPut(player, v_c, -7);
                     ToriRSServer_WorldSetActive(srv, player);
                     ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
-                    saw_player = player->varps[v_a] == player->pid + 1 ||
-                                 player->varps[v_b] == player->pid + 1;
-                    saw_other = player->varps[v_a] == other->pid + 1 ||
-                                player->varps[v_b] == other->pid + 1;
+                    saw_player = ToriRSServer_Varp(player, v_a) == player->pid + 1 ||
+                                 ToriRSServer_Varp(player, v_b) == player->pid + 1;
+                    saw_other = ToriRSServer_Varp(player, v_a) == other->pid + 1 ||
+                                ToriRSServer_Varp(player, v_b) == other->pid + 1;
                     SELFTEST_CHECK(ran && saw_player && saw_other,
                                    ".huntnext should bind each hunted player as active_player2 "
                                    "(.uid read %d then %d; want %d and %d in some order)",
-                                   player->varps[v_a], player->varps[v_b], player->pid + 1,
+                                   ToriRSServer_Varp(player, v_a), ToriRSServer_Varp(player, v_b), player->pid + 1,
                                    other->pid + 1);
-                    SELFTEST_CHECK(player->varps[v_c] == player->pid + 1,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, v_c) == player->pid + 1,
                                    ".huntnext should leave the primary player alone "
                                    "(uid read %d, want %d)",
-                                   player->varps[v_c], player->pid + 1);
+                                   ToriRSServer_Varp(player, v_c), player->pid + 1);
                     selftest_drop_player(other);
                     srv->player_count = player->pid + 1;
                     ToriRSServer_WorldSetActive(srv, player);
@@ -15842,15 +15838,15 @@ ToriRSServer_WorldSelftest(void)
                     int ran;
 
                     SELFTEST_CHECK(wall >= 0, "lqfirewall_straight should resolve out of the pack");
-                    player->varps[v_a] = -7;
-                    player->varps[v_b] = -7;
-                    player->varps[v_c] = -7;
+                    ToriRSServer_VarpPut(player, v_a, -7);
+                    ToriRSServer_VarpPut(player, v_b, -7);
+                    ToriRSServer_VarpPut(player, v_c, -7);
                     ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
-                    SELFTEST_CHECK(ran && player->varps[v_a] == wall && player->varps[v_b] == 3 &&
-                                       player->varps[v_c] == wall_coord,
+                    SELFTEST_CHECK(ran && ToriRSServer_Varp(player, v_a) == wall && ToriRSServer_Varp(player, v_b) == 3 &&
+                                       ToriRSServer_Varp(player, v_c) == wall_coord,
                                    "loc_type/loc_angle/loc_coord after loc_del should read the "
                                    "removed loc: got type %d angle %d coord %d, want %d 3 %d",
-                                   player->varps[v_a], player->varps[v_b], player->varps[v_c],
+                                   ToriRSServer_Varp(player, v_a), ToriRSServer_Varp(player, v_b), ToriRSServer_Varp(player, v_c),
                                    wall, wall_coord);
                     SELFTEST_CHECK(ToriRSServer_SceneFindLocId(wall_x, wall_z, player->level,
                                                                wall) < 0,
@@ -15949,8 +15945,8 @@ ToriRSServer_WorldSelftest(void)
                         assert(rune_name);
                         strings[9] = rune_name;
                         ToriRSServer_ContainerSet(row, free_slot, rune, 3);
-                        player->varps[v_a] = -7;
-                        player->varps[v_b] = -7;
+                        ToriRSServer_VarpPut(player, v_a, -7);
+                        ToriRSServer_VarpPut(player, v_b, -7);
                         ran = ToriRSServer_ScriptsRunHook(srv, &script, NULL, 0);
                         SELFTEST_CHECK(ran && row->items[free_slot].obj_id == rune &&
                                            row->items[free_slot].count == 1,
@@ -15973,13 +15969,13 @@ ToriRSServer_WorldSelftest(void)
                                            ground >= 0 ? srv->ground[ground].receiver_pid : -2,
                                            active_ground, TORIRSSERVER_GROUND_MAX);
                         }
-                        SELFTEST_CHECK(player->varps[v_a] == 2,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, v_a) == 2,
                                        "inv_dropitem should make its pile the active obj "
                                        "(obj_count read %d)",
-                                       player->varps[v_a]);
-                        SELFTEST_CHECK(player->varps[v_b] == 0,
+                                       ToriRSServer_Varp(player, v_a));
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, v_b) == 0,
                                        "obj_name should name the active pile '%s' (compare %d)",
-                                       rune_name, player->varps[v_b]);
+                                       rune_name, ToriRSServer_Varp(player, v_b));
                         if( ground >= 0 )
                             ground_clear(srv, ground);
                         ToriRSServer_ContainerSet(row, free_slot, -1, 0);
@@ -15997,9 +15993,9 @@ ToriRSServer_WorldSelftest(void)
                     }
                 }
 
-                player->varps[v_a] = saved_a;
-                player->varps[v_b] = saved_b;
-                player->varps[v_c] = saved_c;
+                ToriRSServer_VarpPut(player, v_a, saved_a);
+                ToriRSServer_VarpPut(player, v_b, saved_b);
+                ToriRSServer_VarpPut(player, v_c, saved_c);
                 ToriRSServer_WorldSetActive(srv, player);
             }
 
@@ -16401,22 +16397,22 @@ ToriRSServer_WorldSelftest(void)
                     int old_blockwalk;
                     int old_blocksight;
 
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &set_get_script, first),
                                    "npc_var_set/get execute through the host VM");
                     SELFTEST_CHECK(
                         srv->npcs[first].script_vars[var_slot] == var_value &&
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == var_value,
                         "npc_var_get returns the value npc_var_set stored");
 
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &get_script, second),
                                    "npc_var_get executes on a second NPC");
                     SELFTEST_CHECK(
                         srv->npcs[second].script_vars[var_slot] == 0 &&
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                         "new NPC variables are zero and isolated per instance");
 
                     /* The initially generic npc makes every rehydrated combat
@@ -16459,7 +16455,7 @@ ToriRSServer_WorldSelftest(void)
                     changed->mode = TORIRSSERVER_NPCMODE_APPLAYER1 + 1 /* applayer2 */;
                     changed->combat_target = 0;
                     changed->huntmode = TORIRSSERVER_HUNT_AGGRESSIVE;
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &change_get_script, first),
                                    "npc_changetype and npc_var_get execute together");
@@ -16491,11 +16487,11 @@ ToriRSServer_WorldSelftest(void)
                             changed->turnspeed == want_turnspeed &&
                             changed->blockwalk == old_blockwalk &&
                             changed->blocksight == old_blocksight &&
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == var_value,
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == var_value,
                         "npc_changetype rehydrates its combat definition without respawning it");
 
                     change_get_ops[2] = SS_OP_NPC_CHANGETYPE_KEEPALL;
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsRunHookOnNpc(srv, &change_get_script, second) &&
                             changed_def && srv->npcs[second].type == changed_type &&
@@ -16511,10 +16507,10 @@ ToriRSServer_WorldSelftest(void)
                             srv->npcs[first].script_vars[var_slot] == 0,
                         "respawn clears per-life NPC runtime variables");
 
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunHookOnNpc(
                                        srv, &get_script, first) &&
-                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                       ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                                    "npc_var_get observes the respawn reset");
                 }
 
@@ -16532,7 +16528,7 @@ ToriRSServer_WorldSelftest(void)
                     srv->npcs[second].respawn_tick = -1;
                     ToriRSServer_ZoneNpcRefile(srv, second);
                 }
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             }
 
             fprintf(stderr, "ToriRSServer selftest: player action lock\n");
@@ -17678,12 +17674,12 @@ ToriRSServer_WorldSelftest(void)
                                        "[login] must not move a tutorial character "
                                        "either: was %d,%d -- now %d,%d",
                                        before_x, before_z, tut->x, tut->z);
-                        SELFTEST_CHECK(tut->varps[seeded_varp] == 1,
+                        SELFTEST_CHECK(ToriRSServer_Varp(tut, seeded_varp) == 1,
                                        "the seed should have run, got %d",
-                                       tut->varps[seeded_varp]);
-                        SELFTEST_CHECK(tut->varps[tutorial_varp] == 0,
+                                       ToriRSServer_Varp(tut, seeded_varp));
+                        SELFTEST_CHECK(ToriRSServer_Varp(tut, tutorial_varp) == 0,
                                        "and left the tutorial at step 0, got %d",
-                                       tut->varps[tutorial_varp]);
+                                       ToriRSServer_Varp(tut, tutorial_varp));
                         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                             if( tut->inv[i].obj_id >= 0 )
                                 tut_kit++;
@@ -17711,28 +17707,28 @@ ToriRSServer_WorldSelftest(void)
                                            "resolve, got %d", bar);
                             if( bar >= 0 )
                             {
-                                SELFTEST_CHECK(tut->varps[bar] == 0,
+                                SELFTEST_CHECK(ToriRSServer_Varp(tut, bar) == 0,
                                                "step 0 should leave the bar empty, "
-                                               "got %d", tut->varps[bar]);
+                                               "got %d", ToriRSServer_Varp(tut, bar));
                                 /*
                                  * Step 335 is past ^tut_smelt (320) and short
                                  * of ^tut_talk_to_vannaka (370): milestone 9.
                                  * ^tut_quest_complete (671) is past
                                  * ^tut_cast_wind_strike, the full 20.
                                  */
-                                tut->varps[tutorial_varp] = 335;
+                                ToriRSServer_VarpPut(tut, tutorial_varp, 335);
                                 ToriRSServer_ScriptsRunProc(
                                     srv, "[proc,set_tutorial_progress]", NULL, 0);
-                                SELFTEST_CHECK(tut->varps[bar] == 9,
+                                SELFTEST_CHECK(ToriRSServer_Varp(tut, bar) == 9,
                                                "half way (step 335, smelting) should be "
                                                "milestone 9 of 20, got %d",
-                                               tut->varps[bar]);
-                                tut->varps[tutorial_varp] = 671;
+                                               ToriRSServer_Varp(tut, bar));
+                                ToriRSServer_VarpPut(tut, tutorial_varp, 671);
                                 ToriRSServer_ScriptsRunProc(
                                     srv, "[proc,set_tutorial_progress]", NULL, 0);
-                                SELFTEST_CHECK(tut->varps[bar] == 20,
+                                SELFTEST_CHECK(ToriRSServer_Varp(tut, bar) == 20,
                                                "the last step should fill it (20), got %d",
-                                               tut->varps[bar]);
+                                               ToriRSServer_Varp(tut, bar));
                             }
                         }
 
@@ -17794,10 +17790,10 @@ ToriRSServer_WorldSelftest(void)
                                     "would carry a blinking stone onto the mainland",
                                     ToriRSServer_VarbitGet(tut, flash_bit));
                         }
-                        SELFTEST_CHECK(tut->varps[tutorial_varp] == 1000,
+                        SELFTEST_CHECK(ToriRSServer_Varp(tut, tutorial_varp) == 1000,
                                        "finishing should put the tutorial varp past the "
                                        "client's gate, got %d",
-                                       tut->varps[tutorial_varp]);
+                                       ToriRSServer_Varp(tut, tutorial_varp));
                         SELFTEST_CHECK(tut->x == g_home_x && tut->z == g_home_z,
                                        "and the graduate on the home tile, got %d,%d",
                                        tut->x, tut->z);
@@ -17999,7 +17995,7 @@ ToriRSServer_WorldSelftest(void)
              * so both the script's effect and the varp flush are observable. */
             hans = selftest_find_npc(srv, 3105);
             SELFTEST_CHECK(hans >= 0, "the roster should include Hans");
-            before = player->varps[SELFTEST_VARP_GREETING_COUNT];
+            before = ToriRSServer_Varp(player, SELFTEST_VARP_GREETING_COUNT);
             selftest_npc_payload(player, hans, payload);
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
@@ -18007,9 +18003,9 @@ ToriRSServer_WorldSelftest(void)
              * there. Hans is across the courtyard, so that is several ticks. */
             SELFTEST_CHECK(selftest_settle(srv, 40) >= 0,
                            "the walk to Hans should complete");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_GREETING_COUNT] == before + 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_GREETING_COUNT) == before + 1,
                            "the script should bump %%mock_greeting_count, got %d",
-                           player->varps[SELFTEST_VARP_GREETING_COUNT]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_GREETING_COUNT));
             /* Hans's greeting is a four-page conversation, so the script is
              * still parked on its first p_pausebutton here. Both halves matter:
              * the varp above proves the script ran, this proves it suspended
@@ -18188,24 +18184,24 @@ ToriRSServer_WorldSelftest(void)
             if( script )
             {
                 start_tick = srv->tick;
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
 
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1, "the script ran up to the delay");
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1, "the script ran up to the delay");
                 SELFTEST_CHECK(player->active_script != NULL,
                                "p_delay should park the script on the player");
 
                 for( int i = 0; i < 3; i++ )
                 {
                     selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                                    "still delayed at tick +%d, varp is %d", i + 1,
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 }
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                                "p_delay(3) should resume on tick +4, varp is %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 SELFTEST_CHECK(player->active_script == NULL,
                                "a finished script should release its parking slot");
                 SELFTEST_CHECK(srv->tick == start_tick + 4, "four ticks elapsed");
@@ -18215,19 +18211,19 @@ ToriRSServer_WorldSelftest(void)
             script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_enqueue]");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queueing should not run the script");
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0, "queueing should not run the script");
 
                 for( int i = 0; i < 3; i++ )
                 {
                     selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "queue not due at tick +%d", i + 1);
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0, "queue not due at tick +%d", i + 1);
                 }
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 7,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 7,
                                "the queued script should run on tick +4, varp is %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
             /*
@@ -19031,7 +19027,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(crestquest >= 0, "varp crestquest should resolve by name");
             if( avan_type > 0 && crestquest >= 0 )
             {
-                int32_t saved = player->varps[crestquest];
+                int32_t saved = ToriRSServer_Varp(player, crestquest);
 
                 SELFTEST_CHECK(!ToriRSServer_NpcInfoKnown(avan_type),
                                "the avan shell is nameless in the cache, which is "
@@ -19044,7 +19040,7 @@ ToriRSServer_WorldSelftest(void)
                     int saw_someone = 0;
 
                     selftest_clear_pending(srv, player);
-                    player->varps[crestquest] = k_stages[i].stage;
+                    ToriRSServer_VarpPut(player, crestquest, k_stages[i].stage);
                     child = ToriRSServer_NpcResolveTransform(player, avan_type);
                     SELFTEST_CHECK(child >= 0 && child != avan_type &&
                                        ToriRSServer_NpcInfoKnown(child) &&
@@ -19094,7 +19090,7 @@ ToriRSServer_WorldSelftest(void)
                     selftest_clear_pending(srv, player);
                     ToriRSServer_WorldNpcFree(srv, slot);
                 }
-                player->varps[crestquest] = saved;
+                ToriRSServer_VarpPut(player, crestquest, saved);
             }
             srv->world_random.engine = saved_rng;
             srv->script_env->rng = saved_script_rng;
@@ -19867,7 +19863,7 @@ ToriRSServer_WorldSelftest(void)
                 button[5] = 1; /* Cook's Assistant quest:id */
 
                 if( latest > 0 )
-                    player->varps[latest] = -1;
+                    ToriRSServer_VarpPut(player, latest, -1);
 
                 ToriRSServer_CaptureBegin(srv, &capture);
                 selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
@@ -19879,11 +19875,11 @@ ToriRSServer_WorldSelftest(void)
                 if( latest > 0 )
                 {
                     SELFTEST_CHECK(
-                        player->varps[latest] == cook_row,
+                        ToriRSServer_Varp(player, latest) == cook_row,
                         "View-journal should set %%latest_quest_journal to "
                         "quest_cooksassistant (%d), got %d",
                         cook_row,
-                        player->varps[latest]);
+                        ToriRSServer_Varp(player, latest));
                 }
 
                 open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
@@ -20071,15 +20067,15 @@ ToriRSServer_WorldSelftest(void)
             button[5] = 1; /* Cook's Assistant quest:id */
 
             if( qj_lines > 0 )
-                player->varps[qj_lines] = 0;
+                ToriRSServer_VarpPut(player, qj_lines, 0);
             if( latest > 0 )
-                player->varps[latest] = -1;
+                ToriRSServer_VarpPut(player, latest, -1);
             /* State one contains a deliberately long paragraph before its
              * first explicit `|`. Pipe-only splitting painted that whole
              * paragraph into one 415px row; font-metric splitting produces
              * several rows before the ingredient list. */
             if( cookquest > 0 )
-                player->varps[cookquest] = 1;
+                ToriRSServer_VarpPut(player, cookquest, 1);
 
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_handle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
@@ -20090,15 +20086,15 @@ ToriRSServer_WorldSelftest(void)
                            player->last_slot);
             if( latest > 0 )
             {
-                SELFTEST_CHECK(player->varps[latest] == cook_row,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, latest) == cook_row,
                                "%%latest_quest_journal should be quest_cooksassistant (%d), got %d",
-                               cook_row, player->varps[latest]);
+                               cook_row, ToriRSServer_Varp(player, latest));
             }
             if( qj_lines > 0 )
             {
-                SELFTEST_CHECK(player->varps[qj_lines] >= 6,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, qj_lines) >= 6,
                                "Cook state 1 should font-wrap to at least 6 rows, got %d",
-                               player->varps[qj_lines]);
+                               ToriRSServer_Varp(player, qj_lines));
             }
 
             open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
@@ -20147,9 +20143,9 @@ ToriRSServer_WorldSelftest(void)
                                    "2523's first arg resets scroll (1), got %d", argv[0]);
                     if( qj_lines > 0 )
                     {
-                        SELFTEST_CHECK(argv[1] == player->varps[qj_lines],
+                        SELFTEST_CHECK(argv[1] == ToriRSServer_Varp(player, qj_lines),
                                        "2523's line count (%d) should match %%qj_lines (%d)",
-                                       argv[1], player->varps[qj_lines]);
+                                       argv[1], ToriRSServer_Varp(player, qj_lines));
                     }
                 }
             }
@@ -20315,43 +20311,43 @@ ToriRSServer_WorldSelftest(void)
 
                 if( cookquest > 0 && qp > 0 && endstate > 0 && points > 0 )
                 {
-                    player->varps[cookquest] = 0;
-                    qp_before = player->varps[qp];
+                    ToriRSServer_VarpPut(player, cookquest, 0);
+                    qp_before = ToriRSServer_Varp(player, qp);
 
                     handle_cheat(srv, command, (int)sizeof(command) - 1);
-                    SELFTEST_CHECK(player->varps[cookquest] == endstate,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == endstate,
                                    "::complete quest_cooksassistant should leave %%cookquest at "
                                    "the row's endstate %d, got %d",
-                                   endstate, player->varps[cookquest]);
-                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                                   endstate, ToriRSServer_Varp(player, cookquest));
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, qp) == qp_before + points,
                                    "::complete should pay the row's %d quest point(s) (%d -> %d)",
-                                   points, qp_before, player->varps[qp]);
+                                   points, qp_before, ToriRSServer_Varp(player, qp));
 
                     /* The already-complete arm. Paying twice for one quest is
                      * the failure a `=`-instead-of-`>=` state test also
                      * produces, so this is where both are caught. */
                     handle_cheat(srv, command, (int)sizeof(command) - 1);
-                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, qp) == qp_before + points,
                                    "a second ::complete on a finished quest must not pay again "
                                    "(%d -> %d)",
-                                   qp_before + points, player->varps[qp]);
+                                   qp_before + points, ToriRSServer_Varp(player, qp));
 
                     /* A word the dbrow pack does not name arrives as null, and
                      * null must not fall into an arm. */
-                    player->varps[cookquest] = 0;
+                    ToriRSServer_VarpPut(player, cookquest, 0);
                     handle_cheat(srv, unknown, (int)sizeof(unknown) - 1);
-                    SELFTEST_CHECK(player->varps[cookquest] == 0,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 0,
                                    "::complete with an unknown quest name must write nothing, "
                                    "got %%cookquest %d",
-                                   player->varps[cookquest]);
-                    SELFTEST_CHECK(player->varps[qp] == qp_before + points,
+                                   ToriRSServer_Varp(player, cookquest));
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, qp) == qp_before + points,
                                    "::complete with an unknown quest name must pay nothing");
 
                     /* Put the section's state back: the journal checks above
                      * run on `%cookquest` 1, and `%qp` is read by the character
                      * summary section that follows. */
-                    player->varps[qp] = qp_before;
-                    player->varps[cookquest] = 1;
+                    ToriRSServer_VarpPut(player, qp, qp_before);
+                    ToriRSServer_VarpPut(player, cookquest, 1);
                 }
             }
 
@@ -20376,7 +20372,7 @@ ToriRSServer_WorldSelftest(void)
              * climbing because the dispatcher stopped resolving.
              */
             {
-                static int32_t varps_before[TORIRSSERVER_VARP_COUNT];
+                struct ToriRSServerVarps varps_before = { 0 };
                 int qp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp");
                 int points_col = table ? ToriRSServer_DbColumnIndex(table, "questpoints") : -1;
                 int rows = ToriRSServer_DbRowCount(quest_table);
@@ -20385,7 +20381,7 @@ ToriRSServer_WorldSelftest(void)
                 int wrong_award = 0;
                 const char* first_bad = NULL;
 
-                memcpy(varps_before, player->varps, sizeof(varps_before));
+                ToriRSServer_VarpsCopy(&varps_before, &player->varps);
                 for( int i = 0; i < rows && qp > 0 && points_col >= 0; i++ )
                 {
                     const struct ToriRSServerDbRow* row =
@@ -20405,9 +20401,9 @@ ToriRSServer_WorldSelftest(void)
                         continue;
                     snprintf((char*)command, sizeof(command), "complete %s\n", row->symbol);
 
-                    before = player->varps[qp];
+                    before = ToriRSServer_Varp(player, qp);
                     handle_cheat(srv, command, (int)strlen((const char*)command));
-                    once = player->varps[qp];
+                    once = ToriRSServer_Varp(player, qp);
                     handle_cheat(srv, command, (int)strlen((const char*)command));
 
                     if( once == before )
@@ -20419,7 +20415,7 @@ ToriRSServer_WorldSelftest(void)
                         if( !first_bad )
                             first_bad = row->symbol;
                     }
-                    if( player->varps[qp] != once )
+                    if( ToriRSServer_Varp(player, qp) != once )
                     {
                         paid_twice++;
                         if( !first_bad )
@@ -20438,7 +20434,8 @@ ToriRSServer_WorldSelftest(void)
                                "a completed quest must read back as complete — %d arm(s) paid "
                                "twice, first %s (that arm writes the wrong variable)",
                                paid_twice, first_bad ? first_bad : "?");
-                memcpy(player->varps, varps_before, sizeof(varps_before));
+                ToriRSServer_VarpsCopy(&player->varps, &varps_before);
+                ToriRSServer_VarpsFree(&varps_before);
 
                 /*
                  * Every paying arm queues `[queue,quest_scroll_show]`
@@ -20656,7 +20653,7 @@ ToriRSServer_WorldSelftest(void)
                 button[5] = 7;
 
                 if( playtime > 0 )
-                    player->varps[playtime] = 42;
+                    ToriRSServer_VarpPut(player, playtime, 42);
 
                 ToriRSServer_CaptureBegin(srv, &capture);
                 selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
@@ -21620,7 +21617,7 @@ ToriRSServer_WorldSelftest(void)
                 int points_before = ToriRSServer_VarbitGet(player, vb_points);
 
                 for( int w = 0; w < 3; w++ )
-                    owned_before[w] = player->varps[vp_own[w]];
+                    owned_before[w] = ToriRSServer_Varp(player, vp_own[w]);
 
                 /* A confirm click, by the sub id that names the action. */
 #define SLAYER_CONFIRM(sub)                                                                        \
@@ -21635,7 +21632,7 @@ ToriRSServer_WorldSelftest(void)
         selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));              \
     } while( 0 )
 #define SLAYER_OWNED(bit)                                                                          \
-    ((player->varps[vp_own[(bit) / 32]] >> ((bit) % 32)) & 1)
+    ((ToriRSServer_Varp(player, vp_own[(bit) / 32]) >> ((bit) % 32)) & 1)
 #define SLAYER_RESET()                                                                             \
     do                                                                                             \
     {                                                                                              \
@@ -21816,17 +21813,17 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_VarbitSet(srv, vb_points, 5000);
                 SLAYER_CONFIRM(BIT_STORAGE);
                 SLAYER_CONFIRM(BIT_FROST);
-                SELFTEST_CHECK(player->varps[vp_own[1]] == (1 << (BIT_STORAGE % 32)),
+                SELFTEST_CHECK(ToriRSServer_Varp(player, vp_own[1]) == (1 << (BIT_STORAGE % 32)),
                                "bit %d belongs in slayer_rewards_unlocks1 bit %d, that varp "
                                "reads 0x%x", (int)BIT_STORAGE, (int)BIT_STORAGE % 32,
-                               (unsigned)player->varps[vp_own[1]]);
-                SELFTEST_CHECK(player->varps[vp_own[2]] == (1 << (BIT_FROST % 32)),
+                               (unsigned)ToriRSServer_Varp(player, vp_own[1]));
+                SELFTEST_CHECK(ToriRSServer_Varp(player, vp_own[2]) == (1 << (BIT_FROST % 32)),
                                "bit %d belongs in slayer_rewards_unlocks2 bit %d, that varp "
                                "reads 0x%x", (int)BIT_FROST, (int)BIT_FROST % 32,
-                               (unsigned)player->varps[vp_own[2]]);
-                SELFTEST_CHECK(player->varps[vp_own[0]] == 0,
+                               (unsigned)ToriRSServer_Varp(player, vp_own[2]));
+                SELFTEST_CHECK(ToriRSServer_Varp(player, vp_own[0]) == 0,
                                "and neither should touch slayer_rewards_unlocks, which reads "
-                               "0x%x", (unsigned)player->varps[vp_own[0]]);
+                               "0x%x", (unsigned)ToriRSServer_Varp(player, vp_own[0]));
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_points) ==
                                    5000 - COST_STORAGE - COST_FROST,
                                "two unlocks should cost %d, %d left",
@@ -21994,9 +21991,9 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(SLAYER_OWNED(BIT_SLUG) && SLAYER_OWNED(BIT_STORAGE) &&
                                        SLAYER_OWNED(BIT_FROST),
                                    "all three ownership words should survive a logout "
-                                   "(0x%x 0x%x 0x%x)", (unsigned)player->varps[vp_own[0]],
-                                   (unsigned)player->varps[vp_own[1]],
-                                   (unsigned)player->varps[vp_own[2]]);
+                                   "(0x%x 0x%x 0x%x)", (unsigned)ToriRSServer_Varp(player, vp_own[0]),
+                                   (unsigned)ToriRSServer_Varp(player, vp_own[1]),
+                                   (unsigned)ToriRSServer_Varp(player, vp_own[2]));
                     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_points) ==
                                        4321 - COST_SLUG - COST_STORAGE - COST_FROST,
                                    "and so should the balance, got %d",
@@ -22527,12 +22524,12 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldCloseModal(srv);
             player->delayed_until = srv->tick;
 
-            player->varps[option_nodef] = 0; /* CS2: Auto Retaliate (On). */
+            ToriRSServer_VarpPut(player, option_nodef, 0); /* CS2: Auto Retaliate (On). */
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_handle(
                 player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(player->varps[option_nodef] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, option_nodef) == 1,
                            "the combat-tab click should turn auto-retaliate off");
             SELFTEST_CHECK(
                 ToriRSServer_CaptureFind(
@@ -22563,7 +22560,7 @@ ToriRSServer_WorldSelftest(void)
             selftest_handle(
                 player, PKTOUT_NAME_IF_BUTTONX, button, sizeof(button));
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(player->varps[option_nodef] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, option_nodef) == 0,
                            "a second combat-tab click should turn auto-retaliate on");
             SELFTEST_CHECK(
                 ToriRSServer_CaptureFind(
@@ -22576,15 +22573,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsQueueNamed(
                     srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                 "the retaliation fixture should queue while the option is on");
-            player->varps[action_delay] = srv->tick - 1;
-            player->varps[damagestyle] = 0; /* melee, never ranged rapid */
+            ToriRSServer_VarpPut(player, action_delay, srv->tick - 1);
+            ToriRSServer_VarpPut(player, damagestyle, 0); /* melee, never ranged rapid */
             ToriRSServer_ScriptsProcessQueues(srv);
             SELFTEST_CHECK(player->combat_target == goblin,
                            "auto-retaliate On must engage the attacking npc");
             SELFTEST_CHECK(
-                player->varps[action_delay] == srv->tick + 2,
+                ToriRSServer_Varp(player, action_delay) == srv->tick + 2,
                 "unarmed auto-retaliate must wait half its 4-tick attack rate (got %d at tick %d)",
-                player->varps[action_delay], srv->tick);
+                ToriRSServer_Varp(player, action_delay), srv->tick);
             ToriRSServer_CombatStopPlayer(srv);
             ToriRSServer_WorldStepsClear(player); /* and the route it walked */
 
@@ -22635,7 +22632,7 @@ ToriRSServer_WorldSelftest(void)
                         srv->npcs[other].x, srv->npcs[other].z,
                         srv->npcs[other].level, info->size, info->size);
                     player->combat_target = other;
-                    player->varps[action_delay] = parked;
+                    ToriRSServer_VarpPut(player, action_delay, parked);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
@@ -22648,10 +22645,10 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(player->interaction.npc_slot == other,
                                    "and keeps the interaction it had, got slot %d",
                                    player->interaction.npc_slot);
-                    SELFTEST_CHECK(player->varps[action_delay] == parked,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, action_delay) == parked,
                                    "and keeps the swing clock its own attack set "
                                    "(wanted %d, got %d)",
-                                   parked, player->varps[action_delay]);
+                                   parked, ToriRSServer_Varp(player, action_delay));
 
                     /* Walking, with nothing latched: the route alone is the
                      * commitment. */
@@ -22660,7 +22657,7 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldWalkTo(srv, player->x + 5, player->z);
                     SELFTEST_CHECK(player->waypoint_index >= 0,
                                    "the walking fixture needs a route to defend");
-                    player->varps[action_delay] = parked;
+                    ToriRSServer_VarpPut(player, action_delay, parked);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
@@ -22672,14 +22669,14 @@ ToriRSServer_WorldSelftest(void)
                                    player->combat_target);
                     SELFTEST_CHECK(player->waypoint_index >= 0,
                                    "and must keep walking where they were going");
-                    SELFTEST_CHECK(player->varps[action_delay] == parked,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, action_delay) == parked,
                                    "and no flinch lands on a player who is not "
                                    "fighting (wanted %d, got %d)",
-                                   parked, player->varps[action_delay]);
+                                   parked, ToriRSServer_Varp(player, action_delay));
                 }
                 ToriRSServer_CombatStopPlayer(srv);
                 ToriRSServer_WorldStepsClear(player);
-                player->varps[action_delay] = 0;
+                ToriRSServer_VarpPut(player, action_delay, 0);
             }
 
             /*
@@ -22726,49 +22723,49 @@ ToriRSServer_WorldSelftest(void)
                 {
                     worn_set(player, rhand, crossbow, 1);
 
-                    player->varps[damagestyle] = 0; /* melee */
-                    player->varps[action_delay] = srv->tick - 1;
+                    ToriRSServer_VarpPut(player, damagestyle, 0); /* melee */
+                    ToriRSServer_VarpPut(player, action_delay, srv->tick - 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                         "the flinch fixture should queue");
                     ToriRSServer_ScriptsProcessQueues(srv);
                     SELFTEST_CHECK(
-                        player->varps[action_delay] == srv->tick + 3,
+                        ToriRSServer_Varp(player, action_delay) == srv->tick + 3,
                         "a 5-tick weapon must flinch to ceil(5/2)=3: wanted %d, got %d",
-                        srv->tick + 3, player->varps[action_delay]);
+                        srv->tick + 3, ToriRSServer_Varp(player, action_delay));
                     ToriRSServer_CombatStopPlayer(srv);
                     ToriRSServer_WorldStepsClear(player); /* and the route it walked */
 
-                    player->varps[damagestyle] = rapid;
-                    player->varps[action_delay] = srv->tick - 1;
+                    ToriRSServer_VarpPut(player, damagestyle, rapid);
+                    ToriRSServer_VarpPut(player, action_delay, srv->tick - 1);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                         "the rapid flinch fixture should queue");
                     ToriRSServer_ScriptsProcessQueues(srv);
                     SELFTEST_CHECK(
-                        player->varps[action_delay] == srv->tick + 2,
+                        ToriRSServer_Varp(player, action_delay) == srv->tick + 2,
                         "Rapid takes a tick off the WEAPON before the halving: a 5-tick "
                         "crossbow must flinch to ceil(4/2)=2, wanted %d, got %d",
-                        srv->tick + 2, player->varps[action_delay]);
+                        srv->tick + 2, ToriRSServer_Varp(player, action_delay));
                     ToriRSServer_CombatStopPlayer(srv);
                     ToriRSServer_WorldStepsClear(player); /* and the route it walked */
 
                     /* And a swing already pending is never pushed back (content
                      * b86cd99a3f, LostCity auto_retaliate.rs2:9): the flinch
                      * only sets a delay that has run out. */
-                    player->varps[damagestyle] = 0;
-                    player->varps[action_delay] = srv->tick + 50;
+                    ToriRSServer_VarpPut(player, damagestyle, 0);
+                    ToriRSServer_VarpPut(player, action_delay, srv->tick + 50);
                     SELFTEST_CHECK(
                         ToriRSServer_ScriptsQueueNamed(
                             srv, "[queue,playerhit_n_retaliate]", 0, goblin_uid),
                         "the pending-swing flinch fixture should queue");
                     ToriRSServer_ScriptsProcessQueues(srv);
                     SELFTEST_CHECK(
-                        player->varps[action_delay] == srv->tick + 50,
+                        ToriRSServer_Varp(player, action_delay) == srv->tick + 50,
                         "the flinch must not push back a pending swing: wanted %d, got %d",
-                        srv->tick + 50, player->varps[action_delay]);
+                        srv->tick + 50, ToriRSServer_Varp(player, action_delay));
                     ToriRSServer_CombatStopPlayer(srv);
                     ToriRSServer_WorldStepsClear(player);
                 }
@@ -22786,8 +22783,8 @@ ToriRSServer_WorldSelftest(void)
                  * later, in whichever unrelated section the suite has reached
                  * by then.
                  */
-                player->varps[damagestyle] = 0;
-                player->varps[action_delay] = srv->tick - 1;
+                ToriRSServer_VarpPut(player, damagestyle, 0);
+                ToriRSServer_VarpPut(player, action_delay, srv->tick - 1);
                 player->last_input_tick = srv->tick - TORIRSSERVER_AFK_COMBAT_TICKS;
                 SELFTEST_CHECK(ToriRSServer_CombatPlayerAfk(player),
                                "2000 ticks of silence must read as AFK");
@@ -22815,8 +22812,8 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CombatStopPlayer(srv);
                 ToriRSServer_WorldStepsClear(player); /* and the route it walked */
                 worn_set(player, rhand, -1, 0);
-                player->varps[damagestyle] = 0;
-                player->varps[action_delay] = 0;
+                ToriRSServer_VarpPut(player, damagestyle, 0);
+                ToriRSServer_VarpPut(player, action_delay, 0);
                 player->last_input_tick = saved_input;
             }
         }
@@ -23736,7 +23733,7 @@ ToriRSServer_WorldSelftest(void)
             int hp_boost_before = player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS];
             int hp_xp_before = player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS];
             int option_nodef = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp172_option_nodef");
-            int nodef_before = option_nodef >= 0 ? player->varps[option_nodef] : 0;
+            int nodef_before = option_nodef >= 0 ? ToriRSServer_Varp(player, option_nodef) : 0;
 
             a->huntmode = TORIRSSERVER_HUNT_NONE;
             b->huntmode = TORIRSSERVER_HUNT_NONE;
@@ -23784,7 +23781,7 @@ ToriRSServer_WorldSelftest(void)
              * this section by whether a goblin rolled a hit.
              */
             if( option_nodef >= 0 )
-                player->varps[option_nodef] = 1;
+                ToriRSServer_VarpPut(player, option_nodef, 1);
 
             SELFTEST_CHECK(ToriRSServer_NpcInfo(a->type)->ops[1] != NULL &&
                                strcmp(ToriRSServer_NpcInfo(a->type)->ops[1], "Attack") == 0,
@@ -23989,7 +23986,7 @@ ToriRSServer_WorldSelftest(void)
             b->combat_claim_pid = -1;
             b->combat_claim_tick = 0;
             if( option_nodef >= 0 )
-                player->varps[option_nodef] = nodef_before;
+                ToriRSServer_VarpPut(player, option_nodef, nodef_before);
             player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = hp_level_before;
             player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS] = hp_boost_before;
             player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
@@ -24981,9 +24978,9 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(date_varp == 3078,
                            "date_minutes must retain client varp 3078, got %d", date_varp);
             SELFTEST_CHECK(
-                date_varp >= 0 && player->varps[date_varp] > 1000000,
+                date_varp >= 0 && ToriRSServer_Varp(player, date_varp) > 1000000,
                 "login must prime date_minutes with wall-clock minutes, got %d",
-                date_varp >= 0 ? player->varps[date_varp] : -1);
+                date_varp >= 0 ? ToriRSServer_Varp(player, date_varp) : -1);
             SELFTEST_CHECK(clock_at >= 0,
                            "login must transmit date_minutes through VARP_LARGE");
             SELFTEST_CHECK(clock_at >= 0 && clock_opentop_at >= 0 &&
@@ -25080,9 +25077,9 @@ ToriRSServer_WorldSelftest(void)
              * which every weapon row has, so the per-weapon clamp cannot be
              * what moves it; option_nodef 1 is auto retaliate OFF. */
             if( com_mode >= 0 )
-                player->varps[com_mode] = TORIRSSERVER_STYLE_AGGRESSIVE;
+                ToriRSServer_VarpPut(player, com_mode, TORIRSSERVER_STYLE_AGGRESSIVE);
             if( option_nodef >= 0 )
-                player->varps[option_nodef] = 1;
+                ToriRSServer_VarpPut(player, option_nodef, 1);
             player->login_pending = 1;
             ToriRSServer_CaptureBegin(srv, &capture);
             selftest_tick(srv);
@@ -25100,15 +25097,15 @@ ToriRSServer_WorldSelftest(void)
                                ToriRSServer_WireOpcode(srv->wire, PKT_NAME_VARP_LARGE),
                                0) >= 0,
                            "and the spec bar through the wide form");
-            SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 1000,
+            SELFTEST_CHECK(sa_energy >= 0 && ToriRSServer_Varp(player, sa_energy) == 1000,
                            "^sa_max_energy should be 1000, got %d",
-                           sa_energy >= 0 ? player->varps[sa_energy] : -1);
-            SELFTEST_CHECK(com_mode >= 0 && player->varps[com_mode] == TORIRSSERVER_STYLE_AGGRESSIVE,
+                           sa_energy >= 0 ? ToriRSServer_Varp(player, sa_energy) : -1);
+            SELFTEST_CHECK(com_mode >= 0 && ToriRSServer_Varp(player, com_mode) == TORIRSSERVER_STYLE_AGGRESSIVE,
                            "[login] should keep the saved attack style (aggressive), got %d",
-                           com_mode >= 0 ? player->varps[com_mode] : -1);
-            SELFTEST_CHECK(option_nodef >= 0 && player->varps[option_nodef] == 1,
+                           com_mode >= 0 ? ToriRSServer_Varp(player, com_mode) : -1);
+            SELFTEST_CHECK(option_nodef >= 0 && ToriRSServer_Varp(player, option_nodef) == 1,
                            "[login] should keep auto retaliate off as saved, got %d",
-                           option_nodef >= 0 ? player->varps[option_nodef] : -1);
+                           option_nodef >= 0 ? ToriRSServer_Varp(player, option_nodef) : -1);
 
             /* Side-stone keys: a character with none gets OldSchool's stock
              * layout (~settings_keybinding_defaults); varp 1224 holds combat,
@@ -25119,38 +25116,38 @@ ToriRSServer_WorldSelftest(void)
                     TORIRSSERVER_PACK_VARP, "varp1224_sidestone_keybindings_1");
                 int const stock = 1 | (2 << 5) | (3 << 10) | (13 << 15) | (4 << 20) | (5 << 25);
 
-                SELFTEST_CHECK(keys1 >= 0 && player->varps[keys1] == stock,
+                SELFTEST_CHECK(keys1 >= 0 && ToriRSServer_Varp(player, keys1) == stock,
                                "[login] should give a fresh character the stock F-keys "
                                "(varp 1224 = %d), got %d",
                                stock,
-                               keys1 >= 0 ? player->varps[keys1] : -1);
+                               keys1 >= 0 ? ToriRSServer_Varp(player, keys1) : -1);
                 if( keys1 >= 0 )
                 {
-                    player->varps[keys1] = 7;
+                    ToriRSServer_VarpPut(player, keys1, 7);
                     player->login_pending = 1;
                     selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[keys1] == 7,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, keys1) == 7,
                                    "[login] should keep a player's own keybindings, got %d",
-                                   player->varps[keys1]);
+                                   ToriRSServer_Varp(player, keys1));
                 }
             }
 
             /* The spec bar above was full because that was the character's
              * first login. A returning one keeps what it logged out with. */
             if( sa_energy >= 0 )
-                player->varps[sa_energy] = 450;
+                ToriRSServer_VarpPut(player, sa_energy, 450);
             player->login_pending = 1;
             selftest_tick(srv);
-            SELFTEST_CHECK(sa_energy >= 0 && player->varps[sa_energy] == 450,
+            SELFTEST_CHECK(sa_energy >= 0 && ToriRSServer_Varp(player, sa_energy) == 450,
                            "[login] should keep a returning character's spec energy (450), got %d",
-                           sa_energy >= 0 ? player->varps[sa_energy] : -1);
+                           sa_energy >= 0 ? ToriRSServer_Varp(player, sa_energy) : -1);
 
             if( com_mode >= 0 )
-                player->varps[com_mode] = TORIRSSERVER_STYLE_ACCURATE;
+                ToriRSServer_VarpPut(player, com_mode, TORIRSSERVER_STYLE_ACCURATE);
             if( option_nodef >= 0 )
-                player->varps[option_nodef] = 0;
+                ToriRSServer_VarpPut(player, option_nodef, 0);
             if( sa_energy >= 0 )
-                player->varps[sa_energy] = 1000;
+                ToriRSServer_VarpPut(player, sa_energy, 1000);
 
             /*
              * The golden rev-239 client resets both derived AttackOption
@@ -25256,9 +25253,9 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(quiver_def != NULL && quiver_def->transmit,
                                "dizanas_quiver_temp_ammo must be declared transmit=yes, "
                                "or ~quiver_login writes a server-only variable");
-                SELFTEST_CHECK(quiver >= 0 && player->varps[quiver] == -1,
+                SELFTEST_CHECK(quiver >= 0 && ToriRSServer_Varp(player, quiver) == -1,
                                "[login] must leave the quiver empty as null (-1), got %d",
-                               quiver >= 0 ? player->varps[quiver] : 0);
+                               quiver >= 0 ? ToriRSServer_Varp(player, quiver) : 0);
 
                 /*
                  * The VarpSmallEncoder body: p1Alt1(value), p2Alt3(varp) — the
@@ -25822,7 +25819,7 @@ ToriRSServer_WorldSelftest(void)
              * branch of `[label,player_ranged_attack]`): fired a tick late,
              * the arrow lands one tick past the four-tick window below.
              */
-            player->varps[ToriRSServer_WorldVarp("varp6407_action_delay")] = 0;
+            ToriRSServer_VarpPut(player, ToriRSServer_WorldVarp("varp6407_action_delay"), 0);
             /*
              * A goblin with a goblin's hitpoints does not survive a level-99
              * crystal bow, and a dead one answers nothing: the death path clears
@@ -25843,9 +25840,9 @@ ToriRSServer_WorldSelftest(void)
 
             /* Content decided this, and the shot below depends on it: a bow that
              * left the player in a melee style would swing instead. */
-            SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp6970_damagetype")] == 3,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp6970_damagetype")) == 3,
                            "wielding the bow should select the ranged style, got %d",
-                           player->varps[ToriRSServer_WorldVarp("varp6970_damagetype")]);
+                           ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp6970_damagetype")));
 
             selftest_npc_payload(player, goblin, payload);
 
@@ -26030,7 +26027,7 @@ ToriRSServer_WorldSelftest(void)
             /* Clear whatever attack clock this player carried in. It is an
              * absolute `map_clock` stamp, so a stale one costs the window's
              * first casts and makes the interval below unmeasurable. */
-            player->varps[delay_varp] = 0;
+            ToriRSServer_VarpPut(player, delay_varp, 0);
 
             selftest_npc_payload(player, goblin, payload);
 
@@ -26053,7 +26050,7 @@ ToriRSServer_WorldSelftest(void)
                 int stamp;
 
                 selftest_tick(srv);
-                stamp = player->varps[delay_varp];
+                stamp = ToriRSServer_Varp(player, delay_varp);
                 if( stamp != last_stamp )
                 {
                     if( stamps < 2 )
@@ -26302,11 +26299,11 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_ScriptsRunProc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
 
         ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-        strength_before = player->varps[ToriRSServer_WorldVarp("varp6962_com_maxhit")];
+        strength_before = ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp6962_com_maxhit"));
         SELFTEST_CHECK(strength_before > 0,
                        "the block should be populated, com_maxhit was %d",
                        strength_before);
-        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp6957_com_crushattack")] > 0,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp6957_com_crushattack")) > 0,
                        "and carry an attack roll for the unarmed crush type");
 
         /* Ultimate Strength: +15 % to the RAW strength level, before the +8 and
@@ -26319,7 +26316,7 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(selftest_prayer_on(srv, "varb4114_prayer_ultimatestrength"),
                        "a level 60 prayer stat can switch Ultimate Strength on");
         ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-        strength_after = player->varps[ToriRSServer_WorldVarp("varp6962_com_maxhit")];
+        strength_after = ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp6962_com_maxhit"));
         SELFTEST_CHECK(strength_after > strength_before,
                        "Ultimate Strength should raise the max hit: %d -> %d",
                        strength_before, strength_after);
@@ -26705,6 +26702,7 @@ ToriRSServer_WorldSelftest(void)
                 collision_map_add_floor(
                     cm, target_x - ToriRSServer_SceneBaseX(),
                     target_z - ToriRSServer_SceneBaseZ());
+                ToriRSServer_SceneCollisionCommit(0, 0, target_x, target_z, target_x, target_z);
 
                 ToriRSServer_WorldWalkTo(srv, target_x, target_z);
                 routed_x = player->dest_x;
@@ -26724,6 +26722,7 @@ ToriRSServer_WorldSelftest(void)
                 collision_map_del_floor(
                     cm, target_x - ToriRSServer_SceneBaseX(),
                     target_z - ToriRSServer_SceneBaseZ());
+                ToriRSServer_SceneCollisionCommit(0, 0, target_x, target_z, target_x, target_z);
                 steps_clear(player);
                 player->dest_x = -1;
                 player->dest_z = -1;
@@ -26874,6 +26873,7 @@ ToriRSServer_WorldSelftest(void)
 #define BLOCK_TILES(out)                                                                           \
     do                                                                                             \
     {                                                                                              \
+        cm = ToriRSServer_SceneCollision(0); /* a copy of the store: take it fresh */              \
         (out) = 0;                                                                                 \
         for( int t = 0; t < cm->size_x * cm->size_z; t++ )                                         \
             (out) += (cm->flags[t] & COLL_FLAG_BLOCK_NPC_AND_PLAYERS) != 0;                        \
@@ -29500,7 +29500,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 static struct ToriRSServerCapture charter_open;
                 struct ToriRSServerItem saved_inv[TORIRSSERVER_INV_SLOTS];
-                int saved_regicide = regicide >= 0 ? player->varps[regicide] : 0;
+                int saved_regicide = regicide >= 0 ? ToriRSServer_Varp(player, regicide) : 0;
                 /* Where the player was BEFORE this section, not where this
                  * section wants them. A charter is a cross-region teleport, and
                  * the sections after this one — movement, Hans — are written
@@ -29543,7 +29543,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_give(player, coins, 5000);
                 ToriRSServer_VarbitSet(srv, prev_bit, 0);
                 if( regicide >= 0 )
-                    player->varps[regicide] = 0;
+                    ToriRSServer_VarpPut(player, regicide, 0);
 
                 /* ---- Is the op bound to the PARENT at all?
                  *
@@ -29659,7 +29659,7 @@ ToriRSServer_WorldSelftest(void)
 
                 ToriRSServer_VarbitSet(srv, prev_bit, 0);
                 if( regicide >= 0 )
-                    player->varps[regicide] = saved_regicide;
+                    ToriRSServer_VarpPut(player, regicide, saved_regicide);
                 ToriRSServer_WorldClearPendingAction(srv);
                 ToriRSServer_WorldInteractionClear(srv);
                 selftest_park_player(srv, entry_x, entry_z);
@@ -29927,19 +29927,19 @@ ToriRSServer_WorldSelftest(void)
                 player->run_toggle = 1;
                 player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
                 player->delayed_until = 0;
-                player->varps[phase_varp] = 0;
-                player->varps[count_varp] = 0;
-                player->varps[candidate_varp] = 0;
+                ToriRSServer_VarpPut(player, phase_varp, 0);
+                ToriRSServer_VarpPut(player, count_varp, 0);
+                ToriRSServer_VarpPut(player, candidate_varp, 0);
                 player->walktrigger = probe->id;
                 ToriRSServer_WorldWalkTo(srv, start_x + 2, start_z + 2);
                 advance_player(srv);
                 SELFTEST_CHECK(player->x == start_x && player->z == start_z &&
                                    player->move_count == 0,
                                "a gate on running tile one prevents all movement");
-                SELFTEST_CHECK(player->varps[count_varp] == 1 &&
-                                   player->varps[candidate_varp] == start_x + 1,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, count_varp) == 1 &&
+                                   ToriRSServer_Varp(player, candidate_varp) == start_x + 1,
                                "tile-one hook receives its concrete candidate, count=%d x=%d",
-                               player->varps[count_varp], player->varps[candidate_varp]);
+                               ToriRSServer_Varp(player, count_varp), ToriRSServer_Varp(player, candidate_varp));
                 SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
                                "a tile-one veto clears the remaining route");
 
@@ -29948,9 +29948,9 @@ ToriRSServer_WorldSelftest(void)
                 selftest_park_player(srv, start_x, start_z);
                 player->run_toggle = 1;
                 player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
-                player->varps[phase_varp] = 1;
-                player->varps[count_varp] = 0;
-                player->varps[candidate_varp] = 0;
+                ToriRSServer_VarpPut(player, phase_varp, 1);
+                ToriRSServer_VarpPut(player, count_varp, 0);
+                ToriRSServer_VarpPut(player, candidate_varp, 0);
                 player->walktrigger = probe->id;
                 ToriRSServer_WorldWalkTo(srv, start_x + 2, start_z + 2);
                 advance_player(srv);
@@ -29958,10 +29958,10 @@ ToriRSServer_WorldSelftest(void)
                                    player->move_count == 1,
                                "a gate on running tile two cannot be skipped, moved=%d",
                                player->move_count);
-                SELFTEST_CHECK(player->varps[count_varp] == 2 &&
-                                   player->varps[candidate_varp] == start_x + 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, count_varp) == 2 &&
+                                   ToriRSServer_Varp(player, candidate_varp) == start_x + 2,
                                "tile-two hook receives the second candidate, count=%d x=%d",
-                               player->varps[count_varp], player->varps[candidate_varp]);
+                               ToriRSServer_Varp(player, count_varp), ToriRSServer_Varp(player, candidate_varp));
                 SELFTEST_CHECK(player->waypoint_index < 0 && player->dest_x < 0,
                                "a tile-two veto clears the route after exactly one step");
 
@@ -29970,24 +29970,24 @@ ToriRSServer_WorldSelftest(void)
                 selftest_park_player(srv, start_x, start_z);
                 player->run_toggle = 1;
                 player->run_energy = TORIRSSERVER_RUN_ENERGY_MAX;
-                player->varps[phase_varp] = 2;
-                player->varps[count_varp] = 0;
-                player->varps[candidate_varp] = 0;
+                ToriRSServer_VarpPut(player, phase_varp, 2);
+                ToriRSServer_VarpPut(player, count_varp, 0);
+                ToriRSServer_VarpPut(player, candidate_varp, 0);
                 player->walktrigger = probe->id;
                 ToriRSServer_WorldWalkTo(srv, start_x + 2, start_z + 2);
                 advance_player(srv);
                 SELFTEST_CHECK(player->x == start_x + 2 && player->z == start_z + 2 &&
                                    player->move_count == 2,
                                "two allowed candidates preserve ordinary running");
-                SELFTEST_CHECK(player->varps[count_varp] == 2 &&
-                                   player->varps[candidate_varp] == start_x + 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, count_varp) == 2 &&
+                                   ToriRSServer_Varp(player, candidate_varp) == start_x + 2,
                                "both allowed running candidates invoke the hook");
 
                 player->walktrigger = -1;
                 player->walkstep_coord = 0;
-                player->varps[phase_varp] = 0;
-                player->varps[count_varp] = 0;
-                player->varps[candidate_varp] = 0;
+                ToriRSServer_VarpPut(player, phase_varp, 0);
+                ToriRSServer_VarpPut(player, count_varp, 0);
+                ToriRSServer_VarpPut(player, candidate_varp, 0);
                 player->run_toggle = 0;
                 selftest_park_player(srv, start_x, start_z);
             }
@@ -30629,6 +30629,8 @@ ToriRSServer_WorldSelftest(void)
                     int lz = stamps[i][1] - base_z;
 
                     collision_map_add_floor(cm, lx, lz);
+                    ToriRSServer_SceneCollisionCommit(0, 0, stamps[i][0], stamps[i][1],
+                                                      stamps[i][0], stamps[i][1]);
                     blocked[n_blocked][0] = lx;
                     blocked[n_blocked][1] = lz;
                     n_blocked++;
@@ -30688,7 +30690,12 @@ ToriRSServer_WorldSelftest(void)
                 }
 
                 for( int i = 0; i < n_blocked; i++ )
+                {
                     collision_map_del_floor(cm, blocked[i][0], blocked[i][1]);
+                    ToriRSServer_SceneCollisionCommit(0, 0, base_x + blocked[i][0],
+                                                      base_z + blocked[i][1], base_x + blocked[i][0],
+                                                      base_z + blocked[i][1]);
+                }
                 steps_clear(player);
                 player->dest_x = -1;
                 player->dest_z = -1;
@@ -31150,13 +31157,13 @@ ToriRSServer_WorldSelftest(void)
                 slot = ToriRSServer_SceneFindLocId(2586, 9654, 0, loc_ctfoodtrough);
                 SELFTEST_CHECK(slot >= 0, "ctfoodtrough should be placed at its measured coordinate");
                 SELFTEST_CHECK(varp_cogquest >= 0 &&
-                                   !(player->varps[varp_cogquest] & (1 << rat_door_bit)),
+                                   !(ToriRSServer_Varp(player, varp_cogquest) & (1 << rat_door_bit)),
                                "the rat-door bit should not be set before poisoning");
                 if( slot >= 0 )
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_ctfoodtrough,
                                                         ToriRSServer_LocCategory(loc_ctfoodtrough), slot);
                 SELFTEST_CHECK(varp_cogquest >= 0 &&
-                                   (player->varps[varp_cogquest] & (1 << rat_door_bit)),
+                                   (ToriRSServer_Varp(player, varp_cogquest) & (1 << rat_door_bit)),
                                "poisoning the food trough should set the rat-door bit");
                 player->last_useitem = -1;
             }
@@ -31196,7 +31203,7 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(varp_arenaquest >= 0, "arenaquest should resolve as a varp symbol");
             if( varp_arenaquest >= 0 )
-                player->varps[varp_arenaquest] = arena_entered_ogre_fight;
+                ToriRSServer_VarpPut(player, varp_arenaquest, arena_entered_ogre_fight);
 
             slot = ToriRSServer_WorldNpcSpawn(srv, npc_arena_ogre, 2601, 3163, 0);
             SELFTEST_CHECK(slot >= 0, "arena_ogre should spawn");
@@ -31214,7 +31221,7 @@ ToriRSServer_WorldSelftest(void)
                 if( varp_arenaquest >= 0 )
                 {
                     int t;
-                    for( t = 0; t < 5 && player->varps[varp_arenaquest] != arena_sent_jail; t++ )
+                    for( t = 0; t < 5 && ToriRSServer_Varp(player, varp_arenaquest) != arena_sent_jail; t++ )
                         selftest_tick(srv);
                 }
                 else
@@ -31223,10 +31230,10 @@ ToriRSServer_WorldSelftest(void)
                 }
 
                 SELFTEST_CHECK(varp_arenaquest >= 0 &&
-                                   player->varps[varp_arenaquest] == arena_sent_jail,
+                                   ToriRSServer_Varp(player, varp_arenaquest) == arena_sent_jail,
                                "killing arena_ogre should advance arenaquest to arena_sent_jail "
                                "(via the real arena_after_ogre chain), got %d",
-                               varp_arenaquest >= 0 ? player->varps[varp_arenaquest] : -1);
+                               varp_arenaquest >= 0 ? ToriRSServer_Varp(player, varp_arenaquest) : -1);
 
                 /* arena_after_ogre (arena_encounter.rs2) spawns General
                  * Khazard as a side effect of the ogre's death, ahead of his
@@ -31258,7 +31265,7 @@ ToriRSServer_WorldSelftest(void)
 
                 SELFTEST_CHECK(npc_general_khazard >= 0, "general_khazard should resolve as an npc symbol");
                 if( varp_arenaquest >= 0 )
-                    player->varps[varp_arenaquest] = arena_freed_servils;
+                    ToriRSServer_VarpPut(player, varp_arenaquest, arena_freed_servils);
                 general_slot = ToriRSServer_WorldNpcSpawn(srv, npc_general_khazard, 2601, 3163, 0);
                 SELFTEST_CHECK(general_slot >= 0, "general_khazard should spawn");
                 if( general_slot >= 0 && varp_arenaquest >= 0 )
@@ -31272,12 +31279,12 @@ ToriRSServer_WorldSelftest(void)
                                    general->max_hitpoints);
                     general->combat_target = player->pid;
                     ToriRSServer_CombatHitNpc(srv, general_slot, 0, general->max_hitpoints);
-                    for( t = 0; t < 5 && player->varps[varp_arenaquest] != arena_defeated_genkhazard; t++ )
+                    for( t = 0; t < 5 && ToriRSServer_Varp(player, varp_arenaquest) != arena_defeated_genkhazard; t++ )
                         selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[varp_arenaquest] == arena_defeated_genkhazard,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_arenaquest) == arena_defeated_genkhazard,
                                    "killing general_khazard should advance arenaquest to "
                                    "arena_defeated_genkhazard, got %d",
-                                   player->varps[varp_arenaquest]);
+                                   ToriRSServer_Varp(player, varp_arenaquest));
                 }
             }
 
@@ -31342,8 +31349,8 @@ ToriRSServer_WorldSelftest(void)
                            "hazeelcultquest/hazeelcult_side should resolve as varp symbols");
             if( varp_hazeelcultquest >= 0 && varp_hazeelcult_side >= 0 )
             {
-                player->varps[varp_hazeelcult_side] = hazeelcult_goodside;
-                player->varps[varp_hazeelcultquest] = hazeelcult_clivet_decision;
+                ToriRSServer_VarpPut(player, varp_hazeelcult_side, hazeelcult_goodside);
+                ToriRSServer_VarpPut(player, varp_hazeelcultquest, hazeelcult_clivet_decision);
             }
 
             slot = ToriRSServer_WorldNpcSpawn(srv, npc_alomone, 2608, 9671, 0);
@@ -31364,7 +31371,7 @@ ToriRSServer_WorldSelftest(void)
                     int t;
                     for( t = 0;
                          t < 5 &&
-                         player->varps[varp_hazeelcultquest] != hazeelcult_finished_side_task;
+                         ToriRSServer_Varp(player, varp_hazeelcultquest) != hazeelcult_finished_side_task;
                          t++ )
                         selftest_tick(srv);
                 }
@@ -31375,10 +31382,10 @@ ToriRSServer_WorldSelftest(void)
 
                 SELFTEST_CHECK(
                     varp_hazeelcultquest >= 0 &&
-                        player->varps[varp_hazeelcultquest] == hazeelcult_finished_side_task,
+                        ToriRSServer_Varp(player, varp_hazeelcultquest) == hazeelcult_finished_side_task,
                     "killing alomone should advance hazeelcultquest to hazeelcult_finished_side_task, "
                     "got %d",
-                    varp_hazeelcultquest >= 0 ? player->varps[varp_hazeelcultquest] : -1);
+                    varp_hazeelcultquest >= 0 ? ToriRSServer_Varp(player, varp_hazeelcultquest) : -1);
             }
 
             /* The dialogue-gated ladder and both real completion queues, via
@@ -31457,16 +31464,16 @@ ToriRSServer_WorldSelftest(void)
          * normal `test-torirsserver-dev` invocation cannot omit it accidentally.
          */
         {
-            int saved_progress = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+            int saved_progress = ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS);
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
             SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "hamstoreroomtest") ==
                                TORIRSSERVER_TRIGGER_RAN,
                            "::hamstoreroomtest should reach content");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "H.A.M. Storerooms deterministic contracts should pass, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_progress;
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, saved_progress);
         }
 
         /*
@@ -31497,7 +31504,7 @@ ToriRSServer_WorldSelftest(void)
          * live scene. A green ::coxrun must not be read as "the raid works".
          */
         {
-            int saved_cox = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+            int saved_cox = ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS);
 
             /*
              * Announce the section BEFORE running it, so a harness that greps
@@ -31514,7 +31521,7 @@ ToriRSServer_WorldSelftest(void)
              */
             fprintf(stderr, "ToriRSServer selftest: Chambers of Xeric\n");
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
             SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "coxrun") ==
                                TORIRSSERVER_TRIGGER_RAN,
                            "::coxrun should reach content");
@@ -31524,10 +31531,10 @@ ToriRSServer_WorldSelftest(void)
              * inside it broken — mutating ^cox_points_per_damage from 5 to 7
              * left the first version of this check green.
              */
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "Chambers of Xeric points/death contracts should pass, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_cox;
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, saved_cox);
         }
 
         /*
@@ -31578,7 +31585,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(seed_varp >= 0, "varp `cox_layout_seed` should resolve");
             if( seed_varp >= 0 )
             {
-                int32_t args[] = { player->varps[seed_varp], 0 /* ^cox_room_tekton */ };
+                int32_t args[] = { ToriRSServer_Varp(player, seed_varp), 0 /* ^cox_room_tekton */ };
 
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunProcInt(srv, "[proc,cox_layout_holds]",
                                                               args, 2, &holds),
@@ -31587,7 +31594,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK((selftest_count_tekton(srv) > 0) == (holds == 1),
                            "::cox should spawn Tekton exactly when seed %d deals his room "
                            "(holds %d), found %d",
-                           seed_varp >= 0 ? player->varps[seed_varp] : -1, holds,
+                           seed_varp >= 0 ? ToriRSServer_Varp(player, seed_varp) : -1, holds,
                            selftest_count_tekton(srv));
 
             /* And leaving tears the instance down rather than leaking it. */
@@ -32339,11 +32346,11 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(option_run >= 0, "content should declare option_run");
             player->run_toggle = 0;
-            player->varps[option_run] = 1;
+            ToriRSServer_VarpPut(player, option_run, 1);
             ToriRSServer_WorldVarpWritten(srv, option_run, 1);
             SELFTEST_CHECK(player->run_toggle == 1,
                            "a script write of option_run should arm run_toggle");
-            player->varps[option_run] = 0;
+            ToriRSServer_VarpPut(player, option_run, 0);
             ToriRSServer_WorldVarpWritten(srv, option_run, 0);
             SELFTEST_CHECK(player->run_toggle == 0,
                            "and clearing it should disarm, got %d", player->run_toggle);
@@ -32379,19 +32386,19 @@ ToriRSServer_WorldSelftest(void)
                     button[5] = 0xff; /* sub = -1 */
 
                     player->run_toggle = 0;
-                    player->varps[option_run] = 0;
+                    ToriRSServer_VarpPut(player, option_run, 0);
                     selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                    SELFTEST_CHECK(player->varps[option_run] == 1,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, option_run) == 1,
                                    "clicking the run orb should set option_run, got %d",
-                                   player->varps[option_run]);
+                                   ToriRSServer_Varp(player, option_run));
                     SELFTEST_CHECK(player->run_toggle == 1,
                                    "and arm run_toggle — a lit orb over a walking player is "
                                    "the bug this catches");
 
                     selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                    SELFTEST_CHECK(player->run_toggle == 0 && player->varps[option_run] == 0,
+                    SELFTEST_CHECK(player->run_toggle == 0 && ToriRSServer_Varp(player, option_run) == 0,
                                    "clicking it again should turn run off (varp %d toggle %d)",
-                                   player->varps[option_run], player->run_toggle);
+                                   ToriRSServer_Varp(player, option_run), player->run_toggle);
 
                     /*
                      * Same chain for the Controls-tab button on settings_side.
@@ -32410,18 +32417,18 @@ ToriRSServer_WorldSelftest(void)
                         button[3] = (uint8_t)uid;
 
                         player->run_toggle = 0;
-                        player->varps[option_run] = 0;
+                        ToriRSServer_VarpPut(player, option_run, 0);
                         selftest_handle(
                             player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                        SELFTEST_CHECK(player->varps[option_run] == 1 && player->run_toggle == 1,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, option_run) == 1 && player->run_toggle == 1,
                                        "clicking settings_side:runmode should arm run "
                                        "(varp %d toggle %d)",
-                                       player->varps[option_run],
+                                       ToriRSServer_Varp(player, option_run),
                                        player->run_toggle);
 
                         selftest_handle(
                             player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                        SELFTEST_CHECK(player->run_toggle == 0 && player->varps[option_run] == 0,
+                        SELFTEST_CHECK(player->run_toggle == 0 && ToriRSServer_Varp(player, option_run) == 0,
                                        "clicking settings_side:runmode again should clear run");
                     }
                 }
@@ -32540,7 +32547,7 @@ ToriRSServer_WorldSelftest(void)
         selftest_tick(srv);
         SELFTEST_CHECK(player->run_energy == 0, "the last of the energy is spent");
         SELFTEST_CHECK(player->run_toggle == 0, "running out clears the toggle");
-        SELFTEST_CHECK(player->varps[ToriRSServer_WorldVarp("varp173_option_run")] == 0,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, ToriRSServer_WorldVarp("varp173_option_run")) == 0,
                        "and the varp the orb reads");
         selftest_tick(srv);
         SELFTEST_CHECK(player->move_count == 1, "out of energy is one tile a tick");
@@ -35192,12 +35199,12 @@ ToriRSServer_WorldSelftest(void)
                 {
                     ToriRSServer_ScriptsRunProc(srv, "[proc,toa_pty_quit_all]", NULL, 0);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,toa_pty_form]", NULL, 0);
-                    SELFTEST_CHECK(player->varps[controller] > 0,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, controller) > 0,
                                    "Create Party should give the player a party, got %d",
-                                   player->varps[controller]);
-                    player->varps[viewing] = player->varps[controller];
+                                   ToriRSServer_Varp(player, controller));
+                    ToriRSServer_VarpPut(player, viewing, ToriRSServer_Varp(player, controller));
                 }
-                if( component > 0 && controller >= 0 && player->varps[controller] > 0 )
+                if( component > 0 && controller >= 0 && ToriRSServer_Varp(player, controller) > 0 )
                 {
                     /* 52 is `enum_getoutputcount(enum_4792) + 24 + 2 * 8`, the
                      * base the cache's own script adds the row to. */
@@ -39086,7 +39093,7 @@ ToriRSServer_WorldSelftest(void)
             int saved_hitpoints;
             static int saved_inv[TORIRSSERVER_INV_SLOTS];
             static int saved_inv_count[TORIRSSERVER_INV_SLOTS];
-            static int32_t saved_varps[TORIRSSERVER_VARP_COUNT];
+            struct ToriRSServerVarps saved_varps = { 0 };
 
             /*
              * ::gearrun is a cheat ladder in a trenchcoat: it equips gear,
@@ -39124,7 +39131,7 @@ ToriRSServer_WorldSelftest(void)
                 saved_inv[i] = player->inv[i].obj_id;
                 saved_inv_count[i] = player->inv[i].count;
             }
-            memcpy(saved_varps, player->varps, sizeof(saved_varps));
+            ToriRSServer_VarpsCopy(&saved_varps, &player->varps);
             /*
              * At full health, on hitpoints xp that agrees with the level, for
              * the run. The health is put back after it; the xp is not.
@@ -39203,7 +39210,8 @@ ToriRSServer_WorldSelftest(void)
                 player->inv[i].obj_id = saved_inv[i];
                 player->inv[i].count = saved_inv_count[i];
             }
-            memcpy(player->varps, saved_varps, sizeof(saved_varps));
+            ToriRSServer_VarpsCopy(&player->varps, &saved_varps);
+            ToriRSServer_VarpsFree(&saved_varps);
             player->inv_dirty = 0xffffffffu;
             for( int i = 0; i < TORIRSSERVER_STAT_COUNT; i++ )
             {
@@ -40280,13 +40288,13 @@ ToriRSServer_WorldSelftest(void)
             {
                 const struct ToriRSServerVarpDef* def = ToriRSServer_ContentVarp(varp);
 
-                if( def && !def->scope_perm && player->varps[varp] == 0 )
+                if( def && !def->scope_perm && ToriRSServer_Varp(player, varp) == 0 )
                     temp_varp = varp;
             }
             SELFTEST_CHECK(temp_varp > 0, "the pack declares a scope=temp varp to carry");
             if( temp_varp > 0 )
             {
-                player->varps[temp_varp] = 4242;
+                ToriRSServer_VarpPut(player, temp_varp, 4242);
                 ToriRSServer_WorldPlayerRandom(player);
                 player->random.engine = 0x1234567u;
                 player->random.script = 0x0000BEEF12345678ull;
@@ -40310,7 +40318,7 @@ ToriRSServer_WorldSelftest(void)
                                "re-seeding it from the name");
                 /* A logout save keeps only scope=perm varps: restore the temp one
                  * the checkpoint half below carries. */
-                player->varps[temp_varp] = 4242;
+                ToriRSServer_VarpPut(player, temp_varp, 4242);
                 remove(logout_path);
 
                 player->chatmodal_group = 219;
@@ -40323,18 +40331,18 @@ ToriRSServer_WorldSelftest(void)
                                    TORIRSSERVER_TRIGGER_RAN,
                                "::checkpoint writes at a quiet point");
 
-                player->varps[temp_varp] = 0;
+                ToriRSServer_VarpPut(player, temp_varp, 0);
                 player->random.engine = 1;
                 player->random.script = 1;
                 SELFTEST_CHECK(ToriRSServer_LoadPlayer(player, ckpt_path), "checkpoint read back");
-                SELFTEST_CHECK(player->varps[temp_varp] == 4242,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, temp_varp) == 4242,
                                "the scope=temp varp %d came back from the checkpoint (%d)",
-                               temp_varp, (int)player->varps[temp_varp]);
+                               temp_varp, (int)ToriRSServer_Varp(player, temp_varp));
                 SELFTEST_CHECK(player->random.engine == saved_random.engine &&
                                    player->random.script == saved_random.script &&
                                    player->random.seeded == saved_random.seeded,
                                "and so did the player's random stream");
-                player->varps[temp_varp] = 0;
+                ToriRSServer_VarpPut(player, temp_varp, 0);
                 remove(ckpt_path);
             }
         }
@@ -42422,8 +42430,8 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_withdrawnotes, 1);
         SELFTEST_CHECK(ToriRSServer_BankGetVarbit(srv, ids->varbit_bank_currenttab) == 9,
                        "setting the neighbouring bit must not disturb the tab");
-        SELFTEST_CHECK(player->varps[115] == ((9 << 4) | 1),
-                       "both varbits should share varp 115, got %d", player->varps[115]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, 115) == ((9 << 4) | 1),
+                       "both varbits should share varp 115, got %d", ToriRSServer_Varp(player, 115));
 
         /* The widest one. 3960 is bits 1..31, which is where a naive
          * `1 << (msb - lsb + 1)` shifts by 32 and is undefined. */
@@ -42468,9 +42476,9 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureEnd(srv);
             srv->wire = saved_wire;
 
-            SELFTEST_CHECK(player->varps[1575] == 2458800,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, 1575) == 2458800,
                            "Zuk HP siblings should pack as 2458800, got %d",
-                           player->varps[1575]);
+                           ToriRSServer_Varp(player, 1575));
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, hp) == 1200 &&
                                ToriRSServer_VarbitGet(player, base) == 1200,
                            "both Zuk HP varbits should round-trip as 1200, got %d/%d",
@@ -42893,11 +42901,11 @@ ToriRSServer_WorldSelftest(void)
          * point is the second half: a mask that just said "every occupied slot"
          * would pass a test that only looked for the sword.
          */
-        SELFTEST_CHECK((player->varps[262] & (1 << sword_slot)) != 0,
+        SELFTEST_CHECK((ToriRSServer_Varp(player, 262) & (1 << sword_slot)) != 0,
                        "if2 bit %d should be set for a wearable item (mask 0x%x)",
-                       sword_slot, player->varps[262]);
-        SELFTEST_CHECK((player->varps[262] & (1 << 5)) == 0,
-                       "if2 bit 5 must stay clear for coins (mask 0x%x)", player->varps[262]);
+                       sword_slot, ToriRSServer_Varp(player, 262));
+        SELFTEST_CHECK((ToriRSServer_Varp(player, 262) & (1 << 5)) == 0,
+                       "if2 bit 5 must stay clear for coins (mask 0x%x)", ToriRSServer_Varp(player, 262));
 
         /* Wearing out of the side panel. Op 9 is the equip verb in the normal
          * view (`bankside_extraop`), which is the view a freshly opened bank is
@@ -42911,8 +42919,8 @@ ToriRSServer_WorldSelftest(void)
                        "and put the sword on wearpos 3, got %d", player->worn[3].obj_id);
         SELFTEST_CHECK(player->inv[sword_slot].obj_id != 1277,
                        "leaving the backpack slot it came out of");
-        SELFTEST_CHECK((player->varps[262] & (1 << sword_slot)) == 0,
-                       "and clearing that slot's bit (mask 0x%x)", player->varps[262]);
+        SELFTEST_CHECK((ToriRSServer_Varp(player, 262) & (1 << sword_slot)) == 0,
+                       "and clearing that slot's bit (mask 0x%x)", ToriRSServer_Varp(player, 262));
 
         /* Taking it off again, from the worn panel's own slot component. */
         {
@@ -42925,8 +42933,8 @@ ToriRSServer_WorldSelftest(void)
                 "if_button1 on bankmain:wornslot3 should bind (Remove)");
             SELFTEST_CHECK(player->worn[3].obj_id < 0,
                            "and take the sword off, got %d", player->worn[3].obj_id);
-            SELFTEST_CHECK((player->varps[262] & 0xfffffff) != 0,
-                           "the mask should come back with it (mask 0x%x)", player->varps[262]);
+            SELFTEST_CHECK((ToriRSServer_Varp(player, 262) & 0xfffffff) != 0,
+                           "the mask should come back with it (mask 0x%x)", ToriRSServer_Varp(player, 262));
 
             /* Op 2 is "Bank" — off the body straight into the bank, which is
              * not `~unequip` followed by a deposit and must work with a full
@@ -42956,9 +42964,9 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_BankClose(srv);
         ToriRSServer_ScriptsRunTriggerSpecific(
             srv, SS_TRIGGER_IF_CLOSE, ids->iface_bankmain, -1, -1);
-        SELFTEST_CHECK(player->varps[262] == 0,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, 262) == 0,
                        "closing the bank must clear if2 (it is shared), got 0x%x",
-                       player->varps[262]);
+                       ToriRSServer_Varp(player, 262));
     bank_worn_done:;
     }
 
@@ -43174,7 +43182,7 @@ ToriRSServer_WorldSelftest(void)
                 /* ---- the channel ---------------------------------------- */
                 selftest_reset_world(srv, player, 402, 402);
                 selftest_park_player(srv, away_x, away_z);
-                player->varps[stamp] = 0;
+                ToriRSServer_VarpPut(player, stamp, 0);
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunIfButton(srv, spell, 1) ==
                                    TORIRSSERVER_TRIGGER_RAN,
                                "if_button1 on teleport_home_standard should bind (Cast)");
@@ -43187,14 +43195,14 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->x == away_x && player->z == away_z,
                                "the cast starts a channel, it does not jump — at %d,%d",
                                player->x, player->z);
-                SELFTEST_CHECK(player->varps[stamp] == 0,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, stamp) == 0,
                                "and it has not spent the cooldown yet, got %d",
-                               player->varps[stamp]);
+                               ToriRSServer_Varp(player, stamp));
 
                 for( int tick = 0; tick < 30 && landed < 0; tick++ )
                 {
                     selftest_tick(srv);
-                    if( player->varps[stamp] != 0 )
+                    if( ToriRSServer_Varp(player, stamp) != 0 )
                         landed = tick + 1;
                 }
                 SELFTEST_CHECK(landed >= 15 && landed <= 20,
@@ -43205,9 +43213,9 @@ ToriRSServer_WorldSelftest(void)
                                    player->z <= 3220,
                                "and it lands on the Lumbridge respawn square, got %d,%d",
                                player->x, player->z);
-                SELFTEST_CHECK(player->varps[stamp] > 1000000,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, stamp) > 1000000,
                                "arrival stamps aide_tele_timer with wall-clock minutes, got %d",
-                               player->varps[stamp]);
+                               ToriRSServer_Varp(player, stamp));
                 HTPROBE("after-channel");
 
                 /* ---- the cooldown --------------------------------------- */
@@ -43225,7 +43233,7 @@ ToriRSServer_WorldSelftest(void)
 
                 /* ---- walking out of the circle -------------------------- */
                 selftest_park_player(srv, away_x, away_z);
-                player->varps[stamp] = 0;
+                ToriRSServer_VarpPut(player, stamp, 0);
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunIfButton(srv, spell, 1) ==
                                    TORIRSSERVER_TRIGGER_RAN,
                                "a fresh cast after clearing the stamp should bind again");
@@ -43244,9 +43252,9 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->x != 3222 || player->z != 3218,
                                "walking out of the circle cancels the channel, got %d,%d",
                                player->x, player->z);
-                SELFTEST_CHECK(player->varps[stamp] == 0,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, stamp) == 0,
                                "and an aborted channel costs no cooldown, got %d",
-                               player->varps[stamp]);
+                               ToriRSServer_Varp(player, stamp));
                 HTPROBE("exit");
             }
             ToriRSServer_ScriptsFree(srv);
@@ -43350,9 +43358,9 @@ ToriRSServer_WorldSelftest(void)
 
             /* ---- no PIN: the bank opens straight away ------------------- */
             selftest_reset_world(srv, player, 402, 402);
-            player->varps[varp_set] = 0;
-            player->varps[varp_code] = 0;
-            player->varps[varp_verified] = 0;
+            ToriRSServer_VarpPut(player, varp_set, 0);
+            ToriRSServer_VarpPut(player, varp_code, 0);
+            ToriRSServer_VarpPut(player, varp_verified, 0);
             ToriRSServer_ScriptsRunProc(srv, "[proc,openbank]", NULL, 0);
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "with no PIN set the bank opens directly, group is %d",
@@ -43366,9 +43374,9 @@ ToriRSServer_WorldSelftest(void)
                 static struct ToriRSServerCapture capture;
 
                 selftest_reset_world(srv, player, 402, 402);
-                player->varps[varp_set] = 1;
-                player->varps[varp_code] = k_pin;
-                player->varps[varp_verified] = 0;
+                ToriRSServer_VarpPut(player, varp_set, 1);
+                ToriRSServer_VarpPut(player, varp_code, k_pin);
+                ToriRSServer_VarpPut(player, varp_verified, 0);
 
                 ToriRSServer_CaptureBegin(srv, &capture);
                 ToriRSServer_ScriptsRunProc(srv, "[proc,openbank]", NULL, 0);
@@ -43398,7 +43406,7 @@ ToriRSServer_WorldSelftest(void)
 
             /* ---- a wrong guess is refused and the keypad comes back ----- */
             ToriRSServer_ScriptsResumeCountdialog(srv, k_pin + 1);
-            SELFTEST_CHECK(player->varps[varp_verified] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_verified) == 0,
                            "a wrong PIN does not verify the session");
             SELFTEST_CHECK(player->mainmodal_group == keypad,
                            "and the keypad is asked again, group is %d",
@@ -43407,7 +43415,7 @@ ToriRSServer_WorldSelftest(void)
 
             /* ---- the right guess opens the bank ------------------------- */
             ToriRSServer_ScriptsResumeCountdialog(srv, k_pin);
-            SELFTEST_CHECK(player->varps[varp_verified] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_verified) == 1,
                            "the right PIN verifies the session");
             SELFTEST_CHECK(player->mainmodal_group == ids->iface_bankmain,
                            "and the bank finally opens, group is %d",
@@ -43452,14 +43460,14 @@ ToriRSServer_WorldSelftest(void)
 
             /* ---- the two sentinels are not guesses ---------------------- */
             selftest_reset_world(srv, player, 402, 402);
-            player->varps[varp_set] = 1;
-            player->varps[varp_code] = k_pin;
-            player->varps[varp_verified] = 0;
+            ToriRSServer_VarpPut(player, varp_set, 1);
+            ToriRSServer_VarpPut(player, varp_code, k_pin);
+            ToriRSServer_VarpPut(player, varp_verified, 0);
             ToriRSServer_ScriptsRunProc(srv, "[proc,openbank]", NULL, 0);
             SELFTEST_CHECK(player->mainmodal_group == keypad, "keypad up for the sentinel case");
             /* 12345 is the keypad's "Exit" row (script 653 arms it literally). */
             ToriRSServer_ScriptsResumeCountdialog(srv, 12345);
-            SELFTEST_CHECK(player->varps[varp_verified] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_verified) == 0,
                            "Exit does not verify");
             SELFTEST_CHECK(player->mainmodal_group != ids->iface_bankmain,
                            "and does not open the bank");
@@ -43468,9 +43476,9 @@ ToriRSServer_WorldSelftest(void)
 
             /* ---- three wrong guesses end the visit ---------------------- */
             selftest_reset_world(srv, player, 402, 402);
-            player->varps[varp_set] = 1;
-            player->varps[varp_code] = k_pin;
-            player->varps[varp_verified] = 0;
+            ToriRSServer_VarpPut(player, varp_set, 1);
+            ToriRSServer_VarpPut(player, varp_code, k_pin);
+            ToriRSServer_VarpPut(player, varp_verified, 0);
             ToriRSServer_ScriptsRunProc(srv, "[proc,openbank]", NULL, 0);
             for( int i = 0; i < 3; i++ )
             {
@@ -43482,11 +43490,11 @@ ToriRSServer_WorldSelftest(void)
                            "three wrong guesses end the gate");
             SELFTEST_CHECK(player->mainmodal_group != ids->iface_bankmain,
                            "and the bank stays shut");
-            SELFTEST_CHECK(player->varps[varp_verified] == 0, "still unverified");
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_verified) == 0, "still unverified");
 
-            player->varps[varp_set] = 0;
-            player->varps[varp_code] = 0;
-            player->varps[varp_verified] = 0;
+            ToriRSServer_VarpPut(player, varp_set, 0);
+            ToriRSServer_VarpPut(player, varp_code, 0);
+            ToriRSServer_VarpPut(player, varp_verified, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -44002,7 +44010,7 @@ ToriRSServer_WorldSelftest(void)
                      */
                     selftest_park_player(srv, 3224, 3221);
 
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     ToriRSServer_ScriptsRunScript(srv, script->id);
                     /* `static_spawn < 0` for the same reason the follower
                      * above needs it: a coordinate is not an identity once the
@@ -44015,16 +44023,16 @@ ToriRSServer_WorldSelftest(void)
 
                     for( int i = 0; i < 30; i++ )
                         selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                                    "opplayer2 should fire [ai_opplayer2] once on arrival, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     /* The errand is over, so it must not re-fire. An npc left
                      * in the mode would trigger every tick from then on. */
                     for( int i = 0; i < 10; i++ )
                         selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                                    "and drop back to none rather than firing again, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     if( runner >= 0 )
                         srv->npcs[runner].active = 0;
                 }
@@ -44058,19 +44066,19 @@ ToriRSServer_WorldSelftest(void)
                         npc->combat_target = player->pid;
                         npc->attack_clock = 0;
                         npc->mode = TORIRSSERVER_NPCMODE_NONE;
-                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                        ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
 
                         /* The clock invokes OP first; its test handler selects
                          * AP but does not perform the AP action yet. */
                         ToriRSServer_CombatNpcTick(srv, handoff);
                         SELFTEST_CHECK(npc->mode == TORIRSSERVER_NPCMODE_APPLAYER1 + 1 &&
-                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+                                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                                        "a combat OP handler should leave AP pending until next turn");
 
                         srv->tick++;
                         ToriRSServer_CombatNpcTick(srv, handoff);
                         SELFTEST_CHECK(npc->mode == TORIRSSERVER_NPCMODE_NONE &&
-                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                                        "the next combat turn should dispatch [ai_applayer2] once");
 
                         ToriRSServer_WorldNpcOccupancy(npc, 0);
@@ -44178,7 +44186,7 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -45313,8 +45321,8 @@ ToriRSServer_WorldSelftest(void)
                 int saved_place_dirty = player->place_dirty;
                 int saved_move_count = player->move_count;
                 int saved_tracked_player_count = player->tracked_player_count;
-                int saved_tracked_players[TORIRSSERVER_PLAYER_MAX];
-                uint8_t saved_player_tracked[TORIRSSERVER_PLAYER_MAX];
+                int saved_tracked_players[TORIRSSERVER_TRACKED_PLAYER_MAX];
+                struct ToriRSServerPidSet saved_player_tracked;
                 int saved_v5_playerinfo_sent = player->v5_playerinfo_sent;
                 int saved_v5_last_x = player->v5_last_x;
                 int saved_v5_last_z = player->v5_last_z;
@@ -45322,8 +45330,7 @@ ToriRSServer_WorldSelftest(void)
 
                 memcpy(saved_tracked_players, player->tracked_players,
                        sizeof(saved_tracked_players));
-                memcpy(saved_player_tracked, player->player_tracked,
-                       sizeof(saved_player_tracked));
+                saved_player_tracked = player->player_tracked;
 
                 for( int revision = 0; revision < 2; revision++ )
                 {
@@ -45407,8 +45414,7 @@ ToriRSServer_WorldSelftest(void)
                 player->tracked_player_count = saved_tracked_player_count;
                 memcpy(player->tracked_players, saved_tracked_players,
                        sizeof(saved_tracked_players));
-                memcpy(player->player_tracked, saved_player_tracked,
-                       sizeof(saved_player_tracked));
+                player->player_tracked = saved_player_tracked;
                 player->v5_playerinfo_sent = saved_v5_playerinfo_sent;
                 player->v5_last_x = saved_v5_last_x;
                 player->v5_last_z = saved_v5_last_z;
@@ -45589,7 +45595,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_queue] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
                 for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
                     if( srv->npcs[i].active && srv->npcs[i].type == chicken &&
@@ -45608,11 +45614,11 @@ ToriRSServer_WorldSelftest(void)
                  * `delay + 1` for both and the test pinned the result: a test can
                  * be green and still encode the wrong convention.
                  */
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the queue should not fire immediately");
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0, "the queue should not fire immediately");
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                                "[ai_queue1,chicken] should fire on tick +1, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
             script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_npc_timer]");
@@ -45627,17 +45633,17 @@ ToriRSServer_WorldSelftest(void)
                  */
                 srv->npcs[added].timer_interval = 2;
                 srv->npcs[added].timer_clock = 0;
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0, "the timer should not fire early");
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0, "the timer should not fire early");
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 10,
                                "[ai_timer,chicken] should fire on the interval, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 selftest_tick(srv);
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
-                               "and again one interval later, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 20,
+                               "and again one interval later, got %d", ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                 /* A delayed NPC is not merely unable to move. The reference's
                  * `Npc.turn()` returns at `!isValid()` before timers and queues,
@@ -45645,21 +45651,21 @@ ToriRSServer_WorldSelftest(void)
                  * Inferno's final-wave adds use a one-tick timer plus a
                  * four-tick delay as their attack rate; firing through the
                  * delay floods the glyph with queued projectile hits. */
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 srv->npcs[added].timer_interval = 1;
                 srv->npcs[added].timer_clock = 0;
                 srv->npcs[added].delayed_until = srv->tick + 3;
                 selftest_tick(srv);
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0 &&
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0 &&
                                    srv->npcs[added].timer_clock == 0,
                                "npc_delay must freeze an npc's AI timer, got value=%d clock=%d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS),
                                srv->npcs[added].timer_clock);
                 selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 10,
                                "the timer should fire once when npc_delay expires, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                 /* npc_settimer(0) stops it, which is how content pauses a
                  * behaviour. Asserting the *absence* of a fire is the only way
@@ -45676,13 +45682,13 @@ ToriRSServer_WorldSelftest(void)
                  * with a live interval-1 timer these six ticks would add 60. */
                 srv->npcs[added].timer_interval = 0;
                 {
-                    int before = player->varps[SELFTEST_VARP_QUEST_PROGRESS];
+                    int before = ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS);
 
                     for( int i = 0; i < 6; i++ )
                         selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == before,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == before,
                                    "a zero interval should stop the timer, got %d (was %d)",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS], before);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS), before);
                 }
                 srv->npcs[added].active = 0;
             }
@@ -45750,7 +45756,7 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -45776,7 +45782,7 @@ ToriRSServer_WorldSelftest(void)
             player->delayed_until = 0;
             player->mainmodal_group = 0;
             player->chatmodal_group = 0;
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
 
             /*
              * ---- the name-keyed dispatch path -----------------------------
@@ -45803,13 +45809,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(varp_zone_log > 0 && varp_mapzone_log > 0,
                            "the zone-log varps should resolve, got %d/%d", varp_zone_log,
                            varp_mapzone_log);
-            player->varps[varp_zone_log] = 0;
+            ToriRSServer_VarpPut(player, varp_zone_log, 0);
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONE, 0, 3222, 3218) ==
                                TORIRSSERVER_TRIGGER_RAN,
                            "[zone,0_50_50_16_16] should be reachable by name");
-            SELFTEST_CHECK(player->varps[varp_zone_log] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zone_log) == 1,
                            "and it is the authored script that ran, got %d",
-                           player->varps[varp_zone_log]);
+                           ToriRSServer_Varp(player, varp_zone_log));
 
             /* The last two components are tile offsets truncated to the 8-tile
              * zone, not the raw tile: a neighbour inside the same zone resolves
@@ -45820,9 +45826,9 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONE, 0, 3230, 3218) ==
                                TORIRSSERVER_TRIGGER_NONE,
                            "the zone 8 tiles east has none bound");
-            SELFTEST_CHECK(player->varps[varp_zone_log] == 11,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zone_log) == 11,
                            "so the log reads 11 and not 111, got %d",
-                           player->varps[varp_zone_log]);
+                           ToriRSServer_Varp(player, varp_zone_log));
 
             /* The level is part of a zone's name, and the map square's is a
              * literal 0 — which is the whole 427-vs-379 distinction. The same
@@ -45831,14 +45837,14 @@ ToriRSServer_WorldSelftest(void)
              * missing one. */
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONE, 1, 3222, 3218) ==
                                TORIRSSERVER_TRIGGER_RAN &&
-                               player->varps[varp_zone_log] == 114,
+                               ToriRSServer_Varp(player, varp_zone_log) == 114,
                            "the same tile on level 1 names a different zone, got %d",
-                           player->varps[varp_zone_log]);
+                           ToriRSServer_Varp(player, varp_zone_log));
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONEEXIT, 0, 3222,
                                                           3218) == TORIRSSERVER_TRIGGER_RAN &&
-                               player->varps[varp_zone_log] == 1142,
+                               ToriRSServer_Varp(player, varp_zone_log) == 1142,
                            "and the exit half is a separate name, got %d",
-                           player->varps[varp_zone_log]);
+                           ToriRSServer_Varp(player, varp_zone_log));
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_ZONEEXIT, 1, 3222,
                                                           3218) == TORIRSSERVER_TRIGGER_NONE,
                            "which carries the level too — nothing is bound at level 1");
@@ -45849,21 +45855,21 @@ ToriRSServer_WorldSelftest(void)
              * name carries a literal 0 where the zone's carries the real level.
              * So the *same tile on level 3* resolves to the same `[mapzone]`.
              */
-            player->varps[varp_mapzone_log] = 0;
+            ToriRSServer_VarpPut(player, varp_mapzone_log, 0);
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_MAPZONE, 0, 3222,
                                                           3218) == TORIRSSERVER_TRIGGER_RAN,
                            "[mapzone,0_50_50] should be reachable by name");
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_MAPZONE, 3, 3222,
                                                           3218) == TORIRSSERVER_TRIGGER_RAN,
                            "and the level is a literal 0 in its name, not the player's");
-            SELFTEST_CHECK(player->varps[varp_mapzone_log] == 11,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_mapzone_log) == 11,
                            "both of those ran the one script, got %d",
-                           player->varps[varp_mapzone_log]);
+                           ToriRSServer_Varp(player, varp_mapzone_log));
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_MAPZONE, 0, 3222 + 64,
                                                           3218) == TORIRSSERVER_TRIGGER_RAN &&
-                               player->varps[varp_mapzone_log] == 113,
+                               ToriRSServer_Varp(player, varp_mapzone_log) == 113,
                            "the next map square east is its own name, got %d",
-                           player->varps[varp_mapzone_log]);
+                           ToriRSServer_Varp(player, varp_mapzone_log));
             SELFTEST_CHECK(ToriRSServer_ScriptsRunTriggerAt(srv, SS_TRIGGER_MAPZONE, 0, 3222 + 128,
                                                           3218) == TORIRSSERVER_TRIGGER_NONE,
                            "and two squares east has none bound");
@@ -45932,31 +45938,31 @@ ToriRSServer_WorldSelftest(void)
              * both halves were wrong in opposite directions — and a test that
              * only asked "did a timer fire" would have stayed green for either.
              */
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_timers_arm]", NULL, 0);
             player->delayed_until = srv->tick + 10;
             for( int i = 0; i < 4; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 200,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 200,
                            "a busy player runs soft timers twice and normal ones not at all, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             player->delayed_until = 0;
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 201,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 201,
                            "and the normal one fires the moment access returns, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /* `cleartimer` and `clearsofttimer` both stop their timer. Asserting
              * the absence of a fire is the only way to tell "stopped" from "not
              * due yet". */
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_timers_clear]", NULL, 0);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             for( int i = 0; i < 8; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "cleared timers stay cleared, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- an interval of 0 -----------------------------------------
@@ -45976,21 +45982,21 @@ ToriRSServer_WorldSelftest(void)
              */
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_timer_zero_arm]", NULL, 0);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "an interval-0 timer fires on the next tick, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
                            "and on every tick after it — once per tick, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_timers_clear]", NULL, 0);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             for( int i = 0; i < 4; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "and cleartimer is what stops it, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- gettimer -------------------------------------------------
@@ -46002,13 +46008,13 @@ ToriRSServer_WorldSelftest(void)
              */
             armed_at = srv->tick;
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_gettimer]", NULL, 0);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1000 + armed_at,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1000 + armed_at,
                            "gettimer is the tick it was armed at (%d), got %d", armed_at,
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_gettimer_unset]", NULL, 0);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 999,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 999,
                            "and -1 for a timer that is not set, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- queue kinds ----------------------------------------------
@@ -46018,12 +46024,12 @@ ToriRSServer_WorldSelftest(void)
              * fire on the next tick and none of them fires on this one.
              */
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_queue_kinds]", NULL, 0);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "a queued script does not run in the tick that queued it");
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1101,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1101,
                            "queue + weakqueue + longqueue all fire on tick +1, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- the access gate ------------------------------------------
@@ -46038,14 +46044,14 @@ ToriRSServer_WorldSelftest(void)
             player->delayed_until = srv->tick + 20;
             for( int i = 0; i < 5; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "a busy player does not run a due queue entry, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             player->delayed_until = 0;
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "and runs it on the very next tick, not one delay later, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- strongqueue ----------------------------------------------
@@ -46063,9 +46069,9 @@ ToriRSServer_WorldSelftest(void)
             selftest_tick(srv);
             SELFTEST_CHECK(player->mainmodal_group == 0,
                            "a strong entry closes the modal before the drain");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 10,
                            "and then runs on the same tick, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- clearqueue and getqueue ----------------------------------
@@ -46073,22 +46079,22 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_queue_pending]", NULL, 0);
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "a delay-3 entry has not fired after two ticks, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_clearqueue]", NULL, 0);
             for( int i = 0; i < 6; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "and clearqueue cancels it rather than delaying it, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /* `getqueue` counts and does not clear; two copies of one script are
              * two entries. */
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_getqueue]", NULL, 0);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                            "getqueue counts every copy, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_clearqueue]", NULL, 0);
 
             /*
@@ -46098,26 +46104,26 @@ ToriRSServer_WorldSelftest(void)
              * only thing that distinguishes it from a normal one. Without this,
              * `weakqueue` would be a synonym the content could not tell apart.
              */
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_queue_weak_only]", NULL, 0);
             ToriRSServer_NoteModalMount(srv, ids->com_gameframe_mainmodal,
                                      ids->iface_equipment_stats);
             ToriRSServer_WorldCloseModal(srv);
             for( int i = 0; i < 6; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "closing a modal discards the weak queue, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /* And the same entry survives when nothing closes. */
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_queue_weak_only]", NULL, 0);
             for( int i = 0; i < 6; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 100,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 100,
                            "and survives when nothing closes, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             player->delayed_until = 0;
             ToriRSServer_ScriptsFree(srv);
         }
@@ -46192,7 +46198,7 @@ ToriRSServer_WorldSelftest(void)
              * of the two the player picked up first. Binding both directions
              * would have made the swap invisible, which is why only one is bound.
              */
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, knife);
             rsab_p2(&out, SLOT_KNIFE);
@@ -46201,9 +46207,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p4(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "bucket on knife runs [opheldu,knife] with both halves in place, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->last_item == knife && player->last_useitem == bucket,
                            "and the engine agrees: last_item %d, last_useitem %d",
                            player->last_item, player->last_useitem);
@@ -46211,7 +46217,7 @@ ToriRSServer_WorldSelftest(void)
                            "slots follow their items: last_slot %d, last_useslot %d",
                            player->last_slot, player->last_useslot);
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, bucket);
             rsab_p2(&out, SLOT_BUCKET);
@@ -46220,9 +46226,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_KNIFE);
             rsab_p4(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 1,
                            "knife on bucket runs the same script, the other way round, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->last_item == knife && player->last_useitem == bucket,
                            "and rung 2's SWAP puts the script's own subject back in last_item: "
                            "%d / %d",
@@ -46245,7 +46251,7 @@ ToriRSServer_WorldSelftest(void)
              * written for that, including in the reference's own tree; see
              * docs/USEON_DISPATCH_ENGINE_PLAN.md E2 and `opheldu_orient`.
              */
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, bones);
             rsab_p2(&out, SLOT_BONES);
@@ -46254,9 +46260,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p4(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                            "bucket on bones reaches [opheldu,_bones] by rung 3, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->last_item == bones && player->last_useitem == bucket,
                            "with the pair the same way round an id rung leaves it: last_item %d, "
                            "last_useitem %d",
@@ -46265,7 +46271,7 @@ ToriRSServer_WorldSelftest(void)
                            "slots following their items: %d / %d", player->last_slot,
                            player->last_useslot);
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, bucket);
             rsab_p2(&out, SLOT_BUCKET);
@@ -46274,9 +46280,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_BONES);
             rsab_p4(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                            "bones on bucket reaches it by rung 4 instead, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->last_item == bones && player->last_useitem == bucket,
                            "and rung 4 lands on the same orientation rung 3 did: %d / %d",
                            player->last_item, player->last_useitem);
@@ -46288,7 +46294,7 @@ ToriRSServer_WorldSelftest(void)
              * every rung misses. The reference answers with the message and
              * nothing else — there is no engine "use" behaviour to fall back to.
              */
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 77;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 77);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, bucket);
             rsab_p2(&out, SLOT_SPARE);
@@ -46297,9 +46303,9 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, SLOT_BUCKET);
             rsab_p4(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPHELDU, payload, (int)rsab_len(&out));
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 77,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 77,
                            "a use-on nothing binds runs no script at all, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * ---- oplocu: the subject is the LOC ---------------------------
@@ -46312,7 +46318,7 @@ ToriRSServer_WorldSelftest(void)
              * by closing the distance — which is what makes this the op rung.
              */
             selftest_park_player(srv, 3222, 3218);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3212);
             rsab_p2(&out, 3215);
@@ -46330,10 +46336,10 @@ ToriRSServer_WorldSelftest(void)
              * `ToriRSServer_ScriptsRunTriggerOnLoc`. 0 means it aborted outright,
              * which is what a missing active loc did before `loc_coord` was
              * given a null to return. */
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 11,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 11,
                            "[oplocu,cooksquestrange] runs on arrival with an ACTIVE LOC and the "
                            "bucket in last_useitem, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
             /*
              * The same loc with a *different* item still runs the loc's script,
@@ -46344,7 +46350,7 @@ ToriRSServer_WorldSelftest(void)
              * transposition half: the subject does not move when the item does.
              */
             selftest_park_player(srv, 3222, 3218);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3212);
             rsab_p2(&out, 3215);
@@ -46354,10 +46360,10 @@ ToriRSServer_WorldSelftest(void)
             rsab_p2(&out, 0);
             selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
             SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk should complete");
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 0,
                            "a different item on the same loc is declined by the same "
                            "script (writes nothing), got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->last_useitem == knife,
                            "and the item it carries is the one that was used, got %d",
                            player->last_useitem);
@@ -46384,7 +46390,7 @@ ToriRSServer_WorldSelftest(void)
                  * freed memory) from here on. Re-resolve by coordinate, same
                  * rule `p_oploc` follows for a suspended script's active loc. */
                 door_slot = ToriRSServer_SceneFindLoc(3226, 3223, 0, door);
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 78);
                 rsab_wrap(&out, payload, sizeof(payload));
                 rsab_p2(&out, 3226);
                 rsab_p2(&out, 3223);
@@ -46394,9 +46400,9 @@ ToriRSServer_WorldSelftest(void)
                 rsab_p2(&out, 0);
                 selftest_handle(player, PKTOUT_NAME_OPLOCU, payload, (int)rsab_len(&out));
                 SELFTEST_CHECK(selftest_settle(srv, 40) >= 0, "the walk to the door completes");
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 78,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 78,
                                "a loc with no *u binding runs nothing, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 door_loc = ToriRSServer_SceneLoc(door_slot);
                 SELFTEST_CHECK(door_loc && door_loc->loc_id == door,
                                "and the door stays SHUT — a use-on must not reach the engine's "
@@ -46417,7 +46423,7 @@ ToriRSServer_WorldSelftest(void)
              */
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3220);
             rsab_p2(&out, 3224);
@@ -46429,9 +46435,9 @@ ToriRSServer_WorldSelftest(void)
             /* The click latches; the next tick's phase_player tries it before
              * the first step (handle_opnpc). */
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 20,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 20,
                            "[aplocu,fire_remains] fires on the click's tick, from range, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(player->x == 3222 && player->z == 3218,
                            "without the player having moved a tile, at %d,%d", player->x,
                            player->z);
@@ -46459,7 +46465,7 @@ ToriRSServer_WorldSelftest(void)
                     hnpc->mode = TORIRSSERVER_NPCMODE_NONE;
                     hnpc->waypoint_index = -1;
                     selftest_park_player(srv, hnpc->x + 1, hnpc->z);
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     rsab_wrap(&out, payload, sizeof(payload));
                     /* The client's name for him, same as every other packet
                      * that points at an npc. */
@@ -46470,9 +46476,9 @@ ToriRSServer_WorldSelftest(void)
                     selftest_handle(player, PKTOUT_NAME_OPNPCU, payload, (int)rsab_len(&out));
                     SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                    "the walk to the npc should complete");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 30,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 30,
                                    "[opnpcu,hans] runs with the npc as its subject, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     hnpc->mode = keep_mode;
                 }
             }
@@ -46487,7 +46493,7 @@ ToriRSServer_WorldSelftest(void)
              */
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             rsab_wrap(&out, payload, sizeof(payload));
             rsab_p2(&out, 3224);
             rsab_p2(&out, 3218);
@@ -46499,9 +46505,9 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(selftest_settle(srv, 20) >= 0, "the walk onto the pile completes");
             SELFTEST_CHECK(player->x == 3224 && player->z == 3218,
                            "standing on the tile, not beside it, at %d,%d", player->x, player->z);
-            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 40,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 40,
                            "[opobju,bones] runs with the ground obj as its subject, got %d",
-                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             SELFTEST_CHECK(selftest_find(player, bones) == SLOT_BONES,
                            "and the pile was not picked up — the backpack still holds only the "
                            "one the fixture put there");
@@ -46538,7 +46544,7 @@ ToriRSServer_WorldSelftest(void)
                     /* opheldt: no walk, and the item has to arrive in
                      * `last_item` — the alchemy scripts read it from there. */
                     selftest_park_player(srv, 3222, 3218);
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, bucket);
                     rsab_p2(&out, SLOT_BUCKET);
@@ -46546,10 +46552,10 @@ ToriRSServer_WorldSelftest(void)
                     rsab_p4(&out, spell);
                     selftest_handle(player, PKTOUT_NAME_OPHELDT, payload,
                                          (int)rsab_len(&out));
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 80,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 80,
                                    "[opheldt,<spell>] runs with the spell as its subject and the "
                                    "clicked item in last_item, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                     /* aploct: the ap rung, from range. `fire_remains` also
                      * binds `[aplocu]` (20), so a cast that fell through to the
@@ -46557,7 +46563,7 @@ ToriRSServer_WorldSelftest(void)
                      * than as silence. */
                     selftest_park_player(srv, 3222, 3218);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, 3220);
                     rsab_p2(&out, 3224);
@@ -46565,10 +46571,10 @@ ToriRSServer_WorldSelftest(void)
                     rsab_p4(&out, spell);
                     selftest_handle(player, PKTOUT_NAME_OPLOCT, payload, (int)rsab_len(&out));
                     selftest_tick(srv);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 60,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 60,
                                    "[aploct,<spell>] runs keyed by the spell, not by the loc and "
                                    "not as a use-on, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     /*
                      * And the caster has not moved. This is what binding an `ap`
                      * form BUYS, stated as a fact rather than left implied: the
@@ -46608,7 +46614,7 @@ ToriRSServer_WorldSelftest(void)
                         {
                             selftest_park_player(srv, 3222, 3218);
                             ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addloc]", NULL, 0);
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                             rsab_wrap(&out, payload, sizeof(payload));
                             rsab_p2(&out, 3220);
                             rsab_p2(&out, 3224);
@@ -46618,9 +46624,9 @@ ToriRSServer_WorldSelftest(void)
                                                  (int)rsab_len(&out));
                             SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                            "the walk to the loc completes");
-                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 65,
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 65,
                                            "[oploct,<spell>] is reachable on arrival, got %d",
-                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                         }
                     }
 
@@ -46629,7 +46635,7 @@ ToriRSServer_WorldSelftest(void)
                      * is reached by standing on the tile. */
                     selftest_park_player(srv, 3222, 3218);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_useon_addobj]", NULL, 0);
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     rsab_wrap(&out, payload, sizeof(payload));
                     rsab_p2(&out, 3224);
                     rsab_p2(&out, 3218);
@@ -46638,9 +46644,9 @@ ToriRSServer_WorldSelftest(void)
                     selftest_handle(player, PKTOUT_NAME_OPOBJT, payload, (int)rsab_len(&out));
                     SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
                                    "the walk onto the pile completes");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 70,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 70,
                                    "[apobjt,<spell>] runs keyed by the spell, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                     /* apnpct: the form every combat spell uses. Hans patrols, so
                      * park beside him and hold him still — the assertion is the
@@ -46657,7 +46663,7 @@ ToriRSServer_WorldSelftest(void)
                             hnpc->mode = TORIRSSERVER_NPCMODE_NONE;
                             hnpc->waypoint_index = -1;
                             selftest_park_player(srv, hnpc->x + 1, hnpc->z);
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                             rsab_wrap(&out, payload, sizeof(payload));
                             rsab_p2(&out, ToriRSServer_SlotMapAcquire(player, hans));
                             rsab_p4(&out, spell);
@@ -46674,9 +46680,9 @@ ToriRSServer_WorldSelftest(void)
                              * turning toward it.) The click's tick is the one
                              * `selftest_handle` ran.
                              */
-                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 50,
                                            "a cast beside the npc fires on the click's tick, got %d",
-                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                             SELFTEST_CHECK(player->face_entity == hans,
                                            "and turns the caster toward it, face_entity %d "
                                            "want %d",
@@ -46687,10 +46693,10 @@ ToriRSServer_WorldSelftest(void)
                                            player->face_entity);
                             SELFTEST_CHECK(selftest_settle(srv, 80) >= 0,
                                            "the approach to the npc should complete");
-                            SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50,
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 50,
                                            "[apnpct,<spell>] runs keyed by the spell and matches "
                                            "no npc, got %d",
-                                           player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                           ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                             hnpc->mode = keep_mode;
                         }
                     }
@@ -46702,7 +46708,7 @@ ToriRSServer_WorldSelftest(void)
                         int unbound = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT,
                                                              "magic_spellbook:back_button");
                         selftest_park_player(srv, 3222, 3218);
-                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 78;
+                        ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 78);
                         rsab_wrap(&out, payload, sizeof(payload));
                         rsab_p2(&out, bucket);
                         rsab_p2(&out, SLOT_BUCKET);
@@ -46710,9 +46716,9 @@ ToriRSServer_WorldSelftest(void)
                         rsab_p4(&out, unbound);
                         selftest_handle(player, PKTOUT_NAME_OPHELDT, payload,
                                              (int)rsab_len(&out));
-                        SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 78,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 78,
                                        "a cast nothing binds runs no script at all, got %d",
-                                       player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                       ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     }
                 }
             }
@@ -46741,12 +46747,12 @@ ToriRSServer_WorldSelftest(void)
                 {
                     /* Click the decliner, drag the handler: rung 1 declines and
                      * rung 2 answers. 7 = 3 + 4, in that order. */
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     selftest_useon(srv, vial, 1, empty_bucket, 1, NULL, 0);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 7,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 7,
                                    "a declining rung 1 falls to rung 2, which answers: "
                                    "want 7 (3 then 4), got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                     /*
                      * The other way round, and it must NOT fall through: rung 1
@@ -46754,11 +46760,11 @@ ToriRSServer_WorldSelftest(void)
                      * below it never runs. 4, not 7 — first match is still final
                      * for a script that answers.
                      */
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     selftest_useon(srv, empty_bucket, 1, vial, 1, NULL, 0);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 4,
                                    "a rung that ANSWERS still ends the dispatch: want 4, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                     /*
                      * Declined with nothing below it. The player is told the same
@@ -46767,11 +46773,11 @@ ToriRSServer_WorldSelftest(void)
                      * stands in for MISSING content, and standing in here is how a
                      * door opens because content declined to open it.
                      */
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     selftest_useon(srv, bucket, 1, empty_bucket, 1, NULL, 0);
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
                                    "the decliner runs with no rung below it, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     SELFTEST_CHECK(ToriRSServer_ScriptsFallback(srv, TORIRSSERVER_FALLBACK_OPNPC,
                                                             TORIRSSERVER_TRIGGER_NONE) == 0,
                                    "and a declined dispatch must NOT let an engine fallback run "
@@ -46810,16 +46816,16 @@ ToriRSServer_WorldSelftest(void)
 
                     player->active_script = NULL;
                     player->delayed_until = 0;
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                     inv_set(player, SLOT_BAT, bat, 1);
                     rsab_wrap(&out, held, sizeof(held));
                     rsab_p2(&out, bat);
                     rsab_p2(&out, SLOT_BAT);
                     rsab_p4(&out, 0);
                     selftest_handle(player, PKTOUT_NAME_OPHELD1, held, (int)rsab_len(&out));
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
                                    "the declining [opheld1,bat_bones] should run, got %d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     /* `bury_bones` delays before it deletes, on purpose (the bones
                      * stay in the backpack until the animation has played), so the
                      * bone is gone only after the delay drains. */
@@ -46832,7 +46838,7 @@ ToriRSServer_WorldSelftest(void)
                     player->active_script = NULL;
                     player->delayed_until = 0;
                     inv_set(player, SLOT_BAT, -1, 0);
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
                 }
             }
 
@@ -46861,10 +46867,10 @@ ToriRSServer_WorldSelftest(void)
                 int saved_xp[2] = { 0, 0 };
                 /* `%desertrescue` >= ^desertrescue_learned_darts (16). */
                 int desertrescue = ToriRSServer_WorldVarp("varp197_desertrescue");
-                int saved_desertrescue = desertrescue >= 0 ? player->varps[desertrescue] : 0;
+                int saved_desertrescue = desertrescue >= 0 ? ToriRSServer_Varp(player, desertrescue) : 0;
 
                 if( desertrescue >= 0 )
-                    player->varps[desertrescue] = 16;
+                    ToriRSServer_VarpPut(player, desertrescue, 16);
 
                 struct
                 {
@@ -46976,14 +46982,14 @@ ToriRSServer_WorldSelftest(void)
                         player->stat_xp_tenths[stats[i]] = saved_xp[i];
                     }
                 if( desertrescue >= 0 )
-                    player->varps[desertrescue] = saved_desertrescue;
+                    ToriRSServer_VarpPut(player, desertrescue, saved_desertrescue);
                 player->active_script = NULL;
                 memcpy(player->inv, saved_inv_useon, sizeof(saved_inv_useon));
             }
 
             for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                 inv_set(player, i, -1, 0);
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             selftest_park_player(srv, 3222, 3218);
             ToriRSServer_ScriptsFree(srv);
         }
@@ -47027,9 +47033,9 @@ ToriRSServer_WorldSelftest(void)
             player->last_zone_z = -1;
             player->last_map_x = -1;
             player->last_map_z = -1;
-            player->varps[zone_log] = 0;
-            player->varps[mapzone_log] = 0;
-            player->varps[zone_clock] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
+            ToriRSServer_VarpPut(player, mapzone_log, 0);
+            ToriRSServer_VarpPut(player, zone_clock, 0);
 
             /*
              * One tick detects and dispatches *nothing*. This is the assertion
@@ -47045,9 +47051,9 @@ ToriRSServer_WorldSelftest(void)
              */
             selftest_tick(srv);
             detected_at = srv->tick;
-            SELFTEST_CHECK(player->varps[zone_log] == 0 && player->varps[mapzone_log] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 0 && ToriRSServer_Varp(player, mapzone_log) == 0,
                            "phase 10 detects the crossing and dispatches nothing, got %d/%d",
-                           player->varps[zone_log], player->varps[mapzone_log]);
+                           ToriRSServer_Varp(player, zone_log), ToriRSServer_Varp(player, mapzone_log));
 
             selftest_tick(srv);
             /* 1 and not 91: `[zoneexit,0_0_0_0_0]` and `[mapzoneexit,0_0_0]`
@@ -47055,23 +47061,23 @@ ToriRSServer_WorldSelftest(void)
              * would fire — a login claiming the player just left the map's
              * origin. -1 is what suppresses it, and the digit 9 is how that
              * shows. */
-            SELFTEST_CHECK(player->varps[zone_log] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 1,
                            "the first transition fires [zone] and no [zoneexit], got %d",
-                           player->varps[zone_log]);
-            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           ToriRSServer_Varp(player, zone_log));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, mapzone_log) == 1,
                            "and [mapzone] with no [mapzoneexit], got %d",
-                           player->varps[mapzone_log]);
-            SELFTEST_CHECK(player->varps[zone_clock] == detected_at + 1,
+                           ToriRSServer_Varp(player, mapzone_log));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_clock) == detected_at + 1,
                            "on the tick after the crossing (%d), got %d", detected_at + 1,
-                           player->varps[zone_clock]);
+                           ToriRSServer_Varp(player, zone_clock));
 
             /* Standing still is not a crossing. The latch is a comparison
              * against a stored value, not a recomputation. */
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
-                           "standing still fires nothing, got %d/%d", player->varps[zone_log],
-                           player->varps[mapzone_log]);
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 1 && ToriRSServer_Varp(player, mapzone_log) == 1,
+                           "standing still fires nothing, got %d/%d", ToriRSServer_Varp(player, zone_log),
+                           ToriRSServer_Varp(player, mapzone_log));
 
             /*
              * ---- a rebuild is not a crossing ------------------------------
@@ -47088,9 +47094,9 @@ ToriRSServer_WorldSelftest(void)
             player->rebuild_pending = 1;
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 1,
-                           "a REBUILD_NORMAL fires nothing, got %d/%d", player->varps[zone_log],
-                           player->varps[mapzone_log]);
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 1 && ToriRSServer_Varp(player, mapzone_log) == 1,
+                           "a REBUILD_NORMAL fires nothing, got %d/%d", ToriRSServer_Varp(player, zone_log),
+                           ToriRSServer_Varp(player, mapzone_log));
 
             /*
              * ---- the zone moves, the map square does not ------------------
@@ -47099,17 +47105,17 @@ ToriRSServer_WorldSelftest(void)
              * the *order* observable: 23 is exit-then-enter and 32 is the other
              * way round, where a pair of counters would read the same for both.
              */
-            player->varps[zone_log] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
             player->x = 3238;
             player->place_dirty = 1;
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 23,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 23,
                            "moving zone fires [zoneexit] then [zone], got %d",
-                           player->varps[zone_log]);
-            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           ToriRSServer_Varp(player, zone_log));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, mapzone_log) == 1,
                            "and the map square is untouched, got %d",
-                           player->varps[mapzone_log]);
+                           ToriRSServer_Varp(player, mapzone_log));
 
             /*
              * ---- a climb is a zone crossing and not a square crossing -----
@@ -47120,18 +47126,18 @@ ToriRSServer_WorldSelftest(void)
              * Packing the real level into the map-square latch turns the second
              * check red while leaving the first green.
              */
-            player->varps[zone_log] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
             player->x = 3222;
             player->level = 1;
             player->place_dirty = 1;
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 4,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 4,
                            "level 1 at the home tile is its own [zone], got %d",
-                           player->varps[zone_log]);
-            SELFTEST_CHECK(player->varps[mapzone_log] == 1,
+                           ToriRSServer_Varp(player, zone_log));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, mapzone_log) == 1,
                            "and a climb does not re-enter the map square, got %d",
-                           player->varps[mapzone_log]);
+                           ToriRSServer_Varp(player, mapzone_log));
 
             /*
              * ---- the square moves ------------------------------------------
@@ -47141,27 +47147,27 @@ ToriRSServer_WorldSelftest(void)
              * So the two accumulators must move independently: the mapzone one
              * gains exit-then-enter, the zone one gains only the exit.
              */
-            player->varps[zone_log] = 0;
-            player->varps[mapzone_log] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
+            ToriRSServer_VarpPut(player, mapzone_log, 0);
             player->level = 0;
             player->place_dirty = 1;
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 1 && player->varps[mapzone_log] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 1 && ToriRSServer_Varp(player, mapzone_log) == 0,
                            "coming back down re-enters the zone only, got %d/%d",
-                           player->varps[zone_log], player->varps[mapzone_log]);
+                           ToriRSServer_Varp(player, zone_log), ToriRSServer_Varp(player, mapzone_log));
 
             player->x = 3270;
             player->place_dirty = 1;
             selftest_tick(srv);
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[mapzone_log] == 23,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, mapzone_log) == 23,
                            "crossing x=3264 fires [mapzoneexit] then [mapzone], got %d",
-                           player->varps[mapzone_log]);
-            SELFTEST_CHECK(player->varps[zone_log] == 12,
+                           ToriRSServer_Varp(player, mapzone_log));
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 12,
                            "and the new square's zone has nothing bound, so only the "
                            "[zoneexit] shows, got %d",
-                           player->varps[zone_log]);
+                           ToriRSServer_Varp(player, zone_log));
 
             /*
              * ---- a busy player holds it, and does not lose it --------------
@@ -47173,22 +47179,22 @@ ToriRSServer_WorldSelftest(void)
              * between a zone script that is late and one that never ran.
              */
             selftest_park_player(srv, 3222, 3218);
-            player->varps[zone_log] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
             player->delayed_until = srv->tick + 20;
             for( int i = 0; i < 4; i++ )
                 selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 0,
                            "a busy player does not run a queued zone script, got %d",
-                           player->varps[zone_log]);
+                           ToriRSServer_Varp(player, zone_log));
             player->delayed_until = 0;
             selftest_tick(srv);
-            SELFTEST_CHECK(player->varps[zone_log] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, zone_log) == 1,
                            "and runs it on the first tick after access returns, got %d",
-                           player->varps[zone_log]);
+                           ToriRSServer_Varp(player, zone_log));
 
-            player->varps[zone_log] = 0;
-            player->varps[mapzone_log] = 0;
-            player->varps[zone_clock] = 0;
+            ToriRSServer_VarpPut(player, zone_log, 0);
+            ToriRSServer_VarpPut(player, mapzone_log, 0);
+            ToriRSServer_VarpPut(player, zone_clock, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -47212,7 +47218,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_uid] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
                 /*
                  * Five, not four: the run has to get *past* `session_log`. That
@@ -47220,11 +47226,11 @@ ToriRSServer_WorldSelftest(void)
                  * tell "implemented" from "aborted the script" is a statement
                  * after it.
                  */
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 5,
                                "p_finduid / the false uid / text_gender / session_log "
-                               "should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               "should all clear, got %d", ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -47283,16 +47289,16 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_iterators] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == expected,
                                "~npc_findcount should agree with a direct walk, "
                                "script says %d and the roster has %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], expected);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS), expected);
             }
 
             expected = 0;
-            for( int slot = 0;; slot++ )
+            for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
             {
                 struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
@@ -47312,15 +47318,15 @@ ToriRSServer_WorldSelftest(void)
                            "[proc,selftest_loc_iterator] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == expected,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == expected,
                                "loc_findallzone should agree with a direct walk, "
                                "script says %d and the zone has %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], expected);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS), expected);
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -47358,11 +47364,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_npc_find] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 4,
                                "npc_find/stat/range should all clear, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
             before = 0;
@@ -47376,10 +47382,10 @@ ToriRSServer_WorldSelftest(void)
             {
                 int after = 0;
 
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 3,
-                               "add/tele/del should all clear, got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 3,
+                               "add/tele/del should all clear, got %d", ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
                     if( srv->npcs[i].active )
                         after++;
@@ -47416,7 +47422,7 @@ ToriRSServer_WorldSelftest(void)
                                "and be gone once the duration expires");
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -47457,11 +47463,11 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_loc] should be in the pack");
             if( script && slot >= 0 )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 4,
                                "find/type/coord/change should all clear, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                 loc = ToriRSServer_SceneLoc(slot);
                 SELFTEST_CHECK(loc && loc->loc_id == remains,
@@ -47502,7 +47508,7 @@ ToriRSServer_WorldSelftest(void)
             {
                 int added;
 
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
                 /* 4, not 1: the proc reads `loc_angle` and `loc_shape` back off
                  * the loc it just added and then checks `movecoord`, stopping at
@@ -47511,11 +47517,11 @@ ToriRSServer_WorldSelftest(void)
                  * shape, `movecoord`'s y and z — and both were invisible for the
                  * same reason: every caller in the tree passed the two swapped
                  * arguments as the same number. */
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 4,
                                "loc_add should leave the new loc active with the angle and "
                                "shape it was given, and movecoord should move the axis it "
                                "was told to, got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 /*
                  * The slot, not `ToriRSServer_SceneFindLoc`. That function returns
                  * the first loc on the tile when no id matches — the ternary at
@@ -47577,8 +47583,8 @@ ToriRSServer_WorldSelftest(void)
             {
                 const int v_a = SELFTEST_VARP_GREETING_COUNT;
                 const int v_b = SELFTEST_VARP_QUEST_PROGRESS;
-                const int32_t saved_a = player->varps[v_a];
-                const int32_t saved_b = player->varps[v_b];
+                const int32_t saved_a = ToriRSServer_Varp(player, v_a);
+                const int32_t saved_b = ToriRSServer_Varp(player, v_b);
                 const int inviswall = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "inviswall");
                 const int next_stage =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_PARAM, "next_loc_stage");
@@ -47593,7 +47599,7 @@ ToriRSServer_WorldSelftest(void)
 
                 SELFTEST_CHECK(inviswall >= 0 && next_stage >= 0 && remains > 0,
                                "inviswall, next_loc_stage and fire_remains resolve by name");
-                for( int i = 0; ToriRSServer_SceneLoc(i); i++ )
+                for( int i = ToriRSServer_SceneLocNext(-1); i >= 0; i = ToriRSServer_SceneLocNext(i) )
                 {
                     const struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(i);
 
@@ -47827,18 +47833,18 @@ ToriRSServer_WorldSelftest(void)
 
                         assert(row);
                         strings[7] = (char*)ToriRSServer_LocName(d_id);
-                        player->varps[v_a] = -7;
-                        player->varps[v_b] = -7;
+                        ToriRSServer_VarpPut(player, v_a, -7);
+                        ToriRSServer_VarpPut(player, v_b, -7);
                         ran = selftest_run_ops(srv, "[selftest,loc_name_param_after_loc_del]", ops,
                                                operands, strings, 14);
                         SELFTEST_CHECK(ran && ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) < 0,
                                        "the loc_del should have removed loc %d at %d,%d", d_id,
                                        d_x, d_z);
-                        SELFTEST_CHECK(player->varps[v_a] == 0 && player->varps[v_b] == row->ival,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, v_a) == 0 && ToriRSServer_Varp(player, v_b) == row->ival,
                                        "loc_name / loc_param(next_loc_stage) after loc_del should "
                                        "read the removed loc: compare %d (want 0), param %d "
                                        "(want %d)",
-                                       player->varps[v_a], player->varps[v_b], row->ival);
+                                       ToriRSServer_Varp(player, v_a), ToriRSServer_Varp(player, v_b), row->ival);
                         for( int i = 0; i < 5; i++ )
                             selftest_tick(srv);
                         SELFTEST_CHECK(ToriRSServer_SceneFindLocId(d_x, d_z, 0, d_id) >= 0,
@@ -47872,15 +47878,15 @@ ToriRSServer_WorldSelftest(void)
                         char* strings[16] = { NULL };
                         int ran;
 
-                        player->varps[v_a] = -7;
-                        player->varps[v_b] = -7;
+                        ToriRSServer_VarpPut(player, v_a, -7);
+                        ToriRSServer_VarpPut(player, v_b, -7);
                         ran = selftest_run_ops(srv, "[selftest,dotted_loc]", ops, operands,
                                                strings, 16);
-                        SELFTEST_CHECK(ran && player->varps[v_a] == a_id &&
-                                           player->varps[v_b] == b_id,
+                        SELFTEST_CHECK(ran && ToriRSServer_Varp(player, v_a) == a_id &&
+                                           ToriRSServer_Varp(player, v_b) == b_id,
                                        "loc_type / .loc_type should read the primary %d and the "
                                        "secondary %d, got %d and %d",
-                                       a_id, b_id, player->varps[v_a], player->varps[v_b]);
+                                       a_id, b_id, ToriRSServer_Varp(player, v_a), ToriRSServer_Varp(player, v_b));
                         SELFTEST_CHECK(ToriRSServer_SceneFindLocId(b_x, b_z, 0, inviswall) >= 0 &&
                                            ToriRSServer_SceneFindLocId(a_x, a_z, 0, a_id) >= 0,
                                        ".loc_change should change the secondary (%d,%d) and "
@@ -47892,8 +47898,8 @@ ToriRSServer_WorldSelftest(void)
                                        "and the secondary should revert to %d", b_id);
                     }
                 }
-                player->varps[v_a] = saved_a;
-                player->varps[v_b] = saved_b;
+                ToriRSServer_VarpPut(player, v_a, saved_a);
+                ToriRSServer_VarpPut(player, v_b, saved_b);
             }
 
             ToriRSServer_ScriptsFree(srv);
@@ -47979,13 +47985,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_oc_param] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 5,
                                "oc_param should clear all five int cases (two carried "
                                "rows, then absent with no default, default=-1, and "
                                "default=4), got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
             script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_oc_param_string]");
@@ -47993,14 +47999,14 @@ ToriRSServer_WorldSelftest(void)
                            "[proc,selftest_oc_param_string] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                                "a string param should reach the string stack and read "
-                               "back as \"Rub\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               "back as \"Rub\", got %d", ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -48099,13 +48105,13 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(script != NULL, "%s should be in the pack", k_trail[i].proc);
                 if( !script )
                     continue;
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == k_trail[i].expect,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == k_trail[i].expect,
                                "%s, got %d of %d", k_trail[i].what,
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], k_trail[i].expect);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS), k_trail[i].expect);
             }
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -48149,8 +48155,8 @@ ToriRSServer_WorldSelftest(void)
         srv->loot_credit_armed = 1;
         srv->loot_credit_npc_type = 0;
         srv->loot_credit_event_id = ++srv->loot_credit_seq;
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
-        srv->loot_credit_players[pid] = 1;
+        ToriRSServer_PidSetClear(&srv->loot_credit);
+        ToriRSServer_PidSetAdd(&srv->loot_credit, pid);
         ToriRSServer_ScriptsRunProc(srv, "[proc,selftest_collection_kill_drops]", NULL, 0);
         SELFTEST_CHECK(srv->loot_credit_drop_count == 2,
                        "both credited drops were recorded (%d)", srv->loot_credit_drop_count);
@@ -48162,7 +48168,7 @@ ToriRSServer_WorldSelftest(void)
 
         srv->loot_credit_armed = 0;
         ToriRSServer_ScriptsFlushLootCredit(srv);
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        ToriRSServer_PidSetClear(&srv->loot_credit);
         whip_after = 0;
         for( int i = 0; i < row->slots; i++ )
         {
@@ -48520,13 +48526,13 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(script != NULL, "%s should be in the pack", k_cannon[i].proc);
                 if( !script )
                     continue;
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == k_cannon[i].expect,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == k_cannon[i].expect,
                                "%s, got %d of %d", k_cannon[i].what,
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], k_cannon[i].expect);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS), k_cannon[i].expect);
             }
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -48602,12 +48608,12 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(script != NULL, "[proc,selftest_nc_param] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 5,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 5,
                                "nc_param should clear all five int cases (the last is "
                                "absent-with-declared-default: param_46 -> 526), got %d",
-                               player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
             script = SSVM_ProviderGetByName(srv->scripts, "[proc,selftest_nc_param_string]");
@@ -48615,14 +48621,14 @@ ToriRSServer_WorldSelftest(void)
                            "[proc,selftest_nc_param_string] should be in the pack");
             if( script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, script->id);
-                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                                "a string param should reach the string stack and read back "
-                               "as \"Dagannoth Kings (Echo)\", got %d", player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                               "as \"Dagannoth Kings (Echo)\", got %d", ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
             }
 
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -48719,7 +48725,7 @@ ToriRSServer_WorldSelftest(void)
                 saved_level = player->level;
                 ToriRSServer_WorldTeleport(srv, srv->npcs[cook_slot].level,
                                        srv->npcs[cook_slot].x + 1, srv->npcs[cook_slot].z);
-                player->varps[cookquest] = 0;
+                ToriRSServer_VarpPut(player, cookquest, 0);
 
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 SELFTEST_CHECK(selftest_settle(srv, 20) >= 0,
@@ -48735,9 +48741,9 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->active_script == NULL,
                                "the opening conversation should finish within 32 pages "
                                "(clicked %d)", pages);
-                SELFTEST_CHECK(player->varps[cookquest] == 1,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1,
                                "accepting should set %%cookquest to 1, got %d",
-                               player->varps[cookquest]);
+                               ToriRSServer_Varp(player, cookquest));
 
                 /* Talking again with nothing in the backpack is the
                  * in-progress branch. It must not restart the quest, and it
@@ -48745,9 +48751,9 @@ ToriRSServer_WorldSelftest(void)
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 selftest_settle(srv, 20);
                 pages = selftest_click_through(srv, 24);
-                SELFTEST_CHECK(player->varps[cookquest] == 1,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1,
                                "talking again empty-handed should leave it in progress, got %d",
-                               player->varps[cookquest]);
+                               ToriRSServer_Varp(player, cookquest));
 
                 /* Hand the ingredients in. */
                 {
@@ -48786,9 +48792,9 @@ ToriRSServer_WorldSelftest(void)
                 /* Atomic hand-in: state, XP, and item removal commit in the
                  * same script as the last mesbox. The scroll is still booked
                  * through the shared reward helper. */
-                SELFTEST_CHECK(player->varps[cookquest] == 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 2,
                                "the hand-in should complete the quest immediately, got %d",
-                               player->varps[cookquest]);
+                               ToriRSServer_Varp(player, cookquest));
                 SELFTEST_CHECK(player->stat_xp_tenths[cooking] == cooking_xp_before + 3000,
                                "and award 300 Cooking xp (3000 tenths), got %d",
                                player->stat_xp_tenths[cooking] - cooking_xp_before);
@@ -48861,11 +48867,11 @@ ToriRSServer_WorldSelftest(void)
                 selftest_handle(player, PKTOUT_NAME_OPNPC1, payload, 2);
                 selftest_settle(srv, 20);
                 pages = selftest_click_through(srv, 24);
-                SELFTEST_CHECK(player->varps[cookquest] == 2,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 2,
                                "talking after completion should leave it complete, got %d",
-                               player->varps[cookquest]);
+                               ToriRSServer_Varp(player, cookquest));
 
-                player->varps[cookquest] = 0;
+                ToriRSServer_VarpPut(player, cookquest, 0);
                 ToriRSServer_WorldTeleport(srv, saved_level, saved_x, saved_z);
             }
 
@@ -50987,12 +50993,12 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "fightcavetest"),
                                    "::fightcavetest should run");
                     if( test_varp >= 0 )
-                        SELFTEST_CHECK(player->varps[test_varp] == 0,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, test_varp) == 0,
                                        "::fightcavetest should pass every group, got mask "
                                        "%d (1=rotations 2=tokkul 4=records; -1 means it "
                                        "aborted before reporting). Run `::fightcavetest` in "
                                        "a client for the per-check lines",
-                                       player->varps[test_varp]);
+                                       ToriRSServer_Varp(player, test_varp));
 
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "fightcave 63"),
                                    "::fightcave 63 should stage the final wave");
@@ -51647,10 +51653,10 @@ ToriRSServer_WorldSelftest(void)
                            "the duplicate player-death queue should arm");
 
             selftest_tick(srv);
-            SELFTEST_CHECK(inferno_active >= 0 && player->varps[inferno_active] == 0,
+            SELFTEST_CHECK(inferno_active >= 0 && ToriRSServer_Varp(player, inferno_active) == 0,
                            "the first death turn should stop Zuk before p_delay");
             SELFTEST_CHECK(inferno_death_pending >= 0 &&
-                               player->varps[inferno_death_pending] == 1,
+                               ToriRSServer_Varp(player, inferno_death_pending) == 1,
                            "the first death turn should defer Inferno teardown");
             SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 1 &&
                                ToriRSServer_MapInstanceFind(player->x, player->z) == handle,
@@ -51729,12 +51735,12 @@ ToriRSServer_WorldSelftest(void)
                            player->dying, player->hitpoints, player->max_hitpoints);
             SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 1 &&
                                ToriRSServer_MapInstanceFind(player->x, player->z) == 0 &&
-                               instance_handle >= 0 && player->varps[instance_handle] == handle,
+                               instance_handle >= 0 && ToriRSServer_Varp(player, instance_handle) == handle,
                            "the revived player must be outside an still-owned Inferno before "
                            "cleanup, live=%d coord-handle=%d player-handle=%d",
                            ToriRSServer_MapInstanceLiveCount(),
                            ToriRSServer_MapInstanceFind(player->x, player->z),
-                           instance_handle >= 0 ? player->varps[instance_handle] : -1);
+                           instance_handle >= 0 ? ToriRSServer_Varp(player, instance_handle) : -1);
             SELFTEST_CHECK(sentinel >= 0 && srv->npcs[sentinel].active,
                            "Inferno actors should outlive the corpse and respawn turn");
             if( overlay_hud >= 0 )
@@ -51757,9 +51763,9 @@ ToriRSServer_WorldSelftest(void)
             selftest_tick(srv);
             SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0,
                            "post-respawn cleanup should release the Inferno instance");
-            SELFTEST_CHECK(instance_handle >= 0 && player->varps[instance_handle] == 0,
+            SELFTEST_CHECK(instance_handle >= 0 && ToriRSServer_Varp(player, instance_handle) == 0,
                            "and clear the player's instance handle, got %d",
-                           instance_handle >= 0 ? player->varps[instance_handle] : -1);
+                           instance_handle >= 0 ? ToriRSServer_Varp(player, instance_handle) : -1);
             SELFTEST_CHECK(ToriRSServer_MapInstanceFind(player->x, player->z) == 0,
                            "the respawn should be outside the released instance at %d,%d",
                            player->x, player->z);
@@ -52220,7 +52226,7 @@ ToriRSServer_WorldSelftest(void)
             /* 1. Unskipped, the varp is the real minute. */
             real_before = (long long)time(NULL) / 60LL;
             ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
-            before = varp_date >= 0 ? p->varps[varp_date] : -1;
+            before = varp_date >= 0 ? ToriRSServer_Varp(p, varp_date) : -1;
             real_after = (long long)time(NULL) / 60LL;
             SELFTEST_CHECK(before >= real_before && before <= real_after,
                            "unskipped date_minutes %d should be the real minute %lld..%lld", before,
@@ -52232,7 +52238,7 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(ToriRSServer_RunCheatLadder(srv, p, "clockskip 16") ==
                                TORIRSSERVER_TRIGGER_RAN,
                            "::clockskip 16 runs");
-            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            after = varp_date >= 0 ? ToriRSServer_Varp(p, varp_date) : -1;
             real_after = (long long)time(NULL) / 60LL;
             SELFTEST_CHECK(srv->clock_skip_minutes == 16, "the world is 16 minutes ahead, got %d",
                            srv->clock_skip_minutes);
@@ -52243,7 +52249,7 @@ ToriRSServer_WorldSelftest(void)
             /* ...and content reading the opcode agrees with the varp. */
             real_before = (long long)time(NULL) / 60LL;
             ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
-            after = varp_date >= 0 ? p->varps[varp_date] : -1;
+            after = varp_date >= 0 ? ToriRSServer_Varp(p, varp_date) : -1;
             real_after = (long long)time(NULL) / 60LL;
             SELFTEST_CHECK(after - 16 >= real_before && after - 16 <= real_after,
                            "content's date_minutes %d = real %lld..%lld + 16", after, real_before,
@@ -52302,7 +52308,7 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(patch >= 0, "farming_hops_patch_3 resolves");
                 SELFTEST_CHECK(seed >= 0, "barley_seed resolves");
                 ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
-                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                now = varp_date >= 0 ? ToriRSServer_Varp(p, varp_date) : -1;
                 args[0] = patch;
                 args[1] = seed;
                 ToriRSServer_ScriptsRunProc(srv, "[proc,farming_hops_set_seed]", args, 2);
@@ -52318,7 +52324,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get]", args, 1, &state);
                 ToriRSServer_ScriptsRunProcInt(srv, "[proc,farming_hops_get_next]", args, 1, &next);
                 ToriRSServer_ScriptsRunProc(srv, "[proc,teleport_cooldowns_login]", NULL, 0);
-                now = varp_date >= 0 ? p->varps[varp_date] : -1;
+                now = varp_date >= 0 ? ToriRSServer_Varp(p, varp_date) : -1;
                 SELFTEST_CHECK(state == 75, "the overdue hops stage advanced (74 -> %d)", state);
                 SELFTEST_CHECK(next > now, "the re-armed hops deadline %d is after date_minutes %d",
                                next, now);
@@ -53104,14 +53110,14 @@ ToriRSServer_WorldSelftest(void)
                     player->last_useitem = -1;
                     player->last_useslot = -1;
                 }
-                got_mask = player->varps[varp_tuzo];
+                got_mask = ToriRSServer_Varp(player, varp_tuzo);
                 SELFTEST_CHECK(got_mask == 15, "all four real pillar uses should set every "
                                                "grandtree_tuzo_mask bit, got %d",
                                got_mask);
-                SELFTEST_CHECK(player->varps[varp_grandtree] == c_unlocked_trapdoor,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grandtree) == c_unlocked_trapdoor,
                                "completing TUZO for real should advance %%grandtree to "
                                "unlocked_trapdoor (%d), got %d",
-                               c_unlocked_trapdoor, player->varps[varp_grandtree]);
+                               c_unlocked_trapdoor, ToriRSServer_Varp(player, varp_grandtree));
             }
 
             /* ---- black demon: real [ai_queue3] death dispatch, not a varp write ---- */
@@ -53134,10 +53140,10 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_WorldCloseModal(srv);
                         selftest_tick(srv);
                     }
-                    SELFTEST_CHECK(player->varps[varp_grandtree] == c_defeated_demon,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grandtree) == c_defeated_demon,
                                    "really killing the black demon should advance %%grandtree to "
                                    "defeated_black_demon (%d), got %d",
-                                   c_defeated_demon, player->varps[varp_grandtree]);
+                                   c_defeated_demon, ToriRSServer_Varp(player, varp_grandtree));
                 }
             }
 
@@ -53225,20 +53231,20 @@ ToriRSServer_WorldSelftest(void)
                     inv_set(player, i, -1, 0);
                 inv_set(player, 0, obj_daconiarock, 1);
                 ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_defeated_demon);
-                qp_before = player->varps[varp_qp];
+                qp_before = ToriRSServer_Varp(player, varp_qp);
 
                 ToriRSServer_ScriptsRunProc(srv, "[queue,grandtree_quest_complete]", NULL, 0);
 
-                SELFTEST_CHECK(player->varps[varp_grandtree] == c_complete,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grandtree) == c_complete,
                                "the real completion queue should advance %%grandtree to "
                                "complete (%d), got %d",
-                               c_complete, player->varps[varp_grandtree]);
+                               c_complete, ToriRSServer_Varp(player, varp_grandtree));
                 SELFTEST_CHECK(player->inv[0].obj_id != obj_daconiarock,
                                "the real completion queue should consume the daconia rock");
-                SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 5,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 5,
                                "the real completion queue should award 5 quest points via "
                                "~quest_complete_rewards, went %d -> %d",
-                               qp_before, player->varps[varp_qp]);
+                               qp_before, ToriRSServer_Varp(player, varp_qp));
             }
 
             ToriRSServer_ScriptsFree(srv);
@@ -54040,7 +54046,7 @@ ToriRSServer_WorldSelftest(void)
                          * type, so this exercises the same guard for the
                          * indoor rat. */
                         selftest_clear_ground(srv);
-                        player->varps[varp_hetty] = 0; /* hetty_not_started */
+                        ToriRSServer_VarpPut(player, varp_hetty, 0); /* hetty_not_started */
                         ToriRSServer_WorldNpcDied(srv, slot);
                         tail_here = 0;
                         for( i = 0; i < TORIRSSERVER_GROUND_MAX; i++ )
@@ -54061,7 +54067,7 @@ ToriRSServer_WorldSelftest(void)
                          * fresh spawn: the first died and was reaped above. */
                         slot = npc_spawn(srv, npc_rat_indoors, player->x + 2, player->z, player->level);
                         selftest_clear_ground(srv);
-                        player->varps[varp_hetty] = 1; /* hetty_started */
+                        ToriRSServer_VarpPut(player, varp_hetty, 1); /* hetty_started */
                         SELFTEST_CHECK(slot >= 0, "rat_indoors should spawn again for the "
                                                    "started-quest kill");
                         if( slot >= 0 )
@@ -54384,10 +54390,10 @@ ToriRSServer_WorldSelftest(void)
                         for( int q = 0; q < TORIRSSERVER_QUEUE_MAX; q++ )
                             player->queue[q].active = 0;
 
-                        player->varps[varp_ikov] = 70; /* ikov_helping_armadyl */
+                        ToriRSServer_VarpPut(player, varp_ikov, 70); /* ikov_helping_armadyl */
                         player->worn[2].obj_id = obj_pendant; /* wearpos=2, cache-confirmed */
                         player->worn[2].count = 1;
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
+                        qp_before = ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp"));
 
                         ToriRSServer_WorldNpcDied(srv, slot);
                         /*
@@ -54414,15 +54420,15 @@ ToriRSServer_WorldSelftest(void)
                                        "before the Armadyl path completes");
                         selftest_click_through(srv, 4);
 
-                        SELFTEST_CHECK(player->varps[varp_ikov] == 80 /* ikov_completed_armadyl */,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_ikov) == 80 /* ikov_completed_armadyl */,
                                        "ikov_lucien2's death should complete the Armadyl path, "
                                        "got ikov=%d",
-                                       player->varps[varp_ikov]);
-                        SELFTEST_CHECK(player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")] ==
+                                       ToriRSServer_Varp(player, varp_ikov));
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")) ==
                                        qp_before + 1,
                                        "ikov_lucien2's death should award +1 QP, went %d -> %d",
                                        qp_before,
-                                       player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")]);
+                                       ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")));
                     }
                 }
             }
@@ -54611,7 +54617,7 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ground_slot >= 0, "test holy_grail ground spawn should succeed");
                     if( ground_slot >= 0 )
                     {
-                        player->varps[varp_grail] = 8; /* grail_finding_percival, < given_whistle */
+                        ToriRSServer_VarpPut(player, varp_grail, 8); /* grail_finding_percival, < given_whistle */
                         srv->pending_active_obj = ToriRSServer_WorldObjHandle(srv, ground_slot);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, obj_grail, -1, -1);
                         srv->pending_active_obj = 0;
@@ -54624,7 +54630,7 @@ ToriRSServer_WorldSelftest(void)
                                        "grail_given_whistle, got %d",
                                        count);
 
-                        player->varps[varp_grail] = 9; /* grail_given_whistle */
+                        ToriRSServer_VarpPut(player, varp_grail, 9); /* grail_given_whistle */
                         srv->pending_active_obj = ToriRSServer_WorldObjHandle(srv, ground_slot);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, obj_grail, -1, -1);
                         srv->pending_active_obj = 0;
@@ -54770,7 +54776,7 @@ ToriRSServer_WorldSelftest(void)
                         selftest_tick(srv);
 
                         /* Quest not started: the door must not spawn merlin2. */
-                        player->varps[varp_grail] = 0; /* grail_not_started */
+                        ToriRSServer_VarpPut(player, varp_grail, 0); /* grail_not_started */
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
                                                            ToriRSServer_LocCategory(loc_merlinworkshop),
                                                            door_slot);
@@ -54789,7 +54795,7 @@ ToriRSServer_WorldSelftest(void)
                          * has not swung and door_slot/door_x/door_z are
                          * still valid. Quest started: opening now must
                          * spawn exactly one merlin2. */
-                        player->varps[varp_grail] = 2; /* grail_started */
+                        ToriRSServer_VarpPut(player, varp_grail, 2); /* grail_started */
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_merlinworkshop,
                                                            ToriRSServer_LocCategory(loc_merlinworkshop),
                                                            door_slot);
@@ -54848,7 +54854,7 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                     inv_set(player, i, -1, 0);
-                player->varps[varp_grail] = 0;
+                ToriRSServer_VarpPut(player, varp_grail, 0);
             }
             ToriRSServer_ScriptsFree(srv);
         }
@@ -54987,7 +54993,7 @@ ToriRSServer_WorldSelftest(void)
                         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                             inv_set(player, i, -1, 0);
 
-                        player->varps[varp_itgronigen] = 6; /* itgronigen_sent_telescope */
+                        ToriRSServer_VarpPut(player, varp_itgronigen, 6); /* itgronigen_sent_telescope */
                         ToriRSServer_VarbitSetOn(srv, player, vb_scopelooked, 1);
                         ToriRSServer_VarbitSetOn(srv, player, vb_starsign, 11); /* sign_pisces */
 
@@ -55025,10 +55031,10 @@ ToriRSServer_WorldSelftest(void)
                         button[5] = 1; /* Aquarius -- wrong */
                         selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
 
-                        SELFTEST_CHECK(player->varps[varp_itgronigen] == 6,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_itgronigen) == 6,
                                        "a wrong constellation guess must not complete the quest, "
                                        "itgronigen=%d",
-                                       player->varps[varp_itgronigen]);
+                                       ToriRSServer_Varp(player, varp_itgronigen));
                         SELFTEST_CHECK(selftest_count_obj(player, obj_sapphire) == 0,
                                        "a wrong guess must not grant the uncut sapphire");
 
@@ -55051,7 +55057,7 @@ ToriRSServer_WorldSelftest(void)
                         craft_xp_before = player->stat_xp_tenths[stat_crafting];
                         sapphire_before = selftest_count_obj(player, obj_sapphire);
                         tuna_before = selftest_count_obj(player, obj_tuna);
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
+                        qp_before = ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp"));
 
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
@@ -55188,10 +55194,10 @@ ToriRSServer_WorldSelftest(void)
                             }
                         }
 
-                        SELFTEST_CHECK(player->varps[varp_itgronigen] == 7 /* itgronigen_complete */,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_itgronigen) == 7 /* itgronigen_complete */,
                                        "the correct constellation guess should complete the quest, "
                                        "itgronigen=%d",
-                                       player->varps[varp_itgronigen]);
+                                       ToriRSServer_Varp(player, varp_itgronigen));
                         SELFTEST_CHECK(
                             player->stat_xp_tenths[stat_crafting] ==
                                 craft_xp_before + 22500,
@@ -55209,17 +55215,17 @@ ToriRSServer_WorldSelftest(void)
                             tuna_before,
                             selftest_count_obj(player, obj_tuna));
                         SELFTEST_CHECK(
-                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")] ==
+                            ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")) ==
                                 qp_before + 2,
                             "completing the quest should award +2 QP, went %d -> %d",
                             qp_before,
-                            player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")]);
+                            ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")));
 
                         ToriRSServer_WorldNpcFree(srv, slot);
                         ToriRSServer_WorldNpcReap(srv);
                         for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
                             inv_set(player, i, -1, 0);
-                        player->varps[varp_itgronigen] = 0;
+                        ToriRSServer_VarpPut(player, varp_itgronigen, 0);
                         ToriRSServer_VarbitSetOn(srv, player, vb_scopelooked, 0);
                         ToriRSServer_VarbitSetOn(srv, player, vb_starsign, 0);
                     }
@@ -55299,14 +55305,14 @@ ToriRSServer_WorldSelftest(void)
                  * would silently short-circuit every dig check below. Not
                  * this quest's state to own; reset it for this stanza. */
                 if( varp_biohazard >= 0 )
-                    player->varps[varp_biohazard] = 0;
+                    ToriRSServer_VarpPut(player, varp_biohazard, 0);
 
                 /* Every declared stage's journal should render without the
                  * VM aborting -- a cheap, wide net for a constant that
                  * doesn't resolve the way this audit assumed. */
                 for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
                 {
-                    player->varps[varp_elena] = all_stages[i];
+                    ToriRSServer_VarpPut(player, varp_elena, all_stages[i]);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,elena_journal]", NULL, 0);
                 }
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,elena_journal]", NULL, 0) == 1,
@@ -55324,7 +55330,7 @@ ToriRSServer_WorldSelftest(void)
 
                 if( mud_slot >= 0 )
                 {
-                    player->varps[varp_elena] = 3; /* quest_elena_started_mud_patch */
+                    ToriRSServer_VarpPut(player, varp_elena, 3); /* quest_elena_started_mud_patch */
                     for( i = 0; i < 4; i++ )
                     {
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
@@ -55336,10 +55342,10 @@ ToriRSServer_WorldSelftest(void)
                                                            ToriRSServer_LocCategory(loc_mudpatch),
                                                            mud_slot);
                     }
-                    SELFTEST_CHECK(player->varps[varp_elena] == 7 /* quest_elena_mud_patch4 */,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_elena) == 7 /* quest_elena_mud_patch4 */,
                                    "4 buckets of water on the mud patch should reach "
                                    "quest_elena_mud_patch4 (7), got %d",
-                                   player->varps[varp_elena]);
+                                   ToriRSServer_Varp(player, varp_elena));
                     SELFTEST_CHECK(player->inv[0].obj_id == obj_bucket_empty,
                                    "each bucket of water should come back empty, got obj %d",
                                    player->inv[0].obj_id);
@@ -55511,7 +55517,7 @@ ToriRSServer_WorldSelftest(void)
                             }
                         }
 
-                        player->varps[varp_elena] = 8; /* quest_elena_opened_tunnel */
+                        ToriRSServer_VarpPut(player, varp_elena, 8); /* quest_elena_opened_tunnel */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_rope, 1);
@@ -55520,14 +55526,14 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, pipe_id,
                                                            ToriRSServer_LocCategory(pipe_id),
                                                            pipe_slot);
-                        SELFTEST_CHECK(player->varps[varp_elena] == 9 /* quest_elena_tied_rope */,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_elena) == 9 /* quest_elena_tied_rope */,
                                        "using rope on the grill should reach "
                                        "quest_elena_tied_rope (9), got %d",
-                                       player->varps[varp_elena]);
+                                       ToriRSServer_Varp(player, varp_elena));
 
                         /* Edmond frees the grill -- direct progress write,
                          * same as edmond.rs2's own [opnpc1,edmond] case. */
-                        player->varps[varp_elena] = 10; /* quest_elena_opened_pipe */
+                        ToriRSServer_VarpPut(player, varp_elena, 10); /* quest_elena_opened_pipe */
 
                         /* The rope's own `~mesbox` is still parked, and one
                          * parked script per player is the rule: the climb's
@@ -55586,7 +55592,7 @@ ToriRSServer_WorldSelftest(void)
                             inv_set(player, s, -1, 0);
 
                         /* Wrong stage: the barrel must not give up the key. */
-                        player->varps[varp_elena] = 25; /* quest_elena_spoke_to_clerk */
+                        ToriRSServer_VarpPut(player, varp_elena, 25); /* quest_elena_spoke_to_clerk */
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrel,
                                                            ToriRSServer_LocCategory(loc_barrel),
                                                            barrel_slot);
@@ -55595,7 +55601,7 @@ ToriRSServer_WorldSelftest(void)
                                        "quest_elena_spoke_cured_bravek");
 
                         /* Right stage: search finds the key exactly once. */
-                        player->varps[varp_elena] = 27; /* quest_elena_spoke_cured_bravek */
+                        ToriRSServer_VarpPut(player, varp_elena, 27); /* quest_elena_spoke_cured_bravek */
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_barrel,
                                                            ToriRSServer_LocCategory(loc_barrel),
                                                            barrel_slot);
@@ -55630,7 +55636,7 @@ ToriRSServer_WorldSelftest(void)
                          * messagebox -- neither surfaces as a plain
                          * MESSAGE_GAME packet, so chatmodal_group mounting
                          * is the real signal, not a packet capture. */
-                        player->varps[varp_elena] = 20; /* quest_elena_shown_picture */
+                        ToriRSServer_VarpPut(player, varp_elena, 20); /* quest_elena_shown_picture */
                         player->chatmodal_group = 0;
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_alrena, -1,
                                                     npc_slot);
@@ -55646,7 +55652,7 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_ScriptsResumeButton(srv, com_continue);
                         }
 
-                        player->varps[varp_elena] = 22; /* quest_elena_spoken_martha_ted */
+                        ToriRSServer_VarpPut(player, varp_elena, 22); /* quest_elena_spoken_martha_ted */
                         player->chatmodal_group = 0;
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_alrena, -1,
                                                     npc_slot);
@@ -55662,7 +55668,7 @@ ToriRSServer_WorldSelftest(void)
                     inv_set(player, s, -1, 0);
                 player->worn[0].obj_id = -1;
                 player->worn[0].count = 0;
-                player->varps[varp_elena] = 0;
+                ToriRSServer_VarpPut(player, varp_elena, 0);
             }
             ToriRSServer_ScriptsFree(srv);
         }
@@ -55797,12 +55803,12 @@ ToriRSServer_WorldSelftest(void)
                 for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
                 worn_set(player, 0, -1, 0);
-                player->varps[varp_biohazard] = 0;
+                ToriRSServer_VarpPut(player, varp_biohazard, 0);
 
                 /* --- every declared stage's journal renders without aborting --- */
                 for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
                 {
-                    player->varps[varp_biohazard] = all_stages[i];
+                    ToriRSServer_VarpPut(player, varp_biohazard, all_stages[i]);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,biohazard_journal]", NULL, 0) == 1,
                                    "biohazard_journal should render cleanly at stage %d",
                                    all_stages[i]);
@@ -55833,7 +55839,7 @@ ToriRSServer_WorldSelftest(void)
                                    "Jerico's house (~2612,3326,0), got slot %d", slot);
                     if( slot >= 0 )
                     {
-                        player->varps[varp_biohazard] = 2; /* biohazard_spoken_jerico */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 2); /* biohazard_spoken_jerico */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1,
@@ -55875,7 +55881,7 @@ ToriRSServer_WorldSelftest(void)
                                    "the wall watchtower (~2562,3301,0), got slot %d", slot);
                     if( slot >= 0 )
                     {
-                        player->varps[varp_biohazard] = 2; /* biohazard_spoken_jerico */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 2); /* biohazard_spoken_jerico */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_birdfeed, 1);
@@ -55887,20 +55893,20 @@ ToriRSServer_WorldSelftest(void)
                         selftest_tick(srv);
                         selftest_tick(srv);
                         selftest_tick(srv);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 3, /* biohazard_used_birdfeed */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 3, /* biohazard_used_birdfeed */
                                        "throwing bird feed at the tower should reach "
                                        "biohazard_used_birdfeed (3), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
 
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_pigeons, 1);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
                         biohazard_run_dialogue(srv, player, 0);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 4, /* biohazard_released_pigeons */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 4, /* biohazard_released_pigeons */
                                        "opening the pigeon cage in the watchtower zone should "
                                        "reach biohazard_released_pigeons (4), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
                         SELFTEST_CHECK(player->inv[0].obj_id == obj_pigeoncage,
                                        "the pigeons should become an empty cage, got obj %d",
                                        player->inv[0].obj_id);
@@ -55916,7 +55922,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 2559, 3266);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 4; /* biohazard_released_pigeons */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 4); /* biohazard_released_pigeons */
                         if( obj_gasmask >= 0 )
                             worn_set(player, 0, obj_gasmask, 1);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_omart, -1, slot);
@@ -55931,10 +55937,10 @@ ToriRSServer_WorldSelftest(void)
                             player->last_slot = 1; /* "Okay, let's do it." */
                             ToriRSServer_ScriptsResumeButton(srv, rows_uid);
                             biohazard_run_dialogue(srv, player, 0);
-                            SELFTEST_CHECK(player->varps[varp_biohazard] == 5, /* biohazard_climbed_ladder */
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 5, /* biohazard_climbed_ladder */
                                            "crossing the wall with Omart should reach "
                                            "biohazard_climbed_ladder (5), got %d",
-                                           player->varps[varp_biohazard]);
+                                           ToriRSServer_Varp(player, varp_biohazard));
                             SELFTEST_CHECK(player->x == 2554 && player->z == 3267 && player->level == 0,
                                            "climbing the ladder should land the player at "
                                            "biohazard_west_wall_dest (2554,3267,0), got "
@@ -55958,7 +55964,7 @@ ToriRSServer_WorldSelftest(void)
                                    "mourner HQ backyard, got slot %d", slot);
                     if( slot >= 0 )
                     {
-                        player->varps[varp_biohazard] = 5; /* biohazard_climbed_ladder */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 5); /* biohazard_climbed_ladder */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_rottenapples, 1);
@@ -55968,10 +55974,10 @@ ToriRSServer_WorldSelftest(void)
                                                            ToriRSServer_LocCategory(loc_mournercauldron_op),
                                                            slot);
                         biohazard_run_dialogue(srv, player, 0);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 6, /* biohazard_poisoned_stew */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 6, /* biohazard_poisoned_stew */
                                        "using the rotten apple on the cauldron should reach "
                                        "biohazard_poisoned_stew (6), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
                         SELFTEST_CHECK(player->inv[0].obj_id != obj_rottenapples,
                                        "the rotten apple should be consumed");
                     }
@@ -56047,7 +56053,7 @@ ToriRSServer_WorldSelftest(void)
                          * way the door is rotated, reads true and the gown gate fires. */
                         ToriRSServer_WorldTeleport(srv, door->level, door->x, door->z);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 6; /* biohazard_poisoned_stew */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 6); /* biohazard_poisoned_stew */
                         worn_set(player, 0, -1, 0);
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mournerdoor,
                                                            ToriRSServer_LocCategory(loc_mournerdoor),
@@ -56164,17 +56170,17 @@ ToriRSServer_WorldSelftest(void)
                                    "caged room (~2554,3327,1), got slot %d", slot);
                     if( slot >= 0 )
                     {
-                        player->varps[varp_biohazard] = 6; /* biohazard_poisoned_stew */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 6); /* biohazard_poisoned_stew */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mournercrateup,
                                                            ToriRSServer_LocCategory(loc_mournercrateup),
                                                            slot);
                         biohazard_run_dialogue(srv, player, 0);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 7, /* biohazard_found_distillator */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 7, /* biohazard_found_distillator */
                                        "searching the crate should reach "
                                        "biohazard_found_distillator (7), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
                         SELFTEST_CHECK(player->inv[0].obj_id == obj_distillator,
                                        "the crate should give the distillator, got obj %d",
                                        player->inv[0].obj_id);
@@ -56199,16 +56205,16 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 2592, 3336);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 7; /* biohazard_found_distillator */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 7); /* biohazard_found_distillator */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_distillator, 1);
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_elena2, -1, slot);
                         biohazard_run_dialogue(srv, player, 0);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 10, /* biohazard_given_distillator */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 10, /* biohazard_given_distillator */
                                        "giving Elena the distillator should reach "
                                        "biohazard_given_distillator (10), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
                         {
                             int has_sample = 0, has_honey = 0, has_ethenea = 0, has_broline = 0;
                             int s;
@@ -56242,7 +56248,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 2933, 3210);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 10; /* biohazard_given_distillator */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 10); /* biohazard_given_distillator */
                         /* plaguesample already in inv[?] from the Elena step above; make
                          * sure it is, explicitly, so this leg does not depend on slot
                          * order surviving the giving-Elena assertions above. */
@@ -56270,10 +56276,10 @@ ToriRSServer_WorldSelftest(void)
                                 player->last_slot = 2; /* "...for a guy called Guidor." */
                                 ToriRSServer_ScriptsResumeButton(srv, rows_uid);
                                 biohazard_run_dialogue(srv, player, 0);
-                                SELFTEST_CHECK(player->varps[varp_biohazard] == 12, /* biohazard_spoken_chemist */
+                                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 12, /* biohazard_spoken_chemist */
                                                "the chemist should reach "
                                                "biohazard_spoken_chemist (12), got %d",
-                                               player->varps[varp_biohazard]);
+                                               ToriRSServer_Varp(player, varp_biohazard));
                                 {
                                     int has_paper = 0, s;
 
@@ -56301,8 +56307,8 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 2933, 3212);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 12; /* biohazard_spoken_chemist */
-                        player->varps[varp_bioerrand] = 0;
+                        ToriRSServer_VarpPut(player, varp_biohazard, 12); /* biohazard_spoken_chemist */
+                        ToriRSServer_VarpPut(player, varp_bioerrand, 0);
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_sulphuric_broline, 1);
@@ -56401,7 +56407,7 @@ ToriRSServer_WorldSelftest(void)
                          * off-axis approach a real player clicking the gate from outside
                          * would have, and the shape [label,varrock_east_gate] itself
                          * branches on. */
-                        player->varps[varp_biohazard] = 0; /* biohazard_not_started */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 0); /* biohazard_not_started */
                         ToriRSServer_WorldTeleport(srv, rlevel, rx + 1, rz + 1);
                         selftest_tick(srv);
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_guidorgaterclosed,
@@ -56421,7 +56427,7 @@ ToriRSServer_WorldSelftest(void)
 
                             SELFTEST_CHECK(guard_slot >= 0, "bioguard1 should spawn for "
                                            "the C-side gate-search check");
-                            player->varps[varp_biohazard] = 10; /* biohazard_given_distillator */
+                            ToriRSServer_VarpPut(player, varp_biohazard, 10); /* biohazard_given_distillator */
                             ToriRSServer_WorldTeleport(srv, llevel, lx + 1, lz + 1);
                             selftest_tick(srv);
                             for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
@@ -56459,7 +56465,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 3284, 3382);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 12; /* biohazard_spoken_chemist */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 12); /* biohazard_spoken_chemist */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_plaguesample, 1);
@@ -56504,10 +56510,10 @@ ToriRSServer_WorldSelftest(void)
                                     ToriRSServer_ScriptsResumeButton(srv, rows_uid);
                                     biohazard_run_dialogue(srv, player, 0);
                                 }
-                                SELFTEST_CHECK(player->varps[varp_biohazard] == 14, /* biohazard_found_secret */
+                                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 14, /* biohazard_found_secret */
                                                "Guidor's analysis should reach "
                                                "biohazard_found_secret (14), got %d",
-                                               player->varps[varp_biohazard]);
+                                               ToriRSServer_Varp(player, varp_biohazard));
                                 SELFTEST_CHECK(player->inv[0].obj_id != obj_plaguesample,
                                                "the plague sample should be consumed by "
                                                "Guidor's analysis");
@@ -56526,13 +56532,13 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 0, 2592, 3336);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 14; /* biohazard_found_secret */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 14); /* biohazard_found_secret */
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_elena2, -1, slot);
                         biohazard_run_dialogue(srv, player, 0);
-                        SELFTEST_CHECK(player->varps[varp_biohazard] == 15, /* biohazard_reported_elena */
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 15, /* biohazard_reported_elena */
                                        "reporting Guidor's findings to Elena should reach "
                                        "biohazard_reported_elena (15), got %d",
-                                       player->varps[varp_biohazard]);
+                                       ToriRSServer_Varp(player, varp_biohazard));
                     }
                 }
 
@@ -56545,7 +56551,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         ToriRSServer_WorldTeleport(srv, 1, 2578, 3293);
                         selftest_tick(srv);
-                        player->varps[varp_biohazard] = 15; /* biohazard_reported_elena */
+                        ToriRSServer_VarpPut(player, varp_biohazard, 15); /* biohazard_reported_elena */
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kinglathas, -1, slot);
                         biohazard_run_dialogue(srv, player, rows_uid);
                         SELFTEST_CHECK(player->active_script != NULL &&
@@ -56563,15 +56569,15 @@ ToriRSServer_WorldSelftest(void)
                              * mainmodal a real player has not clicked away -- close it
                              * a few times across ticks before trusting the queue drained
                              * (memory: server-queue access-race pattern). */
-                            for( i = 0; i < 6 && player->varps[varp_biohazard] != 16; i++ )
+                            for( i = 0; i < 6 && ToriRSServer_Varp(player, varp_biohazard) != 16; i++ )
                             {
                                 ToriRSServer_WorldCloseModal(srv);
                                 selftest_tick(srv);
                             }
-                            SELFTEST_CHECK(player->varps[varp_biohazard] == 16, /* biohazard_complete */
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 16, /* biohazard_complete */
                                            "confronting King Lathas about the hoax should "
                                            "reach biohazard_complete (16), got %d",
-                                           player->varps[varp_biohazard]);
+                                           ToriRSServer_Varp(player, varp_biohazard));
                         }
                     }
                 }
@@ -56580,8 +56586,8 @@ ToriRSServer_WorldSelftest(void)
                     inv_set(player, s, -1, 0);
                 worn_set(player, 0, -1, 0);
                 worn_set(player, 1, -1, 0);
-                player->varps[varp_biohazard] = 0;
-                player->varps[varp_bioerrand] = 0;
+                ToriRSServer_VarpPut(player, varp_biohazard, 0);
+                ToriRSServer_VarpPut(player, varp_bioerrand, 0);
             }
             ToriRSServer_ScriptsFree(srv);
         }
@@ -56659,7 +56665,7 @@ ToriRSServer_WorldSelftest(void)
 
                 for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
-                player->varps[varp_seaslug] = 0;
+                ToriRSServer_VarpPut(player, varp_seaslug, 0);
                 player->stat_level[stat_firemaking] = 99;
                 player->stat_boosted[stat_firemaking] = 99;
                 player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = 99;
@@ -56692,7 +56698,7 @@ ToriRSServer_WorldSelftest(void)
                                player->inv[0].obj_id);
 
                 inv_set(player, 1, obj_torch_unlit, 1);
-                player->varps[varp_seaslug] = 6; /* seaslug_spoken_kent */
+                ToriRSServer_VarpPut(player, varp_seaslug, 6); /* seaslug_spoken_kent */
                 /* `stat_random(firemaking, 64, 512)` is a real roll, not a
                  * level gate -- 99 firemaking narrows it but does not
                  * guarantee the first rub catches, and dry_sticks/
@@ -56708,10 +56714,10 @@ ToriRSServer_WorldSelftest(void)
                                "rubbing dry_sticks with a torch_unlit in inventory and "
                                "firemaking 99 should light the torch, got obj_id=%d",
                                player->inv[1].obj_id);
-                SELFTEST_CHECK(player->varps[varp_seaslug] == 7 /* seaslug_lit_torch */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_seaslug) == 7 /* seaslug_lit_torch */,
                                "lighting the torch at seaslug_spoken_kent should advance "
                                "seaslugquest to seaslug_lit_torch, got %d",
-                               player->varps[varp_seaslug]);
+                               ToriRSServer_Varp(player, varp_seaslug));
 
                 /* ---- seaslug_ladder: blocked without a lit torch, climbs with one ----
                  * `~climb_ladder`/the fisherman-smack branch both `p_delay`, so this
@@ -56724,7 +56730,7 @@ ToriRSServer_WorldSelftest(void)
                     inv_set(player, s, -1, 0);
                 ToriRSServer_WorldTeleport(srv, 0, 2784, 3286);
                 selftest_tick(srv);
-                player->varps[varp_seaslug] = 7; /* seaslug_lit_torch, no torch carried */
+                ToriRSServer_VarpPut(player, varp_seaslug, 7); /* seaslug_lit_torch, no torch carried */
                 hp_before = player->hitpoints;
                 ToriRSServer_ScriptsRunTriggerOnLoc(
                     srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
@@ -56752,21 +56758,21 @@ ToriRSServer_WorldSelftest(void)
                                player->level);
 
                 /* ---- slug_breakable_panel: the multiloc shell, not a rung ---- */
-                player->varps[varp_seaslug] = 8; /* seaslug_kennith_need_escape */
+                ToriRSServer_VarpPut(player, varp_seaslug, 8); /* seaslug_kennith_need_escape */
                 ToriRSServer_WorldTeleport(srv, 1, 2768, 3289);
                 selftest_tick(srv);
                 ToriRSServer_ScriptsRunTriggerOnLoc(
                     srv, SS_TRIGGER_OPLOC1, loc_panel, -1,
                     ToriRSServer_SceneFindLocId(2768, 3289, 1, loc_panel));
-                for( t = 0; t < 6 && player->varps[varp_seaslug] == 8; t++ )
+                for( t = 0; t < 6 && ToriRSServer_Varp(player, varp_seaslug) == 8; t++ )
                     selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[varp_seaslug] == 9 /* seaslug_panel_opened */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_seaslug) == 9 /* seaslug_panel_opened */,
                                "kicking slug_breakable_panel at "
                                "seaslug_kennith_need_escape should open it, got %d",
-                               player->varps[varp_seaslug]);
+                               ToriRSServer_Varp(player, varp_seaslug));
 
                 /* ---- seaslug_crane: the distance gate, then the real rotate ---- */
-                player->varps[varp_seaslug] = 10; /* seaslug_need_kennith_path */
+                ToriRSServer_VarpPut(player, varp_seaslug, 10); /* seaslug_need_kennith_path */
                 ToriRSServer_WorldTeleport(srv, 1, 2770, 3270);
                 selftest_tick(srv);
                 ToriRSServer_ScriptsRunTriggerOnLoc(
@@ -56774,10 +56780,10 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_SceneFindLocId(2770, 3287, 1, loc_crane));
                 for( t = 0; t < 6 && player->active_script; t++ )
                     selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[varp_seaslug] == 10,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_seaslug) == 10,
                                "rotating seaslug_crane from too far away should refuse, "
                                "got seaslugquest=%d",
-                               player->varps[varp_seaslug]);
+                               ToriRSServer_Varp(player, varp_seaslug));
 
                 /* 2772,3286 level 1 -- A TILE A PLAYER CAN ACTUALLY STAND ON.
                  * This was 2770,3292: open sea two tiles NORTH of the crane's
@@ -56798,10 +56804,10 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_SceneFindLocId(2770, 3287, 1, loc_crane));
                 for( t = 0; t < 20 && player->active_script; t++ )
                     selftest_tick(srv);
-                SELFTEST_CHECK(player->varps[varp_seaslug] == 11 /* seaslug_saved_kennith */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_seaslug) == 11 /* seaslug_saved_kennith */,
                                "rotating seaslug_crane close enough at "
                                "seaslug_need_kennith_path should save Kennith, got %d",
-                               player->varps[varp_seaslug]);
+                               ToriRSServer_Varp(player, varp_seaslug));
 
                 /* ---- the seaslug npc's own pickup damage ---- */
                 player->hitpoints = 99;
@@ -56848,7 +56854,7 @@ ToriRSServer_WorldSelftest(void)
 
                     for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                         inv_set(player, s, -1, 0);
-                    player->varps[varp_seaslug] = 11; /* seaslug_saved_kennith */
+                    ToriRSServer_VarpPut(player, varp_seaslug, 11); /* seaslug_saved_kennith */
                     xp_before = player->stat_xp_tenths[stat_fishing];
                     ToriRSServer_ScriptsRunDebugproc(srv, "seaslugrun_arm_complete");
                     /* This shared --selftest player has, by this point in the
@@ -56864,16 +56870,16 @@ ToriRSServer_WorldSelftest(void)
                      * order. Widened rather than chased further -- the
                      * mechanism is already documented in field guide S5. */
                     for( drain_tick = 0;
-                         drain_tick < 40 && player->varps[varp_seaslug] != 12; drain_tick++ )
+                         drain_tick < 40 && ToriRSServer_Varp(player, varp_seaslug) != 12; drain_tick++ )
                     {
                         ToriRSServer_WorldCloseModal(srv);
                         selftest_tick(srv);
                     }
                     SELFTEST_CHECK(
-                        player->varps[varp_seaslug] == 12 /* seaslug_complete */,
+                        ToriRSServer_Varp(player, varp_seaslug) == 12 /* seaslug_complete */,
                         "the real seaslug_quest_complete queue should advance "
                         "seaslugquest to seaslug_complete, got %d",
-                        player->varps[varp_seaslug]);
+                        ToriRSServer_Varp(player, varp_seaslug));
                     SELFTEST_CHECK(player->inv[0].obj_id == obj_pearls ||
                                        player->inv[1].obj_id == obj_pearls,
                                    "completion should grant bigoysterpearls for real");
@@ -56885,7 +56891,7 @@ ToriRSServer_WorldSelftest(void)
 
                 for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
-                player->varps[varp_seaslug] = 0;
+                ToriRSServer_VarpPut(player, varp_seaslug, 0);
             }
             ToriRSServer_ScriptsFree(srv);
         }
@@ -56956,7 +56962,7 @@ ToriRSServer_WorldSelftest(void)
 
             for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                 inv_set(player, s, -1, 0);
-            player->varps[varp_jp] = 0;
+            ToriRSServer_VarpPut(player, varp_jp, 0);
 
             /* ---- the real snake_vine_full pickup: wrong state, then right state ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2763, 3044);
@@ -56973,7 +56979,7 @@ ToriRSServer_WorldSelftest(void)
              * a miss at any level), and a miss parks the player on its
              * message box: at 99, a few searches, the box closed between
              * them - as quest_junglepotion_selftest.u.h's gather does. */
-            player->varps[varp_jp] = 1; /* junglepotion_get_snake_weed */
+            ToriRSServer_VarpPut(player, varp_jp, 1); /* junglepotion_get_snake_weed */
             ToriRSServer_CombatSetLevel(player, stat_herblore, 99);
             for( s = 0; s < 40 && player->inv[0].obj_id != obj_unid_snake; s++ )
             {
@@ -56985,10 +56991,10 @@ ToriRSServer_WorldSelftest(void)
                            "searching the vine at ^junglepotion_get_snake_weed should grant "
                            "unidentified_snake_weed, got obj_id=%d",
                            player->inv[0].obj_id);
-            SELFTEST_CHECK(player->varps[varp_jp] == 2 /* junglepotion_found_snake_weed */,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 2 /* junglepotion_found_snake_weed */,
                            "picking the herb should advance junglepotion to "
                            "junglepotion_found_snake_weed, got %d",
-                           player->varps[varp_jp]);
+                           ToriRSServer_Varp(player, varp_jp));
 
             /* ---- the real opnpcu hand-in: dirty herb declined, clean herb accepted ---- */
             ToriRSServer_WorldTeleport(srv, 0, 2809, 3086);
@@ -57022,55 +57028,55 @@ ToriRSServer_WorldSelftest(void)
                                "handing over clean snake_weed should be accepted and consumed, "
                                "got obj_id=%d",
                                player->inv[0].obj_id);
-                SELFTEST_CHECK(player->varps[varp_jp] == 3 /* junglepotion_get_ardrigal */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 3 /* junglepotion_get_ardrigal */,
                                "accepting snake_weed should advance junglepotion to "
                                "junglepotion_get_ardrigal, got %d",
-                               player->varps[varp_jp]);
+                               ToriRSServer_Varp(player, varp_jp));
 
                 /* Real hand-in through the remaining three per-herb switch
                  * branches -- each is its own hand-written case in
                  * trufitus.rs2's `trufitus_accept_herb`, worth proving each
                  * one individually fires rather than trusting the first
                  * proves the pattern. */
-                player->varps[varp_jp] = 4; /* junglepotion_found_ardrigal */
+                ToriRSServer_VarpPut(player, varp_jp, 4); /* junglepotion_found_ardrigal */
                 inv_set(player, 0, obj_ardrigal, 1);
                 player->last_useitem = obj_ardrigal;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_jp] == 5 /* junglepotion_get_sito_foil */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 5 /* junglepotion_get_sito_foil */,
                                "accepting ardrigal should advance junglepotion to "
                                "junglepotion_get_sito_foil, got %d",
-                               player->varps[varp_jp]);
+                               ToriRSServer_Varp(player, varp_jp));
 
-                player->varps[varp_jp] = 6; /* junglepotion_found_sito_foil */
+                ToriRSServer_VarpPut(player, varp_jp, 6); /* junglepotion_found_sito_foil */
                 inv_set(player, 0, obj_sito, 1);
                 player->last_useitem = obj_sito;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_jp] == 7 /* junglepotion_get_volencia_moss */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 7 /* junglepotion_get_volencia_moss */,
                                "accepting sito_foil should advance junglepotion to "
                                "junglepotion_get_volencia_moss, got %d",
-                               player->varps[varp_jp]);
+                               ToriRSServer_Varp(player, varp_jp));
 
-                player->varps[varp_jp] = 8; /* junglepotion_found_volencia_moss */
+                ToriRSServer_VarpPut(player, varp_jp, 8); /* junglepotion_found_volencia_moss */
                 inv_set(player, 0, obj_volencia, 1);
                 player->last_useitem = obj_volencia;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_jp] == 9 /* junglepotion_get_rogues_purse */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 9 /* junglepotion_get_rogues_purse */,
                                "accepting volencia_moss should advance junglepotion to "
                                "junglepotion_get_rogues_purse, got %d",
-                               player->varps[varp_jp]);
+                               ToriRSServer_Varp(player, varp_jp));
 
-                player->varps[varp_jp] = 10; /* junglepotion_found_rogues_purse */
+                ToriRSServer_VarpPut(player, varp_jp, 10); /* junglepotion_found_rogues_purse */
                 inv_set(player, 0, obj_rogues, 1);
                 player->last_useitem = obj_rogues;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_jp] == 11 /* junglepotion_found_all_herbs */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 11 /* junglepotion_found_all_herbs */,
                                "accepting rogues_purse should advance junglepotion to "
                                "junglepotion_found_all_herbs, got %d",
-                               player->varps[varp_jp]);
+                               ToriRSServer_Varp(player, varp_jp));
 
                 /* ---- the real completion queue ----
                  * `trufitus_finish_quest` is reached from `[opnpc1,trufitus]`
@@ -57097,16 +57103,16 @@ ToriRSServer_WorldSelftest(void)
                     if( com_messagebox > 0 )
                         ToriRSServer_ScriptsResumeButton(srv, com_messagebox);
                     for( drain_tick = 0;
-                         drain_tick < 40 && player->varps[varp_jp] != 12; drain_tick++ )
+                         drain_tick < 40 && ToriRSServer_Varp(player, varp_jp) != 12; drain_tick++ )
                     {
                         ToriRSServer_WorldCloseModal(srv);
                         selftest_tick(srv);
                     }
                     SELFTEST_CHECK(
-                        player->varps[varp_jp] == 12 /* junglepotion_complete */,
+                        ToriRSServer_Varp(player, varp_jp) == 12 /* junglepotion_complete */,
                         "the real junglepotion_quest_complete queue should advance "
                         "junglepotion to junglepotion_complete, got %d",
-                        player->varps[varp_jp]);
+                        ToriRSServer_Varp(player, varp_jp));
                     SELFTEST_CHECK(player->stat_xp_tenths[stat_herblore] > xp_before,
                                    "completion should award real Herblore xp, %d -> %d",
                                    xp_before, player->stat_xp_tenths[stat_herblore]);
@@ -57118,7 +57124,7 @@ ToriRSServer_WorldSelftest(void)
 
             for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                 inv_set(player, s, -1, 0);
-            player->varps[varp_jp] = 0;
+            ToriRSServer_VarpPut(player, varp_jp, 0);
         }
         ToriRSServer_ScriptsFree(srv);
         }
@@ -57243,9 +57249,9 @@ ToriRSServer_WorldSelftest(void)
 
             for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                 inv_set(player, s, -1, 0);
-            player->varps[varp_zq] = 0;
-            player->varps[varp_zqmech] = 0;
-            player->varps[varp_jp2] = junglepotion_complete_val;
+            ToriRSServer_VarpPut(player, varp_zq, 0);
+            ToriRSServer_VarpPut(player, varp_zqmech, 0);
+            ToriRSServer_VarpPut(player, varp_jp2, junglepotion_complete_val);
             ToriRSServer_CombatSetLevel(player, stat_crafting, 99);
             ToriRSServer_CombatSetLevel(player, stat_agility, 99);
 
@@ -57269,10 +57275,10 @@ ToriRSServer_WorldSelftest(void)
                                "mosol_rei's full belt dialogue should grant mosol_wampum_belt, "
                                "inv[0]=%d",
                                player->inv[0].obj_id);
-                SELFTEST_CHECK(player->varps[varp_zq] == 0,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 0,
                                "the quest should not be ^zombiequeen_started until the belt "
                                "reaches Trufitus, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 ToriRSServer_WorldNpcFree(srv, npc_slot);
                 ToriRSServer_WorldNpcReap(srv);
             }
@@ -57296,10 +57302,10 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 selftest_answer_through(srv, 40, trufitus_rows,
                                         (int)(sizeof(trufitus_rows) / sizeof(trufitus_rows[0])));
-                SELFTEST_CHECK(player->varps[varp_zq] == 1 /* zombiequeen_started */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 1 /* zombiequeen_started */,
                                "the legend dialogue should advance zombiequeen to "
                                "zombiequeen_started, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 SELFTEST_CHECK(selftest_count_obj(player, obj_belt) == 0,
                                "the belt should be consumed on delivery");
                 ToriRSServer_WorldNpcFree(srv, npc_slot);
@@ -57318,22 +57324,22 @@ ToriRSServer_WorldSelftest(void)
             {
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_mound, -1, loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 2 /* zombiequeen_found_mound */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 2 /* zombiequeen_found_mound */,
                                "looking at the mound should advance to found_mound, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_mound, -1, loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 3 /* zombiequeen_searched_mound */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 3 /* zombiequeen_searched_mound */,
                                "searching the mound should advance to searched_mound, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
 
                 inv_set(player, 0, obj_spade, 1);
                 player->last_useitem = obj_spade;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_mound, -1, loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 4 /* zombiequeen_dug_mound */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 4 /* zombiequeen_dug_mound */,
                                "digging with the spade should advance to dug_mound, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 loc_slot = ToriRSServer_SceneFindLocId(2921, 2999, 0, loc_fissure);
                 SELFTEST_CHECK(loc_slot >= 0, "the mound should have loc_change'd to the fissure");
             }
@@ -57343,9 +57349,9 @@ ToriRSServer_WorldSelftest(void)
                 player->last_useitem = obj_torch;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 5 /* zombiequeen_lit_mound */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 5 /* zombiequeen_lit_mound */,
                                "lighting the fissure should advance to lit_mound, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 SELFTEST_CHECK(selftest_count_obj(player, obj_torch) == 0,
                                "the light source should be consumed");
 
@@ -57353,9 +57359,9 @@ ToriRSServer_WorldSelftest(void)
                 player->last_useitem = obj_rope;
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fissure, -1, loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 6 /* zombiequeen_roped_mound */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 6 /* zombiequeen_roped_mound */,
                                "roping the fissure should advance to roped_mound, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
                 loc_slot = ToriRSServer_SceneFindLocId(2921, 2999, 0, loc_fissurerope);
                 SELFTEST_CHECK(loc_slot >= 0, "the fissure should have loc_change'd to the roped variant");
             }
@@ -57363,22 +57369,22 @@ ToriRSServer_WorldSelftest(void)
             {
                 int state_before;
                 ToriRSServer_CombatSetLevel(player, stat_agility, 10);
-                state_before = player->varps[varp_zq];
+                state_before = ToriRSServer_Varp(player, varp_zq);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == state_before,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == state_before,
                                "climbing down below Agility 32 should NOT advance the quest, "
                                "got %d -> %d",
-                               state_before, player->varps[varp_zq]);
+                               state_before, ToriRSServer_Varp(player, varp_zq));
                 ToriRSServer_CombatSetLevel(player, stat_agility, 99);
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_fissurerope, -1,
                                                     loc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK(player->varps[varp_zq] == 7 /* zombiequeen_entered_ah_za_rhoon */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 7 /* zombiequeen_entered_ah_za_rhoon */,
                                "climbing down at Agility 32+ should advance to "
                                "entered_ah_za_rhoon, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
             }
 
             /* ---- the four Ah Za Rhoon items, each a real search on a real cache loc ----
@@ -57458,15 +57464,15 @@ ToriRSServer_WorldSelftest(void)
 
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC2, loc_table, -1, loc_slot);
                 selftest_run_out_answering(srv, 200, table_rows, 1);
-                for( t = 0; t < 6 && player->varps[varp_zq] != 8; t++ )
+                for( t = 0; t < 6 && ToriRSServer_Varp(player, varp_zq) != 8; t++ )
                     selftest_tick(srv);
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 0 /* zq_used_table_logs */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 0 /* zq_used_table_logs */)) != 0,
                                "the table should be spent on the raft, mechanisms=%d",
-                               player->varps[varp_zqmech]);
-                SELFTEST_CHECK(player->varps[varp_zq] == 8 /* zombiequeen_left_ah_za_rhoon */,
+                               ToriRSServer_Varp(player, varp_zqmech));
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 8 /* zombiequeen_left_ah_za_rhoon */,
                                "riding the raft out of Ah Za Rhoon should advance to "
                                "left_ah_za_rhoon, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
             }
             ToriRSServer_WorldCloseModal(srv);
 
@@ -57480,10 +57486,10 @@ ToriRSServer_WorldSelftest(void)
                 player->last_useitem = obj_plaque;
                 ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, npc_slot);
                 selftest_run_out(srv, 60);
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 1 /* zq_deciphered_plaque */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 1 /* zq_deciphered_plaque */)) != 0,
                                "showing Trufitus the plaque should set zq_deciphered_plaque, got "
                                "mechanisms=%d",
-                               player->varps[varp_zqmech]);
+                               ToriRSServer_Varp(player, varp_zqmech));
                 SELFTEST_CHECK(selftest_count_obj(player, obj_plaque) > 0,
                                "Trufitus should hand the plaque back");
                 ToriRSServer_WorldNpcFree(srv, npc_slot);
@@ -57526,10 +57532,10 @@ ToriRSServer_WorldSelftest(void)
                     selftest_run_out_answering(srv, 40, read_rows, 1);
                     ToriRSServer_WorldCloseModal(srv);
                 }
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 5 /* zq_read_tattered_scroll */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 5 /* zq_read_tattered_scroll */)) != 0,
                                "reading the tattered scroll should set zq_read_tattered_scroll, "
                                "mechanisms=%d",
-                               player->varps[varp_zqmech]);
+                               ToriRSServer_Varp(player, varp_zqmech));
                 scroll_slot = selftest_find(player, obj_crumpled);
                 if( scroll_slot >= 0 )
                 {
@@ -57537,10 +57543,10 @@ ToriRSServer_WorldSelftest(void)
                     selftest_run_out_answering(srv, 40, read_rows, 1);
                     ToriRSServer_WorldCloseModal(srv);
                 }
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 6 /* zq_read_crumpled_scroll */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 6 /* zq_read_crumpled_scroll */)) != 0,
                                "reading the crumpled scroll should set zq_read_crumpled_scroll, "
                                "mechanisms=%d",
-                               player->varps[varp_zqmech]);
+                               ToriRSServer_Varp(player, varp_zqmech));
             }
 
             /* ---- Tomb of Bervirius: Cairn Isle, the dolmen, the necklace ---- */
@@ -57557,10 +57563,10 @@ ToriRSServer_WorldSelftest(void)
                                                     loc_slot);
                 selftest_run_out_answering(srv, 60, crawl_rows, 1);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_zq] == 9 /* zombiequeen_entered_tomb_bervirius */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 9 /* zombiequeen_entered_tomb_bervirius */,
                                "entering the crawl-way should advance to "
                                "entered_tomb_bervirius, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
             }
             /* Quest Helper's own ZQDOLMEN coordinate -- the in-script p_telejump target
              * (0_43_146_8_26) is close but not guaranteed exact, so re-teleport here rather
@@ -57577,10 +57583,10 @@ ToriRSServer_WorldSelftest(void)
                                    selftest_count_obj(player, obj_pommel) > 0,
                                "searching the dolmen should grant the crystal and the "
                                "sword pommel");
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 2 /* zq_used_dolmen_paper */)) != 0,
                                "the dolmen's notes should set zq_used_dolmen_paper, got "
                                "mechanisms=%d",
-                               player->varps[varp_zqmech]);
+                               ToriRSServer_Varp(player, varp_zqmech));
             }
             ToriRSServer_WorldCloseModal(srv);
             selftest_ack_scene(srv);
@@ -57662,10 +57668,10 @@ ToriRSServer_WorldSelftest(void)
                                                     loc_slot);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK((player->varps[varp_zqmech] & (1 << 4 /* zq_found_door */)) != 0,
+                SELFTEST_CHECK((ToriRSServer_Varp(player, varp_zqmech) & (1 << 4 /* zq_found_door */)) != 0,
                                "searching the hillside door should set zq_found_door, got "
                                "mechanisms=%d",
-                               player->varps[varp_zqmech]);
+                               ToriRSServer_Varp(player, varp_zqmech));
 
                 inv_set(player, 0, obj_chisel, 1);
                 inv_set(player, 1, obj_shard, 1);
@@ -57694,9 +57700,9 @@ ToriRSServer_WorldSelftest(void)
                                                     loc_slot);
                 selftest_run_out(srv, 60);
                 ToriRSServer_WorldCloseModal(srv);
-                SELFTEST_CHECK(player->varps[varp_zq] == 10 /* zombiequeen_unlocked_rashliyia_tomb */,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 10 /* zombiequeen_unlocked_rashliyia_tomb */,
                                "the bone key in the hillside door should unlock the tomb, got %d",
-                               player->varps[varp_zq]);
+                               ToriRSServer_Varp(player, varp_zq));
 
                 /* Quest Helper's own coordinates for the bone door and fight dolmen --
                  * re-teleport directly rather than trust the in-script p_telejump
@@ -57720,9 +57726,9 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_bonedoor, -1,
                                                         loc_slot);
                     selftest_run_out(srv, 60);
-                    SELFTEST_CHECK(player->varps[varp_zq] == 12 /* zombiequeen_unlocked_tombdoor */,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 12 /* zombiequeen_unlocked_tombdoor */,
                                    "placing three bones should unlock the tomb door, got %d",
-                                   player->varps[varp_zq]);
+                                   ToriRSServer_Varp(player, varp_zq));
                     SELFTEST_CHECK(selftest_count_obj(player, obj_bones) == 0,
                                    "each bone placement should consume one bone");
                 }
@@ -57758,8 +57764,8 @@ ToriRSServer_WorldSelftest(void)
 
             for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                 inv_set(player, s, -1, 0);
-            player->varps[varp_zq] = 0;
-            player->varps[varp_zqmech] = 0;
+            ToriRSServer_VarpPut(player, varp_zq, 0);
+            ToriRSServer_VarpPut(player, varp_zqmech, 0);
         }
         ToriRSServer_ScriptsFree(srv);
         }
@@ -57834,7 +57840,7 @@ ToriRSServer_WorldSelftest(void)
                  * VM aborting. */
                 for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
                 {
-                    player->varps[varp_waterfall] = all_stages[i];
+                    ToriRSServer_VarpPut(player, varp_waterfall, all_stages[i]);
                     ToriRSServer_ScriptsRunProc(srv, "[proc,waterfall_journal]", NULL, 0);
                 }
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(srv, "[proc,waterfall_journal]", NULL, 0) == 1,
@@ -57868,7 +57874,7 @@ ToriRSServer_WorldSelftest(void)
                     rune_ids[1] = obj_waterrune;
                     rune_ids[2] = obj_earthrune;
 
-                    player->varps[varp_puzzle] = 0;
+                    ToriRSServer_VarpPut(player, varp_puzzle, 0);
 
                     /* Placing the same rune type on the same pillar twice
                      * must be refused the second time -- the quickguide's
@@ -57918,7 +57924,7 @@ ToriRSServer_WorldSelftest(void)
                         /* testbit isn't exposed to C directly; read the
                          * mirrored bit test the same way the content does
                          * -- (value >> bit) & 1. */
-                        if( (player->varps[varp_puzzle] >> b) & 1 )
+                        if( (ToriRSServer_Varp(player, varp_puzzle) >> b) & 1 )
                             placed_count++;
                     }
                     SELFTEST_CHECK(placed_count == 18,
@@ -57944,8 +57950,8 @@ ToriRSServer_WorldSelftest(void)
                     if( statue_slot >= 0 )
                     {
                         /* Incomplete pillars: damage, no advance. */
-                        player->varps[varp_puzzle] = 0;
-                        player->varps[varp_waterfall] = 6; /* waterfall_entered_puzzle_room */
+                        ToriRSServer_VarpPut(player, varp_puzzle, 0);
+                        ToriRSServer_VarpPut(player, varp_waterfall, 6); /* waterfall_entered_puzzle_room */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_amulet, 1);
@@ -57984,10 +57990,10 @@ ToriRSServer_WorldSelftest(void)
                                        "an incomplete pillar set should hit the player "
                                        "for 20, went %d -> %d",
                                        hp_before, player->hitpoints);
-                        SELFTEST_CHECK(player->varps[varp_waterfall] == 6,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_waterfall) == 6,
                                        "an incomplete pillar set must not advance "
                                        "%%waterfall_quest, got %d",
-                                       player->varps[varp_waterfall]);
+                                       ToriRSServer_Varp(player, varp_waterfall));
                         SELFTEST_CHECK(player->inv[0].obj_id == obj_amulet,
                                        "the amulet must not be consumed on a failed "
                                        "placement, got obj %d", player->inv[0].obj_id);
@@ -57996,17 +58002,17 @@ ToriRSServer_WorldSelftest(void)
                          * advances to placed_amulet. The success branch
                          * chains several more p_delay(2)s after the first
                          * -- tick until the state actually moves. */
-                        player->varps[varp_puzzle] = -2; /* bits 1-18 set (bit 0 clear) */
+                        ToriRSServer_VarpPut(player, varp_puzzle, -2); /* bits 1-18 set (bit 0 clear) */
                         player->hitpoints = player->max_hitpoints;
                         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_statue,
                                                            ToriRSServer_LocCategory(loc_statue),
                                                            statue_slot);
-                        for( int t = 0; t < 20 && player->varps[varp_waterfall] == 6; t++ )
+                        for( int t = 0; t < 20 && ToriRSServer_Varp(player, varp_waterfall) == 6; t++ )
                             selftest_tick(srv);
-                        SELFTEST_CHECK(player->varps[varp_waterfall] == 8 /* waterfall_placed_amulet */,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_waterfall) == 8 /* waterfall_placed_amulet */,
                                        "a complete pillar set should advance to "
                                        "waterfall_placed_amulet (8), got %d",
-                                       player->varps[varp_waterfall]);
+                                       ToriRSServer_Varp(player, varp_waterfall));
                         SELFTEST_CHECK(player->inv[0].obj_id != obj_amulet,
                                        "the amulet should be consumed on a successful "
                                        "placement, got obj %d", player->inv[0].obj_id);
@@ -58036,7 +58042,7 @@ ToriRSServer_WorldSelftest(void)
                                    chalice_slot);
                     if( chalice_slot >= 0 )
                     {
-                        player->varps[varp_waterfall] = 8; /* waterfall_placed_amulet */
+                        ToriRSServer_VarpPut(player, varp_waterfall, 8); /* waterfall_placed_amulet */
 
                         /* Full inventory: must refuse and grant nothing. */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
@@ -58051,10 +58057,10 @@ ToriRSServer_WorldSelftest(void)
                                        "the chalice must refuse with fewer than 5 free "
                                        "slots and keep the full urn, got obj %d",
                                        player->inv[0].obj_id);
-                        SELFTEST_CHECK(player->varps[varp_waterfall] == 8,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_waterfall) == 8,
                                        "a refused chalice pour must not complete the "
                                        "quest, got %%waterfall_quest=%d",
-                                       player->varps[varp_waterfall]);
+                                       ToriRSServer_Varp(player, varp_waterfall));
 
                         /*
                          * 5 free slots: real completion. Proven live only
@@ -58075,7 +58081,7 @@ ToriRSServer_WorldSelftest(void)
                          * chasing it further didn't converge in the time
                          * available. Disclosed, not masked.
                          */
-                        qp_before = player->varps[ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp")];
+                        qp_before = ToriRSServer_Varp(player, ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp101_qp"));
                         (void)qp_before;
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
@@ -58105,7 +58111,7 @@ ToriRSServer_WorldSelftest(void)
                                    "dialogue-gap check");
                     if( npc_slot >= 0 )
                     {
-                        player->varps[varp_waterfall] = 8; /* waterfall_placed_amulet */
+                        ToriRSServer_VarpPut(player, varp_waterfall, 8); /* waterfall_placed_amulet */
                         player->chatmodal_group = 0;
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_almera, -1,
                                                     npc_slot);
@@ -58119,8 +58125,8 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                     inv_set(player, s, -1, 0);
-                player->varps[varp_waterfall] = 0;
-                player->varps[varp_puzzle] = 0;
+                ToriRSServer_VarpPut(player, varp_waterfall, 0);
+                ToriRSServer_VarpPut(player, varp_puzzle, 0);
                 player->hitpoints = player->max_hitpoints;
             }
             ToriRSServer_ScriptsFree(srv);
@@ -58712,7 +58718,7 @@ ToriRSServer_WorldSelftest(void)
                                 player->inv[s].obj_id == obj_hammer )
                                 inv_set(player, s, -1, 0);
                         }
-                        player->varps[varp_vampire] = 2; /* quest_vampire_spoke_to_harlow */
+                        ToriRSServer_VarpPut(player, varp_vampire, 2); /* quest_vampire_spoke_to_harlow */
 
                         /*
                          * A real killing blow, through `ToriRSServer_CombatHitNpc` --
@@ -58767,10 +58773,10 @@ ToriRSServer_WorldSelftest(void)
                                        "npc_statheal him back up and cancel the "
                                        "death -- active=%d %d hp, he actually died",
                                        npc->active, npc->hitpoints);
-                        SELFTEST_CHECK(player->varps[varp_vampire] == 2,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_vampire) == 2,
                                        "and the quest must NOT complete without "
                                        "a stake, vampire=%d",
-                                       player->varps[varp_vampire]);
+                                       ToriRSServer_Varp(player, varp_vampire));
 
                         stake_slot = inv_first_free(player);
                         inv_set(player, stake_slot, obj_stake, 1);
@@ -58788,10 +58794,10 @@ ToriRSServer_WorldSelftest(void)
                                        "hammer, he should still regenerate "
                                        "rather than die, active=%d got %d hp",
                                        npc->active, npc->hitpoints);
-                        SELFTEST_CHECK(player->varps[varp_vampire] == 2,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_vampire) == 2,
                                        "and the quest must NOT complete without "
                                        "a hammer, vampire=%d",
-                                       player->varps[varp_vampire]);
+                                       ToriRSServer_Varp(player, varp_vampire));
                         SELFTEST_CHECK(player->inv[stake_slot].obj_id == obj_stake &&
                                            player->inv[stake_slot].count == 1,
                                        "and the stake must not be spent on a "
@@ -58931,7 +58937,7 @@ ToriRSServer_WorldSelftest(void)
                     int32_t const uid = (int32_t)(((uint32_t)generation << 16) | (uint32_t)slot);
                     struct ToriRSServerItem const saved_weapon =
                         player->worn[TORIRSSERVER_WEAR_WEAPON];
-                    int const saved_grail = player->varps[varp_grail];
+                    int const saved_grail = ToriRSServer_Varp(player, varp_grail);
                     int const saved_delayed_until = player->delayed_until;
                     struct ToriRSServerQueued saved_queue[TORIRSSERVER_QUEUE_MAX];
                     int pending = -1;
@@ -58943,7 +58949,7 @@ ToriRSServer_WorldSelftest(void)
                     memcpy(saved_queue, player->queue, sizeof(saved_queue));
                     memset(player->queue, 0, sizeof(player->queue));
                     worn_set(player, TORIRSSERVER_WEAR_WEAPON, -1, 0);
-                    player->varps[varp_grail] = 4; /* ^grail_spoken_crone */
+                    ToriRSServer_VarpPut(player, varp_grail, 4); /* ^grail_spoken_crone */
                     ToriRSServer_WorldSetActive(srv, player);
 
                     /* A: no Excalibur. */
@@ -58988,10 +58994,10 @@ ToriRSServer_WorldSelftest(void)
                             selftest_handle(player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
                         selftest_tick(srv);
                     }
-                    SELFTEST_CHECK(player->varps[varp_grail] == 7,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grail) == 7,
                                    "MUTATION TARGET: without Excalibur defeat_titan must run and "
                                    "downgrade %%grail spoken_crone(4) -> failed_defeat_titan(7), got %d",
-                                   player->varps[varp_grail]);
+                                   ToriRSServer_Varp(player, varp_grail));
                     SELFTEST_CHECK(npc->active && npc->generation == generation &&
                                        npc->hitpoints > 0 && npc->death_tick < 0,
                                    "and he is healed and alive, the same life: active=%d "
@@ -59009,7 +59015,7 @@ ToriRSServer_WorldSelftest(void)
                     player->active_script = NULL;
                     memset(player->queue, 0, sizeof(player->queue));
                     worn_set(player, TORIRSSERVER_WEAR_WEAPON, obj_excalibur, 1);
-                    player->varps[varp_grail] = 4;
+                    ToriRSServer_VarpPut(player, varp_grail, 4);
                     pending = -1;
                     ToriRSServer_CaptureBegin(srv, &titan_capture);
                     npc->last_movement = (int)srv->tick - 5;
@@ -59057,9 +59063,9 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(!npc->active || npc->generation != generation,
                                    "and then the titan is reaped: active=%d generation %u -> %u",
                                    npc->active, (unsigned)generation, (unsigned)npc->generation);
-                    SELFTEST_CHECK(player->varps[varp_grail] == 4,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_grail) == 4,
                                    "a won fight leaves %%grail at spoken_crone, got %d",
-                                   player->varps[varp_grail]);
+                                   ToriRSServer_Varp(player, varp_grail));
 
                     if( npc->active )
                         ToriRSServer_WorldNpcFree(srv, slot);
@@ -59068,7 +59074,7 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_ScriptsReleaseState(srv, player->active_script);
                     player->active_script = NULL;
                     player->worn[TORIRSSERVER_WEAR_WEAPON] = saved_weapon;
-                    player->varps[varp_grail] = saved_grail;
+                    ToriRSServer_VarpPut(player, varp_grail, saved_grail);
                     player->delayed_until = saved_delayed_until;
                     memcpy(player->queue, saved_queue, sizeof(saved_queue));
                 }
@@ -59714,21 +59720,21 @@ ToriRSServer_WorldSelftest(void)
                            "the rock crab check stanza should be in the pack");
             if( kill_script && check_script )
             {
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, kill_script->id);
                 SELFTEST_CHECK(
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                     "spawning and killing a rock crab should reach step 2, got %d",
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                 for( int i = 0; i < 4; i++ )
                     selftest_tick(srv);
-                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                 ToriRSServer_ScriptsRunScript(srv, check_script->id);
                 SELFTEST_CHECK(
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
+                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 2,
                     "a real rock crab death must reach the diary hook in its "
                     "drop label, got %d",
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                    ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
 
                 /* The same shape over the single-kill hooks. */
                 {
@@ -59741,22 +59747,22 @@ ToriRSServer_WorldSelftest(void)
                                    "the diary kill stanzas should be in the pack");
                     if( k && c )
                     {
-                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                        ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                         ToriRSServer_ScriptsRunScript(srv, k->id);
                         SELFTEST_CHECK(
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 9,
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 9,
                             "spawning and killing the nine diary npcs should "
                             "reach step 9, got %d",
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                         for( int t = 0; t < 4; t++ )
                             selftest_tick(srv);
-                        player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                        ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                         ToriRSServer_ScriptsRunScript(srv, c->id);
                         SELFTEST_CHECK(
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 10,
                             "nine real npc deaths must each reach their diary "
                             "hook, got %d",
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
+                            ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS));
                     }
                 }
             }
@@ -60030,7 +60036,7 @@ ToriRSServer_WorldSelftest(void)
                     {
                         struct ToriRSServerNpc* npc = &srv->npcs[slot];
 
-                        player->varps[varp_ballquest] = 5; /* ball_read_diary_after_door */
+                        ToriRSServer_VarpPut(player, varp_ballquest, 5); /* ball_read_diary_after_door */
 
                         /* Form 1: skavid, 21 hp. A killing blow must
                          * transform it into form 2 (spider, 31 hp, full)
@@ -60111,10 +60117,10 @@ ToriRSServer_WorldSelftest(void)
                                        "the fourth form (wolf) should actually die "
                                        "rather than changetype again, active=%d type=%d",
                                        npc->active, npc->type);
-                        SELFTEST_CHECK(player->varps[varp_ballquest] == 6,
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_ballquest) == 6,
                                        "MUTATION TARGET: defeating all four forms should "
                                        "set ballquest=ball_defeated_experiment (6), got %d",
-                                       player->varps[varp_ballquest]);
+                                       ToriRSServer_Varp(player, varp_ballquest));
 
                         if( npc->active )
                             ToriRSServer_WorldNpcFree(srv, slot);
@@ -60173,7 +60179,7 @@ ToriRSServer_WorldSelftest(void)
         selftest_tick(srv);
         fprintf(stderr, "  player now at %d,%d,%d\n", player->x, player->z, player->level);
 
-        for( int slot = 0;; slot++ )
+        for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
@@ -60267,8 +60273,8 @@ ToriRSServer_WorldSelftest(void)
                     /* A qualifying Phoenix player (9 == ^phoenixgang_joined,
                      * 4 == ^hero_phoenix_talked_charlie), op1 from the north
                      * with no key: locked, as in LostCity. */
-                    player->varps[varp_phoenixgang] = 9;
-                    player->varps[varp_heroquest2] = 4;
+                    ToriRSServer_VarpPut(player, varp_phoenixgang, 9);
+                    ToriRSServer_VarpPut(player, varp_heroquest2, 4);
                     ToriRSServer_WorldTeleport(srv, 0, 2781, 3196);
                     selftest_tick(srv);
                     ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1,
@@ -60298,8 +60304,8 @@ ToriRSServer_WorldSelftest(void)
                                    "misc_key used on pete_sidedoor should walk the "
                                    "player through, but stayed at %d,%d",
                                    player->x, player->z);
-                    player->varps[varp_phoenixgang] = 0;
-                    player->varps[varp_heroquest2] = 0;
+                    ToriRSServer_VarpPut(player, varp_phoenixgang, 0);
+                    ToriRSServer_VarpPut(player, varp_heroquest2, 0);
                 }
             }
         }
@@ -60421,7 +60427,7 @@ ToriRSServer_WorldSelftest(void)
                         int j;
 
                         selftest_clear_ground(srv);
-                        player->varps[varp_heroquest] = hero_phoenix_talked_charlie;
+                        ToriRSServer_VarpPut(player, varp_heroquest, hero_phoenix_talked_charlie);
                         ToriRSServer_WorldNpcDied(srv, slot);
                         keys_here = 0;
                         for( j = 0; j < TORIRSSERVER_GROUND_MAX; j++ )
@@ -60435,13 +60441,13 @@ ToriRSServer_WorldSelftest(void)
                                        "MUTATION TARGET: killing grip should drop exactly "
                                        "one grip_keys, got %d",
                                        keys_here);
-                        SELFTEST_CHECK(player->varps[varp_heroquest] ==
+                        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_heroquest) ==
                                            hero_phoenix_killed_grip,
                                        "MUTATION TARGET: killing grip at "
                                        "hero_phoenix_talked_charlie should advance "
                                        "heroquest to hero_phoenix_killed_grip, got %d "
                                        "want %d",
-                                       player->varps[varp_heroquest],
+                                       ToriRSServer_Varp(player, varp_heroquest),
                                        hero_phoenix_killed_grip);
                         selftest_clear_ground(srv);
                     }
@@ -60460,7 +60466,7 @@ ToriRSServer_WorldSelftest(void)
                         int j;
 
                         selftest_clear_ground(srv);
-                        player->varps[varp_heroquest] = 0; /* not started -- quest-independent */
+                        ToriRSServer_VarpPut(player, varp_heroquest, 0); /* not started -- quest-independent */
                         ToriRSServer_WorldNpcDied(srv, slot);
                         gloves_here = 0;
                         for( j = 0; j < TORIRSSERVER_GROUND_MAX; j++ )
@@ -60489,7 +60495,7 @@ ToriRSServer_WorldSelftest(void)
                         int j;
 
                         selftest_clear_ground(srv);
-                        player->varps[varp_heroquest] = hero_phoenix_talked_charlie;
+                        ToriRSServer_VarpPut(player, varp_heroquest, hero_phoenix_talked_charlie);
                         ToriRSServer_WorldNpcDied(srv, slot);
                         feather_here = 0;
                         for( j = 0; j < TORIRSSERVER_GROUND_MAX; j++ )
@@ -60514,7 +60520,7 @@ ToriRSServer_WorldSelftest(void)
                         int j;
 
                         selftest_clear_ground(srv);
-                        player->varps[varp_heroquest] = hero_complete;
+                        ToriRSServer_VarpPut(player, varp_heroquest, hero_complete);
                         ToriRSServer_WorldNpcDied(srv, slot);
                         feather_here = 0;
                         for( j = 0; j < TORIRSSERVER_GROUND_MAX; j++ )
@@ -60729,7 +60735,7 @@ ToriRSServer_WorldSelftest(void)
             /* Park inside Falador's farming square, then find the patch — the
              * park rebuilds the scene and frees the loc array. */
             selftest_park_player(srv, 3054, 3307);
-            for( int s = 0; slot < 0; s++ )
+            for( int s = ToriRSServer_SceneLocNext(-1); s >= 0 && slot < 0; s = ToriRSServer_SceneLocNext(s) )
             {
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(s);
 
@@ -60879,7 +60885,7 @@ ToriRSServer_WorldSelftest(void)
                 int slot3 = -1;
 
                 selftest_park_player(srv, 2805, 3466);
-                for( int s = 0; slot3 < 0; s++ )
+                for( int s = ToriRSServer_SceneLocNext(-1); s >= 0 && slot3 < 0; s = ToriRSServer_SceneLocNext(s) )
                 {
                     struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(s);
 
@@ -61021,7 +61027,7 @@ ToriRSServer_WorldSelftest(void)
                            "every windmill symbol this section names should resolve");
 
             selftest_park_player(srv, 3165, 3305);
-            for( int s = 0;; s++ )
+            for( int s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
             {
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(s);
 
@@ -61314,7 +61320,7 @@ ToriRSServer_WorldSelftest(void)
                 p->stat_level[firemaking] = 99;
                 p->stat_boosted[firemaking] = 99;
                 if( action_delay >= 0 )
-                    p->varps[action_delay] = 0;
+                    ToriRSServer_VarpPut(p, action_delay, 0);
                 ToriRSServer_WorldObjAdd(srv, logs, 1, fire_x[round], fire_z[round], 0,
                                       ToriRSServer_Ids()->lootdrop_duration);
                 /* Settle the park's own placement out of the way first — it is
@@ -61609,8 +61615,8 @@ ToriRSServer_WorldSelftest(void)
              * array, exactly as the farming section notes. */
             selftest_park_player(srv, 3211, 3215);
             if( cookquest > 0 )
-                player->varps[cookquest] = 2;
-            for( int s = 0; slot < 0; s++ )
+                ToriRSServer_VarpPut(player, cookquest, 2);
+            for( int s = ToriRSServer_SceneLocNext(-1); s >= 0 && slot < 0; s = ToriRSServer_SceneLocNext(s) )
             {
                 struct ToriRSServerSceneLoc* l = ToriRSServer_SceneLoc(s);
 
@@ -61763,23 +61769,23 @@ ToriRSServer_WorldSelftest(void)
                     npc->spawn_pending = 0;
                     npc->timer_interval = 0;
                     npc->script_vars[0] = 1; /* channelled-caster role */
-                    player->varps[caster_alive] = 1;
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, caster_alive, 1);
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProcOnNpc(
                                        srv, "[proc,rs2012_qbd_add_hit_host_probe]", soul),
                                    "the shared QBD-add hit probe should run on a soul");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50050 &&
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 50050 &&
                                        npc->hitpoints == 50,
                                    "a queued soul hit should prepare 50 damage / 50 XP before "
                                    "landing, encoded=%d hp=%d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS),
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
                         selftest_tick(srv);
-                    SELFTEST_CHECK(!npc->active && player->varps[caster_alive] == 0,
+                    SELFTEST_CHECK(!npc->active && ToriRSServer_Varp(player, caster_alive) == 0,
                                    "the lethal hit should retire the time-stop caster "
                                    "and clear its latch, active=%d caster=%d hp=%d",
-                                   npc->active, player->varps[caster_alive], npc->hitpoints);
+                                   npc->active, ToriRSServer_Varp(player, caster_alive), npc->hitpoints);
                 }
 
                 worm = ToriRSServer_WorldNpcSpawn(
@@ -61794,15 +61800,15 @@ ToriRSServer_WorldSelftest(void)
 
                     npc->spawn_pending = 0;
                     npc->timer_interval = 0;
-                    player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                    ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, -1);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProcOnNpc(
                                        srv, "[proc,rs2012_qbd_add_hit_host_probe]", worm),
                                    "the shared QBD-add hit probe should run on a worm");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 65065 &&
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS) == 65065 &&
                                        npc->hitpoints == 65,
                                    "a queued worm hit should prepare 65 damage / 65 XP before "
                                    "landing, encoded=%d hp=%d",
-                                   player->varps[SELFTEST_VARP_QUEST_PROGRESS],
+                                   ToriRSServer_Varp(player, SELFTEST_VARP_QUEST_PROGRESS),
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
                         selftest_tick(srv);
@@ -61830,8 +61836,8 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ZoneNpcRefile(srv, worm);
             }
             if( caster_alive >= 0 )
-                player->varps[caster_alive] = 0;
-            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+                ToriRSServer_VarpPut(player, caster_alive, 0);
+            ToriRSServer_VarpPut(player, SELFTEST_VARP_QUEST_PROGRESS, 0);
             ToriRSServer_ScriptsFree(srv);
         }
     }
@@ -62509,7 +62515,7 @@ ToriRSServer_WorldSelftest(void)
                                    TORIRSSERVER_TRIGGER_RAN,
                                "the ordinary ::qbd command should resolve");
                 SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                   player->varps[qbd_active] == 0,
+                                   ToriRSServer_Varp(player, qbd_active) == 0,
                                "ordinary QBD debug entry must retain the 60 Summoning gate");
                 SELFTEST_CHECK(ToriRSServer_ScriptsRunDebugproc(srv, "rs2012qbdmanifest") ==
                                    TORIRSSERVER_TRIGGER_RAN,
@@ -62528,9 +62534,9 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(handle != 0 && ToriRSServer_MapInstanceBounds(
                                                        handle, &base_x, &base_z, &width, &height),
                                "the QBD arena should expose its owned rectangle");
-                SELFTEST_CHECK(player->varps[qbd_active] == 1 &&
-                                   player->varps[qbd_handle] == handle &&
-                                   player->varps[instance_handle] == handle,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, qbd_active) == 1 &&
+                                   ToriRSServer_Varp(player, qbd_handle) == handle &&
+                                   ToriRSServer_Varp(player, instance_handle) == handle,
                                "QBD entry should record dedicated and generic ownership");
                 SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
                                    srv, base_x, base_z, width, height, qbd_types, 6) == 1,
@@ -62559,8 +62565,8 @@ ToriRSServer_WorldSelftest(void)
                 /* Stand in for victory's permanent reward handoff, then move
                  * through the engine's ordinary teleport seam. The soft timer
                  * must run despite the time-stop action lock. */
-                player->varps[reward_ready] = 1;
-                player->varps[time_stopped] = 1;
+                ToriRSServer_VarpPut(player, reward_ready, 1);
+                ToriRSServer_VarpPut(player, time_stopped, 1);
                 player->action_locked = 1;
                 ToriRSServer_WorldTeleport(srv, 0, 3222, 3218);
                 selftest_tick(srv);
@@ -62575,11 +62581,11 @@ ToriRSServer_WorldSelftest(void)
                                "QBD departure should clear its encounter songs, got %d",
                                player->music_track);
                 SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                   player->varps[qbd_active] == 0 &&
-                                   player->varps[qbd_handle] == 0 &&
-                                   player->varps[instance_handle] == 0,
+                                   ToriRSServer_Varp(player, qbd_active) == 0 &&
+                                   ToriRSServer_Varp(player, qbd_handle) == 0 &&
+                                   ToriRSServer_Varp(player, instance_handle) == 0,
                                "QBD departure should clear both ownership records");
-                SELFTEST_CHECK(player->varps[reward_ready] == 1,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, reward_ready) == 1,
                                "QBD departure must preserve an unclaimed permanent coffer");
                 SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
                                    srv, base_x, base_z, width, height, qbd_types, 6) == 0,
@@ -62608,8 +62614,8 @@ ToriRSServer_WorldSelftest(void)
                                    TORIRSSERVER_TRIGGER_RAN,
                                "unclaimed reward should permit QBD coffer re-entry");
                 reused = ToriRSServer_MapInstanceFind(player->x, player->z);
-                SELFTEST_CHECK(reused == handle && player->varps[qbd_handle] == reused &&
-                                   player->varps[reward_ready] == 1,
+                SELFTEST_CHECK(reused == handle && ToriRSServer_Varp(player, qbd_handle) == reused &&
+                                   ToriRSServer_Varp(player, reward_ready) == 1,
                                "coffer re-entry should reuse QBD slot %d, got %d", handle,
                                reused);
                 if( coffer_baked )
@@ -62732,7 +62738,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_tick(srv);
                 SELFTEST_CHECK(player->x == 3200 && player->z == 3200 &&
                                    ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                   player->varps[reward_ready] == 1,
+                                   ToriRSServer_Varp(player, reward_ready) == 1,
                                "reward-room departure should preserve destination and coffer");
                 coffer_mounts = 0;
                 for( int i = 0; i < player->interfaces.mount_count; i++ )
@@ -62755,8 +62761,8 @@ ToriRSServer_WorldSelftest(void)
                                    TORIRSSERVER_TRIGGER_RAN,
                                "QBD cleanup should remain race-safe through [logout,_]");
                 SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                   player->varps[qbd_handle] == 0 &&
-                                   player->varps[reward_ready] == 1,
+                                   ToriRSServer_Varp(player, qbd_handle) == 0 &&
+                                   ToriRSServer_Varp(player, reward_ready) == 1,
                                "QBD logout should release the room without consuming reward");
             }
             ToriRSServer_ScriptsFree(srv);
@@ -63135,13 +63141,13 @@ ToriRSServer_WorldSelftest(void)
                                "the TD reservation should expose its owned rectangle");
                 if( handle != 0 && width > 0 && height > 0 )
                 {
-                    SELFTEST_CHECK(player->varps[td_active] == 1 &&
-                                       player->varps[td_handle] == handle &&
-                                       player->varps[instance_handle] == handle,
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, td_active) == 1 &&
+                                       ToriRSServer_Varp(player, td_handle) == handle &&
+                                       ToriRSServer_Varp(player, instance_handle) == handle,
                                    "entry should record dedicated and generic ownership, "
                                    "got active=%d td=%d generic=%d handle=%d",
-                                   player->varps[td_active], player->varps[td_handle],
-                                   player->varps[instance_handle], handle);
+                                   ToriRSServer_Varp(player, td_active), ToriRSServer_Varp(player, td_handle),
+                                   ToriRSServer_Varp(player, instance_handle), handle);
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
                                        srv, base_x, base_z, width, height, td_types, 3) == 6,
                                    "a fresh TD run should contain exactly six demons");
@@ -63159,14 +63165,14 @@ ToriRSServer_WorldSelftest(void)
                                    "got %d,%d,%d",
                                    player->x, player->z, player->level);
                     SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                       player->varps[td_active] == 0 &&
-                                       player->varps[td_handle] == 0 &&
-                                       player->varps[instance_handle] == 0,
+                                       ToriRSServer_Varp(player, td_active) == 0 &&
+                                       ToriRSServer_Varp(player, td_handle) == 0 &&
+                                       ToriRSServer_Varp(player, instance_handle) == 0,
                                    "the departure watchdog should clear reservation and "
                                    "ownership, live=%d active=%d td=%d generic=%d",
                                    ToriRSServer_MapInstanceLiveCount(),
-                                   player->varps[td_active], player->varps[td_handle],
-                                   player->varps[instance_handle]);
+                                   ToriRSServer_Varp(player, td_active), ToriRSServer_Varp(player, td_handle),
+                                   ToriRSServer_Varp(player, instance_handle));
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
                                        srv, base_x, base_z, width, height, td_types, 3) == 0,
                                    "departure cleanup should delete all six demons");
@@ -63192,9 +63198,9 @@ ToriRSServer_WorldSelftest(void)
                                        TORIRSSERVER_TRIGGER_RAN,
                                    "the real [logout,_] dispatcher should run");
                     SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                       player->varps[td_active] == 0 &&
-                                       player->varps[td_handle] == 0 &&
-                                       player->varps[instance_handle] == 0,
+                                       ToriRSServer_Varp(player, td_active) == 0 &&
+                                       ToriRSServer_Varp(player, td_handle) == 0 &&
+                                       ToriRSServer_Varp(player, instance_handle) == 0,
                                    "logout after external movement should release TD ownership");
                     SELFTEST_CHECK(selftest_count_npcs_in_rect_types(
                                        srv, base_x, base_z, width, height, td_types, 3) == 0,
@@ -63275,9 +63281,9 @@ ToriRSServer_WorldSelftest(void)
                                        ToriRSServer_MapInstanceLiveCount() == 1 &&
                                        ToriRSServer_MapInstanceFind(player->x, player->z) == handle,
                                    "TD death should retain the arena during the corpse delay");
-                    SELFTEST_CHECK(player->varps[td_active] == 0 &&
-                                       player->varps[td_handle] == 0 &&
-                                       player->varps[instance_handle] == handle &&
+                    SELFTEST_CHECK(ToriRSServer_Varp(player, td_active) == 0 &&
+                                       ToriRSServer_Varp(player, td_handle) == 0 &&
+                                       ToriRSServer_Varp(player, instance_handle) == handle &&
                                        selftest_count_npcs_in_rect_types(
                                            srv, base_x, base_z, width, height, td_types, 3) == 0,
                                    "TD death should stop and despawn demons before p_delay");
@@ -63288,7 +63294,7 @@ ToriRSServer_WorldSelftest(void)
                         selftest_tick(srv);
                     SELFTEST_CHECK(!player->dying &&
                                        ToriRSServer_MapInstanceLiveCount() == 0 &&
-                                       player->varps[instance_handle] == 0,
+                                       ToriRSServer_Varp(player, instance_handle) == 0,
                                    "completed TD death should release the held reservation");
                     {
                         int safe_bones = 0;
@@ -63850,11 +63856,11 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldSetActive(srv, player);
                     ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
                     SELFTEST_CHECK(generic_handle_varp >= 0 &&
-                                       player->varps[generic_handle_varp] == handle,
+                                       ToriRSServer_Varp(player, generic_handle_varp) == handle,
                                    "logging back in inside the lingering square should "
                                    "re-attach %%map_instance_handle, got %d want %d",
                                    generic_handle_varp >= 0
-                                       ? player->varps[generic_handle_varp]
+                                       ? ToriRSServer_Varp(player, generic_handle_varp)
                                        : -1,
                                    handle);
                     SELFTEST_CHECK(player->x == inside_x && player->z == inside_z,
@@ -64389,7 +64395,7 @@ ToriRSServer_WorldSelftest(void)
                                    "an untouched creature is not restricted");
 
                     ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_ironman, 1);
-                    target->damaged_by_players[1] = 1; /* somebody else got there first */
+                    ToriRSServer_PidSetAdd(&target->damaged_by, 1); /* somebody else got there first */
 
                     SELFTEST_CHECK(ToriRSServer_NpcLootRestrictedFor(srv, target, iron),
                                    "an ironman is restricted once another player has damaged it");
@@ -64398,10 +64404,10 @@ ToriRSServer_WorldSelftest(void)
 
                     /* A main is never restricted, whoever else swung. */
                     ToriRSServer_VarbitSetOn(srv, other_pl, ic_ids->varbit_ironman, 0);
-                    target->damaged_by_players[0] = 1;
+                    ToriRSServer_PidSetAdd(&target->damaged_by, 0);
                     SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, other_pl),
                                    "a main account is never loot-restricted");
-                    target->damaged_by_players[0] = 0;
+                    ToriRSServer_PidSetRemove(&target->damaged_by, 0);
 
                     /* The latch: once, then never again for this npc. */
                     SELFTEST_CHECK(ToriRSServer_NpcLootIconWanted(srv, target, iron),
@@ -64410,8 +64416,7 @@ ToriRSServer_WorldSelftest(void)
                                    "\"occasionally\" means once per npc, not once per hit");
 
                     /* And the row's own switch, which is INVERTED. */
-                    memset(target->noloot_iconned_players, 0,
-                           sizeof(target->noloot_iconned_players));
+                    ToriRSServer_PidSetClear(&target->noloot_iconned);
                     ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_iron_noloot_icon_off, 1);
                     SELFTEST_CHECK(!ToriRSServer_NpcLootIconWanted(srv, target, iron),
                                    "setting 182 switched off shows no icon");
@@ -64557,7 +64562,7 @@ ToriRSServer_WorldSelftest(void)
             who->active = 1;
             who->world = srv;
             who->combat_target = -1;
-            who->varps[hp_ids->varp_slayer_count] = 42;
+            ToriRSServer_VarpPut(who, hp_ids->varp_slayer_count, 42);
             SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
                                TORIRSSERVER_HELPER_NONE,
                            "merely HOLDING a Slayer task should not open the panel, got %d",
@@ -64589,7 +64594,7 @@ ToriRSServer_WorldSelftest(void)
             who->active = 1;
             who->world = srv;
             who->combat_target = -1;
-            who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+            ToriRSServer_VarpPut(who, hp_ids->varp_cluehelper_infobox_clue, clue_row);
             arg = -1;
             SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
                                TORIRSSERVER_HELPER_NONE,
@@ -64738,7 +64743,7 @@ ToriRSServer_WorldSelftest(void)
                  */
                 ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 0);
                 ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 1);
-                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+                ToriRSServer_VarpPut(who, hp_ids->varp_cluehelper_infobox_clue, clue_row);
                 ToriRSServer_CaptureReset(&helper_capture);
                 ToriRSServer_CaptureBegin(srv, &helper_capture);
                 ToriRSServer_HelperTick(srv, who);
@@ -64774,7 +64779,7 @@ ToriRSServer_WorldSelftest(void)
                  * only the helper would leave the solved step on screen for the
                  * rest of the trail.
                  */
-                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row + 1;
+                ToriRSServer_VarpPut(who, hp_ids->varp_cluehelper_infobox_clue, clue_row + 1);
                 ToriRSServer_CaptureReset(&helper_capture);
                 ToriRSServer_CaptureBegin(srv, &helper_capture);
                 ToriRSServer_HelperTick(srv, who);
@@ -64790,7 +64795,7 @@ ToriRSServer_WorldSelftest(void)
                                        : -1);
 
                 /* And the close. */
-                who->varps[hp_ids->varp_cluehelper_infobox_clue] = 0;
+                ToriRSServer_VarpPut(who, hp_ids->varp_cluehelper_infobox_clue, 0);
                 ToriRSServer_CaptureReset(&helper_capture);
                 ToriRSServer_CaptureBegin(srv, &helper_capture);
                 ToriRSServer_HelperTick(srv, who);
@@ -64940,19 +64945,19 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(p->hitpoints == 50, "Hitpoints are full, %d", p->hitpoints);
                 SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 40,
                                "the base level is left alone, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
-                SELFTEST_CHECK(p->varps[varp_poison] == 0, "poison cured, %d", p->varps[varp_poison]);
-                SELFTEST_CHECK(p->varps[varp_skull] == 0, "skull cleared, %d", p->varps[varp_skull]);
-                SELFTEST_CHECK(p->varps[varp_frozen] == 0, "freeze cleared, %d", p->varps[varp_frozen]);
-                SELFTEST_CHECK(p->varps[varp_teleblock] == 0, "teleblock cleared, %d",
-                               p->varps[varp_teleblock]);
-                SELFTEST_CHECK(p->varps[varp_stamina] == 0, "stamina ticks cleared, %d",
-                               p->varps[varp_stamina]);
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_poison) == 0, "poison cured, %d", ToriRSServer_Varp(p, varp_poison));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_skull) == 0, "skull cleared, %d", ToriRSServer_Varp(p, varp_skull));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_frozen) == 0, "freeze cleared, %d", ToriRSServer_Varp(p, varp_frozen));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_teleblock) == 0, "teleblock cleared, %d",
+                               ToriRSServer_Varp(p, varp_teleblock));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_stamina) == 0, "stamina ticks cleared, %d",
+                               ToriRSServer_Varp(p, varp_stamina));
                 SELFTEST_CHECK(ToriRSServer_VarbitGet(p, varbit_stamina) == 0,
                                "the stamina varbit cleared");
-                SELFTEST_CHECK(p->varps[varp_special] == 1000, "special attack full, %d",
-                               p->varps[varp_special]);
-                SELFTEST_CHECK(p->varps[varp_cook] == 2, "quest progress is left alone, %d",
-                               p->varps[varp_cook]);
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_special) == 1000, "special attack full, %d",
+                               ToriRSServer_Varp(p, varp_special));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_cook) == 2, "quest progress is left alone, %d",
+                               ToriRSServer_Varp(p, varp_cook));
                 SELFTEST_CHECK(timer_slot < 0 || !p->timers[timer_slot].active,
                                "the stamina timer is dropped");
                 SELFTEST_CHECK(p->run_energy == TORIRSSERVER_RUN_ENERGY_MAX, "run energy full, %d",
@@ -64976,10 +64981,10 @@ ToriRSServer_WorldSelftest(void)
                                "::resetcharacter fixture fresh_lumbridge runs (cwd is the repo root)");
                 SELFTEST_CHECK(p->x == 3206 && p->z == 3233 && p->level == 0,
                                "the fixture's tile, got %d,%d,%d", p->x, p->z, p->level);
-                SELFTEST_CHECK(p->varps[varp_tutorial] == 1000, "the fixture's tutorial varp, %d",
-                               p->varps[varp_tutorial]);
-                SELFTEST_CHECK(p->varps[varp_cook] == 0,
-                               "a fresh account has no quest progress, %d", p->varps[varp_cook]);
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_tutorial) == 1000, "the fixture's tutorial varp, %d",
+                               ToriRSServer_Varp(p, varp_tutorial));
+                SELFTEST_CHECK(ToriRSServer_Varp(p, varp_cook) == 0,
+                               "a fresh account has no quest progress, %d", ToriRSServer_Varp(p, varp_cook));
                 SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_ATTACK] == 1,
                                "a fresh account's Attack is 1, %d", p->stat_level[TORIRSSERVER_STAT_ATTACK]);
                 SELFTEST_CHECK(p->stat_level[TORIRSSERVER_STAT_HITPOINTS] == 10 && p->hitpoints == 10,

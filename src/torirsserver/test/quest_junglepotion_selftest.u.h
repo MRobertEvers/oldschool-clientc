@@ -134,7 +134,7 @@ jungle_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -156,7 +156,7 @@ jungle_find_loc_anywhere(int loc_id, int* out_x, int* out_z)
 {
     int s;
 
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -356,10 +356,10 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     player->godmode = 1;
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
-    player->varps[varp_jp] = 0;
-    player->varps[varp_druid] = 0;
+    ToriRSServer_VarpPut(player, varp_jp, 0);
+    ToriRSServer_VarpPut(player, varp_druid, 0);
     if( varp_zq >= 0 )
-        player->varps[varp_zq] = 0;
+        ToriRSServer_VarpPut(player, varp_zq, 0);
     ToriRSServer_CombatSetLevel(player, stat_herb, 3);
     spawned = -1;
 
@@ -380,8 +380,8 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     jungle_choose(srv, player, 2);
     jungle_drain(srv, player, 0);
     jungle_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_jp] == 0, "busy refuse should leave junglepotion=0, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 0, "busy refuse should leave junglepotion=0, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("start_refuse", "opnpc1,trufitus", "junglepotion=0");
 
     /* ---- Yes confirm without Druidic Ritual stays 0 ---- */
@@ -389,18 +389,18 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     jungle_choose(srv, player, 1);
     jungle_drain(srv, player, 0);
     jungle_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_jp] == 0, "Druid gate should leave junglepotion=0, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 0, "Druid gate should leave junglepotion=0, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("start_druid_refuse", "opnpc1,trufitus", "junglepotion=0");
 
     /* ---- No on Yes/No confirm stays 0 ---- */
-    player->varps[varp_druid] = 4;
+    ToriRSServer_VarpPut(player, varp_druid, 4);
     jungle_start_to_confirm(srv, player, npc_trufitus, truf_slot);
     jungle_choose(srv, player, 2);
     jungle_drain(srv, player, 0);
     jungle_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_jp] == 0, "No confirm should leave junglepotion=0, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 0, "No confirm should leave junglepotion=0, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("start_confirm_no", "opnpc1,trufitus", "junglepotion=0");
 
     /* ---- accept after Yes + Druid complete ---- */
@@ -408,8 +408,8 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     jungle_choose(srv, player, 1);
     jungle_drain(srv, player, 0);
     jungle_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_jp] == 1, "accept should write junglepotion=1, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 1, "accept should write junglepotion=1, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("start_accept", "opnpc1,trufitus", "junglepotion=1");
 
     /* ---- future source gated ---- */
@@ -446,29 +446,29 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     got = 0;
     for( i = 0; i < 40 && !got; i++ )
         got = jungle_search(srv, player, loc_vine, 2763, 3044, 0, obj_u_snake) == 1;
-    SELFTEST_CHECK(got && player->varps[varp_jp] == 2, "snake harvest should set junglepotion=2, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(got && ToriRSServer_Varp(player, varp_jp) == 2, "snake harvest should set junglepotion=2, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("gather_snake", "oploc2,snake_vine_full", "junglepotion=2");
     SELFTEST_CHECK(jungle_clean(srv, player, obj_u_snake, obj_snake),
                    "OPHELD1 should clean unidentified_snake_weed");
     jungle_pass("clean_snake", "opheld1,unidentified_snake_weed", "inv_snake_weed");
     jungle_snap(srv, player, 0, 2809, 3086);
     jungle_handin(srv, player, npc_trufitus, truf_slot);
-    SELFTEST_CHECK(player->varps[varp_jp] == 3 && selftest_count(player, obj_snake) == 0,
-                   "snake hand-in should delete herb and write 3, got %d", player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 3 && selftest_count(player, obj_snake) == 0,
+                   "snake hand-in should delete herb and write 3, got %d", ToriRSServer_Varp(player, varp_jp));
     jungle_pass("handin_snake", "opnpc1,trufitus", "junglepotion=3");
 
     /* ---- ardrigal ---- */
     got = jungle_search(srv, player, loc_palm, 2871, 3116, 0, obj_u_ard);
-    SELFTEST_CHECK(got == 1 && player->varps[varp_jp] == 4, "ardrigal harvest should set 4, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(got == 1 && ToriRSServer_Varp(player, varp_jp) == 4, "ardrigal harvest should set 4, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("gather_ardrigal", "oploc2,ardrigal_palm_full", "junglepotion=4");
     SELFTEST_CHECK(jungle_clean(srv, player, obj_u_ard, obj_ard), "clean ardrigal");
     jungle_pass("clean_ardrigal", "opheld1,unidentified_ardrigal", "inv_ardrigal");
     jungle_snap(srv, player, 0, 2809, 3086);
     jungle_handin(srv, player, npc_trufitus, truf_slot);
-    SELFTEST_CHECK(player->varps[varp_jp] == 5 && selftest_count(player, obj_ard) == 0,
-                   "ardrigal hand-in should write 5, got %d", player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 5 && selftest_count(player, obj_ard) == 0,
+                   "ardrigal hand-in should write 5, got %d", ToriRSServer_Varp(player, varp_jp));
     jungle_pass("handin_ardrigal", "opnpc1,trufitus", "junglepotion=5");
 
     /* ---- sito foil ---- */
@@ -476,15 +476,15 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     SELFTEST_CHECK(jungle_find_loc(2791, 3047, 0, loc_soil, 8) >= 0,
                    "sito_soil_full should stand at 2791,3047");
     got = jungle_search(srv, player, loc_soil, 2791, 3047, 0, obj_u_sito);
-    SELFTEST_CHECK(got == 1 && player->varps[varp_jp] == 6, "sito harvest should set 6, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(got == 1 && ToriRSServer_Varp(player, varp_jp) == 6, "sito harvest should set 6, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("gather_sito", "oploc2,sito_soil_full", "junglepotion=6");
     SELFTEST_CHECK(jungle_clean(srv, player, obj_u_sito, obj_sito), "clean sito foil");
     jungle_pass("clean_sito", "opheld1,unidentified_sito_foil", "inv_sito_foil");
     jungle_snap(srv, player, 0, 2809, 3086);
     jungle_handin(srv, player, npc_trufitus, truf_slot);
-    SELFTEST_CHECK(player->varps[varp_jp] == 7 && selftest_count(player, obj_sito) == 0,
-                   "sito hand-in should write 7, got %d", player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 7 && selftest_count(player, obj_sito) == 0,
+                   "sito hand-in should write 7, got %d", ToriRSServer_Varp(player, varp_jp));
     jungle_pass("handin_sito", "opnpc1,trufitus", "junglepotion=7");
 
     /* ---- volencia moss ---- */
@@ -492,15 +492,15 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     SELFTEST_CHECK(jungle_find_loc(2851, 3036, 0, loc_rock, 8) >= 0,
                    "volencia_moss_rock_full should stand at 2851,3036");
     got = jungle_search(srv, player, loc_rock, 2851, 3036, 0, obj_u_vol);
-    SELFTEST_CHECK(got == 1 && player->varps[varp_jp] == 8, "volencia harvest should set 8, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(got == 1 && ToriRSServer_Varp(player, varp_jp) == 8, "volencia harvest should set 8, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     jungle_pass("gather_volencia", "oploc2,volencia_moss_rock_full", "junglepotion=8");
     SELFTEST_CHECK(jungle_clean(srv, player, obj_u_vol, obj_vol), "clean volencia moss");
     jungle_pass("clean_volencia", "opheld1,unidentified_volencia_moss", "inv_volencia_moss");
     jungle_snap(srv, player, 0, 2809, 3086);
     jungle_handin(srv, player, npc_trufitus, truf_slot);
-    SELFTEST_CHECK(player->varps[varp_jp] == 9 && selftest_count(player, obj_vol) == 0,
-                   "volencia hand-in should write 9, got %d", player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 9 && selftest_count(player, obj_vol) == 0,
+                   "volencia hand-in should write 9, got %d", ToriRSServer_Varp(player, varp_jp));
     jungle_pass("handin_volencia", "opnpc1,trufitus", "junglepotion=9");
 
     /* ---- Pothole enter + rogue's purse wall depletes ---- */
@@ -550,8 +550,8 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
             }
         }
         got = jungle_search(srv, player, loc_wall, wall_x, wall_z, 0, obj_u_purse);
-        SELFTEST_CHECK(got == 1 && player->varps[varp_jp] == 10, "purse harvest should set 10, got %d",
-                       player->varps[varp_jp]);
+        SELFTEST_CHECK(got == 1 && ToriRSServer_Varp(player, varp_jp) == 10, "purse harvest should set 10, got %d",
+                       ToriRSServer_Varp(player, varp_jp));
         jungle_pass("gather_purse", "oploc2,rogues_purse_cave_full", "junglepotion=10");
         SELFTEST_CHECK(jungle_find_loc(wall_x, wall_z, 0, loc_wall_empty, 8) >= 0 ||
                            jungle_find_loc_anywhere(loc_wall_empty, NULL, NULL) >= 0,
@@ -581,13 +581,13 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
 
     /* ---- final hand-in + atomic complete ---- */
     jungle_snap(srv, player, 0, 2809, 3086);
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[stat_herb];
     jungle_handin(srv, player, npc_trufitus, truf_slot);
-    SELFTEST_CHECK(player->varps[varp_jp] == 11 || player->varps[varp_jp] == 12,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 11 || ToriRSServer_Varp(player, varp_jp) == 12,
                    "final hand-in should reach 11 (or 12 if queue already fired), got %d",
-                   player->varps[varp_jp]);
-    if( player->varps[varp_jp] == 11 )
+                   ToriRSServer_Varp(player, varp_jp));
+    if( ToriRSServer_Varp(player, varp_jp) == 11 )
     {
         jungle_talk(srv, player, npc_trufitus, truf_slot);
         jungle_drain_rewards(srv, player);
@@ -596,24 +596,24 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     {
         jungle_drain_rewards(srv, player);
     }
-    SELFTEST_CHECK(player->varps[varp_jp] == 12, "completion should write junglepotion=12, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 12, "completion should write junglepotion=12, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     SELFTEST_CHECK(player->stat_xp_tenths[stat_herb] >= xp_before + 7750,
                    "completion should grant 775 Herblore XP");
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1, "completion should grant 1 QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1, "completion should grant 1 QP");
     jungle_pass("complete", "opnpc1,trufitus", "junglepotion=12 qp+1 xp+775");
 
     /* ---- replay at 12 does not grant again ---- */
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[stat_herb];
     jungle_talk(srv, player, npc_trufitus, truf_slot);
     jungle_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp_jp] == 13, "postquest talk should write junglepotion=13, got %d",
-                   player->varps[varp_jp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 13, "postquest talk should write junglepotion=13, got %d",
+                   ToriRSServer_Varp(player, varp_jp));
     SELFTEST_CHECK(player->stat_xp_tenths[stat_herb] == xp_before, "postquest must not re-grant XP");
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before, "postquest must not re-grant QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before, "postquest must not re-grant QP");
     jungle_pass("postquest", "opnpc1,trufitus", "junglepotion=13");
 
     /* ---- post-quest herb sale pays 1-4 ---- */
@@ -638,7 +638,7 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     {
         selftest_clear_inv(player);
         selftest_give(player, obj_belt, 1);
-        player->varps[varp_zq] = 0;
+        ToriRSServer_VarpPut(player, varp_zq, 0);
         player->last_useitem = obj_belt;
         player->last_useslot = jungle_inv_slot(player, obj_belt);
         jungle_release(srv, player);
@@ -652,10 +652,10 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         jungle_choose(srv, player, 1);
         jungle_drain(srv, player, 0);
         jungle_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_zq] == 1, "Wampum on Trufitus should start Shilo, zq=%d",
-                       player->varps[varp_zq]);
-        SELFTEST_CHECK(player->varps[varp_jp] == 13, "Shilo start must not rewrite junglepotion, got %d",
-                       player->varps[varp_jp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_zq) == 1, "Wampum on Trufitus should start Shilo, zq=%d",
+                       ToriRSServer_Varp(player, varp_zq));
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == 13, "Shilo start must not rewrite junglepotion, got %d",
+                       ToriRSServer_Varp(player, varp_jp));
         jungle_pass("shilo_wampum", "opnpcu,trufitus", "zombiequeen=1");
     }
 
@@ -677,15 +677,15 @@ selftest_quest_junglepotion(struct ToriRSServer* srv, struct ToriRSServerPlayer*
 
             selftest_clear_inv(player);
             selftest_give(player, use, 1);
-            player->varps[varp_jp] = rows[r].state;
+            ToriRSServer_VarpPut(player, varp_jp, rows[r].state);
             player->last_useitem = use;
             player->last_useslot = jungle_inv_slot(player, use);
             jungle_release(srv, player);
             ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPCU, npc_trufitus, -1, truf_slot);
             jungle_drain(srv, player, 0);
             jungle_release(srv, player);
-            SELFTEST_CHECK(player->varps[varp_jp] == rows[r].expect_state, "%s: junglepotion should be %d, got %d",
-                           rows[r].what, rows[r].expect_state, player->varps[varp_jp]);
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_jp) == rows[r].expect_state, "%s: junglepotion should be %d, got %d",
+                           rows[r].what, rows[r].expect_state, ToriRSServer_Varp(player, varp_jp));
             SELFTEST_CHECK((selftest_count(player, use) > 0) == (rows[r].expect_kept != 0),
                            "%s: item kept=%d expected", rows[r].what, rows[r].expect_kept);
             jungle_pass(rows[r].what, "opnpcu,trufitus", "state+item");

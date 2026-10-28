@@ -152,7 +152,7 @@ demon_find_loc(int x, int z, int level, int loc_id, int radius)
             if( slot >= 0 )
                 return slot;
         }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -280,14 +280,14 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     spawned_traiborn = -1;
     spawned_delrith = -1;
     demon_inv_clear(player);
-    player->varps[varp_save] = 0;
-    player->varps[varp_bones] = 0;
-    player->varps[varp_started] = 0;
-    player->varps[varp_reward] = 0;
+    ToriRSServer_VarpPut(player, varp_save, 0);
+    ToriRSServer_VarpPut(player, varp_bones, 0);
+    ToriRSServer_VarpPut(player, varp_started, 0);
+    ToriRSServer_VarpPut(player, varp_reward, 0);
     ToriRSServer_VarbitSetOn(srv, player, vb_main, 0);
     ToriRSServer_VarbitSetOn(srv, player, vb_case, 0);
     ToriRSServer_VarbitSetOn(srv, player, vb_drain, 0);
-    player->varps[varp_save] = 1;
+    ToriRSServer_VarpPut(player, varp_save, 1);
 
     /* ---- SNAP Aris tent ---- */
     ToriRSServer_WorldTeleport(srv, 0, 3204, 3424);
@@ -442,17 +442,17 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
         const int ask[] = {3, 3, 2};
 
         demon_talk(srv, player, npc_traiborn, traiborn_slot, ask, 3);
-        SELFTEST_CHECK(player->varps[varp_started] == 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_started) == 1,
                        "Traiborn should start the bone ritual, started=%d",
-                       player->varps[varp_started]);
-        if( player->varps[varp_started] == 1 )
+                       ToriRSServer_Varp(player, varp_started));
+        if( ToriRSServer_Varp(player, varp_started) == 1 )
             demon_pass("traiborn-ask", "OPNPC1", "traiborn_started=1");
 
         inv_set(player, 4, obj_bones, 25);
         demon_talk(srv, player, npc_traiborn, traiborn_slot, NULL, 0);
-        SELFTEST_CHECK(player->varps[varp_bones] >= 25,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bones) >= 25,
                        "25 unnoted bones should fill demon_bones_given, got %d",
-                       player->varps[varp_bones]);
+                       ToriRSServer_Varp(player, varp_bones));
         SELFTEST_CHECK(demon_inv_total(player, obj_key1) == 1,
                        "Traiborn ritual should grant silverlight_key_1, have %d",
                        demon_inv_total(player, obj_key1));
@@ -491,16 +491,16 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     spawned_delrith = delrith_slot;
     SELFTEST_CHECK(delrith_slot >= 0, "Delrith should spawn in the stone circle");
     player->godmode = 1;
-    qp_before = player->varps[varp_qp];
+    qp_before = ToriRSServer_Varp(player, varp_qp);
     demon_release(srv, player);
     ToriRSServer_ScriptsRunDebugproc(srv, "demon_skipboss");
     demon_drain_rewards(srv, player);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 3,
                    "named boss cheat should write demonslayer_main=3, got %d",
                    ToriRSServer_VarbitGet(player, vb_main));
-    SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 3,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 3,
                    "completion should award +3 QP, %d -> %d",
-                   qp_before, player->varps[varp_qp]);
+                   qp_before, ToriRSServer_Varp(player, varp_qp));
     if( ToriRSServer_VarbitGet(player, vb_main) == 3 )
         fprintf(stderr, "PASS demonslayer boss=delrith CHEAT-SKIP\n");
     fflush(stderr);

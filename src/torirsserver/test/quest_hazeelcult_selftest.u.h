@@ -130,7 +130,7 @@ hazeel_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -195,15 +195,15 @@ hazeel_reset_vars(
     assert(srv);
     assert(player);
     if( varp_quest >= 0 )
-        player->varps[varp_quest] = 0;
+        ToriRSServer_VarpPut(player, varp_quest, 0);
     if( varp_side >= 0 )
-        player->varps[varp_side] = 0;
+        ToriRSServer_VarpPut(player, varp_side, 0);
     if( varp_valves >= 0 )
-        player->varps[varp_valves] = 0;
+        ToriRSServer_VarpPut(player, varp_valves, 0);
     if( varp_settle >= 0 )
-        player->varps[varp_settle] = 0;
+        ToriRSServer_VarpPut(player, varp_settle, 0);
     if( varp_secondary >= 0 )
-        player->varps[varp_secondary] = 0;
+        ToriRSServer_VarpPut(player, varp_secondary, 0);
     selftest_clear_inv(player);
     hazeel_release(srv, player);
 }
@@ -361,9 +361,9 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     hazeel_choose(srv, player, 3);
     hazeel_drain(srv, player, 0);
     hazeel_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_quest] == 0, "refuse should leave hazeelcultquest=0, got %d",
-                   player->varps[varp_quest]);
-    if( player->varps[varp_quest] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 0, "refuse should leave hazeelcultquest=0, got %d",
+                   ToriRSServer_Varp(player, varp_quest));
+    if( ToriRSServer_Varp(player, varp_quest) == 0 )
         hazeel_pass("start_refuse", "opnpc1,sir_ceril_carnillean", "hazeelcultquest=0");
 
     /* ---- accept ---- */
@@ -373,9 +373,9 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     hazeel_choose(srv, player, 2);
     hazeel_drain(srv, player, 0);
     hazeel_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_quest] == 2, "accept should set hazeelcultquest=2, got %d",
-                   player->varps[varp_quest]);
-    if( player->varps[varp_quest] == 2 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 2, "accept should set hazeelcultquest=2, got %d",
+                   ToriRSServer_Varp(player, varp_quest));
+    if( ToriRSServer_Varp(player, varp_quest) == 2 )
         hazeel_pass("start_accept", "opnpc1,sir_ceril_carnillean", "hazeelcultquest=2");
 
     /* ---- cave + raft gate before Clivet authorizes ---- */
@@ -392,13 +392,13 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     {
         hazeel_pass("raft_shell", "SceneFindLocId", "hazeelsewerraft");
         if( varp_valves >= 0 )
-            player->varps[varp_valves] = 27;
+            ToriRSServer_VarpPut(player, varp_valves, 27);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_raft, -1, loc_slot);
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 2,
-                       "raft must not bypass Clivet at state 2, got %d", player->varps[varp_quest]);
-        if( player->varps[varp_quest] == 2 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 2,
+                       "raft must not bypass Clivet at state 2, got %d", ToriRSServer_Varp(player, varp_quest));
+        if( ToriRSServer_Varp(player, varp_quest) == 2 )
             hazeel_pass("raft_gate", "oploc1,hazeelsewerraft", "blocked_until_decision");
     }
 
@@ -416,13 +416,13 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_choose(srv, player, 1);
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 4, "Ceril refuse should set state 4, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 4, "Ceril refuse should set state 4, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         if( vb_clivet_loc >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_clivet_loc) == 2,
                            "refusing Clivet should write clivet_location=2, got %d",
                            ToriRSServer_VarbitGet(player, vb_clivet_loc));
-        if( player->varps[varp_quest] == 4 )
+        if( ToriRSServer_Varp(player, varp_quest) == 4 )
             hazeel_pass("clivet_refuse", "opnpc1,clivet_hazeel_cultist", "state=4 good");
     }
 
@@ -440,7 +440,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
         if( varp_valves >= 0 )
-            SELFTEST_CHECK((player->varps[varp_valves] & (1 << 2)) == 0,
+            SELFTEST_CHECK((ToriRSServer_Varp(player, varp_valves) & (1 << 2)) == 0,
                            "turning sewervalve3 left should clear physical bit 2");
         hazeel_pass("valve3_left", "oploc1,sewervalve3", "physical_left");
     }
@@ -451,7 +451,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_pass("valve1_shell", "SceneFindLocId", "sewervalve1");
 
     if( varp_valves >= 0 )
-        player->varps[varp_valves] = 27;
+        ToriRSServer_VarpPut(player, varp_valves, 27);
 
     hazeel_snap(srv, player, 0, 2567, 9679);
     loc_slot = hazeel_find_loc(2567, 9679, 0, loc_raft, 10);
@@ -484,9 +484,9 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     ToriRSServer_ScriptsRunDebugproc(srv, "hazeelcult_pass_alomone");
     hazeel_drain(srv, player, 0);
     hazeel_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_quest] == 6, "alomone cheat-skip should set state 6, got %d",
-                   player->varps[varp_quest]);
-    if( player->varps[varp_quest] == 6 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 6, "alomone cheat-skip should set state 6, got %d",
+                   ToriRSServer_Varp(player, varp_quest));
+    if( ToriRSServer_Varp(player, varp_quest) == 6 )
         hazeel_pass("alomone_skip", "debugproc,hazeelcult_pass_alomone",
                     "PASS hazeelcult boss=alomone CHEAT-SKIP");
 
@@ -520,8 +520,8 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_talk(srv, player, srv->npcs[ceril_slot].type, ceril_slot);
         hazeel_drain_rewards(srv, player);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 7, "armour hand-in should set state 7, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 7, "armour hand-in should set state 7, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         if( obj_coins > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_coins) >= coins_before + 5,
                            "fake ending should grant 5 coins");
@@ -545,7 +545,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     if( loc_slot < 0 )
         loc_slot = hazeel_find_loc(2574, 3267, 1, loc_cupboard, 8);
     SELFTEST_CHECK(loc_slot >= 0, "upstairs cupboard shell should stand in Jones' room");
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     coins_before = obj_coins > 0 ? selftest_count(player, obj_coins) : 0;
     if( loc_slot >= 0 )
     {
@@ -560,8 +560,8 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
         hazeel_drain_rewards(srv, player);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 7, "opening the cupboard must not settle the quest, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 7, "opening the cupboard must not settle the quest, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         loc_slot = hazeel_find_loc(2574, 3267, 1, loc_cupboard, 8);
         SELFTEST_CHECK(loc_slot >= 0, "the opened cupboard should stand where the shut one did");
         if( loc_slot >= 0 )
@@ -570,17 +570,17 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             hazeel_drain_rewards(srv, player);
             hazeel_release(srv, player);
         }
-        SELFTEST_CHECK(player->varps[varp_quest] == 9, "cupboard evidence should complete, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 9, "cupboard evidence should complete, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         if( vb_jones_cut >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_jones_cut) == 1,
                            "jones_cutscene should settle before state 9");
         if( varp_qp >= 0 )
-            SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1, "completion should award 1 QP");
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1, "completion should award 1 QP");
         if( obj_coins > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_coins) >= coins_before + 2000,
                            "real completion should grant 2000 coins after rewards settle");
-        if( player->varps[varp_quest] == 9 )
+        if( ToriRSServer_Varp(player, varp_quest) == 9 )
             hazeel_pass("cupboard_complete", "oploc1,hazeelcbshut+hazeelcbopen", "state=9 qp+1 coins+2000");
     }
 
@@ -593,8 +593,8 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_talk(srv, player, srv->npcs[ceril_slot].type, ceril_slot);
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 9, "postquest must stay complete");
-        if( player->varps[varp_quest] == 9 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 9, "postquest must stay complete");
+        if( ToriRSServer_Varp(player, varp_quest) == 9 )
             hazeel_pass("postquest_ceril", "opnpc1,sir_ceril_carnillean", "state=9");
     }
 
@@ -634,7 +634,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_release(srv, player);
         SELFTEST_CHECK(selftest_count(player, obj_poison) == 0,
                        "full inventory must not receive poison");
-        if( player->varps[varp_quest] < 4 )
+        if( ToriRSServer_Varp(player, varp_quest) < 4 )
             hazeel_pass("poison_full", "opnpc1,clivet_hazeel_cultist", "no_false_success");
 
         selftest_clear_inv(player);
@@ -646,7 +646,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_choose(srv, player, 2);
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 4 && selftest_count(player, obj_poison) >= 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 4 && selftest_count(player, obj_poison) >= 1,
                        "evil accept should give poison and state 4");
         if( vb_given_poison >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_given_poison) == 1,
@@ -669,8 +669,8 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
         player->last_useitem = -1;
-        SELFTEST_CHECK(player->varps[varp_quest] == 5, "poison on range should set state 5, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 5, "poison on range should set state 5, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         hazeel_pass("poison_range", "oplocu,carnilleanrange", "state=5");
     }
 
@@ -717,7 +717,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
 
     /* ---- meet Alomone on the evil route ---- */
     if( varp_valves >= 0 )
-        player->varps[varp_valves] = 27;
+        ToriRSServer_VarpPut(player, varp_valves, 27);
     hazeel_snap(srv, player, 0, 2608, 9671);
     if( spawned_alomone >= 0 && srv->npcs[spawned_alomone].active )
     {
@@ -731,9 +731,9 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         hazeel_talk(srv, player, srv->npcs[alomone_slot].type, alomone_slot);
         hazeel_drain(srv, player, 0);
         hazeel_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_quest] == 6, "Alomone meet should set state 6, got %d",
-                       player->varps[varp_quest]);
-        if( player->varps[varp_quest] == 6 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 6, "Alomone meet should set state 6, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
+        if( ToriRSServer_Varp(player, varp_quest) == 6 )
             hazeel_pass("alomone_meet_evil", "opnpc1,alomone_hazeel_cultist_1op", "state=6");
     }
 
@@ -822,15 +822,15 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
             hazeel_release(srv, player);
         }
         SELFTEST_CHECK(selftest_count(player, obj_scroll) >= 1, "secret chest should grant the scroll");
-        SELFTEST_CHECK(player->varps[varp_quest] == 7, "scroll delivery should set state 7, got %d",
-                       player->varps[varp_quest]);
-        if( selftest_count(player, obj_scroll) >= 1 && player->varps[varp_quest] == 7 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 7, "scroll delivery should set state 7, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
+        if( selftest_count(player, obj_scroll) >= 1 && ToriRSServer_Varp(player, varp_quest) == 7 )
             hazeel_pass("scroll_chest", "oplocu+oploc1,carnilleanshutchest", "state=7 scroll=1");
     }
     else if( obj_scroll > 0 )
     {
         selftest_give(player, obj_scroll, 1);
-        player->varps[varp_quest] = 7;
+        ToriRSServer_VarpPut(player, varp_quest, 7);
         hazeel_pass("scroll_chest", "fallback_inv", "state=7 (loc not in window)");
     }
 
@@ -838,7 +838,7 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     hazeel_snap(srv, player, 0, 2608, 9671);
     if( alomone_slot < 0 || !srv->npcs[alomone_slot].active )
         alomone_slot = hazeel_spawn_npc(srv, npc_alomone_1op, 2608, 9671, 0, &spawned_alomone);
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     coins_before = obj_coins > 0 ? selftest_count(player, obj_coins) : 0;
     if( alomone_slot >= 0 )
     {
@@ -848,10 +848,10 @@ selftest_quest_hazeelcult(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
         if( vb_given_scroll >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_given_scroll) == 1,
                            "scroll is consumed before ritual settlement");
-        SELFTEST_CHECK(player->varps[varp_quest] == 9, "Hazeel ritual should complete, got %d",
-                       player->varps[varp_quest]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_quest) == 9, "Hazeel ritual should complete, got %d",
+                       ToriRSServer_Varp(player, varp_quest));
         if( varp_qp >= 0 )
-            SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1, "evil completion should award 1 QP");
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1, "evil completion should award 1 QP");
         if( obj_coins > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_coins) >= coins_before + 2000,
                            "evil completion should grant 2000 coins");

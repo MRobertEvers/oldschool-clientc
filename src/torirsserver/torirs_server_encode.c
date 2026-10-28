@@ -856,7 +856,7 @@ ToriRSServer_SendReconnectOk(struct ToriRSServerPlayer* player)
      * That is the same `player_tracked` gate ToriRSServer_SendRebuildNormal
      * reads, set from the other side of it.
      */
-    player->player_tracked[player->pid] = 1;
+    ToriRSServer_PidSetAdd(&player->player_tracked, player->pid);
     player->v5_playerinfo_sent = 0;
     mock239_playerinfo_state_init(&player->v5_gpi, ToriRSServer_WirePlayerIndex(player->pid), coord);
     memset(player->v5_player_generation, 0, sizeof(player->v5_player_generation));
@@ -914,13 +914,14 @@ send_rebuild_normal_at(
      * the block: the client would re-seed a table it is already tracking
      * against, and every player in it would jump.
      */
-    if( include_login_init && wire_is_v5(player) && !player->player_tracked[player->pid] )
+    if( include_login_init && wire_is_v5(player) &&
+        !ToriRSServer_PidSetHas(&player->player_tracked, player->pid) )
     {
         int32_t coord = (int32_t)(((player->level & 0x3) << 28) |
                                   ((player->x & 0x3fff) << 14) | (player->z & 0x3fff));
         mock239_playerinfo_write_init(&buf, ToriRSServer_WirePlayerIndex(player->pid),
                                       coord);
-        player->player_tracked[player->pid] = 1;
+        ToriRSServer_PidSetAdd(&player->player_tracked, player->pid);
         /* The init block resets the client's cycle bits, so the next
          * PLAYER_INFO must place the crowd in section 4 again — and it stated
          * the absolute position, so the next delta is measured from there. */
@@ -1868,7 +1869,7 @@ send_varp_value(
     struct ToriRSServerPlayer* player,
     int varp)
 {
-    int32_t const value = player->varps[varp];
+    int32_t const value = ToriRSServer_Varp(player, varp);
 
     if( value >= -128 && value <= 127 )
         ToriRSServer_SendVarpSmall(player, varp, value);
@@ -2005,7 +2006,7 @@ ToriRSServer_GameframeOpentop(
             /* Not marked: the login burst's varp sync sends it, once (RSProx:
              * one `hpbar_hud_npc -1`; a mark here made it two). */
             if( hp_ids->varp_hpbar_hud_npc >= 0 )
-                player->varps[hp_ids->varp_hpbar_hud_npc] = -1;
+                ToriRSServer_VarpPut(player, hp_ids->varp_hpbar_hud_npc, -1);
         }
     }
     /* The V2 snapshot is the authoritative commit for this root. It also
@@ -5436,9 +5437,12 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                 int local_value, const uint8_t* local_appearance, int local_appearance_len,
                 const struct Mock239PlayerExt* local_ext)
 {
-    struct Mock239PlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
-    struct Mock239PlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
-    uint8_t appearances[TORIRSSERVER_PLAYER_MAX][512];
+    /* Scratch for one viewer's packet, static rather than on the stack: at a
+     * 2000-player cap the appearances alone are 1 MB. The encoder is never
+     * re-entered (one viewer at a time, from phase 10). */
+    static struct Mock239PlayerUpdate updates[TORIRSSERVER_PLAYER_MAX];
+    static struct Mock239PlayerExt extensions[TORIRSSERVER_PLAYER_MAX];
+    static uint8_t appearances[TORIRSSERVER_PLAYER_MAX][512];
     int count = 0;
     int local_index = ToriRSServer_WirePlayerIndex(viewer->pid);
     if( !viewer->v5_gpi.initialized )
@@ -5523,7 +5527,12 @@ player_world_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
     viewer->v5_gpi.wire_revision = srv_wire_revision(viewer);
     mock239_playerinfo_write_world(buf, &viewer->v5_gpi, updates, count);
     for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
-        viewer->player_tracked[pid] = viewer->v5_gpi.high[ToriRSServer_WirePlayerIndex(pid)];
+    {
+        if( viewer->v5_gpi.high[ToriRSServer_WirePlayerIndex(pid)] )
+            ToriRSServer_PidSetAdd(&viewer->player_tracked, pid);
+        else
+            ToriRSServer_PidSetRemove(&viewer->player_tracked, pid);
+    }
 }
 
 void
@@ -5541,8 +5550,8 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
     struct ToriRSServerPlayer* queued[TORIRSSERVER_PLAYER_MAX + 1];
     int queued_new[TORIRSSERVER_PLAYER_MAX + 1];
     int queued_count = 0;
-    int kept[TORIRSSERVER_PLAYER_MAX];
-    uint32_t kept_generation[TORIRSSERVER_PLAYER_MAX];
+    int kept[TORIRSSERVER_TRACKED_PLAYER_MAX];
+    uint32_t kept_generation[TORIRSSERVER_TRACKED_PLAYER_MAX];
     int nearby[TORIRSSERVER_PLAYER_MAX];
     int nearby_count;
     int kept_count = 0;
@@ -5791,7 +5800,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
              * not keep the slot, so it must not go into `kept`. */
             rsab_pbit(&buf, 1, 1);
             rsab_pbit(&buf, 2, 3);
-            player->player_tracked[pid] = 0;
+            ToriRSServer_PidSetRemove(&player->player_tracked, pid);
             continue;
         }
 
@@ -5884,8 +5893,13 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 
         if( pid < 0 || pid >= srv->player_count )
             continue;
-        if( player->player_tracked[pid] || !player_in_view(player, other) )
+        if( ToriRSServer_PidSetHas(&player->player_tracked, pid) || !player_in_view(player, other) )
             continue;
+        /* The list's count is 8 bits on the wire. A crowd past that waits:
+         * the next PLAYER_INFO adds whoever still fits, as the reference's
+         * local-player cap does. */
+        if( kept_count >= TORIRSSERVER_TRACKED_PLAYER_MAX )
+            break;
 
         /* Both sides projected, so the pair is described in one frame. A
          * deck player enters a shore observer's list at the root tile the
@@ -5900,7 +5914,7 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 
         queued_new[queued_count] = 1;
         queued[queued_count++] = other;
-        player->player_tracked[pid] = 1;
+        ToriRSServer_PidSetAdd(&player->player_tracked, pid);
         kept_generation[kept_count] = other->login_generation;
         kept[kept_count++] = pid;
     }

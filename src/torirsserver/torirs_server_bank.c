@@ -75,12 +75,12 @@ ToriRSServer_BankSetVarbit(
      * 0..31) would shift by 32, which is undefined. Build the mask from the
      * width in a way that is defined for every width the format allows. */
     mask = (msb - lsb) >= 31 ? 0xffffffffu : (((1u << (msb - lsb + 1)) - 1u));
-    current = (uint32_t)player->varps[basevar];
+    current = (uint32_t)ToriRSServer_Varp(player, basevar);
     current &= ~(mask << lsb);
     current |= ((uint32_t)value & mask) << lsb;
-    if( (int32_t)current == player->varps[basevar] )
+    if( (int32_t)current == ToriRSServer_Varp(player, basevar) )
         return;
-    player->varps[basevar] = (int32_t)current;
+    ToriRSServer_VarpPut(player, basevar, (int32_t)current);
     ToriRSServer_WorldMarkVarp(player, basevar);
 }
 
@@ -99,7 +99,7 @@ ToriRSServer_BankGetVarbit(
     if( basevar < 0 || basevar >= TORIRSSERVER_VARP_COUNT )
         return 0;
     mask = (msb - lsb) >= 31 ? 0xffffffffu : (((1u << (msb - lsb + 1)) - 1u));
-    return (int)(((uint32_t)srv->active_player->varps[basevar] >> lsb) & mask);
+    return (int)(((uint32_t)ToriRSServer_Varp(srv->active_player, basevar) >> lsb) & mask);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1289,5 +1289,12 @@ void
 ToriRSServer_BankShutdown(struct ToriRSServer* srv)
 {
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
         ToriRSServer_BankShutdownPlayer(&srv->players[i]);
+        /* The varp map and the input queue are the other per-player heap
+         * blocks a teardown owes; every host that tears down calls this, so
+         * they are released here. */
+        ToriRSServer_VarpsFree(&srv->players[i].varps);
+        ToriRSServer_WorldInputFree(&srv->players[i]);
+    }
 }

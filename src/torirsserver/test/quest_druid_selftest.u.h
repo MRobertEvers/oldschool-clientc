@@ -243,9 +243,9 @@ selftest_quest_druid(
 
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
-    player->varps[varp_druid] = 0;
+    ToriRSServer_VarpPut(player, varp_druid, 0);
     if( varp_osf >= 0 )
-        player->varps[varp_osf] = 0;
+        ToriRSServer_VarpPut(player, varp_osf, 0);
     quest_druid_set_combat(player, 1);
     srv->members_world = 1;
 
@@ -322,11 +322,11 @@ selftest_quest_druid(
     quest_druid_drain_to_choice(srv, player, rows_uid);
     quest_druid_pick(srv, 2);
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 0, "refuse must leave druidquest=0");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 0, "refuse must leave druidquest=0");
     quest_druid_pass("kaqemeex-refuse");
 
     selftest_clear_pending(srv, player);
-    player->varps[varp_druid] = 0;
+    ToriRSServer_VarpPut(player, varp_druid, 0);
 
     /* Accept at combat 3, through the advisory warning. */
     SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kaq, -1,
@@ -341,10 +341,10 @@ selftest_quest_druid(
         player->resume_buttons[0] == rows_uid )
         quest_druid_pick(srv, 1);
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 1, "accept must write druidquest=1");
-    snapped = player->varps[varp_druid];
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 1, "accept must write druidquest=1");
+    snapped = ToriRSServer_Varp(player, varp_druid);
     selftest_tick(srv);
-    SELFTEST_CHECK(player->varps[varp_druid] == snapped,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == snapped,
                    "SNAP+tick must keep druidquest=1");
     quest_druid_pass("kaqemeex-accept");
 
@@ -358,14 +358,14 @@ selftest_quest_druid(
     quest_druid_drain_to_choice(srv, player, rows_uid);
     quest_druid_pick(srv, 2);
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 2, "Sanfew assignment must write druidquest=2");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 2, "Sanfew assignment must write druidquest=2");
     quest_druid_pass("sanfew-assign");
 
     /* Cauldron refuses at state 0, then converts all four at state 2. */
     loc_slot = ToriRSServer_SceneAddLoc(player->x, player->z + 1, player->level, loc_cauldron,
                                        10, 0);
     SELFTEST_CHECK(loc_slot >= 0, "cauldron_of_thunder should place");
-    player->varps[varp_druid] = 0;
+    ToriRSServer_VarpPut(player, varp_druid, 0);
     selftest_clear_inv(player);
     selftest_give(player, obj_raw[0], 1);
     player->last_useitem = obj_raw[0];
@@ -377,7 +377,7 @@ selftest_quest_druid(
                    "cauldron must refuse outside state 2");
     quest_druid_pass("cauldron-refuse");
 
-    player->varps[varp_druid] = 2;
+    ToriRSServer_VarpPut(player, varp_druid, 2);
     selftest_clear_inv(player);
     for( i = 0; i < 4; i++ )
     {
@@ -399,33 +399,33 @@ selftest_quest_druid(
                                                  sanfew_slot) == TORIRSSERVER_TRIGGER_RAN,
                    "[opnpc1,sanfew] hand-in should run");
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 3, "hand-in must write druidquest=3");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 3, "hand-in must write druidquest=3");
     for( i = 0; i < 4; i++ )
         SELFTEST_CHECK(selftest_count(player, obj_enc[i]) == 0,
                        "hand-in must consume %s", enc_names[i]);
     quest_druid_pass("sanfew-handin");
 
     /* Lesson then complete. Resume pause FIRST, then wide close+tick. */
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[herb_stat];
     selftest_clear_pending(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 3,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 3,
                    "lesson must start at druidquest=3, not 4");
     SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kaq, -1,
                                                  kaq_slot) == TORIRSSERVER_TRIGGER_RAN,
                    "[opnpc1,kaqemeex] lesson should run");
-    SELFTEST_CHECK(player->varps[varp_druid] == 3,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 3,
                    "lesson must not write complete before the last page");
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 4, "completion must follow the lesson");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 4, "completion must follow the lesson");
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 4, "completion pays 4 QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 4, "completion pays 4 QP");
     SELFTEST_CHECK(player->stat_xp_tenths[herb_stat] >= xp_before + 2500,
                    "completion pays 250 Herblore XP");
     quest_druid_pass("lesson-then-complete");
 
     /* Duplicate completion is a no-op. */
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[herb_stat];
     selftest_clear_pending(srv, player);
     SELFTEST_CHECK(ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kaq, -1,
@@ -434,9 +434,9 @@ selftest_quest_druid(
     quest_druid_drain_to_choice(srv, player, rows_uid);
     quest_druid_pick(srv, 1);
     quest_druid_resume_then_close(srv, player);
-    SELFTEST_CHECK(player->varps[varp_druid] == 4, "postquest must not rewind state");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 4, "postquest must not rewind state");
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before, "duplicate complete must not re-pay QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before, "duplicate complete must not re-pay QP");
     SELFTEST_CHECK(player->stat_xp_tenths[herb_stat] == xp_before,
                    "duplicate complete must not re-pay XP");
     quest_druid_pass("postquest-idempotent");
@@ -505,7 +505,7 @@ selftest_quest_druid(
                 if( obj_bones >= 0 )
                     SELFTEST_CHECK(selftest_count(player, obj_bones) == 0,
                                    "suit kill must not invent bones");
-                SELFTEST_CHECK(player->varps[varp_druid] == 4,
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_druid) == 4,
                                "suit Attack must not write completion");
                 quest_druid_pass("suit-no-loot");
                 ToriRSServer_WorldNpcFree(srv, suit_slot);

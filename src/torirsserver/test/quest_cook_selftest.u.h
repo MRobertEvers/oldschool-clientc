@@ -47,7 +47,7 @@ cook_selftest_find_loc(int cx, int cz, int level, int loc_id, int radius)
     /* MULTILOC shells store the parent id; children store the resolved id.
      * Scan live scene locs by footprint so a 2x2 millbase SW of the QH tile
      * still matches. */
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -221,7 +221,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
 
     spawned = -1;
     cook_selftest_inv_clear(player);
-    player->varps[cookquest] = 0;
+    ToriRSServer_VarpPut(player, cookquest, 0);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
 
@@ -243,9 +243,9 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     cook_selftest_resume_pages(srv, 2, 16);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
-    SELFTEST_CHECK(player->varps[cookquest] == 0, "refuse should leave cookquest=0, got %d",
-                   player->varps[cookquest]);
-    if( player->varps[cookquest] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 0, "refuse should leave cookquest=0, got %d",
+                   ToriRSServer_Varp(player, cookquest));
+    if( ToriRSServer_Varp(player, cookquest) == 0 )
         fprintf(stderr,
                 "COOK PASS: start_refuse trigger=opnpc1,cook observable=cookquest=0\n");
 
@@ -254,9 +254,9 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     cook_selftest_resume_pages(srv, 1, 24);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
-    SELFTEST_CHECK(player->varps[cookquest] == 1, "accept should set cookquest=1, got %d",
-                   player->varps[cookquest]);
-    if( player->varps[cookquest] == 1 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1, "accept should set cookquest=1, got %d",
+                   ToriRSServer_Varp(player, cookquest));
+    if( ToriRSServer_Varp(player, cookquest) == 1 )
         fprintf(stderr,
                 "COOK PASS: start_accept trigger=opnpc1,cook observable=cookquest=1\n");
 
@@ -269,10 +269,10 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         cook_selftest_resume_pages(srv, 1, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
-        SELFTEST_CHECK(player->varps[cookquest] == 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1,
                        "pre-complete range click must not complete the quest, cookquest=%d",
-                       player->varps[cookquest]);
-        if( player->varps[cookquest] == 1 )
+                       ToriRSServer_Varp(player, cookquest));
+        if( ToriRSServer_Varp(player, cookquest) == 1 )
             fprintf(stderr,
                     "COOK PASS: range_denied_pre trigger=oploc1,cooksquestrange "
                     "observable=cookquest=1\n");
@@ -285,10 +285,10 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             cook_selftest_resume_pages(srv, 1, 8);
             ToriRSServer_WorldCloseModal(srv);
             player->active_script = NULL;
-            SELFTEST_CHECK(player->varps[cookquest] == 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1,
                            "pre-complete item-on-range must stay gated, cookquest=%d",
-                           player->varps[cookquest]);
-            if( player->varps[cookquest] == 1 )
+                           ToriRSServer_Varp(player, cookquest));
+            if( ToriRSServer_Varp(player, cookquest) == 1 )
                 fprintf(stderr,
                         "COOK PASS: range_useon_denied_pre trigger=oplocu,cooksquestrange "
                         "observable=cookquest=1 last_useitem=raw_shrimp\n");
@@ -414,7 +414,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         inv_set(player, inv_first_free(player), egg, 1);
     if( cook_selftest_inv_total(player, flour) < 1 )
         inv_set(player, inv_first_free(player), flour, 1);
-    SELFTEST_CHECK(player->varps[cookquest] == 1, "hand-in must start from cookquest=1");
+    SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 1, "hand-in must start from cookquest=1");
 
     /* ---- SNAP kitchen, hand-in via real talk ---- */
     ToriRSServer_WorldTeleport(srv, 0, 3208, 3215);
@@ -431,15 +431,15 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         if( cooking < 0 || cooking >= TORIRSSERVER_STAT_COUNT )
             cooking = 0;
         xp_before = player->stat_xp_tenths[cooking];
-        qp_before = (qp_varp > 0) ? player->varps[qp_varp] : 0;
+        qp_before = (qp_varp > 0) ? ToriRSServer_Varp(player, qp_varp) : 0;
 
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
         cook_selftest_resume_pages(srv, 1, 32);
         cook_selftest_drain_rewards(srv);
 
-        SELFTEST_CHECK(player->varps[cookquest] == 2,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 2,
                        "atomic hand-in should set cookquest=2, got %d",
-                       player->varps[cookquest]);
+                       ToriRSServer_Varp(player, cookquest));
         SELFTEST_CHECK(cook_selftest_inv_total(player, milk) == 0 &&
                            cook_selftest_inv_total(player, egg) == 0 &&
                            cook_selftest_inv_total(player, flour) == 0,
@@ -448,10 +448,10 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                        "hand-in should award 300 Cooking XP (3000 tenths), delta=%d",
                        player->stat_xp_tenths[cooking] - xp_before);
         if( qp_varp > 0 )
-            SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 1,
                            "hand-in should award 1 QP, %d -> %d", qp_before,
-                           player->varps[qp_varp]);
-        if( player->varps[cookquest] == 2 &&
+                           ToriRSServer_Varp(player, qp_varp));
+        if( ToriRSServer_Varp(player, cookquest) == 2 &&
             cook_selftest_inv_total(player, milk) == 0 &&
             cook_selftest_inv_total(player, egg) == 0 &&
             cook_selftest_inv_total(player, flour) == 0 &&
@@ -459,7 +459,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             fprintf(stderr,
                     "COOK PASS: handin_complete trigger=opnpc1,cook "
                     "observable=cookquest=2 inv_cleared xp_delta=3000 qp_delta=%d\n",
-                    (qp_varp > 0) ? (player->varps[qp_varp] - qp_before) : 0);
+                    (qp_varp > 0) ? (ToriRSServer_Varp(player, qp_varp) - qp_before) : 0);
 
         /* Idempotent second talk: no second XP. */
         {
@@ -468,11 +468,11 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             cook_selftest_resume_pages(srv, 1, 16);
             ToriRSServer_WorldCloseModal(srv);
             player->active_script = NULL;
-            SELFTEST_CHECK(player->varps[cookquest] == 2,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 2,
                            "post-quest talk must leave cookquest=2");
             SELFTEST_CHECK(player->stat_xp_tenths[cooking] == xp_mid,
                            "post-quest talk must not award XP again");
-            if( player->varps[cookquest] == 2 && player->stat_xp_tenths[cooking] == xp_mid )
+            if( ToriRSServer_Varp(player, cookquest) == 2 && player->stat_xp_tenths[cooking] == xp_mid )
                 fprintf(stderr,
                         "COOK PASS: postquest_retalk trigger=opnpc1,cook "
                         "observable=cookquest=2 xp_unchanged\n");
@@ -487,9 +487,9 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         cook_selftest_resume_pages(srv, 1, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
-        SELFTEST_CHECK(player->varps[cookquest] == 2,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, cookquest) == 2,
                        "post-complete range click must keep cookquest=2");
-        if( player->varps[cookquest] == 2 )
+        if( ToriRSServer_Varp(player, cookquest) == 2 )
             fprintf(stderr,
                     "COOK PASS: range_allowed_post trigger=oploc1,cooksquestrange "
                     "observable=cookquest=2\n");

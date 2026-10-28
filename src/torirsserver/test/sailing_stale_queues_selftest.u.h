@@ -116,8 +116,8 @@ selftest_sailing_stale_queues(struct ToriRSServer* srv,
     if( shipyard_varp >= 0 && shipyard > 0 )
     {
         ToriRSServer_MapInstanceVarSet(shipyard, 0, boat->index);
-        saved_shipyard = player->varps[shipyard_varp];
-        player->varps[shipyard_varp] = shipyard;
+        saved_shipyard = ToriRSServer_Varp(player, shipyard_varp);
+        ToriRSServer_VarpPut(player, shipyard_varp, shipyard);
     }
     int modal=player->mainmodal_group;
     int32_t arrive[5]={boat->index,old_serial,0,1,20};
@@ -131,7 +131,7 @@ selftest_sailing_stale_queues(struct ToriRSServer* srv,
     ToriRSServer_WorldCloseModal(srv);
     if( shipyard_varp >= 0 && shipyard > 0 )
     {
-        player->varps[shipyard_varp] = saved_shipyard;
+        ToriRSServer_VarpPut(player, shipyard_varp, saved_shipyard);
         ToriRSServer_MapInstanceFree(shipyard);
     }
     for( int i=0; i<7; ++i ) ToriRSServer_MapInstanceVarSet(boat->instance,8+i,saved_regs[i]);

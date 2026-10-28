@@ -609,7 +609,8 @@ selftest_sailing_multiplayer(struct ToriRSServer* srv, struct ToriRSServerPlayer
                                "that left a passenger's deck empty");
             }
         }
-        SELFTEST_CHECK(!ToriRSServer_VesselSetNavigators(srv,player,boat,1u<<TORIRSSERVER_PLAYER_MAX) &&
+        /* A bit for a pid nobody holds: refused like one past the pool. */
+        SELFTEST_CHECK(!ToriRSServer_VesselSetNavigators(srv,player,boat,1u<<(TORIRSSERVER_VESSEL_NAVIGATOR_MAX-1)) &&
                        ToriRSServer_VesselNavigatorMask(srv,boat)==grant,
                        "invalid navigator masks are rejected without changing the existing grant");
         if( privacy_bit>=0 ) ToriRSServer_VarbitSet(srv,privacy_bit,1);

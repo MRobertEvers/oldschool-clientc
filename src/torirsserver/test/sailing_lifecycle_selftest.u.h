@@ -16,9 +16,8 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     SELFTEST_CHECK(srv->scripts_ok, "lifecycle validation requires the real compiled content");
     if( !srv->scripts_ok ) return;
     struct ToriRSServerSailingSave old_sailing = player->sailing;
-    int32_t* old_varps = malloc(sizeof(player->varps));
-    assert(old_varps);
-    memcpy(old_varps, player->varps, sizeof(player->varps));
+    struct ToriRSServerVarps old_varps = { 0 };
+    ToriRSServer_VarpsCopy(&old_varps, &player->varps);
     ToriRSServer_WorldSetActive(srv, player);
     memset(&player->sailing, 0, sizeof(player->sailing));
     for( int slot = 1; slot <= 5; ++slot )
@@ -344,7 +343,7 @@ selftest_sailing_lifecycle(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
             owner->sailing.shore_z = 2979;
             SELFTEST_CHECK(ToriRSServer_VesselBoardPlayer(srv, owner, owned), "board before disconnect");
             int instance_varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
-            if( instance_varp >= 0 ) owner->varps[instance_varp] = owned->instance;
+            if( instance_varp >= 0 ) ToriRSServer_VarpPut(owner, instance_varp, owned->instance);
             int departed_pid = owner->pid;
             ToriRSServer_WorldRemovePlayer(srv, owner);
             SELFTEST_CHECK(!owner->active && ToriRSServer_VesselLiveCount(srv) == 0,
@@ -685,8 +684,8 @@ done:
         if( srv->vessels[i].in_use ) ToriRSServer_VesselFree(srv, srv->vessels[i].index);
     ToriRSServer_WorldSetActive(srv, player);
     player->sailing = old_sailing;
-    memcpy(player->varps, old_varps, sizeof(player->varps));
-    free(old_varps);
+    ToriRSServer_VarpsCopy(&player->varps, &old_varps);
+    ToriRSServer_VarpsFree(&old_varps);
     selftest_park_player(srv, 3222, 3218);
     player->rebuild_pending = 0;
     if( scripts_owned ) ToriRSServer_ScriptsFree(srv);

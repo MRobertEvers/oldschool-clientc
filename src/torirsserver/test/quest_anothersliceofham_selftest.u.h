@@ -134,7 +134,7 @@ slice_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -405,7 +405,7 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
         ToriRSServer_VarbitSetOn(srv, player, vb_snipers, 0);
     ToriRSServer_VarbitSetOn(srv, player, vb_dttd, 13);
     ToriRSServer_VarbitSetOn(srv, player, vb_gdwarf, 50);
-    player->varps[varp_itexam] = 9;
+    ToriRSServer_VarpPut(player, varp_itexam, 9);
     slice_set_skill(player, stat_attack, 15);
     slice_set_skill(player, stat_prayer, 25);
 
@@ -764,7 +764,7 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
     if( loc_slot < 0 && loc_tied >= 0 )
         loc_slot = ToriRSServer_SceneAddLoc(2542, 5513, 0, loc_tied, 10, 0);
     SELFTEST_CHECK(loc_slot >= 0, "slice_zanik_tied_up SHELL should be clickable");
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = stat_mining >= 0 ? player->stat_xp_tenths[stat_mining] : 0;
     if( loc_slot >= 0 )
     {
@@ -778,9 +778,9 @@ selftest_quest_anothersliceofham(struct ToriRSServer* srv, struct ToriRSServerPl
                    "untie should write slice_quest=11, got %d",
                    ToriRSServer_VarbitGet(player, vb_quest));
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1,
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1,
                        "completion should award +1 QP, %d -> %d", qp_before,
-                       player->varps[varp_qp]);
+                       ToriRSServer_Varp(player, varp_qp));
     if( stat_mining >= 0 )
         SELFTEST_CHECK(player->stat_xp_tenths[stat_mining] >= xp_before + 30000,
                        "completion should award 3000 Mining XP");

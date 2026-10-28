@@ -220,15 +220,15 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     spawned_p = -1;
     spawned_c = -1;
     selftest_clear_inv(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     if( settle > 0 )
-        player->varps[settle] = 0;
+        ToriRSServer_VarpPut(player, settle, 0);
     if( fountain_varp > 0 )
-        player->varps[fountain_varp] = 0;
+        ToriRSServer_VarpPut(player, fountain_varp, 0);
     if( lever_varp > 0 )
-        player->varps[lever_varp] = 0;
+        ToriRSServer_VarpPut(player, lever_varp, 0);
     if( door_varp > 0 )
-        player->varps[door_varp] = 0;
+        ToriRSServer_VarpPut(player, door_varp, 0);
     haunted_release(srv, player);
 
     /* ---- SNAP Veronica, refuse stays 0 ---- */
@@ -247,9 +247,9 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     haunted_choose(srv, player, 2);
     haunted_drain(srv, player, 0);
     haunted_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 0, "refuse should leave haunted=0, got %d",
-                   player->varps[varp]);
-    if( player->varps[varp] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "refuse should leave haunted=0, got %d",
+                   ToriRSServer_Varp(player, varp));
+    if( ToriRSServer_Varp(player, varp) == 0 )
         fprintf(stderr, "HAUNTED PASS: start_refuse trigger=opnpc1,veronica observable=haunted=0\n");
 
     /* ---- accept ---- */
@@ -257,9 +257,9 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     haunted_choose(srv, player, 1);
     haunted_drain(srv, player, 0);
     haunted_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 1, "accept should set haunted=1, got %d",
-                   player->varps[varp]);
-    if( player->varps[varp] == 1 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "accept should set haunted=1, got %d",
+                   ToriRSServer_Varp(player, varp));
+    if( ToriRSServer_Varp(player, varp) == 1 )
         fprintf(stderr, "HAUNTED PASS: start_accept trigger=opnpc1,veronica observable=haunted=1\n");
 
     /* ---- manor door ---- */
@@ -314,9 +314,9 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_fountain, -1, loc_slot);
         haunted_drain(srv, player, 0);
         selftest_tick(srv);
-        SELFTEST_CHECK(fountain_varp <= 0 || player->varps[fountain_varp] == 1,
+        SELFTEST_CHECK(fountain_varp <= 0 || ToriRSServer_Varp(player, fountain_varp) == 1,
                        "pouring poisoned food should set the fountain fact");
-        if( fountain_varp <= 0 || player->varps[fountain_varp] == 1 )
+        if( fountain_varp <= 0 || ToriRSServer_Varp(player, fountain_varp) == 1 )
             fprintf(stderr, "HAUNTED PASS: fountain_poison trigger=oplocu,hauntedfountain\n");
 
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_fountain, -1, loc_slot);
@@ -391,9 +391,9 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         haunted_drain(srv, player, 0);
         selftest_tick(srv);
         /* Door 5to6 (bit 3) opens whenever D is down. */
-        SELFTEST_CHECK(door_varp <= 0 || (player->varps[door_varp] & (1 << 3)) != 0,
+        SELFTEST_CHECK(door_varp <= 0 || (ToriRSServer_Varp(player, door_varp) & (1 << 3)) != 0,
                        "pulling lever D should open door bit 3 (5to6)");
-        if( door_varp <= 0 || (player->varps[door_varp] & (1 << 3)) != 0 )
+        if( door_varp <= 0 || (ToriRSServer_Varp(player, door_varp) & (1 << 3)) != 0 )
             fprintf(stderr, "HAUNTED PASS: lever_d trigger=oploc1,leverd door_bit3\n");
     }
 
@@ -465,27 +465,27 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         spawned_p = p_slot;
     }
     SELFTEST_CHECK(p_slot >= 0, "professor_oddenstein should exist on the top floor");
-    if( p_slot >= 0 && player->varps[varp] == 1 )
+    if( p_slot >= 0 && ToriRSServer_Varp(player, varp) == 1 )
     {
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_prof, -1, p_slot);
         haunted_choose(srv, player, 1);
         haunted_choose(srv, player, 2);
         haunted_drain(srv, player, 0);
         haunted_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 2, "Professor explanation should set haunted=2, got %d",
-                       player->varps[varp]);
-        if( player->varps[varp] == 2 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "Professor explanation should set haunted=2, got %d",
+                       ToriRSServer_Varp(player, varp));
+        if( ToriRSServer_Varp(player, varp) == 2 )
             fprintf(stderr, "HAUNTED PASS: oddenstein_parts trigger=opnpc1,professor_oddenstein haunted=2\n");
     }
 
-    qp_before = (qp_varp > 0) ? player->varps[qp_varp] : 0;
+    qp_before = (qp_varp > 0) ? ToriRSServer_Varp(player, qp_varp) : 0;
     coins_before = (obj_coins > 0) ? selftest_count(player, obj_coins) : 0;
     if( p_slot >= 0 )
     {
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_prof, -1, p_slot);
         haunted_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 3, "atomic hand-in should set haunted=3, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "atomic hand-in should set haunted=3, got %d",
+                       ToriRSServer_Varp(player, varp));
         SELFTEST_CHECK(selftest_count(player, obj_gauge) == 0 && selftest_count(player, obj_oil) == 0 &&
                            selftest_count(player, obj_tube) == 0,
                        "hand-in should consume the three machine parts");
@@ -494,10 +494,10 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
                            "hand-in should grant 300 coins, %d -> %d", coins_before,
                            selftest_count(player, obj_coins));
         if( qp_varp > 0 )
-            SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 4,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 4,
                            "hand-in should award 4 QP, %d -> %d", qp_before,
-                           player->varps[qp_varp]);
-        if( player->varps[varp] == 3 )
+                           ToriRSServer_Varp(player, qp_varp));
+        if( ToriRSServer_Varp(player, varp) == 3 )
             fprintf(stderr,
                     "HAUNTED PASS: handin_complete trigger=opnpc1,professor_oddenstein "
                     "observable=haunted=3 coins+300 qp+4\n");
@@ -522,8 +522,8 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_veronica, -1, v_slot);
         haunted_drain(srv, player, 0);
         haunted_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 3, "post-quest Veronica must leave haunted=3");
-        if( player->varps[varp] == 3 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "post-quest Veronica must leave haunted=3");
+        if( ToriRSServer_Varp(player, varp) == 3 )
             fprintf(stderr, "HAUNTED PASS: postquest_veronica trigger=opnpc1,veronica haunted=3\n");
     }
 
@@ -562,11 +562,11 @@ selftest_quest_haunted(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         haunted_choose(srv, player, 2);
         haunted_drain(srv, player, 0);
         haunted_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 3, "post-quest Professor must leave haunted=3");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "post-quest Professor must leave haunted=3");
         if( obj_coins > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_coins) == coins_mid,
                            "post-quest talk must not grant coins again");
-        if( player->varps[varp] == 3 )
+        if( ToriRSServer_Varp(player, varp) == 3 )
             fprintf(stderr, "HAUNTED PASS: postquest_oddenstein trigger=opnpc1,professor_oddenstein\n");
     }
 

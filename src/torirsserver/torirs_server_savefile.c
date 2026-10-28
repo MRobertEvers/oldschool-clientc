@@ -116,7 +116,9 @@ ToriRSServer_SaveFileName(
 const char*
 ToriRSServer_SavePath(const char* display_name)
 {
-    static char path[1024];
+    /* Per thread: the blocking-call pool resolves paths for logins and saves
+     * while the loop resolves others. */
+    static _Thread_local char path[1024];
     char name[64];
 
     ToriRSServer_SaveFileName(display_name, name, sizeof(name));
@@ -132,7 +134,9 @@ ToriRSServer_SavePath(const char* display_name)
 const char*
 ToriRSServer_AccountPath(const char* display_name)
 {
-    static char path[1024];
+    /* Per thread: the blocking-call pool resolves paths for logins and saves
+     * while the loop resolves others. */
+    static _Thread_local char path[1024];
     char name[64];
 
     ToriRSServer_SaveFileName(display_name, name, sizeof(name));
@@ -148,7 +152,9 @@ ToriRSServer_AccountPath(const char* display_name)
 const char*
 ToriRSServer_GateAccountPath(const char* name)
 {
-    static char path[1024];
+    /* Per thread: the blocking-call pool resolves paths for logins and saves
+     * while the loop resolves others. */
+    static _Thread_local char path[1024];
     char file[64];
 
     ToriRSServer_SaveFileName(name, file, sizeof(file));

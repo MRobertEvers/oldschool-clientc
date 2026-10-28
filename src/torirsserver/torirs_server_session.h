@@ -59,6 +59,13 @@ enum ToriRSServerSessionState
      * Nothing here is ciphered: JS5 runs before any ISAAC pair exists.
      */
     TORIRSSERVER_SESSION_JS5,
+    /**
+     * A password login is decoded and its password is being checked off the
+     * loop (`auth_async`): the account file read and the PBKDF2 run on the
+     * host's blocking-call pool. Nothing is decoded until the host answers
+     * with ToriRSServer_SessionAuthDone.
+     */
+    TORIRSSERVER_SESSION_AUTH,
     /** Ciphers armed; the game stream is running. */
     TORIRSSERVER_SESSION_ONLINE,
     /** Peer gone, or the stream went unrecoverable. */
@@ -70,8 +77,11 @@ struct ToriRSServerSession
     struct ToriRSServerTransport transport;
     enum ToriRSServerSessionState state;
 
-    uint8_t in[TORIRSSERVER_SESSION_IN_MAX];
+    /* Heap, grown on demand up to TORIRSSERVER_SESSION_IN_MAX and cut back
+     * to 4 KB once drained; freed by ToriRSServer_SessionFree. */
+    uint8_t* in;
     int in_len;
+    int in_cap;
 
     struct Isaac* cipher_out; /* server -> client opcode scramble */
     struct Isaac* cipher_in;  /* client -> server opcode descramble */
@@ -110,6 +120,30 @@ struct ToriRSServerSession
     /** Raised when the game stream arms; cleared by ToriRSServer_SessionTakeLogin
      *  so the caller runs the world's login burst exactly once. */
     int login_raised;
+
+    /**
+     * Set by a host that checks passwords off the loop (the standalone host
+     * does; the embedded world and the selftests check inline). While the
+     * state is TORIRSSERVER_SESSION_AUTH, `auth_user` / `auth_pass` are what
+     * the host hands its pool, and the rest is what the login needs to finish
+     * once the answer is back. `auth_pass` is wiped by SessionAuthDone.
+     */
+    int auth_async;
+    /**
+     * The save file, read off the loop by a host that does that (the
+     * standalone host's login coroutine) before the login is raised. The
+     * world's login parses these bytes instead of opening the file;
+     * `save_len` 0 with `save_prefetched` set means there is no file -- a new
+     * character. A ToriMem_ServerPlayers() block, freed by the login.
+     */
+    int save_prefetched;
+    uint8_t* save_bytes;
+    long save_len;
+    char auth_user[64];
+    char auth_pass[64];
+    int32_t auth_seed[4];
+    uint64_t auth_claimed;
+    int auth_payload_len;
 
     /**
      * The handshake was GAMERECONNECT (18), not GAMELOGIN (16).
@@ -221,6 +255,19 @@ int
 ToriRSServer_SessionPump(
     struct ToriRSServerSession* session,
     struct ToriRSServer* srv);
+
+/**
+ * The answer to a TORIRSSERVER_SESSION_AUTH check: an enum
+ * ToriRSServerAuthResult, and whether the account is an admin. Finishes the
+ * login exactly as an inline check would have (a refusal is sent and the
+ * session dies; anything else arms the stream and raises the login).
+ */
+void
+ToriRSServer_SessionAuthDone(
+    struct ToriRSServerSession* session,
+    struct ToriRSServer* srv,
+    int auth,
+    int admin);
 
 /** 1 exactly once, on the pump that armed the game stream. The caller answers
  *  it by initialising the world and sending the login burst. */

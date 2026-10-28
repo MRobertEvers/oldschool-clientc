@@ -656,7 +656,7 @@ check_accounts(void)
     ToriRSServer_WorldSetDisplayName(&quinn, "Quinn");
     quinn.stat_xp_tenths[0] = 130344310; /* 99 Attack */
     quinn.stat_xp_tenths[3] = 11540;
-    quinn.varps[TORIRSSERVER_ACCOUNTLOG_VARP_QP] = 3;
+    ToriRSServer_VarpPut(&quinn, TORIRSSERVER_ACCOUNTLOG_VARP_QP, 3);
     ToriRSServer_WorldSetDisplayName(&root, "Root");
     root.account_admin = 1;
     root.stat_xp_tenths[0] = 2000000000; /* 200M: more than anyone */

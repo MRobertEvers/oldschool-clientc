@@ -152,7 +152,7 @@ ep_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -805,7 +805,7 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
 
     ep_snap(srv, player, 0, 2607, 3264);
     charlie_slot = ep_ensure_npc(srv, npc_charlie, 2607, 3264, 0, &spawned_charlie);
-    qp_before = (qp_varp > 0 && qp_varp < TORIRSSERVER_VARP_COUNT) ? player->varps[qp_varp] : 0;
+    qp_before = (qp_varp > 0 && qp_varp < TORIRSSERVER_VARP_COUNT) ? ToriRSServer_Varp(player, qp_varp) : 0;
     xp_before = (stat_hunter >= 0 && stat_hunter < TORIRSSERVER_STAT_COUNT)
                     ? player->stat_xp_tenths[stat_hunter]
                     : 0;
@@ -819,7 +819,7 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         SELFTEST_CHECK(player->stat_xp_tenths[stat_hunter] == xp_before + 25000,
                        "completion awards 2500 Hunter XP");
     if( qp_varp > 0 && qp_varp < TORIRSSERVER_VARP_COUNT )
-        SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 2, "completion awards 2 QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 2, "completion awards 2 QP");
     ep_pass("reward-scroll", "OPNPC1 charlie", "quest=40 +2500xp +2qp");
 
     ep_talk(srv, player, npc_charlie, charlie_slot);

@@ -415,11 +415,17 @@ ToriRSServer_TicklogEnable(
     return g_ticklog.start_tick;
 }
 
+static void
+ticklog_varp_shadow_free(void);
+
 void
 ToriRSServer_TicklogDisable(void)
 {
     if( g_ticklog.out )
         fclose(g_ticklog.out);
+    /* A log enabled again starts from a fresh seed rather than diffing
+     * against whatever the last one saw. */
+    ticklog_varp_shadow_free();
     ToriMem_Free(ToriMem_ServerWorld(), g_ticklog.rows);
     ToriMem_Free(ToriMem_ServerWorld(), g_ticklog.path);
     g_ticklog.out = NULL;
@@ -1131,7 +1137,7 @@ ticklog_player_varp(
     assert(player);
     if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         return -1;
-    return player->varps[varp];
+    return ToriRSServer_Varp(player, varp);
 }
 
 /* The RAIDER row: what Blert's PLAYER_UPDATE carries, from the server's own
@@ -1224,8 +1230,20 @@ digest_add(uint32_t hash, uint32_t v)
  * without it meaning anything. The varp rows name what the players' varp
  * column hashes. */
 #define DIGEST_RADIUS 48
-static int32_t g_varp_shadow[TORIRSSERVER_PLAYER_MAX][TORIRSSERVER_VARP_COUNT];
+/* Sparse, like the players' own varps: a dense shadow was 38 KB per pid
+ * whether or not a log ever ran. Freed by ToriRSServer_TicklogDisable. */
+static struct ToriRSServerVarps g_varp_shadow[TORIRSSERVER_PLAYER_MAX];
 static int g_varp_shadow_seeded[TORIRSSERVER_PLAYER_MAX];
+
+static void
+ticklog_varp_shadow_free(void)
+{
+    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; pid++ )
+    {
+        ToriRSServer_VarpsFree(&g_varp_shadow[pid]);
+        g_varp_shadow_seeded[pid] = 0;
+    }
+}
 #define NPC_STATE_FIELDS 10
 #define PLAYER_STATE_FIELDS 6
 static int32_t g_npc_shadow[TORIRSSERVER_NPC_MAX][NPC_STATE_FIELDS];
@@ -1303,14 +1321,17 @@ ticklog_digest(struct ToriRSServer* srv)
              * when something else in the word does (busy, in varp 3077). */
             uint32_t const clock_bits = ticklog_varp_clock_bits(v);
 
-            b = digest_add(b, (uint32_t)p->varps[v]);
+            int32_t const value = ToriRSServer_Varp(p, v);
+            int32_t const was = ToriRSServer_VarpsGet(&g_varp_shadow[pid], v);
+
+            b = digest_add(b, (uint32_t)value);
             if( g_varp_shadow_seeded[pid]
-                    ? ((uint32_t)g_varp_shadow[pid][v] & ~clock_bits) !=
-                          ((uint32_t)p->varps[v] & ~clock_bits)
-                    : (((uint32_t)p->varps[v] & ~clock_bits) != 0 && ticklog_seed_rows_on()) )
-                ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, p->varps[v], 0, 0, 0, 0,
+                    ? ((uint32_t)was & ~clock_bits) != ((uint32_t)value & ~clock_bits)
+                    : (((uint32_t)value & ~clock_bits) != 0 && ticklog_seed_rows_on()) )
+                ticklog_push_row(TORIRSSERVER_TICKLOG_VARP, pid, v, value, 0, 0, 0, 0,
                                  ticklog_varp_name(v));
-            g_varp_shadow[pid][v] = p->varps[v];
+            if( was != value )
+                ToriRSServer_VarpsPut(&g_varp_shadow[pid], v, value);
         }
         g_varp_shadow_seeded[pid] = 1;
         g = digest_add(g, p->random.engine);

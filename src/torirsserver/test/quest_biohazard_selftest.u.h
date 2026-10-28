@@ -129,7 +129,7 @@ bio_find_loc(int cx, int cz, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -347,11 +347,11 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     ToriRSServer_CombatSyncHitpoints(player);
     selftest_clear_inv(player);
     bio_clear_worn(player);
-    player->varps[varp_bio] = 0;
+    ToriRSServer_VarpPut(player, varp_bio, 0);
     if( varp_errand >= 0 )
-        player->varps[varp_errand] = 0;
+        ToriRSServer_VarpPut(player, varp_errand, 0);
     if( varp_elena >= 0 )
-        player->varps[varp_elena] = 0;
+        ToriRSServer_VarpPut(player, varp_elena, 0);
     bio_release(srv, player);
 
     /* ---- prerequisite: Plague City incomplete cannot start ---- */
@@ -364,32 +364,32 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 0, "no Plague City should leave biohazard=0, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 0, "no Plague City should leave biohazard=0, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 0 )
         bio_pass("prereq_plaguecity", "opnpc1,elena2", "biohazard=0");
 
     /* ---- eligible refuse / accept ---- */
     if( varp_elena >= 0 )
-        player->varps[varp_elena] = 29;
+        ToriRSServer_VarpPut(player, varp_elena, 29);
     if( vb_home >= 0 )
         ToriRSServer_VarbitSetOn(srv, player, vb_home, 1);
     bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
     bio_choose(srv, player, 2);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 0, "refuse should leave biohazard=0, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 0, "refuse should leave biohazard=0, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 0 )
         bio_pass("start_refuse", "opnpc1,elena2", "biohazard=0");
 
     bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
     bio_choose(srv, player, 1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 1, "accept should set biohazard=1, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 1 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 1, "accept should set biohazard=1, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 1 )
         bio_pass("start_accept", "opnpc1,elena2", "biohazard=1");
 
     /* ---- Jerico 1->2 ---- */
@@ -401,9 +401,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_talk(srv, player, srv->npcs[jerico_slot].type, jerico_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 2, "Jerico should set biohazard=2, got %d",
-                       player->varps[varp_bio]);
-        if( player->varps[varp_bio] == 2 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 2, "Jerico should set biohazard=2, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
+        if( ToriRSServer_Varp(player, varp_bio) == 2 )
             bio_pass("talk_jerico", "opnpc1,jerico", "biohazard=2");
     }
 
@@ -428,9 +428,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_tower_op, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 3, "feed leaf should set biohazard=3, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 3 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 3, "feed leaf should set biohazard=3, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 3 )
         bio_pass("watchtower_feed", "oplocu,biowatchtower_op", "biohazard=3");
 
     /* ---- pigeons 3->4 ---- */
@@ -439,9 +439,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 4, "pigeons should set biohazard=4, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 4 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 4, "pigeons should set biohazard=4, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 4 )
         bio_pass("release_pigeons", "opheld1,pigeons", "biohazard=4");
 
     /* ---- Omart: no mask rejected, then mask crosses 4->5 ---- */
@@ -454,9 +454,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_choose(srv, player, 1);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 4, "Omart without mask must stay 4, got %d",
-                       player->varps[varp_bio]);
-        if( player->varps[varp_bio] == 4 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 4, "Omart without mask must stay 4, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
+        if( ToriRSServer_Varp(player, varp_bio) == 4 )
             bio_pass("omart_nomask", "opnpc1,omart", "biohazard=4");
         if( obj_mask > 0 )
             bio_wear(player, TORIRSSERVER_WEAR_HEAD, obj_mask);
@@ -464,9 +464,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_choose(srv, player, 1);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 5, "Omart with mask should set 5, got %d",
-                       player->varps[varp_bio]);
-        if( player->varps[varp_bio] == 5 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 5, "Omart with mask should set 5, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
+        if( ToriRSServer_Varp(player, varp_bio) == 5 )
             bio_pass("omart_cross", "opnpc1,omart", "biohazard=5");
         if( vb_omart >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_omart) == 1, "met_omart should settle");
@@ -491,9 +491,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_cauldron_op, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 6, "cauldron leaf should set biohazard=6, got %d",
-                   player->varps[varp_bio]);
-    if( player->varps[varp_bio] == 6 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 6, "cauldron leaf should set biohazard=6, got %d",
+                   ToriRSServer_Varp(player, varp_bio));
+    if( ToriRSServer_Varp(player, varp_bio) == 6 )
         bio_pass("cauldron_poison", "oplocu,mournercauldron_op", "biohazard=6");
 
     /* ---- mourner key cheat-skip (no boss AI) + crate 6->7 ---- */
@@ -518,11 +518,11 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 7, "crate should set biohazard=7, got %d",
-                       player->varps[varp_bio]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 7, "crate should set biohazard=7, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
         if( obj_dist > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_dist) >= 1, "crate should grant distillator");
-        if( player->varps[varp_bio] == 7 )
+        if( ToriRSServer_Varp(player, varp_bio) == 7 )
             bio_pass("search_crate", "oploc1,mournercrateup", "biohazard=7");
     }
 
@@ -534,11 +534,11 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 10, "Elena analysis should set 10, got %d",
-                       player->varps[varp_bio]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 10, "Elena analysis should set 10, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
         if( obj_sample > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_sample) >= 1, "Elena should grant the sample");
-        if( player->varps[varp_bio] == 10 )
+        if( ToriRSServer_Varp(player, varp_bio) == 10 )
             bio_pass("elena_analysis", "opnpc1,elena2", "biohazard=10");
     }
 
@@ -556,11 +556,11 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         if( obj_sample > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_sample) >= sample_before,
                            "chemist must not confiscate the plague sample");
-        SELFTEST_CHECK(player->varps[varp_bio] == 12, "chemist should set biohazard=12, got %d",
-                       player->varps[varp_bio]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 12, "chemist should set biohazard=12, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
         if( obj_paper > 0 )
             SELFTEST_CHECK(selftest_count(player, obj_paper) >= 1, "chemist should grant touch paper");
-        if( player->varps[varp_bio] == 12 )
+        if( ToriRSServer_Varp(player, varp_bio) == 12 )
             bio_pass("talk_chemist", "opnpc1,chemist", "biohazard=12");
     }
 
@@ -647,9 +647,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_choose(srv, player, 1);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 14, "Guidor should set biohazard=14, got %d",
-                       player->varps[varp_bio]);
-        if( player->varps[varp_bio] == 14 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 14, "Guidor should set biohazard=14, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
+        if( ToriRSServer_Varp(player, varp_bio) == 14 )
             bio_pass("talk_guidor", "opnpc1,guidor", "biohazard=14");
     }
 
@@ -661,9 +661,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 15, "Elena report should set 15, got %d",
-                       player->varps[varp_bio]);
-        if( player->varps[varp_bio] == 15 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 15, "Elena report should set 15, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
+        if( ToriRSServer_Varp(player, varp_bio) == 15 )
             bio_pass("elena_report", "opnpc1,elena2", "biohazard=15");
     }
 
@@ -675,26 +675,26 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
                                    -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
-    SELFTEST_CHECK(player->varps[varp_bio] == 15 && player->x == x_before && player->z == z_before,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 15 && player->x == x_before && player->z == z_before,
                    "West Ardougne tablet must not fire at state 15");
-    if( player->varps[varp_bio] == 15 && player->x == x_before && player->z == z_before )
+    if( ToriRSServer_Varp(player, varp_bio) == 15 && player->x == x_before && player->z == z_before )
         bio_pass("tele_blocked", "opheld1,teletab_westardy", "state=15 blocked");
 
     /* ---- Lathas complete 15->16 ---- */
     bio_snap(srv, player, 1, 2578, 3293);
     lathas_slot = bio_spawn_npc(srv, npc_lathas, 2578, 3293, 1, &spawned_lathas);
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     if( lathas_slot >= 0 )
     {
         bio_talk(srv, player, srv->npcs[lathas_slot].type, lathas_slot);
         bio_choose(srv, player, 1);
         bio_drain_rewards(srv, player);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 16, "Lathas should complete to 16, got %d",
-                       player->varps[varp_bio]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 16, "Lathas should complete to 16, got %d",
+                       ToriRSServer_Varp(player, varp_bio));
         if( varp_qp >= 0 )
-            SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 3, "completion should award 3 QP");
-        if( player->varps[varp_bio] == 16 )
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 3, "completion should award 3 QP");
+        if( ToriRSServer_Varp(player, varp_bio) == 16 )
             bio_pass("lathas_complete", "opnpc1,kinglathas", "biohazard=16");
     }
 
@@ -706,8 +706,8 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_talk(srv, player, srv->npcs[elena_slot].type, elena_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
-        SELFTEST_CHECK(player->varps[varp_bio] == 16, "postquest must stay complete");
-        if( player->varps[varp_bio] == 16 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 16, "postquest must stay complete");
+        if( ToriRSServer_Varp(player, varp_bio) == 16 )
             bio_pass("postquest_elena", "opnpc1,elena2", "biohazard=16");
     }
 

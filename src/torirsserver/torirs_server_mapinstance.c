@@ -89,6 +89,29 @@ struct ToriRSServerMapInstance
 
 static struct ToriRSServerMapInstance g_instances[TORIRSSERVER_MAPINSTANCE_MAX];
 
+/* Told the tile box of an instance that was just built or freed, so a cache of
+ * the map built from it (the scene's collision store) can rebuild those
+ * squares. */
+static ToriRSServerMapInstanceChangeHook g_change_hook;
+
+void
+ToriRSServer_MapInstanceSetChangeHook(ToriRSServerMapInstanceChangeHook hook)
+{
+    g_change_hook = hook;
+}
+
+static void
+mapinstance_changed(
+    int square_x,
+    int square_z,
+    int square_w,
+    int square_h)
+{
+    if( g_change_hook && square_w > 0 && square_h > 0 )
+        g_change_hook(square_x * 64, square_z * 64, (square_x + square_w) * 64 - 1,
+                      (square_z + square_h) * 64 - 1);
+}
+
 uint32_t
 ToriRSServer_MapInstanceVarsDigest(uint32_t hash, int handle)
 {
@@ -124,6 +147,23 @@ static int g_instance_generation;
  * into a table with 2,934 entries. */
 static uint8_t g_square_used[MAPINSTANCE_SQUARES][MAPINSTANCE_SQUARES];
 static int g_pool_scanned;
+
+/* Which live reservation holds each map square: its handle, 0 = none. Asked
+ * per player per tick (`ToriRSServer_MapInstanceFind`) and per candidate square
+ * by every allocation, both of which used to walk the whole pool -- fine at 32
+ * entries, not at one per player. */
+static uint16_t g_square_handle[MAPINSTANCE_SQUARES][MAPINSTANCE_SQUARES];
+_Static_assert(TORIRSSERVER_MAPINSTANCE_MAX < 65536, "a handle fits the square table");
+
+static void
+mapinstance_mark_squares(
+    const struct ToriRSServerMapInstance* inst,
+    int handle)
+{
+    for( int x = inst->square_x; x < inst->square_x + inst->square_w; x++ )
+        for( int z = inst->square_z; z < inst->square_z + inst->square_h; z++ )
+            g_square_handle[x][z] = (uint16_t)handle;
+}
 
 /* ------------------------------------------------------------------ */
 /* The pool                                                            */
@@ -305,6 +345,7 @@ void
 ToriRSServer_MapInstanceReset(void)
 {
     memset(g_instances, 0, sizeof(g_instances));
+    memset(g_square_handle, 0, sizeof(g_square_handle));
 }
 
 /*
@@ -332,17 +373,9 @@ mapinstance_square_reserved(
     int x,
     int z)
 {
-    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
-    {
-        struct ToriRSServerMapInstance* inst = &g_instances[i];
-
-        if( !inst->active )
-            continue;
-        if( x >= inst->square_x && x < inst->square_x + inst->square_w &&
-            z >= inst->square_z && z < inst->square_z + inst->square_h )
-            return 1;
-    }
-    return 0;
+    if( x < 0 || z < 0 || x >= MAPINSTANCE_SQUARES || z >= MAPINSTANCE_SQUARES )
+        return 0;
+    return g_square_handle[x][z] != 0;
 }
 
 static int
@@ -413,6 +446,7 @@ ToriRSServer_MapInstanceAlloc(
             inst->base_z = z * 64;
             inst->zone_w = zone_w;
             inst->zone_h = zone_h;
+            mapinstance_mark_squares(inst, slot + 1);
             /* Every reservation lingers by default; content opts out with
              * SetLinger(handle, 0) when it owns the lifetime itself. */
             inst->linger_ticks = TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT;
@@ -684,6 +718,7 @@ ToriRSServer_MapInstanceBuild(int handle)
         return 0;
     inst->built = 1;
     inst->generation = ++g_instance_generation;
+    mapinstance_changed(inst->square_x, inst->square_z, inst->square_w, inst->square_h);
     return 1;
 }
 
@@ -747,7 +782,14 @@ ToriRSServer_MapInstanceFree(int handle)
         fprintf(stderr,
                 "torirsserver: map instance %d released (map square %d,%d)\n",
                 handle, inst->square_x, inst->square_z);
-    memset(inst, 0, sizeof(*inst));
+    mapinstance_mark_squares(inst, 0);
+    {
+        int sx = inst->square_x, sz = inst->square_z, sw = inst->square_w, sh = inst->square_h;
+
+        memset(inst, 0, sizeof(*inst));
+        /* After the clear: the squares read as ordinary map again. */
+        mapinstance_changed(sx, sz, sw, sh);
+    }
     return 1;
 }
 
@@ -769,22 +811,14 @@ ToriRSServer_MapInstanceFind(
     int x,
     int z)
 {
-    for( int i = 0; i < TORIRSSERVER_MAPINSTANCE_MAX; i++ )
-    {
-        struct ToriRSServerMapInstance* inst = &g_instances[i];
-
-        if( !inst->active )
-            continue;
-        /* The *reserved* footprint, not the requested zone count: a 5-zone
-         * instance still owns the whole map square, and a player who walks off
-         * its assembled edge into the void is still inside the instance. Saying
-         * otherwise would make `map_instance_find` answer -1 for someone who is
-         * demonstrably not in the ordinary world. */
-        if( x >= inst->base_x && x < inst->base_x + inst->square_w * 64 &&
-            z >= inst->base_z && z < inst->base_z + inst->square_h * 64 )
-            return i + 1;
-    }
-    return 0;
+    /* The *reserved* footprint, not the requested zone count: a 5-zone
+     * instance still owns the whole map square, and a player who walks off
+     * its assembled edge into the void is still inside the instance. Saying
+     * otherwise would make `map_instance_find` answer -1 for someone who is
+     * demonstrably not in the ordinary world. */
+    if( x < 0 || z < 0 || (x >> 6) >= MAPINSTANCE_SQUARES || (z >> 6) >= MAPINSTANCE_SQUARES )
+        return 0;
+    return g_square_handle[x >> 6][z >> 6];
 }
 
 int

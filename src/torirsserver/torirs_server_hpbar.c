@@ -483,7 +483,7 @@ ToriRSServer_HpBarTick(
         int base;
 
         assert(ids->varp_hpbar_hud_npc >= 0);
-        shown_type = player->varps[ids->varp_hpbar_hud_npc];
+        shown_type = ToriRSServer_Varp(player, ids->varp_hpbar_hud_npc);
 
         player->hpbar_open = TORIRSSERVER_HPBAR_LIVE;
         ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, want_type);

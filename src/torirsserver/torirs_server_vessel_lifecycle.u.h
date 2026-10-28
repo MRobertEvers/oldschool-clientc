@@ -7,10 +7,8 @@ ToriRSServer_VesselNavigatorMask(struct ToriRSServer* srv,
 {
     assert(srv);
     assert(vessel);
-    _Static_assert(TORIRSSERVER_PLAYER_MAX <= TORIRSSERVER_VESSEL_NAVIGATOR_MAX,
-                   "navigator grants cover every player slot");
     uint32_t mask = 0;
-    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+    for( int pid = 0; pid < TORIRSSERVER_VESSEL_NAVIGATOR_MAX; ++pid )
     {
         const struct ToriRSServerPlayer* player = &srv->players[pid];
         if( player->active && vessel->navigator_generation[pid] &&
@@ -42,12 +40,13 @@ ToriRSServer_VesselSetNavigators(struct ToriRSServer* srv,
     assert(vessel);
     if( vessel->owner_uid != captain->pid + 1 ||
         ToriRSServer_VesselAtTile(srv, captain->x, captain->z) != vessel ||
-        (mask >> TORIRSSERVER_PLAYER_MAX) ) return 0;
-    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+        (TORIRSSERVER_VESSEL_NAVIGATOR_MAX < 32 && (mask >> TORIRSSERVER_VESSEL_NAVIGATOR_MAX)) )
+        return 0;
+    for( int pid = 0; pid < TORIRSSERVER_VESSEL_NAVIGATOR_MAX; ++pid )
         if( (mask & (1u << pid)) && (!srv->players[pid].active ||
             ToriRSServer_VesselAtTile(srv, srv->players[pid].x, srv->players[pid].z) != vessel) )
             return 0;
-    for( int pid = 0; pid < TORIRSSERVER_PLAYER_MAX; ++pid )
+    for( int pid = 0; pid < TORIRSSERVER_VESSEL_NAVIGATOR_MAX; ++pid )
     {
         struct ToriRSServerPlayer* player = &srv->players[pid];
         vessel->navigator_generation[pid] = (mask & (1u << pid)) ? player->login_generation : 0;
@@ -93,7 +92,7 @@ vessel_forget_instance(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     assert(srv);
     assert(player);
     int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp6600_map_instance_handle");
-    if( varp >= 0 && player->varps[varp] == instance )
+    if( varp >= 0 && ToriRSServer_Varp(player, varp) == instance )
         ToriRSServer_WorldSetVarpOn(srv, player, varp, 0);
 }
 
@@ -219,7 +218,8 @@ ToriRSServer_VesselLogout(struct ToriRSServer* srv, struct ToriRSServerPlayer* p
     for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; ++i )
         if( srv->vessels[i].in_use )
         {
-            srv->vessels[i].navigator_generation[player->pid] = 0;
+            if( player->pid < TORIRSSERVER_VESSEL_NAVIGATOR_MAX )
+                srv->vessels[i].navigator_generation[player->pid] = 0;
             for( int h = 0; h < 13; ++h )
             {
                 int instance = srv->vessels[i].instance, base = 8 + h * 7;

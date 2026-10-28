@@ -250,7 +250,7 @@ cox_sim_record(
     if( ticks > COX_SIM_MAX_TICKS )
         ticks = COX_SIM_MAX_TICKS;
 
-    last_serial = player->varps[varp_serial];
+    last_serial = ToriRSServer_Varp(player, varp_serial);
     for( int t = 0; t < ticks; t++ )
     {
         int before = player->hitpoints;
@@ -258,8 +258,8 @@ cox_sim_record(
 
         ToriRSServer_WorldTick(srv);
 
-        serial = player->varps[varp_serial];
-        run->code[t] = (serial != last_serial) ? player->varps[varp_action] : COX_TRACE_NONE;
+        serial = ToriRSServer_Varp(player, varp_serial);
+        run->code[t] = (serial != last_serial) ? ToriRSServer_Varp(player, varp_action) : COX_TRACE_NONE;
         last_serial = serial;
 
         /*

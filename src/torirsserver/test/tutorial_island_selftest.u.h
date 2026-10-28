@@ -142,7 +142,7 @@ tut_step(const struct ToriRSServerPlayer* player, int varp)
     assert(player);
     if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         return -1;
-    return player->varps[varp];
+    return ToriRSServer_Varp(player, varp);
 }
 
 static void
@@ -151,7 +151,7 @@ tut_set_step(struct ToriRSServerPlayer* player, int varp, int value)
     assert(player);
     if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         return;
-    player->varps[varp] = value;
+    ToriRSServer_VarpPut(player, varp, value);
 }
 
 /* The loc by id, nearest first. `radius` is generous because the island's

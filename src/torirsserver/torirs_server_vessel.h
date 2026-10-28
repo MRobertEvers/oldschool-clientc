@@ -29,6 +29,7 @@
  * land. Nothing here reaches the wire — WORLDENTITY_INFO is S2.
  */
 
+#include "torirs_server_cap.h"
 #include <stdint.h>
 
 struct ToriRSServer;
@@ -106,8 +107,14 @@ struct ToriRSServerSailingSave
     struct ToriRSServerSavedBoat boats[5];
 };
 
-/** Navigator grants name login generations, never bare reusable pids. */
-#define TORIRSSERVER_VESSEL_NAVIGATOR_MAX 8
+/** Navigator grants name login generations, never bare reusable pids.
+ *
+ *  The grant crosses the script boundary as a pid bitmask in one int
+ *  (`ToriRSServer_VesselSetNavigators`), so only pids below 32 can be named
+ *  in it; a larger world still lets the owner navigate (`owner_uid`), and a
+ *  crew past pid 31 needs a list-shaped grant the content does not have yet. */
+#define TORIRSSERVER_VESSEL_NAVIGATOR_MAX                                                         \
+    (TORIRSSERVER_PLAYER_CAP < 32 ? TORIRSSERVER_PLAYER_CAP : 32)
 uint32_t ToriRSServer_VesselNavigatorMask(struct ToriRSServer* srv,
                                         const struct ToriRSServerVessel* vessel);
 int ToriRSServer_VesselSetNavigators(struct ToriRSServer* srv,

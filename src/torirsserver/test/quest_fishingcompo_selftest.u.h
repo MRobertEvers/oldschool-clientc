@@ -143,7 +143,7 @@ fishcompo_find_loc_at(int x, int z, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -270,7 +270,7 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     ToriRSServer_WorldSetActive(srv, player);
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     if( vb_garlic >= 0 )
         ToriRSServer_VarbitSetOn(srv, player, vb_garlic, 0);
     if( vb_paid >= 0 )
@@ -315,8 +315,8 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
 
     fishcompo_austri_to_offer(srv, player, npc_austri, a_slot);
     fishcompo_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "Fishing 9 must leave fishingcompo=0, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "Fishing 9 must leave fishingcompo=0, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS fishingcontest start_level_refuse trigger=opnpc1,tunnel_dwarf observable=fishingcompo=0\n");
 
     /* ---- Austri, Fishing 10: No ---- */
@@ -325,16 +325,16 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     fishcompo_austri_to_offer(srv, player, npc_austri, a_slot);
     fishcompo_choose(srv, player, 2);
     fishcompo_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "No must leave fishingcompo=0, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "No must leave fishingcompo=0, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr, "PASS fishingcontest start_refuse trigger=opnpc1,tunnel_dwarf observable=fishingcompo=0\n");
 
     /* ---- Austri accept ---- */
     fishcompo_austri_to_offer(srv, player, npc_austri, a_slot);
     fishcompo_choose(srv, player, 1);
     fishcompo_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 1, "accept should write fishingcompo=1, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "accept should write fishingcompo=1, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(obj_pass < 0 || selftest_count(player, obj_pass) == 1,
                    "accept should grant exactly 1 competition pass");
     fprintf(stderr, "PASS fishingcontest start_accept trigger=opnpc1,tunnel_dwarf observable=fishingcompo=1\n");
@@ -466,8 +466,8 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_paid) == 1,
                            "Bonzo pay should set fishingcompo_paid, got %d",
                            ToriRSServer_VarbitGet(player, vb_paid));
-        SELFTEST_CHECK(player->varps[varp] == 2, "pay without garlic should write fishingcompo=2, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "pay without garlic should write fishingcompo=2, got %d",
+                       ToriRSServer_Varp(player, varp));
         fprintf(stderr, "PASS fishingcontest bonzo_pay trigger=opnpc1,bonzo observable=fishingcompo=2 paid=1\n");
     }
 
@@ -509,8 +509,8 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_stranger) == 1,
                        "garlic after pay should set fishingcompo_stranger, got %d",
                        ToriRSServer_VarbitGet(player, vb_stranger));
-    SELFTEST_CHECK(player->varps[varp] == 3, "garlic after pay should write fishingcompo=3, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "garlic after pay should write fishingcompo=3, got %d",
+                   ToriRSServer_Varp(player, varp));
     fprintf(stderr,
             "PASS fishingcontest garlic_isolation trigger=oplocu,garlicpipe observable=stranger_unmoved fishingcompo=3\n");
 
@@ -538,8 +538,8 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         fishcompo_drain(srv, player, 0);
         SELFTEST_CHECK(selftest_count(player, obj_carp) == 1, "pipe spot + worm should grant one raw giant carp");
         SELFTEST_CHECK(player->stat_xp_tenths[fishing] == xp_pre, "giant carp catch is zero Fishing XP");
-        SELFTEST_CHECK(player->varps[varp] == 3, "one carp must not auto-end the contest, fishingcompo=%d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "one carp must not auto-end the contest, fishingcompo=%d",
+                       ToriRSServer_Varp(player, varp));
         fprintf(stderr, "PASS fishingcontest catch_carp trigger=opnpc1,0_41_53_sinisterfishspot observable=carp=1\n");
     }
 
@@ -552,8 +552,8 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
         fishcompo_talk(srv, player, npc_bonzo, b_slot);
         fishcompo_choose(srv, player, 1);
         fishcompo_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 4, "hand-in should write fishingcompo=4, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "hand-in should write fishingcompo=4, got %d",
+                       ToriRSServer_Varp(player, varp));
         SELFTEST_CHECK(selftest_count(player, obj_carp) == 0, "win should take the raw giant carp");
         SELFTEST_CHECK(selftest_count(player, obj_trophy) == 1, "win should grant one trophy");
         fprintf(stderr, "PASS fishingcontest bonzo_handin trigger=opnpc1,bonzo observable=fishingcompo=4\n");
@@ -573,28 +573,28 @@ selftest_quest_fishingcompo(struct ToriRSServer* srv, struct ToriRSServerPlayer*
     SELFTEST_CHECK(a_slot >= 0, "Austri should exist for trophy return");
     if( a_slot >= 0 )
     {
-        qp_before = qp_varp >= 0 ? player->varps[qp_varp] : 0;
+        qp_before = qp_varp >= 0 ? ToriRSServer_Varp(player, qp_varp) : 0;
         xp_before = player->stat_xp_tenths[fishing];
         fishcompo_talk(srv, player, npc_austri, a_slot);
         fishcompo_drain(srv, player, 0);
         fishcompo_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 5, "completion should commit fishingcompo=5, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "completion should commit fishingcompo=5, got %d",
+                       ToriRSServer_Varp(player, varp));
         SELFTEST_CHECK(player->stat_xp_tenths[fishing] == xp_before + 24370,
                        "completion should grant 2437 Fishing XP, %d -> %d", xp_before,
                        player->stat_xp_tenths[fishing]);
         if( qp_varp >= 0 )
-            SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 1,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 1,
                            "completion should award 1 QP, %d -> %d", qp_before,
-                           player->varps[qp_varp]);
+                           ToriRSServer_Varp(player, qp_varp));
         fprintf(stderr,
                 "PASS fishingcontest complete trigger=opnpc1,tunnel_dwarf observable=fishingcompo=5 "
                 "xp_delta=24370 qp_delta=1\n");
 
         fishcompo_talk(srv, player, npc_austri, a_slot);
         fishcompo_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 5, "post-quest talk must stay at 5, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "post-quest talk must stay at 5, got %d",
+                       ToriRSServer_Varp(player, varp));
         fprintf(stderr, "PASS fishingcontest postquest trigger=opnpc1,tunnel_dwarf observable=fishingcompo=5\n");
     }
 

@@ -60,7 +60,7 @@ log_stats(
     struct ToriRSServerPlayer* player)
 {
     memcpy(record->xp_tenths, player->stat_xp_tenths, sizeof(record->xp_tenths));
-    record->quest_points = player->varps[TORIRSSERVER_ACCOUNTLOG_VARP_QP];
+    record->quest_points = ToriRSServer_Varp(player, TORIRSSERVER_ACCOUNTLOG_VARP_QP);
     memcpy(player->account_log_xp_tenths, player->stat_xp_tenths,
            sizeof(player->account_log_xp_tenths));
     player->account_log_quest_points = record->quest_points;
@@ -94,7 +94,7 @@ ToriRSServer_AccountLogStats(
     assert(player);
     if( memcmp(player->account_log_xp_tenths, player->stat_xp_tenths,
                sizeof(player->account_log_xp_tenths)) == 0 &&
-        player->account_log_quest_points == player->varps[TORIRSSERVER_ACCOUNTLOG_VARP_QP] )
+        player->account_log_quest_points == ToriRSServer_Varp(player, TORIRSSERVER_ACCOUNTLOG_VARP_QP) )
         return;
     log_stats(log_push(log, TORIRSSERVER_ACCOUNTLOG_CHANGED, player, now), player);
 }

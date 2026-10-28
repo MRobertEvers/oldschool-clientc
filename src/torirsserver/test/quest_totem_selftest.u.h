@@ -106,13 +106,13 @@ selftest_quest_totem(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
                      * MESSAGE_GAME (opcode 90) packet the way `mes()` does,
                      * so state, not chat text, is the observable signal.
                      */
-                    player->varps[varp_traps] = 0;
+                    ToriRSServer_VarpPut(player, varp_traps, 0);
 
                     ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
 
-                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) == 0,
+                    SELFTEST_CHECK((ToriRSServer_Varp(player, varp_traps) & (1 << 0)) == 0,
                                    "A/A/A/A should not set the door-solved bit, got %d",
-                                   player->varps[varp_traps]);
+                                   ToriRSServer_Varp(player, varp_traps));
 
                     /* Enter closes the lock on every press, so open it afresh
                      * (wheels back to A) before dialling KURT. */
@@ -124,9 +124,9 @@ selftest_quest_totem(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
 
                     ToriRSServer_ScriptsRunIfButton(srv, com_enter, 1);
 
-                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) != 0,
+                    SELFTEST_CHECK((ToriRSServer_Varp(player, varp_traps) & (1 << 0)) != 0,
                                    "K/U/R/T dialled on the arrows should set the door-solved bit, got %d",
-                                   player->varps[varp_traps]);
+                                   ToriRSServer_Varp(player, varp_traps));
                 }
             }
             ToriRSServer_ScriptsFree(srv);

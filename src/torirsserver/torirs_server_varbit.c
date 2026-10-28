@@ -270,7 +270,7 @@ ToriRSServer_VarbitGet(
     if( width <= 0 || width > 32 )
         return 0;
     mask = width >= 32 ? 0xffffffffu : ((1u << width) - 1u);
-    return (int)(((uint32_t)player->varps[range->basevar] >> range->startbit) & mask);
+    return (int)(((uint32_t)ToriRSServer_Varp(player, range->basevar) >> range->startbit) & mask);
 }
 
 int
@@ -322,7 +322,7 @@ ToriRSServer_VarbitSetOn(
 
     if( !player )
         return -1;
-    current = (uint32_t)player->varps[range->basevar];
+    current = (uint32_t)ToriRSServer_Varp(player, range->basevar);
     current &= ~(mask << range->startbit);
     current |= ((uint32_t)value & mask) << range->startbit;
     /* Through the ordinary varp write, so the transmit gate and the
@@ -357,7 +357,7 @@ ToriRSServer_VarbitSetBitsOn(
     assert(player);
     assert(varp >= 0);
     assert(varp < TORIRSSERVER_VARP_COUNT);
-    current = ((uint32_t)player->varps[varp] & ~mask) | (bits & mask);
+    current = ((uint32_t)ToriRSServer_Varp(player, varp) & ~mask) | (bits & mask);
     g_patching++;
     ToriRSServer_WorldSetVarpOn(srv, player, varp, (int)current);
     g_patching--;

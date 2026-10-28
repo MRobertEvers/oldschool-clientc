@@ -50,7 +50,7 @@ selftest_click_swing_clock(
     saved_count = player->worn[TORIRSSERVER_WEAR_WEAPON].count;
     worn_set(player, TORIRSSERVER_WEAR_WEAPON, -1, 0);
     ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-    player->varps[delay_varp] = 0;
+    ToriRSServer_VarpPut(player, delay_varp, 0);
 
     selftest_npc_payload(player, slot, payload);
     clicked_after = srv->tick;
@@ -58,15 +58,15 @@ selftest_click_swing_clock(
     SELFTEST_CHECK(srv->tick == clicked_after + 1,
                    "click_swing_clock: one tick handles the click, tick %d after %d",
                    srv->tick, clicked_after);
-    SELFTEST_CHECK(player->varps[delay_varp] == srv->tick + 4,
+    SELFTEST_CHECK(ToriRSServer_Varp(player, delay_varp) == srv->tick + 4,
                    "click_swing_clock: the swing is armed from the tick that ships it: "
                    "action_delay %d want %d (clicked after tick %d)",
-                   player->varps[delay_varp], srv->tick + 4, clicked_after);
+                   ToriRSServer_Varp(player, delay_varp), srv->tick + 4, clicked_after);
 
     ToriRSServer_CombatStopPlayer(srv);
     worn_set(player, TORIRSSERVER_WEAR_WEAPON, saved_weapon, saved_count);
     ToriRSServer_ScriptsRunProc(srv, "[proc,player_combat_stat]", NULL, 0);
-    player->varps[delay_varp] = 0;
+    ToriRSServer_VarpPut(player, delay_varp, 0);
     ToriRSServer_WorldNpcFree(srv, slot);
     selftest_tick(srv);
 }

@@ -102,7 +102,7 @@ bkf_drain_complete(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, 
     int i;
 
     bkf_drain(srv, player, 0);
-    for( i = 0; i < 64 && player->varps[varp] != want; i++ )
+    for( i = 0; i < 64 && ToriRSServer_Varp(player, varp) != want; i++ )
     {
         if( player->active_script && player->active_script->execution == SSVM_PAUSEBUTTON &&
             player->resume_button_count > 0 )
@@ -246,10 +246,10 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     selftest_clear_pending(srv, player);
     selftest_clear_inv(player);
     bkf_clear_worn(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     if( cauldron_varp >= 0 )
-        player->varps[cauldron_varp] = 0;
-    qp_saved = qp_varp >= 0 ? player->varps[qp_varp] : 0;
+        ToriRSServer_VarpPut(player, cauldron_varp, 0);
+    qp_saved = qp_varp >= 0 ? ToriRSServer_Varp(player, qp_varp) : 0;
     selftest_park_player(srv, player->x, player->z);
     amik_x = player->x;
     amik_z = player->z;
@@ -267,22 +267,22 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 
     /* ---- 11 QP gate ---- */
     if( qp_varp >= 0 )
-        player->varps[qp_varp] = 11;
+        ToriRSServer_VarpPut(player, qp_varp, 11);
     bkf_talk(srv, player, amik_type, slot);
     bkf_choose(srv, player, 1); /* I seek a quest */
     bkf_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "11 QP must leave spy=0, got %d", player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "11 QP must leave spy=0, got %d", ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_dossier) == 0, "11 QP must not grant a dossier");
     bkf_pass("11 QP left state 0 and no dossier");
 
     /* ---- refuse (looking around) ---- */
     if( qp_varp >= 0 )
-        player->varps[qp_varp] = 12;
+        ToriRSServer_VarpPut(player, qp_varp, 12);
     bkf_talk(srv, player, amik_type, slot);
     bkf_choose(srv, player, 2); /* just looking around */
     bkf_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "looking-around refuse must leave spy=0, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "looking-around refuse must leave spy=0, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_dossier) == 0, "refuse must not grant a dossier");
     bkf_pass("refuse left state 0 and no dossier");
 
@@ -292,7 +292,7 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     bkf_choose(srv, player, 1); /* laugh at danger */
     bkf_choose(srv, player, 2); /* No */
     bkf_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 0, "start No must leave spy=0, got %d", player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "start No must leave spy=0, got %d", ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_dossier) == 0, "start No must not grant a dossier");
     bkf_pass("start No left state 0 and no dossier");
 
@@ -302,8 +302,8 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     bkf_choose(srv, player, 1); /* laugh */
     bkf_choose(srv, player, 1); /* Yes */
     bkf_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 1, "accept via OPNPC1 should write spy=1, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "accept via OPNPC1 should write spy=1, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_dossier) == 1,
                    "Talk-to accept should grant exactly 1 dossier, have %d",
                    selftest_count(player, obj_dossier));
@@ -315,7 +315,7 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     bkf_drain(srv, player, 0);
     SELFTEST_CHECK(selftest_count(player, obj_dossier) == 0, "Read should destroy the dossier, have %d",
                    selftest_count(player, obj_dossier));
-    SELFTEST_CHECK(player->varps[varp] == 1, "Read must not change spy, got %d", player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "Read must not change spy, got %d", ToriRSServer_Varp(player, varp));
     bkf_pass("OPHELD1 Read destroyed the dossier");
 
     /* ---- SNAP fortress locs ---- */
@@ -333,8 +333,8 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
         bkf_release_park(srv, player);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_door1, -1, loc_slot);
         bkf_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 1, "disguise door must not change spy, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "disguise door must not change spy, got %d",
+                       ToriRSServer_Varp(player, varp));
         bkf_pass("disguise door OPLOC1 in bronze med helm + iron chainbody");
     }
 
@@ -347,8 +347,8 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
         bkf_release_park(srv, player);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_door1, -1, loc_slot);
         bkf_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 1, "black-plate door must not change spy, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "black-plate door must not change spy, got %d",
+                       ToriRSServer_Varp(player, varp));
         bkf_pass("disguise door OPLOC1 in black full helm + plate");
     }
 
@@ -382,8 +382,8 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
         bkf_release_park(srv, player);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_grill, -1, loc_slot);
         bkf_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 2, "grill Listen-at should write spy=2, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "grill Listen-at should write spy=2, got %d",
+                       ToriRSServer_Varp(player, varp));
         bkf_pass("grill OPLOC1 advanced to state 2");
     }
 
@@ -416,8 +416,8 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
             bkf_release_park(srv, player);
             ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_hole, -1, loc_slot);
             bkf_drain(srv, player, 0);
-            SELFTEST_CHECK(player->varps[varp] == 2, "Draynor cabbage must not sabotage, spy=%d",
-                           player->varps[varp]);
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "Draynor cabbage must not sabotage, spy=%d",
+                           ToriRSServer_Varp(player, varp));
             SELFTEST_CHECK(selftest_count(player, obj_magic_cabbage) == 1,
                            "Draynor cabbage must not be consumed");
             bkf_pass("magic_cabbage on hole rejected, state 2");
@@ -427,13 +427,13 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
         bkf_release_park(srv, player);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_hole, -1, loc_slot);
         bkf_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 3, "ordinary cabbage should write spy=3, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "ordinary cabbage should write spy=3, got %d",
+                       ToriRSServer_Varp(player, varp));
         SELFTEST_CHECK(selftest_count(player, obj_cabbage) == 0, "ordinary cabbage should be consumed");
         if( cauldron_varp >= 0 )
-            SELFTEST_CHECK(player->varps[cauldron_varp] != 0,
+            SELFTEST_CHECK(ToriRSServer_Varp(player, cauldron_varp) != 0,
                            "sabotage should write spy_cauldron side state, got %d",
-                           player->varps[cauldron_varp]);
+                           ToriRSServer_Varp(player, cauldron_varp));
         bkf_pass("cabbage OPLOCU sabotaged, state 3");
     }
 
@@ -445,33 +445,33 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
         bkf_release_park(srv, player);
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_grill, -1, loc_slot);
         bkf_drain(srv, player, 0);
-        SELFTEST_CHECK(player->varps[varp] == 3, "post-sabotage grill must stay at 3, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "post-sabotage grill must stay at 3, got %d",
+                       ToriRSServer_Varp(player, varp));
         bkf_pass("post-sabotage grill OPLOC1 stayed at 3");
     }
 
     /* ---- complete via Sir Amik ---- */
     selftest_clear_inv(player);
-    qp_before = qp_varp >= 0 ? player->varps[qp_varp] : 0;
+    qp_before = qp_varp >= 0 ? ToriRSServer_Varp(player, qp_varp) : 0;
     coins_before = selftest_count(player, obj_coins);
     bkf_snap(srv, player, amik_level, amik_x, amik_z);
     bkf_talk(srv, player, amik_type, slot);
     bkf_drain_complete(srv, player, varp, 4);
-    SELFTEST_CHECK(player->varps[varp] == 4, "hand-in should commit spy=4, got %d", player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "hand-in should commit spy=4, got %d", ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count(player, obj_coins) == coins_before + 2500,
                    "hand-in should grant 2500 coins, %d -> %d", coins_before,
                    selftest_count(player, obj_coins));
     if( qp_varp >= 0 )
-        SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 3, "hand-in should award 3 QP, %d -> %d",
-                       qp_before, player->varps[qp_varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 3, "hand-in should award 3 QP, %d -> %d",
+                       qp_before, ToriRSServer_Varp(player, qp_varp));
     bkf_pass("complete via OPNPC1 +2500 coins +3 QP, state 4");
 
     /* ---- postquest ---- */
     bkf_talk(srv, player, amik_type, slot);
     bkf_choose(srv, player, 2); /* Okay, bye / looking around equivalent */
     bkf_drain(srv, player, 0);
-    SELFTEST_CHECK(player->varps[varp] == 4, "post-quest talk must stay at 4, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "post-quest talk must stay at 4, got %d",
+                   ToriRSServer_Varp(player, varp));
     bkf_pass("post-quest OPNPC1 stayed complete");
 
     if( slot >= 0 )
@@ -486,10 +486,10 @@ selftest_quest_blackknight(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
     ToriRSServer_WorldNpcReap(srv);
     selftest_clear_inv(player);
     bkf_clear_worn(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     if( cauldron_varp >= 0 )
-        player->varps[cauldron_varp] = 0;
+        ToriRSServer_VarpPut(player, cauldron_varp, 0);
     if( qp_varp >= 0 )
-        player->varps[qp_varp] = qp_saved;
+        ToriRSServer_VarpPut(player, qp_varp, qp_saved);
     bkf_pass("start-to-complete via real triggers");
 }

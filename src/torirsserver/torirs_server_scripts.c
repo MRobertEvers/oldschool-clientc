@@ -1652,18 +1652,18 @@ ToriRSServer_ScriptsResumeNpc(
         srv->loot_credit_armed = 1;
         srv->loot_credit_npc_type = npc->loot_credit_npc_type;
         srv->loot_credit_event_id = npc->loot_credit_event_id;
-        memcpy(srv->loot_credit_players, npc->death_credit_players,
-               sizeof(srv->loot_credit_players));
+        srv->loot_credit = npc->death_credit;
     }
     run_or_park(srv, npc->active_script);
     if( resume_loot_drop )
     {
         srv->loot_credit_armed = 0;
         ToriRSServer_ScriptsFlushLootCredit(srv);
-        memset(srv->loot_credit_players, 0, sizeof(srv->loot_credit_players));
+        ToriRSServer_PidSetClear(&srv->loot_credit);
         if( !npc->active_script )
         {
-            memset(npc->death_credit_players, 0, sizeof(npc->death_credit_players));
+            ToriRSServer_PidSetClear(&npc->death_credit);
+            ToriRSServer_PidSetClear(&npc->death_credit_hitter);
             npc->loot_credit_event_id = 0;
             npc->loot_credit_npc_type = 0;
         }
@@ -5255,7 +5255,7 @@ ToriRSServer_LootTrackerAddGroundObj(
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
-        if( !srv->loot_credit_players[i] || !player->active )
+        if( !ToriRSServer_PidSetHas(&srv->loot_credit, i) || !player->active )
             continue;
         if( private_owner && player != private_owner )
             continue;
@@ -5293,7 +5293,7 @@ loot_credit_owner(
         return TORIRSSERVER_GROUND_OWNER_NONE;
     for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
     {
-        if( !srv->loot_credit_players[i] || !srv->players[i].active )
+        if( !ToriRSServer_PidSetHas(&srv->loot_credit, i) || !srv->players[i].active )
             continue;
         credited++;
         *out_name37 = srv->players[i].name37;
@@ -5333,7 +5333,7 @@ ToriRSServer_ScriptsFlushLootCredit(struct ToriRSServer* srv)
         for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
         {
             struct ToriRSServerPlayer* player = &srv->players[i];
-            if( !srv->loot_credit_players[i] || !player->active )
+            if( !ToriRSServer_PidSetHas(&srv->loot_credit, i) || !player->active )
                 continue;
             if( srv->loot_credit_drops[drop_i].owner_pid >= 0 &&
                 srv->loot_credit_drops[drop_i].owner_pid != i )
@@ -6680,7 +6680,7 @@ script_command(
         struct ToriRSServerPlayer* target = var_player(state, player);
         if( var_player_missing(state, target, "%varp", varp) )
             return 1;
-        SSVM_PushInt(state, target->varps[varp]);
+        SSVM_PushInt(state, ToriRSServer_Varp(target, varp));
         return 1;
     }
 
@@ -6714,7 +6714,7 @@ script_command(
          * `ToriRSServer_WorldMarkVarp` is idempotent within a tick, so a script
          * writing the same varp repeatedly still produces one packet.
          */
-        target->varps[varp] = value;
+        ToriRSServer_VarpPut(target, varp, value);
         ToriRSServer_WorldMarkVarp(target, varp);
         /* And whatever engine state hangs off this varp. Writing the array and
          * marking it for transmission is only *reporting* the change; a varp
@@ -8256,7 +8256,7 @@ script_command(
         struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowFind(coord_x(coord),coord_z(coord));
         if( !window ) return 1;
         ToriRSServer_SceneBindWindow(window);
-        for( int slot = 0;; slot++ )
+        for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
 
@@ -12744,13 +12744,13 @@ script_command(
          *
          * The reference ranks by hero points (damage per player). This npc
          * records who landed the killing blow and who was still fighting at it
-         * (`death_credit_players`, live from the blow until the drop script
-         * finishes) and who has hit it at all (`damaged_by_players`), not how
+         * (`death_credit`, live from the blow until the drop script
+         * finishes) and who has hit it at all (`damaged_by`), not how
          * hard -- so the hero is the blow's owner, else the lowest pid that
          * was fighting at the blow, else the lowest pid that ever hit it, else
          * (below) the bound player. With one fighter, which is every quest
-         * boss, that is the reference's answer exactly. `2` is TORIRSSERVER_DEATH_CREDIT_HITTER in
-         * torirs_server_combat.c, which writes it.
+         * boss, that is the reference's answer exactly. The blow's owner is
+         * the one in `death_credit_hitter` (torirs_server_combat.c writes it).
          */
         struct ToriRSServerNpc* npc = active_npc(state);
         struct ToriRSServerPlayer* hero = NULL;
@@ -12760,11 +12760,12 @@ script_command(
             SSVM_Abort(state, "npc_findhero with no active npc");
             return 1;
         }
-        for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+        for( int i = ToriRSServer_PidSetNext(&npc->death_credit, 0); i >= 0;
+             i = ToriRSServer_PidSetNext(&npc->death_credit, i + 1) )
         {
-            if( !npc->death_credit_players[i] || !srv->players[i].active )
+            if( !srv->players[i].active )
                 continue;
-            if( npc->death_credit_players[i] == 2 )
+            if( ToriRSServer_PidSetHas(&npc->death_credit_hitter, i) )
             {
                 hero = &srv->players[i];
                 break;
@@ -12772,9 +12773,10 @@ script_command(
             if( !hero )
                 hero = &srv->players[i];
         }
-        for( int i = 0; !hero && i < TORIRSSERVER_PLAYER_MAX; i++ )
+        for( int i = ToriRSServer_PidSetNext(&npc->damaged_by, 0); !hero && i >= 0;
+             i = ToriRSServer_PidSetNext(&npc->damaged_by, i + 1) )
         {
-            if( npc->damaged_by_players[i] && srv->players[i].active )
+            if( srv->players[i].active )
                 hero = &srv->players[i];
         }
         /* An npc that records no fighter at all: the player this script is
@@ -12783,7 +12785,7 @@ script_command(
          * run with nobody's damage on the npc is a caller naming its player
          * directly (the selftest's `ToriRSServer_WorldNpcDied` stanzas, a
          * content debugproc), and every live kill records its killer at the
-         * blow (`death_credit_players`), so that is the only path this
+         * blow (`death_credit`), so that is the only path this
          * reaches from a fight. */
         if( !hero && player && player->active )
             hero = player;

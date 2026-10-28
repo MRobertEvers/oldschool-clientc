@@ -40,21 +40,6 @@
 struct ToriRSServer;
 struct ToriRSServerBootConfig;
 
-enum
-{
-    /**
-     * Connections held at once, game and JS5 together.
-     *
-     * Larger than `TORIRSSERVER_PLAYER_MAX` on purpose: a client holds a JS5
-     * connection open for its whole session beside its game one, so a world
-     * full of players is already at twice the player count, and a browser that
-     * is still priming its cache has one before it has the other. The world
-     * refuses the ninth *player* on its own (`ToriRSServer_WorldAddPlayer`);
-     * this only bounds descriptors.
-     */
-    TORIRSSERVER_HOST_CONN_MAX = 24,
-};
-
 /**
  * Serve `listener` until the process ends.
  *

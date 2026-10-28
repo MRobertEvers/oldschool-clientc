@@ -285,11 +285,11 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     spawned_ava = spawned_mal = spawned_ali = spawned_cro = spawned_wit = spawned_tre = spawned_tur = -1;
     ToriRSServer_VarbitSet(srv, varbit_anma, 0);
     if( varp_priest >= 0 )
-        player->varps[varp_priest] = 5;
+        ToriRSServer_VarpPut(player, varp_priest, 5);
     if( varp_haunted >= 0 )
-        player->varps[varp_haunted] = 3;
+        ToriRSServer_VarpPut(player, varp_haunted, 3);
     if( varp_pip >= 0 )
-        player->varps[varp_pip] = 61;
+        ToriRSServer_VarpPut(player, varp_pip, 61);
     anma_set_skill(player, stat_range, 30);
     anma_set_skill(player, stat_slayer, 18);
     anma_set_skill(player, stat_craft, 19);
@@ -543,7 +543,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
 
     /* Solve: all-on then toggle 0,2,3,5,6,7. Drive one toggle from near-solved. */
     if( varp_notes >= 0 && varp_notes < TORIRSSERVER_VARP_COUNT )
-        player->varps[varp_notes] = 275;
+        ToriRSServer_VarpPut(player, varp_notes, 275);
     if( btn1 > 0 )
     {
         anma_release(srv, player);
@@ -585,7 +585,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
     SELFTEST_CHECK(selftest_count_obj(player, obj_container) == 1, "should hold container");
     anma_pass("make_container", "OPHELDU", "anma_main=230");
 
-    qp_before = (varp_qp >= 0 && varp_qp < TORIRSSERVER_VARP_COUNT) ? player->varps[varp_qp] : 0;
+    qp_before = (varp_qp >= 0 && varp_qp < TORIRSSERVER_VARP_COUNT) ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = (stat_craft >= 0 && stat_craft < TORIRSSERVER_STAT_COUNT)
                     ? player->stat_xp_tenths[stat_craft]
                     : 0;
@@ -597,7 +597,7 @@ selftest_quest_animalmagnetism(struct ToriRSServer* srv, struct ToriRSServerPlay
                    anma_state(player, varbit_anma));
     SELFTEST_CHECK(selftest_count_obj(player, obj_attractor) == 1, "should grant attractor below 50 ranged");
     if( varp_qp >= 0 && varp_qp < TORIRSSERVER_VARP_COUNT )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 1, "completion should award +1 QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 1, "completion should award +1 QP");
     if( stat_craft >= 0 && stat_craft < TORIRSSERVER_STAT_COUNT )
         SELFTEST_CHECK(player->stat_xp_tenths[stat_craft] == xp_before + 10000,
                        "completion should award 1000 Crafting XP");

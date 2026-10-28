@@ -379,7 +379,7 @@ sweep_scene(
         int door_count = 0;
         int door_capacity = 0;
 
-        for( int slot = 0;; slot++ )
+        for( int slot = ToriRSServer_SceneLocNext(-1); slot >= 0; slot = ToriRSServer_SceneLocNext(slot) )
         {
             struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(slot);
             const char* op;

@@ -1652,7 +1652,9 @@ ifeq ($(OS),Windows_NT)
 JS5_SOCKET_LIBS := -lws2_32
 JS5_EXE_SUFFIX := .exe
 else
-JS5_SOCKET_LIBS :=
+# pthreads for the torirsserver core loop's blocking-call pool
+# (torirsserver/torirs_server_pool.c); Windows uses its own threads.
+JS5_SOCKET_LIBS := -lpthread
 JS5_EXE_SUFFIX :=
 endif
 JS5_TEST_PYTHON ?= python
@@ -4873,10 +4875,16 @@ test-revconfig: $(OBJ_DIR)
 # Â§3.4 â a plaintext override on the inbound side was rejected because it would
 # make the two halves of net_out.c/torirsserver disagree).
 # `torirs_server_host.c` sits here rather than in TORIRSSERVER_CORE_SRCS because
-# it is the *socket* host -- select(), accept(), a listening descriptor. The core
-# list is also what EMBED_SERVER=1 links into the client, which has no listener
-# and drives ToriRSServer_EmbedPump itself.
+# it is the *socket* host -- the core loop, accept(), a listening descriptor. The
+# core list is also what EMBED_SERVER=1 links into the client, which has no
+# listener and drives ToriRSServer_EmbedPump itself. TORIRSSERVER_LOOP_SRCS is
+# the loop's machinery: coroutines, the blocking-call pool and the poller (one
+# file per platform, each empty elsewhere).
+TORIRSSERVER_LOOP_SRCS = torirsserver/torirs_server_core.c torirsserver/torirs_server_pool.c \
+	torirsserver/torirs_server_poll_kqueue.c torirsserver/torirs_server_poll_epoll.c \
+	torirsserver/torirs_server_poll_wsapoll.c
 TORIRSSERVER_SRCS = torirsserver/torirs_server_main.c torirsserver/torirs_server_host.c \
+	$(TORIRSSERVER_LOOP_SRCS) \
 	$(TORIRSSERVER_ACCOUNT_SRCS) \
 	net/jbase37.c net/wordpack.c net/chat_huffman.c $(TORIRSSERVER_CORE_SRCS) $(SCRIPTRUN_SRCS)
 # The world's side of the account server (accountserver/account_server.h),
@@ -6290,6 +6298,21 @@ walkable-probe: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # *active* loc and a fixture that set the pointer to a made-up slot would prove
 # nothing about the slot-not-pointer convention that exists to survive a rebuild.
 .PHONY: test-torirsserver-loc
+# The collision store's 64x64 map squares at their edges: the store against one
+# build spanning each edge (tiles, steps, lines, routes), loc changes that
+# cross an edge with the neighbouring squares dropped and reloaded, occupancy
+# across an edge, the edge of the loaded world, and squares lingering out.
+.PHONY: test-torirsserver-squares
+test-torirsserver-squares: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/torirsserver -o $(OBJ_DIR)/square_test \
+		torirsserver/test/square_test.c $(PARAM_TEST_SRCS) \
+		$(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		$(OBJ_DIR)/rsprot_buf.o -lm
+	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/square_test
+
 test-torirsserver-loc: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o

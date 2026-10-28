@@ -1068,8 +1068,8 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                    "while their FEET are out of range of each other, "
                                    "%d,%d vs %d,%d",
                                    sailor->x, sailor->z, player->x, player->z);
-                    SELFTEST_CHECK(player->player_tracked[sailor_pid] &&
-                                   sailor->player_tracked[player->pid],
+                    SELFTEST_CHECK(ToriRSServer_PidSetHas(&player->player_tracked, sailor_pid) &&
+                                   ToriRSServer_PidSetHas(&sailor->player_tracked, player->pid),
                                    "revision239 sends both sides of shore/deck visibility");
                     SELFTEST_CHECK(ToriRSServer_PlayerObservable(player, sailor),
                                    "so PLAYER_INFO admits them to the shore player's set");
@@ -1091,8 +1091,8 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                    "with no offset left over");
                     SELFTEST_CHECK(ToriRSServer_PlayerObservable(player, sailor),
                                    "and the shore player still has them in view");
-                    SELFTEST_CHECK(player->player_tracked[sailor_pid] &&
-                                   sailor->player_tracked[player->pid],
+                    SELFTEST_CHECK(ToriRSServer_PidSetHas(&player->player_tracked, sailor_pid) &&
+                                   ToriRSServer_PidSetHas(&sailor->player_tracked, player->pid),
                                    "both observers continue tracking after disembarking");
 
                     ToriRSServer_WorldPlayerFree(srv, sailor_pid);
@@ -1545,7 +1545,7 @@ selftest_sailing(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                                        "again, %d,%d",
                                        rider->obs_x, rider->obs_z);
                         SELFTEST_CHECK(!ToriRSServer_PlayerObservable(player, rider) &&
-                                           !player->player_tracked[rider_pid],
+                                           !ToriRSServer_PidSetHas(&player->player_tracked, rider_pid),
                                        "the ocean observer retires the rider after safe shore evacuation");
 
                         /* Put a hull back under the fixture the rows below

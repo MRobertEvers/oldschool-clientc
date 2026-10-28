@@ -19,6 +19,9 @@
 
 #define TORIRSSERVER_CONN_RAW_MAX 65536
 #define TORIRSSERVER_CONN_APP_MAX 65536
+/* What a buffer starts at, and shrinks back to once empty. Holds a whole
+ * WebSocket upgrade request (WS_HANDSHAKE_REQUEST_MAX). */
+#define TORIRSSERVER_CONN_BUF_MIN 4096
 
 /*
  * How much a connection may owe its peer before the host gives up on it.
@@ -70,14 +73,23 @@ struct ToriRSServerConn
     /** The ticket's web login, once one was required and checked; else "". */
     char ticket_name[64];
 
+    /*
+     * Both input buffers are heap, grown on demand up to their _MAX and cut
+     * back to TORIRSSERVER_CONN_BUF_MIN once drained: a connection between
+     * packets holds a few KB rather than 128 KB, which over thousands of
+     * connections is the difference between megabytes and half a gigabyte.
+     * Freed by ToriRSServer_ConnFree.
+     */
     /* Bytes off the socket that are not yet whole frames (raw mode leaves this
      * empty — there is nothing to reassemble). */
-    uint8_t raw[TORIRSSERVER_CONN_RAW_MAX];
+    uint8_t* raw;
     int raw_len;
+    int raw_cap;
 
     /* Application bytes, deframed, waiting to be taken. */
-    uint8_t app[TORIRSSERVER_CONN_APP_MAX];
+    uint8_t* app;
     int app_len;
+    int app_cap;
 
     /**
      * Bytes owed to the peer that the kernel would not take yet.

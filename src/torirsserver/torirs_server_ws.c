@@ -10,6 +10,7 @@
  * rather than teaching the protocol code about transports.
  */
 #include "torirs_server_ws.h"
+#include "mem/torirs_mem.h"
 #include <assert.h>
 
 #include "torirs_server_auth.h"
@@ -114,6 +115,53 @@ conn_out_push(
     return ToriRSServer_ConnFlush(conn);
 }
 
+/*
+ * Make room for `need` more bytes in one of the connection's input buffers,
+ * growing it by doubling up to `max`. Returns the room there is afterwards,
+ * which is less than `need` only once the buffer is at `max`.
+ */
+static int
+conn_buf_reserve(
+    uint8_t** buf,
+    int len,
+    int* cap,
+    int need,
+    int max)
+{
+    int want = len + need;
+
+    if( want > max )
+        want = max;
+    if( *cap < want )
+    {
+        int grown = *cap ? *cap : TORIRSSERVER_CONN_BUF_MIN;
+
+        while( grown < want )
+            grown *= 2;
+        if( grown > max )
+            grown = max;
+        *buf = ToriMem_Realloc(ToriMem_ServerNet(), *buf, (size_t)grown);
+        assert(*buf);
+        *cap = grown;
+    }
+    return *cap - len;
+}
+
+/* A drained buffer goes back to its starting size. */
+static void
+conn_buf_settle(
+    uint8_t** buf,
+    int len,
+    int* cap)
+{
+    if( len == 0 && *cap > TORIRSSERVER_CONN_BUF_MIN )
+    {
+        *buf = ToriMem_Realloc(ToriMem_ServerNet(), *buf, TORIRSSERVER_CONN_BUF_MIN);
+        assert(*buf);
+        *cap = TORIRSSERVER_CONN_BUF_MIN;
+    }
+}
+
 /* Append to the deframed application buffer, refusing rather than truncating:
  * a dropped byte is a desynced ISAAC stream, which fails far from here. */
 static int
@@ -124,7 +172,8 @@ app_append(
 {
     if( len <= 0 )
         return 1;
-    if( conn->app_len + len > TORIRSSERVER_CONN_APP_MAX )
+    if( conn_buf_reserve(&conn->app, conn->app_len, &conn->app_cap, len,
+                         TORIRSSERVER_CONN_APP_MAX) < len )
     {
         fprintf(stderr, "torirsserver: inbound overflow (%d + %d bytes)\n", conn->app_len, len);
         return 0;
@@ -209,6 +258,8 @@ ws_handshake_step(struct ToriRSServerConn* conn)
         return TORIRSSERVER_CONN_OPEN_FAILED;
     }
 
+    conn_buf_reserve(&conn->raw, conn->raw_len, &conn->raw_cap,
+                     WS_HANDSHAKE_REQUEST_MAX - conn->raw_len, TORIRSSERVER_CONN_RAW_MAX);
     got = read(conn->fd, conn->raw + conn->raw_len,
                (size_t)(WS_HANDSHAKE_REQUEST_MAX - conn->raw_len));
     if( got < 0 )
@@ -387,6 +438,7 @@ ws_deframe(struct ToriRSServerConn* conn)
         conn->raw_len -= pos;
         if( conn->raw_len > 0 )
             memmove(conn->raw, conn->raw + pos, (size_t)conn->raw_len);
+        conn_buf_settle(&conn->raw, conn->raw_len, &conn->raw_cap);
     }
     return 1;
 }
@@ -403,7 +455,10 @@ conn_fill(struct ToriRSServerConn* conn)
 
     if( !conn->ws )
     {
-        space = TORIRSSERVER_CONN_APP_MAX - conn->app_len;
+        /* Read what one buffer's worth of growth holds; a burst beyond it
+         * waits in the kernel for the next resume. */
+        space = conn_buf_reserve(&conn->app, conn->app_len, &conn->app_cap, TORIRSSERVER_CONN_BUF_MIN,
+                                 TORIRSSERVER_CONN_APP_MAX);
         if( space <= 0 )
             return 1;
         got = read(conn->fd, conn->app + conn->app_len, (size_t)space);
@@ -423,7 +478,8 @@ conn_fill(struct ToriRSServerConn* conn)
         return 1;
     }
 
-    space = TORIRSSERVER_CONN_RAW_MAX - conn->raw_len;
+    space = conn_buf_reserve(&conn->raw, conn->raw_len, &conn->raw_cap, TORIRSSERVER_CONN_BUF_MIN,
+                             TORIRSSERVER_CONN_RAW_MAX);
     if( space <= 0 )
     {
         fprintf(stderr, "torirsserver: websocket frame larger than the read buffer\n");
@@ -506,6 +562,12 @@ ToriRSServer_ConnFree(struct ToriRSServerConn* conn)
 {
     assert(conn);
     ToriRSServer_PipeFree(&conn->out);
+    ToriMem_Free(ToriMem_ServerNet(), conn->raw);
+    ToriMem_Free(ToriMem_ServerNet(), conn->app);
+    conn->raw = NULL;
+    conn->app = NULL;
+    conn->raw_len = conn->raw_cap = 0;
+    conn->app_len = conn->app_cap = 0;
 }
 
 static int
@@ -521,6 +583,7 @@ app_take(
     conn->app_len -= take;
     if( conn->app_len > 0 )
         memmove(conn->app, conn->app + take, (size_t)conn->app_len);
+    conn_buf_settle(&conn->app, conn->app_len, &conn->app_cap);
     return take;
 }
 

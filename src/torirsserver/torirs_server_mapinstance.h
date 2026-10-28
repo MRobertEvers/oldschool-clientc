@@ -56,12 +56,26 @@
  *   invisible at rotation 0 and 2 and mirrors the zone at 1 and 3.
  */
 
+#include "torirs_server_cap.h"
+
 #include <stdint.h>
 
 /** Concurrent instances. One per active POH / minigame session; the reference
  *  caps by pool size too (Kronos's FREE_REGIONS deque). */
-/* Fifteen published vessel decks plus independent player activities. */
-#define TORIRSSERVER_MAPINSTANCE_MAX 32
+/* Fifteen published vessel decks plus one independent activity per player
+ * slot. An idle entry is a small struct; the map squares an instance occupies
+ * are only taken when it is allocated. */
+#define TORIRSSERVER_MAPINSTANCE_MAX (15 + TORIRSSERVER_PLAYER_CAP)
+
+/** Called with the tile box (inclusive) of an instance just built or freed. */
+typedef void (*ToriRSServerMapInstanceChangeHook)(
+    int x0,
+    int z0,
+    int x1,
+    int z1);
+
+void
+ToriRSServer_MapInstanceSetChangeHook(ToriRSServerMapInstanceChangeHook hook);
 
 /**
  * Zones per axis the *scene* can show (REBUILD_REGION is a 4 x 13 x 13 grid).

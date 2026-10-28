@@ -149,7 +149,7 @@ mcannon_find_loc(int x, int z, int level, int loc_id, int radius)
                 return slot;
         }
     }
-    for( s = 0;; s++ )
+    for( s = ToriRSServer_SceneLocNext(-1); s >= 0; s = ToriRSServer_SceneLocNext(s) )
     {
         struct ToriRSServerSceneLoc* loc = ToriRSServer_SceneLoc(s);
 
@@ -275,7 +275,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     }
 
     mcannon_inv_clear(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     player->last_slot = -1;
 
     mcannon_snap(srv, player, 0, 2567, 3460);
@@ -298,9 +298,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_choose(srv, player, 2);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 0, "decline must leave %%mcannon at 0, got %d",
-                   player->varps[varp]);
-    if( player->varps[varp] == 0 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 0, "decline must leave %%mcannon at 0, got %d",
+                   ToriRSServer_Varp(player, varp));
+    if( ToriRSServer_Varp(player, varp) == 0 )
         mcannon_pass("decline", "OPNPC1", "mcannon=0");
 
     /* ---- accept writes 1 and grants rails + hammer ---- */
@@ -308,14 +308,14 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_choose(srv, player, 1);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 1, "accept should write mcannon=1, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 1, "accept should write mcannon=1, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_rail) == 6,
                    "accept should grant 6 railings, have %d",
                    selftest_count_obj(player, obj_rail));
     SELFTEST_CHECK(selftest_count_obj(player, obj_hammer) >= 1,
                    "accept should grant a hammer when none was owned");
-    if( player->varps[varp] == 1 )
+    if( ToriRSServer_Varp(player, varp) == 1 )
         mcannon_pass("accept", "OPNPC1", "mcannon=1 rails=6 hammer");
 
     /* QH WorldPoints for the six MULTILOC shells (not rungs). */
@@ -379,9 +379,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_talk(srv, player, npc_lawgof, law_slot);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 2, "all-fixed report should write mcannon=2, got %d",
-                   player->varps[varp]);
-    if( player->varps[varp] == 2 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 2, "all-fixed report should write mcannon=2, got %d",
+                   ToriRSServer_Varp(player, varp));
+    if( ToriRSServer_Varp(player, varp) == 2 )
         mcannon_pass("tower-task", "OPNPC1", "mcannon=2");
 
     /* ---- remains (tower roof; QH 2567,3444,2) ---- */
@@ -446,10 +446,10 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_talk(srv, player, npc_lawgof, law_slot);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 3, "remains hand-in should write mcannon=3, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "remains hand-in should write mcannon=3, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_remains) == 0, "hand-in should consume remains");
-    if( player->varps[varp] == 3 )
+    if( ToriRSServer_Varp(player, varp) == 3 )
         mcannon_pass("remains-handin", "OPNPC1", "mcannon=3");
 
     /* ---- cave 3 -> 4 ---- */
@@ -464,9 +464,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cave, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 4, "cave enter should write mcannon=4, got %d",
-                       player->varps[varp]);
-        if( player->varps[varp] == 4 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "cave enter should write mcannon=4, got %d",
+                       ToriRSServer_Varp(player, varp));
+        if( ToriRSServer_Varp(player, varp) == 4 )
             mcannon_pass("cave", "OPLOC1", "mcannon=4");
     }
 
@@ -484,9 +484,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 5, "untie should write mcannon=5, got %d",
-                       player->varps[varp]);
-        if( player->varps[varp] == 5 )
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "untie should write mcannon=5, got %d",
+                       ToriRSServer_Varp(player, varp));
+        if( ToriRSServer_Varp(player, varp) == 5 )
             mcannon_pass("lollk", "OPLOC1", "mcannon=5 owned");
         child_slot = selftest_find_npc(srv, npc_lollk);
         if( child_slot >= 0 )
@@ -502,10 +502,10 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_choose(srv, player, 1);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 6, "toolkit accept should write mcannon=6, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "toolkit accept should write mcannon=6, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_toolkit) >= 1, "toolkit grant should land");
-    if( player->varps[varp] == 6 )
+    if( ToriRSServer_Varp(player, varp) == 6 )
         mcannon_pass("toolkit", "OPNPC1", "mcannon=6");
 
     /* ---- toolkit on cannon opens repair; three pairings write 8 ---- */
@@ -532,8 +532,8 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, use_id, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         player->last_useitem = -1;
-        SELFTEST_CHECK(player->varps[varp] == 7, "toolkit use should write mcannon=7, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 7, "toolkit use should write mcannon=7, got %d",
+                       ToriRSServer_Varp(player, varp));
 
         ToriRSServer_ScriptsRunIfButton(srv, com_tool3, 1);
         ToriRSServer_ScriptsRunIfButton(srv, com_spring, 1);
@@ -543,13 +543,13 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunIfButton(srv, com_gear, 1);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 8, "three pairings should write mcannon=8, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 8, "three pairings should write mcannon=8, got %d",
+                       ToriRSServer_Varp(player, varp));
         if( vb_spring >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_spring) == 1, "spring bit should set");
         if( vb_safety >= 0 )
             SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_safety) == 1, "safety bit should set");
-        if( player->varps[varp] == 8 )
+        if( ToriRSServer_Varp(player, varp) == 8 )
             mcannon_pass("repair", "OPLOCU+IF_BUTTON1", "mcannon=8");
     }
 
@@ -559,9 +559,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_choose(srv, player, 2);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 9, "Nulodion errand should write mcannon=9, got %d",
-                   player->varps[varp]);
-    if( player->varps[varp] == 9 )
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 9, "Nulodion errand should write mcannon=9, got %d",
+                   ToriRSServer_Varp(player, varp));
+    if( ToriRSServer_Varp(player, varp) == 9 )
         mcannon_pass("nulodion-task", "OPNPC1", "mcannon=9");
 
     /* ---- Nulodion 9 -> 10 ---- */
@@ -578,45 +578,45 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         mcannon_talk(srv, player, npc_nulodion, nul_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 10, "Nulodion grant should write mcannon=10, got %d",
-                       player->varps[varp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 10, "Nulodion grant should write mcannon=10, got %d",
+                       ToriRSServer_Varp(player, varp));
         SELFTEST_CHECK(selftest_count_obj(player, obj_notes) >= 1 &&
                            selftest_count_obj(player, obj_mould) >= 1,
                        "Nulodion should grant notes and mould");
-        if( player->varps[varp] == 10 )
+        if( ToriRSServer_Varp(player, varp) == 10 )
             mcannon_pass("nulodion", "OPNPC1", "mcannon=10 notes+mould");
     }
 
     /* ---- finale 10 -> 11 ---- */
     mcannon_snap(srv, player, 0, 2567, 3460);
-    qp_before = player->varps[qp_varp];
+    qp_before = ToriRSServer_Varp(player, qp_varp);
     xp_before = crafting >= 0 ? player->stat_xp_tenths[crafting] : 0;
     mcannon_talk(srv, player, npc_lawgof, law_slot);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(player->varps[varp] == 11, "finale should write mcannon=11, got %d",
-                   player->varps[varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 11, "finale should write mcannon=11, got %d",
+                   ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_notes) == 0, "finale should consume notes");
     SELFTEST_CHECK(selftest_count_obj(player, obj_mould) == 0, "finale should consume mould");
-    SELFTEST_CHECK(player->varps[qp_varp] == qp_before + 1, "finale should award +1 QP, %d -> %d",
-                   qp_before, player->varps[qp_varp]);
+    SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp_before + 1, "finale should award +1 QP, %d -> %d",
+                   qp_before, ToriRSServer_Varp(player, qp_varp));
     if( crafting >= 0 )
         SELFTEST_CHECK(player->stat_xp_tenths[crafting] == xp_before + 7500,
                        "finale should award 750 Crafting XP, %d -> %d",
                        xp_before, player->stat_xp_tenths[crafting]);
-    if( player->varps[varp] == 11 )
+    if( ToriRSServer_Varp(player, varp) == 11 )
         mcannon_pass("complete", "OPNPC1", "mcannon=11 qp+1 xp+750");
 
     /* ---- exactly-once / postquest ---- */
     {
-        int qp = player->varps[qp_varp];
+        int qp = ToriRSServer_Varp(player, qp_varp);
         int xp = crafting >= 0 ? player->stat_xp_tenths[crafting] : 0;
 
         mcannon_talk(srv, player, npc_lawgof, law_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(player->varps[varp] == 11, "postquest must keep mcannon=11");
-        SELFTEST_CHECK(player->varps[qp_varp] == qp, "postquest must not award a second QP");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 11, "postquest must keep mcannon=11");
+        SELFTEST_CHECK(ToriRSServer_Varp(player, qp_varp) == qp, "postquest must not award a second QP");
         if( crafting >= 0 )
             SELFTEST_CHECK(player->stat_xp_tenths[crafting] == xp,
                            "postquest must not award Crafting XP again");
@@ -651,7 +651,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
             mcannon_inv_clear(player);
 
             /* nothing was ever set up: only stolen cannons are replaced */
-            player->varps[varp_last] = 0;
+            ToriRSServer_VarpPut(player, varp_last, 0);
             mcannon_talk(srv, player, npc_nulodion, nul_slot);
             mcannon_choose(srv, player, 2);
             mcannon_drain(srv, player, 0);
@@ -661,7 +661,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
             mcannon_pass("lost-refused", "OPNPC1", "cannon_last_stage=0 no parts");
 
             /* a cannon set up to stage 2 and lost: base + stand come back once */
-            player->varps[varp_last] = 2;
+            ToriRSServer_VarpPut(player, varp_last, 2);
             mcannon_talk(srv, player, npc_nulodion, nul_slot);
             mcannon_choose(srv, player, 2);
             mcannon_drain(srv, player, 0);
@@ -670,7 +670,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
                                selftest_count_obj(player, obj_part2) == 1 &&
                                selftest_count_obj(player, obj_part3) == 0,
                            "lost cannon at stage 2 must return exactly base and stand");
-            SELFTEST_CHECK(player->varps[varp_last] == 0, "replacement must clear cannon_last_stage");
+            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_last) == 0, "replacement must clear cannon_last_stage");
             mcannon_pass("lost-replaced", "OPNPC1", "cannon_last_stage=2 base+stand once");
 
             /* purchase: 750,000 coins for four parts, mould and manual */
@@ -699,7 +699,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_WorldNpcFree(srv, spawned_nul);
     ToriRSServer_WorldNpcReap(srv);
     mcannon_inv_clear(player);
-    player->varps[varp] = 0;
+    ToriRSServer_VarpPut(player, varp, 0);
     player->godmode = 0;
     mcannon_pass("cleanup", "WorldNpcFree", "spawns reaped");
 }

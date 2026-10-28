@@ -429,7 +429,7 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     if( ToriRSServer_VarbitGet(player, vb_main) == 5 )
         gobdip_pass("GOBDIP PASS: blue hand-in wrote state 5");
 
-    qp_before = varp_qp >= 0 ? player->varps[varp_qp] : 0;
+    qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[stat_craft];
     gobdip_talk(srv, player, npc_bent, bent_slot, NULL, 0);
     gobdip_drain_rewards(srv, player);
@@ -441,8 +441,8 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
                    "completion should grant 200 Crafting XP, %d -> %d", xp_before,
                    player->stat_xp_tenths[stat_craft]);
     if( varp_qp >= 0 )
-        SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 5,
-                       "completion should award 5 QP, %d -> %d", qp_before, player->varps[varp_qp]);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp_qp) == qp_before + 5,
+                       "completion should award 5 QP, %d -> %d", qp_before, ToriRSServer_Varp(player, varp_qp));
     if( ToriRSServer_VarbitGet(player, vb_main) == 6 )
         gobdip_pass("GOBDIP PASS: brown hand-in completed state 6 with XP and gold bar");
 

@@ -437,7 +437,7 @@ ToriRSServer_NpcResolveTransform(
         if( row->transform_varbit != -1 )
             index = ToriRSServer_VarbitGet(player, row->transform_varbit);
         else if( row->transform_varp >= 0 && row->transform_varp < TORIRSSERVER_VARP_COUNT )
-            index = (int)player->varps[row->transform_varp];
+            index = (int)ToriRSServer_Varp(player, row->transform_varp);
 
         if( index >= 0 && index < row->transform_count - 1 )
             resolved = row->transforms[index];

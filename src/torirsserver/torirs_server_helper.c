@@ -110,7 +110,7 @@ helper_varp(
     assert(player);
     if( varp < 0 || varp >= TORIRSSERVER_VARP_COUNT )
         return 0;
-    return player->varps[varp];
+    return ToriRSServer_Varp(player, varp);
 }
 
 int

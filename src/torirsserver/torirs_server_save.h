@@ -27,6 +27,9 @@
 
 #include "torirs_server_savefile.h"
 
+#include <stddef.h>
+#include <stdint.h>
+
 struct ToriRSServerPlayer;
 
 /**
@@ -41,6 +44,29 @@ int
 ToriRSServer_SavePlayer(
     const struct ToriRSServerPlayer* player,
     const char* path);
+
+/**
+ * Where a composed save goes instead of straight to disk.
+ *
+ * `text` (length `len`, NUL-terminated) is a ToriMem_ServerPlayers() block the
+ * sink now owns; `account` names the save's owner (its ordering key) and
+ * `path` where it belongs. The standalone host installs one that hands the
+ * write to its blocking-call pool, so a logout costs the tick no disk IO; with
+ * none installed SavePlayer writes before it returns, which is what the
+ * embedded world, scriptrun and the selftests want. Checkpoints always write
+ * before returning: their callers read the result back.
+ */
+typedef void (*ToriRSServerSaveSink)(
+    void* ctx,
+    const char* account,
+    const char* path,
+    char* text,
+    size_t len);
+
+void
+ToriRSServer_SaveSetSink(
+    ToriRSServerSaveSink sink,
+    void* ctx);
 
 /**
  * Write the player as a quest-harness LEG CHECKPOINT. Returns 1 on success.
@@ -74,6 +100,16 @@ ToriRSServer_CheckpointPath(int leg);
 int
 ToriRSServer_LoadPlayer(
     struct ToriRSServerPlayer* player,
+    const char* path);
+
+/** LoadPlayer's parse, from a save's bytes already in memory (a login whose
+ *  file was read off the loop). `data` is not kept; `path` names it in
+ *  messages. */
+int
+ToriRSServer_LoadPlayerFrom(
+    struct ToriRSServerPlayer* player,
+    const uint8_t* data,
+    long size,
     const char* path);
 
 #endif
