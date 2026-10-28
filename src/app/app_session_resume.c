@@ -80,6 +80,21 @@ EM_JS(void, web_session_remember, (char const* user, char const* resume), {
     }
 });
 
+/* Leave the site login: the page goes through the gate's /logout, which
+ * clears its cookie and lands on its sign-in page. */
+EM_JS(void, web_site_sign_out, (void), {
+    if( typeof window.torirsSiteSignOut !== 'function' )
+        return;
+    try
+    {
+        window.torirsSiteSignOut();
+    }
+    catch( e )
+    {
+        console.warn('[torirs] site sign-out failed', e);
+    }
+});
+
 EM_JS(void, web_session_forget, (void), {
     if( typeof window.torirsSessionForget !== 'function' )
         return;
@@ -196,6 +211,12 @@ app_session_resume_forget(void)
 {
     g_resume_user[0] = '\0';
     web_session_forget();
+}
+
+void
+app_session_site_sign_out(void)
+{
+    web_site_sign_out();
 }
 
 char const*

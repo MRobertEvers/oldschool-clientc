@@ -247,6 +247,14 @@
    * and the rules about WHEN belong to the client. */
   window.torirsSessionRemember = (user, resume) => resumeSession.remember(user, resume);
   window.torirsSessionForget = () => resumeSession.forget();
+  // "Sign out" on the title's accounts screen (app_session_site_sign_out):
+  // leave the site login through the gate, which clears its cookie and lands
+  // on its sign-in page. A moment's grace first: the same click emptied the
+  // device's saved accounts, and that write is still on its way to IndexedDB.
+  window.torirsSiteSignOut = () => {
+    resumeSession.forget();
+    setTimeout(() => { window.location.href = '/logout'; }, 400);
+  };
   /*
    * The directory this page was served from, with its trailing slash: `/` at
    * the root, `/torirs/` behind a reverse proxy that mounts io_server under a

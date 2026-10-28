@@ -52,6 +52,18 @@ _Static_assert(
 _Static_assert(
     (int)RS_TITLE_ACTION_PLAIN_LOGIN == (int)UITREE_TITLE_ACTION_PLAIN_LOGIN,
     "title action plain_login");
+_Static_assert(
+    (int)RS_TITLE_ACTION_PLAY_CHOSEN == (int)UITREE_TITLE_ACTION_PLAY_CHOSEN,
+    "title action play_chosen");
+_Static_assert(
+    (int)RS_TITLE_ACTION_SWITCH_CHARACTER == (int)UITREE_TITLE_ACTION_SWITCH_CHARACTER,
+    "title action switch_character");
+_Static_assert(
+    (int)RS_TITLE_ACTION_CHOOSE_ACCOUNT == (int)UITREE_TITLE_ACTION_CHOOSE_ACCOUNT,
+    "title action choose_account");
+_Static_assert(
+    (int)RS_TITLE_ACTION_SIGN_OUT == (int)UITREE_TITLE_ACTION_SIGN_OUT,
+    "title action sign_out");
 
 void
 RS_Title_Init(struct RS_Title* title)
@@ -75,6 +87,20 @@ RS_Title_SetHome(
     if( title->screen == title->home )
         title->screen = home;
     title->home = home;
+}
+
+int
+RS_Title_ChooseAccount(
+    struct RS_Title* title,
+    int index)
+{
+    assert(title);
+    assert(index >= 0);
+    if( title->screen != RS_TITLE_CHARACTERS )
+        return 0;
+    title->chosen_account = index;
+    RS_Title_SetScreen(title, RS_TITLE_ACCOUNTS);
+    return 1;
 }
 
 int
@@ -344,6 +370,12 @@ RS_Title_HandleAction(
         RS_Title_SetScreen(title, RS_TITLE_LOGIN_FORM);
         return 1;
 
+    case RS_TITLE_ACTION_SWITCH_CHARACTER:
+        if( title->screen != RS_TITLE_ACCOUNTS )
+            return 0;
+        RS_Title_SetScreen(title, RS_TITLE_CHARACTERS);
+        return 1;
+
     case RS_TITLE_ACTION_SHOW_ACCOUNTS:
         title->fields[RS_TITLE_FIELD_PASSWORD][0] = '\0';
         RS_Title_SetScreen(title, RS_TITLE_ACCOUNTS);
@@ -382,8 +414,13 @@ RS_Title_HandleAction(
 
     /* The App's: the setting lives in the option store, not in this model. */
     case RS_TITLE_ACTION_TOGGLE_MUSIC:
-    /* Carries an index: RS_Title_PlayAccount. */
+    /* Carries an index: RS_Title_PlayAccount, RS_Title_ChooseAccount. */
     case RS_TITLE_ACTION_PLAY_ACCOUNT:
+    case RS_TITLE_ACTION_CHOOSE_ACCOUNT:
+    /* The App's: the chosen account is played by RS_Title_PlayAccount, and
+     * signing out forgets accounts this model does not hold. */
+    case RS_TITLE_ACTION_PLAY_CHOSEN:
+    case RS_TITLE_ACTION_SIGN_OUT:
     case RS_TITLE_ACTION_NONE:
         return 0;
     }
@@ -424,5 +461,13 @@ RS_Title_ActionFromName(char const* name)
         return RS_TITLE_ACTION_LINK_ACCOUNT;
     if( strcmp(name, "plain_login") == 0 )
         return RS_TITLE_ACTION_PLAIN_LOGIN;
+    if( strcmp(name, "play_chosen") == 0 )
+        return RS_TITLE_ACTION_PLAY_CHOSEN;
+    if( strcmp(name, "switch_character") == 0 )
+        return RS_TITLE_ACTION_SWITCH_CHARACTER;
+    if( strcmp(name, "choose_account") == 0 )
+        return RS_TITLE_ACTION_CHOOSE_ACCOUNT;
+    if( strcmp(name, "sign_out") == 0 )
+        return RS_TITLE_ACTION_SIGN_OUT;
     return RS_TITLE_ACTION_NONE;
 }

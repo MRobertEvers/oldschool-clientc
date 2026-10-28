@@ -292,6 +292,24 @@ app_host_request(
                 app_title_state_changed(app);
             return 0;
         }
+        /* The accounts screen's one Play Now plays the chosen account. */
+        if( action == RS_TITLE_ACTION_PLAY_CHOSEN )
+        {
+            if( RS_Title_PlayAccount(&app->title, app->title.chosen_account) )
+                app_title_state_changed(app);
+            return 0;
+        }
+        if( action == RS_TITLE_ACTION_CHOOSE_ACCOUNT )
+        {
+            if( RS_Title_ChooseAccount(&app->title, req->u.title_action.index) )
+                app_title_state_changed(app);
+            return 0;
+        }
+        if( action == RS_TITLE_ACTION_SIGN_OUT )
+        {
+            app_title_sign_out(app);
+            return 0;
+        }
         if( RS_Title_HandleAction(&app->title, action) )
         {
             /* The form is greeted with a prompt rather than an empty box, and

@@ -1819,6 +1819,11 @@ app_session_resume_parse(
 void
 app_session_resume_forget(void);
 
+/** Sign the page out of its site login (the gate's /logout). The browser's
+ *  only; a native client has no site login and this does nothing there. */
+void
+app_session_site_sign_out(void);
+
 /** Whose session is being held, or "" for none. The page holds the token;
  *  this side keeps only the name, which is what makes the rule observable
  *  from a test on a lane that has no page. */
@@ -1873,6 +1878,11 @@ app_title_music_on(struct App const* app);
 /** The title music button was clicked. */
 void
 app_title_music_toggle(struct App* app);
+
+/** "Sign out" on the accounts screen: the device forgets every account it
+ *  saved, and a page signed in to a site login leaves it. */
+void
+app_title_sign_out(struct App* app);
 
 struct RS_PreloadStep const*
 app_preload_announce(

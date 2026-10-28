@@ -412,6 +412,40 @@ test_link_prompt(void)
                 "link: the prompt's actions resolve");
 }
 
+static void
+test_switch_character(void)
+{
+    struct RS_Title title;
+
+    RS_Title_Init(&title);
+    TEST_ASSERT(title.chosen_account == 0, "the first account is chosen until another is");
+    TEST_ASSERT(!RS_Title_HandleAction(&title, RS_TITLE_ACTION_SWITCH_CHARACTER) &&
+                    title.screen == RS_TITLE_MAIN_MENU,
+                "switch character is the accounts screen's");
+    RS_Title_SetHome(&title, RS_TITLE_ACCOUNTS);
+    TEST_ASSERT(!RS_Title_ChooseAccount(&title, 1) && title.chosen_account == 0,
+                "a card's Select only answers on the characters screen");
+    TEST_ASSERT(RS_Title_HandleAction(&title, RS_TITLE_ACTION_SWITCH_CHARACTER) &&
+                    title.screen == RS_TITLE_CHARACTERS,
+                "switch character shows the cards");
+    TEST_ASSERT(RS_Title_ChooseAccount(&title, 1) && title.chosen_account == 1 &&
+                    title.screen == RS_TITLE_ACCOUNTS,
+                "Select chooses that account and goes back to its Play Now");
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_SWITCH_CHARACTER);
+    RS_Title_HandleAction(&title, RS_TITLE_ACTION_CANCEL);
+    TEST_ASSERT(title.screen == RS_TITLE_ACCOUNTS && title.chosen_account == 1,
+                "Back goes home and keeps the choice");
+    TEST_ASSERT(!RS_Title_HandleAction(&title, RS_TITLE_ACTION_SIGN_OUT) &&
+                    !RS_Title_HandleAction(&title, RS_TITLE_ACTION_PLAY_CHOSEN),
+                "sign out and the chosen Play Now are the app's");
+    TEST_ASSERT(RS_Title_ActionFromName("play_chosen") == RS_TITLE_ACTION_PLAY_CHOSEN &&
+                    RS_Title_ActionFromName("switch_character") ==
+                        RS_TITLE_ACTION_SWITCH_CHARACTER &&
+                    RS_Title_ActionFromName("choose_account") == RS_TITLE_ACTION_CHOOSE_ACCOUNT &&
+                    RS_Title_ActionFromName("sign_out") == RS_TITLE_ACTION_SIGN_OUT,
+                "the accounts screen's actions resolve");
+}
+
 int
 main(void)
 {
@@ -433,6 +467,7 @@ main(void)
     test_action_names();
     test_accounts_screen();
     test_link_prompt();
+    test_switch_character();
 
     if( g_failures )
     {

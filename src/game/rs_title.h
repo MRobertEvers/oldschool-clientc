@@ -55,6 +55,12 @@ enum RS_TitleScreen
      * is RS_Title::link_choice. Ours, like RS_TITLE_ACCOUNTS.
      */
     RS_TITLE_LINK_PROMPT = 11,
+    /**
+     * "Switch character": every account's card, each choosing that account
+     * for the accounts screen's Play Now, and the way to a different one.
+     * Jagex's phone app has the button; what it opens is ours.
+     */
+    RS_TITLE_CHARACTERS = 12,
 };
 
 enum RS_TitleField
@@ -94,6 +100,16 @@ enum RS_TitleAction
     /** The link prompt's two answers (RS_TITLE_LINK_PROMPT). */
     RS_TITLE_ACTION_LINK_ACCOUNT,
     RS_TITLE_ACTION_PLAIN_LOGIN,
+    /** The accounts screen's one Play Now: the chosen account's. */
+    RS_TITLE_ACTION_PLAY_CHOSEN,
+    /** "Switch character": the cards (RS_TITLE_CHARACTERS). */
+    RS_TITLE_ACTION_SWITCH_CHARACTER,
+    /** A card's "Select"; the button's index= says which. Taken by
+     *  RS_Title_ChooseAccount, since it carries an index. */
+    RS_TITLE_ACTION_CHOOSE_ACCOUNT,
+    /** "Sign out": the App's -- it forgets the device's accounts and leaves
+     *  the site login. */
+    RS_TITLE_ACTION_SIGN_OUT,
 };
 
 /** What the link prompt was answered with; the app takes it. */
@@ -177,6 +193,10 @@ struct RS_Title
     /** A Play Now was pressed: the account's index, or -1. The app takes it,
      *  as it takes submit_requested. */
     int play_requested;
+    /** The account the accounts screen's Play Now plays: a card index, 0 --
+     *  the first, the one signed in with last -- until another is chosen. The
+     *  app clamps it to the cards it has. */
+    int chosen_account;
     /** The link prompt's answer; the app takes it and sets it back. */
     enum RS_TitleLinkChoice link_choice;
 };
@@ -216,6 +236,14 @@ RS_Title_SetHome(
  *  changed; a press while one is already pending is ignored. */
 int
 RS_Title_PlayAccount(
+    struct RS_Title* title,
+    int index);
+
+/** A card's "Select" on the characters screen: account `index` becomes the
+ *  accounts screen's Play Now, and that screen comes back. Returns nonzero
+ *  when the model changed. */
+int
+RS_Title_ChooseAccount(
     struct RS_Title* title,
     int index);
 

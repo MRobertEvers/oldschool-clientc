@@ -270,6 +270,7 @@ app_title_sync_groups(struct App* app)
         "title_form_group",
         "title_info_group",
         "title_accounts_group",
+        "title_characters_group",
         "title_link_group",
         "title_progress_group",
     };
@@ -280,6 +281,7 @@ app_title_sync_groups(struct App* app)
         RS_TITLE_LOGIN_FORM,
         RS_TITLE_INFO,
         RS_TITLE_ACCOUNTS,
+        RS_TITLE_CHARACTERS,
         RS_TITLE_LINK_PROMPT,
         -1,
     };
@@ -383,6 +385,7 @@ app_title_layout_accounts(struct App* app)
     int const centre_x = 309;
     int shown;
     int32_t icon;
+    int32_t chosen;
 
     assert(app);
     assert(app->tree);
@@ -426,9 +429,22 @@ app_title_layout_accounts(struct App* app)
             UITree_SetTextAt(app->tree, name, app_title_card_name(app, i));
     }
 
+    /* The accounts screen's one Play Now: the chosen account, or the first
+     * -- the one signed in with last -- when the chosen one has gone. */
+    if( app->title.chosen_account >= shown )
+        app->title.chosen_account = 0;
+    chosen = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_chosen_name");
+    if( chosen >= 0 )
+        UITree_SetTextAt(
+            app->tree, chosen, shown > 0 ? app_title_card_name(app, app->title.chosen_account) : "");
+
     icon = UITree_RoleNodeByName(app->tree, &app->ui_roles, "title_form_accounts_icon");
     if( icon >= 0 )
         UITree_SetScreenHiddenAt(app->tree, icon, shown == 0);
+    /* No cards left (a sign-out): the characters screen has nothing to show
+     * and goes the way the accounts screen does. */
+    if( shown == 0 && app->title.screen == RS_TITLE_CHARACTERS )
+        RS_Title_SetScreen(&app->title, RS_TITLE_ACCOUNTS);
     RS_Title_SetHome(&app->title, shown > 0 ? RS_TITLE_ACCOUNTS : RS_TITLE_MAIN_MENU);
 }
 
@@ -489,6 +505,26 @@ app_accounts_begin_signin(
     ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_AccountSignIn(&app->signin));
     RS_Title_SetMessages(&app->title, connecting, NULL, NULL);
     app->screen = APP_SCREEN_CONNECTING;
+    app_title_state_changed(app);
+}
+
+void
+app_title_sign_out(struct App* app)
+{
+    assert(app);
+    /* What the device saved goes: every refresh token it was keeping. */
+    if( app->accounts.count > 0 )
+    {
+        while( app->accounts.count > 0 )
+            RS_Accounts_Forget(&app->accounts, app->accounts.count - 1);
+        app_accounts_save(app);
+    }
+    app->title.chosen_account = 0;
+    /* A site login's linked accounts are its own cards: leaving them means
+     * leaving the login, which the page does (and reloads past). */
+    if( app->site.signed_in )
+        app_session_site_sign_out();
+    RS_Title_SetMessages(&app->title, NULL, NULL, NULL);
     app_title_state_changed(app);
 }
 
