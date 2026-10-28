@@ -109,7 +109,7 @@ open_resolve_sprite(
     struct Task_InterfaceOpen* self = (struct Task_InterfaceOpen*)ud;
     int scene_id;
     assert(self && self->bridge);
-    if( graphic_id <= 0 )
+    if( graphic_id < 0 )
         return -1;
     scene_id = UITreeSceneBridge_EnsureSprite(self->bridge, graphic_id);
     if( scene_id < 0 )

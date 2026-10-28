@@ -214,7 +214,7 @@ task_cs2_resolve_sprite(
 {
     struct UITreeSceneBridge* bridge = (struct UITreeSceneBridge*)ud;
     assert(bridge);
-    if( graphic_id <= 0 )
+    if( graphic_id < 0 )
         return -1;
     return UITreeSceneBridge_EnsureSprite(bridge, graphic_id);
 }

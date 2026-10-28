@@ -397,7 +397,7 @@ bake_resolve_sprite(void* ud, int graphic_id)
 {
     struct UITreeBuilder* builder = (struct UITreeBuilder*)ud;
     assert(builder && builder->provider);
-    if( graphic_id <= 0 )
+    if( graphic_id < 0 )
         return -1;
     if( !CacheProvider_SpriteHas(builder->provider, graphic_id) )
     {

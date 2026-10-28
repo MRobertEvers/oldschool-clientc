@@ -361,7 +361,10 @@ UITreeSceneBridge_EnsureSprite(
     assert(bridge->scene);
     assert(bridge->provider);
 
-    if( cache_graphic_id <= 0 )
+    /* -1 is the only "no sprite" (deob class308.getSprite); sprite 0 is real.
+     * Refusing it blanked Wind Strike's 40px icon, param_599 = 0, in a
+     * filtered spellbook. */
+    if( cache_graphic_id < 0 )
         return -1;
 
     scene_id = bridge_map_get(bridge->sprite_map, cache_graphic_id);

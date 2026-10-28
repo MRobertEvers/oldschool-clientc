@@ -109,9 +109,9 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_RS_GRAPHIC;
         if( comp->graphic_scene_id > 0 )
             scene_id = comp->graphic_scene_id;
-        else if( resolve_sprite && comp->graphic > 0 )
+        else if( resolve_sprite && comp->graphic >= 0 )
             scene_id = resolve_sprite(resolve_ud, comp->graphic);
-        if( resolve_sprite && comp->graphic_active > 0 )
+        if( resolve_sprite && comp->graphic_active >= 0 )
             scene_id_active = resolve_sprite(resolve_ud, comp->graphic_active);
         spec.u.rs_graphic.scene_id = scene_id;
         spec.u.rs_graphic.atlas_index = comp->graphic_atlas_index;

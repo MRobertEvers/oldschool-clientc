@@ -80,9 +80,9 @@ collect_from_pack(
     for( int i = 0; i < pack->component_count; i++ )
     {
         struct ToriRS_Component const* c = &pack->components[i];
-        if( c->graphic > 0 )
+        if( c->graphic >= 0 )
             unique_id_add(mem, &self->sprite_ids, &self->sprite_count, &self->sprite_cap, c->graphic);
-        if( c->graphic_active > 0 )
+        if( c->graphic_active >= 0 )
             unique_id_add(
                 mem, &self->sprite_ids, &self->sprite_count, &self->sprite_cap, c->graphic_active);
         for( int s = 0; c->inv_slots && s < TORIRS_INV_SLOT_MAX; s++ )
