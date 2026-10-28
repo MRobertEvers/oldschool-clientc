@@ -1,8 +1,8 @@
 /*
  * torirs_chrome_inkwell.c -- the touch marker's artwork, drawn.
  *
- * @see torirs_chrome_inkwell.h for why this is authored rather than baked out
- * of a cache, and why it fires on every touch when the cross does not.
+ * @see torirs_chrome_inkwell.h: the fallback for a profile whose cache has no
+ * tap art (an OSRS lane binds clickcircle_filled with `sprite=` instead).
  *
  * Everything here is plain arithmetic over a square of ARGB, sized in points
  * and drawn at the display's density (@see ToriRSInkwell_SetDensity). There is

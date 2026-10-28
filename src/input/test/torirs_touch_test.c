@@ -462,18 +462,11 @@ main(void)
 
     /* ---- the press a drag pushes arrives ALREADY dragging ---- */
     /*
-     * The touch marker (the inkwell) is drawn for a tap and must not be drawn
-     * for a drag, and app.c decides that by asking the INPUT layer --
-     * LibToriRS_Input_IsDragging -- so a finger and a mouse are answered by
-     * one gesture policy rather than two.
-     *
-     * A mouse press is a tap until the hand travels, so the marker goes up and
-     * a later frame takes it back. A finger's press has no such frame: the
-     * button is pushed only once the 12px slop is already crossed, and what
-     * has to carry it past the input layer's own 5px deadzone is the move that
-     * follows it in the SAME batch -- pushed from the finger's START, so the
-     * delta is the travel and not a jump. Break that pairing and every swipe
-     * flashes a ripple at the point it grabbed.
+     * A finger's press is pushed only once the 12px slop is already crossed,
+     * and what has to carry it past the input layer's own 5px deadzone is the
+     * move that follows it in the SAME batch -- pushed from the finger's
+     * START, so the delta is the travel and not a jump. Break that pairing and
+     * a swipe reads as a tap at the point it grabbed.
      */
     CmdBus_Init(&bus);
     ToriRS_TouchReset(&touch);

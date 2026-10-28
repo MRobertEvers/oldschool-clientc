@@ -164,15 +164,16 @@ enum UITreeComponentType
      *  takes. The LABEL beside it is a child rs_text, as with a button. */
     UIELEM_BUILTIN_LOGIN_TOGGLE = 37,
     /**
-     * Touch marker -- the "inkwell". Shown for EVERY touch, which is the whole
-     * difference from UIELEM_BUILTIN_CROSS: the cross marks a click that
-     * resulted in something, and on a touchscreen a tap that draws nothing is
-     * indistinguishable from a tap the device never received.
+     * Touch marker -- the "inkwell": Jagex's mobile client draws an expanding
+     * disc where the cross would be, on the cross's arming (a walk or a world
+     * op, never an interface tap) and for the cross's 400 ms.
      *
      * A builtin for the same reason CROSS is: no interface owns it, the
-     * reference plots it straight onto the canvas. Its artwork and its colour
-     * rules are revconfig's (`style=`, `walk_color=`, `interact_color=`), and a
-     * profile overrides them with a `[component:<name>@mobile]` section.
+     * reference plots it straight onto the canvas. Its artwork is revconfig's:
+     * `sprite=` names the cache pack (OSRS: clickcircle_filled, 20 yellow then
+     * 20 red frames), and a profile with no such pack falls back to the
+     * generated `style=`. A profile switches it on with a
+     * `[component:<name>@mobile]` section over the cross.
      *
      * @see ui/torirs_chrome_inkwell.h, ui/uitree_ink.h.
      */
@@ -969,14 +970,14 @@ struct UITreeComponent
             int mask_atlas_index;
         } sprite;
         /*
-         * UIELEM_BUILTIN_INKWELL. No scene id here: the artwork is generated
-         * and uploaded once into a single scene entry holding every style and
-         * colour, so what a component carries is a CHOICE and not a binding.
-         * -1 for any of these means "the profile said nothing", and the host
+         * UIELEM_BUILTIN_INKWELL. `scene_id` is the cache pack `sprite=` bound
+         * (-1: none, draw the generated `style=` atlas instead). -1 for the
+         * other three means "the profile said nothing", and the host
          * substitutes its default. @see ui/torirs_chrome_inkwell.h.
          */
         struct
         {
+            int scene_id;
             int style;
             int walk_color;
             int interact_color;
@@ -1836,10 +1837,10 @@ struct UITreeNodeSpec
             int mask_scene_id;
             int mask_atlas_index;
         } sprite;
-        /* UIELEM_BUILTIN_INKWELL: a CHOICE of artwork, not a binding to one.
-         * @see the matching member on UITreeComponent. */
+        /* UIELEM_BUILTIN_INKWELL. @see the matching member on UITreeComponent. */
         struct
         {
+            int scene_id;
             int style;
             int walk_color;
             int interact_color;

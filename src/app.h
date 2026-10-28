@@ -2174,10 +2174,23 @@ struct App
     struct SeqLoadTracker seq_loads;
     struct InterfaceOpenStats open_stats;
     struct UICross cross;
-    /* The touch marker. Separate from `cross` because it is shown for EVERY
-     * touch, before anything has decided what the touch meant -- @see
-     * ui/uitree_ink.h for why that cannot be a mode on the cross. */
+    /* The touch marker: armed with the cross (app_cross_show), drawn instead
+     * of it on a lane whose profile says `cross@mobile` -> inkwell. @see
+     * ui/uitree_ink.h. */
     struct UIInk ink;
+    /*
+     * The tap mark: the npc or loc a touch's op landed on, outlined while the
+     * cross runs. A fingertip covers what it taps, and the red cross says an
+     * op went out but not which of the models under the finger took it; the
+     * outline answers that. Touch lane only (`touch_ui`) -- a mouse leaves its
+     * pointer on the target. Set in app_minimenu_run_option, drawn by
+     * app_overlay_build_tap_mark. `until_ms` 0 = none.
+     */
+    struct
+    {
+        int element_id;
+        uint64_t until_ms;
+    } tap_mark;
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;

@@ -776,15 +776,16 @@ push_builtin_op(
         spec.u.sprite.atlas_index = 0;
         break;
     /*
-     * The touch marker carries a CHOICE of artwork, not a binding to one: the
-     * generated atlas holds every style and colour, so there is no sprite_id
-     * to resolve and nothing here to look up in the cache.
+     * The touch marker's artwork is the cache pack `sprite=` names when the
+     * profile names one (OSRS: clickcircle_filled), and the generated atlas
+     * chosen by `style=` when it does not -- a dat1 cache has no tap art.
      *
      * always_dirty for the same reason the cross is: it animates, so its box
      * has to be repainted every frame it is alive.
      */
     case UIELEM_BUILTIN_INKWELL:
         spec.always_dirty = 1;
+        spec.u.inkwell.scene_id = sprite_id;
         spec.u.inkwell.style = op->ink_style;
         spec.u.inkwell.walk_color = op->ink_walk_color;
         spec.u.inkwell.interact_color = op->ink_interact_color;
@@ -796,7 +797,8 @@ push_builtin_op(
         /* REPORT, not LOG: TORIRS_LOG compiles out under NDEBUG, which is the
          * optimized build this actually ships as. */
         TORIRS_REPORT(
-            "inkwell: style=%s walk=%d interact=%d\n",
+            "inkwell: sprite=%s style=%s walk=%d interact=%d\n",
+            op->sprite_ref[0] ? op->sprite_ref : "(generated)",
             ToriRSInkwell_StyleName(op->ink_style),
             op->ink_walk_color,
             op->ink_interact_color);

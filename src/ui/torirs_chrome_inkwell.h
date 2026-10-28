@@ -4,29 +4,23 @@
 #include <stdint.h>
 
 /*
- * The touch marker -- the "inkwell" -- authored here rather than baked.
+ * The touch marker -- the "inkwell" -- generated artwork, for a profile whose
+ * cache has no tap art.
  *
- * WHY THIS IS DRAWN AND NOT BAKED
+ * WHERE THE REAL ONE COMES FROM
  *
- * Every other piece of chrome art in this tree comes out of a cache through
- * 3rd/rscache/tools/spritebake (see engine/torirs_chrome_skin_baked.c, which
- * says "GENERATED -- do not edit" at the top). That works because those sprites
- * EXIST in a cache. This one does not: no revision ever shipped a touch marker,
- * because no revision this client reproduces ran on a phone. So it has to be
- * authored, and authoring it as code rather than as a pixel array is what makes
- * three styles and two colours cheap instead of six blobs of hex.
+ * Jagex's mobile client draws a cache sprite: OSRS ships `clickcircle_filled`
+ * (pack 1625), 20 yellow then 20 red hard-edged discs growing 26 -> 64 px in
+ * a 64x64 canvas (also `clickcircle_outline` 1626). A profile binds it with
+ * `sprite=` on the inkwell component, and that is what an OSRS lane draws.
+ * What follows is the fallback for a cache without such a pack (dat1 eras):
+ * the frames are drawn here rather than baked, and authoring them as code is
+ * what makes three styles and two colours cheap instead of six blobs of hex.
  *
- * WHAT IT IS FOR
+ * WHEN IT IS SHOWN
  *
- * The cross (ui/uitree_cross.c) marks a click that RESULTED IN SOMETHING -- a
- * walk, an interaction. Plenty of taps produce neither: a tap on an interface
- * widget, a tap that missed, a tap during a modal. On a mouse that is fine,
- * because the pointer is visible and the user knows the machine saw it. On a
- * touchscreen there is no pointer, and a tap that draws nothing is
- * indistinguishable from a tap the device never received.
- *
- * So this fires on EVERY touch, and that is the whole difference from the
- * cross. It answers "did that register?", which is a question only touch has.
+ * Where the cross would be: a walk or a world op (app_cross_show), never an
+ * interface tap -- @see ui/uitree_ink.h.
  */
 
 /**

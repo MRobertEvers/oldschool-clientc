@@ -72,9 +72,7 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_MOBILE_GAMEFRAME,
     &TORIRS_PLUGIN_ITEM_STATS,
     /* The two trackers, beside the other readouts. Both are PAGES and neither
-     * draws on the canvas, which is why they are on by default where
-     * xp-drop-orbs is not: nothing appears on a fresh install until the player
-     * opens the panel and asks. */
+     * draws on the canvas. */
     &TORIRS_PLUGIN_XP_TRACKER,
     &TORIRS_PLUGIN_LOOT_TRACKER,
     &TORIRS_PLUGIN_NXT_HIGHLIGHT,

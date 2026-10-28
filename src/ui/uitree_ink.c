@@ -25,23 +25,6 @@ UIInk_Show(struct UIInk* ink, int colour, int x, int y)
 }
 
 void
-UIInk_SetColour(struct UIInk* ink, int colour)
-{
-    assert(ink);
-    if( !ink->active )
-        return;
-    ink->colour = colour;
-}
-
-void
-UIInk_Cancel(struct UIInk* ink)
-{
-    assert(ink);
-    ink->active = 0;
-    ink->cycle = 0;
-}
-
-void
 UIInk_Tick(struct UIInk* ink, int delta_ms)
 {
     assert(ink);
@@ -57,6 +40,21 @@ UIInk_IsActive(struct UIInk const* ink)
 {
     assert(ink);
     return ink->active != 0;
+}
+
+int
+UIInk_FrameOf(struct UIInk const* ink, int frames)
+{
+    int frame;
+
+    assert(ink);
+    assert(frames > 0);
+    frame = ink->cycle * frames / UI_INK_LIFE_MS;
+    if( frame < 0 )
+        frame = 0;
+    if( frame >= frames )
+        frame = frames - 1;
+    return frame;
 }
 
 int

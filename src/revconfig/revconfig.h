@@ -926,8 +926,9 @@ struct RevConfigUIComponentItem
 
     /* ---- type=inkwell -------------------------------------------------
      *
-     * INI: style= (splash|blot|ripple), walk_color= / interact_color=
-     * (yellow|red).
+     * INI: sprite= (the cache tap pack; OSRS: clickcircle_filled), style=
+     * (splash|blot|ripple: generated art, used when no sprite= is bound),
+     * walk_color= / interact_color= (yellow|red).
      *
      * The colours are configurable rather than fixed because "yellow walks,
      * red interacts" is a REVISION's convention, not a law -- and a world that

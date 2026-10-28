@@ -2132,6 +2132,27 @@ app_minimenu_close_if_stale(struct App* app)
     }
 }
 
+/*
+ * Arm the click cross and the touch marker together. Jagex's phone draws its
+ * clickcircle where the desktop draws the cross -- the same walks and world
+ * ops, never an interface tap -- so the two share every arming site, and only
+ * the profile decides which one a lane draws (`cross@mobile` -> inkwell).
+ */
+static void
+app_cross_show(
+    struct App* app,
+    enum UICrossMode mode,
+    int x,
+    int y)
+{
+    UICross_Show(&app->cross, mode, x, y);
+    UIInk_Show(
+        &app->ink,
+        mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW,
+        x,
+        y);
+}
+
 int
 app_minimenu_run_option(
     struct App* app,
@@ -2181,14 +2202,16 @@ app_minimenu_run_option(
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
         if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
         {
-            UICross_Show(&app->cross, cross_mode, click_x, click_y);
-            /* Same answer, applied to the marker that is already running.
-             * Inside the guard, not beside it: a row that shows no cross has
-             * decided nothing about what the press meant, and the marker is
-             * already yellow -- "a touch happened" -- from the press itself. */
-            UIInk_SetColour(
-                &app->ink,
-                cross_mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW);
+            app_cross_show(app, cross_mode, click_x, click_y);
+            /* Same guard: only an op the cross marks outlines its target, so
+             * Examine and the UI rows mark nothing. */
+            if( app->touch_ui &&
+                (opt.pick.kind == UI_MINIMENU_PICK_NPC ||
+                 opt.pick.kind == UI_MINIMENU_PICK_SCENERY) )
+            {
+                app->tap_mark.element_id = opt.pick.id;
+                app->tap_mark.until_ms = app->last_frame_ms + APP_TAP_MARK_MS;
+            }
         }
     }
 
@@ -2930,12 +2953,12 @@ app_minimenu_run_option(
                 app,
                 net_out_client_cheat(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_cmd));
-            UICross_Show(&app->cross, UI_CROSS_INTERACT, click_x, click_y);
+            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y);
         }
         return 0;
     case UI_MINIMENU_PICK_HEADING:
         if( app_sailing_send_heading(app, opt.pick.id) )
-            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_TERRAIN:
         /*
@@ -2985,7 +3008,7 @@ app_minimenu_run_option(
                     deck_route_z,
                     1,
                     app->ctrl_held));
-            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
             return 0;
         }
         /* ABOARD, a ROOT ground click cannot gate on the client BFS below —
@@ -3012,7 +3035,7 @@ app_minimenu_run_option(
                     route_z,
                     1,
                     app->ctrl_held));
-            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
             return 0;
         }
 
@@ -3032,7 +3055,7 @@ app_minimenu_run_option(
          * the router refuses leaves the screen alone. */
         if( app_try_move(
                 app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
-            UICross_Show(&app->cross, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -3171,7 +3194,7 @@ app_minimenu_run_option(
                         abs_z,
                         loc_id));
             }
-            UICross_Show(&app->cross, UI_CROSS_INTERACT, click_x, click_y);
+            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y);
             return 0;
         }
 

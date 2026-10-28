@@ -1840,6 +1840,29 @@ app_watch_outline_tile(
 }
 
 /**
+ * The tap mark (App::tap_mark): the npc or loc a touch's op went to, outlined
+ * in the interact cross's red until the cross goes out. The mesh hull, not the
+ * bounds box, because the point is to say WHICH model under the finger took
+ * the tap, and a box around every npc's widest pose says that badly. No fill:
+ * a wash would hide the thing being pointed at.
+ */
+void
+app_overlay_build_tap_mark(struct App* app)
+{
+    assert(app);
+    if( app->tap_mark.until_ms == 0 )
+        return;
+    if( app->last_frame_ms >= app->tap_mark.until_ms )
+    {
+        app->tap_mark.until_ms = 0;
+        return;
+    }
+    /* A model that has gone (despawned, out of view) draws nothing. */
+    (void)app_overlay_outline_element_mesh_trans(
+        app, app->tap_mark.element_id, APP_TAP_MARK_COLOR, -1);
+}
+
+/**
  * The press outline, on the world list of the PRESENTED frame (called with
  * the hover footprint, app_build_entity_overlays). One predicted branch when
  * no script's view is attached.

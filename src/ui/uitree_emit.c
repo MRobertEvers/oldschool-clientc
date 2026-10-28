@@ -840,41 +840,45 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_INKWELL:
     {
         /*
-         * The touch marker. Unlike the cross above, whose sprite pack comes
-         * from the cache through `sprite=`, this artwork is generated
-         * (ui/torirs_chrome_inkwell.c) and lives in one scene entry holding
-         * every style and colour -- so the component's configured style is an
-         * atlas index and never an upload.
+         * The touch marker. The cache pack `sprite=` bound when there is one
+         * (OSRS: clickcircle_filled), drawn at its own canvas size like the
+         * cross; otherwise the generated atlas (ui/torirs_chrome_inkwell.c),
+         * one scene entry holding every style and colour.
          */
         int cx = 0;
         int cy = 0;
         int atlas = 0;
+        int size = 0;
+        int scene_id = component->u.inkwell.scene_id;
         struct UITreeHostRequest req = {
             .kind = UITREE_HOST_GET_INKWELL,
             .u.get_inkwell = {
                 .style = component->u.inkwell.style,
                 .walk_color = component->u.inkwell.walk_color,
                 .interact_color = component->u.inkwell.interact_color,
+                .scene_id = scene_id,
                 .out_x = &cx,
                 .out_y = &cy,
                 .out_atlas_index = &atlas,
+                .out_size = &size,
             },
         };
-        struct UITreeHostRequest scene_req = { .kind = UITREE_HOST_GET_INKWELL_SCENE };
-        int scene_id;
 
         if( !UITree_Host(host, &req) )
             return false; /* no marker running this frame */
-        scene_id = UITree_Host(host, &scene_req);
         if( scene_id <= 0 )
-            return false;
+        {
+            struct UITreeHostRequest scene_req = { .kind = UITREE_HOST_GET_INKWELL_SCENE };
+            scene_id = UITree_Host(host, &scene_req);
+            if( scene_id <= 0 )
+                return false;
+        }
 
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = scene_id;
         out->atlas_index = atlas;
-        /* Centred on the touch, like the cross -- the frames are drawn about
-         * their own centre so the marker does not drift as it grows. */
-        int const size = ToriRSInkwell_Size();
+        /* Centred on the touch, like the cross -- every frame sits centred in
+         * the same square, so the marker does not drift as it grows. */
         out->x = cx - (size / 2);
         out->y = cy - (size / 2);
         out->w = size;

@@ -943,6 +943,7 @@ app_build_entity_overlays(
     /* What the script's runner just pressed, outlined in the watcher's own
      * projection (a no-op with one view). */
     app_overlay_build_watch_world(app);
+    app_overlay_build_tap_mark(app);
 
     /*
      * Plugins last, so their marks layer above every built-in in this pass.

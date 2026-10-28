@@ -482,9 +482,15 @@ struct UITreeHostRequest
             int style;
             int walk_color;
             int interact_color;
+            /* In: the cache pack `sprite=` bound (a yellow run of frames, then
+             * a red run of the same length), or <= 0 for the generated atlas. */
+            int scene_id;
             int* out_x;
             int* out_y;
             int* out_atlas_index;
+            /* Out: the frame's square, in canvas pixels -- the pack's padded
+             * canvas, or ToriRSInkwell_Size() for the generated atlas. */
+            int* out_size;
         } get_inkwell;
         struct
         {

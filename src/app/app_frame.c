@@ -1178,67 +1178,6 @@ App_RunOnce(
      * per-cycle timer, and the repeat is what puts the tooltip back. */
     app->interact.client_cycle = app->logic_cycle;
 
-    /*
-     * The touch marker, shown for every press that is not a drag.
-     *
-     * Here, and not where the cross is set, because that is the point: the
-     * cross is shown by the paths that DID something, and a tap that hits a
-     * widget, misses every target, or lands during a modal shows nothing at
-     * all. On a touchscreen there is no pointer to prove the device saw it, so
-     * the marker goes up before anything has decided what the press meant.
-     *
-     * The colour is the walk one at this stage -- "a touch happened". If the
-     * press turns out to be an interaction, RS_Minimenu's cross path refines it
-     * through UIInk_SetColour a moment later, in the same frame, without
-     * restarting the animation.
-     *
-     * BEFORE the interact walk, and the order is load-bearing: a touch tap
-     * delivers its press and release in ONE command batch (touch_click), so
-     * the frame that shows the marker is also the frame whose click dispatch
-     * refines it. SetColour on an ink not yet shown is a no-op, and a Show
-     * after the dispatch repaints the refinement yellow -- either wrong order
-     * is a tap that never turns red, however red the cross says it was.
-     *
-     * Costs nothing on a lane with no inkwell component: the state ticks and
-     * the emit never asks for it.
-     *
-     * ## Not for a drag
-     *
-     * A drag is not a tap: the finger scrolling a list, turning the camera or
-     * carrying an inventory slot is being followed continuously and needs no
-     * proof the glass saw it, and a ripple parked at the grab point for the
-     * rest of the gesture is noise.
-     *
-     * The question is asked of the input layer's gesture state rather than
-     * re-derived here, because that is where a MOUSE drag is already decided
-     * (press origin, the 5px deadzone, the dead time -- try_start_drag in
-     * input/torirs_input.c) and both pointers must answer it the same way.
-     *
-     * Both halves are needed and they catch different lanes:
-     *
-     *  - The CANCEL is the mouse's. Its press is a tap until it isn't: the
-     *    marker goes up on the press edge and comes back down some frames
-     *    later, when the hand has travelled far enough to be a drag.
-     *  - The SUPPRESSION is the finger's. torirs_touch.c holds the button
-     *    back until the finger passes the 12px touch slop, then pushes the
-     *    down at the START point followed by a move to where the finger now
-     *    is -- both in one batch, so the deadzone is already crossed and the
-     *    press arrives ALREADY dragging. There is no later edge to cancel on;
-     *    the marker simply must not go up.
-     */
-    if( LibToriRS_Input_IsDragging(input, TORIRSM_LEFT) ||
-        LibToriRS_Input_IsDragging(input, TORIRSM_RIGHT) ||
-        LibToriRS_Input_IsDragging(input, TORIRSM_MIDDLE) )
-    {
-        UIInk_Cancel(&app->ink);
-    }
-    else if(
-        input->curr.mouse_button_down[TORIRSM_LEFT] ||
-        input->curr.mouse_button_down[TORIRSM_RIGHT] )
-    {
-        UIInk_Show(&app->ink, TORIRS_INKWELL_YELLOW, input->curr.mouse_x, input->curr.mouse_y);
-    }
-
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_INTERACT)
     {
         UITree_InteractFrameWithPointerOwner(

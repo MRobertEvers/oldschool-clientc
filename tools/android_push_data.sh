@@ -105,21 +105,18 @@ echo "==> plugin assets"
 adb_ shell "mkdir -p '${DEST}/script'" >/dev/null
 adb_ push "${REPO_ROOT}/script/plugins" "${DEST}/script/" >/dev/null
 
-# Which plugins are ON, and how they are configured.
+# How the plugins are configured. Every one ships OFF, here as on the desktop.
 #
 # The phone reads `plugin_prefs.ini` beside the rest of its data, and the repo
-# keeps TWO of those files because the two hosts want different plugins: the
-# desktop one at the root, and `plugin_prefs.mobile.ini` -- mobile-gameframe,
-# the minimap orbs, the unlocked camera band -- which exists for no other
-# purpose than to be this device's.
+# keeps TWO of those files because the two hosts want different settings: the
+# desktop one at the root, and `plugin_prefs.mobile.ini` -- the unlocked camera
+# band, and the phone's tuned values for a plugin a player turns on -- which
+# exists for no other purpose than to be this device's.
 #
 # It goes every time, with the manifests and the art, because without it the
-# device keeps whatever file was last written THERE. A phone that was last set
-# up weeks ago then boots a lane with the plugins of weeks ago and no amount of
-# rebuilding changes it: the frame comes up as the cache's own 2004 chrome, and
-# the touch frame the mobile lane is written for -- its chat sheet, the
-# tap-to-chat line, the keyboard-safe area -- is simply not in the session. It
-# reads as "the chat is gone", which is nothing like "the settings are stale".
+# device keeps whatever file was last written THERE: a phone set up weeks ago
+# boots with the plugins and settings of weeks ago, and no amount of
+# rebuilding changes it.
 #
 # The device's copy is the client's own writable file, so a plugin toggled on
 # the phone lasts until the next push and no longer. That is the same bargain

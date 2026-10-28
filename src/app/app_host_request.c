@@ -61,9 +61,34 @@ app_host_request(
             *req->u.get_inkwell.out_x = app->ink.x;
         if( req->u.get_inkwell.out_y )
             *req->u.get_inkwell.out_y = app->ink.y;
-        if( req->u.get_inkwell.out_atlas_index )
-            *req->u.get_inkwell.out_atlas_index =
-                ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
+        if( req->u.get_inkwell.scene_id > 0 )
+        {
+            /* The cache pack (OSRS clickcircle_filled, 1625): a yellow run,
+             * then a red run of the same length, each frame padded to the
+             * pack's canvas at load -- so the frame count and the box are the
+             * pack's own, not numbers restated here. */
+            int count = 0;
+            struct ToriDraw_Sprite** frames =
+                ToriDraw_SceneSpriteGet(app->bridge.scene, req->u.get_inkwell.scene_id, &count);
+            int run;
+
+            if( !frames || count < 2 )
+                return 0; /* not resident yet */
+            run = count / 2;
+            if( req->u.get_inkwell.out_atlas_index )
+                *req->u.get_inkwell.out_atlas_index =
+                    (colour == TORIRS_INKWELL_RED ? run : 0) + UIInk_FrameOf(&app->ink, run);
+            if( req->u.get_inkwell.out_size )
+                *req->u.get_inkwell.out_size = frames[0]->width;
+        }
+        else
+        {
+            if( req->u.get_inkwell.out_atlas_index )
+                *req->u.get_inkwell.out_atlas_index =
+                    ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
+            if( req->u.get_inkwell.out_size )
+                *req->u.get_inkwell.out_size = ToriRSInkwell_Size();
+        }
         return 1;
     }
     case UITREE_HOST_GET_INKWELL_SCENE:
