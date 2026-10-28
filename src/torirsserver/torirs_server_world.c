@@ -21,7 +21,6 @@
 #include "torirs_server_gwd_manifest.gen.h"
 #include "torirs_server_music_regions.gen.h"
 #include "game/sailing_settings.h"
-#include "pokesprite/pokesprite_format.h"
 
 #include "torirs_server_container.h"
 #include "torirs_server_shop.h"
@@ -13901,7 +13900,11 @@ ToriRSServer_NoteModalMount(
         /* World map is also opened by content (quest overview's Show on Map),
          * not solely by the minimap-orb router. Keep the generic mount state
          * in sync so its close button and periodic tile sender behave alike. */
-        player->worldmap_open = group == ToriRSServer_Ids()->iface_worldmap;
+        int const open = group == ToriRSServer_Ids()->iface_worldmap;
+
+        if( open && !player->worldmap_open )
+            player->worldmap_opened_tick = srv->tick;
+        player->worldmap_open = open;
     }
 }
 
@@ -15413,13 +15416,6 @@ ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player)
     return player->platform_type == 2 /* ANDROID */ || player->platform_type == 3 /* APPLE */;
 }
 
-int
-ToriRSServer_PlayerIsPokesprite(const struct ToriRSServerPlayer* player)
-{
-    assert(player);
-    return player->client_type == POKESPRITE_CLIENT_TYPE;
-}
-
 /*
  * A varp id by symbol.
  *
@@ -15937,9 +15933,6 @@ world_seat_player(
     {
         player->client_type = session->client_type;
         player->platform_type = session->platform_type;
-        if( ToriRSServer_PlayerIsPokesprite(player) )
-            fprintf(stderr, "torirsserver: '%s' logged in with the PokeSprite 2D client\n",
-                    session->display_name);
     }
     /* Logging in is input, and it has to be stated: the memset's 0 reads as
      * "idle since tick 0", so anyone joining a world older than
@@ -17244,6 +17237,7 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * stream is 3+ bytes of desync, not a late message — and the rebuild on
      * the next line is the first of them.
      */
+    player->login_reconnect = player->session && player->session->reconnect;
     if( player->session && player->session->reconnect )
     {
         ToriRSServer_SendReconnectOk(player);
@@ -17302,6 +17296,66 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
     }
 
     ToriRSServer_WorldLoginFinish(player);
+}
+
+/*
+ * Does this login open on the welcome screen?
+ *
+ * Every Jagex login does, desktop and phone (RSProx index 4339 [0], 4396,
+ * 4367, 4398 [0]); Play is what switches to the layout -- once the player has
+ * left Tutorial Island. A login still on the island opens its layout directly
+ * (index 4289: `tutorial` 1, IF_OPENTOP toplevel_pre_eoc, no welcome screen;
+ * index 4288: `tutorial` 1000, the welcome screen). A reconnect does not either:
+ * it resumes a session that was already past it. And neither does anything
+ * that is not a person at a client: a sessionless scriptrun bot or selftest
+ * player, a content test driving a client (TORIRS_CONTENT_TEST), or a run that
+ * asks (TORIRSSERVER_SKIP_WELCOME) -- those would only wait on a click nobody
+ * makes, and their tick logs stay what they were.
+ */
+static int
+login_shows_welcome(struct ToriRSServerPlayer const* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int const varp_tutorial = ToriRSServer_WorldVarp("varp281_tutorial");
+    int const tutorial_complete = ToriRSServer_ContentConstantInt("tutorial_complete", -1);
+
+    if( !player->session || player->login_reconnect )
+        return 0;
+    if( getenv("TORIRS_CONTENT_TEST") || getenv("TORIRSSERVER_SKIP_WELCOME") )
+        return 0;
+    if( varp_tutorial < 0 || tutorial_complete < 0 ||
+        player->varps[varp_tutorial] < tutorial_complete )
+        return 0;
+    return ids->iface_toplevel_display > 0 && ids->iface_welcome_screen > 0 &&
+           ids->com_toplevel_display_displaymodal > 0;
+}
+
+/*
+ * The welcome screen, as the login burst sends it (identical in indexes 4339,
+ * 4396 and 4367): the message-of-the-week models, welcome_screen modal in
+ * displaymodal, the update-broadcast link and the CRM banner with its Play
+ * button. Jagex sends the two model scripts just before IF_OPENTOP; here they
+ * follow the mount, so the components they address exist when they run.
+ */
+static void
+login_open_welcome_screen(struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int model1[9] = { ids->com_welcome_screen_model1, 62570, 0, 80, 2023, 1954, 0, 2000, 14746 };
+    int model2[9] = { ids->com_welcome_screen_model2, 62123, 0, 0, 294, 393, 0, 500, -1 };
+    const char* broadcast_strv[2] = { "https://osrs.game/UpdateBroadcast", "Learn More" };
+    int const banner_intv[6] = { 781, 1, 1104, 0, -1, -1 };
+    const char* banner_strv[6] = { NULL, NULL, NULL, "Play", NULL, NULL };
+
+    ToriRSServer_SendIfOpensub(player,
+                               TORIRSSERVER_COM_GROUP(ids->com_toplevel_display_displaymodal),
+                               TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_displaymodal),
+                               ids->iface_welcome_screen,
+                               0);
+    ToriRSServer_SendRunClientscript(player, 233, model1, 9);
+    ToriRSServer_SendRunClientscript(player, 233, model2, 9);
+    ToriRSServer_SendRunClientscriptMixed(player, 1080, "ss", NULL, broadcast_strv, 2);
+    ToriRSServer_SendRunClientscriptMixed(player, 1189, "iiisii", banner_intv, banner_strv, 6);
 }
 
 /* Everything that requires the rebuilt scene and its embedded GPI init. */
@@ -17379,7 +17433,21 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
             iface = ids->iface_toplevel_osm;
         if( varp_client_mobile >= 0 )
             ToriRSServer_WorldSetVarpOn(srv, player, varp_client_mobile, mobile ? 1 : 0);
-        ToriRSServer_GameframeOpentop(player, iface);
+        /* A person's client starts on the welcome screen's root; its Play
+         * (`[if_button1,welcome_screen:play]`, player/scripts/welcome_screen.rs2)
+         * switches to `iface`, by the same rule from the same varps. */
+        if( login_shows_welcome(player) )
+        {
+            ToriRSServer_GameframeOpentop(player, ids->iface_toplevel_display);
+            ToriRSServer_SendIfOpensub(player,
+                                       TORIRSSERVER_COM_GROUP(ids->com_toplevel_display_orbs),
+                                       TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_orbs),
+                                       mobile ? ids->iface_orbs_osm : ids->iface_orbs,
+                                       1);
+            login_open_welcome_screen(player);
+        }
+        else
+            ToriRSServer_GameframeOpentop(player, iface);
         args[0] = mode;
         ToriRSServer_ScriptsRunProc(srv, "[proc,gameframe_login_mode]", args, 1);
     }

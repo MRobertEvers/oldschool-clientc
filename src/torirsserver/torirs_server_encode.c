@@ -1704,16 +1704,16 @@ ToriRSServer_SendIfOpentop(
     flush(player, &buf, OP_IF_OPENTOP, 0);
 }
 
-void
-ToriRSServer_SendIfMovesub(
+/* The packet alone. A root switch moves slots between two roots by name, and
+ * the gameframe remap would fold both ends onto the live one. */
+static void
+send_if_movesub_wire(
     struct ToriRSServerPlayer* player,
     int source_uid,
     int dest_uid)
 {
     struct RSAreaBuf buf;
-    source_uid = ToriRSServer_RemapGameframeSlotUid(player, source_uid);
-    dest_uid = ToriRSServer_RemapGameframeSlotUid(player, dest_uid);
-    ToriRSServer_IfStateMoveSub(&player->interfaces, source_uid, dest_uid);
+
     open_packet(&buf, 16);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
@@ -1727,6 +1727,18 @@ ToriRSServer_SendIfMovesub(
         }
     }
     flush(player, &buf, OP_IF_MOVESUB, 0);
+}
+
+void
+ToriRSServer_SendIfMovesub(
+    struct ToriRSServerPlayer* player,
+    int source_uid,
+    int dest_uid)
+{
+    source_uid = ToriRSServer_RemapGameframeSlotUid(player, source_uid);
+    dest_uid = ToriRSServer_RemapGameframeSlotUid(player, dest_uid);
+    ToriRSServer_IfStateMoveSub(&player->interfaces, source_uid, dest_uid);
+    send_if_movesub_wire(player, source_uid, dest_uid);
 }
 
 static void
@@ -1850,6 +1862,56 @@ ToriRSServer_GameframeCarryMounts(
     }
 }
 
+/* VARP_SMALL when it fits its signed byte, as every varp write picks. */
+static void
+send_varp_value(
+    struct ToriRSServerPlayer* player,
+    int varp)
+{
+    int32_t const value = player->varps[varp];
+
+    if( value >= -128 && value <= 127 )
+        ToriRSServer_SendVarpSmall(player, varp, value);
+    else
+        ToriRSServer_SendVarpLarge(player, varp, value);
+}
+
+/*
+ * What follows every root, first or switched to.
+ *
+ * A phone is re-sent one varp at its CURRENT value as each root comes up --
+ * toplevel_temp for toplevel_display, chat_filter_assist for toplevel_osm
+ * (RSProx index 4398: 1021 at [0] and [44], 1055 at [0], [36] and [73]; no
+ * desktop session re-sends either) -- whether or not it changed, which the
+ * mark-on-change path would never do.
+ *
+ * Then `[if_open,<root>]`, which is where content arms the side stones every
+ * switch arms (player/scripts/gameframe_stones.rs2).
+ */
+static void
+gameframe_root_opened(
+    struct ToriRSServerPlayer* player,
+    int group)
+{
+    struct ToriRSServer* srv = player->world;
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+
+    assert(player);
+    if( ToriRSServer_PlayerIsMobile(player) )
+    {
+        int varp = -1;
+
+        if( group == ids->iface_toplevel_display )
+            varp = ToriRSServer_WorldVarp("varp1021_toplevel_temp");
+        else if( group == ids->iface_toplevel_osm )
+            varp = ToriRSServer_WorldVarp("varp1055_chat_filter_assist");
+        if( varp >= 0 )
+            send_varp_value(player, varp);
+    }
+    if( srv && srv->scripts )
+        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_IF_OPEN, group, -1, -1);
+}
+
 void
 ToriRSServer_GameframeOpentop(
     struct ToriRSServerPlayer* player,
@@ -1868,6 +1930,20 @@ ToriRSServer_GameframeOpentop(
     {
         fprintf(stderr, "torirsserver: if_opentop group=%d has no pack name\n", group);
         return;
+    }
+
+    /* A root is already up, so this is a SWITCH, and Jagex makes a switch by
+     * moving what is open rather than opening it again -- a Fixed/Resizable
+     * change (RSProx index 1835) and the welcome screen's Play (4339 [5],
+     * 4398 [36]) alike. Only a session's first root is built from the enum. */
+    {
+        int const live = player->interfaces.root_interface;
+
+        if( live > 0 && live != group && ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, live) )
+        {
+            ToriRSServer_GameframeSwitchTop(player, group);
+            return;
+        }
     }
 
     /* Before IF_OPENTOP, which is what clears the table. */
@@ -1936,6 +2012,130 @@ ToriRSServer_GameframeOpentop(
      * removes stale client-side mounts/event ranges left by an interrupted
      * layout switch. Revision 230's sender is deliberately a no-op. */
     ToriRSServer_SendIfResyncV2(player);
+    gameframe_root_opened(player, group);
+}
+
+/*
+ * The slots a root switch carries, in the order Jagex moves them. RSProx index
+ * 4398 (Android 241.4) switches three times -- display -> osm at the welcome
+ * screen's close [36], osm -> display on the world map's open [44], back on its
+ * close [73] -- and every switch is IF_OPENTOP then these 34 IF_MOVESUBs, the
+ * same list in the same order each time, occupied or not.
+ */
+static const char* const k_switch_top_roles[] = {
+    "chat_container", "mainmodal",  "maincrm",         "overlay_atmosphere", "overlay_hud",
+    "sidemodal",      "side0",      "side1",           "side2",              "side3",
+    "side4",          "side5",      "side6",           "side7",              "side8",
+    "side9",          "side10",     "side11",          "side12",             "side13",
+    "sidecrm",        "pvp_icons",  "pm_container",    "orbs",               "xp_drops",
+    "zeah",           "floater",    "buff_bar",        "stat_boosts_hud",    "helper_content",
+    "hpbar_hud",      "popout",     "tli_listener",    "ui_highlights",
+};
+
+/* `role` on root `top_name`, or <= 0 when that root has no such slot. */
+static int
+switch_top_slot(
+    const char* top_name,
+    const char* role)
+{
+    char name[128];
+
+    snprintf(name, sizeof(name), "%s:%s", top_name, role);
+    return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+}
+
+/* The slot role of a mount on the old root, if the switch carries it. */
+static const char*
+switch_top_role(int uid)
+{
+    const char* name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_COMPONENT, uid);
+    const char* colon = name ? strrchr(name, ':') : NULL;
+
+    if( !colon )
+        return NULL;
+    for( size_t i = 0; i < sizeof(k_switch_top_roles) / sizeof(k_switch_top_roles[0]); i++ )
+        if( strcmp(colon + 1, k_switch_top_roles[i]) == 0 )
+            return k_switch_top_roles[i];
+    return NULL;
+}
+
+void
+ToriRSServer_GameframeSwitchTop(
+    struct ToriRSServerPlayer* player,
+    int group)
+{
+    struct ToriRSServerIfMount carried[TORIRSSERVER_IF_MOUNT_MAX];
+    int carried_count;
+    int old_top;
+    const char* old_name;
+    const char* new_name;
+
+    assert(player);
+    old_top = ToriRSServer_PlayerGameframeIface(player);
+    old_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, old_top);
+    new_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, group);
+    assert(old_name);
+    assert(new_name);
+
+    /* Before IF_OPENTOP, which is what clears the table. */
+    carried_count = player->interfaces.mount_count;
+    assert(carried_count >= 0);
+    assert(carried_count <= TORIRSSERVER_IF_MOUNT_MAX);
+    memcpy(carried, player->interfaces.mounts, (size_t)carried_count * sizeof(carried[0]));
+
+    ToriRSServer_SendIfOpentop(player, group);
+    ToriRSServer_GameframeBindSlots(player, group, new_name);
+
+    for( size_t i = 0; i < sizeof(k_switch_top_roles) / sizeof(k_switch_top_roles[0]); i++ )
+    {
+        int const from = switch_top_slot(old_name, k_switch_top_roles[i]);
+        int const to = switch_top_slot(new_name, k_switch_top_roles[i]);
+
+        if( from > 0 && to > 0 )
+            send_if_movesub_wire(player, from, to);
+    }
+
+    /* The client's table after those moves: a slot on the old root lands on
+     * its namesake, a mount inside a moved interface is untouched, and a slot
+     * the list does not carry is gone with the root that held it. */
+    for( int i = 0; i < carried_count; i++ )
+    {
+        int uid = carried[i].target_uid;
+
+        if( TORIRSSERVER_COM_GROUP(uid) == old_top )
+        {
+            const char* role = switch_top_role(uid);
+
+            uid = role ? switch_top_slot(new_name, role) : 0;
+            if( uid <= 0 )
+            {
+                fprintf(stderr,
+                        "torirsserver: switch to %s drops interface %d -- slot 0x%08x is not carried\n",
+                        new_name,
+                        carried[i].interface_id,
+                        (unsigned)carried[i].target_uid);
+                continue;
+            }
+        }
+        ToriRSServer_IfStateOpenSub(&player->interfaces, uid, carried[i].interface_id, carried[i].type);
+    }
+
+    /* The orbs, opened again in the slot they were just moved to: every
+     * recorded switch does (index 1835, 4339 [5], 4398 [36] [44] [73]), and
+     * it is what runs their onload against the new root. Their [if_open]
+     * re-synchronises the regen timers. */
+    {
+        int const orbs_slot = switch_top_slot(new_name, "orbs");
+        int const at = orbs_slot > 0 ? gameframe_mount_index(&player->interfaces, orbs_slot) : -1;
+
+        if( at >= 0 )
+            ToriRSServer_SendIfOpensub(player,
+                                       TORIRSSERVER_COM_GROUP(orbs_slot),
+                                       TORIRSSERVER_COM_CHILD(orbs_slot),
+                                       player->interfaces.mounts[at].interface_id,
+                                       player->interfaces.mounts[at].type);
+    }
+    gameframe_root_opened(player, group);
 }
 
 void

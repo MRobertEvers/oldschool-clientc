@@ -1318,6 +1318,16 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # changed, when the name is no longer available (4289 [24..26]).
     "DISPLAYNAME_SET": (11294, 0, 1, 1, 0),
 
+    # worldmap_open
+    #
+    # Open the world map exactly as its minimap orb does
+    # (torirs_server_worldmap.c): the marker, the floater mount and the key's
+    # toggles on a desktop, and on a phone the switch to toplevel_display
+    # around them. Content that shows a place on the map -- the quest
+    # overview's "Show on Map" -- opens it with this, so every open, its close
+    # and the marker's refresh clock are one path.
+    "WORLDMAP_OPEN": (11295, 0, 0, 0, 0),
+
     # mes_typed(int $type, string $text)
     #
     # MESSAGE_GAME of an explicit type. Every dialogue page is echoed into the
@@ -2087,6 +2097,8 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "MAP_INSTANCE_SETLINGER": (0, 0),
     "MAP_INSTANCE_LINGER": (0, 0),
     "MAP_INSTANCE_SETLINGERGROUP": (0, 0),
+    # The map opens on the active player's screen.
+    "WORLDMAP_OPEN": (1 << POINTER_BITS["active_player"], 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

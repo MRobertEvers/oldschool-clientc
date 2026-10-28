@@ -13453,6 +13453,12 @@ script_command(
         SSVM_PushInt(state, srv->tick);
         return 1;
 
+    /* The orb's open, for content that shows a place on the map: one path for
+     * every open, so its close and its marker clock always know about it. */
+    case SS_OP_WORLDMAP_OPEN:
+        ToriRSServer_WorldMapOpen(srv);
+        return 1;
+
     /*
      * Wall-clock minutes since the Unix epoch. LostCity NumberOps.ts:
      * `Math.floor(currentMs / 60000)`. Farming crop growth (and Miscellania)

@@ -1581,14 +1581,12 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	platform/platform_x_io_ondemand.c \
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
 	bootmanifest/bootmanifest.c features/features.c \
-	ui/torirs_chrome_exec_kind.c pokesprite/pokesprite_format.c \
-	pokesprite/pokesprite_store.c $(INI_SRC) \
+	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	accountserver/account_client.c accountserver/account_proto.c \
 	torirsserver/torirs_server_savefile.c net/sha256.c net/flat_json.c
-# The 2D client's sheet store is indexed by sqlite (pokesprite_store.c), as are
-# the gate's links: the vendored 3rd/sqlite. The account database is the
-# account server's; io_server asks it (account_client.c).
+# The gate's links are indexed by sqlite: the vendored 3rd/sqlite. The account
+# database is the account server's; io_server asks it (account_client.c).
 IO_SERVER_SQLITE_OBJ = $(IO_SERVER_OBJ_DIR)/sqlite3.o
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in

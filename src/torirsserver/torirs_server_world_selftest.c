@@ -15336,6 +15336,81 @@ ToriRSServer_WorldSelftest(void)
                        "the close-X resume must send IF_CLOSESUB");
     }
 
+    fprintf(stderr, "ToriRSServer selftest: world-map orb, desktop and mobile\n");
+    {
+        /* A phone's gameframe is toplevel_osm, whose orbs are `orbs_osm`: its
+         * world map orb is 897:50, not 160:55. Recognising only the desktop
+         * orb left the tap unmatched and the map closed on every phone. */
+        static struct ToriRSServerCapture capture;
+        int const orbs[2] = {
+            ToriRSServer_Ids()->com_orbs_worldmap,
+            ToriRSServer_Ids()->com_orbs_osm_worldmap,
+        };
+
+        SELFTEST_CHECK(orbs[0] > 0, "orbs:worldmap must resolve");
+        SELFTEST_CHECK(orbs[1] > 0, "orbs_osm:worldmap must resolve");
+        SELFTEST_CHECK(orbs[0] != orbs[1], "the desktop and mobile orbs are different components");
+        SELFTEST_CHECK(!player->worldmap_open, "world map should be closed before the orb test");
+        for( int i = 0; i < 2; i++ )
+        {
+            ToriRSServer_CaptureBegin(srv, &capture);
+            SELFTEST_CHECK(ToriRSServer_WorldMapHandleButton(srv, orbs[i], 2),
+                           "the world map orb's op 2 must be handled");
+            ToriRSServer_CaptureEnd(srv);
+            SELFTEST_CHECK(player->worldmap_open, "the world map orb's op 2 must open the map");
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0) >= 0,
+                           "opening from the orb must send IF_OPENSUB");
+            SELFTEST_CHECK(ToriRSServer_WorldMapHandleButton(srv, orbs[i], 2),
+                           "the orb's op 2 with the map up must be handled");
+            SELFTEST_CHECK(!player->worldmap_open, "the orb's op 2 with the map up must close it");
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: world-map open shape and marker clock\n");
+    {
+        /* RSProx, every rev-241 desktop open (indexes 4286, 4339, 4342, 4345,
+         * 4349, 4352, 4367): 1749 with the tile and two nulls, the floater
+         * overlay, then `worldmap:toggles` 0..4 armed -- and while it is up,
+         * the marker moves on a three-tick clock counted from the open, only
+         * when the tile changed (437 -> 440, 100 -> 103 -> 106 -> 109). */
+        static struct ToriRSServerCapture capture;
+        int const open_shape[3] = { PKT_NAME_RUNCLIENTSCRIPT, PKT_NAME_IF_OPENSUB, PKT_NAME_IF_SETEVENTS };
+        int const saved_tick = srv->tick;
+        int const saved_x = player->x;
+
+        SELFTEST_CHECK(!player->worldmap_open, "world map should be closed before the open-shape test");
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_WorldMapOpen(srv);
+        ToriRSServer_CaptureEnd(srv);
+        SELFTEST_CHECK(ToriRSServer_CaptureHasSequenceNamed(&capture, open_shape, 3),
+                       "a world map open is 1749, IF_OPENSUB, then IF_SETEVENTS on worldmap:toggles");
+
+        player->x = saved_x + 1;
+        for( int step = 1; step <= 3; step++ )
+        {
+            srv->tick = saved_tick + step;
+            ToriRSServer_CaptureBegin(srv, &capture);
+            ToriRSServer_WorldMapTick(srv);
+            ToriRSServer_CaptureEnd(srv);
+            if( step < 3 )
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                               "a moved marker waits for the third tick after the open");
+            else
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0) >= 0,
+                               "a moved marker is sent on the third tick after the open");
+        }
+        srv->tick = saved_tick + 6;
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_WorldMapTick(srv);
+        ToriRSServer_CaptureEnd(srv);
+        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                       "an unmoved marker is not sent again");
+
+        ToriRSServer_WorldMapClose(srv);
+        player->x = saved_x;
+        srv->tick = saved_tick;
+    }
+
     fprintf(stderr, "ToriRSServer selftest: script-driven triggers\n");
     {
         static struct ToriRSServerCapture capture;
@@ -25575,7 +25650,7 @@ ToriRSServer_WorldSelftest(void)
          *
          * Asserted from the wire AND from server authority, because the two
          * halves fail separately — a mount that is re-registered but never
-         * encoded leaves the client blank, and one encoded against the OLD
+         * moved leaves the client blank, and one opened against the OLD
          * root's slot addresses a group the client has just destroyed.
          */
         static struct ToriRSServerCapture capture;
@@ -25622,10 +25697,12 @@ ToriRSServer_WorldSelftest(void)
             else
                 stale = target;
         }
-        SELFTEST_CHECK(carried,
-                       "a root switch must re-mount the raid HUD into the new root's "
-                       "atmosphere slot (%d)",
-                       modern_atmos);
+        /* A switch carries the HUD by IF_MOVESUB, as Jagex's does (RSProx
+         * index 1835): no re-open, so `carried` from an IF_OPENSUB is not
+         * expected. The move and the table below are what say it arrived. */
+        (void)carried;
+        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_MOVESUB, 0) >= 0,
+                       "a root switch must move the open slots (IF_MOVESUB)");
         SELFTEST_CHECK(!stale,
                        "the re-mount must not address the replaced root's slot "
                        "(got 0x%08x, wanted 0x%08x)",

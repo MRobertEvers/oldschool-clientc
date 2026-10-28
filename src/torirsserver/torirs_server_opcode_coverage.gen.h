@@ -10,7 +10,7 @@
  *
  * Coverage by layer:
  *     64  VM core
- *    416  host commands
+ *    421  host commands
  *      9  host commands (db)
  *     10  host commands (inv)
  *      8  host commands (loc)
@@ -19,7 +19,7 @@
  *      2  host commands (param)
  *      8  host commands (player)
  *     18  host commands (poh)
- *    557  total, of 606 declared opcodes
+ *    562  total, of 610 declared opcodes
  */
 
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_OPCODE_COVERAGE_GEN_H
@@ -27,8 +27,8 @@
 
 #include <stdint.h>
 
-#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 557
-#define TORIRSSERVER_OPCODE_DECLARED_COUNT 606
+#define TORIRSSERVER_OPCODE_COVERAGE_COUNT 562
+#define TORIRSSERVER_OPCODE_DECLARED_COUNT 610
 
 /*
  * One past the highest opcode *value*, which is nothing like the number of
@@ -37,7 +37,7 @@
  * array by opcode wants this, not the count — using the count silently
  * treats every real opcode as out of range.
  */
-#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11292
+#define TORIRSSERVER_OPCODE_VALUE_LIMIT 11296
 
 /* Ascending, so a lookup can binary-search. */
 static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_COUNT] = {
@@ -190,6 +190,7 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     2109, /* SS_OP_SOFTTIMER (host commands) */
     2110, /* SS_OP_SOUND_SYNTH (host commands) */
     2111, /* SS_OP_SPOTANIM_PL (host commands) */
+    2112, /* SS_OP_STAFFMODLEVEL (host commands) */
     2113, /* SS_OP_STAT_ADD (host commands) */
     2114, /* SS_OP_STAT_ADVANCE (host commands) */
     2115, /* SS_OP_STAT_BASE (host commands) */
@@ -598,6 +599,10 @@ static const uint16_t TORIRSSERVER_OPCODE_COVERAGE[TORIRSSERVER_OPCODE_COVERAGE_
     11289, /* SS_OP_PROJANIM_NPC_RAW (host commands) */
     11290, /* SS_OP_P_HEADBAR_CLEAR (host commands) */
     11291, /* SS_OP_NPC_SETPASSTHRU (host commands) */
+    11292, /* SS_OP_ADVENTURE_LOG (host commands) */
+    11293, /* SS_OP_DISPLAYNAME_CHECK (host commands) */
+    11294, /* SS_OP_DISPLAYNAME_SET (host commands) */
+    11295, /* SS_OP_WORLDMAP_OPEN (host commands) */
 };
 
 #endif

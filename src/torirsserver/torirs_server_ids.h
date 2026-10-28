@@ -260,11 +260,39 @@ struct ToriRSServerIds
      * The world map's two close buttons. `esckey` is a zero-sized component
      * that exists only to hold the escape binding; `close` is the red X in the
      * corner. Neither carries an onop script, so both are the server's.
-     *
-     * The orb that opens it is NOT here — see torirs_server_worldmap.c.
      */
     int com_worldmap_esckey;
     int com_worldmap_close;
+    /*
+     * The orb that opens it, one per orbs interface: `orbs` (160) on a desktop
+     * gameframe, `orbs_osm` (897) on the mobile one. Same verbs, different
+     * component -- see torirs_server_worldmap.c.
+     */
+    int com_orbs_worldmap;
+    int com_orbs_osm_worldmap;
+    /** The key's filter row, armed op 1 for cells 0..4 on every open. */
+    int com_worldmap_toggles;
+    /*
+     * What a phone's map opens into. Its root switches from toplevel_osm to
+     * toplevel_display (165) while the map is up, with floater_blankmodal (594)
+     * in that root's displaymodal behind the map (RSProx index 4398).
+     */
+    int iface_toplevel_display;
+    int com_toplevel_display_displaymodal;
+    int iface_floater_blankmodal;
+    /*
+     * The login's first root on a real client, desktop and phone alike:
+     * toplevel_display with welcome_screen (378) in its displaymodal, until
+     * Play switches to the layout (RSProx index 4339 [0]..[5], 4398 [0]..[36]).
+     * The orbs go in by hand there -- which ones depends on the device, and a
+     * gameframe.enum block cannot say so.
+     */
+    int com_toplevel_display_orbs;
+    int iface_orbs;
+    int iface_orbs_osm;
+    int iface_welcome_screen;
+    int com_welcome_screen_model1;
+    int com_welcome_screen_model2;
 
     /** The bank side panel's inventory grid, where deposits come from. */
     int com_bankside_items;

@@ -17,10 +17,6 @@
  *                     one raw dat1 container, proxied off a LostCity server
  *   POST /cache/dat1/batch[?manifest=<path>]
  *                     several of those in one request, pipelined on the socket
- *   GET  /pokesprite/<key>
- *                     one PokeSprite sheet (.pss) for the 2D client, from the
- *                     checked-in store under --pokesprite; a key the store
- *                     lacks is recorded for the offline generator and 404s
  *   GET  /status      what this process is serving, as a page
  *   GET  /stats       the same counters, one line, for scripts
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
@@ -73,8 +69,6 @@
 #include "platform/io_wire.h"
 #include "platform/platform_x_io.h"
 #include "platform/platform_x_io_ondemand.h"
-#include "pokesprite/pokesprite_format.h"
-#include "pokesprite/pokesprite_store.h"
 
 #include <assert.h>
 #include <rscache.h>
@@ -87,7 +81,6 @@
 
 #define IO_SERVER_DEFAULT_PORT 8088
 #define IO_SERVER_DEFAULT_ROOT "build-web"
-#define IO_SERVER_DEFAULT_POKESPRITE "assets/pokesprite"
 
 /*
  * One open cache.
@@ -189,11 +182,6 @@ struct IoServer
     char config_dir[256];
     char script_dir[256];
     int verbose;
-
-    /* The 2D client's sheets. Opened on first request, so a server started
-     * before the store was generated picks it up without a restart. */
-    char pokesprite_root[512];
-    struct PokeSpriteStore* pokesprite;
 
     /* Only GET /status reads these. The banner already printed the port, but a
      * page reached through a hostname cannot see stdout. */
@@ -976,61 +964,6 @@ handle_boot_file(
 }
 
 /*
- * GET /pokesprite/<key> -- one sheet for the 2D client.
- *
- * The 2D client asks for what it is about to draw by the same key the store
- * is indexed on; nothing here renders. A key the store lacks is a 404 whose
- * miss lands in missing.db, which is how the offline generator learns what
- * players actually saw. No store at all is a 503: the server is up, the
- * assets are not.
- */
-static void
-handle_pokesprite(
-    struct IoServer* server,
-    struct HttpRequest const* req,
-    struct HttpResponse* res)
-{
-    char key[160];
-    char const* q = strchr(req->path, '?');
-    int n = (int)(q ? q - (req->path + 12) : (int)strlen(req->path + 12));
-    if( n <= 0 || n >= (int)sizeof(key) )
-    {
-        res->status = 400;
-        return;
-    }
-    memcpy(key, req->path + 12, (size_t)n);
-    key[n] = '\0';
-    if( !PokeSprite_KeyValid(key) )
-    {
-        res->status = 400;
-        return;
-    }
-    if( !server->pokesprite )
-        server->pokesprite = PokeSpriteStore_Open(server->pokesprite_root);
-    if( !server->pokesprite )
-    {
-        res->status = 503;
-        return;
-    }
-    int size = 0;
-    uint8_t* bytes = PokeSpriteStore_Fetch(server->pokesprite, key, &size);
-    if( !bytes )
-    {
-        if( server->verbose )
-            fprintf(stderr, "io_server: pokesprite miss %s\n", key);
-        res->status = 404;
-        return;
-    }
-    res->status = 200;
-    snprintf(res->content_type, sizeof(res->content_type), "application/x-pokesprite");
-    res->body = bytes;
-    res->body_len = size;
-    res->owns_body = 1;
-    server->served++;
-    server->bytes_out += size;
-}
-
-/*
  * GET /cache/dat1/<table>/<archive>[?flags=N] -- one raw dat1 container.
  *
  * The page's dat1 producer, on the other side of this route, is a fetch and
@@ -1777,11 +1710,6 @@ io_server_route(
             handle_ondemand_container(server, req, res);
             return;
         }
-        if( strncmp(req->path, "/pokesprite/", 12) == 0 )
-        {
-            handle_pokesprite(server, req, res);
-            return;
-        }
         if( strcmp(req->path, "/status") == 0 )
         {
             handle_status(server, res);
@@ -1791,17 +1719,13 @@ io_server_route(
         {
             char* text = ToriMem_Alloc(ToriMem_Net(), 320);
             int len;
-            long sheets = 0, missing = 0;
-            if( server->pokesprite )
-                PokeSpriteStore_Counts(server->pokesprite, &sheets, &missing);
             /* Which caches are open, so a page can say what it is talking to.
              * The first is the one --manifest preopened, if any. */
             len = snprintf(
                 text, 320,
-                "serving=%s served=%ld failed=%ld bytes_out=%ld pokesprite_sheets=%ld "
-                "pokesprite_missing=%ld\n",
+                "serving=%s served=%ld failed=%ld bytes_out=%ld\n",
                 server->cache_count ? server->caches[0].describe : "(none yet)",
-                server->served, server->failed, server->bytes_out, sheets, missing);
+                server->served, server->failed, server->bytes_out);
             res->status = 200;
             snprintf(res->content_type, sizeof(res->content_type), "text/plain; charset=utf-8");
             res->body = text;
@@ -1836,7 +1760,7 @@ usage(char const* argv0)
         stderr,
         "usage: %s [--manifest <boot.ini> | --rev <name> <cache_dir>]\n"
         "          [--port N] [--root DIR] [--boot-root DIR] [--config DIR]\n"
-        "          [--script DIR] [--pokesprite DIR] [--gate LANDING] [-v]\n"
+        "          [--script DIR] [--gate LANDING] [-v]\n"
         "\n"
         "  --manifest   PREOPEN one world's cache (and its LostCity wire) at\n"
         "               startup, so an unreachable server is named here rather\n"
@@ -1848,8 +1772,6 @@ usage(char const* argv0)
         "  --boot-root  directory served over GET /boot/<path> — the manifests and\n"
         "               RevConfig INIs the client opens by name (default .)\n"
         "  --port       listen port (default %d)\n"
-        "  --pokesprite the 2D client's sheet store, served over\n"
-        "               GET /pokesprite/<key> (default %s)\n"
         "  --gate       serve only the sign-in pages until the visitor signs in\n"
         "               with a web login (the account server: account_server), then send\n"
         "               them to LANDING, e.g.\n"
@@ -1858,8 +1780,7 @@ usage(char const* argv0)
         "               ticket on the game socket\n",
         argv0,
         IO_SERVER_DEFAULT_ROOT,
-        IO_SERVER_DEFAULT_PORT,
-        IO_SERVER_DEFAULT_POKESPRITE);
+        IO_SERVER_DEFAULT_PORT);
 }
 
 /*
@@ -1907,8 +1828,6 @@ main(
     snprintf(server.boot_root, sizeof(server.boot_root), ".");
     snprintf(server.config_dir, sizeof(server.config_dir), "config");
     snprintf(server.script_dir, sizeof(server.script_dir), "script");
-    snprintf(server.pokesprite_root, sizeof(server.pokesprite_root), "%s",
-             IO_SERVER_DEFAULT_POKESPRITE);
 
     for( int i = 1; i < argc; i++ )
     {
@@ -1964,11 +1883,6 @@ main(
         if( strcmp(argv[i], "--script") == 0 && i + 1 < argc )
         {
             snprintf(server.script_dir, sizeof(server.script_dir), "%s", argv[++i]);
-            continue;
-        }
-        if( strcmp(argv[i], "--pokesprite") == 0 && i + 1 < argc )
-        {
-            snprintf(server.pokesprite_root, sizeof(server.pokesprite_root), "%s", argv[++i]);
             continue;
         }
         if( strcmp(argv[i], "--gate") == 0 && i + 1 < argc )
@@ -2077,7 +1991,6 @@ main(
     }
     for( int i = 0; i < server.ondemand_count; i++ )
         PlatformX_IO_Free(server.ondemand[i].px);
-    PokeSpriteStore_Close(server.pokesprite);
     /* The exit walk: names anything above that was not freed. */
     ToriMem_Shutdown();
     return 0;

@@ -4671,10 +4671,19 @@ struct ToriRSServerPlayer
     int clear_map_flag;
 
     /** World map overlay state. `worldmap_tile_sent` is the packed coord the
-     *  map's varc was last told about, so the per-tick refresh only fires when
-     *  the player actually moved. */
+     *  map's varc was last told about, so the refresh only fires when the
+     *  player actually moved; `worldmap_opened_tick` is the tick it opened,
+     *  which the refresh's three-tick cadence counts from. */
     int worldmap_open;
     int worldmap_tile_sent;
+    int worldmap_opened_tick;
+    /** The root a phone's map was opened FROM, or 0. A phone does not float
+     *  the map over its gameframe: the root switches to toplevel_display for
+     *  as long as it is open, and closing it switches back to this. */
+    int worldmap_return_top;
+    /** This login resumed a dropped session (RECONNECT_OK), which goes
+     *  straight back to the game: no welcome screen. */
+    int login_reconnect;
 
     /** This tick's movement, filled in by the tick and consumed by the
      *  PLAYER_INFO encoder: 0 tiles idle, 1 walking, 2 running. */
@@ -5955,12 +5964,6 @@ void ToriRSServer_VarbitSetBitsOn(struct ToriRSServer* srv, struct ToriRSServerP
  *  lay out for as mobile, and the one that gets `toplevel_osm`. */
 int
 ToriRSServer_PlayerIsMobile(const struct ToriRSServerPlayer* player);
-
-/** Logged in with the 2D PokeSprite client (pokeclient/): it draws the world
- *  from sprite sheets io_server serves, not from models, so anything that
- *  only makes sense with a 3D camera can be told apart. */
-int
-ToriRSServer_PlayerIsPokesprite(const struct ToriRSServerPlayer* player);
 
 /** `ToriRSServer_WorldSetVarp` on a named player; side effects stay gated on the
  *  active one. */
@@ -9133,6 +9136,16 @@ ToriRSServer_SendIfMovesub(
  */
 void
 ToriRSServer_GameframeOpentop(
+    struct ToriRSServerPlayer* player,
+    int group);
+/**
+ * Switch the root to `group` the way Jagex's server does on a phone: IF_OPENTOP,
+ * then one IF_MOVESUB per gameframe slot, by name, from the live root to the
+ * new one -- the open interfaces are carried, not reopened. No enum remount and
+ * no IF_RESYNC_V2 (RSProx index 4398: three switches, none of either).
+ */
+void
+ToriRSServer_GameframeSwitchTop(
     struct ToriRSServerPlayer* player,
     int group);
 void
