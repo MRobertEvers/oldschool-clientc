@@ -760,7 +760,11 @@
         }
         if (html && html.style && html.style.setProperty) {
           html.style.setProperty('--torirs-dock-width', '0px');
-          html.style.setProperty('--torirs-drawer-width', open ? `${width}px` : '0px');
+          /* The drawer's whole footprint: its content plus the right
+           * safe-area padding it keeps clear of a landscape notch. What the
+           * tab and the view controls stand beside. */
+          html.style.setProperty('--torirs-drawer-width',
+            open ? `calc(${width}px + env(safe-area-inset-right, 0px))` : '0px');
         }
         return;
       }

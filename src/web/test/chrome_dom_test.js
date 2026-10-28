@@ -402,7 +402,8 @@ tab.fire('click');
 assert.strictEqual(built.mount.hidden, false, 'a tap slides the rail of plugin buttons out');
 assert.ok(built.mount.classList.contains('torirs-chrome-overlay'), 'over the game, not beside it');
 assert.strictEqual(built.mount.style.width, '42px', 'the shut page leaves only the rail');
-assert.strictEqual(built.document.documentElement.style['--torirs-drawer-width'], '42px',
+assert.strictEqual(built.document.documentElement.style['--torirs-drawer-width'],
+  'calc(42px + env(safe-area-inset-right, 0px))',
   'the tab rides the drawer edge');
 assert.strictEqual(tab.getAttribute('aria-expanded'), 'true');
 
