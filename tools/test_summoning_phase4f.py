@@ -57,7 +57,7 @@ def main() -> int:
     points_script = read(SUMMONING_SCRIPTS / "scripts/summoning_points.rs2")
     import_manifest = read(REPO / "docs/summoning_port/spirit_wolf_import.ini")
 
-    expect("970=summoning_infuse" in lane_pack, "the authored infusion group is not allocated")
+    expect("12001=summoning_infuse" in lane_pack, "the authored infusion group is not allocated")
     expect(
         "[universe]" in interface and "if3=yes" in interface and "width=360" in interface,
         "infusion window is not a fresh target IF3 universe",
@@ -185,20 +185,20 @@ def main() -> int:
         "render: ordinary Obelisk op1 click was not injected",
     )
     expect(
-        "if-opensub: iface=970 target=0x00a10010" in render_log,
+        "if-opensub: iface=12001 target=0x00a10010" in render_log,
         "render: op1 did not mount the authored mainmodal panel",
     )
     expect(
-        "if_setevents: com=63569927 (970:7)" in render_log,
+        "if_setevents: com=786497543 (12001:7)" in render_log,
         "render: server did not arm pouch row operations",
     )
     expect(
-        "BOUNDS com=0x03ca0000 (970|0)" in render_log,
+        "BOUNDS com=0x2ee10000 (12001|0)" in render_log,
         "render: authored panel has no final layout bounds",
     )
     expect(
         "EMIT_EXIT" in render_log
-        and "(970|9)" in render_log
+        and "(12001|9)" in render_log
         and "kind=5" in render_log
         and "model=100002" in render_log,
         "render: pouch model did not reach the final draw list",
@@ -306,8 +306,8 @@ def render_panel(args: argparse.Namespace) -> tuple[int, str, Path]:
                 "TORIRS_WORLD_PICK_DEBUG": "1",
                 "TORIRS_LOC_CFG": "62201",
                 "TORIRS_EMIT_LOC": "62201",
-                "TORIRS_DUMP_BOUNDS": "970",
-                "TORIRS_DUMP_EMIT_EXIT": "970",
+                "TORIRS_DUMP_BOUNDS": "12001",
+                "TORIRS_DUMP_EMIT_EXIT": "12001",
                 "TORIRS_EXIT_BMP": str(bmp),
             },
         )

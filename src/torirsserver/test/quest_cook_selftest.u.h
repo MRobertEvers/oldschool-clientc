@@ -239,7 +239,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         goto cook_selftest_done;
 
     /* First menu row 2 is the money refusal; it must not write state. */
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
     cook_selftest_resume_pages(srv, 2, 16);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
@@ -250,7 +250,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                 "COOK PASS: start_refuse trigger=opnpc1,cook observable=cookquest=0\n");
 
     /* ---- accept ---- */
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
     cook_selftest_resume_pages(srv, 1, 24);
     ToriRSServer_WorldCloseModal(srv);
     player->active_script = NULL;
@@ -265,7 +265,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     SELFTEST_CHECK(loc_slot >= 0, "cooksquestrange should stand in the kitchen");
     if( loc_slot >= 0 )
     {
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, range_loc, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, range_loc, -1, loc_slot);
         cook_selftest_resume_pages(srv, 1, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;
@@ -281,7 +281,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         {
             inv_set(player, 0, raw, 1);
             player->last_useitem = raw;
-            ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, range_loc, -1, loc_slot);
+            selftest_op_loc(srv, SS_TRIGGER_OPLOCU, range_loc, -1, loc_slot);
             cook_selftest_resume_pages(srv, 1, 8);
             ToriRSServer_WorldCloseModal(srv);
             player->active_script = NULL;
@@ -304,7 +304,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     if( loc_slot >= 0 )
     {
         cook_selftest_inv_clear(player);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, fat_cow, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, fat_cow, -1, loc_slot);
         selftest_tick(srv);
         SELFTEST_CHECK(cook_selftest_inv_total(player, milk) == 0,
                        "milking without a bucket must not grant milk");
@@ -313,7 +313,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
                     "COOK PASS: milk_no_bucket trigger=oploc1,fat_cow observable=inv_milk=0 mes\n");
 
         inv_set(player, 0, bucket, 1);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, fat_cow, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, fat_cow, -1, loc_slot);
         selftest_tick(srv);
         SELFTEST_CHECK(cook_selftest_inv_total(player, milk) == 1,
                        "canonical fat_cow Milk should grant bucket_milk, got %d",
@@ -336,7 +336,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         if( ground >= 0 )
         {
             srv->pending_active_obj = ToriRSServer_WorldObjHandle(srv, ground);
-            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, egg, -1, -1);
+            selftest_op(srv, SS_TRIGGER_OPOBJ3, egg, -1, -1);
             srv->pending_active_obj = 0;
             selftest_tick(srv);
             SELFTEST_CHECK(cook_selftest_inv_total(player, egg) >= 1,
@@ -358,7 +358,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     {
         if( cook_selftest_inv_total(player, grain) < 1 )
             inv_set(player, inv_first_free(player), grain, 1);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, hopper, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, hopper, -1, loc_slot);
         cook_selftest_drain_delay(srv, 16);
         selftest_tick(srv);
         SELFTEST_CHECK(cook_selftest_inv_total(player, grain) == 0,
@@ -373,7 +373,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     SELFTEST_CHECK(loc_slot >= 0, "hopperlevers1 should exist on the mill top floor");
     if( loc_slot >= 0 )
     {
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, levers, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, levers, -1, loc_slot);
         cook_selftest_drain_delay(srv, 16);
         selftest_tick(srv);
         fprintf(stderr,
@@ -394,7 +394,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
             use_id = mill_empty;
         else if( mill_loc && mill_loc->loc_id == mill_shell )
             use_id = mill_flour;
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
         cook_selftest_drain_delay(srv, 8);
         selftest_tick(srv);
         SELFTEST_CHECK(cook_selftest_inv_total(player, flour) >= 1,
@@ -433,7 +433,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         xp_before = player->stat_xp_tenths[cooking];
         qp_before = (qp_varp > 0) ? ToriRSServer_Varp(player, qp_varp) : 0;
 
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
+        selftest_op(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
         cook_selftest_resume_pages(srv, 1, 32);
         cook_selftest_drain_rewards(srv);
 
@@ -464,7 +464,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
         /* Idempotent second talk: no second XP. */
         {
             int xp_mid = player->stat_xp_tenths[cooking];
-            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
+            selftest_op(srv, SS_TRIGGER_OPNPC1, cook_type, -1, cook_slot);
             cook_selftest_resume_pages(srv, 1, 16);
             ToriRSServer_WorldCloseModal(srv);
             player->active_script = NULL;
@@ -483,7 +483,7 @@ selftest_quest_cook(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     loc_slot = cook_selftest_find_loc(3208, 3214, 0, range_loc, 8);
     if( loc_slot >= 0 )
     {
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, range_loc, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, range_loc, -1, loc_slot);
         cook_selftest_resume_pages(srv, 1, 8);
         ToriRSServer_WorldCloseModal(srv);
         player->active_script = NULL;

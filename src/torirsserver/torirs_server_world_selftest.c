@@ -3778,6 +3778,59 @@ selftest_sailing_deck_drop(struct ToriRSServer* srv, struct ToriRSServerPlayer* 
 
 #include "test/sailing_lifecycle_selftest.u.h"
 #include "test/tutorial_island_selftest.u.h"
+/*
+ * An op the way a client sends one. The packet path clears the pending action
+ * before the trigger runs (ToriRSServer_WorldClearPendingAction: combat stops,
+ * the open dialogue closes) -- which is what lets a click get past a level-up
+ * box still waiting on its continue. Calling the trigger directly skipped that,
+ * and since levels-ups open their box (levelup.rs2, 2026-10-27) every quest
+ * walk that earned a level had its next step dropped behind it ("dropping ...,
+ * which suspended while [proc,levelup_box] waits").
+ */
+static int
+selftest_op(
+    struct ToriRSServer* srv,
+    int trigger,
+    int type,
+    int category,
+    int npc_slot)
+{
+    ToriRSServer_WorldClearPendingAction(srv);
+    return ToriRSServer_ScriptsRunTrigger(srv, trigger, type, category, npc_slot);
+}
+
+static int
+selftest_op_loc(
+    struct ToriRSServer* srv,
+    int trigger,
+    int type,
+    int category,
+    int loc_slot)
+{
+    ToriRSServer_WorldClearPendingAction(srv);
+    return ToriRSServer_ScriptsRunTriggerOnLoc(srv, trigger, type, category, loc_slot);
+}
+
+/*
+ * Dismiss everything an earlier stanza left queued for the player: a run that
+ * earned levels in several skills queues a level-up box per skill, and each
+ * one opens as the one before it closes -- including on the `if_close` of the
+ * next stanza's own dialogue, which then reads as that dialogue not finishing.
+ */
+static void
+selftest_quiesce(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    for( int t = 0; t < 20; t++ )
+    {
+        ToriRSServer_WorldClearPendingAction(srv);
+        selftest_tick(srv);
+        if( !player->active_script )
+            break;
+    }
+}
+
 #include "test/quest_doric_selftest.u.h"
 #include "test/quest_imp_selftest.u.h"
 #include "test/quest_cook_selftest.u.h"
@@ -14614,9 +14667,13 @@ ToriRSServer_WorldSelftest(void)
                        TORIRSSERVER_COM_CHILD(ids->com_bankmain_deposit_inv));
         SELFTEST_CHECK(ids->com_worn_equipment_stats == TORIRSSERVER_COM(387, 1),
                        "the stats button should be 387:1");
+        /* Rev 241 renumbered the tail: attackspeedactual is 84:53 and 84:54
+         * is next_page (port/cache_upgrade_names_241.tsv). */
         SELFTEST_CHECK(ids->com_equipment_stats_stabatt == TORIRSSERVER_COM(84, 24) &&
-                           ids->com_equipment_stats_attackspeedactual == TORIRSSERVER_COM(84, 54),
-                       "the stats rows should run 84:24..84:54");
+                           ids->com_equipment_stats_attackspeedactual == TORIRSSERVER_COM(84, 53),
+                       "the stats rows should run 84:24..84:53, got 84:%d..84:%d",
+                       TORIRSSERVER_COM_CHILD(ids->com_equipment_stats_stabatt),
+                       TORIRSSERVER_COM_CHILD(ids->com_equipment_stats_attackspeedactual));
         SELFTEST_CHECK(ids->varbit_bank_withdrawnotes == 3958 &&
                            ids->varbit_bank_currenttab == 4150,
                        "the bank varbits should be 3958/4150, got %d/%d",
@@ -15170,9 +15227,13 @@ ToriRSServer_WorldSelftest(void)
         if( wire239 )
         {
             int saved_level = player->level;
+            int saved_obs_level = player->obs_level;
 
             srv->wire = wire239;
             player->level = 2;
+            /* SET_ACTIVE_WORLD's level is the observer's plane in the root
+             * (ToriRSServer_SendSetActiveWorld), which a rider's differs from. */
+            player->obs_level = 2;
             ToriRSServer_CaptureBegin(srv, &capture);
             ToriRSServer_SendIfMovesub(player, 0x11223344, 0x55667788);
             ToriRSServer_SendIfSetcolour(player, 0x11223344, 0x5566);
@@ -15203,6 +15264,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_SendSetActiveWorld(player);
             ToriRSServer_CaptureEnd(srv);
             player->level = saved_level;
+            player->obs_level = saved_obs_level;
             srv->wire = saved_wire;
 
             SELFTEST_CHECK(!capture.overflow, "rev239 writer capture did not overflow");
@@ -18368,12 +18430,13 @@ ToriRSServer_WorldSelftest(void)
         }
         else
         {
-            /* IF_SETNPCHEAD, IF_SETANIM, three IF_SETTEXTs, IF_OPENSUB. No
-             * unhide: `chatbox:chatmodal` ships hidden, and revealing it is
-             * the client's own script908 reacting to the mount — see
-             * ToriRSServerIds.com_chatbox_modal. */
-            static const int k_dialogue[] = { PKT_NAME_IF_SETNPCHEAD, PKT_NAME_IF_SETANIM,
-                                              PKT_NAME_IF_SETTEXT, PKT_NAME_IF_OPENSUB };
+            /* IF_OPENSUB, then IF_SETNPCHEAD, IF_SETANIM and the IF_SETTEXTs:
+             * Jagex mounts the page first (RSProx 4293 [217], chat.rs2
+             * ~chat_page_open). No unhide: `chatbox:chatmodal` ships hidden,
+             * and revealing it is the client's own script908 reacting to the
+             * mount — see ToriRSServerIds.com_chatbox_modal. */
+            static const int k_dialogue[] = { PKT_NAME_IF_OPENSUB, PKT_NAME_IF_SETNPCHEAD,
+                                              PKT_NAME_IF_SETANIM, PKT_NAME_IF_SETTEXT };
             int hans = selftest_find_npc(srv, 3105);
             int continue_uid = (231 << 16) | 5;
             uint8_t payload[2];
@@ -18387,7 +18450,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureEnd(srv);
 
             SELFTEST_CHECK(ToriRSServer_CaptureHasSequenceNamed(&capture, k_dialogue, 4),
-                           "a dialogue should set the head, anim and text, then mount");
+                           "a dialogue should mount, then set the head, anim and text");
             /*
              * The rev-239 cache defines chat_left:text as top-aligned.
              * Golden clientscript 600 (if_settextalign) is therefore part of
@@ -18592,7 +18655,12 @@ ToriRSServer_WorldSelftest(void)
                     int opensub_at = ToriRSServer_CaptureFind(&capture, opensub_opcode, 0);
                     int position_at =
                         ToriRSServer_CaptureFind(&capture, position_opcode, 0);
-                    int idx = ToriRSServer_CaptureFind(&capture, run_opcode, 0);
+                    /* The populate is the first script AFTER the mount: the
+                     * one before it is the chatbox background reset every
+                     * page opens with (chat.rs2 ~p_choice_open, RSProx 4297
+                     * [329]). */
+                    int idx = ToriRSServer_CaptureFind(&capture, run_opcode,
+                                                       opensub_at >= 0 ? opensub_at + 1 : 0);
 
                     SELFTEST_CHECK(idx >= 0, "the choice should send RUNCLIENTSCRIPT");
                     /* Mounted, then populated, and never moved: no RSProx
@@ -19231,8 +19299,9 @@ ToriRSServer_WorldSelftest(void)
         {
             int joe_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "joe");
             int joe;
-            static const int k_dialogue[] = { PKT_NAME_IF_SETNPCHEAD, PKT_NAME_IF_SETANIM,
-                                              PKT_NAME_IF_SETTEXT, PKT_NAME_IF_OPENSUB };
+            /* Mounted first, as Jagex sends a page (chat.rs2 ~chat_page_open). */
+            static const int k_dialogue[] = { PKT_NAME_IF_OPENSUB, PKT_NAME_IF_SETNPCHEAD,
+                                              PKT_NAME_IF_SETANIM, PKT_NAME_IF_SETTEXT };
 
             SELFTEST_CHECK(joe_type > 0, "npc joe should resolve by name");
             joe = selftest_find_npc(srv, joe_type);
@@ -19297,7 +19366,7 @@ ToriRSServer_WorldSelftest(void)
                 (player->active_script->pointers & SSVM_PTR_ACTIVE_NPC) != 0,
                 "ACTIVE_NPC must be armed on the first joe_prequest page");
             SELFTEST_CHECK(ToriRSServer_CaptureHasSequenceNamed(&capture, k_dialogue, 4),
-                           "joe_prequest should set head, anim, text, then mount");
+                           "joe_prequest should mount, then set head, anim, text");
 
             selftest_click_through(srv, 8);
             ToriRSServer_ScriptsFree(srv);
@@ -20052,11 +20121,13 @@ ToriRSServer_WorldSelftest(void)
                     to = ev_to;
                     break;
                 }
-                SELFTEST_CHECK(mask == 4 /* ^if_event_op2 */,
-                               "questlist:list should be armed for op 2 only (mask 4), got %d",
+                /* Jagex's one line on every mount (RSProx 4289 [0], [509]):
+                 * slots 0..count, ops 1-5 (quest_journal.rs2 ~questlist_arm). */
+                SELFTEST_CHECK(mask == 62 /* ^if_event_op1..op5 */,
+                               "questlist:list should be armed for ops 1-5 (mask 62), got %d",
                                mask);
-                SELFTEST_CHECK(from == 1 && to >= 200,
-                               "questlist:list arming range should be 1..N (got %d..%d)", from, to);
+                SELFTEST_CHECK(from == 0 && to >= 200,
+                               "questlist:list arming range should be 0..N (got %d..%d)", from, to);
             }
 
             button[0] = (uint8_t)(list >> 24);
@@ -24740,7 +24811,12 @@ ToriRSServer_WorldSelftest(void)
              * every observer's stream. Asserting the *relationship* is what
              * makes it unpinnable to any one client; `embed_test.c` asserts the
              * same thing from two decoded streams at once.
+             *
+             * The npc only has a side once it retaliates, which is after the
+             * player's first swing lands -- not on the engage tick.
              */
+            for( int t = 0; t < 10 && npc->combat_target < 0; t++ )
+                selftest_tick(srv);
             SELFTEST_CHECK(npc->face_entity >= TORIRSSERVER_FACE_PLAYER_BASE,
                            "the npc's face target is in the player half of the id "
                            "space, got %d", npc->face_entity);
@@ -31170,151 +31246,125 @@ ToriRSServer_WorldSelftest(void)
         }
 
         /*
-         * Fight Arena -- the real combat chain: spawn arena_ogre for real
-         * (matching arena_encounter.rs2's own [label,arena_start_ogre]),
-         * confirm its stats against quest_arena.npc, deal real lethal
-         * damage, and confirm the real [ai_queue3,arena_ogre] death handler
-         * advances %arenaquest and spawns General Khazard as a side effect
-         * -- not mirrored. The rest of the dialogue-gated ladder
-         * (armour/brew/keys, and the scorpion/bouncer/general legs of the
-         * same chain) is proven by ::arenarun
-         * (quests/quest_arena/scripts/arena_selftest.rs2), same precedent as
-         * every other dialogue-heavy quest audited this pass.
+         * Fight Arena -- the real combat chain. Every round is fought in a
+         * private copy of the arena's square (arena_cutscenes.rs2, RSProx
+         * 4395/4396), so the fighter is not spawned here: the yard door's
+         * "Return to the arena?" puts the player into the round's copy with
+         * its fighter, exactly as a player who logged out mid-round comes
+         * back. Real lethal damage, then the real [ai_queue3,...] handlers
+         * advance %arenaquest -- the ogre's into the General's scene and the
+         * cell (sent_jail), the General's into his return scene.
          */
         {
             int npc_arena_ogre = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "arena_ogre");
-            int npc_general_khazard_arena =
-                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard_arena");
+            int npc_general_khazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard");
+            int loc_door = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "fightarena_door2");
             int varp_arenaquest = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp17_arenaquest");
-            /* ^arena_entered_ogre_fight = 6, ^arena_sent_jail = 9
-             * (quest_arena.constant). [label,arena_defeat_ogre] sets
-             * ^arena_defeated_ogre (8) and immediately falls into
-             * [label,arena_after_ogre], which advances again to
-             * ^arena_sent_jail in the same execution -- 8 is never the
-             * settled state a real player (or this test) observes. */
+            int chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
+            /* quest_arena.constant */
             const int arena_entered_ogre_fight = 6;
             const int arena_sent_jail = 9;
-            int slot;
+            const int arena_freed_servils = 12;
+            const int arena_defeated_genkhazard = 13;
+            const struct
+            {
+                const char* name;
+                int stage;
+                int npc_type;
+                int hitpoints;
+                int want;
+            } rounds[] = {
+                { "arena_ogre", arena_entered_ogre_fight, npc_arena_ogre, 60, arena_sent_jail },
+                { "general_khazard", arena_freed_servils, npc_general_khazard, 170,
+                  arena_defeated_genkhazard },
+            };
 
             fprintf(stderr, "ToriRSServer selftest: Fight Arena combat chain\n");
-
-            ToriRSServer_WorldTeleport(srv, 0, 2595, 3160);
-            selftest_tick(srv);
-
-            SELFTEST_CHECK(varp_arenaquest >= 0, "arenaquest should resolve as a varp symbol");
-            if( varp_arenaquest >= 0 )
-                ToriRSServer_VarpPut(player, varp_arenaquest, arena_entered_ogre_fight);
-
-            slot = ToriRSServer_WorldNpcSpawn(srv, npc_arena_ogre, 2601, 3163, 0);
-            SELFTEST_CHECK(slot >= 0, "arena_ogre should spawn");
-            if( slot >= 0 )
+            SELFTEST_CHECK(varp_arenaquest >= 0 && loc_door >= 0 && chatmenu > 0 &&
+                               npc_arena_ogre >= 0 && npc_general_khazard >= 0,
+                           "the Fight Arena symbols should resolve");
+            for( int r = 0; r < (int)(sizeof(rounds) / sizeof(rounds[0])) && varp_arenaquest >= 0; r++ )
             {
-                struct ToriRSServerNpc* ogre = &srv->npcs[slot];
+                int door_slot = -1;
+                int fighter = -1;
+                int t;
 
-                ToriRSServer_WorldNpcSetOwner(ogre, player);
-                SELFTEST_CHECK(ogre->max_hitpoints == 60,
-                               "arena_ogre hitpoints should match quest_arena.npc (60), got %d",
-                               ogre->max_hitpoints);
+                ToriRSServer_WorldTeleport(srv, 0, 2606, 3151); /* ^arena_yard_tile */
+                selftest_tick(srv);
+                ToriRSServer_VarpPut(player, varp_arenaquest, rounds[r].stage);
+                for( int dx = -2; dx <= 2 && door_slot < 0; dx++ )
+                    for( int dz = -2; dz <= 2 && door_slot < 0; dz++ )
+                        door_slot = ToriRSServer_SceneFindLocId(2606 + dx, 3152 + dz, 0, loc_door);
+                SELFTEST_CHECK(door_slot >= 0, "fightarena_door2 should stand at the yard (2606,3152)");
+                if( door_slot < 0 )
+                    continue;
 
-                ogre->combat_target = player->pid;
-                ToriRSServer_CombatHitNpc(srv, slot, 0, ogre->max_hitpoints);
-                if( varp_arenaquest >= 0 )
+                /* "Return to the arena?" -- Yes. */
+                selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_door, ToriRSServer_LocCategory(loc_door),
+                                door_slot);
+                biohazard_run_dialogue(srv, player, chatmenu);
+                SELFTEST_CHECK(player->active_script != NULL && player->resume_button_count > 0 &&
+                                   player->resume_buttons[0] == chatmenu,
+                               "the arena door at stage %d should ask \"Return to the arena?\"",
+                               rounds[r].stage);
+                if( player->active_script == NULL )
+                    continue;
+                player->last_slot = 1;
+                ToriRSServer_ScriptsResumeButton(srv, chatmenu);
+                for( t = 0; t < 10 && fighter < 0; t++ )
                 {
-                    int t;
-                    for( t = 0; t < 5 && ToriRSServer_Varp(player, varp_arenaquest) != arena_sent_jail; t++ )
-                        selftest_tick(srv);
-                }
-                else
-                {
+                    biohazard_run_dialogue(srv, player, 0);
                     selftest_tick(srv);
-                }
+                    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+                    {
+                        const struct ToriRSServerNpc* npc = &srv->npcs[i];
 
-                SELFTEST_CHECK(varp_arenaquest >= 0 &&
-                                   ToriRSServer_Varp(player, varp_arenaquest) == arena_sent_jail,
-                               "killing arena_ogre should advance arenaquest to arena_sent_jail "
-                               "(via the real arena_after_ogre chain), got %d",
-                               varp_arenaquest >= 0 ? ToriRSServer_Varp(player, varp_arenaquest) : -1);
-
-                /* arena_after_ogre (arena_encounter.rs2) spawns General
-                 * Khazard as a side effect of the ogre's death, ahead of his
-                 * dialogue -- confirm he is actually in the world, not just
-                 * that the varp moved. */
-                {
-                    int found_khazard = 0;
-                    int i;
-
-                    for( i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
-                        if( srv->npcs[i].active && srv->npcs[i].type == npc_general_khazard_arena )
+                        if( npc->active && npc->type == rounds[r].npc_type && npc->level == player->level &&
+                            abs(npc->x - player->x) <= 16 && abs(npc->z - player->z) <= 16 )
                         {
-                            found_khazard = 1;
+                            fighter = i;
                             break;
                         }
-                    SELFTEST_CHECK(found_khazard,
-                                   "General Khazard should spawn once the ogre is defeated");
+                    }
                 }
-            }
-
-            /* The optional fourth fight: after the Bouncer the General is fought as his
-             * attackable form (general_khazard, the cache record that carries Attack);
-             * [ai_queue3,general_khazard] must advance freed_servils to defeated_genkhazard. */
-            {
-                int npc_general_khazard = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "general_khazard");
-                const int arena_freed_servils = 12;
-                const int arena_defeated_genkhazard = 13;
-                int general_slot;
-
-                SELFTEST_CHECK(npc_general_khazard >= 0, "general_khazard should resolve as an npc symbol");
-                if( varp_arenaquest >= 0 )
-                    ToriRSServer_VarpPut(player, varp_arenaquest, arena_freed_servils);
-                general_slot = ToriRSServer_WorldNpcSpawn(srv, npc_general_khazard, 2601, 3163, 0);
-                SELFTEST_CHECK(general_slot >= 0, "general_khazard should spawn");
-                if( general_slot >= 0 && varp_arenaquest >= 0 )
+                SELFTEST_CHECK(fighter >= 0, "the round's copy should hold %s beside the player "
+                               "(at %d,%d,%d)", rounds[r].name, player->x, player->z, player->level);
+                if( fighter < 0 )
+                    continue;
+                SELFTEST_CHECK(srv->npcs[fighter].max_hitpoints == rounds[r].hitpoints,
+                               "%s hitpoints should match quest_arena.npc (%d), got %d", rounds[r].name,
+                               rounds[r].hitpoints, srv->npcs[fighter].max_hitpoints);
+                srv->npcs[fighter].combat_target = player->pid;
+                ToriRSServer_CombatHitNpc(srv, fighter, 0, srv->npcs[fighter].max_hitpoints);
+                /* The kill's xp can open a level-up box, and the round's end is a
+                 * normal queue, which waits while a modal is up: dismiss what
+                 * nothing is parked on, as the player's click would. */
+                for( t = 0; t < 80 && ToriRSServer_Varp(player, varp_arenaquest) != rounds[r].want; t++ )
                 {
-                    struct ToriRSServerNpc* general = &srv->npcs[general_slot];
-                    int t;
-
-                    ToriRSServer_WorldNpcSetOwner(general, player);
-                    SELFTEST_CHECK(general->max_hitpoints == 170,
-                                   "general_khazard hitpoints should match quest_arena.npc (170), got %d",
-                                   general->max_hitpoints);
-                    general->combat_target = player->pid;
-                    ToriRSServer_CombatHitNpc(srv, general_slot, 0, general->max_hitpoints);
-                    for( t = 0; t < 5 && ToriRSServer_Varp(player, varp_arenaquest) != arena_defeated_genkhazard; t++ )
-                        selftest_tick(srv);
-                    SELFTEST_CHECK(ToriRSServer_Varp(player, varp_arenaquest) == arena_defeated_genkhazard,
-                                   "killing general_khazard should advance arenaquest to "
-                                   "arena_defeated_genkhazard, got %d",
-                                   ToriRSServer_Varp(player, varp_arenaquest));
+                    biohazard_run_dialogue(srv, player, 0);
+                    if( !player->active_script )
+                        ToriRSServer_WorldCloseModal(srv);
+                    selftest_tick(srv);
                 }
-            }
-
-            /* The dialogue-gated armour/brew/keys ladder and the real
-             * completion handoff, via ::arenarun
-             * (quests/quest_arena/scripts/arena_selftest.rs2). */
-            {
-                static struct ToriRSServerCapture arenarun_capture;
-                int arenarun_said_ok = 0;
-
-                ToriRSServer_CaptureBegin(srv, &arenarun_capture);
-                ToriRSServer_ScriptsRunDebugproc(srv, "arenarun");
-                ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFindNamed(&arenarun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
-                     i = ToriRSServer_CaptureFindNamed(&arenarun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
+                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_arenaquest) == rounds[r].want,
+                               "killing %s in its round should advance arenaquest to %d, got %d "
+                               "(player at %d,%d,%d hp %d, %s active=%d hp=%d death_tick=%d, "
+                               "script %s)",
+                               rounds[r].name, rounds[r].want, ToriRSServer_Varp(player, varp_arenaquest),
+                               player->x, player->z, player->level,
+                               player->stat_boosted[TORIRSSERVER_STAT_HITPOINTS], rounds[r].name,
+                               srv->npcs[fighter].active, srv->npcs[fighter].hitpoints,
+                               srv->npcs[fighter].death_tick,
+                               player->active_script ? "parked" : "none");
+                for( t = 0; t < 20 && player->active_script != NULL; t++ )
                 {
-                    const struct ToriRSServerCapturedPacket* packet = &arenarun_capture.packets[i];
-                    const char* text;
-
-                    text = selftest_message_text(srv, packet);
-                    if( !text )
-                        continue;
-                    if( strstr(text, "ARENARUN") == NULL )
-                        continue;
-                    fprintf(stderr, "  %s\n", text);
-                    if( strstr(text, "ARENARUN OK") != NULL )
-                        arenarun_said_ok = 1;
+                    biohazard_run_dialogue(srv, player, 0);
+                    ToriRSServer_WorldCloseModal(srv);
+                    selftest_tick(srv);
                 }
-                SELFTEST_CHECK(arenarun_said_ok, "::arenarun should reach its OK line");
             }
+            if( varp_arenaquest >= 0 )
+                ToriRSServer_VarpPut(player, varp_arenaquest, 0);
         }
 
         /*
@@ -32272,7 +32322,9 @@ ToriRSServer_WorldSelftest(void)
 
         /*
          * Drain: protect from melee is 12 a tick against a resistance of 60, so
-         * a point goes every fifth tick.
+         * a point goes every fifth tick -- counted from the tick after the one
+         * it was switched on: the activation tick charges nothing
+         * (prayer.rs2 `~prayer_fresh_drain`, Prayer:528).
          *
          * `srv->tick` is advanced between the calls rather than left alone. A
          * timer's clock is the **absolute** tick it last fired at, not a
@@ -32281,9 +32333,25 @@ ToriRSServer_WorldSelftest(void)
          * implementation showing through the test.
          */
         ToriRSServer_ScriptsRunProc(srv, "[proc,prayer_deactivate_all]", NULL, 0);
+        /* The counts below are from an empty counter against the bare
+         * resistance of 60: whatever an earlier stanza's prayers left in the
+         * counter, or its gear added to the prayer bonus (resistance is
+         * 60 + 2 x bonus), is not this check's. */
+        for( int w = 0; w < TORIRSSERVER_WORN_SLOTS; w++ )
+            worn_set(player, w, -1, 0);
+        ToriRSServer_VarpPut(player,
+                             ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                        "varp6971_prayer_drain_counter"),
+                             0);
         player->stat_level[TORIRSSERVER_STAT_PRAYER] = 99;
         selftest_prayer_toggle(srv, "prayer_protectfrommelee");
         player->stat_boosted[TORIRSSERVER_STAT_PRAYER] = 99;
+        srv->tick++;
+        ToriRSServer_ScriptsProcessTimers(srv);
+        SELFTEST_CHECK(ToriRSServer_Varp(player,
+                                         ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP,
+                                                                    "varp6971_prayer_drain_counter")) == 0,
+                       "the activation tick charges nothing");
         srv->tick++;
         ToriRSServer_ScriptsProcessTimers(srv);
         SELFTEST_CHECK(player->stat_boosted[TORIRSSERVER_STAT_PRAYER] == 99,
@@ -33463,8 +33531,14 @@ ToriRSServer_WorldSelftest(void)
             static struct ToriRSServerCapture toa_capture;
             int toa_said_ok = 0;
 
+            /* The list is past one script's 500,000 instructions, so the
+             * debugproc queues the rest (`[queue,toarun_rest]`) and the tally
+             * goes out a tick later: capture across it. */
+            selftest_quiesce(srv, player);
             ToriRSServer_CaptureBegin(srv, &toa_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "toarun");
+            for( int t = 0; t < 3; t++ )
+                selftest_tick(srv);
             ToriRSServer_CaptureEnd(srv);
             for( int i = ToriRSServer_CaptureFindNamed(&toa_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
                  i = ToriRSServer_CaptureFindNamed(&toa_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
@@ -49320,11 +49394,18 @@ ToriRSServer_WorldSelftest(void)
                  * Vanguard is protected by its shell.", NR Vanguard.applyHit;
                  * the wiki: "They cannot be targeted while shuffling"). Both
                  * decline deliberately, the sanctioned second discharge.
+                 *
+                 * **Five since 2026-10-28.** `[opnpc1,raids_icedemon_noncombat]`,
+                 * the frozen Ice Demon: its cache op1 is "Attack" and the room
+                 * answers it with "It's protected by the ice storm." on the
+                 * click, no walk (RSProx 4392 [1145]..[1147], 3 of 3). The same
+                 * deliberate decline as the two above.
                  */
-                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 4,
+                SELFTEST_CHECK(ToriRSServer_ScriptsReportShadowedOps(srv) == 5,
                                "only [opnpc1,doti_backupactor], [opnpc5,chompybird], "
-                               "[opnpc1,raids_tekton_hammering] and "
-                               "[opnpc1,raids_vanguard_walking] should shadow an engine verb — "
+                               "[opnpc1,raids_tekton_hammering], "
+                               "[opnpc1,raids_vanguard_walking] and "
+                               "[opnpc1,raids_icedemon_noncombat] should shadow an engine verb — "
                                "if this moved, read the new list and say why each entry is "
                                "right");
             }
@@ -53200,8 +53281,7 @@ ToriRSServer_WorldSelftest(void)
                         before_x = player->x;
                         before_z = player->z;
                         before_level = player->level;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, category,
-                                                            slot);
+                        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_ladder, category, slot);
                         for( t = 0; t < 4; t++ )
                         {
                             ToriRSServer_WorldCloseModal(srv);
@@ -55003,7 +55083,9 @@ ToriRSServer_WorldSelftest(void)
 
                         /* Wrong first guess: Aquarius, page 1 slot 1. The
                          * assigned sign is Pisces, so this must NOT
-                         * complete the quest. */
+                         * complete the quest. ::itgronigenrun's crafting xp
+                         * leaves level-up boxes queued; dismiss them first. */
+                        selftest_quiesce(srv, player);
                         selftest_handle(player, PKTOUT_NAME_OPNPC1, opnpc, 2);
                         SELFTEST_CHECK(selftest_settle(srv, 10) >= 0,
                                        "the walk to observatory_professor should complete");
@@ -55106,8 +55188,17 @@ ToriRSServer_WorldSelftest(void)
                                     player->active_script != NULL,
                                     "~ next ~ should page to the next choice menu (page %d)",
                                     page + 2);
+                                /* The list rides the script after the mount; the
+                                 * one before it is the chatbox background reset
+                                 * (chat.rs2 ~p_choice_open). */
                                 if( page == 2 )
-                                    page4_idx = ToriRSServer_CaptureFind(&page_capture, run_opcode, 0);
+                                {
+                                    int opensub_at = ToriRSServer_CaptureFindNamed(
+                                        &page_capture, PKT_NAME_IF_OPENSUB, 0);
+
+                                    page4_idx = ToriRSServer_CaptureFind(
+                                        &page_capture, run_opcode, opensub_at >= 0 ? opensub_at + 1 : 0);
+                                }
                             }
                             SELFTEST_CHECK(page4_idx >= 0,
                                            "the third \"~ next ~\" should draw page 4's chatmenu");
@@ -55276,6 +55367,10 @@ ToriRSServer_WorldSelftest(void)
             int loc_manholeclosed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguemanholeclosed");
             int loc_manholeopen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguemanholeopen");
             int loc_barrel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguekeybarrel");
+            int loc_grill = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plague_grill");
+            int vb_checked_grill =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1786_plaguecity_checked_grill");
+            int vb_pipe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb1787_plaguecity_pipe");
             int npc_alrena = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "alrena");
 
             SELFTEST_CHECK(varp_elena >= 0 && obj_bucket_water >= 0 && obj_spade >= 0 &&
@@ -55521,19 +55616,44 @@ ToriRSServer_WorldSelftest(void)
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_rope, 1);
-                        player->last_useitem = obj_rope;
-                        player->last_useslot = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, pipe_id,
-                                                           ToriRSServer_LocCategory(pipe_id),
-                                                           pipe_slot);
+
+                        /* The grill over the pipe's mouth is its own loc
+                         * (plague_grill, wall decor at 2514,9739): Open it
+                         * first ("too secure"), then the rope goes on it
+                         * (sewerpipe.rs2). */
+                        {
+                            int grill_slot = ToriRSServer_SceneFindLocId(2514, 9739, 0, loc_grill);
+
+                            SELFTEST_CHECK(grill_slot >= 0, "plague_grill should stand over the "
+                                           "pipe at (2514,9739,0)");
+                            if( grill_slot >= 0 )
+                            {
+                                selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_grill,
+                                                ToriRSServer_LocCategory(loc_grill), grill_slot);
+                                for( int t = 0; t < 3; t++ )
+                                    selftest_tick(srv);
+                                SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_checked_grill) == 1,
+                                               "trying the grill should mark it checked");
+                                ToriRSServer_WorldCloseModal(srv);
+                                player->last_useitem = obj_rope;
+                                player->last_useslot = 0;
+                                selftest_op_loc(srv, SS_TRIGGER_OPLOCU, loc_grill,
+                                                ToriRSServer_LocCategory(loc_grill), grill_slot);
+                                for( int t = 0; t < 4; t++ )
+                                    selftest_tick(srv);
+                            }
+                        }
                         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_elena) == 9 /* quest_elena_tied_rope */,
                                        "using rope on the grill should reach "
                                        "quest_elena_tied_rope (9), got %d",
                                        ToriRSServer_Varp(player, varp_elena));
 
-                        /* Edmond frees the grill -- direct progress write,
-                         * same as edmond.rs2's own [opnpc1,edmond] case. */
+                        /* Edmond pulls the grill off -- the stage and the pipe
+                         * bit he writes (2: the grill drawn as nothing). */
                         ToriRSServer_VarpPut(player, varp_elena, 10); /* quest_elena_opened_pipe */
+                        ToriRSServer_VarbitSetOn(srv, player, vb_pipe, 2);
+                        ToriRSServer_WorldTeleport(srv, start_level, start_x, start_z);
+                        selftest_tick(srv);
 
                         /* The rope's own `~mesbox` is still parked, and one
                          * parked script per player is the rule: the climb's
@@ -55885,9 +56005,8 @@ ToriRSServer_WorldSelftest(void)
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_birdfeed, 1);
-                        player->last_useitem = obj_birdfeed;
-                        player->last_useslot = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_biowatchtower_op,
+                        /* Investigate with the feed in the pack throws it. */
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_biowatchtower_op,
                                                            ToriRSServer_LocCategory(loc_biowatchtower_op),
                                                            slot);
                         selftest_tick(srv);
@@ -55941,9 +56060,9 @@ ToriRSServer_WorldSelftest(void)
                                            "crossing the wall with Omart should reach "
                                            "biohazard_climbed_ladder (5), got %d",
                                            ToriRSServer_Varp(player, varp_biohazard));
-                            SELFTEST_CHECK(player->x == 2554 && player->z == 3267 && player->level == 0,
+                            SELFTEST_CHECK(player->x == 2556 && player->z == 3267 && player->level == 0,
                                            "climbing the ladder should land the player at "
-                                           "biohazard_west_wall_dest (2554,3267,0), got "
+                                           "biohazard_west_wall_dest (2556,3267,0), got "
                                            "(%d,%d,%d)", player->x, player->z, player->level);
                         }
                     }
@@ -56260,35 +56379,26 @@ ToriRSServer_WorldSelftest(void)
                                        player->resume_button_count > 0 &&
                                        player->resume_buttons[0] == rows_uid,
                                        "the chemist at given_distillator with a plague "
-                                       "sample should reach his first choice");
+                                       "sample should reach his topic menu");
                         if( player->active_script != NULL )
                         {
-                            player->last_slot = 2; /* "It's ok, I'm Elena's friend." */
+                            /* "Lamps." / "Your quest." / "Impling jars." -- the quest
+                             * topic runs straight into the touch paper (chemist.rs2). */
+                            player->last_slot = 2;
                             ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                            biohazard_run_dialogue(srv, player, rows_uid);
-                            SELFTEST_CHECK(player->active_script != NULL &&
-                                           player->resume_button_count > 0 &&
-                                           player->resume_buttons[0] == rows_uid,
-                                           "the chemist should follow up with the "
-                                           "touch-paper-reason choice");
-                            if( player->active_script != NULL )
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 12, /* biohazard_spoken_chemist */
+                                           "the chemist should reach "
+                                           "biohazard_spoken_chemist (12), got %d",
+                                           ToriRSServer_Varp(player, varp_biohazard));
                             {
-                                player->last_slot = 2; /* "...for a guy called Guidor." */
-                                ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                                biohazard_run_dialogue(srv, player, 0);
-                                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 12, /* biohazard_spoken_chemist */
-                                               "the chemist should reach "
-                                               "biohazard_spoken_chemist (12), got %d",
-                                               ToriRSServer_Varp(player, varp_biohazard));
-                                {
-                                    int has_paper = 0, s;
+                                int has_paper = 0, s;
 
-                                    for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
-                                        if( player->inv[s].obj_id == obj_touch_paper )
-                                            has_paper = 1;
-                                    SELFTEST_CHECK(has_paper, "the chemist should hand "
-                                                   "over touch paper");
-                                }
+                                for( s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
+                                    if( player->inv[s].obj_id == obj_touch_paper )
+                                        has_paper = 1;
+                                SELFTEST_CHECK(has_paper, "the chemist should hand "
+                                               "over touch paper");
                             }
                         }
                     }
@@ -56428,7 +56538,9 @@ ToriRSServer_WorldSelftest(void)
                             SELFTEST_CHECK(guard_slot >= 0, "bioguard1 should spawn for "
                                            "the C-side gate-search check");
                             ToriRSServer_VarpPut(player, varp_biohazard, 10); /* biohazard_given_distillator */
-                            ToriRSServer_WorldTeleport(srv, llevel, lx + 1, lz + 1);
+                            /* From outside (west of the gate): the guard searches on the
+                             * way in, not on the way out. */
+                            ToriRSServer_WorldTeleport(srv, llevel, lx - 1, lz);
                             selftest_tick(srv);
                             for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                                 inv_set(player, s, -1, 0);
@@ -56442,15 +56554,15 @@ ToriRSServer_WorldSelftest(void)
                                            "the guard should confiscate the ethenea vial "
                                            "during the search, still holding obj %d",
                                            player->inv[0].obj_id);
-                            b_dx = player->x - (lx + 1);
-                            b_dz = player->z - (lz + 1);
+                            b_dx = player->x - (lx - 1);
+                            b_dz = player->z - lz;
                             SELFTEST_CHECK(b_dx != 0 || b_dz != 0,
                                            "MUTATION TARGET: after the guard says \"you "
                                            "may now pass\", the unconditional fallthrough "
                                            "in [label,varrock_east_gate] must not teleport "
                                            "the player straight back near the gate they "
                                            "were just let through -- started at (%d,%d,%d), "
-                                           "ended at (%d,%d,%d)", lx + 1, lz + 1, llevel,
+                                           "ended at (%d,%d,%d)", lx - 1, lz, llevel,
                                            player->x, player->z, player->level);
                         }
                     }
@@ -56486,38 +56598,14 @@ ToriRSServer_WorldSelftest(void)
                         {
                             player->last_slot = 1; /* "I've come to ask your assistance..." */
                             ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                            biohazard_run_dialogue(srv, player, rows_uid);
-                            SELFTEST_CHECK(player->active_script != NULL &&
-                                           player->resume_button_count > 0 &&
-                                           player->resume_buttons[0] == rows_uid,
-                                           "Guidor should follow up with the "
-                                           "\"So you're the plague carrier!\" choice");
-                            if( player->active_script != NULL )
-                            {
-                                player->last_slot = 2; /* "I've been sent by your old pupil Elena." */
-                                ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                                biohazard_run_dialogue(srv, player, rows_uid);
-                                /* @guidor_elena runs the sample/reagent checks, then a
-                                 * final flavour choice ("That's why Elena..."/"So what
-                                 * does that mean...") AFTER already writing
-                                 * biohazard_found_secret and consuming the items -- take
-                                 * either branch. */
-                                if( player->active_script != NULL &&
-                                    player->resume_button_count > 0 &&
-                                    player->resume_buttons[0] == rows_uid )
-                                {
-                                    player->last_slot = 1;
-                                    ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                                    biohazard_run_dialogue(srv, player, 0);
-                                }
-                                SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 14, /* biohazard_found_secret */
-                                               "Guidor's analysis should reach "
-                                               "biohazard_found_secret (14), got %d",
-                                               ToriRSServer_Varp(player, varp_biohazard));
-                                SELFTEST_CHECK(player->inv[0].obj_id != obj_plaguesample,
-                                               "the plague sample should be consumed by "
-                                               "Guidor's analysis");
-                            }
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(ToriRSServer_Varp(player, varp_biohazard) == 14, /* biohazard_found_secret */
+                                           "Guidor's analysis should reach "
+                                           "biohazard_found_secret (14), got %d",
+                                           ToriRSServer_Varp(player, varp_biohazard));
+                            SELFTEST_CHECK(player->inv[0].obj_id != obj_plaguesample,
+                                           "the plague sample should be consumed by "
+                                           "Guidor's analysis");
                         }
                     }
                 }
@@ -56553,18 +56641,10 @@ ToriRSServer_WorldSelftest(void)
                         selftest_tick(srv);
                         ToriRSServer_VarpPut(player, varp_biohazard, 15); /* biohazard_reported_elena */
                         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_kinglathas, -1, slot);
-                        biohazard_run_dialogue(srv, player, rows_uid);
-                        SELFTEST_CHECK(player->active_script != NULL &&
-                                       player->resume_button_count > 0 &&
-                                       player->resume_buttons[0] == rows_uid,
-                                       "King Lathas at reported_elena should reach his "
-                                       "\"I don't understand...\" choice");
-                        if( player->active_script != NULL )
+                        /* No menu: the quest completes on the click of his last page
+                         * (king_lathas.rs2, RSProx 4372 [1394..1437]). */
+                        biohazard_run_dialogue(srv, player, 0);
                         {
-                            player->last_slot = 1; /* "I don't understand..." */
-                            ToriRSServer_ScriptsResumeButton(srv, rows_uid);
-                            biohazard_run_dialogue(srv, player, 0);
-
                             /* ~quest_complete_rewards's own scroll interface is a fresh
                              * mainmodal a real player has not clicked away -- close it
                              * a few times across ticks before trusting the queue drained
@@ -60591,6 +60671,7 @@ ToriRSServer_WorldSelftest(void)
                            "skillmulti:a..r should be eighteen consecutive children, span is %d",
                            row_r - row_a);
 
+            selftest_quiesce(srv, player);
             ToriRSServer_CaptureBegin(srv, &skillmulti_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "skillmultirun");
             ToriRSServer_CaptureEnd(srv);

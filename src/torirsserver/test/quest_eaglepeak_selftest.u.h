@@ -129,7 +129,7 @@ ep_talk(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int npc_typ
     assert(player);
     ep_release(srv, player);
     player->last_slot = -1;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, npc_type, -1, slot);
 }
 
 static int
@@ -252,9 +252,9 @@ ep_use_on_loc(
     ep_release(srv, player);
     player->last_useitem = obj_id;
     if( loc_slot >= 0 )
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_id, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOCU, loc_id, -1, loc_slot);
     else
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_id, -1, -1);
+        selftest_op(srv, SS_TRIGGER_OPLOCU, loc_id, -1, -1);
     ep_drain(srv, player, 0);
     player->last_useitem = -1;
 }
@@ -289,7 +289,7 @@ ep_take_ground_near(
             ToriRSServer_WorldTeleport(srv, level, x, z);
             selftest_tick(srv);
             srv->pending_active_obj = ToriRSServer_WorldObjHandle(srv, ground);
-            ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPOBJ3, obj_id, -1, -1);
+            selftest_op(srv, SS_TRIGGER_OPOBJ3, obj_id, -1, -1);
             srv->pending_active_obj = 0;
             ep_drain(srv, player, 0);
             ep_release(srv, player);
@@ -548,7 +548,7 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     ep_pass("search-books", "OPLOC1 books", "hunting_book_of_birds");
 
     ep_release(srv, player);
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_book, -1, -1);
+    selftest_op(srv, SS_TRIGGER_OPHELD1, obj_book, -1, -1);
     ep_drain(srv, player, 0);
     ep_release(srv, player);
     SELFTEST_CHECK(ep_state(player, vb_quest) == 10, "reading the book should reach 10");
@@ -578,9 +578,10 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     asyff_slot = ep_ensure_npc(srv, npc_asyff, 3281, 3398, 0, &spawned_asyff);
     SELFTEST_CHECK(asyff_slot >= 0, "Asyff should spawn");
     ep_talk(srv, player, npc_asyff, asyff_slot);
-    /* asyff.rs2: the bird-costume request is the third row of the peruse
-     * menu (leave / see / bird costumes) while Nickolaus has asked for it. */
-    ep_choose(srv, player, 3);
+    /* asyff.rs2: the bird-costume request is the second row of the peruse
+     * menu (see / bird costumes / leave / furs / materials) while Nickolaus
+     * has asked for it and Biohazard does not want the priest gown. */
+    ep_choose(srv, player, 2);
     ep_drain(srv, player, 0);
     ep_release(srv, player);
     SELFTEST_CHECK(ep_state(player, vb_nick) == 4, "Asyff request should set nick chat 4");
@@ -699,7 +700,7 @@ selftest_quest_eaglepeak(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     kebbit_slot = ep_ensure_npc(srv, npc_kebbit, player->x, player->z - 1, player->level, &spawned_kebbit);
     SELFTEST_CHECK(kebbit_slot >= 0, "kebbit should be present after the opening");
     ep_release(srv, player);
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC3, npc_kebbit, -1, kebbit_slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC3, npc_kebbit, -1, kebbit_slot);
     ep_choose(srv, player, 1);
     ep_drain(srv, player, 0);
     ep_release(srv, player);

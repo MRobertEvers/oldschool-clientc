@@ -67,7 +67,7 @@ def main() -> int:
             # Open Worn Equipment, then its CS2-positioned top-right familiar button.
             "click": "220,634,185;280,677,224",
             "target": "0x183001f",
-            "bounds": "969",
+            "bounds": "12000",
         },
     )
 
@@ -83,9 +83,9 @@ def main() -> int:
                     "TORIRS_SIM_CLICK_AT": str(case["click"]),
                     "TORIRS_CLICK_DEBUG": "1",
                     "TORIRS_DUMP_BOUNDS": str(case["bounds"]),
-                    "TORIRS_DUMP_EMIT_EXIT": "969",
+                    "TORIRS_DUMP_EMIT_EXIT": "12000",
                     "TORIRS_NPC_HEAD_DEBUG": "1",
-                    "TORIRS_DUMP_COM": str((969 << 16) | 13),
+                    "TORIRS_DUMP_COM": str((12000 << 16) | 13),
                     "TORIRS_NET_DEBUG": "1",
                     "TORIRS_EXIT_BMP": str((args.out / f"{label}.bmp").resolve()),
                 }
@@ -108,13 +108,13 @@ def main() -> int:
             f"{label}: Worn Equipment tab did not open",
         )
         expect(
-            "if-opensub: iface=969 target=0x01830000 (387<<16|0) type=1"
+            "if-opensub: iface=12000 target=0x01830000 (387<<16|0) type=1"
             in result.stdout,
             f"{label}: familiar view was not mounted inside wornitems:universe",
         )
         expect(
-            "BOUNDS com=0x03c90000 (969|0)" in result.stdout
-            and "190x261" in bounds_line(result.stdout, "(969|0)"),
+            "BOUNDS com=0x2ee00000 (12000|0)" in result.stdout
+            and "190x261" in bounds_line(result.stdout, "(12000|0)"),
             f"{label}: familiar panel is not the source-style 190x261 layout",
         )
         expect(
@@ -124,12 +124,12 @@ def main() -> int:
             f"{label}: legacy top-level Summoning overlay was mounted",
         )
         expect(
-            "EMIT_EXIT" in result.stdout and "(969|13)" in result.stdout,
+            "EMIT_EXIT" in result.stdout and "(12000|13)" in result.stdout,
             f"{label}: familiar model did not reach the final draw list",
         )
         model_emit = next(
             (line for line in result.stdout.splitlines()
-             if "EMIT_EXIT" in line and "(969|13)" in line),
+             if "EMIT_EXIT" in line and "(12000|13)" in line),
             "",
         )
         expect(
@@ -141,9 +141,9 @@ def main() -> int:
             "Summoning points: 0/1" in result.stdout,
             f"{label}: live Summoning point count did not render",
         )
-        expect("graphic=20016" in bounds_line(result.stdout, "(969|28)"),
+        expect("graphic=20016" in bounds_line(result.stdout, "(12000|28)"),
                f"{label}: Call icon did not reach the draw list")
-        expect("graphic=20017" in bounds_line(result.stdout, "(969|30)"),
+        expect("graphic=20017" in bounds_line(result.stdout, "(12000|30)"),
                f"{label}: Dismiss icon did not reach the draw list")
         expect(
             "message_game: You summon a Spirit wolf." in result.stdout,
@@ -156,7 +156,7 @@ def main() -> int:
                 "TORIRS_MAX_FRAMES": "460",
                 "TORIRS_SIM_CLICK_AT": "190,634,185;250,677,224;320,549,440;390,602,440",
                 "TORIRS_CLICK_DEBUG": "1",
-                "TORIRS_DUMP_BOUNDS": "969",
+                "TORIRS_DUMP_BOUNDS": "12000",
                 "TORIRS_EXIT_BMP": str((args.out / "buttons.bmp").resolve()),
             }
         )
@@ -171,7 +171,7 @@ def main() -> int:
            "Dismiss button did not send IF_BUTTON1")
     expect("message_game: You dismiss your familiar." in result.stdout,
            "Dismiss button did not execute familiar logic")
-    expect("hidden=1" in bounds_line(result.stdout, "(969|13)"),
+    expect("hidden=1" in bounds_line(result.stdout, "(12000|13)"),
            "Dismiss did not hide the familiar model")
 
     return finish(errors, checked, args.out)
@@ -220,7 +220,7 @@ def bounds_line(log: str, marker: str) -> str:
 
 def emitted_rect(log: str, component: int) -> tuple[int, int, int, int] | None:
     pattern = re.compile(
-        rf"EMIT_EXIT.*\(969\|{component}\).* x=(\d+) y=(\d+) w=(\d+) h=(\d+)"
+        rf"EMIT_EXIT.*\(12000\|{component}\).* x=(\d+) y=(\d+) w=(\d+) h=(\d+)"
     )
     matches = [pattern.search(line) for line in log.splitlines()]
     match = next((item for item in reversed(matches) if item is not None), None)

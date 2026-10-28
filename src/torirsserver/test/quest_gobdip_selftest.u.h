@@ -130,7 +130,7 @@ gobdip_talk(
     chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
     gobdip_release(srv, player);
     player->last_slot = -1;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, npc_slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, npc_type, -1, npc_slot);
     for( i = 0; i < choice_count; i++ )
     {
         if( !gobdip_drain_to_choice(srv, player, chatmenu) )
@@ -141,6 +141,23 @@ gobdip_talk(
     }
     gobdip_drain_to_choice(srv, player, chatmenu);
     gobdip_drain_rewards(srv, player);
+}
+
+/* The general by place. Bentnoze is a roster spawn: a fitting takes the
+ * player into a copy far from the village, the roster retires him while
+ * nobody is near, and he stands up again in a new slot on the way back. */
+static int
+gobdip_general(struct ToriRSServer* srv, int npc_bent, int* spawned)
+{
+    int slot;
+
+    assert(srv);
+    assert(spawned);
+    selftest_tick(srv);
+    slot = selftest_require_npc(srv, npc_bent, 2958, 3511, 0);
+    if( slot >= 0 && selftest_find_npc(srv, npc_bent) != slot && *spawned < 0 )
+        *spawned = slot;
+    return slot;
 }
 
 static int
@@ -183,7 +200,7 @@ gobdip_click_crate(
     if( slot < 0 )
         return;
     gobdip_release(srv, player);
-    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_id, -1, slot);
+    selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_id, -1, slot);
     gobdip_drain_rewards(srv, player);
 }
 
@@ -219,6 +236,7 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     int qp_before;
     int xp_before;
     int accept_choices[4];
+    const int handin_choices[2] = {1, 1};
     int leave_choices[1];
 
     assert(srv);
@@ -277,18 +295,14 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
 
     ToriRSServer_WorldTeleport(srv, 0, 2958, 3512);
     selftest_tick(srv);
-    bent_slot = selftest_find_npc(srv, npc_bent);
-    if( bent_slot < 0 )
-    {
-        bent_slot = ToriRSServer_WorldNpcSpawn(srv, npc_bent, 2958, 3511, 0);
+    /* By place, not first-of-type: an earlier test can leave a general in an
+     * instance the fitting's own copy of the square later reuses and frees. */
+    bent_slot = selftest_require_npc(srv, npc_bent, 2958, 3511, 0);
+    if( bent_slot >= 0 && selftest_find_npc(srv, npc_bent) != bent_slot )
         spawned_bent = bent_slot;
-    }
-    wart_slot = selftest_find_npc(srv, npc_wart);
-    if( wart_slot < 0 )
-    {
-        wart_slot = ToriRSServer_WorldNpcSpawn(srv, npc_wart, 2957, 3511, 0);
+    wart_slot = selftest_require_npc(srv, npc_wart, 2957, 3511, 0);
+    if( wart_slot >= 0 && selftest_find_npc(srv, npc_wart) != wart_slot )
         spawned_wart = wart_slot;
-    }
     SELFTEST_CHECK(bent_slot >= 0, "live General Bentnoze (red) should exist");
     if( bent_slot < 0 )
         goto gobdip_done;
@@ -402,19 +416,15 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     /* Return to generals for the 3-4-5-6 ladder. */
     ToriRSServer_WorldTeleport(srv, 0, 2958, 3512);
     selftest_tick(srv);
-    bent_slot = selftest_find_npc(srv, npc_bent);
-    if( bent_slot < 0 && spawned_bent < 0 )
-    {
-        bent_slot = ToriRSServer_WorldNpcSpawn(srv, npc_bent, 2958, 3511, 0);
-        spawned_bent = bent_slot;
-    }
-    else if( bent_slot < 0 )
-        bent_slot = spawned_bent;
+    bent_slot = gobdip_general(srv, npc_bent, &spawned_bent);
     SELFTEST_CHECK(bent_slot >= 0, "generals should still be present for hand-in");
     if( bent_slot < 0 )
         goto gobdip_done;
 
-    gobdip_talk(srv, player, npc_bent, bent_slot, NULL, 0);
+    /* Holding the mail they want, the hand-in leads the menu (row 1). One of
+     * the five random openings asks "Yes, he looks fat." first -- also row 1
+     * (quest_gobdip.rs2, [label,gobdip_start_opening]). */
+    gobdip_talk(srv, player, npc_bent, bent_slot, handin_choices, 2);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 4,
                    "orange fitting should write gobdip_main=4, got %d",
                    ToriRSServer_VarbitGet(player, vb_main));
@@ -422,7 +432,8 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     if( ToriRSServer_VarbitGet(player, vb_main) == 4 )
         gobdip_pass("GOBDIP PASS: orange hand-in wrote state 4");
 
-    gobdip_talk(srv, player, npc_bent, bent_slot, NULL, 0);
+    bent_slot = gobdip_general(srv, npc_bent, &spawned_bent);
+    gobdip_talk(srv, player, npc_bent, bent_slot, handin_choices, 2);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 5,
                    "blue fitting should write gobdip_main=5, got %d",
                    ToriRSServer_VarbitGet(player, vb_main));
@@ -431,7 +442,8 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
 
     qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     xp_before = player->stat_xp_tenths[stat_craft];
-    gobdip_talk(srv, player, npc_bent, bent_slot, NULL, 0);
+    bent_slot = gobdip_general(srv, npc_bent, &spawned_bent);
+    gobdip_talk(srv, player, npc_bent, bent_slot, handin_choices, 2);
     gobdip_drain_rewards(srv, player);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 6,
                    "brown fitting should complete gobdip_main=6, got %d",
@@ -446,6 +458,7 @@ selftest_quest_gobdip(struct ToriRSServer* srv, struct ToriRSServerPlayer* playe
     if( ToriRSServer_VarbitGet(player, vb_main) == 6 )
         gobdip_pass("GOBDIP PASS: brown hand-in completed state 6 with XP and gold bar");
 
+    bent_slot = gobdip_general(srv, npc_bent, &spawned_bent);
     gobdip_talk(srv, player, npc_bent, bent_slot, NULL, 0);
     SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 6, "postquest talk must stay at 6");
     SELFTEST_CHECK(gobdip_inv_total(player, obj_gold) == 1, "postquest must not grant another gold bar");

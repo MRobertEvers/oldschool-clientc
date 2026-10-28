@@ -1800,8 +1800,8 @@ ToriRSServer_CombatNpcDie(
  * starts no death of its own (`npc_queue_death_script`). A param rather than a
  * record field so a server built before it reads the same pack.
  */
-static int
-npc_death_scripted(struct ToriRSServerNpc const* npc)
+int
+ToriRSServer_CombatNpcDeathScripted(const struct ToriRSServerNpc* npc)
 {
     static int s_param = -2;
     int32_t value = 0;
@@ -2098,7 +2098,7 @@ ToriRSServer_CombatHitNpc(
                                   TORIRSSERVER_NPC_SOUND_TILES, slot);
     }
 
-    if( npc->hitpoints == 0 && npc_death_scripted(npc) )
+    if( npc->hitpoints == 0 && ToriRSServer_CombatNpcDeathScripted(npc) )
     {
         npc_queue_death_script(srv, slot);
         return;

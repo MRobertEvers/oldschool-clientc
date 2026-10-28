@@ -121,7 +121,7 @@ demon_talk(
     chatmenu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "chatmenu:options");
     demon_release(srv, player);
     player->last_slot = -1;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_type, -1, npc_slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, npc_type, -1, npc_slot);
     for( i = 0; i < choice_count; i++ )
     {
         if( !demon_drain_to_choice(srv, player, chatmenu) )
@@ -309,7 +309,8 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
 
     /* refuse stays 0 */
     {
-        const int refuse[] = {3};
+        /* "Start the Demon Slayer quest?" -- No (aris.rs2, from RSProx). */
+        const int refuse[] = {2};
 
         inv_set(player, 0, obj_coins, 1);
         demon_talk(srv, player, npc_aris, aris_slot, refuse, 1);
@@ -320,12 +321,14 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
             demon_pass("refuse", "OPNPC1", "demonslayer_main=0");
     }
 
-    /* accept: Ok / fortune / Who's Delrith / fight cities */
+    /* accept: Yes, then "How am I meant to fight a demon...", then "So how did
+     * Wally kill Delrith?" (third on the second menu) -- the Wally scene, at
+     * whose end the quest starts (demon_cutscenes.rs2). */
     {
-        const int accept[] = {1, 1, 1, 1};
+        const int accept[] = {1, 1, 3};
 
         inv_set(player, 0, obj_coins, 1);
-        demon_talk(srv, player, npc_aris, aris_slot, accept, 4);
+        demon_talk(srv, player, npc_aris, aris_slot, accept, 3);
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_main) == 1,
                        "Talk-to accept should write demonslayer_main=1, got %d",
                        ToriRSServer_VarbitGet(player, vb_main));
@@ -364,9 +367,12 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     SELFTEST_CHECK(rovin_slot >= 0, "Captain Rovin should stand in the guardhouse");
     if( rovin_slot >= 0 )
     {
-        const int important[] = {3, 1};
+        /* "Yes I know, but this is important.", the demon, "Yes, very.", "it's
+         * me", Sir Prysin's name, then "Why did he give you one of the keys
+         * then?" (captain_rovin.rs2). */
+        const int important[] = {3, 1, 2, 2, 3, 1};
 
-        demon_talk(srv, player, npc_rovin, rovin_slot, important, 2);
+        demon_talk(srv, player, npc_rovin, rovin_slot, important, 6);
         SELFTEST_CHECK(demon_inv_total(player, obj_key2) == 1,
                        "Rovin Talk-to should grant silverlight_key_2, have %d",
                        demon_inv_total(player, obj_key2));
@@ -391,7 +397,7 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
         inv_set(player, 3, obj_bucket, 1);
         player->last_useitem = obj_bucket;
         demon_release(srv, player);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, use_id, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOCU, use_id, -1, loc_slot);
         demon_drain_to_choice(srv, player, -1);
         demon_drain_rewards(srv, player);
         SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_drain) == 1,
@@ -418,7 +424,7 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
         if( sewer_loc )
             use_id = sewer_loc->loc_id;
         demon_release(srv, player);
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, use_id, -1, loc_slot);
         demon_drain_rewards(srv, player);
         SELFTEST_CHECK(demon_inv_total(player, obj_key3) == 1,
                        "sewer Take should grant silverlight_key_3, have %d",
@@ -439,7 +445,10 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
     SELFTEST_CHECK(traiborn_slot >= 0, "Traiborn should be talkable in the Wizard Tower");
     if( traiborn_slot >= 0 )
     {
-        const int ask[] = {3, 3, 2};
+        /* "Talk about Demon Slayer.", "Well, have you got any keys knocking
+         * around?", "I'll get the bones for you." (traiborn.rs2). */
+        const int ask[] = {1, 3, 2};
+        const int topic[] = {1};
 
         demon_talk(srv, player, npc_traiborn, traiborn_slot, ask, 3);
         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_started) == 1,
@@ -449,7 +458,7 @@ selftest_quest_demon(struct ToriRSServer* srv, struct ToriRSServerPlayer* player
             demon_pass("traiborn-ask", "OPNPC1", "traiborn_started=1");
 
         inv_set(player, 4, obj_bones, 25);
-        demon_talk(srv, player, npc_traiborn, traiborn_slot, NULL, 0);
+        demon_talk(srv, player, npc_traiborn, traiborn_slot, topic, 1);
         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bones) >= 25,
                        "25 unnoted bones should fill demon_bones_given, got %d",
                        ToriRSServer_Varp(player, varp_bones));

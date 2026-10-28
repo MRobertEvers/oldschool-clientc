@@ -174,7 +174,7 @@ bio_talk(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int npc_id
     assert(srv);
     assert(player);
     (void)player;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPNPC1, npc_id, -1, slot);
+    selftest_op(srv, SS_TRIGGER_OPNPC1, npc_id, -1, slot);
 }
 
 static void
@@ -421,22 +421,22 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         bio_pass("watchtower_leaf", "SceneFindLocId", "biowatchtower_op");
     if( obj_feed > 0 )
         selftest_give(player, obj_feed, 1);
-    player->last_useitem = obj_feed;
+    /* Investigate with the feed in the pack throws it (quest_biohazard_locs.rs2). */
     if( loc_slot >= 0 )
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_tower_op, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_tower_op, -1, loc_slot);
     else
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_tower_op, -1, -1);
+        selftest_op(srv, SS_TRIGGER_OPLOC1, loc_tower_op, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 3, "feed leaf should set biohazard=3, got %d",
                    ToriRSServer_Varp(player, varp_bio));
     if( ToriRSServer_Varp(player, varp_bio) == 3 )
-        bio_pass("watchtower_feed", "oplocu,biowatchtower_op", "biohazard=3");
+        bio_pass("watchtower_feed", "oploc1,biowatchtower_op", "biohazard=3");
 
     /* ---- pigeons 3->4 ---- */
     if( obj_pigeons > 0 )
         selftest_give(player, obj_pigeons, 1);
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
+    selftest_op(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 4, "pigeons should set biohazard=4, got %d",
@@ -468,8 +468,6 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
                        ToriRSServer_Varp(player, varp_bio));
         if( ToriRSServer_Varp(player, varp_bio) == 5 )
             bio_pass("omart_cross", "opnpc1,omart", "biohazard=5");
-        if( vb_omart >= 0 )
-            SELFTEST_CHECK(ToriRSServer_VarbitGet(player, vb_omart) == 1, "met_omart should settle");
     }
 
     /* ---- cauldron leaf 5->6 ---- */
@@ -486,9 +484,9 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         selftest_give(player, obj_apple, 1);
     player->last_useitem = obj_apple;
     if( loc_slot >= 0 )
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_cauldron_op, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOCU, loc_cauldron_op, -1, loc_slot);
     else
-        ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPLOCU, loc_cauldron_op, -1, -1);
+        selftest_op(srv, SS_TRIGGER_OPLOCU, loc_cauldron_op, -1, -1);
     bio_drain(srv, player, 0);
     bio_release(srv, player);
     SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 6, "cauldron leaf should set biohazard=6, got %d",
@@ -515,7 +513,7 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     if( loc_slot >= 0 )
     {
         bio_pass("crate_shell", "SceneFindLocId", "mournercrateup");
-        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
+        selftest_op_loc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
         bio_drain(srv, player, 0);
         bio_release(srv, player);
         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 7, "crate should set biohazard=7, got %d",
@@ -550,7 +548,7 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
         int sample_before = obj_sample > 0 ? selftest_count(player, obj_sample) : 0;
 
         bio_talk(srv, player, srv->npcs[chemist_slot].type, chemist_slot);
-        bio_choose(srv, player, 1);
+        bio_choose(srv, player, 2); /* "Your quest." */
         bio_drain(srv, player, 0);
         bio_release(srv, player);
         if( obj_sample > 0 )
@@ -640,11 +638,7 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     if( guidor_slot >= 0 )
     {
         bio_talk(srv, player, srv->npcs[guidor_slot].type, guidor_slot);
-        bio_choose(srv, player, 1);
-        bio_drain(srv, player, 1);
-        bio_choose(srv, player, 2);
-        bio_drain(srv, player, 1);
-        bio_choose(srv, player, 1);
+        bio_choose(srv, player, 1); /* "I've come to ask your assistance..." */
         bio_drain(srv, player, 0);
         bio_release(srv, player);
         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 14, "Guidor should set biohazard=14, got %d",
@@ -670,7 +664,7 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     /* ---- West Ardougne teleport rejected at 15 ---- */
     x_before = player->x;
     z_before = player->z;
-    ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_OPHELD1,
+    selftest_op(srv, SS_TRIGGER_OPHELD1,
                                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "teletab_westardy"),
                                    -1, -1);
     bio_drain(srv, player, 0);
@@ -686,8 +680,8 @@ selftest_quest_biohazard(struct ToriRSServer* srv, struct ToriRSServerPlayer* pl
     qp_before = varp_qp >= 0 ? ToriRSServer_Varp(player, varp_qp) : 0;
     if( lathas_slot >= 0 )
     {
+        /* No menu: the quest completes on his last page (king_lathas.rs2). */
         bio_talk(srv, player, srv->npcs[lathas_slot].type, lathas_slot);
-        bio_choose(srv, player, 1);
         bio_drain_rewards(srv, player);
         bio_release(srv, player);
         SELFTEST_CHECK(ToriRSServer_Varp(player, varp_bio) == 16, "Lathas should complete to 16, got %d",

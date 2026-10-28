@@ -7427,6 +7427,11 @@ ToriRSServer_ProjectileLandCycleFor(
 int
 ToriRSServer_HitClientDelay(const struct ToriRSServer* srv);
 
+/** Does zero hitpoints leave this npc's death to its script
+ *  (`param=death_script,yes`)? The engine then plays no death of its own. */
+int
+ToriRSServer_CombatNpcDeathScripted(const struct ToriRSServerNpc* npc);
+
 /** Apply damage and the hitsplat that carries it. A zero amount is a block
  *  splat, not nothing — otherwise a miss looks like a dropped swing. */
 void

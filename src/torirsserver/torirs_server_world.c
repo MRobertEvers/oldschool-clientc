@@ -4833,7 +4833,10 @@ ToriRSServer_WorldNpcFree(
         return;
     }
 
-    if( npc->hitpoints == 0 && npc->death_seq >= 0 && !npc->death_seq_sent )
+    /* A `death_script` npc plays no engine death: its exit is its script's
+     * (General Khazard's teleport, RSProx 4396 [471]..[476]). */
+    if( npc->hitpoints == 0 && npc->death_seq >= 0 && !npc->death_seq_sent &&
+        !ToriRSServer_CombatNpcDeathScripted(npc) )
     {
         srv->silent_death_removals++;
         fprintf(stderr,

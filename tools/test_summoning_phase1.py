@@ -272,7 +272,7 @@ def main() -> int:
         expect("320<<16|34" in wolf_relog, "Wolf Whistle unlock did not survive relog")
         expect("320<<16|34" in level1, "flag_on_level1: Summoning cell is absent")
         expect(
-            "969<<16|0" in level1
+            "12000<<16|0" in level1
             and 'text="Summoning points: 1/1"' in level1
             and "if-opensub: target" not in level1,
             "flag_on_level1: familiar sidebar did not mount into the live gameframe",
