@@ -1841,7 +1841,7 @@ app_watch_outline_tile(
 
 /**
  * The tap mark (App::tap_mark): the npc or loc a touch's op went to, outlined
- * in the interact cross's red until the cross goes out. The mesh hull, not the
+ * in its minimenu name colour until the cross goes out. The mesh hull, not the
  * bounds box, because the point is to say WHICH model under the finger took
  * the tap, and a box around every npc's widest pose says that badly. No fill:
  * a wash would hide the thing being pointed at.
@@ -1859,7 +1859,7 @@ app_overlay_build_tap_mark(struct App* app)
     }
     /* A model that has gone (despawned, out of view) draws nothing. */
     (void)app_overlay_outline_element_mesh_trans(
-        app, app->tap_mark.element_id, APP_TAP_MARK_COLOR, -1);
+        app, app->tap_mark.element_id, app->tap_mark.color, -1);
 }
 
 /**

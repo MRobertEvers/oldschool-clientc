@@ -2204,12 +2204,18 @@ app_minimenu_run_option(
         {
             app_cross_show(app, cross_mode, click_x, click_y);
             /* Same guard: only an op the cross marks outlines its target, so
-             * Examine and the UI rows mark nothing. */
+             * Examine and the UI rows mark nothing. The outline wears the
+             * colour the row printed the target's name in: rs_minimenu_world.c
+             * writes npcs `@yel@<name>` and locs `@cya@<name>`. */
             if( app->touch_ui &&
                 (opt.pick.kind == UI_MINIMENU_PICK_NPC ||
                  opt.pick.kind == UI_MINIMENU_PICK_SCENERY) )
             {
+                int const rgb = ToriDraw_FontEvaluateColorTag(
+                    opt.pick.kind == UI_MINIMENU_PICK_NPC ? "yel" : "cya");
+
                 app->tap_mark.element_id = opt.pick.id;
+                app->tap_mark.color = 0xFF000000u | (uint32_t)rgb;
                 app->tap_mark.until_ms = app->last_frame_ms + APP_TAP_MARK_MS;
             }
         }

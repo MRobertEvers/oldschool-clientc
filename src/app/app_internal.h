@@ -1503,8 +1503,6 @@ app_overlay_build_hover_footprint(struct App* app);
 /** How long a tap's target stays outlined (App::tap_mark): the cross's own
  *  life, so the two go out together. */
 #define APP_TAP_MARK_MS 400
-/** The interact cross's red, ARGB. */
-#define APP_TAP_MARK_COLOR 0xFFFF0000u
 
 void
 app_overlay_build_tap_mark(struct App* app);

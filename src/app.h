@@ -2189,6 +2189,9 @@ struct App
     struct
     {
         int element_id;
+        /** ARGB: the target's name colour in the minimenu -- npc @yel@,
+         *  loc @cya@ (rs_minimenu_world.c). */
+        uint32_t color;
         uint64_t until_ms;
     } tap_mark;
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
