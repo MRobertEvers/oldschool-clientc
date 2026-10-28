@@ -29,6 +29,11 @@ final class PluginTabView extends View
     private final RectF box = new RectF();
     private final int width;
     private final int height;
+    /** How far the screen's unsafe area (cutout, rounded corner) reaches in at
+     *  the top and the right. The plate runs on through it to the edge; the
+     *  chevron stays in the safe area. @see #setSafeInsets. */
+    private int insetTop;
+    private int insetRight;
 
     PluginTabView(Context context, int widthPx, int heightPx)
     {
@@ -44,31 +49,42 @@ final class PluginTabView extends View
         setContentDescription("Plugins");
     }
 
+    void setSafeInsets(int top, int right)
+    {
+        if( top == insetTop && right == insetRight )
+            return;
+        insetTop = Math.max(0, top);
+        insetRight = Math.max(0, right);
+        requestLayout();
+        invalidate();
+    }
+
     @Override
     protected void onMeasure(int widthSpec, int heightSpec)
     {
-        setMeasuredDimension(width, height);
+        setMeasuredDimension(width + insetRight, height + insetTop);
     }
 
     @Override
     protected void onDraw(Canvas canvas)
     {
-        final float w = getWidth();
-        final float h = getHeight();
+        final float w = width;
+        final float h = height;
         final float radius = w * 0.45f;
 
         plate.setAlpha(isPressed() ? 255 : 200);
-        /* Rounded on the bottom-left only: the tab is flush with the screen's
-         * top and right edges. */
-        box.set(0f, -radius, w + radius, h);
+        /* Rounded on the bottom-left only: the plate is flush with the screen's
+         * top and right edges, unsafe area included. */
+        box.set(0f, -radius, getWidth() + radius, getHeight());
         canvas.drawRoundRect(box, radius, radius, plate);
 
-        /* A left-pointing chevron: "pull the plugins out from this side". */
+        /* A left-pointing chevron, "pull the plugins out from this side", in
+         * the part of the tab that is inside the safe area. */
         mark.setStrokeWidth(Math.max(2f, w * 0.12f));
         chevron.reset();
-        chevron.moveTo(w * 0.62f, h * 0.36f);
-        chevron.lineTo(w * 0.38f, h * 0.50f);
-        chevron.lineTo(w * 0.62f, h * 0.64f);
+        chevron.moveTo(w * 0.62f, insetTop + h * 0.36f);
+        chevron.lineTo(w * 0.38f, insetTop + h * 0.50f);
+        chevron.lineTo(w * 0.62f, insetTop + h * 0.64f);
         canvas.drawPath(chevron, mark);
     }
 }

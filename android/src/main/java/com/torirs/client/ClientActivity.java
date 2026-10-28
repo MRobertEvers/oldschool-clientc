@@ -239,6 +239,24 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 FrameLayout.LayoutParams.WRAP_CONTENT);
         pluginTabLayout.gravity = Gravity.TOP | Gravity.END;
         rootLayout.addView(pluginTab, pluginTabLayout);
+        /* The cutout's safe insets (API 28+; before that a screen has none to
+         * report), so the tab's chevron sits clear of the notch. */
+        if( Build.VERSION.SDK_INT >= 28 )
+        {
+            pluginTab.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener()
+            {
+                @Override
+                public WindowInsets onApplyWindowInsets(View v, WindowInsets insets)
+                {
+                    android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                    if( cutout != null )
+                        pluginTab.setSafeInsets(cutout.getSafeInsetTop(), cutout.getSafeInsetRight());
+                    else
+                        pluginTab.setSafeInsets(0, 0);
+                    return insets;
+                }
+            });
+        }
         setContentView(rootLayout);
         surfaceView.requestFocus();
 

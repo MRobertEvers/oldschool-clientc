@@ -251,12 +251,15 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   }
   body.fullcanvas header:hover,
   body.fullcanvas header:focus-within { opacity: 1; }
-  /* A phone's corner tab is small and flush with the top-right corner, notch
-     and rounded corner included: the game's 2D interface keeps clear of the
-     unsafe area, so the tab sitting in it covers nothing the player needs. */
-  html.mobile body.fullcanvas header {
+  /* A phone's corner tab: the BUTTON sits in the safe area, and its plate
+     runs on out to the screen's corner through the notch and the rounded
+     corner, so it reads as attached to the edge without hiding under it. */
+  html.mobile body.fullcanvas header,
+  html.mobile body.fullcanvas header.drawer-closed {
     top: 0;
     right: calc(var(--torirs-dock-width, 0px) + var(--torirs-drawer-width, 0px));
+    padding-top: calc(env(safe-area-inset-top, 0px) + 0.15rem);
+    padding-right: calc(env(safe-area-inset-right, 0px) + 0.15rem);
   }
   html.mobile body.fullcanvas #btn-drawer { padding: 0.05rem 0.25rem; font-size: 0.85rem; }
   body.fullcanvas header h1,
