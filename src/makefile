@@ -5086,6 +5086,13 @@ TORIRSSERVER_HDRS := $(wildcard torirsserver/*.h scriptrun/*.h serverscript/*.h 
 		plugin/torirs_drive_plan_lua.h)
 .PHONY: torirsserver
 torirsserver ToriRSServer: $(OBJ_DIR)/torirsserver
+# Where a build with the same variables puts its binaries, for a script that
+# has to pick up what make built (tools/deploy/build_osrs239_package.py). The
+# suffixes follow the environment (ASAN, PROFILE, ...), so it is asked, not
+# guessed.
+.PHONY: print-obj-dir
+print-obj-dir:
+	@echo "OBJ_DIR=$(OBJ_DIR)"
 $(OBJ_DIR)/torirsserver: $(TORIRSSERVER_SRCS) $(TORIRSSERVER_HDRS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o $(OBJ_DIR)/lua_unity.o \

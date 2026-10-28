@@ -107,6 +107,23 @@ def make(targets: list[str], jobs: int) -> None:
     subprocess.run(argv, cwd=REPO, check=True, env=env)
 
 
+def make_obj_dir(variables: list[str]) -> Path:
+    """The object directory a `make <variables> <target>` builds into, as
+    make itself names it (src/Makefile print-obj-dir)."""
+    if IS_WINDOWS:
+        argv = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(REPO / "make.ps1"), *variables, "print-obj-dir"]
+    else:
+        argv = ["make", "-C", str(SRC), *variables, "print-obj-dir"]
+    env = {k: v for k, v in os.environ.items() if k not in ("MAKEFLAGS", "MFLAGS", "MAKELEVEL")}
+    out = subprocess.run(argv, cwd=REPO, check=True, env=env,
+                         capture_output=True, text=True).stdout
+    for line in out.splitlines():
+        if line.startswith("OBJ_DIR="):
+            return SRC / line[len("OBJ_DIR="):].strip()
+    die(f"make print-obj-dir named no OBJ_DIR: {out!r}")
+
+
 def scripts_stale() -> bool:
     """tools/server_scripts_stale.py: exit 1 means current, anything else bake."""
     rc = subprocess.run(
@@ -115,19 +132,28 @@ def scripts_stale() -> bool:
     return rc != 1
 
 
-def server_binary(name: str, built_after: float | None) -> Path:
-    """The freshest native optimised build of a server, and only a fresh one
-    when this run was supposed to build it."""
+def built_server(name: str, variables: list[str]) -> Path:
+    """The server this run's make built, where make keeps it.
+
+    Not "a binary newer than the run": make that finds the binary current
+    rightly does nothing, which is every deploy whose change is the client's
+    alone -- and a test of the binary's age refused all of them. make
+    exiting 0 for the target (make() checks) is what says it is current."""
+    path = make_obj_dir(variables) / f"{name}{EXE}"
+    if not path.is_file():
+        die(f"{path} missing after its make target")
+    return path
+
+
+def server_binary(name: str) -> Path:
+    """--skip-servers: the freshest native optimised build of a server."""
     candidates = sorted(SRC.glob(f"build*_opt/{name}{EXE}"),
                         key=lambda p: p.stat().st_mtime, reverse=True)
     candidates = [p for p in candidates if "web" not in p.parent.name
                   and "asan" not in p.parent.name]
     if not candidates:
         die(f"no build*_opt/{name}{EXE} under src/ -- did the build run?")
-    found = candidates[0]
-    if built_after is not None and found.stat().st_mtime < built_after:
-        die(f"{found} predates this build; the make target did not produce it")
-    return found
+    return candidates[0]
 
 
 # ------------------------------------------------------------------ staging
@@ -703,14 +729,17 @@ def main() -> int:
         make(["io-server"], args.jobs)
         make(["OPT=1", "torirsserver"], args.jobs)
         make(["OPT=1", "account-server"], args.jobs)
-    built_after = None if args.skip_servers else started
-    game_bin = server_binary("torirsserver", built_after)
-    accounts_bin = server_binary("account_server", built_after)
+    if args.skip_servers:
+        game_bin = server_binary("torirsserver")
+        accounts_bin = server_binary("account_server")
+    else:
+        game_bin = built_server("torirsserver", ["OPT=1"])
+        accounts_bin = built_server("account_server", ["OPT=1"])
+    # io-server always builds into src/build (IO_SERVER_OBJ_DIR), whatever
+    # the variables; its make target above said whether it is current.
     io_bin = (SRC / "build" / f"io_server{EXE}")
     if not io_bin.is_file():
         die(f"{io_bin} missing")
-    if built_after is not None and io_bin.stat().st_mtime < built_after:
-        die(f"{io_bin} predates this build")
 
     # ---- stage
     stage = args.out / PACKAGE_NAME
