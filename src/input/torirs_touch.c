@@ -13,7 +13,17 @@ touch_find(struct ToriRS_Touch* touch, int64_t id)
 {
     assert(touch);
     for( int i = 0; i < TORIRS_TOUCH_MAX; i++ )
-        if( touch->finger[i].id == id )
+        if( touch->finger[i].live && touch->finger[i].id == id )
+            return &touch->finger[i];
+    return NULL;
+}
+
+static struct ToriRS_TouchFinger*
+touch_free_slot(struct ToriRS_Touch* touch)
+{
+    assert(touch);
+    for( int i = 0; i < TORIRS_TOUCH_MAX; i++ )
+        if( !touch->finger[i].live )
             return &touch->finger[i];
     return NULL;
 }
@@ -45,7 +55,7 @@ touch_spread(struct ToriRS_Touch const* touch, int* out_mid_x, int* out_mid_y)
     assert(touch);
     for( int i = 0; i < TORIRS_TOUCH_MAX; i++ )
     {
-        if( touch->finger[i].id < 0 )
+        if( !touch->finger[i].live )
             continue;
         if( !first )
             first = &touch->finger[i];
@@ -165,8 +175,6 @@ ToriRS_TouchReset(struct ToriRS_Touch* touch)
 {
     assert(touch);
     memset(touch, 0, sizeof(*touch));
-    for( int i = 0; i < TORIRS_TOUCH_MAX; i++ )
-        touch->finger[i].id = -1;
     touch->pinch_distance = -1;
 }
 
@@ -267,11 +275,12 @@ ToriRS_TouchEvent(
         finger = touch_find(touch, id);
         if( !finger )
         {
-            finger = touch_find(touch, -1);
+            finger = touch_free_slot(touch);
             if( !finger )
                 return; /* more fingers than we follow: ignore the extras */
             touch->count++;
         }
+        finger->live = 1;
         finger->id = id;
         finger->start_x = canvas_x;
         finger->start_y = canvas_y;
@@ -434,7 +443,7 @@ ToriRS_TouchEvent(
             touch_click(bus, TORIRSM_LEFT, finger->start_x, finger->start_y);
     }
 
-    finger->id = -1;
+    finger->live = 0;
     if( touch->count > 0 )
         touch->count--;
     if( touch->count < 2 )
@@ -486,7 +495,7 @@ ToriRS_TouchTick(
     {
         struct ToriRS_TouchFinger* finger = &touch->finger[i];
 
-        if( finger->id < 0 || finger->held || finger->dragging )
+        if( !finger->live || finger->held || finger->dragging )
             continue;
         if( now_ms - finger->began_ms < TORIRS_TOUCH_HOLD_MS )
             continue;

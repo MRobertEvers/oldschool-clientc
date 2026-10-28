@@ -303,6 +303,43 @@ main(void)
     drain(&bus, &seen);
     CHECK(seen.key_ups == 1, "and lifting releases it");
 
+    /*
+     * ---- an iPhone's finger ids are negative as often as not ----
+     *
+     * WebKit's Touch.identifier is a large number and emscripten passes it as
+     * an int, so in a browser on iOS a finger arrives as, say, -1582314284 --
+     * or -1, which was once this layer's "free slot". A finger with such an id
+     * was followed but never counted: no long press, no pinch, no pan.
+     */
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, -1582314284, 60, 40, 0);
+    ToriRS_TouchTick(&touch, &bus, TORIRS_TOUCH_HOLD_MS + 1);
+    drain(&bus, &seen);
+    CHECK(
+        seen.downs == 1 && seen.last_button == TORIRSM_RIGHT,
+        "a negative id holds into a right click");
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, -1582314284, 60, 40, TORIRS_TOUCH_HOLD_MS + 50);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1 && seen.last_button == TORIRSM_LEFT, "and its lift chooses the row");
+
+    CmdBus_Init(&bus);
+    ToriRS_TouchReset(&touch);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, -1, 300, 200, 0);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, -1582314283, 400, 200, 5);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_MOVED, -1582314283, 400, 200, 10); /* baseline */
+    drain(&bus, &seen);
+    ToriRS_TouchEvent(
+        &touch, &bus, TORIRS_TOUCH_MOVED, -1582314283, 400 + TORIRS_TOUCH_PINCH_STEP + 8, 200, 40);
+    drain(&bus, &seen);
+    CHECK(seen.wheels == 1, "two negative ids pinch");
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, -1, 300, 200, 60);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, -1582314283, 424, 200, 70);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_BEGAN, 7, 100, 80, 80);
+    ToriRS_TouchEvent(&touch, &bus, TORIRS_TOUCH_ENDED, 7, 100, 80, 90);
+    drain(&bus, &seen);
+    CHECK(seen.downs == 1, "and both slots come free again: the next tap is a lone finger's");
+
     /* ---- a drag on the world turns the camera: the MIDDLE button ---- */
     CmdBus_Init(&bus);
     ToriRS_TouchReset(&touch);

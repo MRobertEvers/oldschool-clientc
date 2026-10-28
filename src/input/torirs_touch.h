@@ -98,7 +98,12 @@ enum ToriRS_TouchPhase
 
 struct ToriRS_TouchFinger
 {
-    /** The backend's own id. -1 when the slot is free. */
+    /** Set while a finger is in this slot. */
+    int live;
+    /** The backend's own id, any value: WebKit's identifiers are large, and
+     *  emscripten hands them over as an int, so an iPhone's are as often
+     *  negative as not. The id says which finger, never whether there is
+     *  one -- that is `live`. */
     int64_t id;
     int start_x;
     int start_y;
