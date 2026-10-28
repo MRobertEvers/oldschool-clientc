@@ -89,6 +89,7 @@ void packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m);
 #define packet_clansettings_full_osrs239_out packet_clansettings_full_v1_out
 #define packet_clansettings_full_osrs240_out packet_clansettings_full_v1_out
 #define packet_clansettings_full_osrs241_out packet_clansettings_full_v1_out
+#define packet_clansettings_full_osrsm241_out packet_clansettings_full_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clansettings_full_out[];

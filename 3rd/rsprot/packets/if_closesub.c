@@ -24,13 +24,21 @@ packet_if_closesub_v2_out(RsprotExec *x, MsgIfCloseSub *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
+/* v3 -- revs osrsm241. */
+void
+packet_if_closesub_v3_out(RsprotExec *x, MsgIfCloseSub *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+}
+
 /*
- * 2 row(s) for 2 layout(s). A revision not listed has no IF_CLOSESUB and
+ * 3 row(s) for 3 layout(s). A revision not listed has no IF_CLOSESUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_closesub_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(221), (RsprotCodecFn)packet_if_closesub_v1_out },
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_closesub_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_closesub_v3_out },
 };
 
 const int rsprot_if_closesub_out_count =

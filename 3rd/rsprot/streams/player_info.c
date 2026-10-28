@@ -34,3 +34,12 @@ player_info_osrs(RsprotRev rev)
     default: return NULL;
     }
 }
+
+RsprotPlayerInfoReadFn
+player_info_osrsm(RsprotRev rev)
+{
+    switch (rev.id) {
+    case RSPROT_OSRSM_ID(241): return player_info_osrsm241;
+    default: return NULL;
+    }
+}

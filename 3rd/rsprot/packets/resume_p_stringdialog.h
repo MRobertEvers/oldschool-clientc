@@ -19,6 +19,8 @@ typedef struct MsgResumePStringDialog {
 
 /* v1 -- revs osrs221-241. */
 void packet_resume_p_stringdialog_v1_in(RsprotExec *x, MsgResumePStringDialog *m);
+/* v2 -- revs osrsm241. */
+void packet_resume_p_stringdialog_v2_in(RsprotExec *x, MsgResumePStringDialog *m);
 
 /* Per-revision entry points: what revision R calls is packet_resume_p_stringdialog_<R>_in. */
 #define packet_resume_p_stringdialog_osrs221_in packet_resume_p_stringdialog_v1_in
@@ -42,6 +44,7 @@ void packet_resume_p_stringdialog_v1_in(RsprotExec *x, MsgResumePStringDialog *m
 #define packet_resume_p_stringdialog_osrs239_in packet_resume_p_stringdialog_v1_in
 #define packet_resume_p_stringdialog_osrs240_in packet_resume_p_stringdialog_v1_in
 #define packet_resume_p_stringdialog_osrs241_in packet_resume_p_stringdialog_v1_in
+#define packet_resume_p_stringdialog_osrsm241_in packet_resume_p_stringdialog_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_stringdialog_in[];

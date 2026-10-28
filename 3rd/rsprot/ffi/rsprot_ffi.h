@@ -12,7 +12,7 @@
 
 #include <stdint.h>
 
-#define RSPROT_FFI_ABI 3
+#define RSPROT_FFI_ABI 4
 
 /** RSPROT_FFI_ABI, for a binding to check what it loaded. */
 int rsprot_ffi_abi(void);
@@ -20,6 +20,14 @@ int rsprot_ffi_abi(void);
 /** The revisions the tables cover (inclusive), and whether `revision` is one. */
 int rsprot_ffi_revision_first(void);
 int rsprot_ffi_revision_last(void);
+
+/**
+ * The mobile client's protocol at Old School revision `number` (osrsm<number>,
+ * the Enhanced Android / iOS client, client types 7 / 8): the value to pass as
+ * `revision` to every call below, or 0 where the library has no such table.
+ * Every `revision` parameter takes either an OSRS number or this value.
+ */
+int rsprot_ffi_mobile_revision(int number);
 
 /**
  * Row `i` of `revision`'s server (`client` 0) or client (1) prot table: its name,

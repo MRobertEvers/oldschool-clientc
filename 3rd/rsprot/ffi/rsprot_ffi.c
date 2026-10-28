@@ -25,8 +25,27 @@ rsprot_ffi_abi(void)
 
 /*
  * The FFI's host is RSProx, which records Old School only, so a revision here
- * is an OSRS number and is tagged on the way in.
+ * is an OSRS number and is tagged on the way in -- or, above 0xFFFF, a whole
+ * RsprotRev id, which is how a host names a mobile revision (osrsm<N>; see
+ * rsprot_ffi_mobile_revision).
  */
+static RsprotRev
+ffi_rev(int revision)
+{
+    if (revision > 0xFFFF) {
+        RsprotRev r = { (uint32_t)revision };
+        return r;
+    }
+    return ffi_rev(revision);
+}
+
+int
+rsprot_ffi_mobile_revision(int number)
+{
+    RsprotRev r = rsprot_osrsm(number);
+
+    return rsprot_rev_table(r) ? (int)r.id : 0;
+}
 int
 rsprot_ffi_revision_first(void)
 {
@@ -49,7 +68,7 @@ int
 rsprot_ffi_prot(int revision, int client, int i, const char **name, int *opcode, int *size,
                 const char **codec)
 {
-    const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(revision));
+    const RsprotRevTable *t = rsprot_rev_table(ffi_rev(revision));
     const RsprotProtDef *row;
 
     if (!t || i < 0 || i >= (client ? t->client_count : t->server_count))
@@ -65,7 +84,7 @@ rsprot_ffi_prot(int revision, int client, int i, const char **name, int *opcode,
 const char *
 rsprot_ffi_zone_prot(int revision, int ordinal)
 {
-    const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(revision));
+    const RsprotRevTable *t = rsprot_rev_table(ffi_rev(revision));
 
     return t ? rsprot_zone_prot_name(t, ordinal) : NULL;
 }
@@ -75,7 +94,7 @@ rsprot_ffi_zone_prot(int revision, int ordinal)
 static const RsprotProtDef *
 row_named(int revision, int client, const char *prot)
 {
-    const RsprotRevTable *t = rsprot_rev_table(rsprot_osrs(revision));
+    const RsprotRevTable *t = rsprot_rev_table(ffi_rev(revision));
 
     if (!t)
         return NULL;
@@ -101,8 +120,8 @@ decode(int revision, int client, const char *prot, const uint8_t *data, int len,
     RsprotBuf b;
     RsprotTrace trace;
 
-    fn = row ? rsprot_registry_resolve_def(row, dir, rsprot_osrs(revision), &file)
-             : rsprot_registry_resolve(prot, dir, rsprot_osrs(revision));
+    fn = row ? rsprot_registry_resolve_def(row, dir, ffi_rev(revision), &file)
+             : rsprot_registry_resolve(prot, dir, ffi_rev(revision));
     if (!fn)
         return -1;
     /* Decoding transfers every field before any branch reads it, so the
@@ -637,7 +656,9 @@ int
 rsprot_ffi_player_info(void *players, int revision, const uint8_t *data, int len, uint8_t *out,
                        int cap, char *err, int err_cap)
 {
-    RsprotPlayerInfoReadFn read = player_info_osrs(rsprot_osrs(revision));
+    RsprotRev rev = ffi_rev(revision);
+    RsprotPlayerInfoReadFn read = rsprot_rev_family(rev) == RSPROT_FAMILY_OSRSM ? player_info_osrsm(rev)
+                                                                                : player_info_osrs(rev);
     RsprotInfoList list;
 
     assert(players);
@@ -703,18 +724,23 @@ rsprot_ffi_npc_info(int revision, const char *prot, const uint8_t *data, int len
 
     prot = stream_version(revision, prot);
 
-    if (strcmp(prot, "NPC_INFO_SMALL_V4") == 0)
-        read = npc_info_small_v4_osrs(rsprot_osrs(revision));
+    if (rsprot_rev_family(ffi_rev(revision)) == RSPROT_FAMILY_OSRSM) {
+        if (strcmp(prot, "NPC_INFO_SMALL_V6") == 0)
+            read = npc_info_small_v6_osrsm(ffi_rev(revision));
+        else if (strcmp(prot, "NPC_INFO_LARGE_V6") == 0)
+            read = npc_info_large_v6_osrsm(ffi_rev(revision));
+    } else if (strcmp(prot, "NPC_INFO_SMALL_V4") == 0)
+        read = npc_info_small_v4_osrs(ffi_rev(revision));
     else if (strcmp(prot, "NPC_INFO_LARGE_V4") == 0)
-        read = npc_info_large_v4_osrs(rsprot_osrs(revision));
+        read = npc_info_large_v4_osrs(ffi_rev(revision));
     else if (strcmp(prot, "NPC_INFO_SMALL_V5") == 0)
-        read = npc_info_small_v5_osrs(rsprot_osrs(revision));
+        read = npc_info_small_v5_osrs(ffi_rev(revision));
     else if (strcmp(prot, "NPC_INFO_LARGE_V5") == 0)
-        read = npc_info_large_v5_osrs(rsprot_osrs(revision));
+        read = npc_info_large_v5_osrs(ffi_rev(revision));
     else if (strcmp(prot, "NPC_INFO_SMALL_V6") == 0)
-        read = npc_info_small_v6_osrs(rsprot_osrs(revision));
+        read = npc_info_small_v6_osrs(ffi_rev(revision));
     else if (strcmp(prot, "NPC_INFO_LARGE_V6") == 0)
-        read = npc_info_large_v6_osrs(rsprot_osrs(revision));
+        read = npc_info_large_v6_osrs(ffi_rev(revision));
     if (!read)
         return -1;
     rsprot_info_list_init(&list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
@@ -745,9 +771,14 @@ rsprot_ffi_worldentity_info(int revision, const char *prot, const uint8_t *data,
     };
 
     prot = stream_version(revision, prot);
-    for (size_t i = 0; i < sizeof(k_versions) / sizeof(k_versions[0]); i++)
-        if (strcmp(prot, k_versions[i].prot) == 0)
-            read = k_versions[i].lookup(rsprot_osrs(revision));
+    if (rsprot_rev_family(ffi_rev(revision)) == RSPROT_FAMILY_OSRSM) {
+        if (strcmp(prot, "WORLDENTITY_INFO_V7") == 0)
+            read = worldentity_info_v7_osrsm(ffi_rev(revision));
+    } else {
+        for (size_t i = 0; i < sizeof(k_versions) / sizeof(k_versions[0]); i++)
+            if (strcmp(prot, k_versions[i].prot) == 0)
+                read = k_versions[i].lookup(ffi_rev(revision));
+    }
     if (!read)
         return -1;
     rsprot_info_list_init(&list, g_info.ops, INFO_OPS, g_info.bytes, INFO_BYTES);
@@ -791,7 +822,7 @@ rsprot_ffi_appearance(int revision, const uint8_t *data, int len, uint8_t *out, 
                       char *err, int err_cap)
 {
     static _Thread_local RsprotAppearance a;
-    RsprotAppearanceReadFn read = rsprot_appearance_reader(rsprot_osrs(revision));
+    RsprotAppearanceReadFn read = rsprot_appearance_reader(ffi_rev(revision));
     RsprotTrace t = { out, cap, 0, 0, 0, NULL, 0 };
 
     if (!read)

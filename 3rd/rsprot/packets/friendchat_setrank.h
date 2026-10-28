@@ -32,6 +32,8 @@ void packet_friendchat_setrank_v5_in(RsprotExec *x, MsgFriendChatSetRank *m);
 void packet_friendchat_setrank_v6_in(RsprotExec *x, MsgFriendChatSetRank *m);
 /* v7 -- revs osrs238, osrs241. */
 void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
+/* v8 -- revs osrsm241. */
+void packet_friendchat_setrank_v8_in(RsprotExec *x, MsgFriendChatSetRank *m);
 
 /* Per-revision entry points: what revision R calls is packet_friendchat_setrank_<R>_in. */
 #define packet_friendchat_setrank_osrs221_in packet_friendchat_setrank_v1_in
@@ -55,6 +57,7 @@ void packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m);
 #define packet_friendchat_setrank_osrs239_in packet_friendchat_setrank_v4_in
 #define packet_friendchat_setrank_osrs240_in packet_friendchat_setrank_v2_in
 #define packet_friendchat_setrank_osrs241_in packet_friendchat_setrank_v7_in
+#define packet_friendchat_setrank_osrsm241_in packet_friendchat_setrank_v8_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendchat_setrank_in[];

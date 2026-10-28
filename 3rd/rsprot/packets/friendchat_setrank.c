@@ -66,8 +66,16 @@ packet_friendchat_setrank_v7_in(RsprotExec *x, MsgFriendChatSetRank *m)
     RSPROT_JSTR(x, m->name);
 }
 
+/* v8 -- revs osrsm241. */
+void
+packet_friendchat_setrank_v8_in(RsprotExec *x, MsgFriendChatSetRank *m)
+{
+    RSPROT_U1_ADD128(x, m->rank);
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 19 row(s) for 7 layout(s). A revision not listed has no FRIENDCHAT_SETRANK and
+ * 20 row(s) for 8 layout(s). A revision not listed has no FRIENDCHAT_SETRANK and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendchat_setrank_in[] = {
@@ -90,6 +98,7 @@ const RsprotVersionRange rsprot_friendchat_setrank_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_friendchat_setrank_v4_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_friendchat_setrank_v2_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendchat_setrank_v7_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendchat_setrank_v8_in },
 };
 
 const int rsprot_friendchat_setrank_in_count =

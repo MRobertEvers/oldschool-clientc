@@ -170,8 +170,18 @@ packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m)
     RSPROT_U1_NEG(x, m->current_level);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_update_stat_v2_v17_out(RsprotExec *x, MsgUpdateStatV2 *m)
+{
+    RSPROT_U1(x, m->current_level);
+    RSPROT_U1_SUB128(x, m->invisible_boosted_level);
+    RSPROT_U1_ADD128(x, m->stat);
+    RSPROT_U4_4321(x, m->experience);
+}
+
 /*
- * 16 row(s) for 16 layout(s). A revision not listed has no UPDATE_STAT_V2 and
+ * 17 row(s) for 17 layout(s). A revision not listed has no UPDATE_STAT_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_stat_v2_out[] = {
@@ -191,6 +201,7 @@ const RsprotVersionRange rsprot_update_stat_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_stat_v2_v14_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_stat_v2_v15_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_stat_v2_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_stat_v2_v17_out },
 };
 
 const int rsprot_update_stat_v2_out_count =

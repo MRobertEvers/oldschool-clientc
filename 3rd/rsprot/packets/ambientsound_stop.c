@@ -31,8 +31,15 @@ packet_ambientsound_stop_v3_out(RsprotExec *x, MsgAmbientSoundStop *m)
     RSPROT_U1_NEG(x, m->fade);
 }
 
+/* v4 -- revs osrsm241. */
+void
+packet_ambientsound_stop_v4_out(RsprotExec *x, MsgAmbientSoundStop *m)
+{
+    RSPROT_U1_ADD128(x, m->fade);
+}
+
 /*
- * 4 row(s) for 3 layout(s). A revision not listed has no AMBIENTSOUND_STOP and
+ * 5 row(s) for 4 layout(s). A revision not listed has no AMBIENTSOUND_STOP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_ambientsound_stop_out[] = {
@@ -40,6 +47,7 @@ const RsprotVersionRange rsprot_ambientsound_stop_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_ambientsound_stop_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_ambientsound_stop_v1_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_ambientsound_stop_v3_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_ambientsound_stop_v4_out },
 };
 
 const int rsprot_ambientsound_stop_out_count =

@@ -19,6 +19,8 @@ typedef struct MsgDetectModifiedClient {
 
 /* v1 -- revs osrs221-241. */
 void packet_detect_modified_client_v1_in(RsprotExec *x, MsgDetectModifiedClient *m);
+/* v2 -- revs osrsm241. */
+void packet_detect_modified_client_v2_in(RsprotExec *x, MsgDetectModifiedClient *m);
 
 /* Per-revision entry points: what revision R calls is packet_detect_modified_client_<R>_in. */
 #define packet_detect_modified_client_osrs221_in packet_detect_modified_client_v1_in
@@ -42,6 +44,7 @@ void packet_detect_modified_client_v1_in(RsprotExec *x, MsgDetectModifiedClient 
 #define packet_detect_modified_client_osrs239_in packet_detect_modified_client_v1_in
 #define packet_detect_modified_client_osrs240_in packet_detect_modified_client_v1_in
 #define packet_detect_modified_client_osrs241_in packet_detect_modified_client_v1_in
+#define packet_detect_modified_client_osrsm241_in packet_detect_modified_client_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_detect_modified_client_in[];

@@ -21,6 +21,8 @@ typedef struct MsgVarClanEnable {
 
 /* v1 -- revs osrs221-241. */
 void packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m);
+/* v2 -- revs osrsm241. */
+void packet_varclan_enable_v2_out(RsprotExec *x, MsgVarClanEnable *m);
 
 /* Per-revision entry points: what revision R calls is packet_varclan_enable_<R>_out. */
 #define packet_varclan_enable_osrs221_out packet_varclan_enable_v1_out
@@ -44,6 +46,7 @@ void packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m);
 #define packet_varclan_enable_osrs239_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs240_out packet_varclan_enable_v1_out
 #define packet_varclan_enable_osrs241_out packet_varclan_enable_v1_out
+#define packet_varclan_enable_osrsm241_out packet_varclan_enable_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varclan_enable_out[];

@@ -26,8 +26,16 @@ packet_reset_anims_v2_out(RsprotExec *x, MsgResetAnims *m)
     (void)m;
 }
 
+/* v3 -- revs osrsm241. */
+void
+packet_reset_anims_v3_out(RsprotExec *x, MsgResetAnims *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no RESET_ANIMS and
+ * 5 row(s) for 3 layout(s). A revision not listed has no RESET_ANIMS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_reset_anims_out[] = {
@@ -35,6 +43,7 @@ const RsprotVersionRange rsprot_reset_anims_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_reset_anims_v2_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_reset_anims_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_reset_anims_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_reset_anims_v3_out },
 };
 
 const int rsprot_reset_anims_out_count =

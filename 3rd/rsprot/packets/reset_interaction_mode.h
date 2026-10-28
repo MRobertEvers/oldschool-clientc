@@ -19,6 +19,8 @@ typedef struct MsgResetInteractionMode {
 
 /* v1 -- revs osrs226-241. */
 void packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m);
+/* v2 -- revs osrsm241. */
+void packet_reset_interaction_mode_v2_out(RsprotExec *x, MsgResetInteractionMode *m);
 
 /* Per-revision entry points: what revision R calls is packet_reset_interaction_mode_<R>_out. */
 #define packet_reset_interaction_mode_osrs226_out packet_reset_interaction_mode_v1_out
@@ -37,6 +39,7 @@ void packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode
 #define packet_reset_interaction_mode_osrs239_out packet_reset_interaction_mode_v1_out
 #define packet_reset_interaction_mode_osrs240_out packet_reset_interaction_mode_v1_out
 #define packet_reset_interaction_mode_osrs241_out packet_reset_interaction_mode_v1_out
+#define packet_reset_interaction_mode_osrsm241_out packet_reset_interaction_mode_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_reset_interaction_mode_out[];

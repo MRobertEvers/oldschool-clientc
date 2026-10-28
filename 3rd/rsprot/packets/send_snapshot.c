@@ -19,12 +19,22 @@ packet_send_snapshot_v1_in(RsprotExec *x, MsgSendSnapshot *m)
     RSPROT_U1(x, m->mute);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_send_snapshot_v2_in(RsprotExec *x, MsgSendSnapshot *m)
+{
+    RSPROT_JSTR(x, m->name);
+    RSPROT_U1(x, m->rule_id);
+    RSPROT_U1(x, m->mute);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no SEND_SNAPSHOT and
+ * 2 row(s) for 2 layout(s). A revision not listed has no SEND_SNAPSHOT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_send_snapshot_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_send_snapshot_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_send_snapshot_v2_in },
 };
 
 const int rsprot_send_snapshot_in_count =

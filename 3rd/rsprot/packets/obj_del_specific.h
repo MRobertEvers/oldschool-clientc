@@ -37,6 +37,8 @@ void packet_obj_del_specific_v7_out(RsprotExec *x, MsgObjDelSpecific *m);
 void packet_obj_del_specific_v8_out(RsprotExec *x, MsgObjDelSpecific *m);
 /* v9 -- revs osrs240-241. */
 void packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m);
+/* v10 -- revs osrsm241. */
+void packet_obj_del_specific_v10_out(RsprotExec *x, MsgObjDelSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_del_specific_<R>_out. */
 #define packet_obj_del_specific_osrs232_out packet_obj_del_specific_v1_out
@@ -49,6 +51,7 @@ void packet_obj_del_specific_v9_out(RsprotExec *x, MsgObjDelSpecific *m);
 #define packet_obj_del_specific_osrs239_out packet_obj_del_specific_v8_out
 #define packet_obj_del_specific_osrs240_out packet_obj_del_specific_v9_out
 #define packet_obj_del_specific_osrs241_out packet_obj_del_specific_v9_out
+#define packet_obj_del_specific_osrsm241_out packet_obj_del_specific_v10_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_del_specific_out[];

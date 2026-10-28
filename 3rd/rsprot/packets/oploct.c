@@ -293,8 +293,21 @@ packet_oploct_v22_in(RsprotExec *x, MsgOpLocT *m)
     RSPROT_U2_12(x, m->selected_combined_id);
 }
 
+/* v23 -- revs osrsm241. */
+void
+packet_oploct_v23_in(RsprotExec *x, MsgOpLocT *m)
+{
+    RSPROT_U1_ADD128(x, m->control_key);
+    RSPROT_COM_4321(x, m->selected_combined_id);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U2_21_ADD128(x, m->selected_sub);
+    RSPROT_U2_12_ADD128(x, m->selected_obj);
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->z);
+}
+
 /*
- * 24 row(s) for 22 layout(s). A revision not listed has no OPLOCT and
+ * 25 row(s) for 23 layout(s). A revision not listed has no OPLOCT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oploct_in[] = {
@@ -322,6 +335,7 @@ const RsprotVersionRange rsprot_oploct_in[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_oploct_v22_in },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_oploct_v22_in },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_oploct_v22_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_oploct_v23_in },
 };
 
 const int rsprot_oploct_in_count =

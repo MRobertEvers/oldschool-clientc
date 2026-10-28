@@ -19,6 +19,8 @@ typedef struct MsgSiteSettings {
 
 /* v1 -- revs osrs223-241. */
 void packet_site_settings_v1_out(RsprotExec *x, MsgSiteSettings *m);
+/* v2 -- revs osrsm241. */
+void packet_site_settings_v2_out(RsprotExec *x, MsgSiteSettings *m);
 
 /* Per-revision entry points: what revision R calls is packet_site_settings_<R>_out. */
 #define packet_site_settings_osrs223_out packet_site_settings_v1_out
@@ -40,6 +42,7 @@ void packet_site_settings_v1_out(RsprotExec *x, MsgSiteSettings *m);
 #define packet_site_settings_osrs239_out packet_site_settings_v1_out
 #define packet_site_settings_osrs240_out packet_site_settings_v1_out
 #define packet_site_settings_osrs241_out packet_site_settings_v1_out
+#define packet_site_settings_osrsm241_out packet_site_settings_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_site_settings_out[];

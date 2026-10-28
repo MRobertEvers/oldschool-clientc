@@ -44,6 +44,7 @@ void packet_message_private_echo_v1_out(RsprotExec *x, MsgMessagePrivateEcho *m)
 #define packet_message_private_echo_osrs239_out packet_message_private_echo_v1_out
 #define packet_message_private_echo_osrs240_out packet_message_private_echo_v1_out
 #define packet_message_private_echo_osrs241_out packet_message_private_echo_v1_out
+#define packet_message_private_echo_osrsm241_out packet_message_private_echo_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_private_echo_out[];

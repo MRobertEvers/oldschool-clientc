@@ -199,8 +199,17 @@ packet_loc_anim_specific_v21_out(RsprotExec *x, MsgLocAnimSpecific *m)
     RSPROT_U1_NEG(x, m->loc_properties_packed);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_loc_anim_specific_v22_out(RsprotExec *x, MsgLocAnimSpecific *m)
+{
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->id);
+    RSPROT_U3_213(x, m->coord_in_build_area_packed);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no LOC_ANIM_SPECIFIC and
+ * 22 row(s) for 22 layout(s). A revision not listed has no LOC_ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_anim_specific_out[] = {
@@ -225,6 +234,7 @@ const RsprotVersionRange rsprot_loc_anim_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_loc_anim_specific_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_loc_anim_specific_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_loc_anim_specific_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_loc_anim_specific_v22_out },
 };
 
 const int rsprot_loc_anim_specific_out_count =

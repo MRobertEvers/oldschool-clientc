@@ -39,6 +39,7 @@ void packet_update_uid192_v1_out(RsprotExec *x, MsgUpdateUid192 *m);
 #define packet_update_uid192_osrs239_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrs240_out packet_update_uid192_v1_out
 #define packet_update_uid192_osrs241_out packet_update_uid192_v1_out
+#define packet_update_uid192_osrsm241_out packet_update_uid192_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_uid192_out[];

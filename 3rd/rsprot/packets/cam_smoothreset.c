@@ -20,12 +20,23 @@ packet_cam_smoothreset_v1_out(RsprotExec *x, MsgCamSmoothReset *m)
     RSPROT_U1(x, m->camera_look_proportional_speed);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_cam_smoothreset_v2_out(RsprotExec *x, MsgCamSmoothReset *m)
+{
+    RSPROT_U1(x, m->camera_move_constant_speed);
+    RSPROT_U1(x, m->camera_move_proportional_speed);
+    RSPROT_U1(x, m->camera_look_constant_speed);
+    RSPROT_U1(x, m->camera_look_proportional_speed);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no CAM_SMOOTHRESET and
+ * 2 row(s) for 2 layout(s). A revision not listed has no CAM_SMOOTHRESET and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_cam_smoothreset_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_cam_smoothreset_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_cam_smoothreset_v2_out },
 };
 
 const int rsprot_cam_smoothreset_out_count =

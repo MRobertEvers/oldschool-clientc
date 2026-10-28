@@ -138,8 +138,16 @@ packet_varp_large_v16_out(RsprotExec *x, MsgVarpLarge *m)
     RSPROT_U4_1234(x, m->value);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_varp_large_v17_out(RsprotExec *x, MsgVarpLarge *m)
+{
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U4_4321(x, m->value);
+}
+
 /*
- * 24 row(s) for 16 layout(s). A revision not listed has no VARP_LARGE and
+ * 25 row(s) for 17 layout(s). A revision not listed has no VARP_LARGE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_large_out[] = {
@@ -167,6 +175,7 @@ const RsprotVersionRange rsprot_varp_large_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_varp_large_v16_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_varp_large_v16_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_varp_large_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_large_v17_out },
 };
 
 const int rsprot_varp_large_out_count =

@@ -19,6 +19,8 @@ typedef struct MsgUpdateRunEnergy {
 
 /* v1 -- revs osrs221-241. */
 void packet_update_runenergy_v1_out(RsprotExec *x, MsgUpdateRunEnergy *m);
+/* v2 -- revs osrsm241. */
+void packet_update_runenergy_v2_out(RsprotExec *x, MsgUpdateRunEnergy *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_runenergy_<R>_out. */
 #define packet_update_runenergy_osrs221_out packet_update_runenergy_v1_out
@@ -42,6 +44,7 @@ void packet_update_runenergy_v1_out(RsprotExec *x, MsgUpdateRunEnergy *m);
 #define packet_update_runenergy_osrs239_out packet_update_runenergy_v1_out
 #define packet_update_runenergy_osrs240_out packet_update_runenergy_v1_out
 #define packet_update_runenergy_osrs241_out packet_update_runenergy_v1_out
+#define packet_update_runenergy_osrsm241_out packet_update_runenergy_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_runenergy_out[];

@@ -190,8 +190,17 @@ packet_if_opensub_v20_out(RsprotExec *x, MsgIfOpenSub *m)
     RSPROT_U1_ADD128(x, m->type);
 }
 
+/* v21 -- revs osrsm241. */
+void
+packet_if_opensub_v21_out(RsprotExec *x, MsgIfOpenSub *m)
+{
+    RSPROT_COM_1234(x, m->destination_combined_id);
+    RSPROT_U1_SUB128(x, m->type);
+    RSPROT_U2_12_ADD128(x, m->interface_id);
+}
+
 /*
- * 21 row(s) for 20 layout(s). A revision not listed has no IF_OPENSUB and
+ * 22 row(s) for 21 layout(s). A revision not listed has no IF_OPENSUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_opensub_out[] = {
@@ -216,6 +225,7 @@ const RsprotVersionRange rsprot_if_opensub_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_opensub_v18_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_opensub_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_opensub_v20_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_opensub_v21_out },
 };
 
 const int rsprot_if_opensub_out_count =

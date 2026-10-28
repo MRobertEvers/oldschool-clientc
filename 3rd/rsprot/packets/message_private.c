@@ -14,6 +14,7 @@ packet_message_private_v1_out(RsprotExec *x, MsgMessagePrivate *m)
 
 const RsprotVersionRange rsprot_message_private_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_private_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_private_v1_out },
 };
 
 const int rsprot_message_private_out_count =
@@ -27,8 +28,17 @@ packet_message_private_v1_in(RsprotExec *x, MsgMessagePrivateClient *m)
     RSPROT_REST(x, m->huffman, m->huffman_length);
 }
 
+/* osrsm241 -- the Android 241.4 client (Old School mobile). */
+void
+packet_message_private_osrsm241_in(RsprotExec *x, MsgMessagePrivateClient *m)
+{
+    RSPROT_JSTR(x, m->name);
+    RSPROT_REST(x, m->huffman, m->huffman_length);
+}
+
 const RsprotVersionRange rsprot_message_private_in[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_private_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_private_osrsm241_in },
 };
 
 const int rsprot_message_private_in_count =

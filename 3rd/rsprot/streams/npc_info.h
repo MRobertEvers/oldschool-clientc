@@ -136,6 +136,12 @@ int npc_info_small_v6_osrs241(
 int npc_info_large_v6_osrs241(
     const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
     RsprotInfoList *out);
+int npc_info_small_v6_osrsm241(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
+int npc_info_large_v6_osrsm241(
+    const uint8_t *data, int32_t len, RsprotNpcTypeLengths lengths, void *ctx,
+    RsprotInfoList *out);
 
 /** npc_info_large_v4_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotNpcInfoReadFn npc_info_large_v4_osrs(RsprotRev rev);
@@ -143,11 +149,15 @@ RsprotNpcInfoReadFn npc_info_large_v4_osrs(RsprotRev rev);
 RsprotNpcInfoReadFn npc_info_large_v5_osrs(RsprotRev rev);
 /** npc_info_large_v6_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotNpcInfoReadFn npc_info_large_v6_osrs(RsprotRev rev);
+/** npc_info_large_v6_osrsm<revision>, or NULL where the revision has no such prot. */
+RsprotNpcInfoReadFn npc_info_large_v6_osrsm(RsprotRev rev);
 /** npc_info_small_v4_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotNpcInfoReadFn npc_info_small_v4_osrs(RsprotRev rev);
 /** npc_info_small_v5_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotNpcInfoReadFn npc_info_small_v5_osrs(RsprotRev rev);
 /** npc_info_small_v6_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotNpcInfoReadFn npc_info_small_v6_osrs(RsprotRev rev);
+/** npc_info_small_v6_osrsm<revision>, or NULL where the revision has no such prot. */
+RsprotNpcInfoReadFn npc_info_small_v6_osrsm(RsprotRev rev);
 
 #endif

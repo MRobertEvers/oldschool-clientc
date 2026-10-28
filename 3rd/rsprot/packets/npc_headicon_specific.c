@@ -220,8 +220,18 @@ packet_npc_headicon_specific_v21_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
     RSPROT_U1_ADD128(x, m->head_icon_slot);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_npc_headicon_specific_v22_out(RsprotExec *x, MsgNpcHeadIconSpecific *m)
+{
+    RSPROT_U2_12_ADD128(x, m->index);
+    RSPROT_U1_NEG(x, m->head_icon_slot);
+    RSPROT_U4_3412(x, m->sprite_group);
+    RSPROT_U2_21(x, m->sprite_index);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no NPC_HEADICON_SPECIFIC and
+ * 22 row(s) for 22 layout(s). A revision not listed has no NPC_HEADICON_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_npc_headicon_specific_out[] = {
@@ -246,6 +256,7 @@ const RsprotVersionRange rsprot_npc_headicon_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_npc_headicon_specific_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_npc_headicon_specific_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_npc_headicon_specific_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_npc_headicon_specific_v22_out },
 };
 
 const int rsprot_npc_headicon_specific_out_count =

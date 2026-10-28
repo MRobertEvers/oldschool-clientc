@@ -61,6 +61,8 @@ void packet_loc_anim_v19_out(RsprotExec *x, MsgLocAnim *m);
 void packet_loc_anim_v20_out(RsprotExec *x, MsgLocAnim *m);
 /* v21 -- revs rs245.2, rs254, rs289. */
 void packet_loc_anim_v21_out(RsprotExec *x, MsgLocAnim *m);
+/* v22 -- revs osrsm241. */
+void packet_loc_anim_v22_out(RsprotExec *x, MsgLocAnim *m);
 
 /* Per-revision entry points: what revision R calls is packet_loc_anim_<R>_out. */
 #define packet_loc_anim_osrs221_out packet_loc_anim_v1_out
@@ -87,6 +89,7 @@ void packet_loc_anim_v21_out(RsprotExec *x, MsgLocAnim *m);
 #define packet_loc_anim_rs245_2_out packet_loc_anim_v21_out
 #define packet_loc_anim_rs254_out packet_loc_anim_v21_out
 #define packet_loc_anim_rs289_out packet_loc_anim_v21_out
+#define packet_loc_anim_osrsm241_out packet_loc_anim_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_anim_out[];

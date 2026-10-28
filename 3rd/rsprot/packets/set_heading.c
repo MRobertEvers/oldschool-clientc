@@ -38,8 +38,15 @@ packet_set_heading_v4_in(RsprotExec *x, MsgSetHeading *m)
     RSPROT_U1(x, m->heading);
 }
 
+/* v5 -- revs osrsm241. */
+void
+packet_set_heading_v5_in(RsprotExec *x, MsgSetHeading *m)
+{
+    RSPROT_U1_NEG(x, m->heading);
+}
+
 /*
- * 12 row(s) for 4 layout(s). A revision not listed has no SET_HEADING and
+ * 13 row(s) for 5 layout(s). A revision not listed has no SET_HEADING and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_heading_in[] = {
@@ -55,6 +62,7 @@ const RsprotVersionRange rsprot_set_heading_in[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(238), (RsprotCodecFn)packet_set_heading_v1_in },
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_set_heading_v4_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_heading_v2_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_set_heading_v5_in },
 };
 
 const int rsprot_set_heading_in_count =

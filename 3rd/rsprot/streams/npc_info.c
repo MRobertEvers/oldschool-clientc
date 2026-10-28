@@ -53,6 +53,15 @@ npc_info_large_v6_osrs(RsprotRev rev)
 }
 
 RsprotNpcInfoReadFn
+npc_info_large_v6_osrsm(RsprotRev rev)
+{
+    switch (rev.id) {
+    case RSPROT_OSRSM_ID(241): return npc_info_large_v6_osrsm241;
+    default: return NULL;
+    }
+}
+
+RsprotNpcInfoReadFn
 npc_info_small_v4_osrs(RsprotRev rev)
 {
     switch (rev.id) {
@@ -93,6 +102,15 @@ npc_info_small_v6_osrs(RsprotRev rev)
     switch (rev.id) {
     case RSPROT_OSRS_ID(240): return npc_info_small_v6_osrs240;
     case RSPROT_OSRS_ID(241): return npc_info_small_v6_osrs241;
+    default: return NULL;
+    }
+}
+
+RsprotNpcInfoReadFn
+npc_info_small_v6_osrsm(RsprotRev rev)
+{
+    switch (rev.id) {
+    case RSPROT_OSRSM_ID(241): return npc_info_small_v6_osrsm241;
     default: return NULL;
     }
 }

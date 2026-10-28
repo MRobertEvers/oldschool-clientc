@@ -19,6 +19,8 @@ typedef struct MsgOculusSync {
 
 /* v1 -- revs osrs221-241. */
 void packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m);
+/* v2 -- revs osrsm241. */
+void packet_oculus_sync_v2_out(RsprotExec *x, MsgOculusSync *m);
 
 /* Per-revision entry points: what revision R calls is packet_oculus_sync_<R>_out. */
 #define packet_oculus_sync_osrs221_out packet_oculus_sync_v1_out
@@ -42,6 +44,7 @@ void packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m);
 #define packet_oculus_sync_osrs239_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_osrs240_out packet_oculus_sync_v1_out
 #define packet_oculus_sync_osrs241_out packet_oculus_sync_v1_out
+#define packet_oculus_sync_osrsm241_out packet_oculus_sync_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_oculus_sync_out[];

@@ -49,6 +49,8 @@ void packet_projanim_specific_v4_v9_out(RsprotExec *x, MsgProjAnimSpecificV4 *m)
 void packet_projanim_specific_v4_v10_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
 /* v11 -- revs osrs241. */
 void packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
+/* v12 -- revs osrsm241. */
+void packet_projanim_specific_v4_v12_out(RsprotExec *x, MsgProjAnimSpecificV4 *m);
 
 /* Per-revision entry points: what revision R calls is packet_projanim_specific_v4_<R>_out. */
 #define packet_projanim_specific_v4_osrs231_out packet_projanim_specific_v4_v1_out
@@ -62,6 +64,7 @@ void packet_projanim_specific_v4_v11_out(RsprotExec *x, MsgProjAnimSpecificV4 *m
 #define packet_projanim_specific_v4_osrs239_out packet_projanim_specific_v4_v9_out
 #define packet_projanim_specific_v4_osrs240_out packet_projanim_specific_v4_v10_out
 #define packet_projanim_specific_v4_osrs241_out packet_projanim_specific_v4_v11_out
+#define packet_projanim_specific_v4_osrsm241_out packet_projanim_specific_v4_v12_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_projanim_specific_v4_out[];

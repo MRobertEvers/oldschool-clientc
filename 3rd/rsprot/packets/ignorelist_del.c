@@ -17,12 +17,20 @@ packet_ignorelist_del_v1_in(RsprotExec *x, MsgIgnoreListDel *m)
     RSPROT_JSTR(x, m->name);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_ignorelist_del_v2_in(RsprotExec *x, MsgIgnoreListDel *m)
+{
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no IGNORELIST_DEL and
+ * 2 row(s) for 2 layout(s). A revision not listed has no IGNORELIST_DEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_ignorelist_del_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_ignorelist_del_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_ignorelist_del_v2_in },
 };
 
 const int rsprot_ignorelist_del_in_count =

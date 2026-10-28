@@ -22,6 +22,8 @@ typedef struct MsgIfButtonX {
 
 /* v1 -- revs osrs231-241. */
 void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
+/* v2 -- revs osrsm241. */
+void packet_if_buttonx_v2_in(RsprotExec *x, MsgIfButtonX *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_buttonx_<R>_in. */
 #define packet_if_buttonx_osrs231_in packet_if_buttonx_v1_in
@@ -35,6 +37,7 @@ void packet_if_buttonx_v1_in(RsprotExec *x, MsgIfButtonX *m);
 #define packet_if_buttonx_osrs239_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs240_in packet_if_buttonx_v1_in
 #define packet_if_buttonx_osrs241_in packet_if_buttonx_v1_in
+#define packet_if_buttonx_osrsm241_in packet_if_buttonx_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_buttonx_in[];

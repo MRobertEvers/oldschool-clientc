@@ -31,6 +31,9 @@ typedef struct MsgMessagePublic {
 /* v1 -- revs 222-241. */
 void packet_message_public_v1_in(RsprotExec *x, MsgMessagePublic *m);
 
+/* osrsm241 -- the Android 241.4 client. */
+void packet_message_public_osrsm241_in(RsprotExec *x, MsgMessagePublic *m);
+
 #define packet_message_public_osrs222_in packet_message_public_v1_in
 #define packet_message_public_osrs223_in packet_message_public_v1_in
 #define packet_message_public_osrs224_in packet_message_public_v1_in
@@ -51,6 +54,7 @@ void packet_message_public_v1_in(RsprotExec *x, MsgMessagePublic *m);
 #define packet_message_public_osrs239_in packet_message_public_v1_in
 #define packet_message_public_osrs240_in packet_message_public_v1_in
 #define packet_message_public_osrs241_in packet_message_public_v1_in
+#define packet_message_public_osrsm241_in packet_message_public_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_public_in[];

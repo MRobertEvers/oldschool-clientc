@@ -35,6 +35,7 @@ typedef struct MsgUpdateTradingpostV2 {
 void packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m);
 
 #define packet_update_tradingpost_v2_osrs241_out packet_update_tradingpost_v2_v1_out
+#define packet_update_tradingpost_v2_osrsm241_out packet_update_tradingpost_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_tradingpost_v2_out[];

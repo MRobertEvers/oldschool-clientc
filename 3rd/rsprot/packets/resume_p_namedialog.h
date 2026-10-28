@@ -19,6 +19,8 @@ typedef struct MsgResumePNameDialog {
 
 /* v1 -- revs osrs221-241. */
 void packet_resume_p_namedialog_v1_in(RsprotExec *x, MsgResumePNameDialog *m);
+/* v2 -- revs osrsm241. */
+void packet_resume_p_namedialog_v2_in(RsprotExec *x, MsgResumePNameDialog *m);
 
 /* Per-revision entry points: what revision R calls is packet_resume_p_namedialog_<R>_in. */
 #define packet_resume_p_namedialog_osrs221_in packet_resume_p_namedialog_v1_in
@@ -42,6 +44,7 @@ void packet_resume_p_namedialog_v1_in(RsprotExec *x, MsgResumePNameDialog *m);
 #define packet_resume_p_namedialog_osrs239_in packet_resume_p_namedialog_v1_in
 #define packet_resume_p_namedialog_osrs240_in packet_resume_p_namedialog_v1_in
 #define packet_resume_p_namedialog_osrs241_in packet_resume_p_namedialog_v1_in
+#define packet_resume_p_namedialog_osrsm241_in packet_resume_p_namedialog_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_resume_p_namedialog_in[];

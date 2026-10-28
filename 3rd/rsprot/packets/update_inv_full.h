@@ -90,6 +90,8 @@ void packet_update_inv_full_v19_out(RsprotExec *x, MsgUpdateInvFull *m);
 void packet_update_inv_full_v20_out(RsprotExec *x, MsgUpdateInvFull *m);
 /* v21 -- revs osrs241. */
 void packet_update_inv_full_v21_out(RsprotExec *x, MsgUpdateInvFull *m);
+/* v22 -- revs osrsm241. */
+void packet_update_inv_full_v22_out(RsprotExec *x, MsgUpdateInvFull *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_inv_full_<R>_out. */
 #define packet_update_inv_full_osrs221_out packet_update_inv_full_v1_out
@@ -113,6 +115,7 @@ void packet_update_inv_full_v21_out(RsprotExec *x, MsgUpdateInvFull *m);
 #define packet_update_inv_full_osrs239_out packet_update_inv_full_v19_out
 #define packet_update_inv_full_osrs240_out packet_update_inv_full_v20_out
 #define packet_update_inv_full_osrs241_out packet_update_inv_full_v21_out
+#define packet_update_inv_full_osrsm241_out packet_update_inv_full_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_inv_full_out[];

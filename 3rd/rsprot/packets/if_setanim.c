@@ -138,8 +138,16 @@ packet_if_setanim_v16_out(RsprotExec *x, MsgIfSetAnim *m)
     RSPROT_U2_12(x, m->anim);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_if_setanim_v17_out(RsprotExec *x, MsgIfSetAnim *m)
+{
+    RSPROT_U2_21(x, m->anim);
+    RSPROT_COM_1234(x, m->combined_id);
+}
+
 /*
- * 24 row(s) for 16 layout(s). A revision not listed has no IF_SETANIM and
+ * 25 row(s) for 17 layout(s). A revision not listed has no IF_SETANIM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setanim_out[] = {
@@ -167,6 +175,7 @@ const RsprotVersionRange rsprot_if_setanim_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setanim_v16_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setanim_v16_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setanim_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setanim_v17_out },
 };
 
 const int rsprot_if_setanim_out_count =

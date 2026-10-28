@@ -38,8 +38,15 @@ packet_opnpc6_v4_in(RsprotExec *x, MsgOpNpc6 *m)
     RSPROT_U2_12(x, m->id);
 }
 
+/* v5 -- revs osrsm241. */
+void
+packet_opnpc6_v5_in(RsprotExec *x, MsgOpNpc6 *m)
+{
+    RSPROT_U2_12(x, m->id);
+}
+
 /*
- * 14 row(s) for 4 layout(s). A revision not listed has no OPNPC6 and
+ * 15 row(s) for 5 layout(s). A revision not listed has no OPNPC6 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_opnpc6_in[] = {
@@ -57,6 +64,7 @@ const RsprotVersionRange rsprot_opnpc6_in[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_opnpc6_v4_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_opnpc6_v1_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_opnpc6_v4_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_opnpc6_v5_in },
 };
 
 const int rsprot_opnpc6_in_count =

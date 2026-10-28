@@ -20,12 +20,23 @@ packet_affinedclansettings_setmuted_fromchannel_v1_in(RsprotExec *x, MsgAffinedC
     RSPROT_JSTR(x, m->name);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_affinedclansettings_setmuted_fromchannel_v2_in(RsprotExec *x, MsgAffinedClanSettingsSetMutedFromChannel *m)
+{
+    RSPROT_U1(x, m->clan_id);
+    RSPROT_U2_12(x, m->member_index);
+    RSPROT_U1(x, m->muted);
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL and
+ * 2 row(s) for 2 layout(s). A revision not listed has no AFFINEDCLANSETTINGS_SETMUTED_FROMCHANNEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_affinedclansettings_setmuted_fromchannel_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_affinedclansettings_setmuted_fromchannel_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_affinedclansettings_setmuted_fromchannel_v2_in },
 };
 
 const int rsprot_affinedclansettings_setmuted_fromchannel_in_count =

@@ -25,6 +25,9 @@ void packet_clickworldmap_v3_in(RsprotExec *x, MsgClickworldmap *m);
 /* v4 -- revs 232, 234, 239-240. */
 void packet_clickworldmap_v4_in(RsprotExec *x, MsgClickworldmap *m);
 
+/* osrsm241 -- the Android 241.4 client. */
+void packet_clickworldmap_osrsm241_in(RsprotExec *x, MsgClickworldmap *m);
+
 #define packet_clickworldmap_osrs222_in packet_clickworldmap_v3_in
 #define packet_clickworldmap_osrs223_in packet_clickworldmap_v1_in
 #define packet_clickworldmap_osrs224_in packet_clickworldmap_v2_in
@@ -45,6 +48,7 @@ void packet_clickworldmap_v4_in(RsprotExec *x, MsgClickworldmap *m);
 #define packet_clickworldmap_osrs239_in packet_clickworldmap_v4_in
 #define packet_clickworldmap_osrs240_in packet_clickworldmap_v4_in
 #define packet_clickworldmap_osrs241_in packet_clickworldmap_v1_in
+#define packet_clickworldmap_osrsm241_in packet_clickworldmap_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clickworldmap_in[];

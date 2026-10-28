@@ -48,6 +48,8 @@ void packet_if_setcolour_v13_out(RsprotExec *x, MsgIfSetColour *m);
 void packet_if_setcolour_v14_out(RsprotExec *x, MsgIfSetColour *m);
 /* v15 -- revs rs245.2, rs254, rs289. */
 void packet_if_setcolour_v15_out(RsprotExec *x, MsgIfSetColour *m);
+/* v16 -- revs osrsm241. */
+void packet_if_setcolour_v16_out(RsprotExec *x, MsgIfSetColour *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setcolour_<R>_out. */
 #define packet_if_setcolour_osrs221_out packet_if_setcolour_v1_out
@@ -74,6 +76,7 @@ void packet_if_setcolour_v15_out(RsprotExec *x, MsgIfSetColour *m);
 #define packet_if_setcolour_rs245_2_out packet_if_setcolour_v15_out
 #define packet_if_setcolour_rs254_out packet_if_setcolour_v15_out
 #define packet_if_setcolour_rs289_out packet_if_setcolour_v15_out
+#define packet_if_setcolour_osrsm241_out packet_if_setcolour_v16_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setcolour_out[];

@@ -16,6 +16,7 @@ packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m)
 
 const RsprotVersionRange rsprot_objunlock_update_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_objunlock_update_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_objunlock_update_v1_out },
 };
 
 const int rsprot_objunlock_update_out_count =

@@ -21,6 +21,8 @@ typedef struct MsgTriggerOnDialogAbort {
 
 /* v1 -- revs osrs221-241. */
 void packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort *m);
+/* v2 -- revs osrsm241. */
+void packet_trigger_ondialogabort_v2_out(RsprotExec *x, MsgTriggerOnDialogAbort *m);
 
 /* Per-revision entry points: what revision R calls is packet_trigger_ondialogabort_<R>_out. */
 #define packet_trigger_ondialogabort_osrs221_out packet_trigger_ondialogabort_v1_out
@@ -44,6 +46,7 @@ void packet_trigger_ondialogabort_v1_out(RsprotExec *x, MsgTriggerOnDialogAbort 
 #define packet_trigger_ondialogabort_osrs239_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_osrs240_out packet_trigger_ondialogabort_v1_out
 #define packet_trigger_ondialogabort_osrs241_out packet_trigger_ondialogabort_v1_out
+#define packet_trigger_ondialogabort_osrsm241_out packet_trigger_ondialogabort_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_trigger_ondialogabort_out[];

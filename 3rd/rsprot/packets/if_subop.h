@@ -23,6 +23,8 @@ typedef struct MsgIfSubOp {
 
 /* v1 -- revs osrs224-241. */
 void packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m);
+/* v2 -- revs osrsm241. */
+void packet_if_subop_v2_in(RsprotExec *x, MsgIfSubOp *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_subop_<R>_in. */
 #define packet_if_subop_osrs224_in packet_if_subop_v1_in
@@ -43,6 +45,7 @@ void packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m);
 #define packet_if_subop_osrs239_in packet_if_subop_v1_in
 #define packet_if_subop_osrs240_in packet_if_subop_v1_in
 #define packet_if_subop_osrs241_in packet_if_subop_v1_in
+#define packet_if_subop_osrsm241_in packet_if_subop_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_subop_in[];

@@ -20,6 +20,8 @@ typedef struct MsgSendPing {
 
 /* v1 -- revs osrs221-241. */
 void packet_send_ping_v1_out(RsprotExec *x, MsgSendPing *m);
+/* v2 -- revs osrsm241. */
+void packet_send_ping_v2_out(RsprotExec *x, MsgSendPing *m);
 
 /* Per-revision entry points: what revision R calls is packet_send_ping_<R>_out. */
 #define packet_send_ping_osrs221_out packet_send_ping_v1_out
@@ -43,6 +45,7 @@ void packet_send_ping_v1_out(RsprotExec *x, MsgSendPing *m);
 #define packet_send_ping_osrs239_out packet_send_ping_v1_out
 #define packet_send_ping_osrs240_out packet_send_ping_v1_out
 #define packet_send_ping_osrs241_out packet_send_ping_v1_out
+#define packet_send_ping_osrsm241_out packet_send_ping_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_send_ping_out[];

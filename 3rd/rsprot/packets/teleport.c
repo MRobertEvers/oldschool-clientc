@@ -220,8 +220,18 @@ packet_teleport_v21_in(RsprotExec *x, MsgTeleport *m)
     RSPROT_U1_NEG(x, m->level);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_teleport_v22_in(RsprotExec *x, MsgTeleport *m)
+{
+    RSPROT_U1_NEG(x, m->level);
+    RSPROT_U2_21_ADD128(x, m->x);
+    RSPROT_U2_12_ADD128(x, m->z);
+    RSPROT_U4_2143(x, m->oculus_sync_value);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no TELEPORT and
+ * 22 row(s) for 22 layout(s). A revision not listed has no TELEPORT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_teleport_in[] = {
@@ -246,6 +256,7 @@ const RsprotVersionRange rsprot_teleport_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_teleport_v19_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_teleport_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_teleport_v21_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_teleport_v22_in },
 };
 
 const int rsprot_teleport_in_count =

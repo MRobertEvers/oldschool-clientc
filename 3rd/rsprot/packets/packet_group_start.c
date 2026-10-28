@@ -17,12 +17,20 @@ packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m)
     RSPROT_U2_12(x, m->length);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_packet_group_start_v2_out(RsprotExec *x, MsgPacketGroupStart *m)
+{
+    RSPROT_U2_12(x, m->length);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no PACKET_GROUP_START and
+ * 2 row(s) for 2 layout(s). A revision not listed has no PACKET_GROUP_START and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_packet_group_start_out[] = {
     { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_packet_group_start_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_packet_group_start_v2_out },
 };
 
 const int rsprot_packet_group_start_out_count =

@@ -17,12 +17,20 @@ packet_hideobjops_v1_out(RsprotExec *x, MsgHideObjOps *m)
     RSPROT_BOOL(x, m->hidden);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_hideobjops_v2_out(RsprotExec *x, MsgHideObjOps *m)
+{
+    RSPROT_BOOL(x, m->hidden);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no HIDEOBJOPS and
+ * 2 row(s) for 2 layout(s). A revision not listed has no HIDEOBJOPS and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_hideobjops_out[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hideobjops_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_hideobjops_v2_out },
 };
 
 const int rsprot_hideobjops_out_count =

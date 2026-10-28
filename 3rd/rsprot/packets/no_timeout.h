@@ -23,6 +23,8 @@ typedef struct MsgNoTimeout {
 void packet_no_timeout_v1_in(RsprotExec *x, MsgNoTimeout *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_no_timeout_v2_in(RsprotExec *x, MsgNoTimeout *m);
+/* v3 -- revs osrsm241. */
+void packet_no_timeout_v3_in(RsprotExec *x, MsgNoTimeout *m);
 
 /* Per-revision entry points: what revision R calls is packet_no_timeout_<R>_in. */
 #define packet_no_timeout_osrs221_in packet_no_timeout_v1_in
@@ -49,6 +51,7 @@ void packet_no_timeout_v2_in(RsprotExec *x, MsgNoTimeout *m);
 #define packet_no_timeout_rs245_2_in packet_no_timeout_v2_in
 #define packet_no_timeout_rs254_in packet_no_timeout_v2_in
 #define packet_no_timeout_rs289_in packet_no_timeout_v2_in
+#define packet_no_timeout_osrsm241_in packet_no_timeout_v3_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_no_timeout_in[];

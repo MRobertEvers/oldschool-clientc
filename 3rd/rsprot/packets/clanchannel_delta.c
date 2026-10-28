@@ -64,6 +64,7 @@ packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m)
 
 const RsprotVersionRange rsprot_clanchannel_delta_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clanchannel_delta_v1_out },
 };
 
 const int rsprot_clanchannel_delta_out_count =

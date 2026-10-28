@@ -138,8 +138,16 @@ packet_varp_small_v16_out(RsprotExec *x, MsgVarpSmall *m)
     RSPROT_I1(x, m->value);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_varp_small_v17_out(RsprotExec *x, MsgVarpSmall *m)
+{
+    RSPROT_U1_NEG(x, m->value);
+    RSPROT_U2_12(x, m->id);
+}
+
 /*
- * 24 row(s) for 16 layout(s). A revision not listed has no VARP_SMALL and
+ * 25 row(s) for 17 layout(s). A revision not listed has no VARP_SMALL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_small_out[] = {
@@ -167,6 +175,7 @@ const RsprotVersionRange rsprot_varp_small_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_varp_small_v16_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_varp_small_v16_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_varp_small_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_small_v17_out },
 };
 
 const int rsprot_varp_small_out_count =

@@ -67,6 +67,7 @@ void packet_reflection_checker_v1_out(RsprotExec *x, MsgReflectionChecker *m);
 #define packet_reflection_checker_osrs239_out packet_reflection_checker_v1_out
 #define packet_reflection_checker_osrs240_out packet_reflection_checker_v1_out
 #define packet_reflection_checker_osrs241_out packet_reflection_checker_v1_out
+#define packet_reflection_checker_osrsm241_out packet_reflection_checker_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_reflection_checker_out[];

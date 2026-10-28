@@ -29,6 +29,7 @@ typedef struct MsgObjunlockUpdate {
 void packet_objunlock_update_v1_out(RsprotExec *x, MsgObjunlockUpdate *m);
 
 #define packet_objunlock_update_osrs241_out packet_objunlock_update_v1_out
+#define packet_objunlock_update_osrsm241_out packet_objunlock_update_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_objunlock_update_out[];

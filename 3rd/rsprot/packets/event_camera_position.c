@@ -114,8 +114,16 @@ packet_event_camera_position_v13_in(RsprotExec *x, MsgEventCameraPosition *m)
     RSPROT_U2_12_ADD128(x, m->angle_y);
 }
 
+/* v14 -- revs osrsm241. */
+void
+packet_event_camera_position_v14_in(RsprotExec *x, MsgEventCameraPosition *m)
+{
+    RSPROT_U2_21_ADD128(x, m->angle_y);
+    RSPROT_U2_21_ADD128(x, m->angle_x);
+}
+
 /*
- * 21 row(s) for 13 layout(s). A revision not listed has no EVENT_CAMERA_POSITION and
+ * 22 row(s) for 14 layout(s). A revision not listed has no EVENT_CAMERA_POSITION and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_camera_position_in[] = {
@@ -140,6 +148,7 @@ const RsprotVersionRange rsprot_event_camera_position_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_event_camera_position_v11_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_event_camera_position_v13_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_camera_position_v11_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_camera_position_v14_in },
 };
 
 const int rsprot_event_camera_position_in_count =

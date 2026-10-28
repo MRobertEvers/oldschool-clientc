@@ -62,6 +62,8 @@ void packet_map_anim_specific_v19_out(RsprotExec *x, MsgMapAnimSpecific *m);
 void packet_map_anim_specific_v20_out(RsprotExec *x, MsgMapAnimSpecific *m);
 /* v21 -- revs osrs241. */
 void packet_map_anim_specific_v21_out(RsprotExec *x, MsgMapAnimSpecific *m);
+/* v22 -- revs osrsm241. */
+void packet_map_anim_specific_v22_out(RsprotExec *x, MsgMapAnimSpecific *m);
 
 /* Per-revision entry points: what revision R calls is packet_map_anim_specific_<R>_out. */
 #define packet_map_anim_specific_osrs221_out packet_map_anim_specific_v1_out
@@ -85,6 +87,7 @@ void packet_map_anim_specific_v21_out(RsprotExec *x, MsgMapAnimSpecific *m);
 #define packet_map_anim_specific_osrs239_out packet_map_anim_specific_v19_out
 #define packet_map_anim_specific_osrs240_out packet_map_anim_specific_v20_out
 #define packet_map_anim_specific_osrs241_out packet_map_anim_specific_v21_out
+#define packet_map_anim_specific_osrsm241_out packet_map_anim_specific_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_map_anim_specific_out[];

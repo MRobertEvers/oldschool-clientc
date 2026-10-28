@@ -47,6 +47,7 @@ void packet_message_clanchannel_system_v1_out(RsprotExec *x, MsgMessageClanchann
 #define packet_message_clanchannel_system_osrs239_out packet_message_clanchannel_system_v1_out
 #define packet_message_clanchannel_system_osrs240_out packet_message_clanchannel_system_v1_out
 #define packet_message_clanchannel_system_osrs241_out packet_message_clanchannel_system_v1_out
+#define packet_message_clanchannel_system_osrsm241_out packet_message_clanchannel_system_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_clanchannel_system_out[];

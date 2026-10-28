@@ -643,16 +643,18 @@ def unity_c(files):
 
 # --- entry points against range tables -------------------------------------
 
-RANGE_ROW_RE = re.compile(r"\{ RSPROT_OSRS_ID\((\d+)\), RSPROT_OSRS_ID\((\d+)\), \(RsprotCodecFn\)(packet_\w+) \}")
+RANGE_ROW_RE = re.compile(
+    r"\{ RSPROT_(OSRSM|OSRS)_ID\((\d+)\), RSPROT_(?:OSRSM|OSRS)_ID\((\d+)\), \(RsprotCodecFn\)(packet_\w+) \}")
 
 
 def entry_point_problems(files):
     """Every packet header -- generated or hand-written -- must define
-    packet_<f>_osrs<N>_<dir> for exactly the revisions its range table covers,
+    packet_<f>_<rev>_<dir> for exactly the revisions its range table covers,
     as the version that table names: a revision's executor calls the entry
-    point, and the registry reads the table, so the two may not disagree."""
-    revs = sorted(int(m.group(1)) for m in (re.match(r"osrs(\d+)_prot\.h$", n)
-                                           for n in listing(files, "gen", ".h")) if m)
+    point, and the registry reads the table, so the two may not disagree.
+    Covers the osrs and osrsm families (the rs family's codecs are generated)."""
+    revs = sorted((m.group(1), int(m.group(2))) for m in (re.match(r"(osrsm|osrs)(\d+)_prot\.h$", n)
+                                                         for n in listing(files, "gen", ".h")) if m)
     out = []
     for name in listing(files, "packets", ".c"):
         f = name[:-2]
@@ -661,14 +663,15 @@ def entry_point_problems(files):
         for m in re.finditer(r"const RsprotVersionRange rsprot_(\w+)_(out|in)\[\] = \{(.*?)\n\};", c, re.S):
             snake, d, body = m.groups()
             want = set()
-            for lo, hi, fn in RANGE_ROW_RE.findall(body):
-                want |= set((r, fn) for r in revs if int(lo) <= r <= int(hi))
-            have = set((int(r), fn) for r, fn in re.findall(
-                r"^#define packet_%s_osrs(\d+)_%s (\w+)$" % (snake, d), h, re.M))
-            for r, fn in sorted(want - have):
-                out.append("packets/%s.h: no packet_%s_osrs%d_%s (its range table calls %s)" % (f, snake, r, d, fn))
-            for r, fn in sorted(have - want):
-                out.append("packets/%s.h: packet_%s_osrs%d_%s -> %s, which its range table does not say" % (f, snake, r, d, fn))
+            for fam, lo, hi, fn in RANGE_ROW_RE.findall(body):
+                fam = fam.lower()
+                want |= set((rf, r, fn) for rf, r in revs if rf == fam and int(lo) <= r <= int(hi))
+            have = set((rf, int(r), fn) for rf, r, fn in re.findall(
+                r"^#define packet_%s_(osrsm|osrs)(\d+)_%s (\w+)$" % (snake, d), h, re.M))
+            for rf, r, fn in sorted(want - have):
+                out.append("packets/%s.h: no packet_%s_%s%d_%s (its range table calls %s)" % (f, snake, rf, r, d, fn))
+            for rf, r, fn in sorted(have - want):
+                out.append("packets/%s.h: packet_%s_%s%d_%s -> %s, which its range table does not say" % (f, snake, rf, r, d, fn))
     return out
 
 

@@ -208,8 +208,17 @@ packet_if_setposition_v22_out(RsprotExec *x, MsgIfSetPosition *m)
     RSPROT_I2_12(x, m->y);
 }
 
+/* v23 -- revs osrsm241. */
+void
+packet_if_setposition_v23_out(RsprotExec *x, MsgIfSetPosition *m)
+{
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12_ADD128(x, m->y);
+    RSPROT_U2_12_ADD128(x, m->x);
+}
+
 /*
- * 24 row(s) for 22 layout(s). A revision not listed has no IF_SETPOSITION and
+ * 25 row(s) for 23 layout(s). A revision not listed has no IF_SETPOSITION and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setposition_out[] = {
@@ -237,6 +246,7 @@ const RsprotVersionRange rsprot_if_setposition_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_setposition_v22_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_setposition_v22_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_setposition_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setposition_v23_out },
 };
 
 const int rsprot_if_setposition_out_count =

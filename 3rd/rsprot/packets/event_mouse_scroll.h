@@ -19,6 +19,8 @@ typedef struct MsgEventMouseScroll {
 
 /* v1 -- revs osrs221-241. */
 void packet_event_mouse_scroll_v1_in(RsprotExec *x, MsgEventMouseScroll *m);
+/* v2 -- revs osrsm241. */
+void packet_event_mouse_scroll_v2_in(RsprotExec *x, MsgEventMouseScroll *m);
 
 /* Per-revision entry points: what revision R calls is packet_event_mouse_scroll_<R>_in. */
 #define packet_event_mouse_scroll_osrs221_in packet_event_mouse_scroll_v1_in
@@ -42,6 +44,7 @@ void packet_event_mouse_scroll_v1_in(RsprotExec *x, MsgEventMouseScroll *m);
 #define packet_event_mouse_scroll_osrs239_in packet_event_mouse_scroll_v1_in
 #define packet_event_mouse_scroll_osrs240_in packet_event_mouse_scroll_v1_in
 #define packet_event_mouse_scroll_osrs241_in packet_event_mouse_scroll_v1_in
+#define packet_event_mouse_scroll_osrsm241_in packet_event_mouse_scroll_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_scroll_in[];

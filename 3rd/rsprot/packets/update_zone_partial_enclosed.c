@@ -200,8 +200,18 @@ packet_update_zone_partial_enclosed_v19_out(RsprotExec *x, MsgDesktopUpdateZoneP
     RSPROT_REST(x, m->payload, m->payload_length);
 }
 
+/* v20 -- revs osrsm241. */
+void
+packet_update_zone_partial_enclosed_v20_out(RsprotExec *x, MsgDesktopUpdateZonePartialEnclosed *m)
+{
+    RSPROT_U1_ADD128(x, m->level);
+    RSPROT_U1_SUB128(x, m->zone_z);
+    RSPROT_U1(x, m->zone_x);
+    RSPROT_REST(x, m->payload, m->payload_length);
+}
+
 /*
- * 21 row(s) for 19 layout(s). A revision not listed has no UPDATE_ZONE_PARTIAL_ENCLOSED and
+ * 22 row(s) for 20 layout(s). A revision not listed has no UPDATE_ZONE_PARTIAL_ENCLOSED and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
@@ -226,6 +236,7 @@ const RsprotVersionRange rsprot_update_zone_partial_enclosed_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_zone_partial_enclosed_v18_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_zone_partial_enclosed_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_zone_partial_enclosed_v19_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_zone_partial_enclosed_v20_out },
 };
 
 const int rsprot_update_zone_partial_enclosed_out_count =

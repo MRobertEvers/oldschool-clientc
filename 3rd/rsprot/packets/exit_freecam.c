@@ -18,12 +18,21 @@ packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m)
     (void)m;
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_exit_freecam_v2_in(RsprotExec *x, MsgExitFreecam *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no EXIT_FREECAM and
+ * 2 row(s) for 2 layout(s). A revision not listed has no EXIT_FREECAM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_exit_freecam_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_exit_freecam_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_exit_freecam_v2_in },
 };
 
 const int rsprot_exit_freecam_in_count =

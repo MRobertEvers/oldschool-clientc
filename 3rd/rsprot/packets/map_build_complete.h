@@ -23,6 +23,8 @@ typedef struct MsgMapBuildComplete {
 void packet_map_build_complete_v1_in(RsprotExec *x, MsgMapBuildComplete *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_map_build_complete_v2_in(RsprotExec *x, MsgMapBuildComplete *m);
+/* v3 -- revs osrsm241. */
+void packet_map_build_complete_v3_in(RsprotExec *x, MsgMapBuildComplete *m);
 
 /* Per-revision entry points: what revision R calls is packet_map_build_complete_<R>_in. */
 #define packet_map_build_complete_osrs221_in packet_map_build_complete_v1_in
@@ -49,6 +51,7 @@ void packet_map_build_complete_v2_in(RsprotExec *x, MsgMapBuildComplete *m);
 #define packet_map_build_complete_rs245_2_in packet_map_build_complete_v2_in
 #define packet_map_build_complete_rs254_in packet_map_build_complete_v2_in
 #define packet_map_build_complete_rs289_in packet_map_build_complete_v2_in
+#define packet_map_build_complete_osrsm241_in packet_map_build_complete_v3_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_map_build_complete_in[];

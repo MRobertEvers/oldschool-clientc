@@ -20,6 +20,9 @@ typedef struct MsgFriendchatJoinLeave {
 /* v1 -- revs 222-241. */
 void packet_friendchat_join_leave_v1_in(RsprotExec *x, MsgFriendchatJoinLeave *m);
 
+/* osrsm241 -- the Android 241.4 client. */
+void packet_friendchat_join_leave_osrsm241_in(RsprotExec *x, MsgFriendchatJoinLeave *m);
+
 #define packet_friendchat_join_leave_osrs222_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs223_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs224_in packet_friendchat_join_leave_v1_in
@@ -40,6 +43,7 @@ void packet_friendchat_join_leave_v1_in(RsprotExec *x, MsgFriendchatJoinLeave *m
 #define packet_friendchat_join_leave_osrs239_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs240_in packet_friendchat_join_leave_v1_in
 #define packet_friendchat_join_leave_osrs241_in packet_friendchat_join_leave_v1_in
+#define packet_friendchat_join_leave_osrsm241_in packet_friendchat_join_leave_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendchat_join_leave_in[];

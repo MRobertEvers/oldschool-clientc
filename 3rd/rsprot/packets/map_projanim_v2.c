@@ -197,8 +197,25 @@ packet_map_projanim_v2_v11_out(RsprotExec *x, MsgMapProjAnimV2 *m)
     RSPROT_U4_2143(x, m->end_packed);
 }
 
+/* v12 -- revs osrsm241. */
+void
+packet_map_projanim_v2_v12_out(RsprotExec *x, MsgMapProjAnimV2 *m)
+{
+    RSPROT_U2_21_ADD128(x, m->end_time);
+    RSPROT_U2_21(x, m->start_height);
+    RSPROT_U2_21_ADD128(x, m->end_height);
+    RSPROT_U2_21_ADD128(x, m->progress);
+    RSPROT_U4_1234(x, m->end_packed);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U3_123(x, m->target_index);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->start_time);
+    RSPROT_U3_321(x, m->source_index);
+    RSPROT_U1_NEG(x, m->angle);
+}
+
 /*
- * 11 row(s) for 11 layout(s). A revision not listed has no MAP_PROJANIM_V2 and
+ * 12 row(s) for 12 layout(s). A revision not listed has no MAP_PROJANIM_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_projanim_v2_out[] = {
@@ -213,6 +230,7 @@ const RsprotVersionRange rsprot_map_projanim_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_map_projanim_v2_v9_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_map_projanim_v2_v10_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_map_projanim_v2_v11_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_map_projanim_v2_v12_out },
 };
 
 const int rsprot_map_projanim_v2_out_count =

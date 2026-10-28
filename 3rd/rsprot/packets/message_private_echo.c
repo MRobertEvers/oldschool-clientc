@@ -11,6 +11,7 @@ packet_message_private_echo_v1_out(RsprotExec *x, MsgMessagePrivateEcho *m)
 
 const RsprotVersionRange rsprot_message_private_echo_out[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_private_echo_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_private_echo_v1_out },
 };
 
 const int rsprot_message_private_echo_out_count =

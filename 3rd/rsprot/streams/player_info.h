@@ -50,8 +50,12 @@ int player_info_osrs240(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 int player_info_osrs241(
     RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
+int player_info_osrsm241(
+    RsprotPlayerInfo *pi, const uint8_t *data, int32_t len, RsprotInfoList *out);
 
 /** player_info_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotPlayerInfoReadFn player_info_osrs(RsprotRev rev);
+/** player_info_osrsm<revision>, or NULL where the revision has no such prot. */
+RsprotPlayerInfoReadFn player_info_osrsm(RsprotRev rev);
 
 #endif

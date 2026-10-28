@@ -46,6 +46,8 @@ void packet_opplayer2_v12_in(RsprotExec *x, MsgOpPlayer2 *m);
 void packet_opplayer2_v13_in(RsprotExec *x, MsgOpPlayer2 *m);
 /* v14 -- revs rs245.2, rs254, rs289. */
 void packet_opplayer2_v14_in(RsprotExec *x, MsgOpPlayer2 *m);
+/* v15 -- revs osrsm241. */
+void packet_opplayer2_v15_in(RsprotExec *x, MsgOpPlayer2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_opplayer2_<R>_in. */
 #define packet_opplayer2_osrs221_in packet_opplayer2_v1_in
@@ -72,6 +74,7 @@ void packet_opplayer2_v14_in(RsprotExec *x, MsgOpPlayer2 *m);
 #define packet_opplayer2_rs245_2_in packet_opplayer2_v14_in
 #define packet_opplayer2_rs254_in packet_opplayer2_v14_in
 #define packet_opplayer2_rs289_in packet_opplayer2_v14_in
+#define packet_opplayer2_osrsm241_in packet_opplayer2_v15_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_opplayer2_in[];

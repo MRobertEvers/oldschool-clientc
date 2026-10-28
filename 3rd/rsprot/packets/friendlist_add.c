@@ -17,12 +17,20 @@ packet_friendlist_add_v1_in(RsprotExec *x, MsgFriendListAdd *m)
     RSPROT_JSTR(x, m->name);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_friendlist_add_v2_in(RsprotExec *x, MsgFriendListAdd *m)
+{
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no FRIENDLIST_ADD and
+ * 2 row(s) for 2 layout(s). A revision not listed has no FRIENDLIST_ADD and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_friendlist_add_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_friendlist_add_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_friendlist_add_v2_in },
 };
 
 const int rsprot_friendlist_add_in_count =

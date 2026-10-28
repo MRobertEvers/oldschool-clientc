@@ -138,8 +138,16 @@ packet_anim_specific_v16_out(RsprotExec *x, MsgAnimSpecific *m)
     RSPROT_U2_12_ADD128(x, m->id);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_anim_specific_v17_out(RsprotExec *x, MsgAnimSpecific *m)
+{
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U1_NEG(x, m->delay);
+}
+
 /*
- * 20 row(s) for 16 layout(s). A revision not listed has no ANIM_SPECIFIC and
+ * 21 row(s) for 17 layout(s). A revision not listed has no ANIM_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_anim_specific_out[] = {
@@ -163,6 +171,7 @@ const RsprotVersionRange rsprot_anim_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_anim_specific_v1_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_anim_specific_v16_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_anim_specific_v8_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_anim_specific_v17_out },
 };
 
 const int rsprot_anim_specific_out_count =

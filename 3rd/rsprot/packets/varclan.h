@@ -42,6 +42,7 @@ void packet_varclan_v1_out(RsprotExec *x, MsgVarclan *m);
 #define packet_varclan_osrs239_out packet_varclan_v1_out
 #define packet_varclan_osrs240_out packet_varclan_v1_out
 #define packet_varclan_osrs241_out packet_varclan_v1_out
+#define packet_varclan_osrsm241_out packet_varclan_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_varclan_out[];

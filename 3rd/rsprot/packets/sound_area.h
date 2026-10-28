@@ -64,6 +64,8 @@ void packet_sound_area_v19_out(RsprotExec *x, MsgSoundArea *m);
 void packet_sound_area_v20_out(RsprotExec *x, MsgSoundArea *m);
 /* v21 -- revs osrs241. */
 void packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m);
+/* v22 -- revs osrsm241. */
+void packet_sound_area_v22_out(RsprotExec *x, MsgSoundArea *m);
 
 /* Per-revision entry points: what revision R calls is packet_sound_area_<R>_out. */
 #define packet_sound_area_osrs221_out packet_sound_area_v1_out
@@ -87,6 +89,7 @@ void packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m);
 #define packet_sound_area_osrs239_out packet_sound_area_v19_out
 #define packet_sound_area_osrs240_out packet_sound_area_v20_out
 #define packet_sound_area_osrs241_out packet_sound_area_v21_out
+#define packet_sound_area_osrsm241_out packet_sound_area_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_sound_area_out[];

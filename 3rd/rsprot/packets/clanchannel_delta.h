@@ -64,6 +64,7 @@ void packet_clanchannel_delta_v1_out(RsprotExec *x, MsgClanchannelDelta *m);
 #define packet_clanchannel_delta_osrs239_out packet_clanchannel_delta_v1_out
 #define packet_clanchannel_delta_osrs240_out packet_clanchannel_delta_v1_out
 #define packet_clanchannel_delta_osrs241_out packet_clanchannel_delta_v1_out
+#define packet_clanchannel_delta_osrsm241_out packet_clanchannel_delta_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clanchannel_delta_out[];

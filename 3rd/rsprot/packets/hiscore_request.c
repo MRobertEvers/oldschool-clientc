@@ -19,12 +19,22 @@ packet_hiscore_request_v1_in(RsprotExec *x, MsgHiscoreRequest *m)
     RSPROT_JSTR(x, m->name);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_hiscore_request_v2_in(RsprotExec *x, MsgHiscoreRequest *m)
+{
+    RSPROT_U1(x, m->request_id);
+    RSPROT_U1(x, m->type);
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no HISCORE_REQUEST and
+ * 2 row(s) for 2 layout(s). A revision not listed has no HISCORE_REQUEST and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_hiscore_request_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hiscore_request_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_hiscore_request_v2_in },
 };
 
 const int rsprot_hiscore_request_in_count =

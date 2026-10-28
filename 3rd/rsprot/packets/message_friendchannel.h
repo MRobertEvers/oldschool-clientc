@@ -48,6 +48,7 @@ void packet_message_friendchannel_v1_out(RsprotExec *x, MsgMessageFriendchannel 
 #define packet_message_friendchannel_osrs239_out packet_message_friendchannel_v1_out
 #define packet_message_friendchannel_osrs240_out packet_message_friendchannel_v1_out
 #define packet_message_friendchannel_osrs241_out packet_message_friendchannel_v1_out
+#define packet_message_friendchannel_osrsm241_out packet_message_friendchannel_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_friendchannel_out[];

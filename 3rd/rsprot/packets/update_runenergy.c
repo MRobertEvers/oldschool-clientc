@@ -17,12 +17,20 @@ packet_update_runenergy_v1_out(RsprotExec *x, MsgUpdateRunEnergy *m)
     RSPROT_U2_12(x, m->runenergy);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_update_runenergy_v2_out(RsprotExec *x, MsgUpdateRunEnergy *m)
+{
+    RSPROT_U2_12(x, m->runenergy);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no UPDATE_RUNENERGY and
+ * 2 row(s) for 2 layout(s). A revision not listed has no UPDATE_RUNENERGY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_runenergy_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_runenergy_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_runenergy_v2_out },
 };
 
 const int rsprot_update_runenergy_out_count =

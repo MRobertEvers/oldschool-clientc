@@ -30,6 +30,7 @@ packet_update_tradingpost_v2_v1_out(RsprotExec *x, MsgUpdateTradingpostV2 *m)
 
 const RsprotVersionRange rsprot_update_tradingpost_v2_out[] = {
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_tradingpost_v2_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_tradingpost_v2_v1_out },
 };
 
 const int rsprot_update_tradingpost_v2_out_count =

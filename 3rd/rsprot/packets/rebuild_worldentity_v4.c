@@ -25,12 +25,28 @@ packet_rebuild_worldentity_v4_v1_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
     }
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_rebuild_worldentity_v4_v2_out(RsprotExec *x, MsgRebuildWorldEntityV4 *m)
+{
+    RSPROT_U2_12(x, m->base_x);
+    RSPROT_U2_12(x, m->base_z);
+    RSPROT_U2_12(x, m->distinct_mapsquare_count);
+    if (m->size_x_zones > 0 && m->size_z_zones > 0 &&
+        rsprot_within(x, 4 * m->size_x_zones * m->size_z_zones, RSPROT_REGION_ZONES + 1)) {
+        rsprot_tail_zone_grid(x, m->zones, 4 * m->size_x_zones * m->size_z_zones);
+    } else {
+        RSPROT_REST(x, m->grid_raw, m->grid_raw_length);
+    }
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no REBUILD_WORLDENTITY_V4 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no REBUILD_WORLDENTITY_V4 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_rebuild_worldentity_v4_out[] = {
     { RSPROT_OSRS_ID(237), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_rebuild_worldentity_v4_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_rebuild_worldentity_v4_v2_out },
 };
 
 const int rsprot_rebuild_worldentity_v4_out_count =

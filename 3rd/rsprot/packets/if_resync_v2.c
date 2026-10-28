@@ -32,12 +32,35 @@ packet_if_resync_v2_v1_out(RsprotExec *x, MsgIfResyncV2 *m)
     }
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_if_resync_v2_v2_out(RsprotExec *x, MsgIfResyncV2 *m)
+{
+    RSPROT_U2_12(x, m->top_level_interface);
+    RSPROT_U2_12(x, m->sub_interfaces_count);
+    for (int32_t rs_i_sub_interface = 0; rs_i_sub_interface < m->sub_interfaces_count && RSPROT_WITHIN(x, rs_i_sub_interface, 4096); rs_i_sub_interface++) {
+        Rsprot_MsgIfResyncV2_sub_interfacesElem *elem = &m->sub_interfaces[rs_i_sub_interface];
+        RSPROT_COM_1234(x, elem->destination_combined_id);
+        RSPROT_U2_12(x, elem->interface_id);
+        RSPROT_U1(x, elem->type);
+    }
+    for (int32_t rs_i_events = 0; RSPROT_MORE(x, m->events_count, rs_i_events, 256); rs_i_events++) {
+        Rsprot_MsgIfResyncV2_eventsElem *elem = &m->events[rs_i_events];
+        RSPROT_COM_1234(x, elem->combined_id);
+        RSPROT_U2_12(x, elem->start);
+        RSPROT_U2_12(x, elem->end);
+        RSPROT_U4_1234(x, elem->events1);
+        RSPROT_U4_1234(x, elem->events2);
+    }
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no IF_RESYNC_V2 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no IF_RESYNC_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_resync_v2_out[] = {
     { RSPROT_OSRS_ID(231), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_resync_v2_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_resync_v2_v2_out },
 };
 
 const int rsprot_if_resync_v2_out_count =

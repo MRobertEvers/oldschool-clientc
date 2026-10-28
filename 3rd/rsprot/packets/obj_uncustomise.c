@@ -154,8 +154,17 @@ packet_obj_uncustomise_v16_out(RsprotExec *x, MsgObjUncustomise *m)
     RSPROT_U4_1234(x, m->quantity);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_obj_uncustomise_v17_out(RsprotExec *x, MsgObjUncustomise *m)
+{
+    RSPROT_U4_1234(x, m->quantity);
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U2_21(x, m->id);
+}
+
 /*
- * 16 row(s) for 16 layout(s). A revision not listed has no OBJ_UNCUSTOMISE and
+ * 17 row(s) for 17 layout(s). A revision not listed has no OBJ_UNCUSTOMISE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_uncustomise_out[] = {
@@ -175,6 +184,7 @@ const RsprotVersionRange rsprot_obj_uncustomise_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_uncustomise_v14_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_uncustomise_v15_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_uncustomise_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_uncustomise_v17_out },
 };
 
 const int rsprot_obj_uncustomise_out_count =

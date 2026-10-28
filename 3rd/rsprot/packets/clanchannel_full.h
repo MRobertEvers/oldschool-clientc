@@ -66,6 +66,7 @@ void packet_clanchannel_full_v1_out(RsprotExec *x, MsgClanchannelFull *m);
 #define packet_clanchannel_full_osrs239_out packet_clanchannel_full_v1_out
 #define packet_clanchannel_full_osrs240_out packet_clanchannel_full_v1_out
 #define packet_clanchannel_full_osrs241_out packet_clanchannel_full_v1_out
+#define packet_clanchannel_full_osrsm241_out packet_clanchannel_full_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clanchannel_full_out[];

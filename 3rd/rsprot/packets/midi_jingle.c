@@ -154,8 +154,16 @@ packet_midi_jingle_v18_out(RsprotExec *x, MsgMidiJingle *m)
     RSPROT_U2_12(x, m->length_in_millis);
 }
 
+/* v19 -- revs osrsm241. */
+void
+packet_midi_jingle_v19_out(RsprotExec *x, MsgMidiJingle *m)
+{
+    RSPROT_U3_321(x, m->length_in_millis);
+    RSPROT_U2_21_ADD128(x, m->id);
+}
+
 /*
- * 24 row(s) for 18 layout(s). A revision not listed has no MIDI_JINGLE and
+ * 25 row(s) for 19 layout(s). A revision not listed has no MIDI_JINGLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_jingle_out[] = {
@@ -183,6 +191,7 @@ const RsprotVersionRange rsprot_midi_jingle_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_midi_jingle_v18_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_midi_jingle_v18_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_midi_jingle_v18_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_jingle_v19_out },
 };
 
 const int rsprot_midi_jingle_out_count =

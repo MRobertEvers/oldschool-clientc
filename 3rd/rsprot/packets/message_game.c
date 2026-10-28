@@ -22,12 +22,25 @@ packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m)
     RSPROT_JSTR(x, m->message);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_message_game_v2_out(RsprotExec *x, MsgMessageGame *m)
+{
+    RSPROT_SMART(x, m->type);
+    RSPROT_U1(x, m->name_present);
+    if (RSPROT_BRANCH(x, m->name_present)) {
+        RSPROT_JSTR(x, m->name);
+    }
+    RSPROT_JSTR(x, m->message);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no MESSAGE_GAME and
+ * 2 row(s) for 2 layout(s). A revision not listed has no MESSAGE_GAME and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_message_game_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_message_game_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_message_game_v2_out },
 };
 
 const int rsprot_message_game_out_count =

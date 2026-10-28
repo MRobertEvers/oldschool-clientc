@@ -61,6 +61,8 @@ void packet_update_zone_partial_follows_v19_out(RsprotExec *x, MsgUpdateZonePart
 void packet_update_zone_partial_follows_v20_out(RsprotExec *x, MsgUpdateZonePartialFollows *m);
 /* v21 -- revs osrs241. */
 void packet_update_zone_partial_follows_v21_out(RsprotExec *x, MsgUpdateZonePartialFollows *m);
+/* v22 -- revs osrsm241. */
+void packet_update_zone_partial_follows_v22_out(RsprotExec *x, MsgUpdateZonePartialFollows *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_zone_partial_follows_<R>_out. */
 #define packet_update_zone_partial_follows_osrs221_out packet_update_zone_partial_follows_v1_out
@@ -84,6 +86,7 @@ void packet_update_zone_partial_follows_v21_out(RsprotExec *x, MsgUpdateZonePart
 #define packet_update_zone_partial_follows_osrs239_out packet_update_zone_partial_follows_v19_out
 #define packet_update_zone_partial_follows_osrs240_out packet_update_zone_partial_follows_v20_out
 #define packet_update_zone_partial_follows_osrs241_out packet_update_zone_partial_follows_v21_out
+#define packet_update_zone_partial_follows_osrsm241_out packet_update_zone_partial_follows_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_zone_partial_follows_out[];

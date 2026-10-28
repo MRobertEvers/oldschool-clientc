@@ -52,6 +52,8 @@ void packet_update_stat_v2_v14_out(RsprotExec *x, MsgUpdateStatV2 *m);
 void packet_update_stat_v2_v15_out(RsprotExec *x, MsgUpdateStatV2 *m);
 /* v16 -- revs osrs241. */
 void packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m);
+/* v17 -- revs osrsm241. */
+void packet_update_stat_v2_v17_out(RsprotExec *x, MsgUpdateStatV2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_stat_v2_<R>_out. */
 #define packet_update_stat_v2_osrs226_out packet_update_stat_v2_v1_out
@@ -70,6 +72,7 @@ void packet_update_stat_v2_v16_out(RsprotExec *x, MsgUpdateStatV2 *m);
 #define packet_update_stat_v2_osrs239_out packet_update_stat_v2_v14_out
 #define packet_update_stat_v2_osrs240_out packet_update_stat_v2_v15_out
 #define packet_update_stat_v2_osrs241_out packet_update_stat_v2_v16_out
+#define packet_update_stat_v2_osrsm241_out packet_update_stat_v2_v17_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_stat_v2_out[];

@@ -19,12 +19,22 @@ packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m)
     RSPROT_U4_1234(x, m->properties);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_logout_transfer_v2_out(RsprotExec *x, MsgLogoutTransfer *m)
+{
+    RSPROT_JSTR(x, m->host);
+    RSPROT_U2_12(x, m->id);
+    RSPROT_U4_1234(x, m->properties);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no LOGOUT_TRANSFER and
+ * 2 row(s) for 2 layout(s). A revision not listed has no LOGOUT_TRANSFER and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_logout_transfer_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_logout_transfer_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_logout_transfer_v2_out },
 };
 
 const int rsprot_logout_transfer_out_count =

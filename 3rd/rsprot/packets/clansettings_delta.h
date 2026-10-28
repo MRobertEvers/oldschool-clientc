@@ -77,6 +77,7 @@ void packet_clansettings_delta_v1_out(RsprotExec *x, MsgClansettingsDelta *m);
 #define packet_clansettings_delta_osrs239_out packet_clansettings_delta_v1_out
 #define packet_clansettings_delta_osrs240_out packet_clansettings_delta_v1_out
 #define packet_clansettings_delta_osrs241_out packet_clansettings_delta_v1_out
+#define packet_clansettings_delta_osrsm241_out packet_clansettings_delta_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clansettings_delta_out[];

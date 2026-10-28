@@ -19,6 +19,8 @@ typedef struct MsgUrlOpen {
 
 /* v1 -- revs osrs222-241. */
 void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
+/* v2 -- revs osrsm241. */
+void packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m);
 
 /* Per-revision entry points: what revision R calls is packet_url_open_<R>_out. */
 #define packet_url_open_osrs222_out packet_url_open_v1_out
@@ -41,6 +43,7 @@ void packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m);
 #define packet_url_open_osrs239_out packet_url_open_v1_out
 #define packet_url_open_osrs240_out packet_url_open_v1_out
 #define packet_url_open_osrs241_out packet_url_open_v1_out
+#define packet_url_open_osrsm241_out packet_url_open_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_url_open_out[];

@@ -53,6 +53,7 @@ const RsprotVersionRange rsprot_update_inv_partial_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_inv_partial_v1_out },
     /* 240-241 (RSProx osrs-240 and osrs-241, UpdateInvPartialDecoder): decode body unchanged from 239. */
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_inv_partial_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_inv_partial_v1_out },
 };
 
 const int rsprot_update_inv_partial_out_count =

@@ -23,12 +23,26 @@ packet_event_mouse_click_v1_v1_in(RsprotExec *x, MsgEventMouseClickV1 *m)
     m->right_click = right_click;
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_event_mouse_click_v1_v2_in(RsprotExec *x, MsgEventMouseClickV1 *m)
+{
+    RSPROT_U2_12(x, m->packed);
+    int32_t right_click = (m->packed & (0x1 != 0));
+    int32_t last_transmitted_mouse_click = ((int32_t)((uint32_t)(m->packed) >> (1)));
+    RSPROT_U2_12(x, m->x);
+    RSPROT_U2_12(x, m->y);
+    m->last_transmitted_mouse_click = last_transmitted_mouse_click;
+    m->right_click = right_click;
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V1 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no EVENT_MOUSE_CLICK_V1 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_event_mouse_click_v1_in[] = {
     { RSPROT_OSRS_ID(227), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_event_mouse_click_v1_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_event_mouse_click_v1_v2_in },
 };
 
 const int rsprot_event_mouse_click_v1_in_count =

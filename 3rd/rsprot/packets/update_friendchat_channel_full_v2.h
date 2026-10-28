@@ -56,6 +56,7 @@ void packet_update_friendchat_channel_full_v2_v1_out(RsprotExec *x, MsgUpdateFri
 #define packet_update_friendchat_channel_full_v2_osrs239_out packet_update_friendchat_channel_full_v2_v1_out
 #define packet_update_friendchat_channel_full_v2_osrs240_out packet_update_friendchat_channel_full_v2_v1_out
 #define packet_update_friendchat_channel_full_v2_osrs241_out packet_update_friendchat_channel_full_v2_v1_out
+#define packet_update_friendchat_channel_full_v2_osrsm241_out packet_update_friendchat_channel_full_v2_v1_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_friendchat_channel_full_v2_out[];

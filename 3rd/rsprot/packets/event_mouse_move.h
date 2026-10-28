@@ -37,6 +37,9 @@ typedef struct MsgEventMouseMove {
 /* v1 -- revs 222-241. */
 void packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m);
 
+/* osrsm241 -- the Android 241.4 client. */
+void packet_event_mouse_move_osrsm241_in(RsprotExec *x, MsgEventMouseMove *m);
+
 #define packet_event_mouse_move_osrs222_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs223_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs224_in packet_event_mouse_move_v1_in
@@ -57,6 +60,7 @@ void packet_event_mouse_move_v1_in(RsprotExec *x, MsgEventMouseMove *m);
 #define packet_event_mouse_move_osrs239_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs240_in packet_event_mouse_move_v1_in
 #define packet_event_mouse_move_osrs241_in packet_event_mouse_move_v1_in
+#define packet_event_mouse_move_osrsm241_in packet_event_mouse_move_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_event_mouse_move_in[];

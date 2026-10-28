@@ -22,6 +22,8 @@ typedef struct MsgMessageGame {
 
 /* v1 -- revs osrs221-241. */
 void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
+/* v2 -- revs osrsm241. */
+void packet_message_game_v2_out(RsprotExec *x, MsgMessageGame *m);
 
 /* Per-revision entry points: what revision R calls is packet_message_game_<R>_out. */
 #define packet_message_game_osrs221_out packet_message_game_v1_out
@@ -45,6 +47,7 @@ void packet_message_game_v1_out(RsprotExec *x, MsgMessageGame *m);
 #define packet_message_game_osrs239_out packet_message_game_v1_out
 #define packet_message_game_osrs240_out packet_message_game_v1_out
 #define packet_message_game_osrs241_out packet_message_game_v1_out
+#define packet_message_game_osrsm241_out packet_message_game_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_message_game_out[];

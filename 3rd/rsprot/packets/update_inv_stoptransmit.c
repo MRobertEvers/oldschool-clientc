@@ -38,8 +38,15 @@ packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m
     RSPROT_U2_21(x, m->inventory_id);
 }
 
+/* v5 -- revs osrsm241. */
+void
+packet_update_inv_stoptransmit_v5_out(RsprotExec *x, MsgUpdateInvStopTransmit *m)
+{
+    RSPROT_U2_12_ADD128(x, m->inventory_id);
+}
+
 /*
- * 18 row(s) for 4 layout(s). A revision not listed has no UPDATE_INV_STOPTRANSMIT and
+ * 19 row(s) for 5 layout(s). A revision not listed has no UPDATE_INV_STOPTRANSMIT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_update_inv_stoptransmit_out[] = {
@@ -61,6 +68,7 @@ const RsprotVersionRange rsprot_update_inv_stoptransmit_out[] = {
     { RSPROT_OSRS_ID(238), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_update_inv_stoptransmit_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_update_inv_stoptransmit_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_update_inv_stoptransmit_v5_out },
 };
 
 const int rsprot_update_inv_stoptransmit_out_count =

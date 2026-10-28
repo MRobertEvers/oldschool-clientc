@@ -162,8 +162,16 @@ packet_if_sethide_v19_out(RsprotExec *x, MsgIfSetHide *m)
     RSPROT_U1(x, m->hidden);
 }
 
+/* v20 -- revs osrsm241. */
+void
+packet_if_sethide_v20_out(RsprotExec *x, MsgIfSetHide *m)
+{
+    RSPROT_U1_SUB128(x, m->hidden);
+    RSPROT_COM_1234(x, m->combined_id);
+}
+
 /*
- * 24 row(s) for 19 layout(s). A revision not listed has no IF_SETHIDE and
+ * 25 row(s) for 20 layout(s). A revision not listed has no IF_SETHIDE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_sethide_out[] = {
@@ -191,6 +199,7 @@ const RsprotVersionRange rsprot_if_sethide_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_if_sethide_v19_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_if_sethide_v19_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_if_sethide_v19_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_sethide_v20_out },
 };
 
 const int rsprot_if_sethide_out_count =

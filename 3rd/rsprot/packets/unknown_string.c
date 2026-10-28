@@ -17,12 +17,20 @@ packet_unknown_string_v1_out(RsprotExec *x, MsgUnknownString *m)
     RSPROT_JSTR(x, m->string);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_unknown_string_v2_out(RsprotExec *x, MsgUnknownString *m)
+{
+    RSPROT_JSTR(x, m->string);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no UNKNOWN_STRING and
+ * 2 row(s) for 2 layout(s). A revision not listed has no UNKNOWN_STRING and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_unknown_string_out[] = {
     { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_unknown_string_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_unknown_string_v2_out },
 };
 
 const int rsprot_unknown_string_out_count =

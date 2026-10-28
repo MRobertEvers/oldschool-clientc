@@ -63,6 +63,8 @@ void packet_if_setposition_v20_out(RsprotExec *x, MsgIfSetPosition *m);
 void packet_if_setposition_v21_out(RsprotExec *x, MsgIfSetPosition *m);
 /* v22 -- revs rs245.2, rs254, rs289. */
 void packet_if_setposition_v22_out(RsprotExec *x, MsgIfSetPosition *m);
+/* v23 -- revs osrsm241. */
+void packet_if_setposition_v23_out(RsprotExec *x, MsgIfSetPosition *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setposition_<R>_out. */
 #define packet_if_setposition_osrs221_out packet_if_setposition_v1_out
@@ -89,6 +91,7 @@ void packet_if_setposition_v22_out(RsprotExec *x, MsgIfSetPosition *m);
 #define packet_if_setposition_rs245_2_out packet_if_setposition_v22_out
 #define packet_if_setposition_rs254_out packet_if_setposition_v22_out
 #define packet_if_setposition_rs289_out packet_if_setposition_v22_out
+#define packet_if_setposition_osrsm241_out packet_if_setposition_v23_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setposition_out[];

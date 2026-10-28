@@ -67,3 +67,12 @@ worldentity_info_v7_osrs(RsprotRev rev)
     default: return NULL;
     }
 }
+
+RsprotWorldEntityInfoReadFn
+worldentity_info_v7_osrsm(RsprotRev rev)
+{
+    switch (rev.id) {
+    case RSPROT_OSRSM_ID(241): return worldentity_info_v7_osrsm241;
+    default: return NULL;
+    }
+}

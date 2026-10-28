@@ -220,8 +220,18 @@ packet_midi_swap_v21_out(RsprotExec *x, MsgMidiSwap *m)
     RSPROT_U2_12(x, m->fade_in_speed);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_midi_swap_v22_out(RsprotExec *x, MsgMidiSwap *m)
+{
+    RSPROT_U2_12(x, m->fade_in_delay);
+    RSPROT_U2_21_ADD128(x, m->fade_in_speed);
+    RSPROT_U2_21(x, m->fade_out_speed);
+    RSPROT_U2_21_ADD128(x, m->fade_out_delay);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no MIDI_SWAP and
+ * 22 row(s) for 22 layout(s). A revision not listed has no MIDI_SWAP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_midi_swap_out[] = {
@@ -246,6 +256,7 @@ const RsprotVersionRange rsprot_midi_swap_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_midi_swap_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_midi_swap_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_midi_swap_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_midi_swap_v22_out },
 };
 
 const int rsprot_midi_swap_out_count =

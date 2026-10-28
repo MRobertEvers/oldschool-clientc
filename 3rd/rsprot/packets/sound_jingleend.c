@@ -17,12 +17,20 @@ packet_sound_jingleend_v1_in(RsprotExec *x, MsgSoundJingleEnd *m)
     RSPROT_U4_1234(x, m->jingle);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_sound_jingleend_v2_in(RsprotExec *x, MsgSoundJingleEnd *m)
+{
+    RSPROT_U4_1234(x, m->jingle);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no SOUND_JINGLEEND and
+ * 2 row(s) for 2 layout(s). A revision not listed has no SOUND_JINGLEEND and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_sound_jingleend_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_sound_jingleend_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_sound_jingleend_v2_in },
 };
 
 const int rsprot_sound_jingleend_in_count =

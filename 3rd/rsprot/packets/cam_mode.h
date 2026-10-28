@@ -19,6 +19,8 @@ typedef struct MsgCamMode {
 
 /* v1 -- revs osrs221-241. */
 void packet_cam_mode_v1_out(RsprotExec *x, MsgCamMode *m);
+/* v2 -- revs osrsm241. */
+void packet_cam_mode_v2_out(RsprotExec *x, MsgCamMode *m);
 
 /* Per-revision entry points: what revision R calls is packet_cam_mode_<R>_out. */
 #define packet_cam_mode_osrs221_out packet_cam_mode_v1_out
@@ -42,6 +44,7 @@ void packet_cam_mode_v1_out(RsprotExec *x, MsgCamMode *m);
 #define packet_cam_mode_osrs239_out packet_cam_mode_v1_out
 #define packet_cam_mode_osrs240_out packet_cam_mode_v1_out
 #define packet_cam_mode_osrs241_out packet_cam_mode_v1_out
+#define packet_cam_mode_osrsm241_out packet_cam_mode_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_cam_mode_out[];

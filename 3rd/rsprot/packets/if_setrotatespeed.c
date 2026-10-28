@@ -190,8 +190,17 @@ packet_if_setrotatespeed_v20_out(RsprotExec *x, MsgIfSetRotateSpeed *m)
     RSPROT_U2_12_ADD128(x, m->x_speed);
 }
 
+/* v21 -- revs osrsm241. */
+void
+packet_if_setrotatespeed_v21_out(RsprotExec *x, MsgIfSetRotateSpeed *m)
+{
+    RSPROT_COM_2143(x, m->combined_id);
+    RSPROT_U2_12(x, m->x_speed);
+    RSPROT_U2_12(x, m->y_speed);
+}
+
 /*
- * 21 row(s) for 20 layout(s). A revision not listed has no IF_SETROTATESPEED and
+ * 22 row(s) for 21 layout(s). A revision not listed has no IF_SETROTATESPEED and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setrotatespeed_out[] = {
@@ -216,6 +225,7 @@ const RsprotVersionRange rsprot_if_setrotatespeed_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setrotatespeed_v18_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setrotatespeed_v19_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setrotatespeed_v20_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setrotatespeed_v21_out },
 };
 
 const int rsprot_if_setrotatespeed_out_count =

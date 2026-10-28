@@ -55,6 +55,8 @@ void packet_loc_add_change_v2_v12_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 void packet_loc_add_change_v2_v13_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 /* v14 -- revs osrs241. */
 void packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m);
+/* v15 -- revs osrsm241. */
+void packet_loc_add_change_v2_v15_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_loc_add_change_v2_<R>_out. */
 #define packet_loc_add_change_v2_osrs228_out packet_loc_add_change_v2_v1_out
@@ -71,6 +73,7 @@ void packet_loc_add_change_v2_v14_out(RsprotExec *x, MsgLocAddChangeV2 *m);
 #define packet_loc_add_change_v2_osrs239_out packet_loc_add_change_v2_v12_out
 #define packet_loc_add_change_v2_osrs240_out packet_loc_add_change_v2_v13_out
 #define packet_loc_add_change_v2_osrs241_out packet_loc_add_change_v2_v14_out
+#define packet_loc_add_change_v2_osrsm241_out packet_loc_add_change_v2_v15_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_loc_add_change_v2_out[];

@@ -23,6 +23,8 @@ typedef struct MsgCloseModal {
 void packet_close_modal_v1_in(RsprotExec *x, MsgCloseModal *m);
 /* v2 -- revs rs245.2, rs254, rs289. */
 void packet_close_modal_v2_in(RsprotExec *x, MsgCloseModal *m);
+/* v3 -- revs osrsm241. */
+void packet_close_modal_v3_in(RsprotExec *x, MsgCloseModal *m);
 
 /* Per-revision entry points: what revision R calls is packet_close_modal_<R>_in. */
 #define packet_close_modal_osrs221_in packet_close_modal_v1_in
@@ -49,6 +51,7 @@ void packet_close_modal_v2_in(RsprotExec *x, MsgCloseModal *m);
 #define packet_close_modal_rs245_2_in packet_close_modal_v2_in
 #define packet_close_modal_rs254_in packet_close_modal_v2_in
 #define packet_close_modal_rs289_in packet_close_modal_v2_in
+#define packet_close_modal_osrsm241_in packet_close_modal_v3_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_close_modal_in[];

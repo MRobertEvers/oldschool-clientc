@@ -64,6 +64,8 @@ void packet_midi_song_withsecondary_v19_out(RsprotExec *x, MsgMidiSongWithSecond
 void packet_midi_song_withsecondary_v20_out(RsprotExec *x, MsgMidiSongWithSecondary *m);
 /* v21 -- revs osrs241. */
 void packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecondary *m);
+/* v22 -- revs osrsm241. */
+void packet_midi_song_withsecondary_v22_out(RsprotExec *x, MsgMidiSongWithSecondary *m);
 
 /* Per-revision entry points: what revision R calls is packet_midi_song_withsecondary_<R>_out. */
 #define packet_midi_song_withsecondary_osrs221_out packet_midi_song_withsecondary_v1_out
@@ -87,6 +89,7 @@ void packet_midi_song_withsecondary_v21_out(RsprotExec *x, MsgMidiSongWithSecond
 #define packet_midi_song_withsecondary_osrs239_out packet_midi_song_withsecondary_v19_out
 #define packet_midi_song_withsecondary_osrs240_out packet_midi_song_withsecondary_v20_out
 #define packet_midi_song_withsecondary_osrs241_out packet_midi_song_withsecondary_v21_out
+#define packet_midi_song_withsecondary_osrsm241_out packet_midi_song_withsecondary_v22_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_midi_song_withsecondary_out[];

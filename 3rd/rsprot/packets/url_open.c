@@ -17,12 +17,20 @@ packet_url_open_v1_out(RsprotExec *x, MsgUrlOpen *m)
     RSPROT_JSTR(x, m->url);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_url_open_v2_out(RsprotExec *x, MsgUrlOpen *m)
+{
+    RSPROT_JSTR(x, m->url);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no URL_OPEN and
+ * 2 row(s) for 2 layout(s). A revision not listed has no URL_OPEN and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_url_open_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_url_open_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_url_open_v2_out },
 };
 
 const int rsprot_url_open_out_count =

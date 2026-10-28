@@ -21,6 +21,8 @@ typedef struct MsgExitFreecam {
 
 /* v1 -- revs osrs221-241. */
 void packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m);
+/* v2 -- revs osrsm241. */
+void packet_exit_freecam_v2_in(RsprotExec *x, MsgExitFreecam *m);
 
 /* Per-revision entry points: what revision R calls is packet_exit_freecam_<R>_in. */
 #define packet_exit_freecam_osrs221_in packet_exit_freecam_v1_in
@@ -44,6 +46,7 @@ void packet_exit_freecam_v1_in(RsprotExec *x, MsgExitFreecam *m);
 #define packet_exit_freecam_osrs239_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs240_in packet_exit_freecam_v1_in
 #define packet_exit_freecam_osrs241_in packet_exit_freecam_v1_in
+#define packet_exit_freecam_osrsm241_in packet_exit_freecam_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_exit_freecam_in[];

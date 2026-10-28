@@ -262,8 +262,20 @@ packet_sound_area_v21_out(RsprotExec *x, MsgSoundArea *m)
     RSPROT_U2_12(x, m->id);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_sound_area_v22_out(RsprotExec *x, MsgSoundArea *m)
+{
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_NEG(x, m->loops);
+    RSPROT_U1(x, m->range);
+    RSPROT_U1_NEG(x, m->drop_off_range);
+    RSPROT_U1(x, m->delay);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no SOUND_AREA and
+ * 22 row(s) for 22 layout(s). A revision not listed has no SOUND_AREA and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_sound_area_out[] = {
@@ -288,6 +300,7 @@ const RsprotVersionRange rsprot_sound_area_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_sound_area_v19_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_sound_area_v20_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_sound_area_v21_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_sound_area_v22_out },
 };
 
 const int rsprot_sound_area_out_count =

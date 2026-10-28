@@ -19,9 +19,12 @@ typedef struct MsgObjunlockReset {
 
 /* v1 -- revs osrs241. */
 void packet_objunlock_reset_v1_out(RsprotExec *x, MsgObjunlockReset *m);
+/* v2 -- revs osrsm241. */
+void packet_objunlock_reset_v2_out(RsprotExec *x, MsgObjunlockReset *m);
 
 /* Per-revision entry points: what revision R calls is packet_objunlock_reset_<R>_out. */
 #define packet_objunlock_reset_osrs241_out packet_objunlock_reset_v1_out
+#define packet_objunlock_reset_osrsm241_out packet_objunlock_reset_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_objunlock_reset_out[];

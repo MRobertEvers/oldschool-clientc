@@ -21,6 +21,8 @@ typedef struct MsgWindowStatus {
 
 /* v1 -- revs osrs221-241. */
 void packet_window_status_v1_in(RsprotExec *x, MsgWindowStatus *m);
+/* v2 -- revs osrsm241. */
+void packet_window_status_v2_in(RsprotExec *x, MsgWindowStatus *m);
 
 /* Per-revision entry points: what revision R calls is packet_window_status_<R>_in. */
 #define packet_window_status_osrs221_in packet_window_status_v1_in
@@ -44,6 +46,7 @@ void packet_window_status_v1_in(RsprotExec *x, MsgWindowStatus *m);
 #define packet_window_status_osrs239_in packet_window_status_v1_in
 #define packet_window_status_osrs240_in packet_window_status_v1_in
 #define packet_window_status_osrs241_in packet_window_status_v1_in
+#define packet_window_status_osrsm241_in packet_window_status_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_window_status_in[];

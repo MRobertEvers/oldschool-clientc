@@ -17,12 +17,20 @@ packet_reset_interaction_mode_v1_out(RsprotExec *x, MsgResetInteractionMode *m)
     RSPROT_U2_12(x, m->world_id);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_reset_interaction_mode_v2_out(RsprotExec *x, MsgResetInteractionMode *m)
+{
+    RSPROT_U2_12(x, m->world_id);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no RESET_INTERACTION_MODE and
+ * 2 row(s) for 2 layout(s). A revision not listed has no RESET_INTERACTION_MODE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_reset_interaction_mode_out[] = {
     { RSPROT_OSRS_ID(226), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_reset_interaction_mode_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_reset_interaction_mode_v2_out },
 };
 
 const int rsprot_reset_interaction_mode_out_count =

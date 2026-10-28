@@ -362,8 +362,24 @@ packet_loc_merge_v22_out(RsprotExec *x, MsgLocMerge *m)
     RSPROT_I1(x, m->max_z);
 }
 
+/* v23 -- revs osrsm241. */
+void
+packet_loc_merge_v23_out(RsprotExec *x, MsgLocMerge *m)
+{
+    RSPROT_U1_SUB128(x, m->coord_in_zone_packed);
+    RSPROT_U1(x, m->max_z);
+    RSPROT_U2_12(x, m->end);
+    RSPROT_U1_ADD128(x, m->min_x);
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U2_21(x, m->index);
+    RSPROT_U2_21_ADD128(x, m->start);
+    RSPROT_U1_SUB128(x, m->max_x);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U1_ADD128(x, m->min_z);
+}
+
 /*
- * 24 row(s) for 22 layout(s). A revision not listed has no LOC_MERGE and
+ * 25 row(s) for 23 layout(s). A revision not listed has no LOC_MERGE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_merge_out[] = {
@@ -391,6 +407,7 @@ const RsprotVersionRange rsprot_loc_merge_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_loc_merge_v22_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_loc_merge_v22_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_loc_merge_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_loc_merge_v23_out },
 };
 
 const int rsprot_loc_merge_out_count =

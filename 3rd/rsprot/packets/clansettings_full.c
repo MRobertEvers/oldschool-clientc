@@ -73,6 +73,7 @@ packet_clansettings_full_v1_out(RsprotExec *x, MsgClansettingsFull *m)
 
 const RsprotVersionRange rsprot_clansettings_full_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clansettings_full_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clansettings_full_v1_out },
 };
 
 const int rsprot_clansettings_full_out_count =

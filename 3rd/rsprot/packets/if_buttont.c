@@ -262,8 +262,20 @@ packet_if_buttont_v21_in(RsprotExec *x, MsgIfButtonT *m)
     RSPROT_U2_21_ADD128(x, m->selected_sub);
 }
 
+/* v22 -- revs osrsm241. */
+void
+packet_if_buttont_v22_in(RsprotExec *x, MsgIfButtonT *m)
+{
+    RSPROT_COM_1234(x, m->target_combined_id);
+    RSPROT_U2_12(x, m->selected_sub);
+    RSPROT_COM_1234(x, m->selected_combined_id);
+    RSPROT_U2_12_ADD128(x, m->target_sub);
+    RSPROT_U2_12_ADD128(x, m->target_obj);
+    RSPROT_U2_21(x, m->selected_obj);
+}
+
 /*
- * 21 row(s) for 21 layout(s). A revision not listed has no IF_BUTTONT and
+ * 22 row(s) for 22 layout(s). A revision not listed has no IF_BUTTONT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_buttont_in[] = {
@@ -288,6 +300,7 @@ const RsprotVersionRange rsprot_if_buttont_in[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_buttont_v19_in },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_buttont_v20_in },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_buttont_v21_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_buttont_v22_in },
 };
 
 const int rsprot_if_buttont_in_count =

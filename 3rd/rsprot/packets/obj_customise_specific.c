@@ -150,8 +150,22 @@ packet_obj_customise_specific_v10_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
     RSPROT_U2_12_ADD128(x, m->model);
 }
 
+/* v11 -- revs osrsm241. */
+void
+packet_obj_customise_specific_v11_out(RsprotExec *x, MsgObjCustomiseSpecific *m)
+{
+    RSPROT_U2_12(x, m->retex);
+    RSPROT_U2_12(x, m->retex_index);
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+    RSPROT_U2_12_ADD128(x, m->model);
+    RSPROT_U2_21(x, m->recol_index);
+    RSPROT_U2_12_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->recol);
+    RSPROT_U4_1234(x, m->quantity);
+}
+
 /*
- * 10 row(s) for 10 layout(s). A revision not listed has no OBJ_CUSTOMISE_SPECIFIC and
+ * 11 row(s) for 11 layout(s). A revision not listed has no OBJ_CUSTOMISE_SPECIFIC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_customise_specific_out[] = {
@@ -165,6 +179,7 @@ const RsprotVersionRange rsprot_obj_customise_specific_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_obj_customise_specific_v8_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_obj_customise_specific_v9_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_obj_customise_specific_v10_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_customise_specific_v11_out },
 };
 
 const int rsprot_obj_customise_specific_out_count =

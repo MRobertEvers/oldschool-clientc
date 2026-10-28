@@ -18,12 +18,21 @@ packet_varclan_enable_v1_out(RsprotExec *x, MsgVarClanEnable *m)
     (void)m;
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_varclan_enable_v2_out(RsprotExec *x, MsgVarClanEnable *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no VARCLAN_ENABLE and
+ * 2 row(s) for 2 layout(s). A revision not listed has no VARCLAN_ENABLE and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varclan_enable_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_varclan_enable_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varclan_enable_v2_out },
 };
 
 const int rsprot_varclan_enable_out_count =

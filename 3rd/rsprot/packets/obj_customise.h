@@ -56,6 +56,8 @@ void packet_obj_customise_v14_out(RsprotExec *x, MsgObjCustomise *m);
 void packet_obj_customise_v15_out(RsprotExec *x, MsgObjCustomise *m);
 /* v16 -- revs osrs241. */
 void packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m);
+/* v17 -- revs osrsm241. */
+void packet_obj_customise_v17_out(RsprotExec *x, MsgObjCustomise *m);
 
 /* Per-revision entry points: what revision R calls is packet_obj_customise_<R>_out. */
 #define packet_obj_customise_osrs226_out packet_obj_customise_v1_out
@@ -74,6 +76,7 @@ void packet_obj_customise_v16_out(RsprotExec *x, MsgObjCustomise *m);
 #define packet_obj_customise_osrs239_out packet_obj_customise_v14_out
 #define packet_obj_customise_osrs240_out packet_obj_customise_v15_out
 #define packet_obj_customise_osrs241_out packet_obj_customise_v16_out
+#define packet_obj_customise_osrsm241_out packet_obj_customise_v17_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_obj_customise_out[];

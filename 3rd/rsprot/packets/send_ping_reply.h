@@ -62,6 +62,8 @@ void packet_send_ping_reply_v19_in(RsprotExec *x, MsgSendPingReply *m);
 void packet_send_ping_reply_v20_in(RsprotExec *x, MsgSendPingReply *m);
 /* v21 -- revs osrs241. */
 void packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m);
+/* v22 -- revs osrsm241. */
+void packet_send_ping_reply_v22_in(RsprotExec *x, MsgSendPingReply *m);
 
 /* Per-revision entry points: what revision R calls is packet_send_ping_reply_<R>_in. */
 #define packet_send_ping_reply_osrs221_in packet_send_ping_reply_v1_in
@@ -85,6 +87,7 @@ void packet_send_ping_reply_v21_in(RsprotExec *x, MsgSendPingReply *m);
 #define packet_send_ping_reply_osrs239_in packet_send_ping_reply_v19_in
 #define packet_send_ping_reply_osrs240_in packet_send_ping_reply_v20_in
 #define packet_send_ping_reply_osrs241_in packet_send_ping_reply_v21_in
+#define packet_send_ping_reply_osrsm241_in packet_send_ping_reply_v22_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_send_ping_reply_in[];

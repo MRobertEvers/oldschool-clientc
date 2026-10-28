@@ -25,6 +25,8 @@ void packet_update_inv_stoptransmit_v2_out(RsprotExec *x, MsgUpdateInvStopTransm
 void packet_update_inv_stoptransmit_v3_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 /* v4 -- revs osrs235, osrs237, osrs240. */
 void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
+/* v5 -- revs osrsm241. */
+void packet_update_inv_stoptransmit_v5_out(RsprotExec *x, MsgUpdateInvStopTransmit *m);
 
 /* Per-revision entry points: what revision R calls is packet_update_inv_stoptransmit_<R>_out. */
 #define packet_update_inv_stoptransmit_osrs221_out packet_update_inv_stoptransmit_v1_out
@@ -48,6 +50,7 @@ void packet_update_inv_stoptransmit_v4_out(RsprotExec *x, MsgUpdateInvStopTransm
 #define packet_update_inv_stoptransmit_osrs239_out packet_update_inv_stoptransmit_v2_out
 #define packet_update_inv_stoptransmit_osrs240_out packet_update_inv_stoptransmit_v4_out
 #define packet_update_inv_stoptransmit_osrs241_out packet_update_inv_stoptransmit_v2_out
+#define packet_update_inv_stoptransmit_osrsm241_out packet_update_inv_stoptransmit_v5_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_update_inv_stoptransmit_out[];

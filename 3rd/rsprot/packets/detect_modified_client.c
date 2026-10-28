@@ -17,12 +17,20 @@ packet_detect_modified_client_v1_in(RsprotExec *x, MsgDetectModifiedClient *m)
     RSPROT_U4_1234(x, m->code);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_detect_modified_client_v2_in(RsprotExec *x, MsgDetectModifiedClient *m)
+{
+    RSPROT_U4_1234(x, m->code);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no DETECT_MODIFIED_CLIENT and
+ * 2 row(s) for 2 layout(s). A revision not listed has no DETECT_MODIFIED_CLIENT and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_detect_modified_client_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_detect_modified_client_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_detect_modified_client_v2_in },
 };
 
 const int rsprot_detect_modified_client_in_count =

@@ -52,6 +52,8 @@ int worldentity_info_v7_osrs240(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
 int worldentity_info_v7_osrs241(
     const uint8_t *data, int32_t len, RsprotInfoList *out);
+int worldentity_info_v7_osrsm241(
+    const uint8_t *data, int32_t len, RsprotInfoList *out);
 
 /** worldentity_info_v3_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotWorldEntityInfoReadFn worldentity_info_v3_osrs(RsprotRev rev);
@@ -63,5 +65,7 @@ RsprotWorldEntityInfoReadFn worldentity_info_v5_osrs(RsprotRev rev);
 RsprotWorldEntityInfoReadFn worldentity_info_v6_osrs(RsprotRev rev);
 /** worldentity_info_v7_osrs<revision>, or NULL where the revision has no such prot. */
 RsprotWorldEntityInfoReadFn worldentity_info_v7_osrs(RsprotRev rev);
+/** worldentity_info_v7_osrsm<revision>, or NULL where the revision has no such prot. */
+RsprotWorldEntityInfoReadFn worldentity_info_v7_osrsm(RsprotRev rev);
 
 #endif

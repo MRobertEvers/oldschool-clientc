@@ -21,6 +21,8 @@ typedef struct MsgClanChannelKickUser {
 
 /* v1 -- revs osrs221-241. */
 void packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m);
+/* v2 -- revs osrsm241. */
+void packet_clanchannel_kickuser_v2_in(RsprotExec *x, MsgClanChannelKickUser *m);
 
 /* Per-revision entry points: what revision R calls is packet_clanchannel_kickuser_<R>_in. */
 #define packet_clanchannel_kickuser_osrs221_in packet_clanchannel_kickuser_v1_in
@@ -44,6 +46,7 @@ void packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m)
 #define packet_clanchannel_kickuser_osrs239_in packet_clanchannel_kickuser_v1_in
 #define packet_clanchannel_kickuser_osrs240_in packet_clanchannel_kickuser_v1_in
 #define packet_clanchannel_kickuser_osrs241_in packet_clanchannel_kickuser_v1_in
+#define packet_clanchannel_kickuser_osrsm241_in packet_clanchannel_kickuser_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_clanchannel_kickuser_in[];

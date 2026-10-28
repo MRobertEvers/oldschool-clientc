@@ -8,6 +8,9 @@
  *
  *   osrs<N>     Old School, 221 onwards (osrs239)
  *   rs<N>[.M]   the 2004-era RS2 builds LostCity serves (rs245.2, rs254, rs289)
+ *   osrsm<N>    Old School's mobile client (Enhanced Android / iOS, client type
+ *               7 / 8): the same packets as osrs<N> under its own opcodes and
+ *               payload layouts (osrsm241)
  *
  * Old School will reach 245 too, so a bare number cannot say which protocol it
  * means. Every table, codec range, stream lookup and registry query takes an
@@ -29,6 +32,7 @@ typedef enum RsprotFamily
     RSPROT_FAMILY_NONE = 0,
     RSPROT_FAMILY_OSRS = 1,
     RSPROT_FAMILY_RS = 2,
+    RSPROT_FAMILY_OSRSM = 3,
 } RsprotFamily;
 
 typedef struct RsprotRev
@@ -40,11 +44,20 @@ typedef struct RsprotRev
     (((uint32_t)(family) << 24) | ((uint32_t)(major) << 8) | (uint32_t)(minor))
 #define RSPROT_OSRS_ID(n) RSPROT_REV_ID(RSPROT_FAMILY_OSRS, (n), 0)
 #define RSPROT_RS_ID(n, minor) RSPROT_REV_ID(RSPROT_FAMILY_RS, (n), (minor))
+#define RSPROT_OSRSM_ID(n) RSPROT_REV_ID(RSPROT_FAMILY_OSRSM, (n), 0)
 
 static inline RsprotRev
 rsprot_osrs(int n)
 {
     RsprotRev r = { RSPROT_OSRS_ID(n) };
+    assert(n > 0 && n < 0x10000);
+    return r;
+}
+
+static inline RsprotRev
+rsprot_osrsm(int n)
+{
+    RsprotRev r = { RSPROT_OSRSM_ID(n) };
     assert(n > 0 && n < 0x10000);
     return r;
 }
@@ -98,7 +111,10 @@ rsprot_rev_parse(const char *text)
     long minor = 0;
 
     assert(text);
-    if (strncmp(text, "osrs", 4) == 0) {
+    if (strncmp(text, "osrsm", 5) == 0) {
+        family = RSPROT_FAMILY_OSRSM;
+        text += 5;
+    } else if (strncmp(text, "osrs", 4) == 0) {
         family = RSPROT_FAMILY_OSRS;
         text += 4;
     } else if (strncmp(text, "rs", 2) == 0) {
@@ -124,11 +140,13 @@ rsprot_rev_parse(const char *text)
     }
 }
 
-/** The revision as rsprot_rev_parse reads it: "osrs239", "rs245.2". */
+/** The revision as rsprot_rev_parse reads it: "osrs239", "rs245.2", "osrsm241". */
 static inline const char *
 rsprot_rev_name(RsprotRev r, char *buf, size_t cap)
 {
-    const char *family = rsprot_rev_family(r) == RSPROT_FAMILY_OSRS ? "osrs" : "rs";
+    const char *family = rsprot_rev_family(r) == RSPROT_FAMILY_OSRS    ? "osrs"
+                         : rsprot_rev_family(r) == RSPROT_FAMILY_OSRSM ? "osrsm"
+                                                                       : "rs";
 
     assert(buf);
     assert(rsprot_rev_family(r) != RSPROT_FAMILY_NONE);

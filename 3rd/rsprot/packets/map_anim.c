@@ -230,8 +230,18 @@ packet_map_anim_v22_out(RsprotExec *x, MsgMapAnim *m)
     RSPROT_U2_12(x, m->delay);
 }
 
+/* v23 -- revs osrsm241. */
+void
+packet_map_anim_v23_out(RsprotExec *x, MsgMapAnim *m)
+{
+    RSPROT_U1_NEG(x, m->coord_in_zone_packed);
+    RSPROT_U2_21_ADD128(x, m->id);
+    RSPROT_U2_12_ADD128(x, m->delay);
+    RSPROT_U1_NEG(x, m->height);
+}
+
 /*
- * 24 row(s) for 22 layout(s). A revision not listed has no MAP_ANIM and
+ * 25 row(s) for 23 layout(s). A revision not listed has no MAP_ANIM and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_map_anim_out[] = {
@@ -259,6 +269,7 @@ const RsprotVersionRange rsprot_map_anim_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_map_anim_v22_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_map_anim_v22_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_map_anim_v22_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_map_anim_v23_out },
 };
 
 const int rsprot_map_anim_out_count =

@@ -17,12 +17,20 @@ packet_oculus_sync_v1_out(RsprotExec *x, MsgOculusSync *m)
     RSPROT_U4_1234(x, m->value);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_oculus_sync_v2_out(RsprotExec *x, MsgOculusSync *m)
+{
+    RSPROT_U4_1234(x, m->value);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no OCULUS_SYNC and
+ * 2 row(s) for 2 layout(s). A revision not listed has no OCULUS_SYNC and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_oculus_sync_out[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_oculus_sync_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_oculus_sync_v2_out },
 };
 
 const int rsprot_oculus_sync_out_count =

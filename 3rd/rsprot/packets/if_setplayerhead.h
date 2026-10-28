@@ -29,6 +29,8 @@ void packet_if_setplayerhead_v4_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 void packet_if_setplayerhead_v5_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 /* v6 -- revs rs245.2, rs254, rs289. */
 void packet_if_setplayerhead_v6_out(RsprotExec *x, MsgIfSetPlayerHead *m);
+/* v7 -- revs osrsm241. */
+void packet_if_setplayerhead_v7_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 
 /* Per-revision entry points: what revision R calls is packet_if_setplayerhead_<R>_out. */
 #define packet_if_setplayerhead_osrs221_out packet_if_setplayerhead_v1_out
@@ -55,6 +57,7 @@ void packet_if_setplayerhead_v6_out(RsprotExec *x, MsgIfSetPlayerHead *m);
 #define packet_if_setplayerhead_rs245_2_out packet_if_setplayerhead_v6_out
 #define packet_if_setplayerhead_rs254_out packet_if_setplayerhead_v6_out
 #define packet_if_setplayerhead_rs289_out packet_if_setplayerhead_v6_out
+#define packet_if_setplayerhead_osrsm241_out packet_if_setplayerhead_v7_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_if_setplayerhead_out[];

@@ -19,12 +19,22 @@ packet_clanchannel_kickuser_v1_in(RsprotExec *x, MsgClanChannelKickUser *m)
     RSPROT_JSTR(x, m->name);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_clanchannel_kickuser_v2_in(RsprotExec *x, MsgClanChannelKickUser *m)
+{
+    RSPROT_U1(x, m->clan_id);
+    RSPROT_U2_12(x, m->member_index);
+    RSPROT_JSTR(x, m->name);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no CLANCHANNEL_KICKUSER and
+ * 2 row(s) for 2 layout(s). A revision not listed has no CLANCHANNEL_KICKUSER and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_clanchannel_kickuser_in[] = {
     { RSPROT_OSRS_ID(221), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_clanchannel_kickuser_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_clanchannel_kickuser_v2_in },
 };
 
 const int rsprot_clanchannel_kickuser_in_count =

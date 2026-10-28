@@ -30,11 +30,14 @@ void packet_scriptedproj_change_v1_out(RsprotExec *x, MsgScriptedProjChange *m);
 void packet_scriptedproj_change_v2_out(RsprotExec *x, MsgScriptedProjChange *m);
 /* v3 -- revs osrs241. */
 void packet_scriptedproj_change_v3_out(RsprotExec *x, MsgScriptedProjChange *m);
+/* v4 -- revs osrsm241. */
+void packet_scriptedproj_change_v4_out(RsprotExec *x, MsgScriptedProjChange *m);
 
 /* Per-revision entry points: what revision R calls is packet_scriptedproj_change_<R>_out. */
 #define packet_scriptedproj_change_osrs239_out packet_scriptedproj_change_v1_out
 #define packet_scriptedproj_change_osrs240_out packet_scriptedproj_change_v2_out
 #define packet_scriptedproj_change_osrs241_out packet_scriptedproj_change_v3_out
+#define packet_scriptedproj_change_osrsm241_out packet_scriptedproj_change_v4_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_scriptedproj_change_out[];

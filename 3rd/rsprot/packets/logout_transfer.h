@@ -21,6 +21,8 @@ typedef struct MsgLogoutTransfer {
 
 /* v1 -- revs osrs221-241. */
 void packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m);
+/* v2 -- revs osrsm241. */
+void packet_logout_transfer_v2_out(RsprotExec *x, MsgLogoutTransfer *m);
 
 /* Per-revision entry points: what revision R calls is packet_logout_transfer_<R>_out. */
 #define packet_logout_transfer_osrs221_out packet_logout_transfer_v1_out
@@ -44,6 +46,7 @@ void packet_logout_transfer_v1_out(RsprotExec *x, MsgLogoutTransfer *m);
 #define packet_logout_transfer_osrs239_out packet_logout_transfer_v1_out
 #define packet_logout_transfer_osrs240_out packet_logout_transfer_v1_out
 #define packet_logout_transfer_osrs241_out packet_logout_transfer_v1_out
+#define packet_logout_transfer_osrsm241_out packet_logout_transfer_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_logout_transfer_out[];

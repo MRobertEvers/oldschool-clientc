@@ -35,7 +35,8 @@ family's file the shape tools/rsprot_gen.py builds from:
         [<rev>:v<K>:blocks]            <BIT> = <reader> [<constants field>]
         [<rev>:v<K>:constants]         <field>[.<field>...] = <C initializer>
 
-A revision is written with its family: osrs239, rs254, rs245.2 (Rev below). A
+A revision is written with its family: osrs239, rs254, rs245.2, osrsm241 (Rev
+below; osrsm is Old School's mobile client). A
 `revs =` value is a list of runs, each naming its family: `osrs223-228,
 osrs230`, `rs245.2, rs254-289`. A run covers the revisions between its ends
 that have a spec/tables file -- never a number nothing was built for.
@@ -44,7 +45,7 @@ import collections
 import os
 import re
 
-FAMILY_ORDER = {"osrs": 1, "rs": 2}
+FAMILY_ORDER = {"osrs": 1, "rs": 2, "osrsm": 3}
 
 
 class Rev(collections.namedtuple("Rev", "family major minor")):
@@ -81,17 +82,19 @@ class Rev(collections.namedtuple("Rev", "family major minor")):
         """The RsprotRev id as a constant expression."""
         if self.family == "osrs":
             return "RSPROT_OSRS_ID(%d)" % self.major
+        if self.family == "osrsm":
+            return "RSPROT_OSRSM_ID(%d)" % self.major
         return "RSPROT_RS_ID(%d, %d)" % (self.major, self.minor)
 
 
-REV_RE = re.compile(r"^(osrs|rs)(\d+)(?:[._](\d+))?$")
+REV_RE = re.compile(r"^(osrsm|osrs|rs)(\d+)(?:[._](\d+))?$")
 
 
 def parse_rev(text):
     """"osrs239" / "rs245.2" (or the identifier form rs245_2) -> Rev."""
     m = REV_RE.match(text.strip())
     if not m:
-        raise ValueError("not a revision (osrs<N> or rs<N>[.<M>]): %r" % text)
+        raise ValueError("not a revision (osrs<N>, osrsm<N> or rs<N>[.<M>]): %r" % text)
     return Rev(m.group(1), int(m.group(2)), int(m.group(3) or 0))
 
 
@@ -275,7 +278,7 @@ def load_table(path):
 
 # --- spec/streams -----------------------------------------------------------
 
-CARRY_RE = re.compile(r"^((?:osrs|rs)\d+(?:\.\d+)?):v(\d+):(blocks|constants|function:(\w+))$")
+CARRY_RE = re.compile(r"^((?:osrsm|osrs|rs)\d+(?:\.\d+)?):v(\d+):(blocks|constants|function:(\w+))$")
 
 
 def load_stream(path):
@@ -318,7 +321,7 @@ def load_stream(path):
             versions[k] = v
             spec["versions"].append(v)
             continue
-        m = re.match(r"^((?:osrs|rs)\d+(?:\.\d+)?):bits$", name)
+        m = re.match(r"^((?:osrsm|osrs|rs)\d+(?:\.\d+)?):bits$", name)
         if m:
             revision(parse_rev(m.group(1)))["bits"] = [[key, value] for key, value in rows]
             continue

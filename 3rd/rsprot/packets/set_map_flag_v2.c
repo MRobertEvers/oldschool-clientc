@@ -17,12 +17,20 @@ packet_set_map_flag_v2_v1_out(RsprotExec *x, MsgSetMapFlagV2 *m)
     RSPROT_U4_1234(x, m->coord_grid_packed);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_set_map_flag_v2_v2_out(RsprotExec *x, MsgSetMapFlagV2 *m)
+{
+    RSPROT_U4_1234(x, m->coord_grid_packed);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no SET_MAP_FLAG_V2 and
+ * 2 row(s) for 2 layout(s). A revision not listed has no SET_MAP_FLAG_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_set_map_flag_v2_out[] = {
     { RSPROT_OSRS_ID(236), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_set_map_flag_v2_v1_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_set_map_flag_v2_v2_out },
 };
 
 const int rsprot_set_map_flag_v2_out_count =

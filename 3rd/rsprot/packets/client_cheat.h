@@ -37,6 +37,9 @@ void packet_client_cheat_v2_in(RsprotExec *x, MsgClientCheat *m);
 
 /* Per-revision entry points: `packet_client_cheat_osrs239_in` is greppable, which
  * is the point -- "what does 239 do for CLIENT_CHEAT" without reading a table. */
+/* osrsm241 -- the Android 241.4 client. */
+void packet_client_cheat_osrsm241_in(RsprotExec *x, MsgClientCheat *m);
+
 #define packet_client_cheat_osrs221_in packet_client_cheat_v1_in
 #define packet_client_cheat_osrs222_in packet_client_cheat_v1_in
 #define packet_client_cheat_osrs223_in packet_client_cheat_v1_in
@@ -58,6 +61,7 @@ void packet_client_cheat_v2_in(RsprotExec *x, MsgClientCheat *m);
 #define packet_client_cheat_osrs239_in packet_client_cheat_v1_in
 #define packet_client_cheat_osrs240_in packet_client_cheat_v2_in
 #define packet_client_cheat_osrs241_in packet_client_cheat_v2_in
+#define packet_client_cheat_osrsm241_in packet_client_cheat_osrsm241_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_client_cheat_in[];

@@ -31,6 +31,8 @@ void packet_oploc5_v2_v3_in(RsprotExec *x, MsgOpLoc5V2 *m);
 void packet_oploc5_v2_v4_in(RsprotExec *x, MsgOpLoc5V2 *m);
 /* v5 -- revs osrs241. */
 void packet_oploc5_v2_v5_in(RsprotExec *x, MsgOpLoc5V2 *m);
+/* v6 -- revs osrsm241. */
+void packet_oploc5_v2_v6_in(RsprotExec *x, MsgOpLoc5V2 *m);
 
 /* Per-revision entry points: what revision R calls is packet_oploc5_v2_<R>_in. */
 #define packet_oploc5_v2_osrs237_in packet_oploc5_v2_v1_in
@@ -38,6 +40,7 @@ void packet_oploc5_v2_v5_in(RsprotExec *x, MsgOpLoc5V2 *m);
 #define packet_oploc5_v2_osrs239_in packet_oploc5_v2_v3_in
 #define packet_oploc5_v2_osrs240_in packet_oploc5_v2_v4_in
 #define packet_oploc5_v2_osrs241_in packet_oploc5_v2_v5_in
+#define packet_oploc5_v2_osrsm241_in packet_oploc5_v2_v6_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_oploc5_v2_in[];

@@ -21,6 +21,8 @@ typedef struct MsgPacketGroupStart {
 
 /* v1 -- revs osrs227-241. */
 void packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m);
+/* v2 -- revs osrsm241. */
+void packet_packet_group_start_v2_out(RsprotExec *x, MsgPacketGroupStart *m);
 
 /* Per-revision entry points: what revision R calls is packet_packet_group_start_<R>_out. */
 #define packet_packet_group_start_osrs227_out packet_packet_group_start_v1_out
@@ -38,6 +40,7 @@ void packet_packet_group_start_v1_out(RsprotExec *x, MsgPacketGroupStart *m);
 #define packet_packet_group_start_osrs239_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs240_out packet_packet_group_start_v1_out
 #define packet_packet_group_start_osrs241_out packet_packet_group_start_v1_out
+#define packet_packet_group_start_osrsm241_out packet_packet_group_start_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_packet_group_start_out[];

@@ -26,8 +26,16 @@ packet_varp_reset_v2_out(RsprotExec *x, MsgVarpReset *m)
     (void)m;
 }
 
+/* v3 -- revs osrsm241. */
+void
+packet_varp_reset_v3_out(RsprotExec *x, MsgVarpReset *m)
+{
+    (void)x;
+    (void)m;
+}
+
 /*
- * 4 row(s) for 2 layout(s). A revision not listed has no VARP_RESET and
+ * 5 row(s) for 3 layout(s). A revision not listed has no VARP_RESET and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_varp_reset_out[] = {
@@ -35,6 +43,7 @@ const RsprotVersionRange rsprot_varp_reset_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_varp_reset_v2_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_varp_reset_v2_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_varp_reset_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_varp_reset_v3_out },
 };
 
 const int rsprot_varp_reset_out_count =

@@ -23,12 +23,26 @@ packet_connection_telemetry_v1_in(RsprotExec *x, MsgConnectionTelemetry *m)
     RSPROT_U2_12(x, m->unused2);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_connection_telemetry_v2_in(RsprotExec *x, MsgConnectionTelemetry *m)
+{
+    RSPROT_U2_12(x, m->connection_lost_duration);
+    RSPROT_U2_12(x, m->login_duration);
+    RSPROT_U2_12(x, m->unused_duration);
+    RSPROT_U2_12(x, m->client_state);
+    RSPROT_U2_12(x, m->unused1);
+    RSPROT_U2_12(x, m->login_count);
+    RSPROT_U2_12(x, m->unused2);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no CONNECTION_TELEMETRY and
+ * 2 row(s) for 2 layout(s). A revision not listed has no CONNECTION_TELEMETRY and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_connection_telemetry_in[] = {
     { RSPROT_OSRS_ID(223), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_connection_telemetry_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_connection_telemetry_v2_in },
 };
 
 const int rsprot_connection_telemetry_in_count =

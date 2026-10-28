@@ -21,12 +21,24 @@ packet_if_subop_v1_in(RsprotExec *x, MsgIfSubOp *m)
     RSPROT_U1(x, m->subop);
 }
 
+/* v2 -- revs osrsm241. */
+void
+packet_if_subop_v2_in(RsprotExec *x, MsgIfSubOp *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U2_12(x, m->sub);
+    RSPROT_U2_12(x, m->obj);
+    RSPROT_U1(x, m->op);
+    RSPROT_U1(x, m->subop);
+}
+
 /*
- * 1 row(s) for 1 layout(s). A revision not listed has no IF_SUBOP and
+ * 2 row(s) for 2 layout(s). A revision not listed has no IF_SUBOP and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_subop_in[] = {
     { RSPROT_OSRS_ID(224), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_subop_v1_in },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_subop_v2_in },
 };
 
 const int rsprot_if_subop_in_count =

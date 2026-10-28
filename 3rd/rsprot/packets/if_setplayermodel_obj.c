@@ -154,8 +154,16 @@ packet_if_setplayermodel_obj_v18_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
+/* v19 -- revs osrsm241. */
+void
+packet_if_setplayermodel_obj_v19_out(RsprotExec *x, MsgIfSetPlayerModelObj *m)
+{
+    RSPROT_COM_1234(x, m->combined_id);
+    RSPROT_U4_2143(x, m->obj);
+}
+
 /*
- * 21 row(s) for 18 layout(s). A revision not listed has no IF_SETPLAYERMODEL_OBJ and
+ * 22 row(s) for 19 layout(s). A revision not listed has no IF_SETPLAYERMODEL_OBJ and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setplayermodel_obj_out[] = {
@@ -180,6 +188,7 @@ const RsprotVersionRange rsprot_if_setplayermodel_obj_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setplayermodel_obj_v17_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setplayermodel_obj_v18_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setplayermodel_obj_v12_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setplayermodel_obj_v19_out },
 };
 
 const int rsprot_if_setplayermodel_obj_out_count =

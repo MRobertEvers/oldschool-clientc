@@ -19,6 +19,8 @@ typedef struct MsgIgnoreListDel {
 
 /* v1 -- revs osrs221-241. */
 void packet_ignorelist_del_v1_in(RsprotExec *x, MsgIgnoreListDel *m);
+/* v2 -- revs osrsm241. */
+void packet_ignorelist_del_v2_in(RsprotExec *x, MsgIgnoreListDel *m);
 
 /* Per-revision entry points: what revision R calls is packet_ignorelist_del_<R>_in. */
 #define packet_ignorelist_del_osrs221_in packet_ignorelist_del_v1_in
@@ -42,6 +44,7 @@ void packet_ignorelist_del_v1_in(RsprotExec *x, MsgIgnoreListDel *m);
 #define packet_ignorelist_del_osrs239_in packet_ignorelist_del_v1_in
 #define packet_ignorelist_del_osrs240_in packet_ignorelist_del_v1_in
 #define packet_ignorelist_del_osrs241_in packet_ignorelist_del_v1_in
+#define packet_ignorelist_del_osrsm241_in packet_ignorelist_del_v2_in
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_ignorelist_del_in[];

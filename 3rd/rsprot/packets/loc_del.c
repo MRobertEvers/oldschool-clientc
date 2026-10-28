@@ -138,8 +138,16 @@ packet_loc_del_v16_out(RsprotExec *x, MsgLocDel *m)
     RSPROT_U1(x, m->loc_properties_packed);
 }
 
+/* v17 -- revs osrsm241. */
+void
+packet_loc_del_v17_out(RsprotExec *x, MsgLocDel *m)
+{
+    RSPROT_U1_SUB128(x, m->loc_properties_packed);
+    RSPROT_U1(x, m->coord_in_zone_packed);
+}
+
 /*
- * 24 row(s) for 16 layout(s). A revision not listed has no LOC_DEL and
+ * 25 row(s) for 17 layout(s). A revision not listed has no LOC_DEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_loc_del_out[] = {
@@ -167,6 +175,7 @@ const RsprotVersionRange rsprot_loc_del_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_loc_del_v16_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_loc_del_v16_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_loc_del_v16_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_loc_del_v17_out },
 };
 
 const int rsprot_loc_del_out_count =

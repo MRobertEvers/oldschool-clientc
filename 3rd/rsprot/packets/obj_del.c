@@ -189,8 +189,17 @@ packet_obj_del_v20_out(RsprotExec *x, MsgObjDel *m)
     RSPROT_U2_12(x, m->id);
 }
 
+/* v21 -- revs osrsm241. */
+void
+packet_obj_del_v21_out(RsprotExec *x, MsgObjDel *m)
+{
+    RSPROT_U1(x, m->coord_in_zone_packed);
+    RSPROT_U4_3412(x, m->quantity);
+    RSPROT_U2_21_ADD128(x, m->id);
+}
+
 /*
- * 24 row(s) for 20 layout(s). A revision not listed has no OBJ_DEL and
+ * 25 row(s) for 21 layout(s). A revision not listed has no OBJ_DEL and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_obj_del_out[] = {
@@ -218,6 +227,7 @@ const RsprotVersionRange rsprot_obj_del_out[] = {
     { RSPROT_RS_ID(245, 2), RSPROT_RS_ID(245, 2), (RsprotCodecFn)packet_obj_del_v20_out },
     { RSPROT_RS_ID(254, 0), RSPROT_RS_ID(254, 0), (RsprotCodecFn)packet_obj_del_v20_out },
     { RSPROT_RS_ID(289, 0), RSPROT_RS_ID(289, 0), (RsprotCodecFn)packet_obj_del_v20_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_obj_del_v21_out },
 };
 
 const int rsprot_obj_del_out_count =

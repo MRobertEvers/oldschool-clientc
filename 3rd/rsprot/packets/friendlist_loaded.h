@@ -21,6 +21,8 @@ typedef struct MsgFriendListLoaded {
 
 /* v1 -- revs osrs221-241. */
 void packet_friendlist_loaded_v1_out(RsprotExec *x, MsgFriendListLoaded *m);
+/* v2 -- revs osrsm241. */
+void packet_friendlist_loaded_v2_out(RsprotExec *x, MsgFriendListLoaded *m);
 
 /* Per-revision entry points: what revision R calls is packet_friendlist_loaded_<R>_out. */
 #define packet_friendlist_loaded_osrs221_out packet_friendlist_loaded_v1_out
@@ -44,6 +46,7 @@ void packet_friendlist_loaded_v1_out(RsprotExec *x, MsgFriendListLoaded *m);
 #define packet_friendlist_loaded_osrs239_out packet_friendlist_loaded_v1_out
 #define packet_friendlist_loaded_osrs240_out packet_friendlist_loaded_v1_out
 #define packet_friendlist_loaded_osrs241_out packet_friendlist_loaded_v1_out
+#define packet_friendlist_loaded_osrsm241_out packet_friendlist_loaded_v2_out
 
 /** Revision -> layout. See the .c for the rows. */
 extern const RsprotVersionRange rsprot_friendlist_loaded_out[];

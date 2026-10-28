@@ -57,6 +57,7 @@ packet_hint_arrow_v2_out(RsprotExec *x, MsgHintArrow *m)
 const RsprotVersionRange rsprot_hint_arrow_out[] = {
     { RSPROT_OSRS_ID(222), RSPROT_OSRS_ID(234), (RsprotCodecFn)packet_hint_arrow_v1_out },
     { RSPROT_OSRS_ID(235), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_hint_arrow_v2_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_hint_arrow_v2_out },
 };
 
 const int rsprot_hint_arrow_out_count =

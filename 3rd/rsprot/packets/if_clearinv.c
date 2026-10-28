@@ -45,8 +45,15 @@ packet_if_clearinv_v5_out(RsprotExec *x, MsgIfClearInv *m)
     RSPROT_COM_3412(x, m->combined_id);
 }
 
+/* v6 -- revs osrsm241. */
+void
+packet_if_clearinv_v6_out(RsprotExec *x, MsgIfClearInv *m)
+{
+    RSPROT_COM_4321(x, m->combined_id);
+}
+
 /*
- * 18 row(s) for 5 layout(s). A revision not listed has no IF_CLEARINV and
+ * 19 row(s) for 6 layout(s). A revision not listed has no IF_CLEARINV and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_clearinv_out[] = {
@@ -68,6 +75,7 @@ const RsprotVersionRange rsprot_if_clearinv_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_clearinv_v5_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_clearinv_v3_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_clearinv_v4_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_clearinv_v6_out },
 };
 
 const int rsprot_if_clearinv_out_count =

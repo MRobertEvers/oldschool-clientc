@@ -50,8 +50,16 @@ packet_if_setmodel_v2_v5_out(RsprotExec *x, MsgIfSetModelV2 *m)
     RSPROT_COM_1234(x, m->combined_id);
 }
 
+/* v6 -- revs osrsm241. */
+void
+packet_if_setmodel_v2_v6_out(RsprotExec *x, MsgIfSetModelV2 *m)
+{
+    RSPROT_U4_4321(x, m->model);
+    RSPROT_COM_4321(x, m->combined_id);
+}
+
 /*
- * 5 row(s) for 5 layout(s). A revision not listed has no IF_SETMODEL_V2 and
+ * 6 row(s) for 6 layout(s). A revision not listed has no IF_SETMODEL_V2 and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_setmodel_v2_out[] = {
@@ -60,6 +68,7 @@ const RsprotVersionRange rsprot_if_setmodel_v2_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_setmodel_v2_v3_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_setmodel_v2_v4_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_setmodel_v2_v5_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_setmodel_v2_v6_out },
 };
 
 const int rsprot_if_setmodel_v2_out_count =

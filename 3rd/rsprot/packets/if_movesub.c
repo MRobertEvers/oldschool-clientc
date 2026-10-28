@@ -122,8 +122,16 @@ packet_if_movesub_v14_out(RsprotExec *x, MsgIfMoveSub *m)
     RSPROT_COM_1234(x, m->source_combined_id);
 }
 
+/* v15 -- revs osrsm241. */
+void
+packet_if_movesub_v15_out(RsprotExec *x, MsgIfMoveSub *m)
+{
+    RSPROT_COM_1234(x, m->destination_combined_id);
+    RSPROT_COM_1234(x, m->source_combined_id);
+}
+
 /*
- * 20 row(s) for 14 layout(s). A revision not listed has no IF_MOVESUB and
+ * 21 row(s) for 15 layout(s). A revision not listed has no IF_MOVESUB and
  * picks NULL.
  */
 const RsprotVersionRange rsprot_if_movesub_out[] = {
@@ -147,6 +155,7 @@ const RsprotVersionRange rsprot_if_movesub_out[] = {
     { RSPROT_OSRS_ID(239), RSPROT_OSRS_ID(239), (RsprotCodecFn)packet_if_movesub_v14_out },
     { RSPROT_OSRS_ID(240), RSPROT_OSRS_ID(240), (RsprotCodecFn)packet_if_movesub_v8_out },
     { RSPROT_OSRS_ID(241), RSPROT_OSRS_ID(241), (RsprotCodecFn)packet_if_movesub_v4_out },
+    { RSPROT_OSRSM_ID(241), RSPROT_OSRSM_ID(241), (RsprotCodecFn)packet_if_movesub_v15_out },
 };
 
 const int rsprot_if_movesub_out_count =
