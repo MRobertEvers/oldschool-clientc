@@ -381,37 +381,39 @@ assert.strictEqual(received[received.length - 1].type, 'rail.snapshot');
 assert.strictEqual(built.canvas.focused, true, 'collapse hands focus back to the game canvas');
 
 /* The client's boot request for its plugin chrome. A desk keeps the docked
- * rail it already has; a touch device's rail slides out OVER the game from the
- * page's own corner tab instead of taking width beside it. */
+ * rail it already has; a touch device gets the corner tab, and the rail slides
+ * out OVER the game instead of taking width beside it. */
 built.app.clientWidth = built.layout.clientWidth = global_.innerWidth = 1200;
 assert.strictEqual(global_.torirsPluginChromeShow(0), true, 'the sidebar style is accepted');
-assert.strictEqual(built.document.documentElement.classList.contains('torirs-plugin-edge'), false,
-  'a desk has no plugin drawer');
+assert.strictEqual(built.ids['plugin-chrome-tab'], undefined, 'a desk gets no tab');
 assert.strictEqual(global_.torirsPluginChromeShow(7), false, 'an unknown style is refused');
 
 global_.torirsChromeRailSync({ r: 4, g: 21, pg: 40, a: -1, l: 2, s: 2, x: 0, entries });
 assert.strictEqual(global_.torirsPluginChromeShow(1), true, 'the edge-tab style is accepted');
-assert.strictEqual(built.document.documentElement.classList.contains('torirs-plugin-edge'), true,
-  'the page shows its plugins control');
+const tab = built.app.children.find(child => child.id === 'plugin-chrome-tab');
+assert.ok(tab, 'a touch device gets the corner tab');
+assert.strictEqual(tab.hidden, false, 'the tab shows once there are plugin buttons');
 assert.strictEqual(built.mount.hidden, true, 'the drawer starts shut: the game keeps the screen');
 assert.strictEqual(built.document.documentElement.style['--torirs-dock-width'], '0px',
   'the edge tab never docks beside the game');
 assert.strictEqual(built.game.hidden, false);
 
-assert.strictEqual(global_.torirsPluginChromeDrawer(true), true, 'the corner tab opens the drawer');
-assert.strictEqual(built.mount.hidden, false, 'the rail of plugin buttons slides out');
+tab.fire('click');
+assert.strictEqual(built.mount.hidden, false, 'a tap slides the rail of plugin buttons out');
 assert.ok(built.mount.classList.contains('torirs-chrome-overlay'), 'over the game, not beside it');
 assert.strictEqual(built.mount.style.width, '42px', 'the shut page leaves only the rail');
 assert.strictEqual(built.document.documentElement.style['--torirs-drawer-width'], '42px',
-  'the corner tab rides the drawer edge');
+  'the tab rides the drawer edge');
+assert.strictEqual(tab.getAttribute('aria-expanded'), 'true');
 
 global_.torirsChromeRailSync({ r: 4, g: 22, pg: 40, a: 2, l: 2, s: 2, x: 1, entries });
 assert.strictEqual(built.mount.style.width, '362px', 'a selected plugin opens its page in the drawer');
 assert.strictEqual(built.game.hidden, false, 'and the game stays up under it');
 assert.strictEqual(built.document.documentElement.style['--torirs-dock-width'], '0px');
 
-global_.torirsPluginChromeDrawer(false);
-assert.strictEqual(built.mount.hidden, true, 'shutting the tab puts the drawer away');
+tab.fire('click');
+assert.strictEqual(built.mount.hidden, true, 'a second tap puts the drawer away');
 assert.strictEqual(built.document.documentElement.style['--torirs-drawer-width'], '0px');
+assert.strictEqual(tab.getAttribute('aria-expanded'), 'false');
 
 console.log('web canonical plugin chrome adapter: ok');

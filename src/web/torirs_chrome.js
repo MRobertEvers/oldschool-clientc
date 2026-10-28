@@ -131,6 +131,7 @@
       /* -1 until the client asks (torirsPluginChromeShow). */
       this.chromeStyle = -1;
       this.drawerOpen = false;
+      this.tab = null;
       this.customRevisions = {};
       this.widgetSerials = {};
       this.rail = {
@@ -349,20 +350,56 @@
       if (style !== STYLE_SIDEBAR && style !== STYLE_EDGE_TAB) return false;
       if (!this.ensureFrame()) return false;
       this.chromeStyle = style;
-      const html = this.document.documentElement;
-      classSet(html, 'torirs-plugin-edge', style === STYLE_EDGE_TAB);
+      if (style === STYLE_EDGE_TAB) this.ensureTab();
       this.updateLayout();
       return true;
     }
 
-    /* The touch device's plugin drawer, opened and shut by the page's own
-     * full-canvas tab (index.html #btn-drawer / #btn-plugins): one tab in the
-     * corner, not a second one beside it. */
-    setDrawer(open) {
-      this.drawerOpen = !!open;
-      this.updateLayout();
-      if (!this.drawerOpen) this.restoreGameFocus();
-      return this.chromeStyle === STYLE_EDGE_TAB;
+    /* The touch device's way into the plugins: a small tab on the right edge,
+     * the same shape as the page's own corner tab (#btn-drawer), that slides
+     * the rail of plugin buttons out over the game and back. */
+    ensureTab() {
+      if (this.tab || !this.document || !this.document.createElement) return !!this.tab;
+      const tab = this.document.createElement('button');
+      tab.type = 'button';
+      tab.id = 'plugin-chrome-tab';
+      tab.setAttribute('aria-label', 'Plugins');
+      tab.setAttribute('aria-controls', 'plugin-chrome-mount');
+      tab.setAttribute('aria-expanded', 'false');
+      tab.textContent = '\u2039';
+      tab.hidden = true;
+      /* ONE tab for the page: it opens the plugin drawer and the page's own
+       * view controls together (index.html registers torirsPageDrawer), and
+       * the page's separate corner tab stands down while this one shows. */
+      const toggle = () => {
+        this.drawerOpen = !this.drawerOpen;
+        this.updateLayout();
+        if (typeof this.global.torirsPageDrawer === 'function')
+          this.global.torirsPageDrawer(this.drawerOpen);
+        if (!this.drawerOpen) this.restoreGameFocus();
+      };
+      /* On the finger's DOWN, not on the click: a phone synthesises the click
+       * only after touchend, and the page's own capture-phase touchend work
+       * (the soft keyboard's focus, the fullscreen request) can cancel it --
+       * which made the tab all but untappable. The click stays for a mouse or
+       * a keyboard, and is ignored right after a pointer already acted. */
+      let pointerAt = 0;
+      tab.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'mouse' && event.button !== 0) return;
+        if (event.preventDefault) event.preventDefault();
+        if (event.stopPropagation) event.stopPropagation();
+        pointerAt = Date.now();
+        toggle();
+      });
+      tab.addEventListener('click', () => {
+        if (Date.now() - pointerAt < 700) return;
+        toggle();
+      });
+      const parent = this.document.getElementById('torirs-app') || this.document.body;
+      if (!parent) return false;
+      parent.appendChild(tab);
+      this.tab = tab;
+      return true;
     }
 
     open() {
@@ -715,6 +752,12 @@
           this.mount.style.width = `${width}px`;
           this.mount.style.flex = '0 0 0px';
         }
+        classSet(html, 'torirs-plugin-tab', hasRail);
+        if (this.tab) {
+          this.tab.hidden = !hasRail;
+          this.tab.textContent = open ? '\u203a' : '\u2039';
+          this.tab.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
         if (html && html.style && html.style.setProperty) {
           html.style.setProperty('--torirs-dock-width', '0px');
           html.style.setProperty('--torirs-drawer-width', open ? `${width}px` : '0px');
@@ -728,6 +771,7 @@
       else if (hasRail) mode = 'collapsed';
       this.layoutMode = mode;
       classSet(this.mount, 'torirs-chrome-overlay', false);
+      classSet(html, 'torirs-plugin-tab', false);
       classSet(layout, 'torirs-chrome-split', mode === 'split');
       classSet(layout, 'torirs-chrome-exclusive', mode === 'exclusive');
       classSet(layout, 'torirs-chrome-collapsed', mode === 'collapsed');
@@ -791,7 +835,6 @@
     /* The client's request for its plugin chrome, at boot
      * (PlatformWindow_PluginChromeShow, TORIRS_CMD_PLATFORM_PLUGIN_CHROME). */
     global.torirsPluginChromeShow = style => host.show(style);
-    global.torirsPluginChromeDrawer = open => host.setDrawer(open);
     global.torirsChromeOpen = () => host.open();
     global.torirsChromeEnd = () => { host.end(); };
     global.torirsChromeClose = () => { host.end(); };

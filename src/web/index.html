@@ -136,8 +136,8 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   }
   /* A touch device's plugin chrome (torirs_chrome.js, edge-tab style): the
      rail slides out OVER the game from the right edge, and the game keeps the
-     whole screen. The page's full-canvas tab is the way in: opening it opens
-     the drawer too, and the tab rides the drawer's left edge. */
+     whole screen. The tab sits on the drawer's left edge, or on the screen's
+     edge while the drawer is shut. */
   #plugin-chrome-mount.torirs-chrome-overlay {
     position: fixed;
     top: 0;
@@ -150,10 +150,47 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     background: #0e0e0c;
     box-shadow: -2px 0 6px rgba(0, 0, 0, 0.6);
   }
-  /* The plugins button: only on a touch device, where the plugin drawer is
-     opened from the page's own controls rather than docked. */
-  #btn-plugins { display: none; }
-  html.torirs-plugin-edge #btn-plugins { display: inline-block; }
+  /* The touch device's ONE corner tab (torirs_chrome.js): it opens the plugin
+     drawer and the page's view controls together, and the page's own corner
+     tab stands down while it shows. The button sits in the safe area; its
+     plate runs on into the top and right unsafe areas to the screen corner. */
+  #plugin-chrome-tab {
+    position: fixed;
+    top: 0;
+    right: var(--torirs-drawer-width, 0px);
+    z-index: 16;
+    box-sizing: content-box;
+    width: 2.4rem;
+    height: 3rem;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) 0 0;
+    border: 1px solid #3a2f22;
+    border-top: 0;
+    border-right: 0;
+    border-radius: 0 0 0 0.6rem;
+    background: rgba(20, 16, 12, 0.85);
+    color: #e0d5b8;
+    font-size: 1.1rem;
+    line-height: 1;
+    opacity: 0.75;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  html.torirs-plugin-tab body.fullcanvas #btn-drawer { display: none; }
+  html.torirs-plugin-tab body.fullcanvas header.drawer-closed { display: none; }
+  /* Open, the view controls sit on the same row, just left of the tab. */
+  html.torirs-plugin-tab body.fullcanvas header {
+    top: env(safe-area-inset-top, 0px);
+    right: calc(var(--torirs-drawer-width, 0px) + 2.4rem + 1px);
+    z-index: 16;
+    opacity: 1;
+  }
+  #plugin-chrome-tab[aria-expanded="true"] { padding-right: 0; }
+  #plugin-chrome-tab:hover,
+  #plugin-chrome-tab:focus-visible,
+  #plugin-chrome-tab[aria-expanded="true"] { opacity: 1; }
+  #plugin-chrome-tab[hidden] { display: none; }
   main.torirs-chrome-exclusive #game-region { display: none; }
   main.torirs-chrome-exclusive #plugin-chrome-mount {
     flex: 1 1 100%;
@@ -239,9 +276,8 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
        torirs_chrome.js publishes here — 0px whenever nothing is docked. A
        corner pinned to the viewport instead lands on that window's title bar,
        which is the one row of it the user needs to reach. */
-    right: calc(var(--torirs-dock-width, 0px) + var(--torirs-drawer-width, 0px) +
-                env(safe-area-inset-right, 0px));
-    z-index: 16;
+    right: calc(var(--torirs-dock-width, 0px) + env(safe-area-inset-right, 0px));
+    z-index: 10;
     padding: 0.25rem 0.4rem;
     border: 1px solid #3a2f22;
     border-top: 0;
@@ -251,17 +287,6 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   }
   body.fullcanvas header:hover,
   body.fullcanvas header:focus-within { opacity: 1; }
-  /* A phone's corner tab: the BUTTON sits in the safe area, and its plate
-     runs on out to the screen's corner through the notch and the rounded
-     corner, so it reads as attached to the edge without hiding under it. */
-  html.mobile body.fullcanvas header,
-  html.mobile body.fullcanvas header.drawer-closed {
-    top: 0;
-    right: calc(var(--torirs-dock-width, 0px) + var(--torirs-drawer-width, 0px));
-    padding-top: calc(env(safe-area-inset-top, 0px) + 0.15rem);
-    padding-right: calc(env(safe-area-inset-right, 0px) + 0.15rem);
-  }
-  html.mobile body.fullcanvas #btn-drawer { padding: 0.05rem 0.25rem; font-size: 0.85rem; }
   body.fullcanvas header h1,
   body.fullcanvas header #status { display: none; }
   /* The strip is a drawer: closed, only its tab is left in the corner, so the
@@ -401,10 +426,6 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     <button type="button" id="btn-fullscreen" aria-pressed="false"
             title="Take the page fullscreen and scale the canvas to the screen.">
       fullscreen
-    </button>
-    <button type="button" id="btn-plugins" aria-pressed="false"
-            aria-controls="plugin-chrome-mount" title="Show or hide the plugins.">
-      plugins
     </button>
   </span>
 </header>
@@ -567,25 +588,12 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     try { window.localStorage.setItem(DRAWER_KEY, open ? '1' : '0'); } catch (e) { /* private mode */ }
   }
 
-  // The plugin drawer on a touch device (torirs_chrome.js, edge-tab style):
-  // the corner tab opens it with the view controls, and the plugins button
-  // beside them opens or shuts it on its own.
-  const btnPlugins = document.getElementById('btn-plugins');
-  function setPluginsOpen(open) {
-    btnPlugins.setAttribute('aria-pressed', open ? 'true' : 'false');
-    if (typeof globalThis.torirsPluginChromeDrawer === 'function')
-      globalThis.torirsPluginChromeDrawer(open);
-  }
-  btnPlugins.onclick = () => {
-    setPluginsOpen(btnPlugins.getAttribute('aria-pressed') !== 'true');
-  };
-
   btnDrawer.onclick = () => {
-    const open = header.classList.contains('drawer-closed');
-    setDrawerOpen(open);
-    if (document.documentElement.classList.contains('torirs-plugin-edge'))
-      setPluginsOpen(open);
+    setDrawerOpen(header.classList.contains('drawer-closed'));
   };
+  // The plugin tab is the one corner tab on a touch device: it opens these
+  // controls with the plugin drawer (torirs_chrome.js).
+  globalThis.torirsPageDrawer = open => { setDrawerOpen(open); };
 
   btnFull.onclick = () => {
     // The application root, not the canvas: rail, active plugin pane and the
