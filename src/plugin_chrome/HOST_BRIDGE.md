@@ -196,6 +196,32 @@ Clears only the selected page. The persistent rail remains.
 { protocol: 1, type: "page.close", pageGeneration: 17 }
 ```
 
+### `page.popout` (host to browser)
+
+The page's pop-out window: whether the host can open one, and whether the page
+is in it. Sent to every document the host holds (below). A host that cannot
+open a second top-level window (XP's MSHTML, the Web lane) never sends it, and
+the header's pop-out control stays hidden.
+
+```js
+{ protocol: 1, type: "page.popout", available: true, active: true }
+```
+
+While `active`, the docked document drops its copy of the page and accepts
+(but builds nothing from) `page.snapshot`, `page.delta`, `page.close` and
+`custom.bitmap`: the page lives in the other document. Its rail is unchanged.
+
+### The page view
+
+A host that can pop the page out opens a second document of this bundle in a
+top-level window of its own, at `modern.html#page`. That document draws no
+rail, its header button docks the page instead of popping it out, and every
+envelope it posts carries `view: "page"`. While it is open the host delivers
+every inbound envelope to both documents, and accepts their messages on its one
+inbound queue, fencing `sequence` separately per `view` (the two documents count
+independently). Only the document holding the page is listened to for `layout`
+and `widget.intent`.
+
 ### Command objects
 
 Command keys intentionally mirror the fixed C POD:
@@ -340,6 +366,27 @@ allocation (for example, whether compact mode hid the game). It may replace
 these values before putting the corresponding POD event on the frame-thread
 queue. Both selection and page generations fence that allocation, so changing
 faces of one selected plugin cannot reuse the prior face's layout.
+
+### `page.popout` (browser to host)
+
+The header's pop-out control (or, in the page view, its dock control) asks for
+the state it wants. The host opens or closes the window; the answer comes back
+as the inbound `page.popout`.
+
+```js
+{
+  protocol: 1,
+  type: "page.popout",
+  sequence: 16,
+  popout: true,           // false = dock beside the rail again
+  pageGeneration: 17
+}
+```
+
+The user closing the pop-out window is reported by the host's own transport in
+the same words, with no `sequence` and no `pageGeneration`:
+`{ protocol: 1, type: "page.popout", popout: false }`. Collapsing the page
+closes the window as well.
 
 ### `editor.focus`
 

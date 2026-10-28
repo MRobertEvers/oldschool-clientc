@@ -398,6 +398,7 @@ app_chrome_wants_pointer(
     if( ToriRSChrome_WantsPointer(&app->dbg_ui, x, y) )
         return 1;
     if( app->plugin_panel_visible && app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER &&
+        !app_plugin_page_on_surface(app) &&
         ToriRSChrome_WantsPointer(&app->plugin_ui, x, y) )
         return 1;
     return 0;

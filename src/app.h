@@ -2138,6 +2138,21 @@ struct App
     int chrome_merged_dbg;
     int chrome_merged_win;
     uint32_t chrome_merged_panel;
+    /**
+     * The plugin page on a SURFACE (ToriRSChromeExec::surface_size): its own
+     * display list -- the window's prims and its custom wells', never the
+     * developer chrome's -- rasterised with `soft_chrome` into these pixels and
+     * handed to the executor. Redrawn only when one of the four keys below
+     * moves, so a steady page presents nothing. Both buffers grow on demand
+     * and App_Shutdown frees them.
+     */
+    struct ToriRSChromePrim* plugin_surface_prims;
+    uint32_t* plugin_surface_pixels;
+    size_t plugin_surface_pixel_capacity;
+    int plugin_surface_win;
+    uint32_t plugin_surface_panel;
+    int plugin_surface_w;
+    int plugin_surface_h;
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;

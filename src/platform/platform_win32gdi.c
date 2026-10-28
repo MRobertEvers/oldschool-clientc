@@ -135,6 +135,10 @@ win32_touch_load(void)
 
 static const char RPD_WNDCLASS[] = "TorirsWin32GdiWindow";
 static const char RPD_CHROME_RAIL_WNDCLASS[] = "TorirsWin32ChromeRail";
+static const char RPD_CHROME_POPOUT_WNDCLASS[] = "TorirsWin32ChromePopout";
+
+/* The pop-out window opens at the docked page's width, in device pixels. */
+#define WIN32_CHROME_POPOUT_W 320
 
 /* One logical, persistent modern-OSRS strip. Win32 uses device pixels here.
  * Both bundles lay the rail out at the shared authored width, so the window
@@ -217,6 +221,15 @@ struct PlatformWindow
     /* The browser child keeps existing but reserves no rail width. See
      * PlatformWindow_ChromeSetRailHidden. */
     int     chrome_rail_hidden;
+    /*
+     * The page's pop-out window: an owned top-level window holding a second
+     * control on the page view (modern.html#page). Both are NULL while the
+     * page is docked. The rail never moves into it.
+     */
+    HWND    chrome_popout_hwnd;
+    struct PlatformWin32Browser* chrome_popout_browser;
+    /* Its close box was used; reported once on the next PluginBrowserPoll. */
+    int     chrome_popout_closed;
 
     /* Set only for the duration of PollCommands so the WndProc can translate
      * into the caller's bus; the coalesced resize is applied after the pump. */
@@ -392,6 +405,45 @@ chrome_rail_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         if( p && p->chrome_browser )
             PlatformWin32Browser_Resize(
                 p->chrome_browser, LOWORD(lparam), HIWORD(lparam));
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcA(hwnd, msg, wparam, lparam);
+}
+
+/* The pop-out window holds the page view and nothing else. Its close box is
+ * not obeyed here: it is REPORTED (PluginBrowserPoll), and the executor's
+ * answer -- PopOut(false) -- is what destroys the window, so the page always
+ * docks through the one path that also asks for its width back. */
+static LRESULT CALLBACK
+chrome_popout_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+    struct PlatformWindow* p =
+        (struct PlatformWindow*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+
+    switch( msg )
+    {
+    case WM_CLOSE:
+        if( p )
+            p->chrome_popout_closed = 1;
+        return 0;
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_PAINT:
+    {
+        PAINTSTRUCT paint;
+        RECT client;
+        HDC const dc = BeginPaint(hwnd, &paint);
+        GetClientRect(hwnd, &client);
+        FillRect(dc, &client, (HBRUSH)GetStockObject(BLACK_BRUSH));
+        EndPaint(hwnd, &paint);
+        return 0;
+    }
+    case WM_SIZE:
+        if( p && p->chrome_popout_browser )
+            PlatformWin32Browser_Resize(
+                p->chrome_popout_browser, LOWORD(lparam), HIWORD(lparam));
         return 0;
     default:
         break;
@@ -1173,6 +1225,16 @@ register_class(void)
     wc.lpszClassName = RPD_CHROME_RAIL_WNDCLASS;
     if( !RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS )
         return 0;
+
+    memset(&wc, 0, sizeof(wc));
+    wc.lpfnWndProc = chrome_popout_proc;
+    wc.hInstance = GetModuleHandle(NULL);
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hIcon = win32_create_app_icon();
+    wc.hbrBackground = NULL;
+    wc.lpszClassName = RPD_CHROME_POPOUT_WNDCLASS;
+    if( !RegisterClassA(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS )
+        return 0;
     registered = 1;
     return 1;
 }
@@ -1923,25 +1985,139 @@ PlatformWindow_PluginBrowserFailed(struct PlatformWindow const* p)
 bool
 PlatformWindow_PluginBrowserSend(struct PlatformWindow* p, char const* json)
 {
+    int sent;
     if( !p || !json || !PlatformWindow_PluginBrowserEnsure(p) )
         return false;
-    return PlatformWin32Browser_Send(p->chrome_browser, json) != 0;
+    sent = PlatformWin32Browser_Send(p->chrome_browser, json) != 0;
+    /* Every envelope reaches both documents while the page is out; each knows
+     * from page.popout which of them holds the page. */
+    if( p->chrome_popout_browser &&
+        !PlatformWin32Browser_Send(p->chrome_popout_browser, json) )
+        sent = 0;
+    return sent ? true : false;
 }
 
 bool
 PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* p)
 {
-    return p && p->chrome_browser &&
-           PlatformWin32Browser_TakeSendFailure(p->chrome_browser) != 0;
+    int failed;
+    if( !p || !p->chrome_browser )
+        return false;
+    failed = PlatformWin32Browser_TakeSendFailure(p->chrome_browser) != 0;
+    if( p->chrome_popout_browser &&
+        PlatformWin32Browser_TakeSendFailure(p->chrome_popout_browser) )
+        failed = 1;
+    return failed ? true : false;
 }
 
 int
 PlatformWindow_PluginBrowserPoll(
     struct PlatformWindow* p, char* out_json, int capacity)
 {
+    static char const closed[] =
+        "{\"protocol\":1,\"type\":\"page.popout\",\"popout\":false}";
+    int length;
     if( !p || !p->chrome_browser || !out_json || capacity <= 0 )
         return 0;
-    return PlatformWin32Browser_Poll(p->chrome_browser, out_json, capacity);
+    /* The pop-out window's close box, said in the protocol's own words. */
+    if( p->chrome_popout_closed && capacity > (int)sizeof(closed) )
+    {
+        p->chrome_popout_closed = 0;
+        memcpy(out_json, closed, sizeof(closed));
+        return (int)sizeof(closed) - 1;
+    }
+    length = PlatformWin32Browser_Poll(p->chrome_browser, out_json, capacity);
+    if( length <= 0 && p->chrome_popout_browser )
+        length = PlatformWin32Browser_Poll(p->chrome_popout_browser, out_json, capacity);
+    return length;
+}
+
+static void
+win32_popout_destroy(struct PlatformWindow* p)
+{
+    assert(p);
+    if( p->chrome_popout_browser )
+        PlatformWin32Browser_Free(p->chrome_popout_browser);
+    p->chrome_popout_browser = NULL;
+    if( p->chrome_popout_hwnd )
+        DestroyWindow(p->chrome_popout_hwnd);
+    p->chrome_popout_hwnd = NULL;
+    p->chrome_popout_closed = 0;
+}
+
+bool
+PlatformWindow_PluginBrowserCanPopOut(struct PlatformWindow const* p)
+{
+    assert(p);
+    return PlatformWin32Browser_PageViewAvailable() != 0;
+}
+
+/*
+ * The page's own window, beside the main one at the docked page's width. An
+ * OWNED top-level window rather than a child: it moves and resizes on its own,
+ * but minimises with the game and stays above it. The second control in it
+ * loads the same staged bundle on the page view.
+ */
+bool
+PlatformWindow_PluginBrowserPopOut(struct PlatformWindow* p, bool out, char const* title)
+{
+    RECT frame;
+    RECT outer;
+    RECT client;
+    int client_h = 480;
+    DWORD const style = WS_OVERLAPPEDWINDOW;
+
+    assert(p);
+    if( !out )
+    {
+        win32_popout_destroy(p);
+        return true;
+    }
+    if( p->chrome_popout_hwnd )
+    {
+        SetWindowTextA(p->chrome_popout_hwnd, title && title[0] ? title : "Plugins");
+        return true;
+    }
+    if( !PlatformWin32Browser_PageViewAvailable() || !PlatformWindow_PluginBrowserEnsure(p) )
+        return false;
+    if( !GetWindowRect(p->hwnd, &frame) )
+        return false;
+    win32_main_client_size(p, NULL, &client_h);
+    outer.left = 0;
+    outer.top = 0;
+    outer.right = WIN32_CHROME_POPOUT_W;
+    outer.bottom = client_h > 0 ? client_h : 480;
+    AdjustWindowRect(&outer, style, FALSE);
+    p->chrome_popout_hwnd = CreateWindowExA(
+        0,
+        RPD_CHROME_POPOUT_WNDCLASS,
+        title && title[0] ? title : "Plugins",
+        style | WS_CLIPCHILDREN,
+        frame.right,
+        frame.top,
+        outer.right - outer.left,
+        outer.bottom - outer.top,
+        p->hwnd,
+        NULL,
+        GetModuleHandleA(NULL),
+        NULL);
+    if( !p->chrome_popout_hwnd )
+        return false;
+    SetWindowLongPtr(p->chrome_popout_hwnd, GWLP_USERDATA, (LONG_PTR)p);
+    p->chrome_popout_browser = PlatformWin32Browser_NewPageView(
+        p->chrome_popout_hwnd, p->chrome_browser_asset_dir);
+    if( !p->chrome_popout_browser )
+    {
+        win32_popout_destroy(p);
+        return false;
+    }
+    PlatformWin32Browser_AllowLocalRoot(
+        p->chrome_popout_browser, p->chrome_browser_asset_url);
+    if( GetClientRect(p->chrome_popout_hwnd, &client) )
+        PlatformWin32Browser_Resize(
+            p->chrome_popout_browser, client.right - client.left, client.bottom - client.top);
+    ShowWindow(p->chrome_popout_hwnd, SW_SHOW);
+    return true;
 }
 
 static void
@@ -2317,6 +2493,7 @@ PlatformWindow_Free(struct PlatformWindow* p)
         return;
     if( p->chrome_open )
         PlatformWindow_ChromeClose(p);
+    win32_popout_destroy(p);
     if( p->chrome_browser )
         PlatformWin32Browser_Free(p->chrome_browser);
     p->chrome_browser = NULL;
@@ -2598,6 +2775,15 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
                  (focus && IsChild(p->chrome_rail_hwnd, focus))) &&
                 PlatformWin32Browser_PreTranslateMessage(
                     p->chrome_browser, &msg) )
+                continue;
+        }
+        if( p->chrome_popout_browser && p->chrome_popout_hwnd )
+        {
+            HWND const focus = GetFocus();
+            if( (focus == p->chrome_popout_hwnd ||
+                 (focus && IsChild(p->chrome_popout_hwnd, focus))) &&
+                PlatformWin32Browser_PreTranslateMessage(
+                    p->chrome_popout_browser, &msg) )
                 continue;
         }
         TranslateMessage(&msg); /* WM_KEYDOWN -> WM_CHAR for typed characters */

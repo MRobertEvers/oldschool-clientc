@@ -59,7 +59,12 @@ struct WinBrowserExec
     struct ToriRSChromeRailIntent layout;
     int layout_pending;
     int theme_sent;
-    uint32_t outbound_sequence;
+    /** The page is in its own top-level window (PlatformWindow_PluginBrowserPopOut)
+     *  rather than beside the rail. Only while a page is open. */
+    int popped;
+    /** Last accepted sequence per document: [0] the docked shell, [1] the
+     *  popped-out page view. The two count independently. */
+    uint32_t outbound_sequence[2];
     char title[TORIRS_CHROME_TEXT_MAX];
     /** Reused page envelope storage; steady deltas allocate nothing. */
     char* page_json;
@@ -214,6 +219,26 @@ static void reset_mounted_page(struct WinBrowserExec* s)
     s->title[0] = 0;
 }
 
+/*
+ * The host's half of `page.popout`: whether a window can be opened, and
+ * whether the page is in one. Sent to both documents -- the platform delivers
+ * every envelope to each document it holds -- so the docked one knows to leave
+ * the page to the other and the page view knows it is one.
+ */
+static int send_popout_state(struct WinBrowserExec* s)
+{
+    struct WinBrowserJson json = { 0 };
+    int const available = PlatformWindow_PluginBrowserCanPopOut(s->platform) ? 1 : 0;
+    /* The documents start at "not available, not out"; a host that never
+     * offers the window never has anything to say. */
+    if( !available && !s->popped ) return 1;
+    json_appendf(&json,
+        "{\"protocol\":1,\"type\":\"page.popout\",\"available\":%s,\"active\":%s}",
+        available ? "true" : "false",
+        s->popped ? "true" : "false");
+    return send_json(s, &json);
+}
+
 static int send_theme(struct WinBrowserExec* s)
 {
     static char const theme[] =
@@ -244,7 +269,8 @@ static int send_theme(struct WinBrowserExec* s)
         "\"frameBottom\":\"skin/FrameBottom.png\","
         "\"frameBottomRight\":\"skin/FrameBottomRight.png\"}}";
     if( s->theme_sent ) return 1;
-    if( PlatformWindow_PluginBrowserSend(s->platform, theme) )
+    if( PlatformWindow_PluginBrowserSend(s->platform, theme) &&
+        send_popout_state(s) )
     {
         s->theme_sent = 1;
         return 1;
@@ -282,7 +308,8 @@ static int browser_rail_sync(
     s->shell_generation = snapshot->selection_generation;
     s->page_generation = snapshot->page_generation;
     s->preferred_width = WINBROWSER_PAGE_WIDTH;
-    if( s->open && snapshot->expanded )
+    /* A popped-out page has its own window; beside the game is the rail only. */
+    if( s->open && snapshot->expanded && !s->popped )
         PlatformWindow_ChromeOpen(s->platform, s->preferred_width, 480, "Plugins");
     if( !send_theme(s) )
         return 0;
@@ -436,6 +463,9 @@ static int send_batch(struct WinBrowserExec* s)
     json_append(&json, "]}");
     if( send_page_json(s, &json) )
     {
+        /* The pop-out window is named for the page in it. */
+        if( s->first_batch && s->popped )
+            (void)PlatformWindow_PluginBrowserPopOut(s->platform, true, s->title);
         s->first_batch = 0;
         return 1;
     }
@@ -523,10 +553,63 @@ static void browser_apply(void* user, struct ToriRSChromeCmd const* cmd)
     s->commands[s->command_count++] = *cmd;
 }
 
+/*
+ * Move the open page into its own window, or bring it back beside the rail.
+ *
+ * The rail never moves and the browser never navigates: the platform opens a
+ * second document (modern.html#page) in a top-level window and from then on
+ * hands it every envelope the docked one gets. What changes here is only the
+ * allocation beside the game -- the page width is given back while the page is
+ * out and asked for again when it docks -- and a restatement, because the
+ * document that is about to hold the page has seen none of it.
+ */
+static void browser_set_popout(struct WinBrowserExec* s, int out)
+{
+    assert(s);
+    if( (out ? 1 : 0) == s->popped )
+        return;
+    if( out )
+    {
+        /* Nothing to move without a page, and a host that cannot open the
+         * window (XP's MSHTML) refuses here and the page stays docked. */
+        if( !s->open ||
+            !PlatformWindow_PluginBrowserPopOut(s->platform, true, s->title) )
+            return;
+        s->popped = 1;
+        PlatformWindow_ChromeClose(s->platform);
+    }
+    else
+    {
+        (void)PlatformWindow_PluginBrowserPopOut(s->platform, false, NULL);
+        s->popped = 0;
+        if( s->open )
+            (void)PlatformWindow_ChromeOpen(
+                s->platform, s->preferred_width, 480, "Plugins");
+    }
+    /* Both documents hear the new state first, then everything again: the
+     * theme and the rail (the page view has neither yet), and one complete
+     * page snapshot into whichever document now holds the page. */
+    s->theme_sent = 0;
+    s->outbound_sequence[1] = 0;
+    s->snapshot_needed = 1;
+    s->rail_snapshot_needed = 1;
+    (void)send_popout_state(s);
+}
+
 static void browser_end(void* user)
 {
     struct WinBrowserExec* s = user;
     if( !s || !s->open ) return;
+    /* Collapse takes the page down, and with it any window it was in. Not
+     * through browser_set_popout: that would ask for the page width beside the
+     * game one call before ChromeClose gives it back. */
+    if( s->popped )
+    {
+        (void)PlatformWindow_PluginBrowserPopOut(s->platform, false, NULL);
+        s->popped = 0;
+        s->outbound_sequence[1] = 0;
+        (void)send_popout_state(s);
+    }
     send_page_close_generation(s, effective_page_generation(s));
     PlatformWindow_ChromeClose(s->platform);
     s->open = 0;
@@ -634,14 +717,23 @@ static int json_type(char const* json, char const* expected)
     return strcmp(type, expected) == 0;
 }
 
+/** Which document posted this: 1 for the popped-out page view, else 0. */
+static int json_view(char const* json)
+{
+    char view[16];
+    json_text(json, "view", view, (int)sizeof(view));
+    return strcmp(view, "page") == 0 ? 1 : 0;
+}
+
 static int accept_sequence(struct WinBrowserExec* s, char const* json)
 {
     uint32_t const sequence = json_u32(json, "sequence", 0);
+    int const view = json_view(json);
     if( !sequence ||
-        (s->outbound_sequence &&
-         (int32_t)(sequence - s->outbound_sequence) <= 0) )
+        (s->outbound_sequence[view] &&
+         (int32_t)(sequence - s->outbound_sequence[view]) <= 0) )
         return 0;
-    s->outbound_sequence = sequence;
+    s->outbound_sequence[view] = sequence;
     return 1;
 }
 
@@ -690,9 +782,24 @@ static void drain_messages(struct WinBrowserExec* s)
                 intent.selection_generation == s->shell_generation && intent.sequence )
                 queue_rail(s, &intent);
         }
+        else if( json_type(s->raw, "page.popout") )
+        {
+            /*
+             * Desired state, not a command: the page asked to go out or come
+             * back, or -- with no sequence and no view -- the platform reports
+             * that the user closed the window, which docks the page. A stale
+             * page's button is fenced by the generation it was pressed on.
+             */
+            uint32_t const generation = json_u32(s->raw, "pageGeneration", 0);
+            if( json_u32(s->raw, "sequence", 0) && !accept_sequence(s, s->raw) ) continue;
+            if( generation && generation != effective_page_generation(s) ) continue;
+            browser_set_popout(s, json_bool(s->raw, "popout", 0));
+        }
         else if( json_type(s->raw, "layout") )
         {
             struct ToriRSChromeRailIntent intent;
+            /* Only the document that holds the page sizes it. */
+            if( json_view(s->raw) != s->popped ) continue;
             if( !accept_sequence(s, s->raw) ) continue;
             memset(&intent, 0, sizeof(intent));
             intent.kind = TORIRS_CHROME_RAIL_INTENT_LAYOUT;
@@ -718,6 +825,7 @@ static void drain_messages(struct WinBrowserExec* s)
             struct ToriRSChromeIntent intent;
             struct ToriRSChromeMirrorWidget* widget;
             char const* tail;
+            if( json_view(s->raw) != s->popped ) continue;
             if( !accept_sequence(s, s->raw) ) continue;
             memset(&intent, 0, sizeof(intent));
             intent.kind = json_int(s->raw, "k", 0);

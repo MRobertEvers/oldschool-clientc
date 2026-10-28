@@ -1395,6 +1395,11 @@ App_Shutdown(struct App* app)
     UITreeSceneBridge_Free(&app->bridge);
     TorirsModelInstCache_Free(&app->model_inst_cache);
     ToriPlatform_Renderer_Soft3D_Free(app->soft_chrome);
+    ToriMem_Free(ToriMem_Ui(), app->plugin_surface_prims);
+    app->plugin_surface_prims = NULL;
+    ToriMem_Free(ToriMem_Ui(), app->plugin_surface_pixels);
+    app->plugin_surface_pixels = NULL;
+    app->plugin_surface_pixel_capacity = 0;
     ToriMem_Free(ToriMem_Plugins(), app->panel_custom_pixels);
     app->panel_custom_pixels = NULL;
     app->panel_custom_pixel_capacity = 0;

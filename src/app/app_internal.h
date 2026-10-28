@@ -723,6 +723,11 @@ app_chrome_merged_prims(
     struct App* app,
     int* out_count);
 
+/** Rasterise the plugin page into its SURFACE and present it, when it changed
+ *  since the last time. A no-op while the page is in the canvas. */
+void
+app_chrome_plugin_surface_present(struct App* app);
+
 
 /* ---- app_client_trigger.c ---- */
 void
@@ -1727,6 +1732,15 @@ app_plugin_panel_overlay_visible(
 
 void
 app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input);
+
+/** Is the plugin page bound to a SURFACE (ToriRSChromeExec::surface_size)
+ *  rather than the canvas? Then nothing of it is drawn or hit in the canvas. */
+int
+app_plugin_page_on_surface(struct App const* app);
+
+/** That surface's size in pixels. @return 0 while it has none. */
+int
+app_plugin_page_surface(struct App const* app, int* out_w, int* out_h);
 
 
 /* ---- app_session_resume.c ---- */

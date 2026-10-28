@@ -111,7 +111,7 @@ _Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
 @end
 
 @interface ToriRSMacPluginBrowser : NSObject
-    <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate>
+    <WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate>
 @property(nonatomic, assign) struct PlatformWindow* platform;
 @property(nonatomic, strong) ToriRSPluginWebView* view;
 @property(nonatomic, strong) ToriRSPluginChromeWindow* hostWindow;
@@ -127,6 +127,21 @@ _Static_assert(MAC_BROWSER_QUEUE_MAX == 64,
 @property(nonatomic, assign) BOOL ready;
 @property(nonatomic, assign) BOOL failed;
 @property(nonatomic, assign) BOOL sendFailed;
+/*
+ * The page's pop-out window: a titled, movable NSWindow of its own (not a
+ * child of SDL's) holding a second view of the same staged bundle on the page
+ * view, modern.html#page. nil while the page is docked; the rail never leaves
+ * the child window beside the game.
+ */
+@property(nonatomic, strong) ToriRSPluginWebView* pageView;
+@property(nonatomic, strong) NSWindow* pageWindow;
+@property(nonatomic, assign) BOOL pageReady;
+@property(nonatomic, strong) NSMutableArray<NSString*>* pageOutbound;
+/* Parallel to `inbound`: YES where that message came from the page view, so
+ * its JS-side slot is released in the document that spent it. */
+@property(nonatomic, strong) NSMutableArray<NSNumber*>* inboundFromPage;
+/* Its close box was used (or its content died); reported once on Poll. */
+@property(nonatomic, assign) BOOL pageClosed;
 @end
 
 static ToriRSMacPluginBrowser* g_mac_browser;
@@ -321,16 +336,32 @@ mac_url_is_below(NSURL* url, NSURL* root)
 
 - (BOOL)evaluateEnvelope:(NSString*)json
 {
+    BOOL sent = [self evaluateEnvelope:json inView:self.view ready:self.ready
+                                 queue:self.outbound];
+    /* Every envelope reaches both documents while the page is out; each knows
+     * from page.popout which of them holds the page. */
+    if( self.pageView &&
+        ![self evaluateEnvelope:json inView:self.pageView ready:self.pageReady
+                          queue:self.pageOutbound] )
+        sent = NO;
+    return sent;
+}
+
+- (BOOL)evaluateEnvelope:(NSString*)json
+                  inView:(WKWebView*)target
+                   ready:(BOOL)targetReady
+                   queue:(NSMutableArray<NSString*>*)queue
+{
     if( !json || json.length == 0 || json.length > MAC_BROWSER_JSON_MAX )
         return NO;
-    if( !self.ready )
+    if( !targetReady )
     {
-        if( self.outbound.count >= MAC_BROWSER_QUEUE_MAX )
+        if( queue.count >= MAC_BROWSER_QUEUE_MAX )
             return NO;
         NSString* copy = [json copy];
         if( !copy )
             return NO;
-        [self.outbound addObject:copy];
+        [queue addObject:copy];
         return YES;
     }
     NSString* argument = mac_javascript_argument(json);
@@ -341,9 +372,9 @@ mac_url_is_below(NSURL* url, NSURL* root)
          "window.ToriRSPluginChrome.receive((%@)[0])!==false);}"
          "catch(e){return false;}})();",
         argument];
-    if( !script || !self.view )
+    if( !script || !target )
         return NO;
-    [self.view evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
+    [target evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
         if( error || ![result respondsToSelector:@selector(boolValue)] || ![result boolValue] )
             self.sendFailed = YES;
     }];
@@ -356,18 +387,31 @@ mac_url_is_below(NSURL* url, NSURL* root)
  * WebKit callbacks waiting to run. */
 - (void)acknowledgeInboundSlot
 {
+    [self acknowledgeInboundSlotIn:self.view ready:self.ready];
+}
+
+- (void)acknowledgeInboundSlotIn:(WKWebView*)target ready:(BOOL)targetReady
+{
     static NSString* const script =
         @"(function(){var n=window.__torirsChromePending|0;"
          "if(n>0)window.__torirsChromePending=n-1;"
          "var r=window.ToriRSPluginChrome;"
          "if(r&&typeof r.takeMessage==='function'){var m=r.takeMessage();"
          "if(m)return window.torirsPluginChromePostMessage(m);}return true;})();";
-    if( !self.view || !self.ready )
+    if( !target || !targetReady )
         return;
-    [self.view evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
+    [target evaluateJavaScript:script completionHandler:^(id result, NSError* error) {
         if( error || ![result respondsToSelector:@selector(boolValue)] || ![result boolValue] )
             self.sendFailed = YES;
     }];
+}
+
+- (void)acknowledgeSlotFor:(WKScriptMessage*)message
+{
+    if( self.pageView && message.webView == self.pageView )
+        [self acknowledgeInboundSlotIn:self.pageView ready:self.pageReady];
+    else
+        [self acknowledgeInboundSlot];
 }
 
 - (void)userContentController:(WKUserContentController*)controller
@@ -378,14 +422,14 @@ mac_url_is_below(NSURL* url, NSURL* root)
         ![message.body isKindOfClass:[NSString class]] )
     {
         self.sendFailed = YES;
-        [self acknowledgeInboundSlot];
+        [self acknowledgeSlotFor:message];
         return;
     }
     NSString* json = (NSString*)message.body;
     if( json.length == 0 || json.length > 8192 )
     {
         self.sendFailed = YES;
-        [self acknowledgeInboundSlot];
+        [self acknowledgeSlotFor:message];
         return;
     }
     if( self.inbound.count >= MAC_BROWSER_QUEUE_MAX )
@@ -393,23 +437,41 @@ mac_url_is_below(NSURL* url, NSURL* root)
         /* Reject the newest message. The accepted prefix stays ordered and
          * sendFailed tells the retained executor exactly what was lost. */
         self.sendFailed = YES;
-        [self acknowledgeInboundSlot];
+        [self acknowledgeSlotFor:message];
         return;
     }
     NSString* copy = [json copy];
     if( !copy )
     {
         self.sendFailed = YES;
-        [self acknowledgeInboundSlot];
+        [self acknowledgeSlotFor:message];
         return;
     }
     [self.inbound addObject:copy];
+    [self.inboundFromPage addObject:@(self.pageView && message.webView == self.pageView)];
 }
 
 - (void)webView:(WKWebView*)webView didFinishNavigation:(WKNavigation*)navigation
 {
-    (void)webView;
     (void)navigation;
+    if( self.pageView && webView == self.pageView )
+    {
+        /* The page view failing is the pop-out window going away, never the
+         * shell's failure: the page docks back into the browser that works. */
+        if( !mac_url_is_below(self.pageView.URL, self.rootURL) )
+        {
+            self.pageClosed = YES;
+            return;
+        }
+        self.pageReady = YES;
+        NSArray<NSString*>* pending = [self.pageOutbound copy];
+        [self.pageOutbound removeAllObjects];
+        for( NSString* json in pending )
+            if( ![self evaluateEnvelope:json inView:self.pageView ready:YES
+                                  queue:self.pageOutbound] )
+                self.sendFailed = YES;
+        return;
+    }
     if( !mac_url_is_below(self.view.URL, self.rootURL) )
     {
         self.failed = YES;
@@ -427,20 +489,24 @@ mac_url_is_below(NSURL* url, NSURL* root)
       didFailNavigation:(WKNavigation*)navigation
               withError:(NSError*)error
 {
-    (void)webView;
     (void)navigation;
     (void)error;
-    self.failed = YES;
+    if( self.pageView && webView == self.pageView )
+        self.pageClosed = YES;
+    else
+        self.failed = YES;
 }
 
 - (void)webView:(WKWebView*)webView
       didFailProvisionalNavigation:(WKNavigation*)navigation
                          withError:(NSError*)error
 {
-    (void)webView;
     (void)navigation;
     (void)error;
-    self.failed = YES;
+    if( self.pageView && webView == self.pageView )
+        self.pageClosed = YES;
+    else
+        self.failed = YES;
 }
 
 - (void)webView:(WKWebView*)webView
@@ -481,9 +547,57 @@ mac_url_is_below(NSURL* url, NSURL* root)
 
 - (void)webViewWebContentProcessDidTerminate:(WKWebView*)webView
 {
-    (void)webView;
+    if( self.pageView && webView == self.pageView )
+    {
+        self.pageClosed = YES;
+        self.pageReady = NO;
+        return;
+    }
     self.failed = YES;
     self.ready = NO;
+}
+
+/* The pop-out window's close box is REPORTED, not obeyed: the executor's
+ * PopOut(false) takes the window down, through the one path that also gives
+ * the page its width back beside the game. */
+- (BOOL)windowShouldClose:(NSWindow*)sender
+{
+    if( sender == self.pageWindow )
+    {
+        self.pageClosed = YES;
+        return NO;
+    }
+    return YES;
+}
+
+- (void)closePageWindow
+{
+    if( self.pageView )
+    {
+        self.pageView.navigationDelegate = nil;
+        self.pageView.UIDelegate = nil;
+        [self.pageView stopLoading];
+    }
+    if( self.pageWindow )
+    {
+        self.pageWindow.delegate = nil;
+        [self.pageWindow orderOut:nil];
+        self.pageWindow.contentView = nil;
+    }
+    /* A message the page view posted and C has not read yet addresses a page
+     * that is about to be restated in the other document; drop it with the
+     * slot it held. */
+    for( NSUInteger i = self.inboundFromPage.count; i > 0; i-- )
+        if( [self.inboundFromPage[i - 1] boolValue] )
+        {
+            [self.inbound removeObjectAtIndex:i - 1];
+            [self.inboundFromPage removeObjectAtIndex:i - 1];
+        }
+    [self.pageOutbound removeAllObjects];
+    self.pageView = nil;
+    self.pageWindow = nil;
+    self.pageReady = NO;
+    self.pageClosed = NO;
 }
 
 @end
@@ -515,6 +629,8 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* platform)
     state.inbound = [NSMutableArray arrayWithCapacity:MAC_BROWSER_QUEUE_MAX];
     state.outbound = [NSMutableArray arrayWithCapacity:MAC_BROWSER_QUEUE_MAX];
     state.bitmapFiles = [NSMutableDictionary dictionary];
+    state.inboundFromPage = [NSMutableArray arrayWithCapacity:MAC_BROWSER_QUEUE_MAX];
+    state.pageOutbound = [NSMutableArray arrayWithCapacity:MAC_BROWSER_QUEUE_MAX];
 
     WKUserContentController* controller = [[WKUserContentController alloc] init];
     NSString* bridge =
@@ -611,14 +727,37 @@ PlatformWindow_PluginBrowserTakeSendFailure(struct PlatformWindow* platform)
     return failed ? true : false;
 }
 
+static void
+mac_acknowledge_first(ToriRSMacPluginBrowser* browser)
+{
+    BOOL const fromPage = browser.inboundFromPage.count > 0 &&
+                          [browser.inboundFromPage[0] boolValue];
+    if( browser.inboundFromPage.count > 0 )
+        [browser.inboundFromPage removeObjectAtIndex:0];
+    if( fromPage && browser.pageView )
+        [browser acknowledgeInboundSlotIn:browser.pageView ready:browser.pageReady];
+    else if( !fromPage )
+        [browser acknowledgeInboundSlot];
+}
+
 int
 PlatformWindow_PluginBrowserPoll(
     struct PlatformWindow* platform, char* out_json, int capacity)
 {
+    static char const closed[] =
+        "{\"protocol\":1,\"type\":\"page.popout\",\"popout\":false}";
     if( !out_json || capacity <= 0 || !g_mac_browser ||
         g_mac_browser.platform != platform )
         return 0;
     [g_mac_browser syncFrame];
+    /* The pop-out window's close box, said in the protocol's own words. */
+    if( g_mac_browser.pageClosed && g_mac_browser.pageWindow &&
+        capacity > (int)sizeof(closed) )
+    {
+        g_mac_browser.pageClosed = NO;
+        memcpy(out_json, closed, sizeof(closed));
+        return (int)sizeof(closed) - 1;
+    }
     if( g_mac_browser.inbound.count == 0 )
         return 0;
     NSString* json = g_mac_browser.inbound[0];
@@ -627,7 +766,7 @@ PlatformWindow_PluginBrowserPoll(
     {
         [g_mac_browser.inbound removeObjectAtIndex:0];
         g_mac_browser.sendFailed = YES;
-        [g_mac_browser acknowledgeInboundSlot];
+        mac_acknowledge_first(g_mac_browser);
         return 0;
     }
     if( bytes.length >= (NSUInteger)capacity )
@@ -635,8 +774,93 @@ PlatformWindow_PluginBrowserPoll(
     [g_mac_browser.inbound removeObjectAtIndex:0];
     memcpy(out_json, bytes.bytes, bytes.length);
     out_json[bytes.length] = '\0';
-    [g_mac_browser acknowledgeInboundSlot];
+    mac_acknowledge_first(g_mac_browser);
     return (int)bytes.length;
+}
+
+bool
+PlatformWindow_PluginBrowserCanPopOut(struct PlatformWindow const* platform)
+{
+    (void)platform;
+    return true;
+}
+
+/*
+ * Detach the page into a titled, movable window of its own.
+ *
+ * Not the child window itself: that one holds the shell document, whose rail
+ * stays beside the game. The pop-out window holds a second view of the same
+ * staged bundle on the page view, sharing the one script-message handler, so
+ * its messages land on the same inbound queue and every envelope sent while it
+ * is up reaches both documents (evaluateEnvelope:).
+ */
+bool
+PlatformWindow_PluginBrowserPopOut(
+    struct PlatformWindow* platform, bool out, char const* title)
+{
+    if( !g_mac_browser || g_mac_browser.platform != platform || ![NSThread isMainThread] )
+        return false;
+    NSString* name = title && title[0] ? [NSString stringWithUTF8String:title] : nil;
+    if( !name )
+        name = @"Plugins";
+    if( !out )
+    {
+        [g_mac_browser closePageWindow];
+        return true;
+    }
+    if( g_mac_browser.pageWindow )
+    {
+        g_mac_browser.pageWindow.title = name;
+        return true;
+    }
+    if( g_mac_browser.failed || !g_mac_browser.view )
+        return false;
+
+    NSWindow* parent = (__bridge NSWindow*)PlatformWindow_NativeWindowHandle(platform);
+    NSRect const anchor = parent ? parent.frame : NSMakeRect(0, 0, 765, 503);
+    CGFloat const height = parent && parent.contentView
+                               ? NSHeight(parent.contentView.bounds) : 480.0;
+    NSRect const content = NSMakeRect(
+        NSMaxX(anchor), NSMaxY(anchor) - height, 320.0, height);
+
+    WKWebViewConfiguration* configuration = [[WKWebViewConfiguration alloc] init];
+    configuration.userContentController =
+        g_mac_browser.view.configuration.userContentController;
+    configuration.websiteDataStore = [WKWebsiteDataStore nonPersistentDataStore];
+    configuration.preferences.javaScriptCanOpenWindowsAutomatically = NO;
+    ToriRSPluginWebView* view = [[ToriRSPluginWebView alloc]
+        initWithFrame:NSMakeRect(0, 0, NSWidth(content), NSHeight(content))
+        configuration:configuration];
+    view.navigationDelegate = g_mac_browser;
+    view.UIDelegate = g_mac_browser;
+    view.allowsBackForwardNavigationGestures = NO;
+    view.allowsMagnification = NO;
+    view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+
+    NSWindow* window = [[NSWindow alloc]
+        initWithContentRect:content
+                  styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                            NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    window.releasedWhenClosed = NO;
+    window.title = name;
+    window.contentMinSize = NSMakeSize(TORIRS_CHROME_M_RAIL_W * 4, 120);
+    window.backgroundColor = [NSColor colorWithCalibratedRed:14.0 / 255.0
+                                                       green:14.0 / 255.0
+                                                        blue:12.0 / 255.0
+                                                       alpha:1.0];
+    window.contentView = view;
+    window.delegate = g_mac_browser;
+    g_mac_browser.pageView = view;
+    g_mac_browser.pageWindow = window;
+    g_mac_browser.pageReady = NO;
+    g_mac_browser.pageClosed = NO;
+    [window makeKeyAndOrderFront:nil];
+
+    NSURL* page = [NSURL URLWithString:@"#page" relativeToURL:g_mac_browser.documentURL];
+    [view loadFileURL:page.absoluteURL allowingReadAccessToURL:g_mac_browser.rootURL];
+    return true;
 }
 
 static NSString*
@@ -751,6 +975,7 @@ PlatformMacPluginBrowser_Destroy(struct PlatformWindow* platform)
 {
     if( !g_mac_browser || g_mac_browser.platform != platform )
         return;
+    [g_mac_browser closePageWindow];
     WKUserContentController* controller =
         g_mac_browser.view.configuration.userContentController;
     [controller removeScriptMessageHandlerForName:@"torirsPluginChrome"];

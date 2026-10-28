@@ -84,8 +84,23 @@
    * page hands the two an explicit height; on the modern page the grid does. */
   const railBox = document.getElementById('tpc-rail') || (rail && rail.parentNode);
   const status = document.getElementById('tpc-status');
+  /* Optional: only the modern page carries one, and only a host that can open
+   * a second top-level window ever shows it (XP's legacy page has none). */
+  const popout = document.getElementById('tpc-popout');
   if (!shell || !pane || !title || !close || !tabs || !content || !rail) return null;
   const legacy = shell.getAttribute && shell.getAttribute('data-tpc-legacy') === '1';
+  /*
+   * THE PAGE VIEW: this document is the popped-out page's own window
+   * (modern.html#page), not the shell beside the game.
+   *
+   * It is the same bundle and the same reducer, fed the same envelopes as the
+   * docked document; it differs in three things only. It draws no rail (the
+   * rail stays beside the game, in the docked document), its header button
+   * docks the page back instead of popping it out, and every envelope it posts
+   * says view: 'page', because the two documents count their sequences
+   * independently and the host fences each by its own.
+   */
+  const pageView = !!(global.location && String(global.location.hash || '') === '#page');
 
   const state = {
     rail: {
@@ -116,7 +131,10 @@
     lastLayout: '',
     applying: false,
     editorFocused: false,
-    focusToken: 0
+    focusToken: 0,
+    /* The host's word on the pop-out window: whether it can open one, and
+     * whether the page is in it right now. @see applyPopout. */
+    popout: { available: false, active: false }
   };
 
   function integer(value, fallback) {
@@ -329,6 +347,7 @@
   }
 
   function queueEnvelope(envelope, widgetIntent) {
+    if (pageView) envelope.view = 'page';
     const copy = Codec.parse(Codec.stringify(envelope));
     if (widgetIntent) {
       const raw = normalizeIntent(widgetIntent);
@@ -576,6 +595,8 @@
       railHidden: !!message.railHidden,
       entries
     };
+    /* The page view never draws the rail: it stays beside the game. */
+    if (pageView) state.rail.railHidden = true;
     toggleClass(shell, 'tpc-collapsed', !state.rail.expanded);
     toggleClass(shell, 'tpc-rail-hidden', state.rail.railHidden);
     if (railBox) hidden(railBox, state.rail.railHidden);
@@ -1567,10 +1588,19 @@
     }
     if (!message || typeof message !== 'object' || integer(message.protocol, 0) !== PROTOCOL)
       return false;
+    /* The page lives in the pop-out window while it is out: the docked
+     * document is sent the same stream and leaves every page envelope to the
+     * page view, so the page is built once, where it is seen. Accepted, not
+     * refused -- a refusal reads to the host as a lost transport. */
+    if (!pageView && state.popout.active &&
+        (message.type === 'page.snapshot' || message.type === 'page.delta' ||
+         message.type === 'page.close' || message.type === 'custom.bitmap'))
+      return true;
     switch (message.type) {
       case 'rail.snapshot': applyRailSnapshot(message); break;
       case 'rail.icon': applyRailIcon(message); break;
       case 'theme': applyTheme(message); break;
+      case 'page.popout': applyPopout(message); break;
       case 'page.snapshot': return applyPageSnapshot(message);
       case 'page.delta': return applyPageDelta(message);
       case 'page.close':
@@ -1614,6 +1644,54 @@
   }
 
   bind(close, 'click', postPanelClose);
+
+  /* ---- the pop-out window ---------------------------------------------------
+   *
+   * The page can leave the game's side for a top-level window of its own, one
+   * page at a time, while the rail stays where it is. The window is the
+   * HOST's: this page only asks (page.popout with the state it wants), and
+   * the host answers with the same message type carrying available and
+   * active, sent to both documents. A host that cannot open one (XP's
+   * MSHTML, the Web lane) never says available, and the button never shows.
+   */
+  function renderPopout() {
+    if (!popout) return;
+    toggleClass(popout, 'tpc-dock', pageView);
+    const label = pageView ? 'Dock plugin page beside the game' : 'Pop out plugin page';
+    popout.setAttribute('aria-label', label);
+    popout.title = label;
+    hidden(popout, !state.popout.available);
+  }
+
+  function applyPopout(message) {
+    const active = !!message.active;
+    state.popout.available = !!message.available;
+    if (!pageView && active && !state.popout.active) clearPage();
+    state.popout.active = active;
+    toggleClass(shell, 'tpc-popped', !pageView && active);
+    renderPopout();
+  }
+
+  function postPopout() {
+    if (!state.popout.available || !state.pageGeneration) return;
+    queueEnvelope({
+      protocol: PROTOCOL,
+      type: 'page.popout',
+      sequence: nextSequence(),
+      popout: !pageView,
+      pageGeneration: state.pageGeneration
+    });
+  }
+
+  if (popout) bind(popout, 'click', postPopout);
+  renderPopout();
+  /* The page view has no rail from its first paint, not from its first
+   * snapshot: the window opens at the page's width. */
+  if (pageView) {
+    state.rail.railHidden = true;
+    toggleClass(shell, 'tpc-rail-hidden', true);
+    if (railBox) hidden(railBox, true);
+  }
 
   /* ---- the right-click popup ----------------------------------------------
    *
@@ -2142,6 +2220,9 @@
         selectedEntry: state.rail.selectedEntry,
         expanded: state.rail.expanded,
         railHidden: state.rail.railHidden,
+        pageView,
+        popoutAvailable: state.popout.available,
+        popoutActive: state.popout.active,
         pageGeneration: state.pageGeneration,
         panel: state.panel,
         widgetCount: state.widgets.count,

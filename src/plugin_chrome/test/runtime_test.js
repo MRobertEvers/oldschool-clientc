@@ -76,7 +76,7 @@ function node(tag) {
   return value;
 }
 
-function fixture() {
+function fixture(withPopout) {
   const ids = {};
   const document = {
     documentElement: node('html'),
@@ -104,6 +104,7 @@ function fixture() {
   });
   const title = add('tpc-title', 'h1', pane);
   title.textContent = 'Plugins';
+  if (withPopout) add('tpc-popout', 'button', pane).hidden = true;
   add('tpc-close', 'button', pane);
   const tabs = add('tpc-tabs', 'nav', pane);
   tabs.hidden = true;
@@ -848,4 +849,86 @@ assert(!ids['tpc-shell'].classList.contains('tpc-rail-hidden'),
 Object.defineProperty(railPane, 'clientWidth', { configurable: true, writable: true, value: 320 });
 
 assert.strictEqual(runtime.receive('{bad json'), false, 'malformed host input is ignored');
+
+/* ---- the pop-out window ------------------------------------------------- */
+function popoutRuntime(hash) {
+  const made = fixture(true);
+  const out = [];
+  const host = Object.assign({}, global_, {
+    document: made.document,
+    location: { hash },
+    torirsPluginChromePostMessage(value) { out.push(JSON.parse(value)); return true; },
+    torirsChromeIntentPosted: undefined
+  });
+  const made_runtime = createRuntime(host, made.document);
+  assert(made_runtime, 'runtime boots with a pop-out button');
+  return { runtime: made_runtime, ids: made.ids, out };
+}
+function popoutPage(target, generation) {
+  return target.receive({
+    protocol: 1, type: 'page.snapshot', pageGeneration: generation, panel: 3,
+    title: 'Plugin 0', commands: [command(3, { text: 'Plugin 0' }),
+      command(8, { w: 1, v: 7, text: 'Run', s: 201 })]
+  });
+}
+const railFor = generation => ({
+  protocol: 1, type: 'rail.snapshot', registryRevision: 1,
+  selectionGeneration: generation, pageGeneration: 60, activePlugin: 0,
+  lastSelectedPlugin: 0, selectedEntry: 0, expanded: true, entries
+});
+
+{
+  const docked = popoutRuntime('');
+  const button = docked.ids['tpc-popout'];
+  docked.runtime.receive(railFor(21));
+  assert(popoutPage(docked.runtime, 60));
+  assert.strictEqual(button.hidden, true, 'no pop-out control until the host offers one');
+  button.fire('click');
+  assert(!docked.out.some(m => m.type === 'page.popout'), 'and a click on it asks nothing');
+
+  docked.runtime.receive({ protocol: 1, type: 'page.popout', available: true, active: false });
+  assert.strictEqual(button.hidden, false, 'a host that can open the window shows the control');
+  assert(!button.classList.contains('tpc-dock'), 'the docked page offers pop-out, not dock');
+  button.fire('click');
+  const ask = docked.out[docked.out.length - 1];
+  assert.strictEqual(ask.type, 'page.popout');
+  assert.strictEqual(ask.popout, true, 'the docked page asks to go out');
+  assert.strictEqual(ask.pageGeneration, 60, 'fenced by the page it was pressed on');
+  assert.strictEqual(ask.view, undefined, 'the docked document does not stamp a view');
+
+  docked.runtime.receive({ protocol: 1, type: 'page.popout', available: true, active: true });
+  assert.strictEqual(docked.runtime.inspect().pageGeneration, 0,
+    'once out, the docked document drops its copy of the page');
+  assert(docked.ids['tpc-shell'].classList.contains('tpc-popped'));
+  assert.strictEqual(popoutPage(docked.runtime, 61), true,
+    'page envelopes are accepted while out, so the host sees no transport loss');
+  assert.strictEqual(docked.runtime.inspect().widgetCount, 0, 'but build nothing here');
+  assert.strictEqual(docked.runtime.inspect().railEntries, 33, 'the rail stays where it is');
+
+  docked.runtime.receive({ protocol: 1, type: 'page.popout', available: true, active: false });
+  assert(!docked.ids['tpc-shell'].classList.contains('tpc-popped'));
+  assert(popoutPage(docked.runtime, 62), 'docked again, the restated page lands');
+  assert.strictEqual(docked.runtime.inspect().pageGeneration, 62);
+}
+
+{
+  const page = popoutRuntime('#page');
+  const button = page.ids['tpc-popout'];
+  assert(page.ids['tpc-shell'].classList.contains('tpc-rail-hidden'),
+    'the page view draws no rail from its first paint');
+  page.runtime.receive({ protocol: 1, type: 'page.popout', available: true, active: true });
+  page.runtime.receive(railFor(22));
+  assert.strictEqual(page.runtime.inspect().railHidden, true,
+    'and a rail snapshot does not bring one back');
+  assert(popoutPage(page.runtime, 70), 'the page view builds the page');
+  assert.strictEqual(page.runtime.inspect().widgetCount, 1);
+  assert(button.classList.contains('tpc-dock'), 'its header button docks the page back');
+  button.fire('click');
+  const dock = page.out[page.out.length - 1];
+  assert.strictEqual(dock.type, 'page.popout');
+  assert.strictEqual(dock.popout, false, 'the page view asks to come back in');
+  assert.strictEqual(dock.view, 'page', 'every page-view envelope names its view');
+  const layout = page.out.filter(m => m.type === 'layout').pop();
+  assert(layout && layout.view === 'page', 'layout too, so the host fences its own sequence');
+}
 console.log('modern plugin chrome runtime: ok');

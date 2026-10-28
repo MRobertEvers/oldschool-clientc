@@ -7,6 +7,7 @@
 #include "input/torirs_input.h"
 #include "input/torirs_touch.h"
 #include "platform/platform_app_icon.h"
+#include "ui/torirs_chrome_metrics.h"
 
 #if defined(__APPLE__)
 #include "platform/platform_macos_webview.h"
@@ -3043,9 +3044,13 @@ PlatformWindow_PluginChromeShow(struct PlatformWindow* platform, int style)
     if( !PlatformWindow_PluginBrowserEnsure(platform) )
         fprintf(stderr, "plugin chrome: the embedded browser did not start\n");
 #else
-    (void)platform;
-    fprintf(stderr,
-        "plugin chrome: this SDL build has no native presenter yet (style %d)\n", style);
+    /* No browser: the strip at the window's trailing edge carries the rail,
+     * drawn by the surface presenter (ui/torirs_chrome_surface_sdl.c) from
+     * the client's rail snapshot. A desk on every style -- an SDL desktop has
+     * the width for it. */
+    (void)style;
+    if( !PlatformWindow_ChromeRailOpen(platform, TORIRS_CHROME_M_RAIL_W, "Plugins") )
+        fprintf(stderr, "plugin chrome: the rail strip could not open\n");
 #endif
 }
 

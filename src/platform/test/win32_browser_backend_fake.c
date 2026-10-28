@@ -73,6 +73,21 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     return browser;
 }
 
+/* The layout test covers the docked shell only. */
+struct PlatformWin32Browser*
+PlatformWin32Browser_NewPageView(HWND parent, WCHAR const* bundle_root)
+{
+    (void)parent;
+    (void)bundle_root;
+    return NULL;
+}
+
+int
+PlatformWin32Browser_PageViewAvailable(void)
+{
+    return 0;
+}
+
 void
 PlatformWin32Browser_Free(struct PlatformWin32Browser* browser)
 {

@@ -10,6 +10,13 @@ struct PlatformWin32Browser;
 
 struct PlatformWin32Browser*
 PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root);
+/* The popped-out page's own document (modern.html#page) in a second control
+ * under `parent`, the pop-out window. NULL from a backend that has none: XP's
+ * MSHTML hosts exactly one control and keeps the page docked. */
+struct PlatformWin32Browser*
+PlatformWin32Browser_NewPageView(HWND parent, WCHAR const* bundle_root);
+/* Whether NewPageView can succeed at all, asked before offering the button. */
+int PlatformWin32Browser_PageViewAvailable(void);
 void PlatformWin32Browser_Free(struct PlatformWin32Browser* browser);
 void PlatformWin32Browser_Resize(
     struct PlatformWin32Browser* browser, int width, int height);

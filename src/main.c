@@ -2910,6 +2910,9 @@ main_shutdown(struct App* a)
 #if defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
     ToriRSChromeExec_BrowserShutdown();
 #endif
+#if defined(TORIRS_CHROME_SURFACE_SDL)
+    ToriRSChromeExec_SdlSurfaceShutdown();
+#endif
     ToriDraw_NormalsPoolDrain();
     ToriMem_Free(ToriMem_Process(), sim_pixels);
     sim_pixels = NULL;
@@ -8781,6 +8784,13 @@ main(
             if( !chosen )
                 wanted = -1;
             chrome_exec = ToriRSChromeExec_ForKind(wanted, platform, &got);
+#if defined(TORIRS_CHROME_SURFACE_SDL)
+            /* No browser on this SDL desktop: the BUFFER page keeps its kind,
+             * but gains the native rail in the chrome strip and a surface to
+             * be drawn on beside it (or in its pop-out window). */
+            if( got == TORIRS_CHROME_EXEC_BUFFER )
+                chrome_exec = ToriRSChromeExec_SdlSurface(platform);
+#endif
             if( chosen && got != wanted )
                 TORIRS_LOG(
                     "chrome: no '%s' executor in this build; the plugin window stays in the "

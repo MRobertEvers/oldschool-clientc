@@ -312,6 +312,29 @@ button { font-weight: 700; }
   image-rendering: pixelated;
 }
 .tpc-close:hover { background-image: url("skin/CloseButtonOver.png"); }
+/* The baked pop-out mark beside the close mark, and the dock mark in its place
+ * on the page's own window. Hidden until the host says it can open one. */
+.tpc-popout {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin-right: 3px;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  background-image: url("skin/PopoutButton.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 16px 16px;
+  color: transparent;
+  font-size: 0;
+  cursor: pointer;
+  image-rendering: pixelated;
+}
+.tpc-popout:hover { background-image: url("skin/PopoutButtonOver.png"); }
+.tpc-popout.tpc-dock { background-image: url("skin/DockButton.png"); }
+.tpc-popout.tpc-dock:hover { background-image: url("skin/DockButtonOver.png"); }
+.tpc-popout[hidden] { display: none !important; }
 
 .tpc-tabs { display: -webkit-box; display: -webkit-flex; display: flex; height: 20px; min-height: 20px; margin: 6px 6px 3px; overflow-x: auto; border-bottom: 1px solid #0e0e0c; border-bottom-color: var(--tpc-deep); }
 .tpc-tabs button { height: 20px; min-width: 12px; padding: 0 5px; border: 0; border-right: 1px solid var(--tpc-inset); background: var(--tpc-deep); color: var(--tpc-label); }

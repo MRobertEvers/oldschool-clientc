@@ -550,13 +550,70 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
  * cannot leave the canvas, so any part of the box past the edge is a control
  * that cannot be pressed.
  */
+int
+app_plugin_page_on_surface(struct App const* app)
+{
+    assert(app);
+    return app->plugin_exec.live && app->plugin_exec.exec.surface_size != NULL;
+}
+
+int
+app_plugin_page_surface(struct App const* app, int* out_w, int* out_h)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(app);
+    if( !app->plugin_panel_visible || !app_plugin_page_on_surface(app) ||
+        !app->plugin_exec.exec.surface_size(app->plugin_exec.exec.user, &w, &h) ||
+        w <= 0 || h <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+/** The box the window is placed in: its surface, or the canvas. */
+static void
+app_plugin_panel_room(struct App const* app, int* out_w, int* out_h)
+{
+    assert(app);
+    assert(out_w);
+    assert(out_h);
+    if( app_plugin_page_surface(app, out_w, out_h) )
+        return;
+    *out_w = UITREE_LAYOUT_ROOT_W;
+    *out_h = UITREE_LAYOUT_ROOT_H;
+}
+
 static void
 app_plugin_panel_place(struct App* app)
 {
     int const scale = ToriRSChrome_Scale(&app->plugin_ui);
+    int surface_w;
+    int surface_h;
 
     assert(app);
     assert(app->plugin_panel >= 0);
+
+    /*
+     * On a SURFACE the window IS the surface: it fills the strip beside the
+     * rail, or the pop-out window, from its top-left corner, and its own
+     * dropdowns fold up into that box rather than the canvas's.
+     */
+    if( app_plugin_page_surface(app, &surface_w, &surface_h) )
+    {
+        ToriRSChrome_SetSurface(&app->plugin_ui, surface_w, surface_h);
+        ToriRSChrome_PanelMove(&app->plugin_ui, app->plugin_panel, 0, 0);
+        ToriRSChrome_PanelSetFixedWidth(&app->plugin_ui, app->plugin_panel, surface_w);
+        ToriRSChrome_PanelSetFixedHeight(&app->plugin_ui, app->plugin_panel, surface_h);
+        g_plugin_geom_scale_built = scale;
+        g_plugin_geom_canvas_w_built = surface_w;
+        g_plugin_geom_canvas_h_built = surface_h;
+        return;
+    }
 
     /*
      * The same canvas the box below is clamped into, told to the chrome, so
@@ -1309,11 +1366,15 @@ app_plugin_panel_sync(struct App* app)
      * the build gate below deliberately keeps a typed-into field alive, and a
      * resize is not a reason to lose the caret -- but it is a reason to move
      * the window back where it can be reached. */
-    if( app->plugin_panel >= 0 &&
-        (g_plugin_geom_scale_built != ToriRSChrome_Scale(&app->plugin_ui) ||
-         g_plugin_geom_canvas_w_built != UITREE_LAYOUT_ROOT_W ||
-         g_plugin_geom_canvas_h_built != UITREE_LAYOUT_ROOT_H) )
-        app_plugin_panel_place(app);
+    if( app->plugin_panel >= 0 )
+    {
+        int room_w;
+        int room_h;
+        app_plugin_panel_room(app, &room_w, &room_h);
+        if( g_plugin_geom_scale_built != ToriRSChrome_Scale(&app->plugin_ui) ||
+            g_plugin_geom_canvas_w_built != room_w || g_plugin_geom_canvas_h_built != room_h )
+            app_plugin_panel_place(app);
+    }
 
     count = PluginHost_Count(app->plugins);
     panel_active = PluginHost_PanelActive(app->plugins);
@@ -1451,7 +1512,7 @@ app_plugin_panel_sync(struct App* app)
      * there would need its own sprite, hover state and hit region for one
      * button. It also has to be pressable with a finger, and a row already is.
      */
-    if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+    if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER && !app_plugin_page_on_surface(app) )
     {
         g_plugin_fullscreen_widget = ToriRSChrome_Button(
             &app->plugin_ui, app->plugin_panel,
@@ -2242,6 +2303,10 @@ app_plugin_window_set_open(struct App* app, int open)
      * model, and deliberately retains PanelLastSelected for the rail. */
     if( !open && app->plugins )
         (void)PluginHost_PanelClose(app->plugins);
+    /* A surface page that reopens starts from a blank surface: whatever was
+     * rasterised into the last one is gone with it. */
+    app->plugin_surface_w = 0;
+    app->plugin_surface_h = 0;
 
     app->plugin_panel_visible = open ? 1 : 0;
     if( app->plugin_panel_visible )
@@ -3223,6 +3288,39 @@ app_plugin_panel_publish_layout(struct App* app)
 }
 
 /*
+ * A SURFACE page's own pointer and keys, in the surface's pixels -- which are
+ * the window's coordinates, since it is placed at the surface's top-left.
+ *
+ * Nothing here is the game's: the platform kept these events off the game's
+ * bus (the strip beside the rail, or the pop-out window), so there is no
+ * input_frame_consumed to set and no canvas pointer to test against.
+ */
+static void
+app_plugin_surface_route_input(struct App* app)
+{
+    struct ToriRSChromeSurfaceInput in;
+
+    assert(app);
+    assert(app->plugin_exec.exec.surface_input);
+    while( app->plugin_exec.exec.surface_input(app->plugin_exec.exec.user, &in) )
+    {
+        (void)ToriRSChrome_MouseMove(&app->plugin_ui, in.mouse_x, in.mouse_y);
+        if( in.mouse_down )
+            (void)ToriRSChrome_MouseDown(&app->plugin_ui, in.mouse_x, in.mouse_y);
+        if( in.mouse_up )
+            (void)ToriRSChrome_MouseUp(&app->plugin_ui, in.mouse_x, in.mouse_y);
+        if( in.wheel )
+            (void)ToriRSChrome_MouseWheel(&app->plugin_ui, in.mouse_x, in.mouse_y, in.wheel);
+        for( int i = 0; i < (int)sizeof(in.text) && in.text[i]; i++ )
+            if( (unsigned char)in.text[i] >= 32 && (unsigned char)in.text[i] < 127 )
+                (void)ToriRSChrome_KeyChar(&app->plugin_ui, in.text[i]);
+        if( in.edit_key != TORIRS_CHROME_KEY_NONE )
+            (void)ToriRSChrome_KeyEdit(&app->plugin_ui, in.edit_key);
+        app->need_redraw = 1;
+    }
+}
+
+/*
  * Per-frame: the toggle, the lazy build, input, and one activation.
  *
  * Runs beside the other chrome ticks at the top of App_RunOnce, before the
@@ -3529,7 +3627,9 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
          * ghost -- laid out and hit-testable at its floating position even
          * though nothing draws it. The keyboard must still flow, because the
          * text fields being typed into are the model's. */
-        if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+        if( app_plugin_page_on_surface(app) )
+            app_plugin_surface_route_input(app);
+        else if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
             app_chrome_route_input(app, &app->plugin_ui, input);
         else
             app_chrome_route_keys(app, &app->plugin_ui, input);
@@ -3615,4 +3715,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
      * pixels afterwards so an asynchronous UI queue cannot receive a frame
      * before the WIDGET_ADD that gives it an identity and destination. */
     app_plugin_panel_present_custom(app);
+
+    /* A SURFACE page is drawn last, from the display list this tick settled. */
+    app_chrome_plugin_surface_present(app);
 }

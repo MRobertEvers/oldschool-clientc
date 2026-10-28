@@ -77,6 +77,21 @@ void PlatformWindow_ChromeClose(struct PlatformWindow* p)
 { CHECK(p == &platform); collapsed++; }
 void PlatformWindow_ChromeSetRailHidden(struct PlatformWindow* p, bool hidden)
 { CHECK(p == &platform); (void)hidden; }
+/* The pop-out window: off until a test offers it, as on XP. */
+static int popout_available;
+static int popout_open;
+static char popout_title[64];
+bool PlatformWindow_PluginBrowserCanPopOut(struct PlatformWindow const* p)
+{ CHECK(p == &platform); return popout_available != 0; }
+bool PlatformWindow_PluginBrowserPopOut(
+    struct PlatformWindow* p, bool out, char const* title)
+{
+    CHECK(p == &platform);
+    if( out && !popout_available ) return false;
+    popout_open = out ? 1 : 0;
+    if( out ) snprintf(popout_title, sizeof(popout_title), "%s", title ? title : "");
+    return true;
+}
 
 static struct ToriRSChromeCmd command(int kind, int panel, int widget)
 {
@@ -459,8 +474,106 @@ int main(void)
               strstr(sent[before], "bitmap/rail-4-r9.bmp") != NULL);
     }
 
+    /*
+     * The pop-out window.
+     *
+     * A host without one refuses the page's request and the page stays where
+     * it is: no window, no width given back, nothing said.
+     */
+    {
+        int const opened_before = opened;
+        int const collapsed_before = collapsed;
+        sent_count = 0;
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"page.popout\",\"sequence\":900,"
+            "\"popout\":true,\"pageGeneration\":13}");
+        CHECK(exec.poll(exec.user, &intent, 1) == 0);
+        CHECK(popout_open == 0 && collapsed == collapsed_before && opened == opened_before);
+        CHECK(sent_count == 0);
+    }
+    /* A host with one opens it, gives the page width back beside the game,
+     * tells both documents, and restates everything for the new one. */
+    {
+        int const collapsed_before = collapsed;
+        popout_available = 1;
+        sent_count = 0;
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"page.popout\",\"sequence\":901,"
+            "\"popout\":true,\"pageGeneration\":12}");
+        CHECK(exec.poll(exec.user, &intent, 1) == 0);
+        CHECK(popout_open == 0 && sent_count == 0);   /* a stale page's button */
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"page.popout\",\"sequence\":902,"
+            "\"popout\":true,\"pageGeneration\":13}");
+        CHECK(exec.poll(exec.user, &intent, 1) == 0);
+        CHECK(popout_open == 1 && collapsed == collapsed_before + 1);
+        CHECK(sent_count == 1 &&
+              strstr(sent[0], "\"type\":\"page.popout\"") != NULL &&
+              strstr(sent[0], "\"available\":true,\"active\":true") != NULL);
+        CHECK(exec.take_snapshot_request(exec.user) == 1);
+        CHECK(exec.take_rail_snapshot_request(exec.user) == 1);
+        /* The restated rail does not ask for the page width back. */
+        {
+            int const opened_before = opened;
+            rail.registry_revision++;
+            exec.rail_sync(exec.user, &rail);
+            CHECK(opened == opened_before);
+            CHECK(strstr(sent[1], "\"type\":\"theme\"") != NULL &&
+                  strstr(sent[2], "\"active\":true") != NULL &&
+                  strstr(sent[3], "\"type\":\"rail.snapshot\"") != NULL);
+        }
+    }
+    /* While out, only the page view's layout sizes the page, fenced by its own
+     * sequence: it starts again at 1 although the shell is far past it. */
+    {
+        struct ToriRSChromeRailIntent drained[4];
+        int got;
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"layout\",\"sequence\":903,"
+            "\"selectionGeneration\":8,\"pageGeneration\":13,\"width\":300,"
+            "\"height\":400,\"customWidth\":0,\"scaleMilli\":1000,"
+            "\"sizeClass\":1,\"visible\":false}");
+        got = exec.rail_poll(exec.user, drained, 4);
+        CHECK(got == 0);
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"layout\",\"sequence\":1,"
+            "\"selectionGeneration\":8,\"pageGeneration\":13,\"width\":320,"
+            "\"height\":480,\"customWidth\":0,\"scaleMilli\":1000,"
+            "\"sizeClass\":1,\"visible\":true,\"gameVisible\":true,\"view\":\"page\"}");
+        got = exec.rail_poll(exec.user, drained, 4);
+        CHECK(got == 1 && drained[0].kind == TORIRS_CHROME_RAIL_INTENT_LAYOUT &&
+              drained[0].width == 320 && drained[0].visible == 1);
+    }
+    /* The user closing the window arrives as the platform's own page.popout:
+     * the window comes down and the page asks for its width beside the game. */
+    {
+        int const opened_before = opened;
+        sent_count = 0;
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"page.popout\",\"popout\":false}");
+        CHECK(exec.poll(exec.user, &intent, 1) == 0);
+        CHECK(popout_open == 0 && opened == opened_before + 1 && page_width == 320);
+        CHECK(sent_count == 1 && strstr(sent[0], "\"active\":false") != NULL);
+        CHECK(exec.take_snapshot_request(exec.user) == 1);
+    }
+    /* Collapsing a popped page takes its window down without re-docking it. */
+    {
+        int const opened_before = opened;
+        snprintf(inbound, sizeof(inbound),
+            "{\"protocol\":1,\"type\":\"page.popout\",\"sequence\":904,"
+            "\"popout\":true,\"pageGeneration\":13}");
+        CHECK(exec.poll(exec.user, &intent, 1) == 0);
+        CHECK(popout_open == 1);
+        sent_count = 0;
+        exec.end(exec.user);
+        CHECK(popout_open == 0 && opened == opened_before);
+        CHECK(strstr(sent[sent_count - 1], "page.close") != NULL);
+        popout_available = 0;
+        CHECK(exec.begin(exec.user));
+    }
+
     exec.end(exec.user);
-    CHECK(collapsed == 1 && strstr(sent[sent_count - 1], "page.close") != NULL);
+    CHECK(strstr(sent[sent_count - 1], "page.close") != NULL);
     puts("browser chrome executor: ok");
     return 0;
 }

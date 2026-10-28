@@ -611,15 +611,15 @@ static HMODULE load_loader(void)
     return LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 }
 
-struct PlatformWin32Browser*
-PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
+static struct PlatformWin32Browser*
+wv2_new(HWND parent, WCHAR const* bundle_root, WCHAR const* fragment)
 {
     struct PlatformWin32Browser* s;
     WCHAR root[2048];
     WCHAR page[2048];
     WCHAR user_data[2048];
     CreateEnvironmentFn create_environment;
-    HRESULT hr;
+    HRESULT hr = E_FAIL;
     if( !parent || !bundle_root || !bundle_root[0] ) return NULL;
     lstrcpynW(root, bundle_root, 2048);
     if( wcslen(root) + 20 >= 2048 ) return NULL;
@@ -650,6 +650,12 @@ PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
     if( s->allowed_root[wcslen(s->allowed_root) - 1] != L'/' )
         lstrcatW(s->allowed_root, L"/");
     path_to_file_url(page, s->page_url, 2048);
+    /* The pinned top-level URL includes the view: the page view's control may
+     * navigate to modern.html#page and nowhere else. */
+    if( fragment && wcslen(s->page_url) + wcslen(fragment) < 2048 )
+        lstrcatW(s->page_url, fragment);
+    else if( fragment )
+        goto fail;
 
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     if( SUCCEEDED(hr) ) s->com_initialized = 1;
@@ -670,6 +676,24 @@ fail:
     if( s ) wv2_fail(s, "bootstrap", hr);
     PlatformWin32Browser_Free(s);
     return NULL;
+}
+
+struct PlatformWin32Browser*
+PlatformWin32Browser_New(HWND parent, WCHAR const* bundle_root)
+{
+    return wv2_new(parent, bundle_root, NULL);
+}
+
+struct PlatformWin32Browser*
+PlatformWin32Browser_NewPageView(HWND parent, WCHAR const* bundle_root)
+{
+    return wv2_new(parent, bundle_root, L"#page");
+}
+
+int
+PlatformWin32Browser_PageViewAvailable(void)
+{
+    return 1;
 }
 
 void
@@ -810,6 +834,11 @@ struct PlatformWin32Browser { int failed; };
 struct PlatformWin32Browser* PlatformWin32Browser_New(
     HWND parent, WCHAR const* bundle_root)
 { (void)parent; (void)bundle_root; return NULL; }
+struct PlatformWin32Browser* PlatformWin32Browser_NewPageView(
+    HWND parent, WCHAR const* bundle_root)
+{ (void)parent; (void)bundle_root; return NULL; }
+int PlatformWin32Browser_PageViewAvailable(void)
+{ return 0; }
 void PlatformWin32Browser_Free(struct PlatformWin32Browser* browser)
 { (void)browser; /* New never makes one: nothing to free */ }
 void PlatformWin32Browser_Resize(struct PlatformWin32Browser* b, int w, int h)

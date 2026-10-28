@@ -7,6 +7,11 @@ page to the shared plugin chrome. The central rule is literal:
 > context. Every plugin shares it, and only the most recently selected plugin
 > has a page in it.
 
+The page's pop-out window (section 5a) is the single, bounded exception: while
+the user has the page out, a second document of the same bundle holds that one
+page in its own window, and the first keeps the rail. It is still one page,
+owned by the application, never by a plugin.
+
 The browser is application infrastructure, not plugin infrastructure. A plugin
 cannot create a browser, window, document, iframe, script context, or URL. It
 registers a destination and publishes bounded semantic controls. The
@@ -36,7 +41,12 @@ School RuneScape skin.
   permissions, and external schemes are rejected.
 - The retired native View/GDI/SDL presenters are reference material under
   [`old/plugin_chrome_native`](../old/plugin_chrome_native/README.md), not an
-  alternate production path.
+  alternate production path. The SDL desktop's native rail (section 4, Linux)
+  is not one of them: it presents BUFFER's own page and has no browser to
+  replace.
+- The page may leave for a pop-out window of its own (section 5a). That window
+  holds a second document of the same bundle on the page view; it is the
+  page's, never a plugin's, there is at most one, and the rail never moves.
 
 ## 2. Ownership and lifetime
 
@@ -100,10 +110,12 @@ groups are:
 | Host to browser | `rail.snapshot`, `rail.icon` | Replace navigation state and revisioned authored icons |
 | Host to browser | `theme` | Publish local ToriRS skin URLs |
 | Host to browser | `page.snapshot`, `page.delta`, `page.close` | Replace, patch, or remove the sole page |
+| Host to browser | `page.popout` | Whether a pop-out window can open, and whether the page is in it |
 | Host to browser | `custom.bitmap` | Replace one generation/serial-fenced custom region |
 | Browser to host | `rail.select` | Expand, collapse, or replace the selected page |
 | Browser to host | `widget.intent` | Report a result-state semantic action |
 | Browser to host | `layout`, `editor.focus` | Report allocation and HTML editor ownership |
+| Browser to host | `page.popout` | Ask for the page in its own window, or docked again |
 
 Messages carry protocol version 1 and are copied across the boundary. Queues
 are bounded and nonblocking. Unknown versions and stale generations are
@@ -119,7 +131,7 @@ uses the host's copied post-message hook or bounded pull queue.
 | macOS | `WKWebView` | `modern.html` | Child of the SDL window's Cocoa content view |
 | Windows 10+ x64 | WebView2 controller | `modern.html` | Child of the existing main `HWND`'s chrome container |
 | Windows XP | `IWebBrowser2` / MSHTML ActiveX control | `legacy-ie8.html` | Child of the existing main `HWND`'s chrome container |
-| Linux | Deferred | None claimed | The former SDL surface presenter is not the final browser architecture |
+| Linux (SDL, no browser) | None: a native rail | BUFFER's page, rasterised beside the rail | The SDL chrome strip at the main window's trailing edge |
 
 The Web lane's top-level page owns one stable
 [`plugin-chrome-mount`](../src/web/index.html). The host in
@@ -131,8 +143,37 @@ it, and the runtime must not create a nested iframe, popup, or second
 plugin-chrome document.
 
 Linux and Android browser integration is intentionally deferred. Documentation
-and tests must not represent the removed SDL surface or Android-specific queue
-as completion of the common BROWSER architecture.
+and tests must not represent the SDL desktop's native rail or the Android edge
+tab as completion of the common BROWSER architecture.
+
+### Linux (SDL desktop without a browser)
+
+An SDL build with no `TORIRS_CHROME_EXEC_BROWSER_AVAILABLE` is still owed a
+way into the plugins, because no CS2 interface carries a plugin button any
+more. `PlatformWindow_PluginChromeShow` opens the platform's chrome strip
+(`PlatformWindow_ChromeRailOpen`, `TORIRS_CHROME_M_RAIL_W` wide), and
+[`torirs_chrome_surface_sdl.c`](../src/ui/torirs_chrome_surface_sdl.c) draws a
+RuneLite-style rail into it from the rail snapshot: one entry per destination
+plus Manage Plugins, the authored icon or the baked wrench (a plugin without art
+wears its title's first letters), badges and attention, on the stone PanelBody
+inside the baked nine-slice frame. A press is the same generation-fenced
+`TORIRS_CHROME_RAIL_INTENT_SELECT` the browser rail sends, so selecting,
+collapsing and replacing all go through `app_plugin_rail_select`.
+
+The page is BUFFER's own retained ToriRSChrome panel, not a DOM: the executor
+kind stays BUFFER and only its vtable gains a SURFACE
+(`surface_size`/`surface_input`/`surface_present`). The App lays the panel out
+to fill the surface, feeds it the surface's pointer and keys (the platform keeps
+them off the game's bus), and on any change rasterises its display list with
+the same software UI path the canvas and the BMP dump use
+(`app_chrome_plugin_surface_present`). Opened, the page sits in the strip
+beside the rail (`PlatformWindow_ChromeOpen`, 320 points); nothing of it is
+drawn or hit in the canvas. `make -C src test-chrome-surface-sdl` covers the
+rail and the pop-out against a fake strip.
+
+macOS builds the same presenter when probed with
+`PLATFORM_CHROME_EXEC_SRC= PLATFORM_CHROME_EXEC_CFLAGS=` (a compile check: the
+Apple GL path does not composite the strip).
 
 ### Web
 
@@ -230,6 +271,36 @@ In split mode the platform publishes a game rectangle and a browser rectangle
 that do not overlap. In compact exclusive mode the browser receives the usable
 window and the game is hidden. Browser blank space still belongs to the browser
 and cannot generate game input.
+
+## 5a. The pop-out window
+
+The selected page can move into a top-level window of its own and back. One
+page at a time; the rail stays beside the game; collapsing the page closes the
+window; closing the window docks the page. While the page is out, the main
+window gives back the page width (the executor's `PlatformWindow_ChromeClose`
+keeps the rail) and asks for it again when the page docks.
+
+On browser hosts the control is the page header's (`#tpc-popout`, the baked
+PopoutButton/DockButton art), shown only after the host's inbound `page.popout`
+says `available`. The request is the outbound `page.popout`; the executor
+([`torirs_chrome_exec_winbrowser.c`](../src/ui/torirs_chrome_exec_winbrowser.c))
+calls `PlatformWindow_PluginBrowserPopOut`, which opens a second document of
+the canonical bundle at `modern.html#page` (no rail) in its own window. From
+then on the transport hands every envelope to both documents and both post to
+its one queue, the page view stamping `view: "page"`; the executor fences
+sequences per view, listens for `layout`/`widget.intent` only from the document
+holding the page, and asks for one full restatement after every move. The
+window's close box arrives on that queue as the protocol's own
+`{"type":"page.popout","popout":false}`. See
+[`HOST_BRIDGE.md`](../src/plugin_chrome/HOST_BRIDGE.md).
+
+| Host | Pop-out window |
+|---|---|
+| macOS | A titled, movable `NSWindow` (not a child of SDL's) holding a second `WKWebView` that shares the one script-message handler |
+| Windows 10+ x64 | An owned `WS_OVERLAPPEDWINDOW` holding a second WebView2 controller on the same staged bundle |
+| Windows XP | None. MSHTML hosts exactly one control and XP has no auxiliary top-level window here, so `PlatformWindow_PluginBrowserCanPopOut` is false, the host never says `available`, the button never shows, and a stray request is refused with the page left docked |
+| Web | None. `panel.html`/`torirs_channel.js` is the map editor's command-panel tab, not a plugin page; the host never says `available` |
+| Linux (SDL) | The rail's own pop-out mark (at its foot while a page is up) moves BUFFER's page into `PlatformWindow_AuxOpen`'s window; its close box docks it |
 
 ## 6. Retained performance contract
 
@@ -392,7 +463,10 @@ embedded-browser executor used by macOS and Windows. `platform`, `android`,
 `sdl`, `gdi`, and `buffer` are rejected by manifest/env parsing. BUFFER still
 exists internally so a missing/refused web engine leaves usable in-canvas
 chrome; it is a fallback result, never an external executor choice. Linux and
-Android currently have no approved BROWSER transport.
+Android currently have no approved BROWSER transport; on the SDL desktop main.c
+hands BUFFER the native-rail vtable (`ToriRSChromeExec_SdlSurface`), whose
+`begin` refuses until the platform has opened the strip, leaving the page in
+the canvas until then.
 
 ## 10. Verification
 
@@ -401,7 +475,8 @@ Android currently have no approved BROWSER transport.
 | `make -C src test-uitree` | Retained identity, focus, damage, delta ordering, and clean-path behavior |
 | `make -C src test-plugin-host` | Registry, selection generations, selected-only page build/input/draw, reload, and collapse |
 | `make -C src test-web-channel` | Modern and legacy reducer behavior plus downlevel syntax/DOM compatibility and the Web DOM/channel suite |
-| `make -C src test-chrome-browser-exec` | Shared embedded-browser snapshots/deltas, replacement, collapse, and intent fencing |
+| `make -C src test-chrome-browser-exec` | Shared embedded-browser snapshots/deltas, replacement, collapse, intent fencing, and the pop-out window's state machine |
+| `make -C src test-chrome-surface-sdl` | The SDL desktop's native rail: refusal before the strip opens, rail SELECTs, the pop-out mark, docking on close |
 | `make -C src PLATFORM=win64 capture-win32-plugin-chrome` | Real WebView2 child, local bundle, authored icon, semantic page, and capture |
 
 Platform runtime verification must also prove:
@@ -428,4 +503,5 @@ Platform runtime verification must also prove:
 | [`src/platform/platform_win32_webview2.c`](../src/platform/platform_win32_webview2.c) | One attached modern Windows WebView2 transport |
 | [`src/platform/platform_win32_mshtml.c`](../src/platform/platform_win32_mshtml.c) | One attached XP IWebBrowser2/MSHTML transport |
 | [`src/web/torirs_chrome.js`](../src/web/torirs_chrome.js) | One persistent Web iframe and the Wasm/protocol bridge |
+| [`src/ui/torirs_chrome_surface_sdl.c`](../src/ui/torirs_chrome_surface_sdl.c) | The SDL desktop's native rail and BUFFER page surface, with its pop-out |
 | [`old/plugin_chrome_native/`](../old/plugin_chrome_native/README.md) | Archived native/surface prototype material |

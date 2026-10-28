@@ -510,7 +510,7 @@ endif
 # Toolchain, SDL and link flags come from the selected platform block. The
 # base subset also reaches the vendored units: a platform whose libc hides
 # strdup behind a feature macro hides it from 3rd/ too.
-CFLAGS += $(PLATFORM_CFLAGS) $(PLATFORM_CHROME_EXEC_CFLAGS)
+CFLAGS += $(PLATFORM_CFLAGS) $(PLATFORM_CHROME_EXEC_CFLAGS) $(PLATFORM_CHROME_SURFACE_CFLAGS)
 RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
 RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
@@ -739,7 +739,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	app/app_world_spawn.c \
 	app/app_world_sync.c \
 	app/app_worldmap.c \
-	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+	$(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) $(PLATFORM_CHROME_SURFACE_SRC) \
 	platform/platform_app_icon.c \
 	platform/platform_memory.c \
 	platform/platform_renderer_soft3d.c \
@@ -3864,6 +3864,18 @@ test-sdl-chrome-geometry:
 	@echo "test-sdl-chrome-geometry requires PLATFORM=macos or PLATFORM=linux"
 	@false
 endif
+
+# The SDL desktop's native rail and surface page (no embedded browser): rail
+# presses, the pop-out mark and the aux window's close box against a fake
+# strip. Host-only C; TORIRS_SURFACE_TEST_BMP=<path> dumps the painted strip.
+.PHONY: test-chrome-surface-sdl
+test-chrome-surface-sdl: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_CHROME_SURFACE_SDL=1 -UNDEBUG \
+		-o $(OBJ_DIR)/chrome_surface_sdl_test $(TORIMEM_SRCS) \
+		ui/test/torirs_chrome_surface_sdl_test.c ui/torirs_chrome_surface_sdl.c \
+		ui/torirs_chrome_rail.c engine/torirs_chrome_skin_baked.c \
+		$(REPO_ROOT)/3rd/bmp/bmp.c
+	./$(OBJ_DIR)/chrome_surface_sdl_test
 
 # Where a mouse press lands in the layout against where the present draws it
 # (raid seam25, watched_client_mouse_mapping): the pure mapping

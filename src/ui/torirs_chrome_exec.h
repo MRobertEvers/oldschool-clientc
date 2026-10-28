@@ -407,6 +407,29 @@ struct ToriRSChromeCustomFrame
  * that waits on a browser tab or a hung window stalls the game. One that
  * cannot keep up must drop, not delay.
  */
+/**
+ * One frame of a SURFACE page's pointer and keys, in the surface's own pixels.
+ *
+ * Field for field the platform's PlatformWindow_AuxInput, restated because ui/
+ * does not include platform/; the SDL surface pins the two (and the editing
+ * key values, enum ToriRSChromeKey) with static assertions. Edges (press,
+ * release, wheel, typed text) are this frame's; the position is where the
+ * pointer is.
+ */
+struct ToriRSChromeSurfaceInput
+{
+    int mouse_x;
+    int mouse_y;
+    int mouse_down;
+    int mouse_up;
+    int wheel;
+    char text[32];
+    int edit_key;
+    int resized;
+    int width;
+    int height;
+};
+
 struct ToriRSChromeExec
 {
     void* user;
@@ -465,6 +488,25 @@ struct ToriRSChromeExec
 
     /** Same loss contract for the independently retained rail and icons. */
     int (*take_rail_snapshot_request)(void* user);
+
+    /**
+     * SURFACE pages: the internal BUFFER page, drawn somewhere other than the
+     * game canvas.
+     *
+     * The page stays BUFFER's -- ToriRSChrome's own retained panel, laid out
+     * and hit-tested by the model and drawn from its display list -- but the
+     * App lays it out to fill this surface, rasterises it there, and feeds it
+     * the surface's input instead of the canvas's. The SDL desktop without a
+     * browser uses it for the page beside its rail and for the page's pop-out
+     * window (ui/torirs_chrome_surface_sdl.c). NULL on every other executor.
+     *
+     * surface_size: the page's surface in pixels; 0 while it has none.
+     * surface_input: that surface's input since the last call; 0 for none.
+     * surface_present: the page's picture, `width` x `height` ARGB, copied.
+     */
+    int (*surface_size)(void* user, int* out_w, int* out_h);
+    int (*surface_input)(void* user, struct ToriRSChromeSurfaceInput* out);
+    void (*surface_present)(void* user, uint32_t const* argb, int width, int height);
 };
 
 /**
@@ -680,6 +722,23 @@ ToriRSChromeExec_Browser(void* platform);
  *  description). Exit only: a later ToriRSChromeExec_Browser starts afresh. */
 void
 ToriRSChromeExec_BrowserShutdown(void);
+#endif
+
+#if defined(TORIRS_CHROME_SURFACE_SDL)
+/* ---- the SDL desktop's native rail and surface page --------------------- */
+
+/**
+ * BUFFER's page on a SURFACE, plus a rail drawn in the SDL chrome strip: the
+ * plugin chrome of an SDL desktop with no embedded browser. Not a kind of its
+ * own -- the bound kind stays TORIRS_CHROME_EXEC_BUFFER. main.c substitutes it
+ * for the plain BUFFER vtable.
+ */
+struct ToriRSChromeExec
+ToriRSChromeExec_SdlSurface(void* platform);
+
+/** Release the page picture it keeps for repaints. Exit only. */
+void
+ToriRSChromeExec_SdlSurfaceShutdown(void);
 #endif
 
 #if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)

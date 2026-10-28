@@ -801,6 +801,23 @@ fail:
     return NULL;
 }
 
+/* XP hosts exactly one control: no auxiliary top-level window, so no page
+ * view. The executor is told the window cannot open and the page stays
+ * docked (the pop-out button is never offered). */
+struct PlatformWin32Browser*
+PlatformWin32Browser_NewPageView(HWND parent, WCHAR const* bundle_root)
+{
+    (void)parent;
+    (void)bundle_root;
+    return NULL;
+}
+
+int
+PlatformWin32Browser_PageViewAvailable(void)
+{
+    return 0;
+}
+
 void
 PlatformWin32Browser_Free(struct PlatformWin32Browser* s)
 {

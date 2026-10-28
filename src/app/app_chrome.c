@@ -70,7 +70,8 @@ app_chrome_merged_prims(
      * the canvas as well would draw it twice. BUFFER is the only internal
      * presentation that consumes the display list here.
      */
-    if( win_count == 0 || app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
+    if( win_count == 0 || app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER ||
+        app_plugin_page_on_surface(app) )
     {
         *out_count = dbg_count;
         return dbg;
@@ -101,6 +102,111 @@ app_chrome_merged_prims(
     }
     *out_count = app->chrome_merged_count;
     return app->chrome_merged;
+}
+
+/*
+ * The plugin page on its SURFACE: the strip beside the SDL rail, or the page's
+ * pop-out window.
+ *
+ * The same display list the canvas would have drawn -- the window's prims, then
+ * its custom wells' -- through the same frame translator and software backend
+ * the canvas and the BMP dump use, so the page is pixel-for-pixel the in-canvas
+ * one. Only when something moved: the window's build serial, the custom wells'
+ * revision, or the surface's size (a pop-out, a docking, a window resize).
+ */
+void
+app_chrome_plugin_surface_present(struct App* app)
+{
+    struct UITreeEmitDesc desc;
+    struct ToriRSChromePrim const* win;
+    size_t pixels;
+    int win_count = 0;
+    int width = 0;
+    int height = 0;
+    int n;
+
+    assert(app);
+    if( !app_plugin_page_surface(app, &width, &height) ||
+        !app->plugin_exec.exec.surface_present )
+        return;
+    /* Before the scene exists there is nothing to raster with; the keys stay
+     * stale and the first frame that has one presents. */
+    if( !app->scene || !app->soft_chrome )
+        return;
+    if( app->plugin_surface_win == app->plugin_ui.build_serial &&
+        app->plugin_surface_panel == app->panel_overlay_revision &&
+        app->plugin_surface_w == width && app->plugin_surface_h == height )
+        return;
+
+    if( !app->plugin_surface_prims )
+    {
+        /* UI: the page's surface list; App_Shutdown frees it. */
+        app->plugin_surface_prims = ToriMem_Calloc(
+            ToriMem_Ui(), TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX,
+            sizeof(*app->plugin_surface_prims));
+        assert(app->plugin_surface_prims);
+    }
+    win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
+    n = win_count < TORIRS_CHROME_MAX_PRIMS ? win_count : TORIRS_CHROME_MAX_PRIMS;
+    if( n > 0 )
+        memcpy(app->plugin_surface_prims, win, (size_t)n * sizeof(*win));
+    for( int i = 0; i < app->panel_overlay_count &&
+                    n < TORIRS_CHROME_MAX_PRIMS + APP_PLUGIN_PANEL_OVERLAYS_MAX; i++ )
+        if( app_panel_overlay_to_chrome(app, i, &app->plugin_surface_prims[n]) )
+            n++;
+
+    pixels = (size_t)width * (size_t)height;
+    if( pixels > app->plugin_surface_pixel_capacity )
+    {
+        /* UI: the page's surface picture; App_Shutdown frees it. */
+        uint32_t* grown = ToriMem_Realloc(
+            ToriMem_Ui(), app->plugin_surface_pixels,
+            pixels * sizeof(*app->plugin_surface_pixels));
+        assert(grown);
+        app->plugin_surface_pixels = grown;
+        app->plugin_surface_pixel_capacity = pixels;
+    }
+
+    /* One debug-overlay descriptor, exactly what the emit pass builds for the
+     * canvas, with the faces and skin asked of the bridge directly: there is
+     * no overlay node behind a surface. */
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
+    desc.node_index = -1;
+    desc.debug_prims = app->plugin_surface_prims;
+    desc.debug_prim_count = n;
+    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] =
+        UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_SMALL);
+    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] =
+        UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_MENU);
+    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] =
+        UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
+    desc.debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
+        desc.debug_skin_atlas[i] = desc.debug_skin_scene_id >= 0 ? i : -1;
+    desc.clip.x = 0;
+    desc.clip.y = 0;
+    desc.clip.w = width;
+    desc.clip.h = height;
+    UITreeCmd_RenderToPixelsWith(
+        app->soft_chrome, app->scene, &desc, 1,
+        (int*)app->plugin_surface_pixels, width, height);
+    app->plugin_exec.exec.surface_present(
+        app->plugin_exec.exec.user, app->plugin_surface_pixels, width, height);
+    /* The surface is not in the canvas TORIRS_EXIT_BMP dumps: a headless run
+     * names its own file for it (each present overwrites the last). */
+    {
+        char const* dump = getenv("TORIRS_CHROME_SURFACE_BMP");
+        if( dump && dump[0] )
+            bmp_write_file(dump, (int*)app->plugin_surface_pixels, width, height);
+        if( getenv("TORIRS_CHROME_DEBUG") )
+            fprintf(stderr, "chrome: surface page presented %dx%d, %d prims\n", width, height, n);
+    }
+
+    app->plugin_surface_win = app->plugin_ui.build_serial;
+    app->plugin_surface_panel = app->panel_overlay_revision;
+    app->plugin_surface_w = width;
+    app->plugin_surface_h = height;
 }
 
 /*

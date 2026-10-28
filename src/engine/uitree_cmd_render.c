@@ -11,7 +11,8 @@
 #include <stdlib.h>
 
 void
-UITreeCmd_RenderToPixels(
+UITreeCmd_RenderToPixelsWith(
+    struct ToriPlatform_Renderer_Soft3D* soft,
     struct ToriDraw_Scene* scene,
     struct UITreeEmitDesc const* cmds,
     int cmd_count,
@@ -20,11 +21,12 @@ UITreeCmd_RenderToPixels(
     int height)
 {
     struct ToriRS_Frame frame;
-    struct ToriPlatform_Renderer_Soft3D* soft;
 
+    assert(soft);
     assert(scene);
     assert(pixels);
-    assert(width > 0 && height > 0);
+    assert(width > 0);
+    assert(height > 0);
     if( cmd_count > 0 )
         assert(cmds);
 
@@ -32,12 +34,25 @@ UITreeCmd_RenderToPixels(
     ToriRS_FrameSetScene(&frame, scene);
     ToriRS_FrameSetCanvas(&frame, width, height);
     ToriRS_FrameSetEmit(&frame, cmds, cmd_count);
+    ToriPlatform_Renderer_Soft3D_Init(soft, scene, pixels, width, height);
+    ToriPlatform_Renderer_Soft3D_RenderFrame(soft, &frame);
+}
+
+void
+UITreeCmd_RenderToPixels(
+    struct ToriDraw_Scene* scene,
+    struct UITreeEmitDesc const* cmds,
+    int cmd_count,
+    int* pixels,
+    int width,
+    int height)
+{
+    struct ToriPlatform_Renderer_Soft3D* soft;
 
     /* One shot: this renderer's caches have nothing to carry to a next frame,
      * so it lives no longer than the picture it draws. */
     soft = ToriPlatform_Renderer_Soft3D_New();
-    ToriPlatform_Renderer_Soft3D_Init(soft, scene, pixels, width, height);
-    ToriPlatform_Renderer_Soft3D_RenderFrame(soft, &frame);
+    UITreeCmd_RenderToPixelsWith(soft, scene, cmds, cmd_count, pixels, width, height);
     ToriPlatform_Renderer_Soft3D_Free(soft);
 }
 

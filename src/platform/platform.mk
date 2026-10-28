@@ -835,7 +835,9 @@ PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 # BUFFER sink. In particular, Linux has no embedded browser transport and the
 # old Android-specific command queue is not a third presentation protocol.
 # SDL, GDI and Android executors have been removed; no platform may reintroduce
-# their source or advertise their old availability macros.
+# their source or advertise their old availability macros. (The SDL desktop's
+# native rail below is not one: it is BUFFER's page on a surface, see
+# PLATFORM_CHROME_SURFACE_SRC.)
 ifeq ($(PLATFORM),web)
 # The web lane builds on SDL but presents through the DOM: a second SDL window
 # in a browser tab is not a thing, and the page can host real form controls,
@@ -883,6 +885,21 @@ else ifeq ($(PLATFORM_CHROME_EXEC_SRC),ui/torirs_chrome_exec_winbrowser.c)
   endif
 else ifneq ($(strip $(PLATFORM_CHROME_EXEC_CFLAGS)),)
   $(error BUFFER plugin chrome has no availability define; got '$(PLATFORM_CHROME_EXEC_CFLAGS)')
+endif
+
+# An SDL desktop with no embedded browser -- Linux, or a macOS probe built with
+# PLATFORM_CHROME_EXEC_SRC= PLATFORM_CHROME_EXEC_CFLAGS= -- still owes the user
+# a way into the plugins: a RuneLite-style rail drawn into the SDL chrome strip,
+# with BUFFER's page beside it or popped out into the aux window
+# (ui/torirs_chrome_surface_sdl.c). Not an executor kind: the bound kind stays
+# BUFFER, and main.c substitutes this vtable for the plain one.
+PLATFORM_CHROME_SURFACE_SRC :=
+PLATFORM_CHROME_SURFACE_CFLAGS :=
+ifeq ($(strip $(PLATFORM_CHROME_EXEC_SRC)),)
+  ifneq ($(filter $(PLATFORM),macos linux),)
+    PLATFORM_CHROME_SURFACE_SRC := ui/torirs_chrome_surface_sdl.c
+    PLATFORM_CHROME_SURFACE_CFLAGS := -DTORIRS_CHROME_SURFACE_SDL=1
+  endif
 endif
 
 # What OPT=0 means for this lane's -O level. -O0 everywhere except the web

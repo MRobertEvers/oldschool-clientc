@@ -318,6 +318,30 @@ bool PlatformWindow_PluginBrowserBitmapUrl(
     char* out_url,
     int capacity);
 
+/*
+ * The page's pop-out window.
+ *
+ * The rail stays beside the game; the PAGE can move into a top-level window of
+ * its own. The host opens a second document of the same bundle there
+ * (modern.html#page, which draws no rail) and, while it is open, delivers every
+ * envelope PluginBrowserSend is given to BOTH documents: each knows from
+ * `page.popout` which of them holds the page. Their messages come back on the
+ * one PluginBrowserPoll queue, the page view's stamped `"view":"page"`.
+ *
+ * The user closing that window is reported on the same queue, as the protocol
+ * message a dock button would have sent: {"protocol":1,"type":"page.popout",
+ * "popout":false}. The executor answers it with PopOut(false), which is what
+ * actually takes the window down.
+ */
+
+/** Can this host open the pop-out window at all? XP's MSHTML cannot. */
+bool PlatformWindow_PluginBrowserCanPopOut(struct PlatformWindow const* platform);
+
+/** Open the pop-out window (or, while it is open, retitle it) with `out`;
+ *  take it down without. @return false when it could not be opened. */
+bool PlatformWindow_PluginBrowserPopOut(
+    struct PlatformWindow* platform, bool out, char const* title);
+
 /** Raw rail-local pointer/wheel input, available collapsed and expanded. It is
  * a separate queue so rail events can reach neither page hit-testing nor the
  * game's command bus. */
