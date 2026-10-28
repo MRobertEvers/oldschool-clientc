@@ -60,6 +60,11 @@ APPEARANCE = {"v2": "APPEARANCE_ENC_V2", "v3": "APPEARANCE_ENC_V3", "v4": "APPEA
 # A login driver's vtable; `lc` is the classic handshake net.c drives itself
 # (net/login/login_lc.c), which a table states with no vtable.
 LOGIN = {"osrs": "&g_login_osrs_vtable", "lc": "NULL"}
+# RSProt's Old School families: the desktop client's (osrs) and the Android
+# client's (osrsm), which speaks the same game under its own opcodes, layouts
+# and info-stream bits and logs in the same way. A table in either is a
+# GAMEPROTO_REVISION_OSRS table of its number.
+OSRS_FAMILIES = ("osrs", "osrsm")
 
 
 # --- inputs -----------------------------------------------------------------
@@ -341,7 +346,7 @@ class Gen:
         if self.errors:
             raise SystemExit("%s:\n  %s" % (rev, "\n  ".join(self.errors)))
 
-        if self.family == "osrs":
+        if self.family in OSRS_FAMILIES:
             npc = self.conf["npc_info"]
             for fn in ("player_info_" + rev, "npc_info_small_%s_%s" % (npc, rev), "npc_info_large_%s_%s" % (npc, rev)):
                 if fn not in self.streams:
@@ -421,7 +426,7 @@ class Gen:
               "    return out_name > 0 && out_name < PKTOUT_NAME_COUNT && k_out[out_name] != NULL;", "}", "",
               "static int", "appear(uint8_t const* d, int l, struct PktPlayerAppearance* o)", "{",
               "    return PktPlayerAppearance_DecodeAs(o, %s, d, l);" % APPEARANCE[self.conf["appearance"]], "}", ""]
-        if self.family == "osrs":
+        if self.family in OSRS_FAMILIES:
             o += ["static int", "pinfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",
                   "    return proto_info_player_read(player_info_%s, d, l, o);" % rev, "}", "",
                   "static int", "ninfo(uint8_t const* d, int l, struct RsprotInfoList* o)", "{",

@@ -166,8 +166,8 @@ test_range_table_covers_every_revision(void)
 
     /* 13 runs over 4 layouts from RSProt, plus revisions 240 and 241 from
      * RSProx (IfOpenTopDecoder: g2Alt3 at 240 -- v2 again -- and 239's g2Alt2
-     * at 241). */
-    CHECK_EQ(n, 15);
+     * at 241), plus osrsm241, the Android client's own run. */
+    CHECK_EQ(n, 16);
 
     for (int rev = 221; rev <= 239; rev++)
         CHECK(rsprot_version_pick(r, n, rsprot_osrs(rev)) != NULL);

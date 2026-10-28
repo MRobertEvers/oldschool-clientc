@@ -51,6 +51,14 @@ struct GameProtoRevTable;
 #define RSPROX_RECORDING_PACKET_GROUP_END 0xFE
 #define RSPROX_RECORDING_RECONNECT 0xFF
 
+/*
+ * The header's clientType (the login block's, as the client sent it) for the
+ * Enhanced mobile clients, whose protocol is RSProt's osrsm family rather than
+ * the desktop's (RSProx AndroidProtocol.isMobile).
+ */
+#define RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID 7
+#define RSPROX_RECORDING_CLIENT_ENHANCED_IOS 8
+
 /** One server->client packet. */
 struct RsproxRecordingFrame
 {
@@ -145,7 +153,7 @@ RsproxRecording_Index(
 /**
  * Put the local index each RECONNECT continues under into its frame's
  * reconnect_index (net/proto/proto_reconnect.c), with `rev` the
- * generated table for the recording's revision (GameProtoRev_Osrs).
+ * generated table for the recording (RsproxRecording_Rev).
  * Returns how many moved the player to a new slot. Leaves the session's
  * player table as the last trial left it: the caller re-seeds before
  * decoding.
@@ -154,9 +162,14 @@ int
 rsprox_recording_resolve_reconnects(
     struct GameProtoRevTable const* rev, struct RsproxRecording* rec);
 
-/** The client protocol this recording's revision is played with ("osrs<N>"):
- *  any OSRS revision with a generated executor (src/net/rev/revisions.ini),
- *  or NULL for one without. */
+/** The client protocol this recording is played with: its revision's
+ *  generated executor (src/net/rev/revisions.ini) for the client that made it
+ *  -- "osrs<N>", or "osrsm<N>" for the Enhanced Android client -- or NULL
+ *  when there is none. */
+struct GameProtoRevTable const*
+RsproxRecording_Rev(struct RsproxRecording const* rec);
+
+/** RsproxRecording_Rev's name, or NULL. */
 char const*
 RsproxRecording_RevName(struct RsproxRecording const* rec);
 

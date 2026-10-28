@@ -16,7 +16,8 @@
  * revision-agnostic and key on canonical GameProtoPktName /
  * GameProtoPktOutName values.
  *
- * Two families: OSRS (osrs222-241) and LostCity's, RSProt's `rs` (rs245.2,
+ * Two families: OSRS (osrs222-241, and osrsm241, the Enhanced Android
+ * client's protocol at 241) and LostCity's, RSProt's `rs` (rs245.2,
  * the build the v0 client targets; rs254, the authoritative LostCity_Server,
  * Engine-TS branch 254; rs289, its January-2005 branch).
  */
@@ -272,7 +273,7 @@ struct GameProtoRevTable
     int (*encodes)(int out_name);
 };
 
-/** Resolve a revision by name: "osrs<N>" or "rs245_2" / "rs254" / "rs289" (a
+/** Resolve a revision by name: "osrs<N>", "osrsm<N>" or "rs245_2" / "rs254" / "rs289" (a
  *  generated executor each), or a name manifests already carry -- "lc254",
  *  "lc289", "lc245_2" for the rs ones, "rsprox<N>" for "osrs<N>"; NULL when
  *  unknown. */
@@ -283,6 +284,12 @@ GameProtoRev_ByName(char const* name);
  *  when the client does not support it (src/net/rev/revisions.ini). */
 struct GameProtoRevTable const*
 GameProtoRev_Osrs(int revision);
+
+/** The Enhanced Android client's table for OSRS revision `revision`
+ *  (src/net/rev/osrsm<N>/, RSProt's osrsm family), or NULL when the client
+ *  does not support it. Its number is `revision`, as the desktop table's is. */
+struct GameProtoRevTable const*
+GameProtoRev_OsrsMobile(int revision);
 
 /** A generated revision by its name ("osrs239", "rs254"), or NULL. */
 struct GameProtoRevTable const*

@@ -5,7 +5,8 @@
  *
  *   make -C src rsprox-multirev-check RECORDINGS="a.bin.gz b.bin.gz ..."
  *
- * Every recording is framed with its header's revision (GameProtoRev_Osrs):
+ * Every recording is framed with its header's revision, on the table its
+ * client speaks (RsproxRecording_Rev: osrs<N>, or osrsm<N> for a mobile one):
  * a frame that does not end at the end of the file fails the recording outright,
  * which is the strongest check there is on the prot tables -- one wrong size
  * shifts every packet after it. Then each server packet is decoded the way the
@@ -97,17 +98,18 @@ static struct
 {
     char const* prot;
     RsprotNpcInfoReadFn (*osrs)(RsprotRev rev);
+    RsprotNpcInfoReadFn (*osrsm)(RsprotRev rev);
 } const k_npc_streams[] = {
-    { "NPC_INFO_SMALL_V5", npc_info_small_v5_osrs },
-    { "NPC_INFO_LARGE_V5", npc_info_large_v5_osrs },
-    { "NPC_INFO_SMALL_V6", npc_info_small_v6_osrs },
-    { "NPC_INFO_LARGE_V6", npc_info_large_v6_osrs },
+    { "NPC_INFO_SMALL_V5", npc_info_small_v5_osrs, NULL },
+    { "NPC_INFO_LARGE_V5", npc_info_large_v5_osrs, NULL },
+    { "NPC_INFO_SMALL_V6", npc_info_small_v6_osrs, npc_info_small_v6_osrsm },
+    { "NPC_INFO_LARGE_V6", npc_info_large_v6_osrs, npc_info_large_v6_osrsm },
 };
 
 /* `prot`'s entry point at `revision`, or NULL when `prot` is not an npc
  * stream. */
 static RsprotNpcInfoReadFn
-npc_reader(char const* prot, int revision)
+npc_reader(char const* prot, RsprotRev revision)
 {
     for( size_t i = 0; i < sizeof(k_npc_streams) / sizeof(k_npc_streams[0]); i++ )
     {
@@ -115,7 +117,13 @@ npc_reader(char const* prot, int revision)
 
         if( strcmp(k_npc_streams[i].prot, prot) != 0 )
             continue;
-        fn = k_npc_streams[i].osrs(rsprot_osrs(revision));
+        if( rsprot_rev_family(revision) == RSPROT_FAMILY_OSRSM )
+        {
+            assert(k_npc_streams[i].osrsm);
+            fn = k_npc_streams[i].osrsm(revision);
+        }
+        else
+            fn = k_npc_streams[i].osrs(revision);
         assert(fn);
         return fn;
     }
@@ -174,14 +182,14 @@ static FILE* g_dump;
 
 /* MULTIREV_WHY: where a prot's codec stopped, for its first failures. */
 static void
-explain_codec(int revision, char const* prot, uint8_t const* data, int len)
+explain_codec(RsprotRev revision, char const* prot, uint8_t const* data, int len)
 {
     static union
     {
         long double align;
         uint8_t bytes[1 << 20];
     } scratch;
-    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, rsprot_osrs(revision));
+    RsprotCodecFn fn = rsprot_registry_resolve(prot, RSPROT_REG_OUT, revision);
     RsprotExec x;
     RsprotBuf b;
 
@@ -192,7 +200,8 @@ explain_codec(int revision, char const* prot, uint8_t const* data, int len)
     rsprot_buf_wrap_read(&b, data, len);
     rsprot_exec_decode(&x, &b);
     fn(&x, &scratch);
-    printf("  why %s rev %d: %d bytes, read %d, exec ok %d, buf err %d; head:", prot, revision, len,
+    printf("  why %s rev %d: %d bytes, read %d, exec ok %d, buf err %d; head:", prot,
+           rsprot_rev_number(revision), len,
            (int)b.rpos, rsprot_exec_ok(&x), b.err);
     for( int k = 0; k < len && k < 24; k++ )
         printf(" %02x", data[k]);
@@ -204,11 +213,14 @@ static RsprotWorldEntityInfoReadFn (*const k_worldentity[8])(RsprotRev rev) = {
     [3] = worldentity_info_v3_osrs, [4] = worldentity_info_v4_osrs, [5] = worldentity_info_v5_osrs,
     [6] = worldentity_info_v6_osrs, [7] = worldentity_info_v7_osrs,
 };
+static RsprotWorldEntityInfoReadFn (*const k_worldentity_osrsm[8])(RsprotRev rev) = {
+    [7] = worldentity_info_v7_osrsm,
+};
 
 /* `d`'s codec at `revision` over the payload: 1 decoded and consumed it
  * exactly, 0 did not, -1 RSProt has no codec for it there. */
 static int
-validate(int revision, RsprotProtDef const* d, uint8_t const* data, int len)
+validate(RsprotRev revision, RsprotProtDef const* d, uint8_t const* data, int len)
 {
     static union
     {
@@ -216,7 +228,7 @@ validate(int revision, RsprotProtDef const* d, uint8_t const* data, int len)
         uint8_t bytes[256 * 1024];
     } scratch;
     char const* prot = d->name;
-    RsprotCodecFn fn = rsprot_registry_resolve_def(d, RSPROT_REG_OUT, rsprot_osrs(revision), &prot);
+    RsprotCodecFn fn = rsprot_registry_resolve_def(d, RSPROT_REG_OUT, revision, &prot);
     RsprotExec x;
     RsprotBuf b;
 
@@ -236,6 +248,7 @@ check_one(char const* path, int verbose)
     struct RsproxRecording rec;
     struct GameProtoRevTable const* rev;
     RsprotRevTable const* prots;
+    RsprotRev rr;
     char err[256];
     int failures = 0;
 
@@ -245,21 +258,23 @@ check_one(char const* path, int verbose)
         printf("FAIL %s: %s\n", path, err);
         return 1;
     }
-    rev = GameProtoRev_Osrs(rec.revision);
-    prots = rsprot_rev_table(rsprot_osrs(rec.revision));
+    rev = RsproxRecording_Rev(&rec);
     if( !rev )
     {
-        printf("SKIP %s: revision %d is outside 227-241\n", path, rec.revision);
+        printf("SKIP %s: revision %d (client type %d) has no executor\n", path, rec.revision,
+               rec.client_type);
         RsproxRecording_Free(&rec);
         return 0;
     }
+    rr = rsprot_rev_parse(rev->name);
+    prots = rsprot_rev_table(rr);
     if( RsproxRecording_Index(&rec, rev, err, sizeof(err)) != 0 )
     {
         printf("FAIL %s (rev %d): %s\n", path, rec.revision, err);
         RsproxRecording_Free(&rec);
         return 1;
     }
-    printf("%s: rev %d, %d server packets, %d client, %d ticks\n", path, rec.revision,
+    printf("%s: %s, %d server packets, %d client, %d ticks\n", path, rev->name,
            rec.frame_count, rec.client_packet_count, rec.tick_count);
 
     rsprox_recording_resolve_reconnects(rev, &rec);
@@ -368,13 +383,14 @@ check_one(char const* path, int verbose)
         else if( strncmp(d->name, "WORLDENTITY_INFO_V", 18) == 0 )
         {
             int v = d->name[strlen(d->name) - 1] - '0';
+            int const mobile = rsprot_rev_family(rr) == RSPROT_FAMILY_OSRSM;
 
-            k_worldentity[v](rsprot_osrs(rec.revision))(data, len, &g_list);
+            (mobile ? k_worldentity_osrsm : k_worldentity)[v](rr)(data, len, &g_list);
             ok = rsprot_info_list_complete(&g_list);
             if( ok && parsed <= 0 )
                 t->arm++;
         }
-        else if( (npc_read = npc_reader(d->name, rec.revision)) != NULL )
+        else if( (npc_read = npc_reader(d->name, rr)) != NULL )
         {
             int n = proto_info_npc_read(npc_read, data, len, &g_list);
 
@@ -387,11 +403,11 @@ check_one(char const* path, int verbose)
         }
         else
         {
-            ok = validate(rec.revision, d, data, len);
+            ok = validate(rr, d, data, len);
             if( ok < 0 && packet.packet_type != PKT_NAME_NONE )
                 ok = parsed > 0; /* no codec: the special parse is the check */
             if( ok == 0 && getenv("MULTIREV_WHY") && t->failed < 2 )
-                explain_codec(rec.revision, d->name, data, len);
+                explain_codec(rr, d->name, data, len);
         }
         if( packet.packet_type == PKT_NAME_NONE )
             t->dropped++;

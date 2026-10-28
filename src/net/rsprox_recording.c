@@ -373,19 +373,31 @@ RsproxRecording_Index(
     return 0;
 }
 
-char const*
-RsproxRecording_RevName(struct RsproxRecording const* rec)
+struct GameProtoRevTable const*
+RsproxRecording_Rev(struct RsproxRecording const* rec)
 {
-    struct GameProtoRevTable const* rev;
-
     assert(rec);
     /* Every revision plays on its generated executor (src/net/rev/osrs<N>/),
      * whose codecs RSProt states from the same RSProx that wrote it. The
      * cache is this tree's rev 241, so an older recording's ids can name
      * different things than they did when it was recorded (seq 579 is an axe
      * special here): the packets decode exactly, the content they point at may
-     * not. */
-    rev = GameProtoRev_Osrs(rec->revision);
+     * not.
+     *
+     * A recording of an Enhanced mobile client is that client's protocol,
+     * not the desktop's: its opcodes, payloads and info-stream bits are its
+     * own (src/net/rev/osrsm<N>/). */
+    if( rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_ANDROID ||
+        rec->client_type == RSPROX_RECORDING_CLIENT_ENHANCED_IOS )
+        return GameProtoRev_OsrsMobile(rec->revision);
+    return GameProtoRev_Osrs(rec->revision);
+}
+
+char const*
+RsproxRecording_RevName(struct RsproxRecording const* rec)
+{
+    struct GameProtoRevTable const* rev = RsproxRecording_Rev(rec);
+
     return rev ? rev->name : NULL;
 }
 

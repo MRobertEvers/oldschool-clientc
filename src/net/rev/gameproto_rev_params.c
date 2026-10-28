@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -42,14 +43,21 @@ static struct GameProtoRevTable const* (*const k_generated[])(void) = {
 struct GameProtoRevTable const*
 GameProtoRev_Osrs(int revision)
 {
-    for( size_t i = 0; i < sizeof(k_generated) / sizeof(k_generated[0]); i++ )
-    {
-        struct GameProtoRevTable const* t = k_generated[i]();
+    /* By name, not by number: the Android client's table (osrsm<N>) is an
+     * OSRS table of the same number, and this is the desktop client's. */
+    char name[16];
 
-        if( t->revision == GAMEPROTO_REVISION_OSRS && t->number == revision )
-            return t;
-    }
-    return NULL;
+    snprintf(name, sizeof(name), "osrs%d", revision);
+    return GameProtoRev_GeneratedByName(name);
+}
+
+struct GameProtoRevTable const*
+GameProtoRev_OsrsMobile(int revision)
+{
+    char name[16];
+
+    snprintf(name, sizeof(name), "osrsm%d", revision);
+    return GameProtoRev_GeneratedByName(name);
 }
 
 struct GameProtoRevTable const*

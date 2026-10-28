@@ -453,6 +453,21 @@ test_replay_refuses_what_it_cannot_frame(void)
         TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrs222") == 0);
         RsproxRecording_Free(&rec);
     }
+    /* The Enhanced mobile clients (clientType 7, 8) speak their own protocol,
+     * osrsm<N>; the desktop's table stays GameProtoRev_Osrs. */
+    for( int type = 7; type <= 8; type++ )
+    {
+        struct Rec r = build_recording(rev);
+
+        r.data[12] = (uint8_t)type;
+        TEST_CHECK(RsproxRecording_Open(&rec, r.data, r.len, err, sizeof(err)) == 0);
+        TEST_CHECK(rec.client_type == type);
+        TEST_CHECK(strcmp(RsproxRecording_RevName(&rec), "osrsm241") == 0);
+        TEST_CHECK(RsproxRecording_Rev(&rec) == GameProtoRev_OsrsMobile(241));
+        TEST_CHECK(RsproxRecording_Rev(&rec)->number == 241);
+        RsproxRecording_Free(&rec);
+    }
+    TEST_CHECK(strcmp(GameProtoRev_Osrs(241)->name, "osrs241") == 0);
     {
         struct Rec r = build_recording(rev);
 
