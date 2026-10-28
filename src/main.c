@@ -4250,6 +4250,40 @@ frame_loop_step(void)
             }
 
             /*
+             * TORIRS_SIM_SAFE_AREA="frame,left,top,right,bottom": the device's
+             * safe area (TORIRS_CMD_SAFE_AREA), in window pixels of the window
+             * the client has then, pushed once at that frame. Only a phone's
+             * browser reports one, so this is the headless way to lay the mobile
+             * toplevel out around a notch -- and to dump the boxes it gets.
+             */
+            {
+                static int safe_init = 0;
+                static long safe_frame = -1;
+                static long safe_px[4];
+                if( !safe_init )
+                {
+                    char const* spec = getenv("TORIRS_SIM_SAFE_AREA");
+                    safe_init = 1;
+                    if( spec && *spec &&
+                        sscanf(spec, "%ld,%ld,%ld,%ld,%ld", &safe_frame, &safe_px[0],
+                               &safe_px[1], &safe_px[2], &safe_px[3]) != 5 )
+                        safe_frame = -1;
+                }
+                if( safe_frame >= 0 && frame_count >= safe_frame )
+                {
+                    struct ToriRS_CmdSafeArea area = {
+                        (int32_t)safe_px[0], (int32_t)safe_px[1], (int32_t)safe_px[2],
+                        (int32_t)safe_px[3], app.client_scale.window_w, app.client_scale.window_h
+                    };
+                    TORIRS_REPORT(
+                        "sim_safe_area: %ld,%ld,%ld,%ld of %dx%d\n", safe_px[0], safe_px[1],
+                        safe_px[2], safe_px[3], (int)area.width, (int)area.height);
+                    CmdBus_PushSafeArea(&bus, &area);
+                    safe_frame = -1;
+                }
+            }
+
+            /*
              * TORIRS_SIM_SONG="frame,id": start a music track at that frame.
              *
              * A track is server-driven -- a content script's `midi_song` -- so
@@ -8538,7 +8572,16 @@ main(
          * session, which the compositor then magnifies -- the frame looks
          * scaled and nothing downstream can tell that it was. */
 #if defined(TORIRS_PLATFORM_WEB)
-        if( cfg.hidpi )
+        /* A phone draws at device pixels whatever the manifest says. Its canvas
+         * is lowered to the 503-row floor (App_CanvasFloorHeight), so the
+         * rasteriser's cost is that canvas either way; the choice is only
+         * whether the browser magnifies the finished frame 3x, or the present
+         * does it into a device-sized buffer. A frame of 1092 columns put into
+         * a 932-point backbuffer first drops every seventh row and column of
+         * every glyph. */
+        if( PlatformWeb_MobileDevice() )
+            PlatformWindow_SetWantHighDPI(true);
+        else if( cfg.hidpi )
             PlatformWindow_SetWantHighDPI(cfg.hidpi > 0);
 #else
         /*

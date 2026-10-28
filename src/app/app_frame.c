@@ -290,6 +290,10 @@ app_drain_command(
                 }
             }
             break;
+        case TORIRS_CMD_SAFE_AREA:
+            if( header.length >= sizeof(struct ToriRS_CmdSafeArea) )
+                App_SetSafeArea(app, (struct ToriRS_CmdSafeArea const*)payload);
+            break;
         case TORIRS_CMD_KEYBOARD_INSET:
             if( header.length >= sizeof(struct ToriRS_CmdKeyboardInset) )
             {

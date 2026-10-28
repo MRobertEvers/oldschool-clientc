@@ -231,6 +231,15 @@ CmdBus_PushKeyboardInset(
 }
 
 int
+CmdBus_PushSafeArea(
+    struct ToriRS_CmdBus* bus,
+    struct ToriRS_CmdSafeArea const* area)
+{
+    assert(area);
+    return CmdBus_Push(bus, TORIRS_CMD_SAFE_AREA, area, sizeof(*area));
+}
+
+int
 CmdBus_PushNetStatus(
     struct ToriRS_CmdBus* bus,
     int32_t status)

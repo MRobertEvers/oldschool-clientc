@@ -275,6 +275,15 @@ app_plugin_popout_nav_decide_rail(struct App* app)
         nav->mode == TORIRS_PLUGIN_NAV_AUTO &&
         UITree_RoleFind(&app->ui_roles, APP_PLUGIN_NAV_ROLE) != 0;
 
+    /* A phone has no rail: the toplevel's own stones and the lane launcher
+     * carry the plugins, and a rail beside the canvas took a strip of width
+     * the mobile toplevel lays its side panel and main modal out in. */
+    if( CS2VM2_OnMobile() )
+    {
+        nav->unusable_ticks = 0;
+        nav->rail_hidden = 1;
+        return;
+    }
     if( nav->active || !declared )
     {
         nav->unusable_ticks = 0;

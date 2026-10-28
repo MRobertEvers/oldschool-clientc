@@ -256,7 +256,12 @@ int
 App_CanvasFloorHeight(struct App const* app)
 {
     int plugin_min_w = 0;
-    int min_h = CS2VM2_OnMobile() ? APP_CANVAS_MIN_H_MOBILE : APP_CANVAS_MIN_H;
+    /* A phone too: Jagex's app sizes its canvas to 503 rows (a 1290-pixel
+     * iPhone landscape draws 2.56 device pixels to the canvas pixel), and the
+     * mobile toplevel's scripts are written against that height -- below 503
+     * toplevel_side_customise (919) pins the side panel to the bottom corner
+     * and the main modal has no room beside it. */
+    int min_h = APP_CANVAS_MIN_H;
 
     assert(app);
     /* Height only: the width floor already carries the frame's own and the
@@ -405,39 +410,48 @@ App_SetHighDpiAuto(
 }
 
 /*
- * The mobile client, lowered to fit: a whole step, not the fraction.
- *
- * The cache's own settings script sets a phone's interface scale to 400%
- * (deviceoption 27), which no phone holds, so ClientScale_LowerToFloor lowers
- * it to exactly what fits -- 116% on an iPhone in landscape. Nearest-neighbour
- * at a fraction draws some font pixels twice and others once, and the chat
- * reads as broken letters. From 100% up the whole step at or below the fit
- * keeps every font pixel one size; below 100% there is none. Desktop keeps
- * the exact fit (a Retina laptop's 147% is a size its player chose), so this
- * is the mobile client's alone.
+ * A phone's canvas is the frame's floor, exactly: as many rows as the 503 the
+ * mobile toplevel is written against, at whatever scale fills the screen with
+ * them -- which is what Jagex's app draws (a 1290-pixel iPhone landscape is
+ * 1092x503 at 2.56 device pixels to the canvas pixel). Raised as well as
+ * lowered: the cache's own settings ask a phone for 400%, but only after
+ * login, and at the title screen's 100% of device pixels the 765x503 title sat
+ * in a corner of a 2796x1290 canvas.
  */
 static void
-app_mobile_whole_step(
+app_mobile_fit_floor(
     struct ClientScaleSettings const* settings,
+    int floor_w,
+    int floor_h,
     int window_w,
     int window_h,
     struct ClientScaleLayout* layout)
 {
-    int const density = ClientScale_LayoutDensityPercent(settings);
-    int whole;
+    int fit;
+    int fit_h;
 
     assert(settings);
     assert(layout);
-    if( !CS2VM2_OnMobile() || !layout->lowered_to_fit ||
-        settings->output_filter != CLIENT_SCALE_FILTER_NEAREST || layout->percent < 100 )
+    assert(floor_w > 0);
+    assert(floor_h > 0);
+    if( !CS2VM2_OnMobile() )
         return;
-    whole = layout->percent / 100 * 100;
-    if( whole == layout->percent )
-        return;
-    layout->percent = whole;
-    layout->shown_percent = (int)((long long)whole * 100 / density);
-    layout->w = (int)((long long)window_w * 100 / whole);
-    layout->h = (int)((long long)window_h * 100 / whole);
+    fit = (int)((long long)window_w * 100 / floor_w);
+    fit_h = (int)((long long)window_h * 100 / floor_h);
+    if( fit_h < fit )
+        fit = fit_h;
+    if( fit < 1 )
+        fit = 1;
+    layout->lowered_to_fit = fit < layout->percent;
+    layout->percent = fit;
+    layout->shown_percent =
+        (int)((long long)fit * 100 / ClientScale_LayoutDensityPercent(settings));
+    layout->w = (int)((long long)window_w * 100 / fit);
+    layout->h = (int)((long long)window_h * 100 / fit);
+    if( layout->w < floor_w )
+        layout->w = floor_w;
+    if( layout->h < floor_h )
+        layout->h = floor_h;
 }
 
 int
@@ -467,7 +481,13 @@ App_ApplyWindowLayout(
         window_w,
         window_h,
         &app->client_scale.layout);
-    app_mobile_whole_step(&settings, window_w, window_h, &app->client_scale.layout);
+    app_mobile_fit_floor(
+        &settings,
+        App_CanvasFloorWidth(app),
+        App_CanvasFloorHeight(app),
+        window_w,
+        window_h,
+        &app->client_scale.layout);
     if( getenv("TORIRS_RESIZE_DEBUG") )
         TORIRS_REPORT(
             "resize: chose %d%% hidpi %d density %d limit %dx%d; window %dx%d -> buffer %dx%d at "
@@ -480,6 +500,52 @@ App_ApplyWindowLayout(
      * clamped per axis. @see platform/client_scale.h rule 5. */
     return app_set_canvas_size_exact(
         app, app->client_scale.layout.w, app->client_scale.layout.h);
+}
+
+int
+App_SetSafeArea(
+    struct App* app,
+    struct ToriRS_CmdSafeArea const* area)
+{
+    struct UITreeResizeHookSnapshot hooks[APP_RESIZE_HOOK_MAX];
+    int ids[APP_RESIZE_HOOK_MAX];
+    int count = 0;
+    int* px;
+
+    assert(app);
+    assert(area);
+    px = app->host.safe_area_px;
+    if( px[0] == area->left && px[1] == area->top && px[2] == area->right &&
+        px[3] == area->bottom && app->host.safe_area_window_w == area->width &&
+        app->host.safe_area_window_h == area->height )
+        return 0;
+    px[0] = area->left;
+    px[1] = area->top;
+    px[2] = area->right;
+    px[3] = area->bottom;
+    app->host.safe_area_window_w = area->width;
+    app->host.safe_area_window_h = area->height;
+    if( getenv("TORIRS_RESIZE_DEBUG") )
+        TORIRS_REPORT(
+            "safe area: %d,%d,%d,%d of %dx%d\n", area->left, area->top, area->right,
+            area->bottom, area->width, area->height);
+
+    /* No box changed size, so the trigger=true rule would select nobody; but
+     * every listener that read SAFEAREA_GET* laid itself out against the old
+     * answer. Run them all once, as a resize runs the ones it resized. */
+    if( app->tree && app->tree->component_count > 0 )
+    {
+        count = UITree_SnapshotResizeHooks(app->tree, hooks, APP_RESIZE_HOOK_MAX);
+        for( int i = 0; i < count; i++ )
+            ids[i] = hooks[i].component_id;
+        app_dispatch_resize_hook_ids(app, ids, count);
+        UITree_LayoutInvalidate(app->tree);
+        UITree_LayoutResolve(
+            app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    }
+    app->plugin_layout_dirty = 1;
+    app->need_redraw = 1;
+    return 1;
 }
 
 int

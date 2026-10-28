@@ -134,6 +134,17 @@ CreateTask_Dat2TitlePanelLoad(
     char const* archive_name,
     char const* sprite_name);
 
+/**
+ * The wide title backdrop (`titlewide.png`), from the BINARY table: the same
+ * half-and-mirror at the half's own width. @see ToriRS_TitleWidePanelFromPng.
+ * Registered under `sprite_name`. NULL when already loaded.
+ */
+struct ToriRS_Task*
+CreateTask_Dat2TitleWidePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name);
+
 struct ToriRS_Task*
 CreateTask_Dat2SpriteLoadByName(
     struct CacheProvider* provider,

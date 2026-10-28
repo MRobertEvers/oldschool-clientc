@@ -11,6 +11,11 @@
 #include "app/app_internal.h"
 #include "boot_telemetry.h"
 
+/* The title frame every era centres on the canvas: the deob's titleX is
+ * (canvasW - 765) / 2. Its braziers, and so the fire, sit at this frame's
+ * edges whatever backdrop is drawn behind it. */
+#define APP_TITLE_FRAME_W 765
+
 /* Private to this unit, declared up front so definition order is free. */
 static void
 app_login_set_client_identity(struct App* app);
@@ -110,6 +115,8 @@ app_title_flames_start(struct App* app)
     int scene_id;
     int frame_count = 0;
     int col_h;
+    int frame_w;
+    int frame_x;
 
     assert(app);
     if( app->flames || !app->provider || !app->scene )
@@ -149,10 +156,15 @@ app_title_flames_start(struct App* app)
     col_h = panel->height < TORIRS_FLAME_COLUMN_H ? panel->height : TORIRS_FLAME_COLUMN_H;
 
     /* The two strips the reference burns in: hard against each edge of the
-     * panel, which is where the braziers are painted. */
+     * 765 frame, which is where title.jpg's braziers are painted. A wider
+     * backdrop (titlewide.png, 1089) is centred on the same frame, so the
+     * strips are cut that far in from its edges -- the deob blends its fire at
+     * titleX-22 and titleX+659 whichever backdrop is under it. */
+    frame_w = panel->width < APP_TITLE_FRAME_W ? panel->width : APP_TITLE_FRAME_W;
+    frame_x = (panel->width - frame_w) / 2;
     for( int side = 0; side < TORIRS_FLAME_SIDES; side++ )
     {
-        int src_x = side == TORIRS_FLAME_LEFT ? 0 : panel->width - TORIRS_FLAME_W;
+        int src_x = side == TORIRS_FLAME_LEFT ? frame_x : frame_x + frame_w - TORIRS_FLAME_W;
         column[side] = ToriMem_Alloc(ToriMem_Process(), (size_t)TORIRS_FLAME_W * col_h * sizeof(*column[side]));
         assert(column[side]);
         for( int y = 0; y < col_h; y++ )

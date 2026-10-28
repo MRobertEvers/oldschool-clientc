@@ -12,6 +12,9 @@ struct ToriRS_Sprite;
  */
 #define TORIRS_TITLE_PANEL_FORMAT "jpeg_panel"
 
+/** revconfig `format=` value selecting ToriRS_TitleWidePanelFromPng. */
+#define TORIRS_TITLE_WIDE_PANEL_FORMAT "png_wide_panel"
+
 /**
  * The title screen's backdrop, assembled from the half-panel the cache stores.
  *
@@ -30,6 +33,25 @@ struct ToriRS_Sprite;
  */
 struct ToriRS_Sprite*
 ToriRS_TitlePanelFromJpeg(
+    void const* data,
+    int data_size);
+
+/**
+ * The wide title backdrop, `titlewide.png`: the same half-and-mirror, at the
+ * width the half itself states (545x671 at rev 241, so 1089x671), for a
+ * canvas wider than the 765 frame.
+ *
+ * The deob loads it on the first title load (client.method1991, gated on
+ * Statics.field870) and draws it in place of title.jpg -- the two title.jpg
+ * halves become 1x1 blanks -- centred on the whole canvas at y 0, the mirror
+ * at the half's width less one: the same shared seam column. Jagex's phone app
+ * draws the same picture (green braziers, the stone face behind the logo).
+ *
+ * Returns NULL when the bytes are not a PNG this decoder reads. The caller
+ * owns the sprite.
+ */
+struct ToriRS_Sprite*
+ToriRS_TitleWidePanelFromPng(
     void const* data,
     int data_size);
 

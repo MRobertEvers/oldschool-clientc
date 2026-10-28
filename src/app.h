@@ -105,6 +105,7 @@ struct Dat1BuildCache;
 struct Dat2BuildCache;
 struct ToriRS_CmdBus;
 struct ToriRS_CmdHeader;
+struct ToriRS_CmdSafeArea;
 struct ToriRS_Network;
 struct RsprotInfoOp;
 struct Editor;
@@ -3140,14 +3141,6 @@ struct App
 #define APP_CANVAS_MIN_W 765
 #define APP_CANVAS_MIN_H 503
 
-/** The mobile client's smallest canvas height (clienttype 7/8, on_mobile).
- *  The mobile toplevel (toplevel_osm) is not a set of insets off 765x503, and
- *  a phone held landscape is 360 (Android) to 430 (iPhone Pro Max) points
- *  tall: under the desktop floor every phone lowered the interface to 72-85%,
- *  and a fractional nearest-neighbour shrink drops whole rows and columns of
- *  every glyph (the unreadable chat on an iPhone, 2026-10-27). */
-#define APP_CANVAS_MIN_H_MOBILE 360
-
 /**
  * Set the client canvas size — THE setter, and the only place the three copies
  * of it agree.
@@ -3370,6 +3363,17 @@ App_ApplyWindowLayout(
     struct App* app,
     int window_w,
     int window_h);
+
+/**
+ * The device's safe area changed (TORIRS_CMD_SAFE_AREA): record it for the
+ * SAFEAREA_GET* opcodes and give every onResize listener the layout pass a
+ * resize would, since the mobile toplevel's dodger (script 4731) and the
+ * gameframe's own resize script are what read it. Returns 1 if it changed.
+ */
+int
+App_SetSafeArea(
+    struct App* app,
+    struct ToriRS_CmdSafeArea const* area);
 
 /** The smallest canvas height the frame now on screen can be laid out in: the
  *  classic frame's, or a plugin layout's own. @see App_CanvasFloorWidth. */

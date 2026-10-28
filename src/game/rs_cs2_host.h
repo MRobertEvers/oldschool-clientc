@@ -1434,6 +1434,15 @@ struct RS_CS2Host
      *  27 (deviceoption 27 and the UIZOOM_* opcode family) cannot disagree. */
     bool client_scale_dirty;
 
+    /** The device's safe area (TORIRS_CMD_SAFE_AREA): window pixels in from
+     *  the left, top, right and bottom edge, and the window they are of. The
+     *  SAFEAREA_GET* opcodes scale them to the canvas at the time they are
+     *  asked, so an interface-scale change needs no second push. All 0 on a
+     *  desktop, where the opcodes answer the whole canvas. */
+    int safe_area_px[4];
+    int safe_area_window_w;
+    int safe_area_window_h;
+
     /** Backing SIDEBAR_CLEARWIDTH. There is no setter opcode and no live link yet from
      *  this host to the render-side camera (app->frame_view->world_camera.yaw, reached via
      *  the separate UITree host bus RS_CS2Host cannot see) — 0 (facing north)

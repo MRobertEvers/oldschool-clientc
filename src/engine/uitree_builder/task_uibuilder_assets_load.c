@@ -112,7 +112,8 @@ Task_UIBuilderAssetsLoad_Run(
             continue;
         else if(
             strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
-            strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 )
+            (strcmp(req->format, TORIRS_TITLE_PANEL_FORMAT) == 0 ||
+             strcmp(req->format, TORIRS_TITLE_WIDE_PANEL_FORMAT) == 0) )
             continue;
         else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
             /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
@@ -159,6 +160,14 @@ Task_UIBuilderAssetsLoad_Run(
              * name, and assembled by the same composite the dat1 lane uses. */
             PT_TASK_AWAITSELF_IF(
                 CreateTask_Dat2TitlePanelLoad(self->builder->provider, req->archive, req->name));
+        }
+        else if(
+            strcmp(req->table, "binary") == 0 && req->archive[0] != '\0' &&
+            strcmp(req->format, TORIRS_TITLE_WIDE_PANEL_FORMAT) == 0 )
+        {
+            /* The wide backdrop, the same table, built at its own width. */
+            PT_TASK_AWAITSELF_IF(CreateTask_Dat2TitleWidePanelLoad(
+                self->builder->provider, req->archive, req->name));
         }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {

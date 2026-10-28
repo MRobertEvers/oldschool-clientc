@@ -24,11 +24,21 @@
  * way in both eras.
  */
 
+/** Which composite the archive's bytes are built into. */
+enum Dat2TitlePanelKind
+{
+    /** title.jpg: ToriRS_TitlePanelFromJpeg. */
+    DAT2_TITLE_PANEL_JPEG,
+    /** titlewide.png: ToriRS_TitleWidePanelFromPng. */
+    DAT2_TITLE_PANEL_WIDE_PNG,
+};
+
 struct Task_Dat2TitlePanelLoad
 {
     struct ToriRS_Task task;
     struct pt pt;
     struct Dat2BuildCache* bc;
+    enum Dat2TitlePanelKind kind;
     /** Binary-table archive name, from revconfig `archive=`. */
     char archive_name[64];
     /** Provider name the composited panel is registered under. */
@@ -103,11 +113,16 @@ Task_Dat2TitlePanelLoad_Run(
         PT_EXIT(&task->pt);
     }
 
-    sprite = ToriRS_TitlePanelFromJpeg(archive->data, archive->data_size);
+    if( task->kind == DAT2_TITLE_PANEL_WIDE_PNG )
+        sprite = ToriRS_TitleWidePanelFromPng(archive->data, archive->data_size);
+    else
+        sprite = ToriRS_TitlePanelFromJpeg(archive->data, archive->data_size);
     RSCache_Dat2DiskArchiveFree(archive);
     if( !sprite )
     {
-        TORIRS_ERR("title panel: '%s' did not decode as a JPEG\n", task->archive_name);
+        TORIRS_ERR(
+            "title panel: '%s' did not decode as a %s\n", task->archive_name,
+            task->kind == DAT2_TITLE_PANEL_WIDE_PNG ? "PNG" : "JPEG");
         PT_EXIT(&task->pt);
     }
 
@@ -130,11 +145,12 @@ static struct ToriRS_TaskVTable Task_Dat2TitlePanelLoad_VTable = {
     .free = Task_Dat2TitlePanelLoad_Free,
 };
 
-struct ToriRS_Task*
-CreateTask_Dat2TitlePanelLoad(
+static struct ToriRS_Task*
+dat2_title_panel_task(
     struct CacheProvider* provider,
     char const* archive_name,
-    char const* sprite_name)
+    char const* sprite_name,
+    enum Dat2TitlePanelKind kind)
 {
     struct Task_Dat2TitlePanelLoad* task;
 
@@ -150,9 +166,28 @@ CreateTask_Dat2TitlePanelLoad(
     task->task.vtable = &Task_Dat2TitlePanelLoad_VTable;
     strcpy(task->task.name, "Dat2TitlePanelLoad");
     task->bc = (struct Dat2BuildCache*)provider;
+    task->kind = kind;
     strncpy(task->archive_name, archive_name, sizeof(task->archive_name) - 1);
     strncpy(task->sprite_name, sprite_name, sizeof(task->sprite_name) - 1);
     task->archive_id = -1;
     PT_INIT(&task->pt);
     return &task->task;
+}
+
+struct ToriRS_Task*
+CreateTask_Dat2TitlePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name)
+{
+    return dat2_title_panel_task(provider, archive_name, sprite_name, DAT2_TITLE_PANEL_JPEG);
+}
+
+struct ToriRS_Task*
+CreateTask_Dat2TitleWidePanelLoad(
+    struct CacheProvider* provider,
+    char const* archive_name,
+    char const* sprite_name)
+{
+    return dat2_title_panel_task(provider, archive_name, sprite_name, DAT2_TITLE_PANEL_WIDE_PNG);
 }

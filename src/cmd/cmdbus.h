@@ -99,6 +99,14 @@ enum ToriRS_CmdType
      * page executor was collapsed, so there is no executor intent queue to
      * carry it. No payload: it toggles the one shared plugin pane. */
     TORIRS_CMD_PLUGIN_CHROME_TOGGLE = 51,
+    /* -> App. The device's safe area: how far in from each edge of the game
+     * area its notch, rounded corners and home bar reach. In the same WINDOW
+     * pixels as WINDOW_RESIZE, with that window's size, so the host scales
+     * them to whatever canvas the interface scale makes of it. The canvas
+     * itself is drawn edge to edge; only the scripts that ask
+     * (SAFEAREA_GETMINX..GETMAXY) move the 2D UI in. Pushed on change;
+     * desktop backends never push it and every inset stays 0. */
+    TORIRS_CMD_SAFE_AREA = 52, /* struct ToriRS_CmdSafeArea */
 
     /* -> App, from a HOST rather than from a device.
      *
@@ -172,6 +180,18 @@ struct ToriRS_CmdNetStatus
 
 struct ToriRS_CmdWindowResize
 {
+    int32_t width;
+    int32_t height;
+};
+
+struct ToriRS_CmdSafeArea
+{
+    /** Window pixels in from each edge. */
+    int32_t left;
+    int32_t top;
+    int32_t right;
+    int32_t bottom;
+    /** The window those pixels are of. */
     int32_t width;
     int32_t height;
 };
@@ -368,6 +388,11 @@ int
 CmdBus_PushKeyboardInset(
     struct ToriRS_CmdBus* bus,
     int32_t bottom);
+
+int
+CmdBus_PushSafeArea(
+    struct ToriRS_CmdBus* bus,
+    struct ToriRS_CmdSafeArea const* area);
 
 int
 CmdBus_PushNetStatus(

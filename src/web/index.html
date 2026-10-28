@@ -193,6 +193,22 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
              env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
   }
+  /* A phone draws edge to edge, as Jagex's app does: the world fills the
+     notch and the corners, and only the 2D interface keeps clear of them --
+     the client is told the insets (torirsSafeArea) and the mobile toplevel's
+     own scripts read them back through SAFEAREA_GET*. */
+  html.mobile body.fullcanvas main { padding: 0; }
+  #safe-area-probe {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    visibility: hidden;
+    pointer-events: none;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+             env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  }
   body.fullcanvas #game-region { padding: 0; gap: 0; }
   body.fullcanvas .panel { display: none; }
   body.fullcanvas canvas#canvas { border: 0; }
@@ -446,7 +462,31 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
   // not see (a panel appearing, the fit turning on) is announced as one. The
   // re-entry into fit() finds nothing changed and stops there.
   globalThis.torirsPageSizesCanvas = () => body.classList.contains('fit');
+
+  // The safe area the client lays its 2D interface inside, in CSS pixels:
+  // [left, top, right, bottom]. Read off a probe padded by env(), since a
+  // script cannot ask for env() directly. Non-zero only where the canvas is
+  // drawn under the notch (a phone in full canvas); everywhere else the page
+  // already keeps the canvas clear and the client must not inset it twice.
+  // platform_sdl2.c web_safe_area_side scales it to the canvas's pixels.
+  const safeProbe = document.createElement('div');
+  safeProbe.id = 'safe-area-probe';
+  document.body.appendChild(safeProbe);
+  function readSafeArea() {
+    const edgeToEdge = mobileDevice && body.classList.contains('fullcanvas');
+    if (!edgeToEdge) {
+      globalThis.torirsSafeArea = [0, 0, 0, 0];
+      return;
+    }
+    const cs = window.getComputedStyle(safeProbe);
+    globalThis.torirsSafeArea = [cs.paddingLeft, cs.paddingTop, cs.paddingRight, cs.paddingBottom]
+      .map(v => parseFloat(v) || 0);
+  }
+  window.addEventListener('resize', readSafeArea);
+  window.addEventListener('orientationchange', readSafeArea);
+
   function fit() {
+    readSafeArea();
     const fullCanvas = body.classList.contains('fullcanvas');
     const fitting = fullCanvas || !!fullscreenElement();
     body.classList.toggle('fit', fitting);

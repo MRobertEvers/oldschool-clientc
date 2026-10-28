@@ -103,6 +103,8 @@ struct PlatformWindow
     struct ClientScaleSettings client_scale;
 #if defined(TORIRS_PLATFORM_WEB)
     bool web_client_scaling_told;
+    /** The safe area last pushed (TORIRS_CMD_SAFE_AREA). @see web_push_safe_area. */
+    struct ToriRS_CmdSafeArea web_safe_area;
 #endif
 
     /*
@@ -3040,6 +3042,48 @@ PlatformWeb_MobileDevice(void)
     return web_mobile_device();
 }
 
+/*
+ * The phone's safe area, in drawable pixels of the canvas: what the page
+ * measured of env(safe-area-inset-*) (index.html, torirsSafeArea, in CSS
+ * pixels, and all 0 unless the canvas is drawn edge to edge under them),
+ * scaled by the canvas's own drawable-to-CSS ratio. `side` is 0 left, 1 top,
+ * 2 right, 3 bottom.
+ */
+EM_JS(int, web_safe_area_side, (int side), {
+    const a = globalThis.torirsSafeArea;
+    const c = Module.canvas;
+    if (!a || !c)
+        return 0;
+    const box = c.getBoundingClientRect();
+    if (!box.width || !box.height)
+        return 0;
+    const scale = (side & 1) ? c.height / box.height : c.width / box.width;
+    return Math.round((a[side] || 0) * scale);
+});
+
+/* Pushed on change, like the keyboard's inset on Android: the notch moves only
+ * when the phone turns over. */
+static void
+web_push_safe_area(
+    struct PlatformWindow* platform,
+    struct ToriRS_CmdBus* bus)
+{
+    struct ToriRS_CmdSafeArea area;
+
+    assert(platform);
+    memset(&area, 0, sizeof(area));
+    area.left = web_safe_area_side(0);
+    area.top = web_safe_area_side(1);
+    area.right = web_safe_area_side(2);
+    area.bottom = web_safe_area_side(3);
+    sdl_drawable_size(platform, &area.width, &area.height);
+    if( memcmp(&area, &platform->web_safe_area, sizeof(area)) == 0 )
+        return;
+    platform->web_safe_area = area;
+    if( bus )
+        CmdBus_PushSafeArea(bus, &area);
+}
+
 EM_JS(int, web_soft_keyboard_page, (void), {
     return typeof globalThis.torirsSoftKeyboard === 'function' ? 1 : 0;
 });
@@ -3213,9 +3257,17 @@ PlatformWindow_SetCanvasFollowsWindow(
 
     /* The floor is a window constraint in both modes — see the header. SDL
      * rejects a non-positive minimum, so a caller that has no floor to state
-     * gets no constraint rather than an assert inside SDL. */
+     * gets no constraint rather than an assert inside SDL.
+     *
+     * Not in a browser, where the page sizes the canvas (as
+     * PlatformWindow_SetGameAreaFloor already says): SDL clamps the size it
+     * reports to the minimum, so a phone's 430-row page read as a 503-row
+     * window and the client drew a 503-row canvas squeezed into 430. A small
+     * page lowers the scale instead (ClientScale_LowerToFloor). */
+#if !defined(__EMSCRIPTEN__)
     if( min_w > 0 && min_h > 0 )
         SDL_SetWindowMinimumSize(platform->window, min_w, min_h);
+#endif
 
     if( !follow )
     {
@@ -4050,6 +4102,9 @@ PlatformWindow_PollCommands(
     /* A finger held perfectly still generates no events at all, so the long
      * press has to be given a chance to become a right click from out here. */
     ToriRS_TouchTick(&platform->touch, bus, (uint64_t)SDL_GetTicks());
+#if defined(TORIRS_PLATFORM_WEB)
+    web_push_safe_area(platform, bus);
+#endif
 }
 
 void

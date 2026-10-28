@@ -4239,23 +4239,48 @@ rs_cs2_settings_apply_cargo_privacy_dropdown(
     RS_CS2Host_QueueSettingsMirror(host, SAILING_CARGO_PRIVACY_VARBIT, choice);
 }
 
-/* Safe-area bounds (6220..6223, 6231). Desktop client, no notch/home indicator:
- * min corners are 0, max corners are the live canvas size (same source as
- * GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE). GETMAXY_ALT (6231) is the same
- * value as GETMAXY per the "alternative opcode used in some contexts" note. */
+/* Safe-area bounds (6220..6223, 6231): the canvas less the device's notch,
+ * rounded corners and home bar (TORIRS_CMD_SAFE_AREA). The canvas is drawn
+ * edge to edge; the mobile toplevel's dodger (script 4731) reads these to keep
+ * its `safezone` and the 2D UI inside them. A desktop has no safe area: min
+ * corners 0, max corners the live canvas (same source as GETCANVASSIZE).
+ * GETMAXY_ALT (6231) is the same value as GETMAXY per the "alternative opcode
+ * used in some contexts" note. */
+static int
+safearea_canvas_inset(
+    int px,
+    int window,
+    int canvas)
+{
+    if( px <= 0 || window <= 0 )
+        return 0;
+    /* Rounded up: an inset a fraction of a canvas pixel short leaves the edge
+     * of a button under the notch. */
+    return (int)(((long long)px * canvas + window - 1) / window);
+}
+
 static int
 exec_safearea(
+    struct RS_CS2Host const* host,
     struct CS2VM2_Thread* thread,
     int opcode)
 {
+    int const* px = host->safe_area_px;
+    int const ww = host->safe_area_window_w;
+    int const wh = host->safe_area_window_h;
+
     switch( opcode )
     {
     case CS2_OP_SAFEAREA_GETMINX:
+        return CS2VM2_PushInt(thread, safearea_canvas_inset(px[0], ww, thread->canvas_w));
     case CS2_OP_SAFEAREA_GETMINY:
-        return CS2VM2_PushInt(thread, 0);
+        return CS2VM2_PushInt(thread, safearea_canvas_inset(px[1], wh, thread->canvas_h));
     case CS2_OP_SAFEAREA_GETMAXX:
-        return CS2VM2_PushInt(thread, thread->canvas_w);
+        return CS2VM2_PushInt(
+            thread, thread->canvas_w - safearea_canvas_inset(px[2], ww, thread->canvas_w));
     case CS2_OP_SAFEAREA_GETMAXY:
+        return CS2VM2_PushInt(
+            thread, thread->canvas_h - safearea_canvas_inset(px[3], wh, thread->canvas_h));
     case CS2_OP_SIDEBAR_SETWIDTH:
         return CS2VM2_PushInt(thread, thread->canvas_h);
     default:
@@ -10318,7 +10343,7 @@ rs_cs2_host_exec_dispatch(
             host, vm, request->u.opname.opcode, request->u.opname.value)
 #define RS_CS2_SAFEAREA_CASE(opname)                                            \
     case CS2VM_HOST_REQUEST_##opname:                                           \
-        return exec_safearea(vm, request->u.opname.opcode)
+        return exec_safearea(host, vm, request->u.opname.opcode)
 #define RS_CS2_WORLDMAP_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_worldmap(host, vm, request, request->u.opname.opcode, request->u.opname.arg0, request->u.opname.arg1)
