@@ -155,3 +155,5 @@ assets/pokesprite/*.db-shm
 /saves/
 /plugin_prefs.ini
 /plugin_assets/
+# Playwright MCP session output (snapshots, console logs, screenshots).
+/.playwright-mcp/
