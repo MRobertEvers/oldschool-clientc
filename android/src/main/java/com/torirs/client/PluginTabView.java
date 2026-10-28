@@ -9,7 +9,8 @@ import android.graphics.RectF;
 import android.view.View;
 
 /**
- * The phone's way into the plugins: a small tab on the screen's right edge.
+ * The phone's way into the plugins: a small tab in the screen's top-right
+ * corner.
  *
  * No plugin and no CS2 interface carries a plugin button any more; the
  * platform does. On a desk that is a sidebar beside the game, and a phone has
@@ -57,8 +58,9 @@ final class PluginTabView extends View
         final float radius = w * 0.45f;
 
         plate.setAlpha(isPressed() ? 255 : 200);
-        /* Rounded on the left only: the tab is flush with the screen's edge. */
-        box.set(0f, 0f, w + radius, h);
+        /* Rounded on the bottom-left only: the tab is flush with the screen's
+         * top and right edges. */
+        box.set(0f, -radius, w + radius, h);
         canvas.drawRoundRect(box, radius, radius, plate);
 
         /* A left-pointing chevron: "pull the plugins out from this side". */

@@ -131,7 +131,6 @@
       /* -1 until the client asks (torirsPluginChromeShow). */
       this.chromeStyle = -1;
       this.drawerOpen = false;
-      this.tab = null;
       this.customRevisions = {};
       this.widgetSerials = {};
       this.rail = {
@@ -350,34 +349,20 @@
       if (style !== STYLE_SIDEBAR && style !== STYLE_EDGE_TAB) return false;
       if (!this.ensureFrame()) return false;
       this.chromeStyle = style;
-      if (style === STYLE_EDGE_TAB) this.ensureTab();
+      const html = this.document.documentElement;
+      classSet(html, 'torirs-plugin-edge', style === STYLE_EDGE_TAB);
       this.updateLayout();
       return true;
     }
 
-    /* The touch device's way into the plugins: a small tab on the right edge,
-     * the same shape as the page's own corner tab (#btn-drawer), that slides
-     * the rail of plugin buttons out over the game and back. */
-    ensureTab() {
-      if (this.tab || !this.document || !this.document.createElement) return !!this.tab;
-      const tab = this.document.createElement('button');
-      tab.type = 'button';
-      tab.id = 'plugin-chrome-tab';
-      tab.setAttribute('aria-label', 'Plugins');
-      tab.setAttribute('aria-controls', 'plugin-chrome-mount');
-      tab.setAttribute('aria-expanded', 'false');
-      tab.textContent = '\u2039';
-      tab.hidden = true;
-      tab.addEventListener('click', () => {
-        this.drawerOpen = !this.drawerOpen;
-        this.updateLayout();
-        if (!this.drawerOpen) this.restoreGameFocus();
-      });
-      const parent = this.document.getElementById('torirs-app') || this.document.body;
-      if (!parent) return false;
-      parent.appendChild(tab);
-      this.tab = tab;
-      return true;
+    /* The touch device's plugin drawer, opened and shut by the page's own
+     * full-canvas tab (index.html #btn-drawer / #btn-plugins): one tab in the
+     * corner, not a second one beside it. */
+    setDrawer(open) {
+      this.drawerOpen = !!open;
+      this.updateLayout();
+      if (!this.drawerOpen) this.restoreGameFocus();
+      return this.chromeStyle === STYLE_EDGE_TAB;
     }
 
     open() {
@@ -730,11 +715,6 @@
           this.mount.style.width = `${width}px`;
           this.mount.style.flex = '0 0 0px';
         }
-        if (this.tab) {
-          this.tab.hidden = !hasRail;
-          this.tab.textContent = open ? '\u203a' : '\u2039';
-          this.tab.setAttribute('aria-expanded', open ? 'true' : 'false');
-        }
         if (html && html.style && html.style.setProperty) {
           html.style.setProperty('--torirs-dock-width', '0px');
           html.style.setProperty('--torirs-drawer-width', open ? `${width}px` : '0px');
@@ -811,6 +791,7 @@
     /* The client's request for its plugin chrome, at boot
      * (PlatformWindow_PluginChromeShow, TORIRS_CMD_PLATFORM_PLUGIN_CHROME). */
     global.torirsPluginChromeShow = style => host.show(style);
+    global.torirsPluginChromeDrawer = open => host.setDrawer(open);
     global.torirsChromeOpen = () => host.open();
     global.torirsChromeEnd = () => { host.end(); };
     global.torirsChromeClose = () => { host.end(); };

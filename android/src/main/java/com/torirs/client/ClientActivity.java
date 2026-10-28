@@ -217,9 +217,14 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
          * The plugin edge tab, hidden until the client asks for its plugin
          * chrome (PlatformWindow_PluginChromeShow): a tab over a client with
          * the plugins switched off would be a dead button.
+         *
+         * Small, and in the top-right corner, flush with the screen's edge
+         * even where that is the notch or the rounded corner: the game's own
+         * 2D interface keeps clear of the unsafe area, so the tab sitting in
+         * it covers nothing the player needs.
          */
         final float density = getResources().getDisplayMetrics().density;
-        pluginTab = new PluginTabView(this, (int)(22 * density + 0.5f), (int)(48 * density + 0.5f));
+        pluginTab = new PluginTabView(this, (int)(16 * density + 0.5f), (int)(30 * density + 0.5f));
         pluginTab.setVisibility(View.GONE);
         pluginTab.setOnClickListener(new View.OnClickListener()
         {
@@ -232,7 +237,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
         FrameLayout.LayoutParams pluginTabLayout = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT);
-        pluginTabLayout.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
+        pluginTabLayout.gravity = Gravity.TOP | Gravity.END;
         rootLayout.addView(pluginTab, pluginTabLayout);
         setContentView(rootLayout);
         surfaceView.requestFocus();
