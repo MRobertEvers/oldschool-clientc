@@ -51,13 +51,6 @@ UITree_LayerCullsChildren(
     int box_h)
 {
     assert(component);
-    /* A layer the plugin frame released from clipping cannot cull either: the
-     * declaration placed a surface somewhere under it in canvas coordinates,
-     * and a CS2 hook that collapses the lane's own container to nothing --
-     * which is a thing the lane's resize hooks do -- must not take that
-     * surface off the screen with it. @see UITreeComponent.frame_stretched. */
-    if( component->frame_stretched )
-        return false;
     return UITree_ComponentClipsChildren(component) && (box_w <= 0 || box_h <= 0);
 }
 
@@ -84,12 +77,6 @@ UITree_LayerChildClip(
      * is what drew the orb "empty" overlays at full size over the fills, so
      * every minimap orb was a black circle. */
     if( !UITree_ComponentClipsChildren(component) || box_w <= 0 || box_h <= 0 )
-        return UITREE_CHILD_CLIP_INHERIT;
-    /* A plugin gameframe placed a surface somewhere under this layer, in
-     * canvas coordinates. The layer's own box is the lane's geometry and
-     * clips nothing while that declaration stands -- see
-     * UITreeComponent.frame_stretched. */
-    if( component->frame_stretched )
         return UITREE_CHILD_CLIP_INHERIT;
 
     if( tree->layer_clip_compounds )
@@ -492,7 +479,7 @@ find_scrollbar_recursive(
     /* A hidden subtree is display:none, not merely unpainted.  Prune it
      * exactly as emit/hit/menu do, or an invisible IF1 bar can capture the
      * pointer before generic hit-testing gets a say. */
-    if( component->behavior.hide || component->mount_hidden || component->frame_hidden ||
+    if( component->behavior.hide || component->mount_hidden ||
         (component->projection_hidden || component->widget_hidden) )
         return false;
     int bx = 0;

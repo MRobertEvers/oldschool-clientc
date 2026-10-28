@@ -233,8 +233,7 @@ bool PlatformWindow_ChromeRailOpen(
 /**
  * Take the rail away, or give it back, without touching an open page.
  *
- * Hidden while a lane's own pop-out column carries the plugin destinations
- * (ToriRSChromeRailSnapshot::rail_hidden). A hidden rail takes no points: a
+ * A hidden rail takes no points: a
  * RailOpen while hidden only remembers its width, a page opens at its own
  * width alone, and Close leaves nothing behind. Hiding a rail that grew the
  * window gives that growth back; hiding it beside an open page gives its
@@ -507,6 +506,19 @@ PlatformWindow_SetCredentialForm(
  */
 void
 PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url);
+
+/**
+ * Open the platform's plugin chrome: the way into the plugins, which only the
+ * platform provides (no plugin and no CS2 interface carries a plugin button).
+ * The client asks once, at boot, through TORIRS_CMD_PLATFORM_PLUGIN_CHROME.
+ *
+ * `style` is enum ToriRS_PluginChromeStyle. SIDEBAR is a desk: a RuneLite-style
+ * rail of plugin buttons beside the game, whose page opens beside it. EDGE_TAB
+ * is a touch device: a small tab on the screen edge that reveals the plugin
+ * buttons. Idempotent; a platform with no presenter yet logs and does nothing.
+ */
+void
+PlatformWindow_PluginChromeShow(struct PlatformWindow* platform, int style);
 
 #if defined(TORIRS_PLATFORM_WEB)
 /**

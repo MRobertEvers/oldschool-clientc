@@ -29,22 +29,3 @@ ToriRSChromeExec_KindFromName(char const* name)
             return i;
     return -1;
 }
-
-int
-ToriRSPluginNav_ModeFromName(char const* name)
-{
-    assert(name);
-    if( strcmp(name, "auto") == 0 )
-        return TORIRS_PLUGIN_NAV_AUTO;
-    if( strcmp(name, "rail") == 0 )
-        return TORIRS_PLUGIN_NAV_RAIL;
-    return -1;
-}
-
-char const*
-ToriRSPluginNav_ModeName(int mode)
-{
-    assert(mode >= TORIRS_PLUGIN_NAV_AUTO);
-    assert(mode <= TORIRS_PLUGIN_NAV_RAIL);
-    return mode == TORIRS_PLUGIN_NAV_RAIL ? "rail" : "auto";
-}

@@ -39,8 +39,6 @@ warn = nil
 ---@alias torirs.AssetState 'pending'|'ready'|'missing'|'invalid'|'budget'|'error'
 ---@alias torirs.Verdict boolean|'consume'|nil
 ---@alias torirs.PanelView 'page'|'settings'
----@alias torirs.Surface 'viewport'|'minimap'|'sidebar'|'chat'|'chat_buttons'|'modal'|'compass'|'orbs'|integer
----@alias torirs.FrameBuildResultName 'ready'|'pending'|'unsupported'|'error'|'native'
 ---@alias torirs.KeyName 'shift'|'ctrl'|'space'|'tab'|'escape'
 ---@alias torirs.ImageRef integer
 ---@alias torirs.ModelRef integer
@@ -122,14 +120,6 @@ warn = nil
 ---@class torirs.WorldLoadedEvent
 ---@field base_tile_x integer
 ---@field base_tile_z integer
-
----@class torirs.GameframeEvent
----@field offer_id string This plugin's offer id.
----@field active boolean Selected and being laid out (true) or released (false).
----@field canvas "fixed"|"window"
----@field width integer Logical canvas width the frame is laid out against.
----@field height integer
----@field safe torirs.Rect The canvas less what the platform is covering (the soft keyboard band), in canvas pixels; the whole canvas when no band is up. Hang a bottom strip from safe.y + safe.height. The event is raised again when it changes. The lane's own popout strip (lane_chrome_0) is not subtracted; find and subtract that widget yourself.
 
 ---@class torirs.ScreenChangedEvent
 ---@field screen string
@@ -252,46 +242,6 @@ warn = nil
 ---@class torirs.MenuApi
 ---@field add fun(text: string, action_id: integer): boolean Only during on_menu_build; retain the intended operation, not an unchecked native slot.
 
----@class torirs.FrameApi
----@field offer_next fun(cursor?: integer): integer?, torirs.FrameOfferInfo?
----@field selection fun(): torirs.FrameSelection
----@field select fun(id: string): boolean, torirs.ResultName
----@field invalidate fun()
----@field surface_native_size fun(surface: torirs.Surface): integer?, integer?
----@field surface_member_native_box fun(surface: torirs.Surface, member: integer): integer?, integer?, integer?, integer? The authored box of one numbered MEMBER of that surface, relative to the surface's own block. The role's own numbering; -1 is refused.
----@field surface_fit fun(surface: torirs.Surface, width: integer, height: integer): integer?, integer? The largest box inside width x height that surface lays itself out to fill -- never below its authored size, always on a whole line. nil when the surface has only its authored size (the 2004 chat builtin is the one that grows) or the box is smaller than it.
----@field surface_center_content fun(surface: torirs.Surface, centered: boolean): boolean, torirs.ResultName Lay what the lane mounts into that surface (a 2004 chat dialog) out at the surface's authored size, centred in the box the frame gave it. From on_gameframe only; holds until stated false or the frame is released.
----@field native_layout fun(): integer Which native top-level chrome the lane wears now: 0 fixed, 1 resizable-classic, 2 resizable-modern, 3 mobile, -1 unknown or between a request and its remount.
----@field native_layout_select fun(layout: integer): boolean, torirs.ResultName Ask the lane for one of its own chromes (0..2), the way its Display row does. From on_gameframe or a player's own action only. true means asked, not yet changed; the remount arrives as a new frame root.
-
----@class torirs.FrameOfferInfo
----@field id string Canonical `<plugin-id>/<local-id>`.
----@field title string
----@field provider string
----@field canvas integer
----@field width integer
----@field height integer
----@field min_width integer
----@field min_height integer
----@field available boolean
----@field detail string
-
----@class torirs.FrameSelection
----@field requested_id string
----@field active_id string
----@field status integer
----@field reason string
----@field revision integer
-
----@class torirs.FrameOffer
----@field id string Local stable id; the catalogue exposes `<plugin-id>/<id>`.
----@field title string
----@field canvas 'fixed'|'window'
----@field width? integer Required for fixed canvas.
----@field height? integer Required for fixed canvas.
----@field min_width? integer Required for window canvas.
----@field min_height? integer Required for window canvas.
-
 ---@class torirs.DrawApi
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer?
 ---@field element_height fun(element_id: integer): integer
@@ -358,16 +308,11 @@ warn = nil
 ---@field scroll_to fun(scroll: integer): boolean, torirs.ResultName
 
 ---@class torirs.CacheApi
----@field frame_root fun(): integer
 ---@field varbit fun(id: integer): integer
 ---@field varp fun(id: integer): integer
 ---@field component_rect fun(component_id: integer): torirs.Rect?
 ---@field invoke fun(component_id: integer, operation: integer): boolean
 ---@field named_id fun(kind: string, name: string): integer?
----@field tab_active fun(): integer
----@field tab_enabled fun(tab: integer): boolean
----@field tab_flash_hidden fun(tab: integer): boolean
----@field tab_select fun(tab: integer): boolean
 
 ---@class torirs.ClientApi
 ---@field display_get fun(setting: integer): integer?, integer?, integer?
@@ -382,8 +327,6 @@ warn = nil
 ---@field setting_color fun(varp_id: integer, fallback?: integer): integer
 ---@field memory_bytes fun(): integer
 ---@field disable_self fun(reason: string)
----@field plugin_window_open fun(): boolean Is the client's shared plugin window on screen?
----@field plugin_window_show fun(open: boolean) Open or close it. For a plugin that has taken over the launcher, which in practice means a gameframe.
 
 ---@class torirs.Feature
 ---@field key string
@@ -739,15 +682,7 @@ warn = nil
 ---@field key_down fun(key: string): boolean Is this key held NOW. The edge form's VALUE vocabulary: a name, a decimal code, or one character.
 ---@field config_list_remove fun(key: string, item: string): boolean Take one item out of a stored list. Absent is true and costs no write.
 ---@field config_list_set fun(key: string, items: string[]): boolean State the whole list: sorted, deduplicated, refused rather than truncated.
----@field frame fun(offer_id: string, canvas: 'fixed'|'window', min_width: integer, min_height: integer, fn: fun(d: torirs.PorcelainDescribe)) Bind a description to one offer this plugin's definition publishes. Boot only.
----@field frame_event fun(event: torirs.GameframeEvent): torirs.FrameBuildResultName, string Forward on_gameframe. A release (active = false) runs a description that stages nothing, which is what takes the frame back off.
----@field frame_native fun(event: {offer_id: string}): torirs.FrameBuildResultName, string The 'native' answer: the lane's own chrome is the offer, so the description stages nothing and every retained edit comes off. Return its word from on_gameframe, after frame.native_layout_select answered true.
----@field usable fun(): torirs.PorcelainBox? The canvas a frame may lay out in: the frame root less a PRESENTED lane strip spanning a full edge. nil before anything of this lane has bound.
----@field native_size fun(element: string): torirs.PorcelainBox? The box the LANE authored for that element, before any plugin edit. A member answers block-relative x and y; a whole surface answers 0, 0. nil when the lane states no pixel box.
----@field lane_icon fun(tab: string): integer This lane's own number for that tab's panel, or -1 where the lane numbers none or mounts none.
----@field tab_group_count fun(axis: 'rows'|'columns'): integer How many rows or columns of stones this root lays out.
----@field tab_group fun(axis: 'rows'|'columns', group: integer): string[] The tabs of one group, as element specs, in the root's own order.
----@field tab_detached fun(): string? The tab this root hangs outside every group, or nil.
+---@field usable fun(): torirs.PorcelainBox? The usable canvas: the frame root less a PRESENTED lane strip spanning a full edge. nil before anything of this lane has bound.
 
 --- The describe builder, handed to the describe function and legal only
 --- inside it. Items are applied in DESCRIPTION ORDER and a later item is over
@@ -917,7 +852,6 @@ warn = nil
 ---@field world torirs.WorldApi
 ---@field input torirs.InputApi
 ---@field menu torirs.MenuApi
----@field frame torirs.FrameApi
 ---@field draw torirs.DrawApi
 ---@field assets torirs.AssetsApi
 ---@field scene torirs.SceneApi
@@ -1083,7 +1017,6 @@ except the plain readers marked as returning a value.
 ---@field event_priority? integer Higher values receive ordinary events first.
 ---@field draw_order? integer Lower values draw first within a draw pass.
 ---@field config? torirs.ConfigItem[]
----@field frames? torirs.FrameOffer[] Static offers published before startup; each is served by on_gameframe.
 ---@field on_start? fun(api: torirs.Api)
 ---@field on_stop? fun(api: torirs.Api)
 ---@field on_frame_start? fun(api: torirs.Api, ev: torirs.FrameEvent)
@@ -1103,7 +1036,6 @@ except the plain readers marked as returning a value.
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.ChatMessageEvent)
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.GameEvent)
 ---@field on_key? fun(api: torirs.Api, ev: torirs.KeyEvent): torirs.Verdict
----@field on_gameframe? fun(api: torirs.Api, ev: torirs.GameframeEvent): ("ready"|"pending"|"unsupported"|boolean)?, string? Frame provision through the widget API: with ev.active the script's declared frame offer is the selected gameframe and is laid out against ev.width x ev.height by editing widgets (move, hide, skin, anchor); return nothing or "ready", or "pending"/"unsupported" with a reason. Raised again on every canvas change; ev.active=false announces the release before teardown.
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.MenuBuildEvent): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.MenuSelectEvent): torirs.Verdict
 ---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Graphics)

@@ -48,7 +48,6 @@ main(void)
     test_widget_idempotent_edits();
     test_owned_budget();
     test_owned_canvas_position();
-    test_frame_provide();
         test_plugin_contract_copy();
         return g_failures ? 1 : 0;
     }
@@ -73,7 +72,6 @@ main(void)
     test_widget_idempotent_edits();
     test_owned_budget();
     test_owned_canvas_position();
-    test_frame_provide();
     test_layer_clip_compounds();
     test_plugin_contract_copy();
     test_canvas_queries();
@@ -96,7 +94,7 @@ main(void)
     test_drag_scrollbar_137_geometry();
     test_drag_cc_dragpickup_seeds();
     test_press_repeat_and_release();
-    test_frame_hidden_cancels_active_input();
+    test_widget_hidden_cancels_active_input();
     test_scroll_hit();
     test_wheel_stops_at_interface();
     test_drag_scrolled();

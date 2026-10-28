@@ -2680,12 +2680,11 @@ emit_walk_node(
     /*
      * Native/script hiding outranks anchored art: an anchor is local to a
      * target that is actually present in this frame, not a way to resurrect a
-     * collapsed tab or a surface the screen has no room for. A gameframe
-     * layout's suppression (`frame_hidden`: "an arranger is drawing this
-     * decoration itself") prunes the subtree the same way, and so do screen
-     * and projection hiding, which say the surface itself is gone.
+     * collapsed tab or a surface the screen has no room for. Screen and
+     * projection hiding prune the subtree the same way: they say the surface
+     * itself is gone.
      */
-    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) || c->frame_hidden )
+    if( c->screen_hidden || (c->projection_hidden || c->widget_hidden) )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return;
@@ -3474,12 +3473,6 @@ UITree_EmitWalk(
      * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
      * zero width: no item icons at all. No-op when nothing invalidated.
      */
-    /* Publication fence for a plugin gameframe. Geometry and art are the
-     * provider's retained widget edits, so this does not race CS1/CS2 by
-     * rewriting their native fields. It only re-resolves semantic membership
-     * when topology changed since the frame was taken, before EnsureLayout
-     * consumes those bindings. */
-    UITree_FrameReassert((struct UITree*)tree);
     /* Every script this frame has run: a plugin edit parked by a delete that
      * no create adopted belongs to a node that is gone. @see
      * UITree::parked_edits. */
@@ -3974,11 +3967,10 @@ uitree_node_subtree_paints_art(
     gate = UITree_NodeNativeGate(component, hovered_component_id, host);
     /* The OWN half of what `presented` folds in: the gate carries freed,
      * screen, projection, the widget API's hide and the id test, and the
-     * display fence adds the script's own hide, an unmounted group and a
-     * frame provider's suppression. @see UITree_NodeOrAncestorDisplayHiddenEx.
+     * display fence adds the script's own hide and an unmounted group.
+     * @see UITree_NodeOrAncestorDisplayHiddenEx.
      */
-    if( !gate.visible || component->behavior.hide || component->mount_hidden ||
-        component->frame_hidden )
+    if( !gate.visible || component->behavior.hide || component->mount_hidden )
         return false;
     if( UITree_EmitFill(tree, host, component, node_index, hovered_component_id, scratch) &&
         scratch->kind != UITREE_EMIT_NONE && scratch->kind != UITREE_EMIT_TEXT )

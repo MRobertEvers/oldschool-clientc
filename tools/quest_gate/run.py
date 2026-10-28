@@ -856,7 +856,7 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES), ext
         "TORIRS_STDERR_UNBUFFERED": "1",
         "TORIRS_PLUGINS": "1",
         # Only the Lua host registers, and its manifest below names only the
-        # quest driver: no item-stats, xp/loot trackers, minimap orbs, tile
+        # quest driver: no item-stats, xp/loot trackers, tile
         # indicator or NXT plugins. Run book rule (owner, 2026-09-20): a quest
         # test's screenshots show the engine's own frame and nothing a plugin
         # painted, and no plugin's hooks sit between the driver and the

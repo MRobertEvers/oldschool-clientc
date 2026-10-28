@@ -128,6 +128,26 @@ enum ToriRS_CmdType
     TORIRS_CMD_UI_SET_VARBIT = 66, /* struct ToriRS_CmdUiSetVar */
     TORIRS_CMD_UI_RUNSCRIPT = 67,  /* struct ToriRS_CmdUiRunScript */
     TORIRS_CMD_EXEC_TEXT = 68,     /* debugproc text, no leading "::", not NUL-terminated */
+
+    /* -> PLATFORM, on the OUTBOUND bus (main.c `platform_bus`, handed to the
+     * App by App_SetPlatformBus). Every type above flows into the App; these
+     * are the App asking the platform for something only the platform can
+     * make. Kept on a ring of their own so the inbound record format, which
+     * IS the replay file, never carries them.
+     *
+     * Open the platform's plugin chrome: the way into the plugins, which no
+     * plugin and no CS2 interface provides. Sent once, when the plugin host
+     * has started. The style says what the client is: a desk (a RuneLite-style
+     * sidebar of plugin buttons beside the game) or a touch device (a small
+     * edge tab that reveals the plugin buttons). */
+    TORIRS_CMD_PLATFORM_PLUGIN_CHROME = 96, /* struct ToriRS_CmdPluginChrome */
+};
+
+/** How the platform presents its plugin chrome. @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
+enum ToriRS_PluginChromeStyle
+{
+    TORIRS_PLUGIN_CHROME_SIDEBAR = 0,
+    TORIRS_PLUGIN_CHROME_EDGE_TAB = 1,
 };
 
 #pragma pack(push, 1)
@@ -171,6 +191,11 @@ struct ToriRS_CmdMouseMove
 struct ToriRS_CmdMouseWheel
 {
     int16_t wheel_y;
+};
+
+struct ToriRS_CmdPluginChrome
+{
+    uint8_t style; /* enum ToriRS_PluginChromeStyle */
 };
 
 struct ToriRS_CmdNetStatus
@@ -410,6 +435,12 @@ CmdBus_PushDeviceStatus(
 /** Persistent application-chrome rail -> the one shared pane. */
 int
 CmdBus_PushPluginChromeToggle(struct ToriRS_CmdBus* bus);
+
+/* Outbound: ask the platform to open its plugin chrome. */
+int
+CmdBus_PushPluginChrome(
+    struct ToriRS_CmdBus* bus,
+    int style);
 
 /* ---- host commands ------------------------------------------------------ */
 

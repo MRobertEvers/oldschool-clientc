@@ -3,9 +3,8 @@
  *
  * This intentionally has no host. It is a small third-party plugin translation
  * unit whose job is to stop the documented source shape drifting: modules are
- * embedded, callbacks receive per-instance state, a gameframe is PROVIDED
- * through on_gameframe and the widget API, and draw/panel builders are scoped
- * parameters rather than saved surface handles.
+ * embedded, callbacks receive per-instance state, and draw/panel builders are
+ * scoped parameters rather than saved surface handles.
  */
 
 #include "plugin/torirs_plugin_api.h"
@@ -81,29 +80,6 @@ example_start(struct ToriRS_Api* api, void* plugin_state)
         (void)api->widgets.set_hidden(api->widgets.context, state->report, false);
 }
 
-/* An offer is served here: the frame is the provider's retained widget edits. */
-static enum ToriRS_FrameBuildResult
-example_gameframe(
-    struct ToriRS_Api* api,
-    void* plugin_state,
-    struct ToriRS_GameframeEvent const* event)
-{
-    struct ToriRS_WidgetRef minimap;
-    int chat_w = 0;
-    int chat_h = 0;
-    (void)plugin_state;
-
-    if( !event->active )
-        return TORIRS_FRAME_READY;
-    if( api->widgets.find(api->widgets.context, "minimap", &minimap) != TORIRS_CONTRACT_OK )
-        return TORIRS_FRAME_PENDING;
-    (void)api->frame.surface_native_size(api, TORIRS_SURFACE_CHAT, &chat_w, &chat_h);
-    (void)api->frame.surface_fit(api, TORIRS_SURFACE_CHAT, 506, 129, &chat_w, &chat_h);
-    (void)api->frame.surface_center_content(api, TORIRS_SURFACE_CHAT, true);
-    (void)api->widgets.set_position(api->widgets.context, minimap, event->width - 200, 0);
-    return TORIRS_FRAME_READY;
-}
-
 static void
 example_draw_canvas(
     struct ToriRS_Api* api,
@@ -145,26 +121,6 @@ example_ui_build(
     panel->heading(panel, "Example");
 }
 
-static struct ToriRS_FrameOffer const EXAMPLE_FRAMES[] = {
-    {
-        .struct_size = sizeof(struct ToriRS_FrameOffer),
-        .id = "example-fixed",
-        .title = "Example Fixed",
-        .canvas = TORIRS_FRAME_CANVAS_FIXED,
-        .width = 765,
-        .height = 503,
-    },
-    {
-        .struct_size = sizeof(struct ToriRS_FrameOffer),
-        .id = "example-window",
-        .title = "Example Window",
-        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
-        .min_width = 765,
-        .min_height = 503,
-    },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer), .id = NULL },
-};
-
 static struct ToriRS_PluginDef const EXAMPLE_PLUGIN = {
     .struct_size = sizeof(struct ToriRS_PluginDef),
     .id = "v2-compile-example",
@@ -177,9 +133,7 @@ static struct ToriRS_PluginDef const EXAMPLE_PLUGIN = {
         .on_start = example_start,
         .on_draw_canvas = example_draw_canvas,
         .on_ui_build = example_ui_build,
-        .on_gameframe = example_gameframe,
     },
-    .frames = EXAMPLE_FRAMES,
 };
 
 int
@@ -189,12 +143,6 @@ main(void)
     _Static_assert(
         sizeof(((struct ToriRS_Api*)0)->widgets) == sizeof(struct ToriRS_WidgetApi),
         "widgets is embedded in the API");
-    _Static_assert(
-        sizeof(((struct ToriRS_Api*)0)->frame) == sizeof(struct ToriRS_FrameApi),
-        "frame is embedded in the API");
-    _Static_assert(
-        TORIRS_FRAME_OFFER_REQUIRED_SIZE <= sizeof(struct ToriRS_FrameOffer),
-        "an offer is its id, title and canvas policy");
     _Static_assert(
         offsetof(struct ToriRS_SkillSnapshot, stated) >
             offsetof(struct ToriRS_SkillSnapshot, next_level_xp),

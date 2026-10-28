@@ -660,7 +660,7 @@ endif
 TORIMEM_SRCS = mem/torirs_mem.c
 
 PORCELAIN_SRCS = plugin/porcelain/porcelain.c plugin/porcelain/porcelain_helpers.c \
-		plugin/porcelain/porcelain_panel.c plugin/porcelain/porcelain_frames.c
+		plugin/porcelain/porcelain_panel.c
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
@@ -878,8 +878,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c ui/torirs_chrome_shell.c \
 	ui/torirs_chrome_panel_draw.c \
 	ui/torirs_chrome_rail.c \
-	ui/torirs_chrome_popout_nav.c \
-	ui/torirs_chrome_lane_launcher.c \
 	ui/torirs_chrome_inkwell.c \
 	ui/torirs_chrome_mirror.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
@@ -923,7 +921,7 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	render/torirs_polygon.c render/torirs_arc.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
-	plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+	plugin/torirs_plugin_host.c \
 	$(PORCELAIN_SRCS) \
 	plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
@@ -935,10 +933,6 @@ SRCS = main.c executor_config.c app.c pacer.c boot_telemetry.c \
 	plugin/plugins/client_settings.c \
 	plugin/plugins/feature_flags.c \
 	plugin/plugins/tileind.c plugin/plugins/widget_demo.c \
-	plugin/plugins/minimap_orbs.c \
-	plugin/plugins/xp_orbs.c \
-	plugin/plugins/gameframe.c \
-	plugin/plugins/mobile_gameframe.c \
 	plugin/plugins/item_stats.c \
 	plugin/plugins/plugin_draw.c \
 	plugin/plugins/xp_tracker.c \
@@ -1348,7 +1342,7 @@ endif
 endif
 
 .PHONY: test-toridraw-mini test-toridraw-mini-16bpp test-toridraw-rscache test-toridraw-small toridraw-tables-gen test-toridraw-tables-precomputed toridraw-model-to-ppm
-.PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-long test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-native-layout test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-hmap test-projection-kernel test-projected-bound test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-ondemand-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-quest-contract-sweeps check-npc-script-player-suspend check-chatnpc-without-npc check-quest-journal-banner check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-mdns test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-drive-event-ring test-walkmerge test-entity-decode check-no-drain check-pt-switch check-rscache-isolation check-revconfig-roles test-quests test-quest-conformance check-quest-verbs test-task-order test-task-join test-cs2-frame-settle test-db test-cs2-math test-cs2-long test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-ground-items test-cs2-transmit-pump test-minimenu-world test-design-panel test-mouseover-entry test-logout-wait test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-pktsweep test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review test-preview-state
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
@@ -3021,7 +3015,7 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 test-nxt-plugins: $(OBJ_DIR) \
 		plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_host.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		$(PORCELAIN_SRCS) \
 		plugin/plugins/nxt_highlight.c \
@@ -3132,10 +3126,10 @@ test-trackers: $(OBJ_DIR) plugin/plugins/xp_tracker.c plugin/plugins/loot_tracke
 		plugin/test/tracker_test.c $(LDFLAGS)
 	$(TRACKER_TEST_ENV) ./$(OBJ_DIR)/tracker_test
 
-test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		plugin/test/torirs_plugin_host_test.c $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_host.c \
 		ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/plugin_host_test
@@ -3184,13 +3178,6 @@ test-tileind-v2: $(OBJ_DIR) plugin/plugins/tileind.c \
 		plugin/test/tileind_v2_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/tileind_v2_test
 
-.PHONY: test-plugin-frame
-test-plugin-frame: $(OBJ_DIR) plugin/torirs_plugin_frame.c \
-		plugin/test/torirs_plugin_frame_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_frame_test \
-		plugin/torirs_plugin_frame.c plugin/test/torirs_plugin_frame_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/plugin_frame_test
-
 .PHONY: test-plugin-panel-route
 test-plugin-panel-route: $(OBJ_DIR) plugin/test/plugin_panel_route_test.c \
 		plugin/torirs_plugin_panel_route.h ui/torirs_chrome_rail.c
@@ -3226,51 +3213,12 @@ test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c \
 		$(PORCELAIN_SRCS) \
 		plugin/test/feature_flags_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
+		plugin/torirs_plugin_host.c \
 			ui/uitree_minimenu.c revconfig/revconfig.c \
 		$(PORCELAIN_SRCS) \
 		plugin/plugins/feature_flags.c \
 		plugin/test/feature_flags_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/feature_flags_test
-
-# The XP drop orbs, against a fake engine with a real PNG decode and a real
-# image table -- because this plugin's whole draw path is read-pixels /
-# compose / blit, and a stub that answered nothing would exercise none of it.
-# It also writes build/xp_orbs_test.png, which is the half of the result no
-# assertion can state: whether the picture is a globe.
-# The gameframe layout plugin against the fake engine, with the same real PNG
-# decode and image table -- this plugin composes its mirrored redstones out of
-# pixels it loaded, so an image table that answered nothing would exercise none
-# of it. Run from src/, where the shipped assets resolve.
-.PHONY: test-gameframe
-# The forty-permutation gameframe gate: OSRS239 toplevel x frame x window size,
-# rendered headlessly and scored on root opened, chat bar present and the LANE's
-# own filter count (8 desktop, 7 on the mobile top). About four minutes.
-#
-# Its own OPT=0 embed binary in its own object dir, so it never disturbs a
-# working src/torirs, and its own preferences.ini written from nothing, so the
-# repo's live device settings (which have carried a 150% interface scale) cannot
-# make every capture look like a regression.
-.PHONY: test-gameframe-matrix
-test-gameframe-matrix:
-	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
-		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
-	../tools/gameframe_matrix.sh
-
-.PHONY: test-gameframe-contract
-test-gameframe-contract:
-	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
-		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
-	GF_MATRIX_SCENARIOS=1 ../tools/gameframe_matrix.sh
-
-.PHONY: test-gameframe-baseline test-gameframe-fixture
-test-gameframe-baseline:
-	$(MAKE) OPT=0 EMBED_SERVER=1 PLATFORM_OBJ_BASE=build_gfmatrix \
-		PLATFORM_TARGET=torirs_gfmatrix torirs_gfmatrix
-	GF_MATRIX_BASELINE=1 ../tools/gameframe_matrix.sh
-
-test-gameframe-fixture:
-	python3 ../tools/test_gameframe_fixture.py
 
 .PHONY: test-plugin-engine-content
 test-plugin-engine-content:
@@ -3288,64 +3236,12 @@ test-plugin-contract: $(OBJ_DIR)
 test-plugin-contract-native:
 	TORIRS_TEST_CONTRACT_V3=1 $(MAKE) test-uitree
 
-# The layer comes in because the provider is described to it now. It is the
-# plugin's own library and not a second host: the test still drives the real
-# torirs_plugin_host, and what changed is only who writes the setters.
-test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/gameframe.c $(PORCELAIN_SRCS) \
-		plugin/test/gameframe_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-			ui/uitree_minimenu.c revconfig/revconfig.c \
-		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
-		$(PORCELAIN_SRCS) \
-		plugin/test/gameframe_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/gameframe_test
-
-# The Stone Drawer mobile gameframe, same harness. What it asserts that the
-# desktop one cannot is the DRAWER: a role the declaration stops mentioning is
-# one the host hides, so "shut" has to be visible as a slot that was not placed.
-# Run from src/, where the shipped assets resolve.
-.PHONY: test-mobile-gameframe
 test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_touch_test $(TORIMEM_SRCS) \
 		input/torirs_touch.c input/torirs_input.c input/torirs_input_cmd.c \
 		cmd/cmdbus.c cmd/cmdring.c \
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
-
-test-mobile-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/mobile_gameframe.c $(PORCELAIN_SRCS) \
-		plugin/test/mobile_gameframe_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/mobile_gameframe_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-			ui/uitree_minimenu.c revconfig/revconfig.c \
-		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c \
-		plugin/plugins/mobile_gameframe.c \
-		$(PORCELAIN_SRCS) \
-		plugin/test/mobile_gameframe_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/mobile_gameframe_test
-
-.PHONY: test-minimap-orbs-v2
-test-minimap-orbs-v2: $(OBJ_DIR) $(ASAN_DYLD_SHIM) plugin/plugins/minimap_orbs.c \
-		$(PORCELAIN_SRCS) \
-		plugin/porcelain/test/porcelain_testbed.c plugin/test/minimap_orbs_v2_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/minimap_orbs_v2_test $(TORIMEM_SRCS) \
-		plugin/plugins/minimap_orbs.c $(PORCELAIN_SRCS) \
-		plugin/porcelain/test/porcelain_testbed.c \
-		plugin/test/minimap_orbs_v2_test.c $(LDFLAGS)
-	$(PLUGIN_TEST_ENV) ./$(OBJ_DIR)/minimap_orbs_v2_test
-
-test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c \
-		plugin/plugins/xp_orbs.c $(PORCELAIN_SRCS) \
-		plugin/test/xp_orbs_test.c
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test $(TORIMEM_SRCS) \
-		plugin/torirs_plugin_host.c plugin/torirs_plugin_frame.c \
-			ui/uitree_minimenu.c revconfig/revconfig.c \
-		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
-		$(PORCELAIN_SRCS) \
-		plugin/test/xp_orbs_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
@@ -3924,7 +3820,7 @@ test-uitree: $(OBJ_DIR) $(ASAN_DYLD_SHIM)
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
 		ui/uitree_interact.c input/torirs_input.c input/torirs_keymap.c \
 		perf/torirs_perf.c \
-		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_frame_provide.c ui/test/uitree_test_layer_clip.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_visible_children.c \
+		ui/test/uitree_test_main.c ui/test/uitree_test_canvas.c ui/test/uitree_test_canvas_floor.c ui/uitree_canvas_floor.c ui/test/uitree_test_overlay_retain.c ui/test/uitree_test_dirty.c ui/test/uitree_test_frame_metadata.c ui/test/uitree_test_widget_anchor.c ui/test/uitree_test_widget_skin.c ui/test/uitree_test_layer_clip.c ui/test/uitree_test_anchor_reorder.c ui/test/uitree_test_widget_idempotent.c ui/test/uitree_test_owned_budget.c ui/test/uitree_test_input_walk.c ui/test/uitree_test_visible_children.c \
 		ui/test/uitree_test_walk.c ui/test/uitree_test_mounted_world.c \
 		ui/test/uitree_test_hover.c \
 		ui/test/uitree_test_layout_build.c ui/test/uitree_test_mutate_emit.c \
@@ -4049,23 +3945,6 @@ test-chrome-web-skin: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_web_skin.c \
 		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
 	./$(OBJ_DIR)/chrome_web_skin_test
-
-.PHONY: test-chrome-popout-nav
-test-chrome-popout-nav: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_popout_nav_test \
-		ui/test/torirs_chrome_popout_nav_test.c \
-		ui/torirs_chrome_popout_nav.c ui/torirs_chrome_exec_kind.c
-	./$(OBJ_DIR)/chrome_popout_nav_test
-
-# The launcher the engine hangs off a lane's own stone: where it lands under a
-# column whose last stone moved, and the picture it composes out of that
-# stone.
-.PHONY: test-chrome-lane-launcher
-test-chrome-lane-launcher: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chrome_lane_launcher_test \
-		ui/test/torirs_chrome_lane_launcher_test.c \
-		ui/torirs_chrome_lane_launcher.c
-	./$(OBJ_DIR)/chrome_lane_launcher_test
 
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no
@@ -4883,16 +4762,6 @@ test-logout-wait: $(OBJ_DIR) $(OBJS)
 		app/test/app_logout_wait_test.c \
 		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/app_logout_wait_test
-
-# A gameframe plugin asking the lane for the native top level its layout is
-# authored for. The act has to be the Display row's own armed press: the client
-# does not own which toplevel is up, and rev 239's WINDOW_STATUS cannot tell
-# Classic from Modern.
-test-native-layout: $(OBJ_DIR) $(OBJS)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/world -I$(SRC_DIR)/world/test -o $(OBJ_DIR)/app_native_layout_test \
-		app/test/app_native_layout_test.c \
-		$(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
-	./$(OBJ_DIR)/app_native_layout_test
 
 # The mouseover ENTRY's four halves all come from one row (`_7100` / the FIND
 # ops, `_7101`, `_7110`, `_7109`). The subject half used to come from the pick

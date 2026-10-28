@@ -25,13 +25,12 @@ static int g_enabled_calls;
 static int g_draws;
 static int g_headings;
 static int g_action_rows;
-static int g_surfaces;
 static int g_disabled_self;
 static int g_config_dispatches;
 static char g_disable_reason[192];
 
 /* The refusals the runtime group provokes on purpose, counted. @see main. */
-#define LUA_TEST_DELIBERATE_DISABLES 15
+#define LUA_TEST_DELIBERATE_DISABLES 12
 
 #define CHECK(condition, message)                                                       \
     do                                                                                  \
@@ -78,7 +77,7 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int index, bool enabl
     g_enabled_calls++;
 }
 
-struct FakeInstance { char const* id; char const* active_frame; };
+struct FakeInstance { char const* id; };
 
 static char const* fake_plugin_id(struct ToriRS_Api* api)
 {
@@ -111,12 +110,6 @@ fake_config_set(struct ToriRS_Api* api, char const* key, char const* value)
         return TORIRS_RESULT_OK;
     }
     return TORIRS_RESULT_NOT_FOUND;
-}
-static void fake_frame_selection(struct ToriRS_Api* api, struct ToriRS_FrameSelection* out)
-{
-    struct FakeInstance* instance = api->instance;
-    snprintf(out->active_id, sizeof(out->active_id), "%s",
-        instance->active_frame ? instance->active_frame : "");
 }
 static void fake_disable_self(struct ToriRS_Api* api, char const* reason)
 {
@@ -155,16 +148,6 @@ static void fake_action_row(
         "Lua action row forwards its retained summary");
     g_action_rows++;
 }
-static bool fake_surface_native_size(struct ToriRS_Api* api, int surface, int* w, int* h)
-{
-    (void)api;
-    CHECK(surface == TORIRS_SURFACE_CHAT, "frame surface name mapped");
-    *w = 519;
-    *h = 165;
-    g_surfaces++;
-    return true;
-}
-
 static struct ToriRS_Api
 fake_api(struct FakeInstance* instance)
 {
@@ -180,10 +163,11 @@ fake_api(struct FakeInstance* instance)
     api.config.struct_size = sizeof(api.config);
     api.config.get_int = fake_config_get_int;
     api.config.set = fake_config_set;
-    api.frame.struct_size = sizeof(api.frame);
-    api.frame.selection = fake_frame_selection;
-    api.frame.surface_native_size = fake_surface_native_size;
     static struct ToriRS_ClientApi client;
+    static struct ToriRS_GameApi game;
+    memset(&game, 0, sizeof(game));
+    game.struct_size = sizeof(game);
+    api.game = &game;
     memset(&client, 0, sizeof(client));
     client.struct_size = sizeof(client);
     client.disable_self = fake_disable_self;
@@ -230,15 +214,12 @@ static void
 test_runtime(struct ToriRS_PluginHost* host)
 {
     static char const LEGACY_SOURCE[] = "return { name='legacy' }";
-    static char const BUILDER_OFFER_SOURCE[] =
-        "return {id='builder-offer',frames={{id='old',title='Old',canvas='fixed',"
-        "width=765,height=503,build=function() return 'ready' end}}}";
-    static char const DRAW_OFFER_SOURCE[] =
-        "return {id='draw-offer',frames={{id='old',title='Old',canvas='fixed',"
-        "width=765,height=503,draw=function() end}}}";
+    static char const FRAMES_SOURCE[] =
+        "return {id='frame-offer',frames={{id='old',title='Old',canvas='fixed',"
+        "width=765,height=503}}}";
     static char const INVALID_ENUM_SOURCE[] =
         /* Deliberately collides with lua-v2-test in the 64-slot id table. */
-        "return {id='invalid-enum-59',on_start=function(api) api.frame.surface_native_size(99) end}";
+        "return {id='invalid-enum-59',on_start=function(api) api.game.inventory_size(99) end}";
     static char const BUDGET_SOURCE[] =
         "return {id='budget-after-reentry',config={{key='answer',type='int',default='42'}},"
         "on_config_changed=function() local n=0;"
@@ -257,30 +238,9 @@ test_runtime(struct ToriRS_PluginHost* host)
         "return {id='bad-pixels',on_start=function(api)"
         "api.assets.image_compose('x',2,2,{1,'bad',3,4}) end}";
     static char const DEFAULT_OFF_SOURCE[] = "return {id='default-off'}";
-    static char const DRIFT_SOURCE[] =
-        "return {id='lua-v2-test',title='Lua V2 Test',version='2',"
-        "frames={{id='changed',title='Changed',canvas='fixed',width=765,height=503}},"
-        "on_gameframe=function() return 'ready' end}";
     static char const SOURCE[] =
         "return { id='lua-v2-test', title='Lua V2 Test', version='2',"
         " config={{key='answer',type='int',default='42'}},"
-        " frames={"
-        "  {id='ready',title='Ready',canvas='fixed',width=765,height=503},"
-        "  {id='waiting',title='Waiting',canvas='window',min_width=640,min_height=480},"
-        "  {id='failure',title='Failure',canvas='fixed',width=765,height=503},"
-        "  {id='invalid-surface',title='Invalid Surface',canvas='fixed',width=765,height=503}"
-        " },"
-        " on_gameframe=function(api,ev)"
-        "  if not ev.active then return end"
-        "  if ev.offer_id=='ready' then"
-        "   assert(ev.canvas=='fixed' and ev.width==765 and ev.height==503)"
-        "   assert(ev.safe.x==0 and ev.safe.y==0 and ev.safe.width==765 and ev.safe.height==420 and ev.safe.h==420)"
-        "   local w,h=api.frame.surface_native_size('chat');assert(w==519 and h==165)"
-        "   return 'ready'"
-        "  elseif ev.offer_id=='waiting' then return 'pending','still loading'"
-        "  elseif ev.offer_id=='failure' then error('boom')"
-        "  else api.frame.surface_native_size(99) end"
-        " end,"
         " on_start=function(api)"
         "  assert(api.log==nil and api.role==nil and api.window==nil and api.layout==nil)"
         "  assert(api.chrome==nil and api.entity==nil and api.object_create==nil)"
@@ -305,12 +265,10 @@ test_runtime(struct ToriRS_PluginHost* host)
         " on_ui_build=function(api,panel,view) assert(view=='page');"
         "  panel.heading('Native V2');panel.action_row('skill_8','Woodcutting','XP/hr 12.3K') end"
         "}";
-    struct FakeInstance instance = { "lua-v2-test", "lua-v2-test/ready" };
+    struct FakeInstance instance = { "lua-v2-test" };
     struct ToriRS_Api api = fake_api(&instance);
     struct ToriRS_Graphics draw;
     struct ToriRS_PanelBuilder panel;
-    struct ToriRS_GameframeEvent gameframe;
-    char reason[TORIRS_FRAME_REASON_MAX];
     int index;
 
     CHECK(PluginLua_AddScript(host, "empty", "", 0, 0u) < 0,
@@ -318,19 +276,14 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(PluginLua_AddScript(host, "legacy", LEGACY_SOURCE,
               (int)strlen(LEGACY_SOURCE), 0u) < 0,
         "legacy name field is not accepted as a V2 id");
-    CHECK(PluginLua_AddScript(host, "builder-offer", BUILDER_OFFER_SOURCE,
-              (int)strlen(BUILDER_OFFER_SOURCE), 0u) < 0,
-        "a frame offer with a declarative build function is refused");
-    CHECK(PluginLua_AddScript(host, "draw-offer", DRAW_OFFER_SOURCE,
-              (int)strlen(DRAW_OFFER_SOURCE), 0u) < 0,
-        "a frame offer with a declarative draw function is refused");
+    CHECK(PluginLua_AddScript(host, "frame-offer", FRAMES_SOURCE,
+              (int)strlen(FRAMES_SOURCE), 0u) < 0,
+        "a script that declares frame offers is refused: plugins provide no gameframe");
     index = PluginLua_AddScript(host, "lua-v2-test", SOURCE, (int)strlen(SOURCE), 0u);
 
     CHECK(index == 0, "runtime script registered through V2");
     CHECK(g_defs[0] && strcmp(g_defs[0]->id, "lua-v2-test") == 0, "Lua name is V2 id");
     CHECK(g_defs[0]->config && g_defs[0]->config->items, "V2 config schema retained");
-    CHECK(g_defs[0]->frames != NULL, "V2 frame offers retained");
-    CHECK(g_defs[0]->callbacks.on_gameframe != NULL, "V2 offers are served by on_gameframe");
 
     g_defs[0]->callbacks.on_start(&api, NULL);
     memset(&draw, 0, sizeof(draw));
@@ -342,76 +295,33 @@ test_runtime(struct ToriRS_PluginHost* host)
     panel.heading = fake_heading;
     panel.action_row = fake_action_row;
     g_defs[0]->callbacks.on_ui_build(&api, NULL, &panel, TORIRS_PANEL_VIEW_PAGE);
-    memset(&gameframe, 0, sizeof(gameframe));
-    gameframe.active = true;
-    gameframe.canvas = TORIRS_FRAME_CANVAS_FIXED;
-    gameframe.width = 765;
-    gameframe.height = 503;
-    gameframe.reason = reason;
-    gameframe.reason_capacity = sizeof(reason);
-    gameframe.safe.width = 765;
-    gameframe.safe.height = 420;
-    gameframe.offer_id = "ready";
-    CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_READY,
-        "Lua on_gameframe returns READY and reads the event's safe rect");
-    gameframe.offer_id = "waiting";
-    gameframe.canvas = TORIRS_FRAME_CANVAS_WINDOW;
-    reason[0] = '\0';
-    CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_PENDING &&
-              strcmp(reason, "still loading") == 0,
-        "Lua on_gameframe returns PENDING with its reason");
-    gameframe.offer_id = "failure";
-    gameframe.canvas = TORIRS_FRAME_CANVAS_FIXED;
-    CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_ERROR,
-        "a Lua error inside on_gameframe is ERROR");
-    CHECK(g_disabled_self == 1, "the faulting provider is disabled through the V2 lifecycle");
-    gameframe.offer_id = "invalid-surface";
-    CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_ERROR,
-        "invalid integer surface becomes a caught Lua frame error");
-    CHECK(g_disabled_self == 2 && g_reported_errors == 0 && g_enabled_calls == 0,
-        "invalid frame enum refuses the provider through the V2 lifecycle");
     CHECK(g_logs == 2, "canonical and synchronously reentrant API calls reached V2 functions");
     CHECK(g_draws == 1 && g_headings == 1 && g_action_rows == 1,
         "scoped draw and native action-row builders reached V2 functions");
-    CHECK(g_surfaces == 1, "frame.surface_native_size reached the V2 function");
     CHECK(g_config_dispatches == 1,
         "config.set synchronously dispatched on_config_changed once");
     CHECK(g_reload[0] != NULL, "source reload handler installed");
     g_reload[0](host, 0, g_reload_user[0]);
     g_defs[0]->callbacks.on_start(&api, NULL);
     CHECK(g_logs == 3, "reload rebuilt and restarted the VM");
-    gameframe.offer_id = "ready";
-    CHECK(g_defs[0]->callbacks.on_gameframe(&api, NULL, &gameframe) == TORIRS_FRAME_READY,
-        "reload rebuilt the on_gameframe function");
-
-    CHECK(PluginLua_TestReplaceSource(0, DRIFT_SOURCE, (int)strlen(DRIFT_SOURCE)),
-        "test source replacement reached retained reload bytes");
-    g_reload[0](host, 0, g_reload_user[0]);
-    CHECK(strcmp(g_defs[0]->frames[0].id, "ready") == 0 &&
-            strcmp(g_defs[0]->frames[3].id, "invalid-surface") == 0,
-        "rejected reload restores catalogue-backed offer strings");
-    g_defs[0]->callbacks.on_start(&api, NULL);
-    CHECK(g_disabled_self == 3,
-        "changed static frame descriptor is refused on restart");
-
     CHECK(PluginLua_AddScript(host, "invalid-enum-59", INVALID_ENUM_SOURCE,
               (int)strlen(INVALID_ENUM_SOURCE), 0u) == 1,
         "enum misuse probe registered");
-    struct FakeInstance invalid_instance = { "invalid-enum-59", NULL };
+    struct FakeInstance invalid_instance = { "invalid-enum-59" };
     struct ToriRS_Api invalid_api = fake_api(&invalid_instance);
     g_defs[1]->callbacks.on_start(&invalid_api, NULL);
-    CHECK(g_disabled_self == 4 && g_reported_errors == 0 && g_enabled_calls == 0,
+    CHECK(g_disabled_self == 1 && g_reported_errors == 0 && g_enabled_calls == 0,
         "out-of-range integer enum becomes a caught V2 lifecycle fault");
-    CHECK(strstr(g_disable_reason, "frame surface must be between") != NULL,
+    CHECK(strstr(g_disable_reason, "inventory must be between") != NULL,
         "integer enum fault names the invalid domain");
 
     CHECK(PluginLua_AddScript(host, "budget-after-reentry", BUDGET_SOURCE,
               (int)strlen(BUDGET_SOURCE), 0u) == 2,
         "nested-budget probe registered");
-    struct FakeInstance budget_instance = { "budget-after-reentry", NULL };
+    struct FakeInstance budget_instance = { "budget-after-reentry" };
     struct ToriRS_Api budget_api = fake_api(&budget_instance);
     g_defs[2]->callbacks.on_start(&budget_api, NULL);
-    CHECK(g_disabled_self == 5 &&
+    CHECK(g_disabled_self == 2 &&
             strstr(g_disable_reason, "instruction budget exhausted") != NULL,
         "nested callback cannot disarm the outer instruction budget");
 
@@ -420,7 +330,7 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(PluginLua_AddScript(host, "nested-fault", NESTED_FAULT_SOURCE,
               (int)strlen(NESTED_FAULT_SOURCE), 0u) == 3,
         "nested-fault probe registered");
-    struct FakeInstance nested_instance = { "nested-fault", NULL };
+    struct FakeInstance nested_instance = { "nested-fault" };
     struct ToriRS_Api nested_api = fake_api(&nested_instance);
     g_defs[3]->callbacks.on_start(&nested_api, NULL);
     CHECK(g_logs == logs_before_nested_fault + 1,
@@ -438,7 +348,7 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(PluginLua_AddScript(host, "explicit-disable", DISABLE_SOURCE,
               (int)strlen(DISABLE_SOURCE), 0u) == 4,
         "explicit-disable probe registered");
-    struct FakeInstance disable_instance = { "explicit-disable", NULL };
+    struct FakeInstance disable_instance = { "explicit-disable" };
     struct ToriRS_Api disable_api = fake_api(&disable_instance);
     g_defs[4]->callbacks.on_start(&disable_api, NULL);
     CHECK(g_logs == logs_before_disable && strstr(g_disable_reason, "requested stop") != NULL,
@@ -447,7 +357,7 @@ test_runtime(struct ToriRS_PluginHost* host)
     CHECK(PluginLua_AddScript(host, "bad-pixels", BAD_PIXELS_SOURCE,
               (int)strlen(BAD_PIXELS_SOURCE), 0u) == 5,
         "bad-pixels probe registered");
-    struct FakeInstance pixels_instance = { "bad-pixels", NULL };
+    struct FakeInstance pixels_instance = { "bad-pixels" };
     struct ToriRS_Api pixels_api = fake_api(&pixels_instance);
     g_defs[5]->callbacks.on_start(&pixels_api, NULL);
     CHECK(strstr(g_disable_reason, "pixel 2 is not an integer") != NULL,
@@ -504,7 +414,7 @@ static void test_widget_actions(struct ToriRS_PluginHost* host)
         "local actions=assert(widget:actions());assert(#actions==2 and actions[2].label=='Second');"
         "local ok,reason=api.widgets.invoke(actions[2].ref);assert(not ok and reason=='stale_reference');"
         "api.core.log('actions verified') end)) end;function p.on_key(api) api.widgets.invoke({}) end;return p";
-    struct FakeInstance instance={"widget-actions",""};struct ToriRS_Api api=fake_api(&instance);
+    struct FakeInstance instance={"widget-actions"};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.watch=fake_lua_watch;api.widgets.actions=fake_lua_actions;api.widgets.invoke=fake_lua_invoke;
     int index=PluginLua_AddScript(host,"widget-actions",source,(int)strlen(source), 0u);
     CHECK(index>=0,"native action script registers");
@@ -526,7 +436,7 @@ static void test_widget_watch(struct ToriRS_PluginHost* host)
         "  api.core.log('first');"
         "  assert(api.widgets.watch('sidebar',function(widget,event) api.core.log('replacement') end))"
         " end)) end; return p";
-    struct FakeInstance instance={"widget-watch",""};
+    struct FakeInstance instance={"widget-watch"};
     struct ToriRS_Api api=fake_api(&instance);
     api.widgets.watch=fake_lua_watch;
     int index=PluginLua_AddScript(host,"widget-watch",source,(int)strlen(source), 0u);
@@ -586,7 +496,7 @@ static void test_widget_second_op(struct ToriRS_PluginHost* host)
         " assert(control:set_on_op(2,'Setup',press)) end;"
         "function p.on_key(api) local control=api.widgets.get(1);assert(control:set_on_op(2)) end;"
         "return p";
-    struct FakeInstance instance={"widget-op2",""};struct ToriRS_Api api=fake_api(&instance);
+    struct FakeInstance instance={"widget-op2"};struct ToriRS_Api api=fake_api(&instance);
     struct ToriRS_KeyEvent key={0};
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_on_op=fake_lua_set_on_op;
     int index=PluginLua_AddScript(host,"widget-op2",source,(int)strlen(source), 0u);
@@ -618,7 +528,7 @@ static void test_widget_set_on_op(struct ToriRS_PluginHost* host)
         "  if presses==2 then assert(control:set_on_op(1)) end end)) end;"
         "function p.on_key(api) local control=api.widgets.get(1);control:set_on_op(1,'',function() end) end;"
         "return p";
-    struct FakeInstance instance={"widget-op",""};struct ToriRS_Api api=fake_api(&instance);
+    struct FakeInstance instance={"widget-op"};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_on_op=fake_lua_set_on_op;
     int index=PluginLua_AddScript(host,"widget-op",source,(int)strlen(source), 0u);
     CHECK(index>=0,"owned operation script registers");
@@ -679,7 +589,7 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
         "local p={id='widget-anchor-target'};function p.on_start(api) "
         " local control=assert(api.widgets.get(1));"
         " control:set_anchor(nil,'over') end;return p";
-    struct FakeInstance instance={"widget-anchor",""};struct ToriRS_Api api=fake_api(&instance);
+    struct FakeInstance instance={"widget-anchor"};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.set_anchor=fake_lua_set_anchor;
     int index=PluginLua_AddScript(host,"widget-anchor",source,(int)strlen(source), 0u);
     CHECK(index>=0,"anchor script registers");
@@ -691,7 +601,7 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
     /* Its OWN instance: the runtime finds the script by core.plugin_id(), so
      * a second script driven through the first one's api runs the FIRST one's
      * body and proves nothing about itself. */
-    struct FakeInstance bad_instance={"widget-anchor-relation",""};
+    struct FakeInstance bad_instance={"widget-anchor-relation"};
     struct ToriRS_Api bad_api=fake_api(&bad_instance);
     bad_api.widgets.get_widget=fake_lua_get_widget;bad_api.widgets.set_anchor=fake_lua_set_anchor;
     int disables=g_disabled_self;
@@ -703,7 +613,7 @@ static void test_widget_set_anchor(struct ToriRS_PluginHost* host)
           "an unnamed anchor relation is refused by name");
     CHECK(lua_anchor_sets==0,"and never reaches the native set_anchor");
 
-    struct FakeInstance nil_instance={"widget-anchor-target",""};
+    struct FakeInstance nil_instance={"widget-anchor-target"};
     struct ToriRS_Api nil_api=fake_api(&nil_instance);
     nil_api.widgets.get_widget=fake_lua_get_widget;nil_api.widgets.set_anchor=fake_lua_set_anchor;
     disables=g_disabled_self;
@@ -744,7 +654,7 @@ static void test_widget_images(struct ToriRS_PluginHost* host)
         " assert(control:set_image(12,20,10));assert(control:set_opacity(85));"
         " assert(parent:set_mask(12));assert(parent:set_mask(nil));api.core.log('image set') end;"
         "function p.on_key(api) local parent=api.widgets.get(1);parent:set_opacity(300) end;return p";
-    struct FakeInstance instance={"widget-img",""};struct ToriRS_Api api=fake_api(&instance);
+    struct FakeInstance instance={"widget-img"};struct ToriRS_Api api=fake_api(&instance);
     api.widgets.get_widget=fake_lua_get_widget;api.widgets.create_image=fake_lua_create_image;
     api.widgets.set_image=fake_lua_set_image;api.widgets.set_opacity=fake_lua_set_opacity;
     api.widgets.set_mask=fake_lua_set_mask;
@@ -776,7 +686,7 @@ static void test_menu_module(struct ToriRS_PluginHost* host)
         "on_menu_build=function(api,event) assert(api.ui==nil);"
         "assert(api.menu.add('Tag Guard',85)) end,"
         "on_frame_start=function(api,event) api.menu.add('Tag Guard',85) end}";
-    struct FakeInstance instance={"menu-module",""};
+    struct FakeInstance instance={"menu-module"};
     struct ToriRS_Api api=fake_api(&instance);
     api.menu.add=fake_menu_entry;
     int index=PluginLua_AddScript(host,"menu-module",source,(int)strlen(source), 0u);
@@ -934,7 +844,7 @@ test_real_porcelain_pump(struct ToriRS_PluginHost* host)
 {
     static struct ToriRS_Api api;
     static struct ToriRS_ClientApi client;
-    struct FakeInstance instance = {"performance-counters", ""};
+    struct FakeInstance instance = {"performance-counters" };
     int product_size = 0, tail_size = 0;
     char* product = read_file("../script/plugins/performance_display.lua", &product_size);
     char* tail = read_file("plugin/test/performance_display_counters.lua", &tail_size);
@@ -1084,7 +994,7 @@ static void
 test_pump_costs_an_idle_plugin_nothing(struct ToriRS_PluginHost* host)
 {
     static struct ToriRS_Api api;
-    struct FakeInstance instance = {"idle-probe", ""};
+    struct FakeInstance instance = {"idle-probe" };
     int index;
     int disables_before;
 
@@ -1145,7 +1055,7 @@ static void
 test_lua_within_placement(struct ToriRS_PluginHost* host)
 {
     static struct ToriRS_Api api;
-    struct FakeInstance instance = {"within-probe", ""};
+    struct FakeInstance instance = {"within-probe" };
     struct TestbedControl const* child;
     struct TestbedControl const* sibling;
     int index;
@@ -1208,7 +1118,7 @@ static void test_product_behavior(struct ToriRS_PluginHost* host,
     CHECK(index>=0,"product behavior registers");
     if( index>=0 )
     {
-        struct FakeInstance instance={id,""};
+        struct FakeInstance instance={id};
         struct ToriRS_Api api=fake_api(&instance);
         int logs=g_logs,disables=g_disabled_self;
         g_defs[index]->callbacks.on_start(&api,NULL);

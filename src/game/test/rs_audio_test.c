@@ -181,137 +181,36 @@ test_boot_muted(void)
 }
 
 /*
- * The frame resolver owns the live choice, but the requested id is device
- * state and has to retain two facts which a plain string cannot express:
- * `auto` explicitly selected by the player, and `auto` supplied only as the
- * default while an old install still needs its plugin settings migrated.
+ * A preferences file written while plugins could provide a gameframe carries
+ * `preferred_frame` and `frame_migration_version`. Nothing reads either now:
+ * the file still loads, and a save drops both rather than carrying them on.
  */
 static void
-test_frame_preference_persistence(void)
+test_retired_frame_keys_are_dropped(void)
 {
-    static char const legacy_file[] =
+    static char const old_file[] =
         "[preferences]\n"
         "version=1\n"
-        "future_key=still-safe-to-ignore\n"
-        "\n[future_section]\n"
-        "preferred_frame=future/not-a-preference\n";
-    static char const selected_file[] =
-        "[preferences]\n"
-        "version=1\n"
-        "preferred_frame=future-provider/temporarily-missing\n"
-        "frame_migration_version=7\n";
+        "preferred_frame=gameframe-layout/classic-fixed\n"
+        "frame_migration_version=1\n"
+        "default_window_mode=1\n";
     struct RS_Prefs prefs;
-    struct RS_Prefs reloaded;
-    struct RS_CS2Host host;
-    char longest[RS_PREFS_FRAME_ID_MAX];
-    char too_long[RS_PREFS_FRAME_ID_MAX + 1];
-    char malformed[RS_PREFS_FRAME_ID_MAX + 80];
     void* data = NULL;
     int size = 0;
 
-    printf("gameframe preference persistence\n");
+    printf("retired gameframe preference keys\n");
 
     RS_Prefs_Defaults(&prefs);
     CHECK(
-        strcmp(prefs.preferred_frame, RS_PREFS_FRAME_AUTO) == 0,
-        "a fresh preference resolves safely to Auto");
+        RS_Prefs_Decode(&prefs, old_file, (int)strlen(old_file)),
+        "a file carrying the retired frame keys still decodes");
+    CHECK(prefs.default_window_mode == 1, "and the settings beside them are read");
+    CHECK(RS_Prefs_Encode(&prefs, &data, &size), "the decoded preferences encode");
     CHECK(
-        !prefs.preferred_frame_present,
-        "a fresh Auto remains distinguishable from an explicit selection");
-    CHECK(
-        prefs.frame_migration_version == 0,
-        "a fresh preference has no recorded legacy migration");
-
-    /* Until migration has actually run, an unrelated option save must retain
-     * absence. Otherwise that save would suppress the future one-time import. */
-    CHECK(RS_Prefs_Encode(&prefs, &data, &size), "pre-migration defaults encode");
-    CHECK(
-        strstr((char const*)data, "preferred_frame=") == NULL,
-        "encoding does not invent selection presence before migration");
+        strstr((char const*)data, "preferred_frame=") == NULL &&
+            strstr((char const*)data, "frame_migration_version=") == NULL,
+        "the retired keys are not written back");
     ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
-    data = NULL;
-
-    CHECK(
-        RS_Prefs_Decode(&prefs, legacy_file, (int)strlen(legacy_file)),
-        "a legacy preferences file decodes");
-    CHECK(
-        !prefs.preferred_frame_present &&
-            strcmp(prefs.preferred_frame, RS_PREFS_FRAME_AUTO) == 0,
-        "unknown keys and sections do not masquerade as a frame selection");
-
-    CHECK(
-        RS_Prefs_SetPreferredFrame(&prefs, RS_PREFS_FRAME_AUTO),
-        "explicit Auto changes absent state into a saved choice");
-    CHECK(
-        !RS_Prefs_SetPreferredFrame(&prefs, RS_PREFS_FRAME_AUTO),
-        "setting the same explicit frame twice is not a dirty change");
-    CHECK(
-        !RS_Prefs_SetPreferredFrame(&prefs, ""),
-        "an empty frame id is rejected without changing the preference");
-
-    memset(longest, 'a', sizeof(longest));
-    longest[sizeof(longest) - 1] = '\0';
-    memset(too_long, 'b', sizeof(too_long));
-    too_long[sizeof(too_long) - 1] = '\0';
-    CHECK(
-        RS_Prefs_SetPreferredFrame(&prefs, longest),
-        "the longest bounded frame id is accepted");
-    CHECK(
-        !RS_Prefs_SetPreferredFrame(&prefs, too_long) &&
-            strcmp(prefs.preferred_frame, longest) == 0,
-        "an overlong frame id is rejected rather than truncated or aliased");
-
-    CHECK(
-        RS_Prefs_Decode(&prefs, selected_file, (int)strlen(selected_file)),
-        "a selected future provider decodes");
-    CHECK(
-        prefs.preferred_frame_present &&
-            strcmp(prefs.preferred_frame, "future-provider/temporarily-missing") == 0,
-        "an unknown provider id is retained verbatim for a later boot");
-    CHECK(
-        prefs.frame_migration_version == 7,
-        "a newer migration marker is retained instead of being repeated");
-
-    CHECK(RS_Prefs_Encode(&prefs, &data, &size), "selected frame preference encodes");
-    CHECK(
-        strstr((char const*)data, "preferred_frame=future-provider/temporarily-missing\n") != NULL,
-        "the stable requested id is written in the preferences section");
-    CHECK(
-        strstr((char const*)data, "frame_migration_version=7\n") != NULL,
-        "the completed migration version is written");
-    CHECK(RS_Prefs_Decode(&reloaded, data, size), "selected frame preference reloads");
-    CHECK(
-        reloaded.preferred_frame_present &&
-            strcmp(reloaded.preferred_frame, prefs.preferred_frame) == 0 &&
-            reloaded.frame_migration_version == prefs.frame_migration_version,
-        "requested frame and migration state survive a round trip");
-    ToriMem_Free(ToriMem_Process(), data); /* RS_Prefs_Encode allocates from PROCESS */
-    data = NULL;
-
-    /* A malformed explicit key is still present: it safely becomes Auto, but
-     * must not reopen the door to stale legacy enabled/layout lines. */
-    memset(too_long, 'x', sizeof(too_long));
-    too_long[sizeof(too_long) - 1] = '\0';
-    snprintf(
-        malformed, sizeof(malformed), "[preferences]\npreferred_frame=%s\n", too_long);
-    CHECK(
-        RS_Prefs_Decode(&prefs, malformed, (int)strlen(malformed)),
-        "an overlong explicit selection does not break the preferences file");
-    CHECK(
-        prefs.preferred_frame_present &&
-            strcmp(prefs.preferred_frame, RS_PREFS_FRAME_AUTO) == 0,
-        "an invalid explicit selection falls back safely without triggering migration");
-
-    /* Host option polling is unrelated to frame resolution and must not erase
-     * the requested id while an audio/window setting happens to be captured. */
-    memset(&host, 0, sizeof(host));
-    RS_Prefs_SetPreferredFrame(&prefs, "future-provider/temporarily-missing");
-    prefs.frame_migration_version = RS_PREFS_FRAME_MIGRATION_VERSION;
-    RS_Prefs_CaptureFromHost(&prefs, &host);
-    CHECK(
-        strcmp(prefs.preferred_frame, "future-provider/temporarily-missing") == 0 &&
-            prefs.frame_migration_version == RS_PREFS_FRAME_MIGRATION_VERSION,
-        "capturing host options leaves frame preference state alone");
 }
 
 /*
@@ -1088,7 +987,7 @@ main(void)
 
     test_audio_settings_snapshot();
     test_boot_muted();
-    test_frame_preference_persistence();
+    test_retired_frame_keys_are_dropped();
     test_prefs_persistence();
     test_queue_without_cache();
 

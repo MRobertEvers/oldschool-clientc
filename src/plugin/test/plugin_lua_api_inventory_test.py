@@ -135,7 +135,7 @@ def main() -> int:
         "core": "ToriRS_CoreApi", "config": "ToriRS_ConfigApi",
         "world": "ToriRS_WorldApi", "input": "ToriRS_InputApi",
         "menu": "ToriRS_MenuApi",
-        "frame": "ToriRS_FrameApi", "draw": "ToriRS_DrawApi",
+        "draw": "ToriRS_DrawApi",
         "assets": "ToriRS_AssetsApi", "scene": "ToriRS_SceneApi",
         "panel": "ToriRS_PanelApi", "cache": "ToriRS_CacheApi",
         "client": "ToriRS_ClientApi", "game": "ToriRS_GameApi",

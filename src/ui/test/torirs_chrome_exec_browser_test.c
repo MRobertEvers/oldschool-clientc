@@ -15,7 +15,6 @@ static char inbound[2048];
 static int opened;
 static int collapsed;
 /* What the executor last told the platform about the rail, -1 before it has. */
-static int rail_hidden_set = -1;
 static int page_width;
 static int width_changes;
 static int send_enabled = 1;
@@ -77,7 +76,7 @@ bool PlatformWindow_ChromeOpen(
 void PlatformWindow_ChromeClose(struct PlatformWindow* p)
 { CHECK(p == &platform); collapsed++; }
 void PlatformWindow_ChromeSetRailHidden(struct PlatformWindow* p, bool hidden)
-{ CHECK(p == &platform); rail_hidden_set = hidden ? 1 : 0; }
+{ CHECK(p == &platform); (void)hidden; }
 
 static struct ToriRSChromeCmd command(int kind, int panel, int widget)
 {
@@ -122,8 +121,6 @@ int main(void)
     rail.entries[1].preferred_width = 420;
     snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Loot Tracker");
     exec.rail_sync(exec.user, &rail);
-    CHECK(rail_hidden_set == 0);
-    CHECK(strstr(sent[1], "\"railHidden\":false") != NULL);
     CHECK(sent_count == 2);
     CHECK(strstr(sent[0], "\"type\":\"theme\"") != NULL);
     CHECK(strstr(sent[0], "\"checkBoxOn\":\"skin/CheckBoxOn.png\"") != NULL);
@@ -337,15 +334,9 @@ int main(void)
     rail.entries[1].plugin_index = 7;
     rail.entries[1].preferred_width = 480;
     snprintf(rail.entries[1].title, sizeof(rail.entries[1].title), "Ground Markers");
-    /* The lane's pop-out column carries the destinations now: the platform is
-     * told before anything else, and the page carries on regardless. */
-    rail.rail_hidden = 1;
     exec.rail_sync(exec.user, &rail);
-    rail.rail_hidden = 0;
-    CHECK(rail_hidden_set == 1);
     CHECK(page_width == 320 && width_changes == 1);
     CHECK(sent_count == 7);
-    CHECK(strstr(sent[6], "\"railHidden\":true") != NULL);
     CHECK(strstr(sent[5], "\"type\":\"page.close\"") != NULL &&
           strstr(sent[5], "\"pageGeneration\":11") != NULL);
     CHECK(strstr(sent[6], "\"type\":\"rail.snapshot\"") != NULL &&

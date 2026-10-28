@@ -218,11 +218,11 @@ test_dirty_marking(void)
 
         UITree_ClearNodeDirty(tree, layer);
         dirty_before = tree->dirty_gen;
-        TEST_ASSERT(UITree_SetFrameHiddenAt(tree, layer, 1), "set frame hidden at");
-        TEST_ASSERT(tree->components[layer].frame_hidden && tree->components[layer].is_dirty &&
+        TEST_ASSERT(UITree_SetScreenHiddenAt(tree, layer, 1), "set screen hidden at");
+        TEST_ASSERT(tree->components[layer].screen_hidden && tree->components[layer].is_dirty &&
                         tree->dirty_gen != dirty_before,
-                    "frame suppression invalidates reachability");
-        TEST_ASSERT(UITree_SetFrameHiddenAt(tree, layer, 0), "release frame hidden at");
+                    "screen suppression invalidates reachability");
+        TEST_ASSERT(UITree_SetScreenHiddenAt(tree, layer, 0), "release screen hidden at");
 
         TEST_ASSERT(!UITree_SetPositionAt(tree, -1, 0, 0), "invalid index rejected");
         TEST_ASSERT(!UITree_SetCS1ValueAt(tree, rect, UITREE_CS1_VALUE_MAX, 0),

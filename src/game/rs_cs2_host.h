@@ -1086,19 +1086,6 @@ struct RS_CS2Host
      *  calls setwindowmode; drained to WINDOW_STATUS so the server remounts. */
     int client_layout_mode;
     bool client_layout_dirty;
-    /** A layout the CLIENT has asked the lane for and not seen yet (0/1/2), or
-     *  -1 when nothing is outstanding, with the logic cycle the request went
-     *  out on.
-     *
-     *  Not a second copy of `client_layout_mode`: that one is what the lane
-     *  IS, written by the cache's own script, and this is what something in
-     *  this client wants it to be. They exist apart because the asker -- a
-     *  gameframe plugin, through app_native_layout_select -- asks on every
-     *  layout pass, and the answer is a server remount three ticks away; the
-     *  pair is what turns sixty asks a second into one packet.
-     *  @see APP_NATIVE_LAYOUT_RETRY_CYCLES. */
-    int client_layout_wanted;
-    uint64_t client_layout_wanted_cycle;
     /** The clientscript whose CS2VM2_ThreadRun is on the stack right now, or
      *  -1 between runs. Read only by the TORIRS_DUMP_SETPOS trace, so a
      *  position write can name the script that made it instead of leaving the

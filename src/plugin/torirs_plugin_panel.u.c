@@ -125,14 +125,6 @@ app_plugin_panel_overlay_reset(struct App* app, uint32_t generation);
 static void
 app_plugin_rail_publish(struct App* app);
 
-/* plugin/torirs_plugin_popout_nav.u.c, included after this file. */
-static void
-app_plugin_popout_nav_tick(struct App* app);
-
-/* plugin/torirs_plugin_lane_launcher.u.c, included after this file. */
-static void
-app_plugin_lane_launcher_tick(struct App* app);
-
 /* Change the ONE page selection and its generation together. A platform event
  * queued by the page being left is stale from this statement onward. */
 static void
@@ -2363,7 +2355,6 @@ app_plugin_rail_snapshot(
             snapshot->selected_entry = TORIRS_CHROME_SHELL_PAGE_MANAGE;
     }
     snapshot->expanded = app->plugin_shell.expanded ? 1 : 0;
-    snapshot->rail_hidden = app->plugin_nav.rail_hidden ? 1 : 0;
 
     /* Permanent application destination, in the same retained rail and the
      * same shared page pane as plugins. Its icon is the baked wrench. */
@@ -3260,15 +3251,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         return;
 
     /* Navigation is application chrome, not page chrome: publish and drain it
-     * even while plugin_exec is shut down in the collapsed state. The pop-out
-     * column goes first, because whether it carries the destinations is what
-     * the rail snapshot's `rail_hidden` reports. */
-    app_plugin_popout_nav_tick(app);
-    /* And the launcher on the lane's own stone column, which is the way in on
-     * a root the column above is not on -- the mobile toplevel mounts the
-     * pop-out hidden. Neither stands the other down: only one root at a time
-     * names either of them. */
-    app_plugin_lane_launcher_tick(app);
+     * even while plugin_exec is shut down in the collapsed state. */
     app_plugin_rail_publish(app);
     app_plugin_rail_drain(app);
     app_plugin_rail_publish(app);

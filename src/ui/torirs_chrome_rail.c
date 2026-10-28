@@ -98,7 +98,7 @@ rail_snapshot_same(
            a->active_plugin == b->active_plugin &&
            a->last_selected_plugin == b->last_selected_plugin &&
            a->selected_entry == b->selected_entry &&
-           a->expanded == b->expanded && a->rail_hidden == b->rail_hidden &&
+           a->expanded == b->expanded &&
            a->entry_count == b->entry_count;
 }
 

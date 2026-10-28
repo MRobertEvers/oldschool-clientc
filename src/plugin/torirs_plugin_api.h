@@ -3,7 +3,7 @@
 
 /* Public plugin API major 3. One existing host/runtime serves all plugins.
  * Live UI is authored through the widget API (torirs_plugin_contract.h) and
- * the application panel; a gameframe is PROVIDED through on_gameframe.
+ * the application panel. The lane's own chrome is never replaced by a plugin.
  * No previous binary ABI is accepted or preserved by this aggregate. */
 
 #include "plugin/torirs_plugin_contract.h"
@@ -19,7 +19,6 @@
  * included. Shared by the host's watch table and the roster labels. */
 #define TORIRS_UI_NAME_MAX 128
 #define TORIRS_UI_LABEL_MAX 128
-#define TORIRS_FRAME_REASON_MAX 160
 /*
  * Spare function slots every module carries.
  *
@@ -149,71 +148,6 @@ struct ToriRS_SkillSnapshot
 
 #define TORIRS_SKILL_SNAPSHOT_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
 
-/* ------------------------------------------------------------------------ */
-/* Frames                                                                   */
-/* ------------------------------------------------------------------------ */
-
-enum ToriRS_FrameCanvas
-{
-    TORIRS_FRAME_CANVAS_FIXED = 0,
-    TORIRS_FRAME_CANVAS_WINDOW,
-};
-
-/**
- * A frame provider's answer to on_gameframe.
- *
- * READY        the provider's retained widget edits ARE the frame; the host
- *              suppresses the lane's own chrome under them.
- * PENDING      ask again next fence: roles have not bound, art is in flight.
- *              The lane's chrome stays up meanwhile.
- * UNSUPPORTED  this lane cannot take the frame; the resolver falls back to
- *              the lane's chrome and reports the provider's reason.
- * ERROR        the provider faulted; treated as UNSUPPORTED with a stock reason.
- * NATIVE       the lane's own chrome IS this frame. A provider answers it on a
- *              lane that authors the frame it was asked for as one of its own
- *              top-level chromes -- an OldSchool cache's resizable, say -- after
- *              asking the lane for it through frame.native_layout_select.
- *              Nothing is provided: the lane's chrome stays up, its canvas
- *              policy stands, the provider is not re-asked on a canvas change,
- *              and the offer is reported ACTIVE under its own id. The provider
- *              must stage nothing on this answer (Porcelain_FrameNative does
- *              exactly that), since the host takes the retained edits of a
- *              previous provision off through the release it raises.
- */
-enum ToriRS_FrameBuildResult
-{
-    TORIRS_FRAME_READY = 0,
-    TORIRS_FRAME_PENDING,
-    TORIRS_FRAME_UNSUPPORTED,
-    TORIRS_FRAME_ERROR,
-    TORIRS_FRAME_NATIVE,
-};
-
-enum ToriRS_FrameStatus
-{
-    TORIRS_FRAME_STATUS_NATIVE = 0,
-    TORIRS_FRAME_STATUS_ACTIVE,
-    TORIRS_FRAME_STATUS_LOADING,
-    TORIRS_FRAME_STATUS_FALLBACK,
-};
-
-/* The live surfaces a lane lays out. The numbering is public only as the
- * argument of ToriRS_FrameApi::surface_native_size and its siblings
- * (surface_member_native_box, surface_fit); a provided frame moves
- * the surfaces themselves through the widget API. */
-enum ToriRS_Surface
-{
-    TORIRS_SURFACE_VIEWPORT = 0,
-    TORIRS_SURFACE_MINIMAP,
-    TORIRS_SURFACE_SIDEBAR,
-    TORIRS_SURFACE_CHAT,
-    TORIRS_SURFACE_CHAT_BUTTONS,
-    TORIRS_SURFACE_MODAL,
-    TORIRS_SURFACE_COMPASS,
-    TORIRS_SURFACE_ORBS,
-    TORIRS_SURFACE_COUNT,
-};
-
 /** Callback-scoped drawing coordinates. Bounds are local to the callback;
  * builders translate them to the underlying canvas/panel surface. */
 struct ToriRS_DrawContext
@@ -317,82 +251,6 @@ struct ToriRS_Graphics
     bool (*context)(
         struct ToriRS_Graphics* draw,
         struct ToriRS_DrawContext* out);
-};
-
-/* A NULL id terminates an offer array. Only the fields for the chosen canvas
- * policy are meaningful: width/height for FIXED, min_* for WINDOW. An offer
- * is served by the definition's on_gameframe callback. */
-struct ToriRS_FrameOffer
-{
-    uint32_t struct_size;
-    char const* id;
-    char const* title;
-    int canvas;
-    int width;
-    int height;
-    int min_width;
-    int min_height;
-    /* FrameOffer arrays are NULL-id terminated and therefore fixed-stride. */
-    uintptr_t reserved_v2[TORIRS_DESCRIPTOR_V2_RESERVED_WORDS];
-};
-
-#define TORIRS_FRAME_OFFER_REQUIRED_SIZE                                                           \
-    ((uint32_t)(offsetof(struct ToriRS_FrameOffer, min_height) +                                   \
-                sizeof(((struct ToriRS_FrameOffer*)0)->min_height)))
-
-struct ToriRS_FrameOfferInfo
-{
-    uint32_t struct_size;
-    char id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    char title[TORIRS_PLUGIN_TITLE_MAX];
-    char provider[TORIRS_PLUGIN_NAME_MAX];
-    int canvas;
-    int width;
-    int height;
-    int min_width;
-    int min_height;
-    bool available;
-    char detail[TORIRS_FRAME_REASON_MAX];
-};
-
-#define TORIRS_FRAME_OFFER_INFO_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
-
-struct ToriRS_FrameSelection
-{
-    uint32_t struct_size;
-    char requested_id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    char active_id[TORIRS_PLUGIN_FRAME_ID_MAX];
-    int status;
-    char reason[TORIRS_FRAME_REASON_MAX];
-    uint32_t revision;
-};
-
-#define TORIRS_FRAME_SELECTION_REQUIRED_SIZE ((uint32_t)sizeof(uint32_t))
-
-/**
- * The NATIVE top-level chrome a lane is wearing, for a frame that arranges
- * over one.
- *
- * A provided frame does not replace the lane's top level -- it stands on it,
- * and the lane's own node numbering, surface sizes and mount points differ per
- * root. So "which root is this" is a question every provider on such a lane
- * has, and `native_layout_select` is how one that computes badly over the
- * wrong root asks for the right one instead of laying out over it anyway.
- *
- * The first three are the lane's own domain -- the values its Display panel,
- * its wire and its server content all count in. MOBILE is a fourth ROOT and
- * not a fourth choice: a lane opens it because the session said phone, and
- * nothing offers a way in or out of it, so `native_layout_select` refuses it.
- * It is reported rather than hidden behind UNKNOWN so that a provider cannot
- * read "the phone frame" as "no answer" and ask a phone for a desk's chrome.
- */
-enum ToriRS_NativeLayout
-{
-    TORIRS_NATIVE_LAYOUT_UNKNOWN = -1,
-    TORIRS_NATIVE_LAYOUT_FIXED = 0,
-    TORIRS_NATIVE_LAYOUT_RESIZABLE_CLASSIC = 1,
-    TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN = 2,
-    TORIRS_NATIVE_LAYOUT_MOBILE = 3,
 };
 
 /* ------------------------------------------------------------------------ */
@@ -538,11 +396,6 @@ struct ToriRS_CoreApi
      *   (SDL_HasScreenKeyboardSupport, yes on Android, no on win32gdi) and
      *   constant for the life of the window, so it may be read once at
      *   on_start;
-     * - `client.plugin_window`: there is a plugin WINDOW to open -- the shared
-     *   shell that hosts Manage Plugins and every plugin page. True in a
-     *   client and false in a harness that builds no window, so a gameframe
-     *   carrying a launcher for it can stand the launcher down rather than
-     *   offer a dead button. @see client.plugin_window_show;
      * - `web`: this is the Emscripten web lane;
      * - `browser`: this build supports the embedded BROWSER chrome transport;
      * - `widgets.geometry`: the widget API reports live geometry;
@@ -559,9 +412,7 @@ struct ToriRS_CoreApi
      * - `server_tick.fenced`: the wire carries an end-of-tick packet, so the
      *   tick is a real fence rather than the player-info edge;
      * - `item_bonuses`: the loaded item records carry equipment-bonus params;
-     * - `native_orbs`: the live interface resolves the native run orb;
-     * - `if_settab`: the wire carries the server's set-tab packet;
-     * - `tab_select`: `frame`/sidebar tab selection can act on this lane.
+     * - `if_settab`: the wire carries the server's set-tab packet.
      *
      * Every answer is one expression over an ENGINE FACT -- a packet the wire
      * table carries, a ref the profile declares, a role the tree resolves, a
@@ -708,130 +559,6 @@ struct ToriRS_MenuApi
         struct ToriRS_MenuBuildEvent* menu,
         char const* text,
         uint32_t action_id);
-};
-
-struct ToriRS_FrameApi
-{
-    uint32_t struct_size;
-    int (*offer_next)(
-        struct ToriRS_Api* api,
-        int iterator,
-        struct ToriRS_FrameOfferInfo* out);
-    void (*selection)(
-        struct ToriRS_Api* api,
-        struct ToriRS_FrameSelection* out);
-    enum ToriRS_Result (*select)(
-        struct ToriRS_Api* api,
-        char const* id);
-    void (*invalidate)(struct ToriRS_Api* api);
-    bool (*surface_native_size)(
-        struct ToriRS_Api* api,
-        int surface,
-        int* out_width,
-        int* out_height);
-    /** The box the LANE authored for one numbered MEMBER of `surface`,
-     *  relative to the surface's own block. `member` is the role's own
-     *  numbering, never a position in a list, and -1 is refused: the surface
-     *  as a whole is surface_native_size's question and has no offset inside
-     *  itself to report. False when the lane has no such member or when any
-     *  box between it and the block is a proportion rather than pixels. */
-    bool (*surface_member_native_box)(
-        struct ToriRS_Api* api,
-        int surface,
-        int member,
-        int* out_x,
-        int* out_y,
-        int* out_width,
-        int* out_height);
-    /** Which native top-level chrome the lane is wearing right now
-     *  (enum ToriRS_NativeLayout), UNKNOWN on a lane that has no such choice
-     *  and between a request and the remount that answers it. Read it at a
-     *  fence and plan against it; it is the root a provided frame stands on. */
-    int (*native_layout)(struct ToriRS_Api* api);
-    /**
-     * Ask the lane for one of its native top-level chromes.
-     *
-     * For the provider that computes badly over the root it was handed: a
-     * layout authored against the fixed root's numbering standing on a
-     * resizable one, a frame whose surfaces have no members where it expects
-     * them. Asking for the root the frame is FOR is better than arranging over
-     * the wrong one, and it is a request a player could make -- the host
-     * performs it the way the lane's own settings row does, which on a served
-     * lane means the server remounts and every panel and op is re-mounted with
-     * it. Nothing is claimed, hidden or moved by this call.
-     *
-     * Allowed from a player's own action and from on_gameframe, where the
-     * frame's shape is being decided -- the same gate `cache.tab_select`
-     * carries, and for the same reason.
-     *
-     * TORIRS_RESULT_OK means the lane has been asked, INCLUDING when it is
-     * already wearing that chrome; it does NOT mean the root has changed yet.
-     * The remount is several server ticks away and arrives as a new
-     * `frame_root`, so a provider treats it as it treats any other remount:
-     * describe nothing this pass, and plan against the tree that is there
-     * next. Asking on every layout pass is expected and costs one request,
-     * not one per pass.
-     *
-     * TORIRS_RESULT_UNSUPPORTED when this lane cannot be asked -- a lane with
-     * no such chrome, no session to ask, or a root nothing offers a way out of
-     * (MOBILE). TORIRS_RESULT_INVALID for a layout outside the three the
-     * selector offers.
-     */
-    enum ToriRS_Result (*native_layout_select)(
-        struct ToriRS_Api* api,
-        int layout);
-    /**
-     * The largest box, inside `width` x `height`, that `surface` lays itself
-     * out to fill.
-     *
-     * surface_native_size says what the lane authored; this says what else the
-     * surface can BE. Most surfaces are one size: a box bigger than the
-     * authored one is the same picture with empty space around it. The 2004
-     * chat builtin is not -- it lays its message window out to its own height,
-     * a line per 14 rows -- so a frame whose housing has room for more history
-     * than 96 rows asks here with the housing's inner rectangle and places the
-     * surface at the answer, centred in the room it asked about.
-     *
-     * The answer is never smaller than the authored size and never bigger
-     * than the box asked about, and it lands on a whole line: a height the
-     * engine would draw a sliver of text into is not one it hands back.
-     *
-     * False, writing nothing, when the surface has only its authored size
-     * (the frame places it at surface_native_size), when the box asked about
-     * is smaller than that size, or when the lane has no such surface.
-     */
-    bool (*surface_fit)(
-        struct ToriRS_Api* api,
-        int surface,
-        int width,
-        int height,
-        int* out_width,
-        int* out_height);
-    /**
-     * Centre what the lane MOUNTS into `surface` inside the box this frame
-     * gave it.
-     *
-     * A frame that grows a surface past its authored size (surface_fit) grows
-     * the node the lane mounts its interfaces into, and those were authored
-     * for the old box: a 2004 chat dialog is 479x96, and in a taller chat it
-     * sits against the top with every spare row underneath it. With
-     * `centered` true each mounted interface is laid out in the surface's
-     * authored size, centred in the placed box; the surface's own drawing --
-     * the chat history -- keeps the whole box.
-     *
-     * The frame's statement and kept with the provision: stated once it holds
-     * across re-provisions until stated false or the frame is released. A
-     * surface the frame did not grow is unaffected either way.
-     *
-     * From on_gameframe only -- it is part of the frame's shape.
-     * TORIRS_RESULT_UNSUPPORTED outside it or on a lane with no such surface,
-     * TORIRS_RESULT_INVALID for a surface outside TORIRS_SURFACE_*.
-     */
-    enum ToriRS_Result (*surface_center_content)(
-        struct ToriRS_Api* api,
-        int surface,
-        bool centered);
-    void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 6])(void);
 };
 
 /* The pixels themselves are emitted through ToriRS_Graphics. This module
@@ -1113,12 +840,11 @@ struct ToriRS_PanelApi
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 9])(void);
 };
 
-/* Explicit escape hatch for lane-specific plugins. Nothing in the widget or
- * frame modules exposes cache component ids or numeric cache ops. */
+/* Explicit escape hatch for lane-specific plugins. Nothing in the widget
+ * module exposes cache component ids or numeric cache ops. */
 struct ToriRS_CacheApi
 {
     uint32_t struct_size;
-    int (*frame_root)(struct ToriRS_Api* api);
     int (*varbit)(
         struct ToriRS_Api* api,
         int id);
@@ -1138,38 +864,6 @@ struct ToriRS_CacheApi
         char const* kind,
         char const* name,
         int* out_id);
-    int (*tab_active)(struct ToriRS_Api* api);
-    bool (*tab_enabled)(
-        struct ToriRS_Api* api,
-        int tab);
-    /** Native navigation is allowed from action callbacks, not from layout,
-     * draw or background updates that might fight a server/script closure. */
-    bool (*tab_select)(
-        struct ToriRS_Api* api,
-        int tab);
-    /*
-     * Is this tab's icon DARK right now because the game is flashing it?
-     *
-     * The tutorial points at a tab by blinking its icon, and the blink is a
-     * GAP: there is no highlight sprite, the missing icon is the signal. A
-     * frame that has replaced the lane's chrome has inherited that duty along
-     * with the stones, so this is the same question the client's own sidebar
-     * asks itself -- flagged AND in the dark half of the cycle -- answered on
-     * the client's clock so a plugin frame blinks in step with it rather than
-     * on a phase of its own.
-     *
-     * Two lanes flag a tab and neither is a fallback for the other: a dat1
-     * lane in the TUT_FLASH packet, a cache lane in a varbit its own
-     * `toplevel_flashicon` reads. Both are folded in here, so a frame asks
-     * once and names no lane. False for every tab that is not the flagged one,
-     * so it can be asked about all of them.
-     *
-     * The FLAG on its own -- for a frame that wants to draw something other
-     * than a gap -- is TORIRS_WIDGET_FACET_FLASHING on the tab's element.
-     */
-    bool (*tab_flash_hidden)(
-        struct ToriRS_Api* api,
-        int tab);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 5])(void);
 };
 
@@ -1212,35 +906,6 @@ struct ToriRS_ClientApi
     void (*disable_self)(
         struct ToriRS_Api* api,
         char const* reason);
-    /**
-     * Is the client's plugin WINDOW open -- the shared shell that hosts
-     * Manage Plugins and every plugin page?
-     *
-     * Not this plugin's own panel (`panel.request`) and not a page: the one
-     * window, whichever presentation it is bound to. Asked so a launcher can
-     * label itself, the way the Stone Drawer's chat switch reads "Show chat"
-     * or "Hide chat" off the state it is about to invert.
-     */
-    bool (*plugin_window_open)(struct ToriRS_Api* api);
-    /**
-     * Open or close it.
-     *
-     * For a plugin that has taken over the LAUNCHER duty, which in practice
-     * means a gameframe: a frame that replaces the lane's chrome inherits the
-     * ways into the client's own windows along with the stones, exactly as it
-     * inherits the tab strip (`widgets.tab_select`) and the tutorial's blink.
-     *
-     * A lane can otherwise be left with no way in at all. The engine has three
-     * launchers -- the rail's destinations, the pop-out nav column, and a
-     * profile-authored `option_action=PLUGIN_PANEL` -- and a phone has none of
-     * them: the rail needs a presenter the Android lane does not build, the
-     * nav column is mounted hidden on a mobile toplevel, and the dat2 profile
-     * authors no button because on a desk it does not need one.
-     * @see ANDROID-CHROME-001 in docs/platform_quirks.md.
-     */
-    void (*plugin_window_show)(
-        struct ToriRS_Api* api,
-        bool open);
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 2])(void);
 };
 
@@ -2109,21 +1774,6 @@ struct PorcelainRow
     void* user;
 };
 
-/**
- * Which way a root runs its sidebar tabs. @see ToriRS_PorcelainApi::tab_group
- *
- * Both, and not one, because the two shipped roots disagree: 548 and 161 lay
- * their stones out in horizontal ROWS and 601 stacks them in two vertical
- * COLUMNS, and a frame that asks the wrong way round gets one group holding
- * everything. A root answers both questions; the frame asks the one its own
- * rail is shaped like.
- */
-enum PorcelainTabAxis
-{
-    PORCELAIN_TAB_ROWS = 0,
-    PORCELAIN_TAB_COLUMNS
-};
-
 typedef void (*PorcelainDescribeFn)(
     struct ToriRS_PorcelainDescribe* describe,
     void* user);
@@ -2640,94 +2290,12 @@ struct ToriRS_PorcelainApi
         char const* key,
         char const* const* items,
         int count);
-    /* ---- Frames ---------------------------------------------------------
-     *
-     * A frame provider publishes its offers in ToriRS_PluginDef.frames, as it
-     * always did -- the host resolves auto/native before the provider starts,
-     * so registration order cannot change which offer is asked for. What
-     * these two add is the half the plugins wrote by hand: one describe
-     * function per offer, and a reconcile that owns the release.
-     */
-
-    /** Bind `offer_id` -- an id this plugin's definition publishes -- to the
-     *  description of that frame. Boot only; a second call for the same id
-     *  replaces the binding. `canvas`, `min_width` and `min_height` are what
-     *  the offer said, restated here so a description can be checked against
-     *  the canvas it was written for. */
-    void (*frame)(
-        struct Porcelain* porcelain,
-        char const* offer_id,
-        int canvas,
-        int min_width,
-        int min_height,
-        PorcelainDescribeFn fn,
-        void* user);
-
-    /** The plugin forwarding its own on_gameframe. Returns a
-     *  ToriRS_FrameBuildResult and writes event->reason.
-     *
-     *  Not installed by the layer: Porcelain is a library reached from the
-     *  plugin's own callbacks and ToriRS_PluginDef is const, so the event is
-     *  handed over rather than intercepted. A RELEASE (event->active false)
-     *  runs a describe that stages nothing, which is what takes the frame's
-     *  moves, hides, skins and owned art back off -- the shipped providers
-     *  both leave a dressing behind on a provider switch because their
-     *  undress runs from on_frame_start and they never get another one. */
-    int (*frame_event)(
-        struct Porcelain* porcelain,
-        struct ToriRS_GameframeEvent const* event);
-
-    /** The plugin answering its on_gameframe with TORIRS_FRAME_NATIVE: the
-     *  lane's own chrome is the frame it was asked for, so the description
-     *  stages nothing. Runs the same empty describe a release runs -- every
-     *  move, hide, skin and owned control of a previous provision comes off
-     *  -- fences it, drops the claims and returns TORIRS_FRAME_NATIVE. Asked
-     *  AFTER frame.native_layout_select has been answered OK; a provider that
-     *  could not ask the lane has an ordinary description to run instead. */
-    int (*frame_native)(
-        struct Porcelain* porcelain,
-        struct ToriRS_GameframeEvent const* event);
-
     /** The canvas a frame may lay out in: the frame root's box, less a
      *  LANE_CHROME strip that is PRESENTED and spans a full edge. False
      *  before anything of this lane has bound. */
     bool (*usable)(
         struct Porcelain* porcelain,
         struct ToriRS_WidgetBounds* out);
-
-    /** The box the LANE authored for `element`, before any plugin edit.
-     *
-     *  By ELEMENT and not by a surface number: the plugin-private enum passed
-     *  straight into frame.surface_native_size as the API's TORIRS_SURFACE_*
-     *  is a live defect, and the two numberings differ. A member element
-     *  answers block-relative x and y; a whole surface answers 0, 0. */
-    bool (*native_size)(
-        struct Porcelain* porcelain,
-        struct PorcelainElement element,
-        struct ToriRS_WidgetBounds* out);
-
-    /** The number THIS lane's own icon set gives `tab`, or -1 where the lane
-     *  numbers no panel there. The files are the frame's own art; what the
-     *  lanes disagree about is the numbering. */
-    int (*lane_icon)(
-        struct Porcelain* porcelain,
-        struct PorcelainElement tab);
-
-    /** How many rows (or columns) of tab stones this root lays out. */
-    int (*tab_group_count)(
-        struct Porcelain* porcelain,
-        int axis);
-    /** The tabs of one group, in the root's own order. Returns how many were
-     *  written; a capacity smaller than the group is a budget finding. */
-    int (*tab_group)(
-        struct Porcelain* porcelain,
-        int axis,
-        int group,
-        struct PorcelainElement* out,
-        int capacity);
-    /** The tab this root hangs outside every group (164's and 601's logout),
-     *  or an element of kind PORCELAIN_EL_NONE where there is none. */
-    struct PorcelainElement (*tab_detached)(struct Porcelain* porcelain);
 
     /* ------------------------------------------------------------ counters */
     /**
@@ -2744,7 +2312,6 @@ struct ToriRS_PorcelainApi
         struct PorcelainCounters* out);
     void (*counters_reset)(struct Porcelain* porcelain);
 
-    /* One slot fewer: frame_native took it. */
     void (*reserved_v2[TORIRS_API_V2_MODULE_RESERVED_SLOTS - 1])(void);
 };
 
@@ -2764,7 +2331,6 @@ struct ToriRS_Api
     struct ToriRS_WorldApi world;
     struct ToriRS_InputApi input;
     struct ToriRS_MenuApi menu;
-    struct ToriRS_FrameApi frame;
     struct ToriRS_DrawApi draw;
     struct ToriRS_AssetsApi assets;
     struct ToriRS_SceneApi scene;
@@ -2894,12 +2460,6 @@ struct ToriRS_PluginCallbacks
         void* state,
         char const* node,
         struct ToriRS_Graphics* draw);
-    /** Frame provision through the widget API; see ToriRS_GameframeEvent.
-     *  Every offer in ToriRS_PluginDef.frames is served by this callback. */
-    enum ToriRS_FrameBuildResult (*on_gameframe)(
-        struct ToriRS_Api* api,
-        void* state,
-        struct ToriRS_GameframeEvent const* event);
     void (*on_ui_layout)(
         struct ToriRS_Api* api,
         void* state,
@@ -2924,7 +2484,6 @@ struct ToriRS_PluginDef
     char const* version;
     size_t state_size;
     struct ToriRS_ConfigSchema const* config;
-    struct ToriRS_FrameOffer const* frames;
 
     /* Optional policy/ordering fields. Zero is the ordinary default. */
     uint32_t flags;

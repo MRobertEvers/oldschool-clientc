@@ -273,7 +273,6 @@ v2_runtime(struct ToriRS_Api* api)
     return runtime;
 }
 
-static int v2_surface_slot(int surface);
 static bool v2_panel_options_valid(
     struct ToriRS_SelectOption const* options,
     int option_count);
@@ -631,162 +630,6 @@ v2_ui_menu_add(
     assert(text);
     return api_menu_add(
                runtime->context, menu, text, action_id) != 0;
-}
-
-static int
-v2_frame_offer_next(
-    struct ToriRS_Api* api,
-    int iterator,
-    struct ToriRS_FrameOfferInfo* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_FrameOfferInfo snapshot;
-    uint32_t const capacity = out ? out->struct_size : 0;
-    int next;
-
-    assert(out);
-    if( capacity < TORIRS_FRAME_OFFER_INFO_REQUIRED_SIZE )
-        return -1;
-    next = api_frame_offer_next(runtime->context, iterator, &snapshot);
-    if( next < 0 )
-        return -1;
-    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
-    (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
-    return next;
-}
-
-static void
-v2_frame_selection(
-    struct ToriRS_Api* api,
-    struct ToriRS_FrameSelection* out)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    struct ToriRS_FrameSelection snapshot;
-    uint32_t const capacity = out ? out->struct_size : 0;
-
-    assert(out);
-    if( capacity < TORIRS_FRAME_SELECTION_REQUIRED_SIZE )
-        return;
-    api_frame_selection(runtime->context, &snapshot);
-    snapshot.struct_size = capacity < sizeof(snapshot) ? capacity : sizeof(snapshot);
-    (void)v2_output_copy(out, capacity, &snapshot, sizeof(snapshot));
-}
-
-static enum ToriRS_Result
-v2_frame_select(
-    struct ToriRS_Api* api,
-    char const* id)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    assert(id);
-    return api_frame_select(runtime->context, id) ? TORIRS_RESULT_OK
-                                                               : TORIRS_RESULT_INVALID;
-}
-
-static void
-v2_frame_invalidate(struct ToriRS_Api* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-        api_frame_invalidate(runtime->context);
-}
-
-static bool
-v2_frame_surface_native_size(
-    struct ToriRS_Api* api,
-    int surface,
-    int* out_width,
-    int* out_height)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const surface_token = v2_surface_slot(surface);
-
-    if( surface_token < 0 )
-        return false;
-    return api_slot_native_size(
-               runtime->context, surface_token, out_width, out_height) != 0;
-}
-
-static bool
-v2_frame_surface_member_native_box(
-    struct ToriRS_Api* api,
-    int surface,
-    int member,
-    int* out_x,
-    int* out_y,
-    int* out_width,
-    int* out_height)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const surface_token = v2_surface_slot(surface);
-
-    if( surface_token < 0 )
-        return false;
-    return api_slot_member_native_box(
-               runtime->context, surface_token, member, out_x, out_y, out_width,
-               out_height) != 0;
-}
-
-static bool
-v2_frame_surface_fit(
-    struct ToriRS_Api* api,
-    int surface,
-    int width,
-    int height,
-    int* out_width,
-    int* out_height)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const surface_token = v2_surface_slot(surface);
-
-    assert(out_width);
-    assert(out_height);
-    if( surface_token < 0 )
-        return false;
-    return api_slot_fit(
-               runtime->context, surface_token, width, height, out_width, out_height) != 0;
-}
-
-static enum ToriRS_Result
-v2_frame_surface_center_content(
-    struct ToriRS_Api* api,
-    int surface,
-    bool centered)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    int const surface_token = v2_surface_slot(surface);
-
-    if( surface < 0 || surface >= TORIRS_SURFACE_COUNT )
-        return TORIRS_RESULT_INVALID;
-    if( surface_token < 0 )
-        return TORIRS_RESULT_UNSUPPORTED;
-    return api_slot_center_content(runtime->context, surface_token, centered ? 1 : 0)
-               ? TORIRS_RESULT_OK
-               : TORIRS_RESULT_UNSUPPORTED;
-}
-
-static int
-v2_frame_native_layout(struct ToriRS_Api* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    return api_native_layout(runtime->context);
-}
-
-static enum ToriRS_Result
-v2_frame_native_layout_select(
-    struct ToriRS_Api* api,
-    int layout)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-
-    /* The three the lane's own selector offers. MOBILE is a root and not a
-     * choice, so asking for it is a plugin's mistake and not a lane's
-     * limitation -- INVALID, not UNSUPPORTED. */
-    if( layout < TORIRS_NATIVE_LAYOUT_FIXED || layout > TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN )
-        return TORIRS_RESULT_INVALID;
-    return api_native_layout_select(runtime->context, layout) ? TORIRS_RESULT_OK
-                                                             : TORIRS_RESULT_UNSUPPORTED;
 }
 
 static bool
@@ -1616,13 +1459,6 @@ v2_panel_reidentify(
 }
 
 static int
-v2_cache_frame_root(struct ToriRS_Api* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return api_frame_root(runtime->context);
-}
-
-static int
 v2_cache_varbit(
     struct ToriRS_Api* api,
     int id)
@@ -1690,36 +1526,6 @@ v2_cache_named_id(
         return false;
     *out_id = id;
     return true;
-}
-
-static int
-v2_cache_tab_active(struct ToriRS_Api* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return 1
-               ? api_tab_active(runtime->context)
-               : -1;
-}
-
-static bool
-v2_cache_tab_enabled(struct ToriRS_Api* api, int tab)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return api_tab_enabled(runtime->context, tab) != 0;
-}
-
-static bool
-v2_cache_tab_flash_hidden(struct ToriRS_Api* api, int tab)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return api_tab_flash_hidden(runtime->context, tab) != 0;
-}
-
-static bool
-v2_cache_tab_select(struct ToriRS_Api* api, int tab)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return api_tab_select(runtime->context, tab);
 }
 
 static bool
@@ -1841,22 +1647,6 @@ v2_client_disable_self(
     struct PluginV2Runtime* runtime = v2_runtime(api);
     assert(reason);
         api_disable_self(runtime->context, reason);
-}
-
-static bool
-v2_client_plugin_window_open(struct ToriRS_Api* api)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    return api_plugin_window_open(runtime->context) != 0;
-}
-
-static void
-v2_client_plugin_window_show(
-    struct ToriRS_Api* api,
-    bool open)
-{
-    struct PluginV2Runtime* runtime = v2_runtime(api);
-    api_plugin_window_show(runtime->context, open ? 1 : 0);
 }
 
 /*
@@ -2512,25 +2302,6 @@ plugin_v2_runtime_draw_region(
     scope->local_clip = scope->local_bounds;
     scope->clip_active = true;
     scope->clip = region;
-}
-
-static int
-v2_surface_slot(int surface)
-{
-    static int const SURFACE[TORIRS_SURFACE_COUNT] = {
-        TORIRS_HOST_SURFACE_VIEWPORT,
-        TORIRS_HOST_SURFACE_MINIMAP,
-        TORIRS_HOST_SURFACE_SIDEBAR,
-        TORIRS_HOST_SURFACE_CHAT,
-        TORIRS_HOST_SURFACE_CHAT_BUTTONS,
-        TORIRS_HOST_SURFACE_MODAL,
-        TORIRS_HOST_SURFACE_COMPASS,
-        TORIRS_HOST_SURFACE_ORBS,
-    };
-
-    if( surface < 0 || surface >= TORIRS_SURFACE_COUNT )
-        return -1;
-    return SURFACE[surface];
 }
 
 static struct PluginV2PanelScope*
@@ -3345,8 +3116,6 @@ v2_runtime_init(
         .setting_color = v2_client_setting_color,
         .memory_bytes = v2_client_memory_bytes,
         .disable_self = v2_client_disable_self,
-        .plugin_window_open = v2_client_plugin_window_open,
-        .plugin_window_show = v2_client_plugin_window_show,
     };
     runtime->game_api = (struct ToriRS_GameApi){
         .struct_size = sizeof(runtime->game_api),
@@ -3429,19 +3198,6 @@ v2_runtime_init(
             .struct_size = sizeof(runtime->api.menu),
             .add = v2_ui_menu_add,
         },
-        .frame = {
-            .struct_size = sizeof(runtime->api.frame),
-            .offer_next = v2_frame_offer_next,
-            .selection = v2_frame_selection,
-            .select = v2_frame_select,
-            .invalidate = v2_frame_invalidate,
-            .surface_native_size = v2_frame_surface_native_size,
-            .surface_member_native_box = v2_frame_surface_member_native_box,
-            .surface_fit = v2_frame_surface_fit,
-            .surface_center_content = v2_frame_surface_center_content,
-            .native_layout = v2_frame_native_layout,
-            .native_layout_select = v2_frame_native_layout_select,
-        },
         .draw = {
             .struct_size = sizeof(runtime->api.draw),
             .project = v2_draw_project,
@@ -3500,16 +3256,11 @@ v2_runtime_init(
         },
         .cache = {
             .struct_size = sizeof(runtime->api.cache),
-            .frame_root = v2_cache_frame_root,
             .varbit = v2_cache_varbit,
             .varp = v2_cache_varp,
             .component_rect = v2_cache_component_rect,
             .invoke = v2_cache_invoke,
             .named_id = v2_cache_named_id,
-            .tab_active = v2_cache_tab_active,
-            .tab_enabled = v2_cache_tab_enabled,
-            .tab_select = v2_cache_tab_select,
-            .tab_flash_hidden = v2_cache_tab_flash_hidden,
         },
         .client = &runtime->client_api,
         .game = &runtime->game_api,

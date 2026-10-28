@@ -48,78 +48,37 @@ M=$out/manifests
 # before anyone noticed the captures contained no trace of them.
 export TORIRS_GATE_SCRIPT_DIR=${TORIRS_GATE_SCRIPT_DIR:-$worktree/script}
 
-$here/lane.sh $out native548  $bin 0 auto                              0 $M/manifest_osrs239_curses.ini
-$here/lane.sh $out classic548 $bin 0 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
-$here/lane.sh $out classic161 $bin 1 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
-$here/lane.sh $out modern164  $bin 2 gameframe-layout/modern-resizable 0 $M/manifest_osrs239_curses.ini
-$here/lane.sh $out stone601   $bin 0 mobile-gameframe/stone-drawer     1 $M/manifest_osrs239_curses.ini
-$here/lane.sh $out dat1_254   $bin 0 auto                              0 $M/manifest_rs254lc.ini --offline
+$here/lane.sh $out native548  $bin 0 0 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out native161  $bin 1 0 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out native164  $bin 2 0 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out mobile601  $bin 0 1 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out dat1_254   $bin 0 0 $M/manifest_rs254lc.ini --offline
+$here/lane.sh $out dat1_mobile $bin 0 1 $M/manifest_rs254lc.ini --offline
 
-# The CS1 lane above runs `auto`, which is the lane's own frame and no provider
-# -- so for the whole life of this gate NO lane gated a frame provider on CS1 at
-# all, and a CS1-only frame regression was invisible to all eight.
+# The remount lanes switch layout half way through. A port can be
+# byte-identical on every static lane and still lose every control it owns the
+# moment the frame root is replaced: the layer moves a control through its
+# setters and has no arm that re-creates one whose parent died. That is
+# invisible to a capture that never remounts anything.
 #
-# It went unnoticed because the two questions look like one. `dat1_254` proves a
-# port does not read a dat2 fact; it says nothing about what a PROVIDER does on
-# a lane whose chrome it has to suppress and redraw. A provider that staged
-# nothing there would pass every lane in the set.
+# Both get 900 frames rather than the set's 620. The switch fires at 500, and
+# at 620 the remounted toplevel sometimes had not settled: three runs of
+# remount548 answered 0, 17 and 17 for the seventeen components of interface
+# 729. Four runs at 900 answered 17 every time. If this flakes again the answer
+# is to wait for the remount to SETTLE rather than to buy more frames.
 #
-# Both providers, because both were asked for on both lanes and because they
-# fail differently: classic-fixed reproduces the 2004 frame closely enough that
-# "it drew correctly" and "it never ran" are the same picture -- which is
-# exactly the confusion that cost a day -- while stone-drawer replaces the
-# chrome outright and shows a lane mismatch immediately.
-$here/lane.sh $out dat1_classic $bin 0 gameframe-layout/classic-fixed  0 $M/manifest_rs254lc.ini --offline
-$here/lane.sh $out dat1_stone   $bin 0 mobile-gameframe/stone-drawer   1 $M/manifest_rs254lc.ini --offline
-
-# The seventh lane switches layout half way through, and it is here because a
-# regression got past the first six. A port can be byte-identical on every
-# static lane and still lose every control it owns the moment the frame root is
-# replaced: the layer moves a control through its setters and has no arm that
-# re-creates one whose parent died. That is invisible to a capture that never
-# remounts anything.
-#
-# 500 of 620 frames leaves 120 for the description to come back, which is far
-# more than it needs and little enough that a lane costs the same as the others.
-# Both remount lanes get 900 frames rather than the set's 620, and that is a
-# BUG FIX rather than a margin.
-#
-# The switch fires at 500, so 620 leaves 120 frames for a whole toplevel to come
-# back -- and sometimes it does not. Measured on one binary: three runs of
-# remount548 at 620 answered 0, 17 and 17 for the seventeen components of
-# interface 729, so the lane's BOUNDS count varied by seventeen between runs of
-# identical code. That is the worst thing a gate can do. It cost this
-# integration one investigation into an XP-tracker interface that "never comes
-# back after a remount", which was not happening at all.
-#
-# Four runs at 900 answered 17 every time. Four runs is evidence and not proof,
-# which is why the frame count is stated here with its reason rather than
-# quietly raised: if this flakes again the answer is to wait for the remount to
-# SETTLE rather than to buy more frames.
+# Both directions, because a remount is not symmetric: 548 to 164 replaces a
+# fixed toplevel with a resizable one, and 164 to 548 replaces a floating panel
+# with a frame that owns the whole right column.
 TORIRS_GATE_FRAMES=900 \
 TORIRS_GATE_SIM_CMD='500,layout 2' \
-$here/lane.sh $out remount164 $bin 0 gameframe-layout/classic-fixed    0 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out remount164 $bin 0 0 $M/manifest_osrs239_curses.ini
 
-# And the same switch the OTHER way, because a remount is not symmetric and the
-# lane above could not see it.
-#
-# 548 to 164 replaces a fixed toplevel with a resizable one, and the only thing
-# that went stale was one of the plugin's OWN controls -- which the layer
-# already absorbs and repairs. 164 to 548 replaces a floating panel with a
-# frame that owns the whole right column, and there it is the LANE's nodes that
-# die under the description: measured on this lane before it existed,
-# twenty-five stale references in one fence -- every live-surface move, all
-# fourteen sidebar mounts, the three orb members, the panel backing's opacity
-# and the left pillar's creation -- and a frame drawn with the old toplevel's
-# collapsed geometry standing on the new one.
-#
-# Same frame, same offer, same 500-of-620 split as its twin: only `mode` and
-# the command differ, which is what makes the pair a pair.
 TORIRS_GATE_FRAMES=900 \
 TORIRS_GATE_SIM_CMD='500,layout 0' \
-$here/lane.sh $out remount548 $bin 2 gameframe-layout/modern-resizable 0 $M/manifest_osrs239_curses.ini
+$here/lane.sh $out remount548 $bin 2 0 $M/manifest_osrs239_curses.ini
 
-for t in native548 classic548 classic161 modern164 stone601 dat1_254 dat1_classic dat1_stone remount164 remount548; do
+for t in native548 native161 native164 mobile601 dat1_254 dat1_mobile remount164 remount548; do
   printf "%-12s exit=%s bounds=%s roles=%s owned=%s\n" $t \
     "$(cat $out/$t/exit-status)" \
     "$(grep -c '^BOUNDS' $out/$t/log.txt)" \

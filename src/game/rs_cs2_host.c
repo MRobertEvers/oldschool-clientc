@@ -1048,8 +1048,6 @@ RS_CS2Host_Init(
     host->client_layout_dirty = false;
     /* -1 and not 0: zero is Fixed, and a boot that read as "Fixed already
      * asked for" would swallow the first request a plugin frame makes. */
-    host->client_layout_wanted = -1;
-    host->client_layout_wanted_cycle = 0;
     /* The Display panel's mode/apply pair (decompile names
      * settings_client_mode / settings_client_apply) and the varbit those apply
      * hubs write the pressed setting id into. */

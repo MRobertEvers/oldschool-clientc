@@ -102,6 +102,7 @@ static JavaVM* g_vm;
 static jobject g_activity;      /* global ref, held for the app's life */
 static jmethodID g_show_keyboard;
 static jmethodID g_open_url;
+static jmethodID g_show_plugin_tab;
 static jmethodID g_boot_failed;
 /**
  * The frame thread has been attached to the JVM.
@@ -328,6 +329,42 @@ PlatformAndroidJni_OpenUrl(char const* url)
     (*env)->DeleteLocalRef(env, text);
 }
 
+/* ---- the plugin edge tab ------------------------------------------------
+ *
+ * PlatformWindow_PluginChromeShow's implementation. The tab is a View on the
+ * activity, so it is created on the UI thread by the activity itself; this only
+ * asks, from the frame thread, attached as for the soft keyboard.
+ */
+
+void
+PlatformAndroidJni_ShowPluginTab(void)
+{
+    JNIEnv* env = NULL;
+
+    if( !g_vm || !g_activity || !g_show_plugin_tab )
+    {
+        LOGE("unable to show the plugin tab: no activity");
+        return;
+    }
+    if( (*g_vm)->GetEnv(g_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK )
+    {
+        if( (*g_vm)->AttachCurrentThread(g_vm, &env, NULL) != JNI_OK )
+            return;
+        g_frame_thread_attached = 1;
+    }
+    (*env)->CallVoidMethod(env, g_activity, g_show_plugin_tab);
+    if( (*env)->ExceptionCheck(env) )
+        (*env)->ExceptionClear(env);
+}
+
+JNIEXPORT void JNICALL
+Java_com_torirs_client_ClientActivity_nativePluginChromeToggle(JNIEnv* env, jobject thiz)
+{
+    (void)env;
+    (void)thiz;
+    PlatformAndroid_PostPluginChromeToggle();
+}
+
 /* ---- a boot that cannot proceed ------------------------------------------
  *
  * @see PlatformAndroid_BootFailed for why this is not exit().
@@ -524,6 +561,7 @@ Java_com_torirs_client_ClientActivity_nativeStart(
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
         g_open_url = (*env)->GetMethodID(env, cls, "openUrl", "(Ljava/lang/String;)V");
+        g_show_plugin_tab = (*env)->GetMethodID(env, cls, "showPluginTab", "()V");
         if( (*env)->ExceptionCheck(env) )
             (*env)->ExceptionClear(env);
         g_boot_failed = (*env)->GetMethodID(env, cls, "bootFailed", "(Ljava/lang/String;)V");
@@ -667,6 +705,7 @@ Java_com_torirs_client_ClientActivity_nativeStop(JNIEnv* env, jobject thiz)
     }
     g_show_keyboard = NULL;
     g_open_url = NULL;
+    g_show_plugin_tab = NULL;
     g_boot_failed = NULL;
     g_vm = NULL;
     LOGI("frame thread joined");

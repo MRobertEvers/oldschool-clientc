@@ -170,26 +170,6 @@ extern "C" {
 #define PORCELAIN_ABSENT_FENCES 2
 
 /*
- * And this many times that, while a frame PROVIDER is still answering PENDING.
- *
- * A provider names its whole vocabulary on the fence its gate element binds --
- * the viewport, which the lane mounts first -- and the toplevel's chat,
- * sidebar, modal and orb block arrive several fences later. At the plain two
- * all four were reported ABSENT, once each, on every desktop lane, and bound
- * immediately afterwards; a finding nobody can act on is worse than none,
- * because the clean-findings gate is how a real absence gets seen.
- *
- * A MULTIPLIER and not a suspension, which is the whole point: a provider is
- * PENDING precisely because something it asked about has not resolved, so
- * suspending the clock while it waits is a deadlock -- the element cannot be
- * called absent, so the frame cannot come up, so the element cannot be called
- * absent. Sixteen fences is long enough for a toplevel to finish mounting and
- * short enough that a surface the lane truly lacks is still named before the
- * frame has been up a second.
- */
-#define PORCELAIN_ABSENT_FRAME_GRACE 8
-
-/*
  * Operations per subject in a menu tag. Sixteen, and not the two and the four
  * the two shipped plugins each picked by hand, so one encoding serves both
  * and a third plugin does not need a fifth.
@@ -492,42 +472,12 @@ struct PorcelainPanelCounters
 };
 void Porcelain_PanelCountersRead(struct Porcelain* porcelain,
                                  struct PorcelainPanelCounters* out);
-/* Frames                                                                   */
+/* Usable canvas                                                            */
 /* ------------------------------------------------------------------------ */
 
-/*
- * @see ToriRS_PorcelainApi's frames block for the contracts. The split is the
- * one the two shipped providers already live with: the OFFERS are static data
- * in ToriRS_PluginDef.frames, and what a provider writes by hand is the
- * description of each one and the reconcile that takes it back off.
- */
-void Porcelain_Frame(struct Porcelain* porcelain, char const* offer_id, int canvas,
-                     int min_width, int min_height, PorcelainDescribeFn fn, void* user);
-int Porcelain_FrameEvent(struct Porcelain* porcelain,
-                         struct ToriRS_GameframeEvent const* event);
-/** The TORIRS_FRAME_NATIVE answer: the lane's own chrome is the offer, so the
- *  description stages nothing and every retained edit comes off. Asked after
- *  frame.native_layout_select answered OK. @see ToriRS_PorcelainApi. */
-int Porcelain_FrameNative(struct Porcelain* porcelain,
-                          struct ToriRS_GameframeEvent const* event);
+/** The frame root's box less a presented full-edge LANE_CHROME strip.
+ *  @see ToriRS_PorcelainApi::usable. */
 bool Porcelain_Usable(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out);
-bool Porcelain_NativeSize(struct Porcelain* porcelain, struct PorcelainElement element,
-                          struct ToriRS_WidgetBounds* out);
-int Porcelain_LaneIcon(struct Porcelain* porcelain, struct PorcelainElement tab);
-int Porcelain_TabGroupCount(struct Porcelain* porcelain, int axis);
-int Porcelain_TabGroup(struct Porcelain* porcelain, int axis, int group,
-                       struct PorcelainElement* out, int capacity);
-struct PorcelainElement Porcelain_TabDetached(struct Porcelain* porcelain);
-
-/**
- * The tab names the portable vocabulary knows, NULL-terminated.
- *
- * A plugin walking the sidebar needs the names before it can ask anything
- * about them, and the alternative -- every plugin spelling its own fourteen --
- * is the remap table this layer exists to delete. Which of them this lane HAS
- * is still a question, answered by Porcelain_Element(TAB(name)).
- */
-char const* const* Porcelain_TabNames(void);
 
 /* ------------------------------------------------------------------------ */
 /* Not implemented yet                                                      */

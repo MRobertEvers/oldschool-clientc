@@ -175,8 +175,7 @@ struct PlatformWindow
     bool chrome_relayout_pending;
     bool chrome_open;
     bool chrome_rail_visible;
-    /* The lane's own pop-out column carries the plugin destinations, so the
-     * rail takes no points at all: see PlatformWindow_ChromeSetRailHidden. */
+    /* The rail takes no points at all: see PlatformWindow_ChromeSetRailHidden. */
     bool chrome_rail_hidden;
     bool chrome_focused;
     bool chrome_pointer_down;
@@ -3018,6 +3017,36 @@ PlatformWindow_OpenUrl(struct PlatformWindow* platform, char const* url)
     (void)platform;
     if( SDL_OpenURL(url) != 0 )
         fprintf(stderr, "unable to open url %s: %s\n", url, SDL_GetError());
+}
+
+#if defined(TORIRS_PLATFORM_WEB)
+/* The page's plugin chrome (web/torirs_chrome.js): the docked rail on a desk,
+ * the corner tab on a phone. */
+EM_JS(int, web_plugin_chrome_show, (int style), {
+    if (typeof globalThis.torirsPluginChromeShow !== 'function')
+        return 0;
+    return globalThis.torirsPluginChromeShow(style) ? 1 : 0;
+});
+#endif
+
+void
+PlatformWindow_PluginChromeShow(struct PlatformWindow* platform, int style)
+{
+    assert(platform);
+#if defined(TORIRS_PLATFORM_WEB)
+    (void)platform;
+    if( !web_plugin_chrome_show(style) )
+        fprintf(stderr, "plugin chrome: the page has no torirsPluginChromeShow\n");
+#elif defined(TORIRS_CHROME_EXEC_BROWSER_AVAILABLE)
+    /* The WKWebView child beside the window is the sidebar on every style. */
+    (void)style;
+    if( !PlatformWindow_PluginBrowserEnsure(platform) )
+        fprintf(stderr, "plugin chrome: the embedded browser did not start\n");
+#else
+    (void)platform;
+    fprintf(stderr,
+        "plugin chrome: this SDL build has no native presenter yet (style %d)\n", style);
+#endif
 }
 
 #if defined(TORIRS_PLATFORM_WEB)

@@ -36,14 +36,14 @@ static int
 emit_overlay_root_valid(struct UITree const* tree)
 {
     int32_t root = tree->entity_overlay_index;
-    if( root < 0 || (uint32_t)root >= tree->component_count || UITree_FrameActive(tree) ||
+    if( root < 0 || (uint32_t)root >= tree->component_count ||
         UITree_FrameHasDepth(tree) || UITree_HasActiveDrag(tree) ||
         tree->layout_resolved_root_w != UITREE_LAYOUT_ROOT_W ||
         tree->layout_resolved_root_h != UITREE_LAYOUT_ROOT_H ) return 0;
     struct UITreeComponent const* c = &tree->components[root];
     return c->parent < 0 && c->type == UIELEM_BUILTIN_ENTITY_OVERLAY &&
         !c->freed && !c->behavior.hide && !c->screen_hidden && !c->projection_hidden &&
-        !c->frame_hidden && !c->widget_hidden &&
+        !c->widget_hidden &&
         UITree_RootIsDisplayable(tree, root) && !UITree_ContainerHasMounts(tree, c->component_id);
 }
 

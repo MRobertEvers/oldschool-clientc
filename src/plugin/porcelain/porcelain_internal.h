@@ -745,21 +745,4 @@ void Porcelain_PanelResetForTesting(void);
  *  Called from Porcelain_CountersReset: a test that resets the counters and
  *  then reads a rebuild count wants the window it just opened. */
 void Porcelain_PanelCountersReset(struct Porcelain* porcelain);
-/* ------------------------------------------- frames (porcelain_frames.c) */
-
-/** The frame arm of Porcelain_Unsupported: the describe run's refusal has to
- *  reach the host as TORIRS_FRAME_UNSUPPORTED and not only as a finding, or
- *  the lane's own frame comes down with nothing to replace it. A no-op for a
- *  handle that provides no frame. */
-void Porcelain_FrameNoteUnsupported(struct Porcelain* porcelain, char const* reason);
-/** Drop this handle's frame row. Takes NULL: reached from Porcelain_Close. */
-void Porcelain_FrameForget(struct Porcelain* porcelain);
-/** True while a frame provider has answered PENDING and not yet READY.
- *  @see PORCELAIN_ABSENT_FRAME_GRACE for why the absence clock SLOWS there --
- *  it must not stop, because a provider is PENDING precisely because
- *  something it asked about has not resolved. */
-bool Porcelain_FrameWaiting(struct Porcelain* porcelain);
-/** @see Porcelain_ResetForTesting. */
-void Porcelain_FrameResetForTesting(void);
-
 #endif /* TORIRS_PORCELAIN_INTERNAL_H */

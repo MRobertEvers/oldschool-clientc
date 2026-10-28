@@ -95,12 +95,10 @@ echo "==> revconfig"
 adb_ push "${REPO_ROOT}/revconfig" "${DEST}/" >/dev/null
 
 # Plugin assets. A plugin's art is PNGs on disk, read through the asset sandbox
-# at the repo-relative path the plugin names -- gameframe-layout alone ships 74
-# of them. Without this directory a plugin still loads, still registers and
-# still CLAIMS the frame parts it dresses, and then draws none of them: the
-# gameframe simply disappears, which is nothing like "an asset was missing" and
-# took a long time to recognise as one. A megabyte, so it goes every time
-# rather than being named like a cache.
+# at the repo-relative path the plugin names. Without this directory a plugin
+# still loads and registers, and then draws none of its art, which is nothing
+# like "an asset was missing" and took a long time to recognise as one. A
+# megabyte, so it goes every time rather than being named like a cache.
 echo "==> plugin assets"
 adb_ shell "mkdir -p '${DEST}/script'" >/dev/null
 adb_ push "${REPO_ROOT}/script/plugins" "${DEST}/script/" >/dev/null

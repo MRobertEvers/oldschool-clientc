@@ -315,18 +315,8 @@ app_drain_command(
                     /* The band the layout hands to every row whose profile
                      * declared `safe_area=os:bottom` -- the login box on the
                      * profiles that state it, and nothing at all on the ones
-                     * that do not. The same number the plugin engine's
-                     * platform_safe_rect answers from, so a provided frame's
-                     * strip and a profile's panel cannot disagree about where
-                     * the keyboard starts. */
+                     * that do not. */
                     UITree_LayoutSetSafeBottomInset(app->keyboard_inset);
-                    /* A frame-build invalidation, exactly like a resize: the
-                     * provided frame is asked again with the new
-                     * ToriRS_GameframeEvent.safe and slides its chatbox above
-                     * (or back under) the keyboard. The host's frame boundary
-                     * polls the band as well; both collapse into the one
-                     * PluginHost_Layout at the next fence. */
-                    app->plugin_layout_dirty = 1;
                     if( app->tree )
                         UITree_LayoutInvalidate(app->tree);
                     /* And the title screen's, whose emit walk would otherwise

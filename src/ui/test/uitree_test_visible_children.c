@@ -92,8 +92,6 @@ vc_run(uint32_t seed, int check_every, int steps)
         }
         else if( op < 60 )
             UITree_SetHideAt(t, node, vc_range(&rng, 0, 1));
-        else if( op < 66 )
-            UITree_SetFrameHiddenAt(t, node, vc_range(&rng, 0, 1));
         else if( op < 72 )
             UITree_SetScreenHiddenAt(t, node, vc_range(&rng, 0, 1));
         else if( op < 78 )

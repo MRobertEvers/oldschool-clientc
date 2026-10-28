@@ -88,7 +88,6 @@ src/world/test/wev_rebuild_test.c
 src/app/test/app_drive_event_ring_test.c
 src/app/test/app_logout_wait_test.c
 src/app/test/app_mouseover_entry_test.c
-src/app/test/app_native_layout_test.c
 src/engine/uitree_builder/task_slot_mount.c
 src/game/rs_chat.c
 src/game/task_entity_assets.c

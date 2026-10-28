@@ -809,6 +809,14 @@ App_WriteBmp(
 }
 
 void
+App_SetPlatformBus(struct App* app, struct ToriRS_CmdBus* bus)
+{
+    assert(app);
+    assert(bus);
+    app->platform_bus = bus;
+}
+
+void
 App_SetPluginChromeExec(
     struct App* app,
     struct ToriRSChromeExec const* exec,
@@ -829,14 +837,6 @@ App_SetPluginChromeExec(
     app->plugin_exec_kind = kind;
 }
 
-void
-App_SetPluginNavMode(struct App* app, int mode)
-{
-    assert(app);
-    assert(mode >= TORIRS_PLUGIN_NAV_AUTO);
-    assert(mode <= TORIRS_PLUGIN_NAV_RAIL);
-    app->plugin_nav.mode = mode;
-}
 
 
 /* ------------------------------------------------------------ runner split

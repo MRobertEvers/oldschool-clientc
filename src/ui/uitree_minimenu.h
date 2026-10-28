@@ -105,8 +105,8 @@ struct UIMinimenuPick
      * the lane's own minimap orb under the cover a plugin draws over it. The
      * press names a component rather than a screen position, so the layer's
      * presentation is not a reason to drop it; a hide the cache or a script
-     * authored still is. Covers both of the layer's hides, a frame provider's
-     * `frame_hidden` and the widget API's `widget_hidden`.
+     * authored still is. Covers the layer's hide, the widget API's
+     * `widget_hidden`.
      * @see UITree_NodeOrAncestorDisplayHiddenEx. */
     int allow_plugin_hidden;
 };

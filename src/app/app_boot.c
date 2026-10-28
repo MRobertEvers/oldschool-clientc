@@ -522,14 +522,10 @@ Task_AppBoot_Run(
      * what the last run happened to leave behind.
      *
      * Immediately after the clobber, and BEFORE the plugin boot below, because
-     * the window a frame is laid out in is decided during that boot: committing
-     * a selection calls App_SyncPluginLayoutCanvas, whose native answer IS
-     * `default_window_mode`. Restoring after it meant the dat1 lane -- whose
-     * boot mode is fixed because its 2004 gameframe is a baked 765x503 layout
-     * -- was flipped to the saved resizable default by plugin selection and
-     * left there, since nothing calls that function again while the native
-     * frame stands. On screen: the frame stranded in the top-left of a grey
-     * canvas.
+     * the host's start is when App_SyncNativeWindowMode restates the lane's
+     * mode, and its answer off CS1 IS `default_window_mode`. Restoring after
+     * it would leave the saved default unapplied, since nothing calls that
+     * function again.
      */
     if( !app->boot_config_ready && app->cfg.window_mode )
         app->host.default_window_mode = app->cfg.window_mode;

@@ -2,7 +2,6 @@
 
 #include "log/torirs_log.h"
 #include "mem/torirs_mem.h"
-#include "plugin/torirs_plugin_frame.h"
 #include "plugin/torirs_plugin_runtime.h"
 #include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
@@ -55,7 +54,6 @@ enum PluginCallbackKind
     PLUGIN_CALLBACK_GAME_EVENT,
     PLUGIN_CALLBACK_UI,
     PLUGIN_CALLBACK_UI_BUILD,
-    PLUGIN_CALLBACK_LAYOUT,
     PLUGIN_CALLBACK_SCREEN_CHANGE,
     PLUGIN_CALLBACK_PANEL_BUILD,
     PLUGIN_CALLBACK_PANEL_ACTION,
@@ -90,10 +88,6 @@ static void
 plugin_teardown(
     struct ToriRS_PluginHost* host,
     int plugin_index);
-static void
-plugin_frame_resolve(struct ToriRS_PluginHost* host);
-static void
-plugin_layout_publish(struct ToriRS_PluginHost* host);
 
 struct PluginConfigSlot
 {
@@ -263,14 +257,9 @@ struct PluginV2Instance
     struct ToriRS_PluginDef definition_storage;
     struct ToriRS_PluginCallbacks callbacks_storage;
     struct ToriRS_ConfigSchema config_storage;
-    struct ToriRS_FrameOffer frame_offers[TORIRS_PLUGIN_FRAME_OFFERS_MAX + 1];
-    int frame_count;
     struct PluginV2Runtime runtime;
     bool runtime_initialized_once;
     void* state;
-    /* This plugin's offer was provided through on_gameframe(active) and has
-     * not been released yet. */
-    bool gameframe_provided;
 };
 
 struct PluginMenuRoute
@@ -399,50 +388,10 @@ struct ToriRS_PluginHost
      * world-only draw verbs, which have nothing to mean on screen/panel. */
     int draw_canvas;
 
-    /* Static frame offers and the committed engine state for the active
-     * catalogue entry. */
-    struct PluginFrameCatalog frame_catalog;
-    struct ToriRS_FrameSelection frame_selection;
-    /** Last completely validated and engine-committed offer. */
-    int frame_active_entry;
-    int frame_bound_root;
-    /** The offer whose provider answered TORIRS_FRAME_NATIVE: the lane's own
-     *  chrome is that frame, nothing is provided (frame_active_entry stays
-     *  -1) and the offer is the ACTIVE selection under its own id. Cleared by
-     *  any engine activation, any new target and any screen change, so a
-     *  re-login asks the provider again -- the server opens whatever it
-     *  opens, and the provider is the one that asks it for the frame. */
-    int frame_native_entry;
-    /** Offer named by the current request, still only a candidate. */
-    int frame_target_entry;
-    /** One-shot request consumed by the app's next safe layout fence. */
-    int frame_layout_requested;
-    int frame_preference_loaded;
     /** Set only by an explicit startup call after the boot task has loaded both
      * preference stores. FrameStart must not turn its initial dirty bit into an
      * implicit start while those stores are still zero-filled. */
     bool started_once;
-    int frame_resolving;
-    int frame_selection_dirty;
-
-    /** enum ToriRS_FrameCanvas, and the pinned size for FIXED. */
-    int layout_canvas;
-    int layout_fixed_w;
-    int layout_fixed_h;
-    /** The platform-safe rect the provided frame was last laid out against
-     *  (ToriRS_GameframeEvent.safe). The frame boundary polls the engine's
-     *  band against this, and a move re-asks the provider once. */
-    int safe_raised_x;
-    int safe_raised_y;
-    int safe_raised_w;
-    int safe_raised_h;
-    /** And the canvas that raise was against: what `safe` falls back to when
-     *  the engine reports no band. */
-    int canvas_raised_w;
-    int canvas_raised_h;
-    /** Advances across every resolved offer transition. Fences an in-flight
-     * frame-build candidate from committing after selection moved. */
-    uint32_t frame_selection_epoch;
     /* Standing entity presentation/action claims. */
     struct PluginEntityClaim entity_claims[PLUGIN_ENTITY_CLAIMS_MAX];
 
@@ -614,16 +563,6 @@ struct ToriRS_PluginHost
     bool config_dirty;
 };
 
-static int
-plugin_frame_owner(struct ToriRS_PluginHost const* host)
-{
-    struct PluginFrameCatalogEntry const* entry;
-
-    assert(host);
-    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
-    return entry ? entry->plugin : -1;
-}
-
 /* ---------------------------------------------------------------- helpers */
 
 static struct PluginContext*
@@ -652,13 +591,6 @@ plugin_policy(
     assert(ctx);
     assert(ctx->def);
     return (ctx->def->flags & flag) != 0;
-}
-
-static bool
-plugin_provides_frames(struct PluginContext const* ctx)
-{
-    assert(ctx);
-    return ctx->v2 && ctx->v2->frame_count > 0;
 }
 
 static int
@@ -1183,276 +1115,6 @@ api_mouse_pos(
     return ctx->host->engine.mouse_pos(ctx->host->engine.user, out_x, out_y);
 }
 
-/* ------------------------------------------------------------ the gameframe */
-
-/* Both layout entry points deliver to ONE plugin -- the frame's owner -- and
- * the walker that does that is defined with the other window-scoped dispatch,
- * far below. Forward-declared rather than moved, so the plugin-scoped dispatch
- * rules stay written down in one place. */
-static void
-plugin_dispatch_one(
-    struct ToriRS_PluginHost* host,
-    int plugin_index,
-    enum PluginCallbackKind ev,
-    void* payload);
-
-static int
-api_frame_offer_next(
-    struct PluginContext* ctx,
-    int iter,
-    struct ToriRS_FrameOfferInfo* out)
-{
-    struct PluginFrameCatalogEntry const* entry;
-    int next;
-
-    assert(ctx);
-    assert(out);
-    if( iter == INT_MAX )
-        return -1;
-    next = iter + 1;
-    entry = PluginFrameCatalog_At(&ctx->host->frame_catalog, next);
-    if( !entry )
-        return -1;
-
-    memset(out, 0, sizeof(*out));
-    out->struct_size = sizeof(*out);
-    snprintf(out->id, sizeof(out->id), "%s", entry->id);
-    snprintf(out->title, sizeof(out->title), "%s", entry->title);
-    snprintf(out->provider, sizeof(out->provider), "%s", entry->provider);
-    out->canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED
-                      ? TORIRS_FRAME_CANVAS_FIXED
-                      : TORIRS_FRAME_CANVAS_WINDOW;
-    if( out->canvas == TORIRS_FRAME_CANVAS_FIXED )
-    {
-        out->width = entry->width;
-        out->height = entry->height;
-    }
-    else
-    {
-        out->min_width = entry->width;
-        out->min_height = entry->height;
-    }
-    out->available = entry->available != 0;
-    return next;
-}
-
-static void
-api_frame_selection(
-    struct PluginContext* ctx,
-    struct ToriRS_FrameSelection* out)
-{
-    struct ToriRS_PluginHost* host;
-
-    assert(ctx);
-    assert(out);
-    host = ctx->host;
-    *out = host->frame_selection;
-}
-
-static int
-plugin_frame_preference_id_valid(char const* id)
-{
-    int slash = 0;
-
-    assert(id);
-    if( strcmp(id, "auto") == 0 )
-        return 1;
-    if( !id[0] || strlen(id) >= TORIRS_PLUGIN_FRAME_ID_MAX )
-        return 0;
-    for( char const* at = id; *at; at++ )
-    {
-        char const c = *at;
-        if( c == '/' )
-        {
-            slash++;
-            if( at == id || !at[1] )
-                return 0;
-            continue;
-        }
-        if( (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' )
-            continue;
-        return 0;
-    }
-    return slash == 1;
-}
-
-static int
-api_frame_select(
-    struct PluginContext* ctx,
-    char const* id)
-{
-    struct ToriRS_PluginHost* host;
-
-    assert(ctx);
-    assert(id);
-    host = ctx->host;
-    if( !plugin_frame_preference_id_valid(id) )
-        return 0;
-    if( host->engine.frame_preference_set &&
-        !host->engine.frame_preference_set(host->engine.user, id, 1) )
-        return 0;
-    if( strcmp(host->frame_selection.requested_id, id) == 0 )
-        return 1;
-
-    snprintf(host->frame_selection.requested_id, sizeof(host->frame_selection.requested_id), "%s", id);
-    host->frame_selection.revision++;
-    /* Invalidate an in-flight frame candidate immediately, without resolving
-     * lifecycle until the safe boundary below. */
-    host->frame_selection_epoch++;
-    host->frame_selection_dirty = 1;
-    /* A new request forgets a NATIVE answer, whichever offer it names: the
-     * provider is asked again at the boundary, and asks the lane again. */
-    host->frame_native_entry = -1;
-    /* Never resolve lifecycle from inside a plugin callback. The next host
-     * frame boundary consumes frame_selection_dirty before dispatching its
-     * frame callbacks, so the current callback keeps its state/API alive
-     * through return and layout remains separately fenced. */
-    return 1;
-}
-
-static void
-api_frame_invalidate(struct PluginContext* ctx)
-{
-    struct ToriRS_PluginHost* host;
-    struct PluginFrameCatalogEntry const* active;
-    struct PluginFrameCatalogEntry const* target;
-
-    assert(ctx);
-    host = ctx->host;
-    active = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
-    target = PluginFrameCatalog_At(&host->frame_catalog, host->frame_target_entry);
-    if( (!active || active->plugin != ctx->index) &&
-        (!target || target->plugin != ctx->index) )
-        return;
-    if( target && target->plugin == ctx->index &&
-        host->frame_target_entry != host->frame_active_entry )
-    {
-        /* A pending builder is retried only when its provider says its inputs
-         * changed. The app consumes this one-shot request at a safe layout
-         * fence while the committed provider continues to render. */
-        host->frame_selection_dirty = 1;
-        return;
-    }
-    if( active && active->plugin == ctx->index )
-        plugin_layout_publish(host);
-}
-
-/*
- * Tell the engine what the resolved frame is now, so it can switch the lane's
- * own chrome off (or back on) and pin or unpin the canvas.
- *
- * Called on every transition and on no-ops besides, because the engine's copy
- * of this is what the layout pass reads. Publishing it atomically prevents a
- * plugin frame from drawing over a lane frame the engine still considers live.
- */
-static void
-plugin_layout_publish(struct ToriRS_PluginHost* host)
-{
-    assert(host);
-    host->engine.frame_activate(
-        host->engine.user,
-        plugin_frame_owner(host) >= 0 ? 1 : 0,
-        host->layout_canvas,
-        host->layout_fixed_w,
-        host->layout_fixed_h);
-}
-
-static int
-api_tab_active(struct PluginContext* ctx)
-{
-    assert(ctx);
-    return ctx->host->engine.tab_active(ctx->host->engine.user);
-}
-
-static bool
-api_tab_select(
-    struct PluginContext* ctx,
-    int tabno)
-{
-    assert(ctx);
-    /*
-     * Who may flip a tab: a player's action, and a frame being BUILT.
-     *
-     * The first four are the player -- a key, a menu row, a panel button, an
-     * owned control's operation -- and the rule they enforce is that nothing
-     * moves the sidebar behind the player's back on an ordinary frame.
-     *
-     * PLUGIN_CALLBACK_LAYOUT is on_gameframe and nothing else (both the
-     * build and the release dispatch under it), which makes it the one
-     * moment a FRAME may ask: the player has just chosen this frame and the
-     * frame's shape is being decided. A frame whose side well is structural
-     * -- both fixed gameframes blit one whatever the lane is doing -- stands
-     * over a toplevel that logs in collapsed with 261 rows of bare rock in
-     * it and no stone lit, and the only thing that can fill it is the lane's
-     * own switch. Refusing here made that unfixable from inside a provider
-     * and said nothing about why. @see frame_seed_sidebar in gameframe.c.
-     */
-    switch( ctx->host->dispatch_event )
-    {
-    case PLUGIN_CALLBACK_KEY:
-    case PLUGIN_CALLBACK_MENU_SELECT:
-    case PLUGIN_CALLBACK_PANEL_ACTION:
-    case PLUGIN_CALLBACK_WIDGET_OPERATION:
-    case PLUGIN_CALLBACK_LAYOUT:
-        break;
-    default:
-        return false;
-    }
-    /* A tab number a plugin read off its own stone table. */
-    if( tabno < 0 )
-        return false;
-    return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
-}
-
-static int
-api_tab_enabled(
-    struct PluginContext* ctx,
-    int tabno)
-{
-    assert(ctx);
-    /* A tab number a plugin read off its own stone table, like tab_select's. */
-    if( tabno < 0 )
-        return 0;
-    return ctx->host->engine.tab_enabled(ctx->host->engine.user, tabno);
-}
-
-static int
-api_tab_flash_hidden(
-    struct PluginContext* ctx,
-    int tabno)
-{
-    assert(ctx);
-    /* A tab number a plugin read off its own stone table, like tab_select's. */
-    if( tabno < 0 )
-        return 0;
-    return ctx->host->engine.tab_flash_hidden(ctx->host->engine.user, tabno);
-}
-
-/* -- layout regions ------------------------------------------------------- */
-
-struct PluginRect
-{
-    int x;
-    int y;
-    int w;
-    int h;
-};
-
-/**
- * `box` with `cut` taken out of it, as the largest rectangle that survives.
- *
- * There is no exact rectangular answer to "subtract a rectangle from a
- * rectangle" -- the true result is an L, and an L is not a box a caller can
- * centre anything in. So this does what a person does: it tries the four
- * rectangles left when you slice `box` along each of `cut`'s edges and keeps
- * whichever has the most area.
- *
- * A heuristic, and the right one here because of what the occluders ARE. A
- * minimap in a corner, a chatbox along the bottom, a sidebar down one side:
- * each has an obvious side to cut from, and "the biggest remaining piece"
- * picks it every time. A cut sitting in the middle of the box has no good
- * answer and this gives the least bad one.
- */
 /* ---------------------------------------------------------------- exact placement */
 
 /**
@@ -1478,128 +1140,6 @@ host_game_screen(struct PluginContext const* ctx)
 {
     assert(ctx);
     return ctx->host->engine.screen(ctx->host->engine.user) == TORIRS_SCREEN_GAME;
-}
-
-static int
-api_slot_native_size(
-    struct PluginContext* ctx,
-    int slot,
-    int* out_w,
-    int* out_h)
-{
-    int w = 0, h = 0;
-
-    if( !host_game_screen(ctx) )
-        return 0;
-
-    assert(ctx);
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    if( !ctx->host->engine.slot_native_size(ctx->host->engine.user, slot, &w, &h) )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-    if( out_w )
-        *out_w = w;
-    if( out_h )
-        *out_h = h;
-    return 1;
-}
-
-/*
- * The authored box of one numbered member of a surface, block-relative.
- *
- * `member` is the role's OWN numbering and -1 is refused here rather than
- * redirected to the whole surface: (0, 0, w, h) would read as a member that
- * happens to sit at the block's origin, and a frame would seat the globe on
- * top of the run orb without anything saying so.
- */
-static int
-api_slot_member_native_box(
-    struct PluginContext* ctx,
-    int slot,
-    int member,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int x = 0, y = 0, w = 0, h = 0;
-
-    if( !host_game_screen(ctx) )
-        return 0;
-
-    assert(ctx);
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    if( member < 0 )
-        return 0;
-    if( !ctx->host->engine.slot_member_native_box(
-            ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-    if( out_x )
-        *out_x = x;
-    if( out_y )
-        *out_y = y;
-    if( out_w )
-        *out_w = w;
-    if( out_h )
-        *out_h = h;
-    return 1;
-}
-
-/*
- * The largest box inside `w` x `h` a surface fills. @see surface_fit.
- */
-static int
-api_slot_fit(
-    struct PluginContext* ctx,
-    int slot,
-    int w,
-    int h,
-    int* out_w,
-    int* out_h)
-{
-    int fit_w = 0, fit_h = 0;
-
-    assert(ctx);
-    assert(out_w);
-    assert(out_h);
-    if( !host_game_screen(ctx) )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    if( w <= 0 || h <= 0 )
-        return 0;
-    if( !ctx->host->engine.slot_fit(ctx->host->engine.user, slot, w, h, &fit_w, &fit_h) )
-        return 0;
-    if( fit_w <= 0 || fit_h <= 0 || fit_w > w || fit_h > h )
-        return 0;
-    *out_w = fit_w;
-    *out_h = fit_h;
-    return 1;
-}
-
-/*
- * Centre a surface's mounted content. @see surface_center_content.
- *
- * on_gameframe only, for the reason tab_select allows it there: it is part of
- * the frame's shape, and on_gameframe is dispatched to the provider alone.
- */
-static int
-api_slot_center_content(
-    struct PluginContext* ctx,
-    int slot,
-    int centered)
-{
-    assert(ctx);
-    if( ctx->host->dispatch_event != PLUGIN_CALLBACK_LAYOUT )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    return ctx->host->engine.slot_center_content(ctx->host->engine.user, slot, centered);
 }
 
 /*
@@ -1936,34 +1476,6 @@ api_display_setting_set(
     return ctx->host->engine.display_setting_set(ctx->host->engine.user, setting, value);
 }
 
-/*
- * The client's shared plugin window, asked and set.
- *
- * Both hooks are optional, and an absent one answers "closed" / does nothing
- * rather than asserting: a harness that builds no window is not a broken
- * contract, and a frame drawing a launcher for a window that cannot exist
- * wants a dead switch, not an abort.
- */
-static int
-api_plugin_window_open(struct PluginContext* ctx)
-{
-    assert(ctx);
-    if( !ctx->host->engine.plugin_window_open )
-        return 0;
-    return ctx->host->engine.plugin_window_open(ctx->host->engine.user) != 0;
-}
-
-static void
-api_plugin_window_show(
-    struct PluginContext* ctx,
-    int open)
-{
-    assert(ctx);
-    if( !ctx->host->engine.plugin_window_show )
-        return;
-    ctx->host->engine.plugin_window_show(ctx->host->engine.user, open ? 1 : 0);
-}
-
 static int
 api_varp(
     struct PluginContext* ctx,
@@ -2002,63 +1514,6 @@ api_lane(
     if( !ctx->host->engine.lane )
         return 0;
     return ctx->host->engine.lane(ctx->host->engine.user, out);
-}
-
-static int
-api_frame_root(struct PluginContext* ctx)
-{
-    assert(ctx);
-    /* Same shape as lane: a harness that has no gameframe answers "not a
-     * cache frame" rather than refusing the call. */
-    if( !ctx->host->engine.frame_root )
-        return -1;
-    return ctx->host->engine.frame_root(ctx->host->engine.user);
-}
-
-static int
-api_native_layout(struct PluginContext* ctx)
-{
-    assert(ctx);
-    /* Same shape as frame_root: a harness with no native chrome to wear
-     * answers UNKNOWN rather than refusing the call. */
-    if( !ctx->host->engine.native_layout )
-        return TORIRS_NATIVE_LAYOUT_UNKNOWN;
-    return ctx->host->engine.native_layout(ctx->host->engine.user);
-}
-
-/*
- * A frame asking the LANE to change its own top level.
- *
- * Who may ask, and it is api_tab_select's list for api_tab_select's reasons:
- * the first four are the player -- a key, a menu row, a panel button, an owned
- * control's operation -- and PLUGIN_CALLBACK_LAYOUT is on_gameframe, the one
- * moment a frame's shape is being decided and the only moment a provider can
- * know that the root it was handed is not the one its layout is for.
- *
- * Nothing else: a draw or a background update that moved the whole client onto
- * another top level would be the frame remounting itself behind the player,
- * several server ticks after whatever prompted it.
- */
-static bool
-api_native_layout_select(
-    struct PluginContext* ctx,
-    int layout)
-{
-    assert(ctx);
-    switch( ctx->host->dispatch_event )
-    {
-    case PLUGIN_CALLBACK_KEY:
-    case PLUGIN_CALLBACK_MENU_SELECT:
-    case PLUGIN_CALLBACK_PANEL_ACTION:
-    case PLUGIN_CALLBACK_WIDGET_OPERATION:
-    case PLUGIN_CALLBACK_LAYOUT:
-        break;
-    default:
-        return false;
-    }
-    if( !ctx->host->engine.native_layout_select )
-        return false;
-    return ctx->host->engine.native_layout_select(ctx->host->engine.user, layout) ? true : false;
 }
 
 /*
@@ -2102,11 +1557,6 @@ api_disable_self(
     plugin_teardown(host, ctx->index);
     host->dispatching = prev;
     ctx->refused = true;
-    if( plugin_provides_frames(ctx) )
-    {
-        PluginFrameCatalog_SetAvailable(&host->frame_catalog, ctx->index, 0);
-        host->frame_selection_dirty = 1;
-    }
 }
 
 static int
@@ -3027,8 +2477,6 @@ PluginHost_AssetDeliver(
     }
 
     struct PluginContext* ctx = &host->plugins[plugin];
-    if( plugin_provides_frames(ctx) )
-        host->frame_selection_dirty = 1;
     if( !ctx->enabled || !ctx->running )
         return;
 
@@ -4960,12 +4408,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->world_cycle);
     assert(engine->frame_ms);
     assert(engine->frame_work_us);
-    assert(engine->frame_activate);
-    assert(engine->frame_provide);
-    assert(engine->tab_active);
-    assert(engine->tab_select);
-    assert(engine->tab_enabled);
-    assert(engine->tab_flash_hidden);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -5014,10 +4456,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
-    assert(engine->slot_native_size);
-    assert(engine->slot_member_native_box);
-    assert(engine->slot_fit);
-    assert(engine->slot_center_content);
     assert(engine->component_rect);
     assert(engine->menu_drop);
     assert(engine->stat);
@@ -5053,18 +4491,6 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * is the answer at init, not a sentinel that would fire a phantom change
      * on the first frame. */
     host->last_screen = engine->screen(engine->user);
-    PluginFrameCatalog_Init(&host->frame_catalog);
-    snprintf(
-        host->frame_selection.requested_id, sizeof(host->frame_selection.requested_id), "%s", "auto");
-    host->frame_selection.struct_size = sizeof(host->frame_selection);
-    snprintf(
-        host->frame_selection.active_id, sizeof(host->frame_selection.active_id), "%s", "core/native");
-    host->frame_selection.status = TORIRS_FRAME_STATUS_NATIVE;
-    host->frame_selection.revision = 1;
-    host->frame_active_entry = -1;
-    host->frame_native_entry = -1;
-    host->frame_target_entry = -1;
-    host->frame_selection_dirty = 1;
     /* 0 is a real plugin index, so an empty claim row needs a value of its
      * own rather than the calloc's zero. */
     for( int i = 0; i < PLUGIN_ENTITY_CLAIMS_MAX; i++ )
@@ -5196,507 +4622,6 @@ plugin_title_refresh(struct PluginContext* ctx)
         word_start = false;
     }
     ctx->title[out] = '\0';
-}
-
-#define PLUGIN_FRAME_PREFERENCE_MIGRATION 1
-
-/* Map the pre-catalogue gameframe-layout setting onto the stable V2 offer id.
- * Old files contain either the visible label or its former numeric row. */
-static char const*
-plugin_frame_legacy_gameframe_choice(struct PluginContext* ctx)
-{
-    struct PluginConfigSlot const* slot;
-    char const* value;
-
-    assert(ctx);
-    slot = plugin_config_slot(ctx, "layout", false);
-    value = slot ? slot->value : NULL;
-    if( !value || !value[0] || strcmp(value, "Auto") == 0 ||
-        strcmp(value, "3") == 0 )
-        return "auto";
-    if( strcmp(value, "Classic Fixed") == 0 || strcmp(value, "0") == 0 )
-        return "gameframe-layout/classic-fixed";
-    if( strcmp(value, "Modern Fixed") == 0 || strcmp(value, "1") == 0 )
-        return "gameframe-layout/modern-fixed";
-    if( strcmp(value, "Modern Resizable") == 0 || strcmp(value, "2") == 0 )
-        return "gameframe-layout/modern-resizable";
-    return "auto";
-}
-
-/** Read or migrate the one device preference after both preference stores
- * have landed. */
-static void
-plugin_frame_preference_load(struct ToriRS_PluginHost* host)
-{
-    char requested[TORIRS_PLUGIN_FRAME_ID_MAX] = "auto";
-    int migration = 0;
-    int present = 0;
-
-    assert(host);
-    if( host->frame_preference_loaded )
-        return;
-    host->frame_preference_loaded = 1;
-
-    if( host->engine.frame_preference )
-        present = host->engine.frame_preference(
-            host->engine.user, requested, (int)sizeof(requested), &migration);
-    if( !plugin_frame_preference_id_valid(requested) )
-    {
-        TORIRS_REPORT("plugin: invalid saved gameframe '%s'; using auto\n", requested);
-        snprintf(requested, sizeof(requested), "%s", "auto");
-    }
-
-    if( migration < PLUGIN_FRAME_PREFERENCE_MIGRATION )
-    {
-        if( !present )
-        {
-            int const desktop = PluginHost_IndexOf(host, "gameframe-layout");
-            int const mobile = PluginHost_IndexOf(host, "mobile-gameframe");
-
-            if( desktop >= 0 && host->plugins[desktop].enabled )
-            {
-                snprintf(
-                    requested,
-                    sizeof(requested),
-                    "%s",
-                    plugin_frame_legacy_gameframe_choice(&host->plugins[desktop]));
-                if( mobile >= 0 && host->plugins[mobile].enabled )
-                    TORIRS_REPORT(
-                        "plugin: both legacy gameframe plugins were enabled; preserving "
-                        "gameframe-layout, which previously won by registry order\n");
-            }
-            else if( mobile >= 0 && host->plugins[mobile].enabled )
-                snprintf(
-                    requested,
-                    sizeof(requested),
-                    "%s",
-                    "mobile-gameframe/stone-drawer");
-        }
-        if( host->engine.frame_preference_set )
-            (void)host->engine.frame_preference_set(
-                host->engine.user,
-                requested,
-                PLUGIN_FRAME_PREFERENCE_MIGRATION);
-    }
-
-    snprintf(
-        host->frame_selection.requested_id, sizeof(host->frame_selection.requested_id), "%s", requested);
-    host->frame_selection_dirty = 1;
-}
-
-static void
-plugin_frame_selection_active(
-    struct ToriRS_PluginHost* host,
-    char const* active,
-    int status,
-    char const* reason)
-{
-    char const* why = reason ? reason : "";
-
-    assert(host);
-    assert(active);
-    if( strcmp(host->frame_selection.active_id, active) == 0 &&
-        host->frame_selection.status == status && strcmp(host->frame_selection.reason, why) == 0 )
-        return;
-    snprintf(host->frame_selection.active_id, sizeof(host->frame_selection.active_id), "%s", active);
-    host->frame_selection.status = status;
-    snprintf(host->frame_selection.reason, sizeof(host->frame_selection.reason), "%s", why);
-    host->frame_selection.revision++;
-    if( getenv("TORIRS_FRAME_ROLE_AUDIT") )
-        TORIRS_REPORT("frame_selection: requested=%s active=%s status=%d reason=%s\n",
-                   host->frame_selection.requested_id, active, status, why);
-
-}
-
-/* The canvas less the platform's band, as ToriRS_GameframeEvent.safe: the
- * engine's answer when it has one, else the whole `width` x `height`. */
-static void
-plugin_safe_rect_read(
-    struct ToriRS_PluginHost const* host,
-    int width,
-    int height,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    int x = 0;
-    int y = 0;
-    int w = width;
-    int h = height;
-
-    assert(host);
-    assert(out_x);
-    assert(out_y);
-    assert(out_w);
-    assert(out_h);
-    if( host->engine.platform_safe_rect &&
-        host->engine.platform_safe_rect(host->engine.user, &x, &y, &w, &h) )
-    {
-        assert(w > 0);
-        assert(h > 0);
-    }
-    else
-    {
-        x = 0;
-        y = 0;
-        w = width;
-        h = height;
-    }
-    *out_x = x;
-    *out_y = y;
-    *out_w = w;
-    *out_h = h;
-}
-
-/* Tell a provider its offer is released. Dispatch context matches a build. */
-static void
-plugin_gameframe_release(struct ToriRS_PluginHost* host, int owner)
-{
-    struct PluginV2Instance* v2;
-    struct PluginFrameCatalogEntry const* entry;
-    struct ToriRS_GameframeEvent ev;
-    char reason[TORIRS_FRAME_REASON_MAX] = { 0 };
-    int const previous_dispatching = host->dispatching;
-    int const previous_event = host->dispatch_event;
-
-    assert(host);
-    assert(owner >= 0);
-    v2 = host->plugins[owner].v2;
-    assert(v2);
-    v2->gameframe_provided = false;
-    if( !host->plugins[owner].running || !v2->definition->callbacks.on_gameframe )
-        return;
-    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
-    memset(&ev, 0, sizeof(ev));
-    ev.offer_id = entry ? entry->local_id : "";
-    ev.active = false;
-    ev.canvas = host->layout_canvas;
-    ev.width = host->layout_fixed_w;
-    ev.height = host->layout_fixed_h;
-    (void)v2->runtime.api.core.lane(&v2->runtime.api, &ev.lane);
-    ev.reason = reason;
-    ev.reason_capacity = sizeof(reason);
-    plugin_safe_rect_read(
-        host, ev.width, ev.height, &ev.safe.x, &ev.safe.y, &ev.safe.width, &ev.safe.height);
-    host->dispatching = owner;
-    host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
-    (void)v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &ev);
-    host->dispatching = previous_dispatching;
-    host->dispatch_event = previous_event;
-}
-
-static void
-plugin_frame_engine_activate(
-    struct ToriRS_PluginHost* host,
-    int entry_index)
-{
-    struct PluginFrameCatalogEntry const* entry;
-    int owner = -1;
-    int canvas = TORIRS_FRAME_CANVAS_WINDOW;
-    int width = 0;
-    int height = 0;
-
-    assert(host);
-    entry = PluginFrameCatalog_At(&host->frame_catalog, entry_index);
-    if( entry )
-    {
-        owner = entry->plugin;
-        canvas = entry->canvas;
-        width = entry->width;
-        height = entry->height;
-    }
-    if( host->frame_active_entry == entry_index && plugin_frame_owner(host) == owner &&
-        host->layout_canvas == canvas && host->layout_fixed_w == width &&
-        host->layout_fixed_h == height )
-        return;
-
-    /*
-     * The provider that held the frame hears the release while it still runs;
-     * its teardown, when selection drops it, follows.
-     *
-     * On a change of OFFER, not only on a change of PROVIDER. The condition
-     * was `previous != owner`, and gameframe-layout offers three of the four
-     * desktop frames -- so picking Classic Fixed while Modern Resizable stood
-     * was a provision with no release in front of it, and the incoming layout
-     * was dressed on top of the outgoing one instead of on the lane.
-     *
-     * What that looks like is not a stale piece here and there. An owned
-     * control is drawn in the order the engine made it and a claimed native
-     * one keeps its place in the tree, so the frame that comes up second has
-     * its whole surround appended AFTER the fourteen tab stones: the sidebar's
-     * own rock painted over its tabs and its inventory, the chat housing over
-     * the pack's bar, and every selected tab wearing the uncut source stone
-     * because the ten re-cut ones no longer fit the layer's image table beside
-     * the outgoing layout's. Booting into the same frame was always right,
-     * which is what made it read as a defect in Classic Fixed itself.
-     *
-     * The release is the provider's own undressing path -- one empty describe,
-     * fenced and committed -- so the provision that follows starts from the
-     * lane, which is the state a boot hands it.
-     */
-    {
-        int const previous = plugin_frame_owner(host);
-        if( previous >= 0 && host->frame_active_entry != entry_index &&
-            host->plugins[previous].v2 && host->plugins[previous].v2->gameframe_provided )
-        {
-            plugin_gameframe_release(host, previous);
-            /*
-             * And when the outgoing offer is the SAME provider's, that release
-             * just took off the description it built for the incoming one: one
-             * layer handle holds both, and an empty describe is an empty
-             * describe whichever offer it was run for. So the pass after the
-             * switch has to happen, and it is asked for here rather than left
-             * to whatever next moves the tree.
-             *
-             * An OldSchool lane recreates cc nodes every tick and so always had
-             * that pass. rs289lc's tree goes quiet once logged in, and Classic
-             * Fixed -> Modern Fixed there stayed a bare lane -- no surround, no
-             * stones, no icons -- until a resize. The pass this asks for finds
-             * the entry already active and releases nothing, so it asks once.
-             */
-            if( entry_index >= 0 && previous == owner )
-                host->frame_layout_requested = 1;
-        }
-    }
-    host->frame_selection_epoch++;
-    host->frame_active_entry = entry_index;
-    host->frame_native_entry = -1;
-    host->layout_canvas = canvas;
-    host->layout_fixed_w = width;
-    host->layout_fixed_h = height;
-    plugin_layout_publish(host);
-}
-
-static void plugin_frame_target_set(struct ToriRS_PluginHost* host, int entry);
-
-static void
-plugin_frame_discard_stale_binding(struct ToriRS_PluginHost* host, int desired_entry)
-{
-    if( host->frame_active_entry < 0 ) return;
-    bool stale = host->engine.frame_root && host->engine.frame_root(host->engine.user) != host->frame_bound_root;
-    if( !stale ) return;
-    plugin_frame_engine_activate(host, -1);
-    plugin_frame_target_set(host, desired_entry);
-    host->frame_layout_requested = 1;
-}
-
-static int
-plugin_frame_provider_assets(
-    struct ToriRS_PluginHost const* host,
-    int plugin,
-    char* reason,
-    size_t reason_size)
-{
-    assert(host);
-    assert(plugin >= 0);
-    assert(plugin < host->plugin_count);
-    assert(reason);
-    assert(reason_size > 0);
-    reason[0] = '\0';
-
-    for( int i = 0; i < host->asset_count; i++ )
-    {
-        struct PluginAsset const* asset = &host->assets[i];
-        if( asset->plugin != plugin )
-            continue;
-        if( asset->missing )
-        {
-            snprintf(
-                reason,
-                reason_size,
-                "Required gameframe asset '%s' could not be loaded.",
-                asset->name);
-            return -1;
-        }
-        if( asset->pending )
-        {
-            snprintf(reason, reason_size, "Loading gameframe artwork (%s).", asset->name);
-            return 0;
-        }
-    }
-    return 1;
-}
-
-static char const*
-plugin_frame_committed_id(struct ToriRS_PluginHost const* host)
-{
-    struct PluginFrameCatalogEntry const* entry;
-
-    assert(host);
-    entry = PluginFrameCatalog_At(&host->frame_catalog, host->frame_active_entry);
-    return entry ? entry->id : "core/native";
-}
-
-static void
-plugin_frame_target_set(
-    struct ToriRS_PluginHost* host,
-    int entry_index)
-{
-    assert(host);
-    if( host->frame_target_entry == entry_index )
-        return;
-    host->frame_target_entry = entry_index;
-    host->frame_native_entry = -1;
-    host->frame_layout_requested = 0;
-    /* Fence a builder that changed the request from inside its own callback. */
-    host->frame_selection_epoch++;
-}
-
-/**
- * Resolve the complete catalogue as one transaction. Registration order never
- * participates: the exact persisted id names the provider, or native does.
- */
-static void
-plugin_frame_resolve(struct ToriRS_PluginHost* host)
-{
-    struct PluginFrameCatalogEntry const* target = NULL;
-    int target_index = -1;
-    int wanted_plugin = -1;
-    int committed_plugin;
-    int asset_state = 1;
-    char asset_reason[160];
-    char const* committed_id;
-
-    assert(host);
-    if( host->frame_resolving )
-        return;
-    /* No providers means the native frame remains authoritative. */
-    if( PluginFrameCatalog_Count(&host->frame_catalog) == 0 )
-    {
-        host->frame_selection_dirty = 0;
-        return;
-    }
-    host->frame_resolving = 1;
-
-    if( strcmp(host->frame_selection.requested_id, "auto") != 0 )
-    {
-        target_index =
-            PluginFrameCatalog_Find(&host->frame_catalog, host->frame_selection.requested_id);
-        target = PluginFrameCatalog_At(&host->frame_catalog, target_index);
-        if( target && target->available )
-            wanted_plugin = target->plugin;
-    }
-
-    /* Native is a complete candidate of its own. It can commit immediately;
-     * no plugin callback or asset can make it partial. Off the game screen it
-     * is also the only safe committed frame, while the requested provider may
-     * stay warm for the next login. */
-    if( strcmp(host->frame_selection.requested_id, "auto") == 0 )
-    {
-        plugin_frame_target_set(host, -1);
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(host, "core/native", TORIRS_FRAME_STATUS_NATIVE, "");
-        wanted_plugin = -1;
-    }
-    else if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
-    {
-        plugin_frame_target_set(host, target && target->available ? target_index : -1);
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(
-            host,
-            "core/native",
-            TORIRS_FRAME_STATUS_LOADING,
-            "The requested gameframe will activate after login.");
-    }
-    else if( !target || !target->available ||
-             (target->plugin >= 0 && host->plugins[target->plugin].refused) )
-    {
-        if( target && target->plugin >= 0 && host->plugins[target->plugin].refused )
-            wanted_plugin = -1;
-        plugin_frame_target_set(host, -1);
-    }
-    else
-        plugin_frame_target_set(host, target_index);
-
-    committed_plugin = plugin_frame_owner(host);
-
-    /* Provider enablement is derived from selection. During a transition both
-     * ends remain alive: the committed provider keeps rendering while the
-     * requested provider starts and prepares a candidate. */
-    for( int i = 0; i < host->plugin_count; i++ )
-    {
-        struct PluginContext* ctx = &host->plugins[i];
-        int const wanted = plugin_provides_frames(ctx) &&
-                           (i == wanted_plugin || i == committed_plugin);
-
-        if( !plugin_provides_frames(ctx) )
-            continue;
-        if( ctx->running && !wanted )
-            plugin_teardown(host, i);
-        ctx->enabled = wanted ? true : false;
-    }
-    if( target && target->available && host->plugins[target->plugin].running &&
-        !host->plugins[target->plugin].refused )
-        asset_state =
-            plugin_frame_provider_assets(host, target->plugin, asset_reason, sizeof(asset_reason));
-
-    committed_id = plugin_frame_committed_id(host);
-    host->frame_layout_requested = 0;
-    if( strcmp(host->frame_selection.requested_id, "auto") == 0 )
-    {
-        /* Already committed above. */
-    }
-    else if( host->engine.screen(host->engine.user) != TORIRS_SCREEN_GAME )
-    {
-        /* Native was committed above; keep the target provider warm. */
-    }
-    else if( !target )
-    {
-        plugin_frame_selection_active(
-            host,
-            committed_id,
-            TORIRS_FRAME_STATUS_FALLBACK,
-            "The requested gameframe is not installed in this build.");
-    }
-    else if( !target->available || host->plugins[target->plugin].refused )
-    {
-        plugin_frame_selection_active(
-            host,
-            committed_id,
-            TORIRS_FRAME_STATUS_FALLBACK,
-            host->plugins[target->plugin].error[0]
-                ? host->plugins[target->plugin].error
-                : "The requested gameframe is unavailable on this lane.");
-    }
-    else if( !host->plugins[target->plugin].running )
-    {
-        plugin_frame_selection_active(
-            host,
-            committed_id,
-            TORIRS_FRAME_STATUS_LOADING,
-            "Starting the requested gameframe provider.");
-    }
-    else if( asset_state < 0 )
-    {
-        plugin_frame_selection_active(
-            host, committed_id, TORIRS_FRAME_STATUS_FALLBACK, asset_reason);
-    }
-    else if( asset_state == 0 )
-    {
-        plugin_frame_selection_active(
-            host, committed_id, TORIRS_FRAME_STATUS_LOADING, asset_reason);
-    }
-    else if( host->frame_active_entry == target_index ||
-             host->frame_native_entry == target_index )
-        /* Provided, or answered NATIVE: either way the offer is the frame on
-         * screen and nothing is left to validate. */
-        plugin_frame_selection_active(host, target->id, TORIRS_FRAME_STATUS_ACTIVE, "");
-    else
-    {
-        /* Ready to TRY, not ready to publish. PluginHost_Layout consumes this
-         * request and commits only after the complete scratch declaration and
-         * named tree validate. */
-        host->frame_layout_requested = 1;
-        plugin_frame_selection_active(
-            host,
-            committed_id,
-            TORIRS_FRAME_STATUS_LOADING,
-            "Validating the requested gameframe.");
-    }
-
-    host->frame_selection_dirty = 0;
-    host->frame_resolving = 0;
 }
 
 static void
@@ -6511,11 +5436,9 @@ PluginHost_Register(
                                         TORIRS_PLUGIN_ESSENTIAL | TORIRS_PLUGIN_RUNTIME_HOST |
                                         TORIRS_PLUGIN_HIDDEN;
     struct PluginV2Instance* v2;
-    struct ToriRS_FrameOffer const* source_frames = NULL;
     uint32_t flags = 0;
     int event_priority = 0;
     int draw_order = 0;
-    int frame_count = 0;
     int schema_count = 0;
     int index;
 
@@ -6533,8 +5456,6 @@ PluginHost_Register(
         TORIRS_ERR("plugin: invalid v2 definition refused\n");
         return -1;
     }
-    if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, frames) )
-        source_frames = def->frames;
     if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, flags) )
         flags = def->flags;
     if( PLUGIN_V2_FIELD_AVAILABLE(def, ToriRS_PluginDef, event_priority) )
@@ -6578,41 +5499,6 @@ PluginHost_Register(
             : sizeof(v2->callbacks_storage));
     v2->callbacks_storage.struct_size = sizeof(v2->callbacks_storage);
 
-    if( source_frames )
-    {
-        while( source_frames[frame_count].id )
-        {
-            struct ToriRS_FrameOffer const* offer = &source_frames[frame_count];
-            struct ToriRS_FrameOffer* stored;
-            if( frame_count >= TORIRS_PLUGIN_FRAME_OFFERS_MAX ||
-                offer->struct_size < TORIRS_FRAME_OFFER_REQUIRED_SIZE ||
-                !offer->title || !offer->title[0] ||
-                !v2->callbacks_storage.on_gameframe ||
-                (offer->canvas != TORIRS_FRAME_CANVAS_FIXED &&
-                 offer->canvas != TORIRS_FRAME_CANVAS_WINDOW) ||
-                (offer->canvas == TORIRS_FRAME_CANVAS_FIXED &&
-                 (offer->width <= 0 || offer->height <= 0)) ||
-                (offer->canvas == TORIRS_FRAME_CANVAS_WINDOW &&
-                 (offer->min_width <= 0 || offer->min_height <= 0)) )
-            {
-                TORIRS_ERR(
-                    "plugin: v2 frame offer %d from '%s' is invalid\n", frame_count, def->id);
-                ToriMem_Free(ToriMem_Plugins(), v2);
-                return -1;
-            }
-            stored = &v2->frame_offers[frame_count];
-            stored->struct_size = sizeof(*stored);
-            stored->id = offer->id;
-            stored->title = offer->title;
-            stored->canvas = offer->canvas;
-            stored->width = offer->width;
-            stored->height = offer->height;
-            stored->min_width = offer->min_width;
-            stored->min_height = offer->min_height;
-            frame_count++;
-        }
-    }
-
     v2->definition_storage.struct_size = sizeof(v2->definition_storage);
     v2->definition_storage.id = def->id;
     v2->definition_storage.title = def->title;
@@ -6625,12 +5511,10 @@ PluginHost_Register(
         v2->definition_storage.config = &v2->config_storage;
     }
     v2->definition_storage.callbacks = v2->callbacks_storage;
-    v2->definition_storage.frames = frame_count > 0 ? v2->frame_offers : NULL;
     v2->definition_storage.flags = flags;
     v2->definition_storage.event_priority = event_priority;
     v2->definition_storage.draw_order = draw_order;
     v2->definition = &v2->definition_storage;
-    v2->frame_count = frame_count;
 
     if( host->plugin_count >= TORIRS_PLUGIN_MAX )
     {
@@ -6647,25 +5531,6 @@ PluginHost_Register(
         return -1;
     }
     index = host->plugin_count;
-    if( frame_count > 0 )
-    {
-        enum PluginFrameCatalogResult const result = PluginFrameCatalog_Add(
-            &host->frame_catalog, index, def->id, v2->frame_offers);
-        if( result != PLUGIN_FRAME_CATALOG_OK )
-        {
-            char const* why = result == PLUGIN_FRAME_CATALOG_DUPLICATE
-                                  ? "a duplicate canonical id"
-                              : result == PLUGIN_FRAME_CATALOG_FULL
-                                  ? "the frame catalogue is full"
-                                  : "an invalid id, title, canvas policy, or size";
-            TORIRS_ERR(
-                "plugin: '%s' has invalid frame offers (%s); refusing the provider\n",
-                def->id,
-                why);
-            ToriMem_Free(ToriMem_Plugins(), v2);
-            return -1;
-        }
-    }
     {
         struct PluginContext* ctx = &host->plugins[index];
         memset(ctx, 0, sizeof(*ctx));
@@ -6683,6 +5548,13 @@ PluginHost_Register(
     return index;
 }
 
+bool
+PluginHost_Started(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->started_once;
+}
+
 void
 PluginHost_Start(struct ToriRS_PluginHost* host)
 {
@@ -6690,12 +5562,9 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
     int const previous_owner=host->dispatching, previous_event=host->dispatch_event;
 
     /* This public call is the boot task's publication fence. Later calls come
-     * from normal enable/reload/frame-resolution paths; before the first one,
-     * a frame boundary is not permission to start plugins on defaults. */
+     * from normal enable/reload paths; before the first one, a frame boundary
+     * is not permission to start plugins on defaults. */
     host->started_once = true;
-
-    plugin_frame_preference_load(host);
-    plugin_frame_resolve(host);
 
     for( int i = 0; i < host->plugin_count; i++ )
     {
@@ -6721,9 +5590,6 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
         struct ToriRS_FrameEvent ev = { 0 };
         plugin_dispatch_one(host, i, PLUGIN_CALLBACK_START, &ev);
     }
-    /* The first pass selected which provider should run; this pass can commit
-     * it now that its init/START callbacks have completed. */
-    plugin_frame_resolve(host);
     host->dispatching=previous_owner;
     host->dispatch_event=previous_event;
 }
@@ -6790,26 +5656,6 @@ plugin_teardown(
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
-    /* The frame goes back to the lane. A layout plugin that stopped while
-     * holding it would leave the client with the client's chrome suppressed
-     * and nobody drawing any: a black surround and an inventory floating in
-     * it. */
-    if( plugin_frame_owner(host) == plugin_index )
-    {
-        plugin_frame_engine_activate(host, -1);
-        plugin_frame_selection_active(
-            host,
-            "core/native",
-            TORIRS_FRAME_STATUS_FALLBACK,
-            "The committed gameframe provider stopped.");
-    }
-    if( host->frame_target_entry >= 0 )
-    {
-        struct PluginFrameCatalogEntry const* target =
-            PluginFrameCatalog_At(&host->frame_catalog, host->frame_target_entry);
-        if( target && target->plugin == plugin_index )
-            plugin_frame_target_set(host, -1);
-    }
     ctx->tearing_down = false;
     host->dispatching=previous_owner;
     host->dispatch_event=previous_event;
@@ -6824,10 +5670,6 @@ PluginHost_SetEnabled(
     assert(host);
 
     struct PluginContext* ctx = plugin_at(host, plugin_index);
-    /* A frame provider's runtime state is derived from the one Gameframe
-     * preference. It deliberately has no independent checkbox. */
-    if( plugin_provides_frames(ctx) )
-        return;
     /* `refused` is part of the state being asked about: a plugin that stood
      * down reads as off in the roster, so the switch the user then flips asks
      * for a state it already nominally has, and returning here would make that
@@ -6932,11 +5774,6 @@ PluginHost_Reload(
             ctx->schema_count = 0;
             PluginHost_SetError(host, plugin_index, error);
             ctx->refused = true;
-            if( plugin_provides_frames(ctx) )
-            {
-                PluginFrameCatalog_SetAvailable(&host->frame_catalog, plugin_index, 0);
-                host->frame_selection_dirty = 1;
-            }
             return;
         }
     }
@@ -6980,11 +5817,6 @@ PluginHost_Reload(
      * whatever the new source says. */
     ctx->error[0] = '\0';
     ctx->refused = false;
-    if( plugin_provides_frames(ctx) )
-    {
-        PluginFrameCatalog_SetAvailable(&host->frame_catalog, plugin_index, 1);
-        host->frame_selection_dirty = 1;
-    }
 
     PluginHost_Start(host);
     /* Reload is replacement in place, not a user navigation action. If the
@@ -7060,14 +5892,7 @@ PluginHost_IsHidden(
     assert(host);
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
-    {
-        struct PluginContext const* ctx = &host->plugins[plugin_index];
-        /* Providers with settings keep one locked row so their advanced
-         * controls remain reachable. A provider with no settings has nothing
-         * useful to show beside the one Gameframe selector. */
-        return plugin_policy(ctx, TORIRS_PLUGIN_HIDDEN) ||
-               (plugin_provides_frames(ctx) && ctx->schema_count == 0);
-    }
+    return plugin_policy(&host->plugins[plugin_index], TORIRS_PLUGIN_HIDDEN);
 }
 
 bool
@@ -7079,8 +5904,7 @@ PluginHost_IsEssential(
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return plugin_policy(
-               &host->plugins[plugin_index], TORIRS_PLUGIN_ESSENTIAL) ||
-           plugin_provides_frames(&host->plugins[plugin_index]);
+        &host->plugins[plugin_index], TORIRS_PLUGIN_ESSENTIAL);
 }
 
 char const*
@@ -7156,39 +5980,8 @@ PluginHost_FrameStart(
         {
             struct ToriRS_ScreenChangedEvent ev = { screen, host->last_screen };
             host->last_screen = screen;
-            host->frame_selection_dirty = 1;
-            /* A NATIVE answer was about the session that gave it; the next
-             * game screen asks the provider again. */
-            host->frame_native_entry = -1;
             if( host->callback_count[PLUGIN_CALLBACK_SCREEN_CHANGE] > 0 )
                 plugin_dispatch(host, PLUGIN_CALLBACK_SCREEN_CHANGE, &ev);
-        }
-    }
-
-    if( host->started_once && host->frame_selection_dirty )
-        PluginHost_Start(host);
-
-    /* The platform band poll. A provided frame was laid out against one
-     * safe rect (ToriRS_GameframeEvent.safe); when the engine's answer leaves
-     * it -- the phone's keyboard coming up or going away -- the provider is
-     * asked again, once, through the same one-shot request a selection
-     * transition uses. Only a provided frame is watched: nothing else was
-     * told the old rect. Without a hook the rect is the canvas and only a
-     * canvas change (which re-asks on its own) can move it. */
-    if( host->engine.platform_safe_rect )
-    {
-        int const owner = plugin_frame_owner(host);
-        if( owner >= 0 && host->plugins[owner].v2 &&
-            host->plugins[owner].v2->gameframe_provided && !host->frame_layout_requested )
-        {
-            int x;
-            int y;
-            int w;
-            int h;
-            plugin_safe_rect_read(host, host->canvas_raised_w, host->canvas_raised_h, &x, &y, &w, &h);
-            if( x != host->safe_raised_x || y != host->safe_raised_y ||
-                w != host->safe_raised_w || h != host->safe_raised_h )
-                host->frame_layout_requested = 1;
         }
     }
 
@@ -7706,227 +6499,6 @@ PluginHost_DrawCanvas(
     PA_ADD(draw_canvas_ns, PerfAudit_Now() - pa_t0);
 }
 
-static struct ToriRS_FrameOffer const*
-plugin_v2_frame_offer(
-    struct PluginContext* ctx,
-    int entry_index)
-{
-    struct PluginFrameCatalogEntry const* entry;
-
-    assert(ctx);
-    if( !ctx->v2 || !ctx->v2->definition->frames )
-        return NULL;
-    entry = PluginFrameCatalog_At(&ctx->host->frame_catalog, entry_index);
-    if( !entry || entry->plugin != ctx->index )
-        return NULL;
-    for( int i = 0; i < ctx->v2->frame_count; i++ )
-        if( strcmp(ctx->v2->definition->frames[i].id, entry->local_id) == 0 )
-            return &ctx->v2->definition->frames[i];
-    return NULL;
-}
-
-bool
-PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host)
-{
-    return host && host->frame_layout_requested;
-}
-
-void
-PluginHost_Layout(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height)
-{
-    struct PluginFrameCatalogEntry const* entry;
-    struct ToriRS_FrameOffer const* v2_offer;
-    struct PluginV2Instance* v2;
-    struct ToriRS_GameframeEvent gameframe;
-    enum ToriRS_FrameBuildResult v2_result;
-    char v2_reason[TORIRS_FRAME_REASON_MAX] = { 0 };
-    int build_entry;
-    int transitioning;
-    int owner;
-    int previous_dispatching;
-    int previous_event;
-    uint32_t selection_epoch;
-
-    if( !host )
-        return;
-    PA_INC(plugin_host_layout_calls);
-    transitioning = host->frame_layout_requested && host->frame_target_entry >= 0 &&
-                    host->frame_target_entry != host->frame_active_entry;
-    build_entry = transitioning ? host->frame_target_entry : host->frame_active_entry;
-    entry = PluginFrameCatalog_At(&host->frame_catalog, build_entry);
-    if( !entry )
-        return;
-    owner = entry->plugin;
-    if( owner < 0 || owner >= host->plugin_count || !host->plugins[owner].running )
-        return;
-    v2_offer = plugin_v2_frame_offer(&host->plugins[owner], build_entry);
-    if( !v2_offer )
-        return;
-    /*
-     * A canvas of nothing is refused rather than laid out against.
-     *
-     * Every anchor in a resizable layout is measured from an edge, so a zero
-     * canvas does not produce a small frame -- it produces one at negative
-     * coordinates, declared and drawn and invisible. Saying so is the
-     * difference between a caller that fixes its call and one that spends an
-     * afternoon looking at the plugin.
-     */
-    if( entry->canvas != TORIRS_FRAME_CANVAS_FIXED && (width <= 0 || height <= 0) )
-    {
-        TORIRS_LOG(
-            "plugin: %s asked to lay out against a %dx%d canvas; not asked to provide\n",
-            host->plugins[owner].name,
-            width,
-            height);
-        return;
-    }
-
-    /*
-     * FIXED reads back its own pinned size, not the window's.
-     *
-     * The alternative -- handing over whatever the platform last set -- makes
-     * the plugin's arithmetic depend on when in the boot it was asked, because
-     * the canvas is not pinned until the engine has applied the selection. A
-     * layout that asked for 765x503 is entitled to be told 765x503 the first
-     * time it is asked, and every time after.
-     */
-    if( entry->canvas == TORIRS_FRAME_CANVAS_FIXED )
-    {
-        width = entry->width;
-        height = entry->height;
-    }
-
-    /* Consume only the attempt we are about to make -- a transition to the
-     * target, or a re-ask of the standing frame (the platform band moved). A
-     * callback that changes selection or invalidates again raises a fresh
-     * request and the epoch fence below preserves it. */
-    host->frame_layout_requested = 0;
-    selection_epoch = host->frame_selection_epoch;
-
-    /* Provided, not declared: the offer's on_gameframe edits widgets and
-     * answers. The engine only takes the chrome and binds the roles
-     * (frame_provide); the provider's retained widget edits are the layout. */
-    v2 = host->plugins[owner].v2;
-    assert(v2->definition->callbacks.on_gameframe);
-    memset(&gameframe, 0, sizeof(gameframe));
-    gameframe.offer_id = v2_offer->id;
-    gameframe.active = true;
-    gameframe.canvas = entry->canvas == TORIRS_FRAME_CANVAS_FIXED ? TORIRS_FRAME_CANVAS_FIXED
-                                                                   : TORIRS_FRAME_CANVAS_WINDOW;
-    gameframe.width = width;
-    gameframe.height = height;
-    (void)v2->runtime.api.core.lane(&v2->runtime.api, &gameframe.lane);
-    gameframe.reason = v2_reason;
-    gameframe.reason_capacity = sizeof(v2_reason);
-    plugin_safe_rect_read(
-        host,
-        width,
-        height,
-        &gameframe.safe.x,
-        &gameframe.safe.y,
-        &gameframe.safe.width,
-        &gameframe.safe.height);
-    /* What the provider is being laid out against; the frame boundary
-     * re-asks when the engine's band leaves it. Recorded before the call so
-     * a band that moves DURING the callback is still seen as a move. */
-    host->safe_raised_x = gameframe.safe.x;
-    host->safe_raised_y = gameframe.safe.y;
-    host->safe_raised_w = gameframe.safe.width;
-    host->safe_raised_h = gameframe.safe.height;
-    host->canvas_raised_w = width;
-    host->canvas_raised_h = height;
-    previous_dispatching = host->dispatching;
-    previous_event = host->dispatch_event;
-    host->dispatching = owner;
-    host->dispatch_event = PLUGIN_CALLBACK_LAYOUT;
-    v2_result = v2->definition->callbacks.on_gameframe(&v2->runtime.api, v2->state, &gameframe);
-    host->dispatching = previous_dispatching;
-    host->dispatch_event = previous_event;
-    if( v2_result < TORIRS_FRAME_READY || v2_result > TORIRS_FRAME_NATIVE )
-        v2_result = TORIRS_FRAME_ERROR;
-
-    if( host->frame_selection_epoch != selection_epoch ||
-        (transitioning && host->frame_target_entry != build_entry) ||
-        (!transitioning && host->frame_active_entry != build_entry) )
-        return;
-
-    if( v2_result == TORIRS_FRAME_NATIVE )
-    {
-        /*
-         * The lane's own chrome is this frame.
-         *
-         * Nothing is published: the engine keeps (or goes back to) the lane's
-         * chrome and the lane's canvas policy, a previous provision -- this
-         * provider's or another's -- hears its release through the
-         * activation, and the offer is the ACTIVE selection under its own id
-         * rather than a fallback to native. frame_active_entry stays -1, so
-         * a canvas change does not re-ask: there is nothing to lay out, and
-         * the lane arranges its own chrome. What re-asks is a new selection
-         * or a screen change, both of which clear frame_native_entry.
-         */
-        int const old_owner = plugin_frame_owner(host);
-
-        plugin_frame_engine_activate(host, -1);
-        host->frame_native_entry = build_entry;
-        plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
-        if( old_owner >= 0 && old_owner != owner )
-        {
-            host->plugins[old_owner].enabled = false;
-            plugin_teardown(host, old_owner);
-        }
-        return;
-    }
-
-    if( v2_result != TORIRS_FRAME_READY )
-    {
-        int const status = v2_result == TORIRS_FRAME_PENDING ? TORIRS_FRAME_STATUS_LOADING
-                                                             : TORIRS_FRAME_STATUS_FALLBACK;
-        char const* reason =
-            v2_reason[0]                            ? v2_reason
-            : v2_result == TORIRS_FRAME_PENDING     ? "The selected gameframe is still loading."
-            : v2_result == TORIRS_FRAME_UNSUPPORTED ? "The selected gameframe is unsupported here."
-                                                    : "The selected gameframe could not be built.";
-
-        plugin_frame_discard_stale_binding(host, build_entry);
-        /* A provided frame that stops answering READY is released: its
-         * retained edits are the layout, and a provider that says it cannot
-         * lay this lane out must not keep the chrome suppressed under it. */
-        if( host->frame_active_entry == build_entry )
-            plugin_frame_engine_activate(host, -1);
-        /* PENDING from a provider means "ask again": its roles have not bound
-         * yet, or its art is still crossing the IO queue. Keep the request
-         * standing so the next layout fence asks; a provider that never
-         * becomes READY costs one refused find per tick and nothing else. */
-        if( v2_result == TORIRS_FRAME_PENDING )
-            host->frame_layout_requested = 1;
-        plugin_frame_selection_active(host, plugin_frame_committed_id(host), status, reason);
-        return;
-    }
-
-    /* The only publication point. */
-    {
-        int const old_owner = plugin_frame_owner(host);
-
-        plugin_frame_engine_activate(host, build_entry);
-        v2->gameframe_provided = true;
-        /* The provider's widget-edit owner id, the same `index + 1` its own
-         * set_position requests carry (widget_request). */
-        host->engine.frame_provide(host->engine.user, (uint64_t)owner + 1);
-        host->frame_bound_root = host->engine.frame_root ? host->engine.frame_root(host->engine.user) : -1;
-        plugin_frame_selection_active(host, entry->id, TORIRS_FRAME_STATUS_ACTIVE, "");
-        /* Teardown follows publication, so no frame exists where neither end
-         * owns the live geometry or rendering surface. */
-        if( old_owner >= 0 && old_owner != owner )
-        {
-            host->plugins[old_owner].enabled = false;
-            plugin_teardown(host, old_owner);
-        }
-    }
-}
-
 void
 PluginHost_MenuBuild(
     struct ToriRS_PluginHost* host,
@@ -8209,8 +6781,7 @@ PluginHost_ConfigEncode(
         /* Written only when it differs from what the plugin declared, so a
          * default-off plugin left off leaves no trace, and a default-on plugin
          * left on leaves none either -- the RS_Prefs rule. */
-        if( !plugin_provides_frames(ctx) &&
-            ctx->enabled == plugin_policy(ctx, TORIRS_PLUGIN_DISABLED_BY_DEFAULT) )
+        if( ctx->enabled == plugin_policy(ctx, TORIRS_PLUGIN_DISABLED_BY_DEFAULT) )
         {
             at += (size_t)snprintf(
                 buf + at, cap - at, "\n[plugin:%s]\nenabled=%d\n", ctx->name, ctx->enabled ? 1 : 0);

@@ -183,19 +183,6 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
 #define UITREE_SCENE_INKWELL_ID 0x4000000D
 
 /**
- * The engine's plugin launcher on a lane's own stone column: ONE composed
- * picture, the anchor's backing wearing the client's wrench.
- *
- * One entry and not a range, unlike the nav buttons below: there is one
- * launcher, on one column, and it is recomposed only when the stone it copies
- * changes. 0x0E because it is the next free one -- @see the INKWELL note
- * above for what happens when that is not checked.
- *
- * @see ui/torirs_chrome_lane_launcher.h
- */
-#define UITREE_SCENE_PLUGIN_LAUNCHER_ID 0x4000000E
-
-/**
  * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
  * shipped as its own asset file and decoded at runtime (scene id = base +
  * slot, one slot per resident image).
@@ -220,18 +207,6 @@ UITreeSceneBridge_EnsureLocModel(struct UITreeSceneBridge* bridge, int loc_id);
  * higher, so there is no ceiling here worth economising against.
  */
 #define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 192
-
-/**
- * The engine's plugin-navigation buttons in a lane's pop-out column: one
- * composed picture per button slot (plugin icon plus the Tori face badge),
- * scene id = base + slot. @see ui/torirs_chrome_popout_nav.h.
- *
- * Not the plugin-image range: those slots are the plugins', handed out by the
- * host one asset at a time, and a picture the ENGINE composed from one of them
- * must not be able to evict another plugin's art.
- */
-#define UITREE_SCENE_PLUGIN_NAV_BUTTON_BASE 0x40002000
-#define UITREE_SCENE_PLUGIN_NAV_BUTTON_SLOTS 64
 
 void
 UITreeSceneBridge_Init(
@@ -393,30 +368,6 @@ UITreeSceneBridge_ReadSpriteFrame(
     int max,
     int* out_w,
     int* out_h);
-
-/**
- * Publish the composed lane-launcher button (`width` x `height`, 0xAARRGGBB,
- * copied) and return its scene id. Replaces whatever it held.
- */
-int
-UITreeSceneBridge_PublishLauncherButton(
-    struct UITreeSceneBridge* bridge,
-    int width,
-    int height,
-    uint32_t const* argb);
-
-/**
- * Publish one composed plugin-navigation button (TORIRS_POPOUT_NAV_BUTTON
- * square, 0xAARRGGBB, copied) at `slot` and return its scene id. Replaces what
- * the slot held.
- */
-int
-UITreeSceneBridge_PublishNavButton(
-    struct UITreeSceneBridge* bridge,
-    int slot,
-    int width,
-    int height,
-    uint32_t const* argb);
 
 /**
  * Which chrome scale the debug-overlay faces resolve at: 1, 2 or 3.

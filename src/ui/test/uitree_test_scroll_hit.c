@@ -97,27 +97,27 @@ test_scroll_hit(void)
                 stale_down.kind == UITREE_SCROLLBAR_V_DOWN,
             "down arrow");
 
-        /* A plugin frame hides replaced widgets as an effective display:none.
+        /* A plugin hides a widget as an effective display:none.
          * IF1 scrollbars are synthetic hit regions rather than child nodes, so
          * they must honor that gate explicitly. Also reject a hit latched while
          * visible: a frame can replace the layer during an active arrow/grip
          * hold, before the interaction code consumes its saved hit record. */
-        tree->components[layer].frame_hidden = 1;
+        tree->components[layer].widget_hidden = 1;
         TEST_ASSERT(
             !UITree_FindScrollbarAt(tree, &host, 108, 90, &sb),
-            "a frame-hidden IF1 layer exposes no synthetic scrollbar hitbox");
+            "a widget-hidden IF1 layer exposes no synthetic scrollbar hitbox");
         TEST_ASSERT(
             !UITree_ScrollbarHandle(
                 tree, &stale_down, 108, 90,
                 UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0),
-            "a stale scrollbar hit cannot mutate a layer hidden by the frame");
+            "a stale scrollbar hit cannot mutate a hidden layer");
         TEST_ASSERT(
             tree->components[layer].scroll_y == before_hidden,
             "hidden IF1 scrollbar leaves its native scroll offset unchanged");
 
         /* A rebuild can reuse the same id and array index. The saved hit still
          * belongs to the former occupant and must not scroll the replacement. */
-        tree->components[layer].frame_hidden = 0;
+        tree->components[layer].widget_hidden = 0;
         tree->components[layer].incarnation++;
         TEST_ASSERT(
             !UITree_ScrollbarHandle(
@@ -146,7 +146,7 @@ test_scroll_hit(void)
             UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
             TEST_ASSERT(interact.sb_arrow_held, "visible scrollbar owns its press");
 
-            tree->components[layer].frame_hidden = 1;
+            tree->components[layer].widget_hidden = 1;
             LibToriRS_Input_Begin(input, 20);
             LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 108, 8);
             LibToriRS_Input_End(input);
@@ -156,7 +156,7 @@ test_scroll_hit(void)
                 "hidden scrollbar release is fenced from plugin regions");
             TEST_ASSERT(!out.left_click_miss, "hidden scrollbar release cannot reach world");
         }
-        tree->components[layer].frame_hidden = 0;
+        tree->components[layer].widget_hidden = 0;
     }
 
     /* A raw offset can become out of range when the viewport is resized before

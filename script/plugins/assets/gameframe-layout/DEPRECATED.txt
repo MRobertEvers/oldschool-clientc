@@ -1,0 +1,7 @@
+DEPRECATED (2026-10-28).
+
+The plugin that drew this art has been removed: chrome-changing plugins
+(game frames, the Stone Drawer, minimap orbs, XP orbs) were buggy on most
+lanes, and the frame-provider machinery behind them is gone. Nothing in the
+client loads these files any more. They are kept for reference only; do not
+build new work on them.

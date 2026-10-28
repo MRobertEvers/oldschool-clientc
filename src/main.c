@@ -1389,6 +1389,10 @@ static struct LibToriRS_Input input_storage;
 static struct LibToriRS_Input* input;
 /* The ring is 128KB and there is exactly one bus per process. */
 static struct ToriRS_CmdBus bus;
+/* The OUTBOUND bus: what the App asks of the platform (TORIRS_CMD_PLATFORM_*),
+ * drained into PlatformWindow_* calls every frame. Its own ring, so the
+ * inbound one stays the replay record. */
+static struct ToriRS_CmdBus platform_bus;
 static FILE* replay;
 static uint64_t replay_now;
 /* NULL unless the desktop-GL renderer was built AND --opengl3 was passed. */
@@ -5289,6 +5293,23 @@ frame_loop_step(void)
                 PlatformWindow_OpenUrl(platform, url);
         }
         {
+            /* The App's requests of the platform. */
+            struct ToriRS_CmdHeader header;
+            static uint8_t payload[TORIRS_CMD_MAX_PAYLOAD];
+            while( CmdBus_Pop(&platform_bus, &header, payload) )
+            {
+                if( header.type == TORIRS_CMD_PLATFORM_PLUGIN_CHROME )
+                {
+                    struct ToriRS_CmdPluginChrome request;
+                    assert(header.length == sizeof(request));
+                    memcpy(&request, payload, sizeof(request));
+                    TORIRS_LOG("plugin chrome: platform asked for the %s\n",
+                        request.style == TORIRS_PLUGIN_CHROME_EDGE_TAB ? "edge tab" : "sidebar");
+                    PlatformWindow_PluginChromeShow(platform, request.style);
+                }
+            }
+        }
+        {
             int new_mode = 0;
             if( App_TakeWindowModeChange(&app, &new_mode) )
             {
@@ -8135,8 +8156,7 @@ main(
     /*
      * TORIRS_DUMP_ROLES=1: what every declared semantic role resolves to.
      *
-     * The one question a screenshot cannot answer about a role, and the same
-     * question UITree_FrameHiddenCount exists for one level down: a plugin
+     * The one question a screenshot cannot answer about a role: a plugin
      * that offers no verb may be looking at a lane whose profile never named
      * the element, or at a binding that names the wrong node. "declared but
      * unresolved" and "not declared at all" print differently here, because
@@ -8204,7 +8224,7 @@ main(
                 c->component_id,
                 (int)c->type,
                 c->dynamic ? " dynamic" : "",
-                (c->behavior.hide || c->frame_hidden) ? " hidden" : "",
+                c->behavior.hide ? " hidden" : "",
                 c->position.abs_x,
                 c->position.abs_y,
                 c->position.abs_w,
@@ -8768,24 +8788,9 @@ main(
                     ToriRSChromeExec_KindName(wanted));
             App_SetPluginChromeExec(&app, &chrome_exec, got, chosen);
         }
-        /* Where plugin destinations are offered: the manifest says, and
-         * TORIRS_PLUGIN_NAV overrides it the way TORIRS_CHROME_EXECUTOR
-         * overrides the executor above. */
-        {
-            char const* want = getenv("TORIRS_PLUGIN_NAV");
-            int mode = boot_manifest.plugin_nav;
-            if( want && want[0] )
-            {
-                int const from_env = ToriRSPluginNav_ModeFromName(want);
-                if( from_env < 0 )
-                    TORIRS_LOG("chrome: TORIRS_PLUGIN_NAV must be auto|rail, got '%s'\n", want);
-                else
-                    mode = from_env;
-            }
-            App_SetPluginNavMode(&app, mode);
-        }
-
         CmdBus_Init(&bus);
+        CmdBus_Init(&platform_bus);
+        App_SetPlatformBus(&app, &platform_bus);
 
         /*
          * Hand the window mode to the platform ONCE, at boot.

@@ -809,134 +809,6 @@ enum AppMinimapState
 #define APP_PREFS_SAVE_SETTLE_TICKS 25
 
 /**
- * Which NATIVE top-level chrome a CS2 lane is wearing.
- *
- * The first three are the Display panel's own domain -- the `client_mode_*`
- * constants the cache, the wire and the server content all count in, which is
- * why they are 0/1/2 here too and not a spelling of this client's own. Each
- * has one interface behind it, named by the profile rather than by a literal
- * ([iface:toplevel_fixed] and its three siblings).
- *
- * MOBILE is the fourth root and NOT a fourth choice: the server opens 601
- * because the login's client type said phone, and the Display row offers no
- * way to ask for it or to leave it. It is here so that a reader can tell "the
- * phone frame" from "no answer", which -1 would not -- a plugin that read
- * mobile as unknown and forced Fixed would take a phone off its own chrome.
- */
-enum AppNativeLayout
-{
-    APP_NATIVE_LAYOUT_FIXED = 0,
-    APP_NATIVE_LAYOUT_RESIZABLE_CLASSIC = 1,
-    APP_NATIVE_LAYOUT_RESIZABLE_MODERN = 2,
-    APP_NATIVE_LAYOUT_MOBILE = 3,
-};
-
-/**
- * Logic cycles before an unanswered native-layout request is asked again.
- *
- * The request is one IF_BUTTON and the answer is a remount three server ticks
- * later (the op, then `gameframe_apply_mode` two queue ticks after it), so a
- * caller that asks on every layout pass -- which is what a gameframe provider
- * does -- must not put a packet on the wire per frame. Five ticks is that path
- * with room to spare, and short enough that a request the server dropped is
- * retried while the player is still looking at the wrong frame.
- */
-#define APP_NATIVE_LAYOUT_RETRY_CYCLES (APP_SERVER_TICK_LOGIC_CYCLES * 5)
-
-/** One engine button in the lane's pop-out column. Keyed by DESTINATION, not
- *  by position: a plugin enabled above another must not take its button. */
-struct AppPluginPopoutNavButton
-{
-    /** Plugin index, or TORIRS_CHROME_SHELL_PAGE_MANAGE. */
-    int destination;
-    struct UITreeNodeRef ref;
-    /** Its picture's scene slot, held for the button's life so a button that
-     *  moves up the column does not redraw another's art. */
-    int scene_slot;
-    /** Which icon revision the published picture was composed from. */
-    uint32_t icon_revision;
-    int composed;
-    /** What the node was last given; reset when the node is a new incarnation
-     *  (the pop-out interface was remounted), so every property is set again. */
-    int graphic_set;
-    int y;
-    int transparency;
-    char label[UITREE_MENU_OPTION_LEN];
-    /** Scratch for one tick's reconcile. */
-    int seen;
-};
-
-struct AppPluginPopoutNav
-{
-    /** enum ToriRSPluginNavMode. */
-    int mode;
-    /** The column is on screen and carries the destinations. */
-    int active;
-    /**
-     * What the rail snapshot says: `active`, and also every moment the column
-     * cannot carry them only because the game has not put it up yet -- the
-     * title screen and the first ticks of a session on a lane whose profile
-     * names one. Answering "show the rail" there grew the window by a rail on
-     * every boot and took it back at login.
-     */
-    int rail_hidden;
-    /** Logic ticks in-game with the column declared but not usable. */
-    int unusable_ticks;
-    int button_count;
-    struct AppPluginPopoutNavButton buttons[TORIRS_CHROME_RAIL_ENTRY_MAX];
-    /** The click registration stamped on every button; never 0. */
-    uint64_t op_serial;
-    /** What the last trace line said, so the trace reports changes only. */
-    int reported_active;
-    int reported_first_y;
-    int reported_capacity;
-    int reported_count;
-    int reported_rail_hidden;
-};
-
-/**
- * The engine's plugin launcher on a lane's own stone column.
- *
- * One button, so one struct and no table -- @see
- * ui/torirs_chrome_lane_launcher.h for why a lane gets one and what it is for.
- * Every value here is "what the node was last given": the node outlives the
- * tick and the setters are retained, so restating what is already in force
- * moves nothing, and a changed incarnation (the toplevel was remounted) resets
- * the lot so every property is stated again.
- */
-struct AppPluginLaneLauncher
-{
-    struct UITreeNodeRef ref;
-    /** The button is up this tick. */
-    int placed;
-    /** What the published picture was composed from: the anchor's backing
-     *  frame and the boxes it was fitted to. A stone that changed picture --
-     *  the chat toggle swaps 5773/5774 -- or a column that moved recomposes. */
-    int backing_scene_id;
-    int backing_frame;
-    int composed_w;
-    int composed_h;
-    int icon_x;
-    int icon_y;
-    int icon_w;
-    int icon_h;
-    /** Set once the node carries the composed picture. */
-    int graphic_set;
-    /** Last stated geometry, mount-local. -1 until stated. */
-    int x;
-    int y;
-    int w;
-    int h;
-    char label[UITREE_MENU_OPTION_LEN];
-    /** The click registration stamped on the button; never 0. */
-    uint64_t op_serial;
-    /** What the last trace line said, so the trace reports changes only. */
-    int reported_placed;
-    int reported_x;
-    int reported_y;
-};
-
-/**
  * Client scaling, as the App knows it. @see platform/client_scale.h for how
  * interface scaling, stretch mode and the pixel limit combine.
  */
@@ -1684,26 +1556,16 @@ struct App
      * TORIRS_PLUGIN_ENGINE_DRAW_* (the host's enum PluginDrawSurface is
      * defined from the same constants). */
     int plugin_draw_canvas;
-    /*
-     * Internal engine mirror of the host's committed plugin gameframe.
-     *
-     * `plugin_frame_active` is derived from the host's committed selection:
-     * nonzero means a validated plugin frame is active. While zero, the lane's
-     * own frame remains live.
-     *
-     * A provided frame's retained widget edits are its layout; the engine
-     * only takes the lane's chrome and binds the roles (UITree_FrameProvide).
-     */
-    int plugin_frame_active;
-    /** enum ToriRS_FrameCanvas. */
-    int plugin_layout_canvas;
-    int plugin_layout_fixed_w;
-    int plugin_layout_fixed_h;
-    /** Canvas the frame was last provided against, so the app can tell a
-     *  resize (which asks the provider again) from a frame that merely
-     *  rendered again. */
-    int plugin_layout_w;
-    int plugin_layout_h;
+    /** The lane's window mode has been restated once, at plugin host start.
+     *  @see App_SyncNativeWindowMode. */
+    uint8_t native_window_mode_synced;
+    /** The OUTBOUND command bus: requests the App makes of the platform
+     *  (TORIRS_CMD_PLATFORM_*). NULL in a harness with no platform, which then
+     *  asks for nothing. @see App_SetPlatformBus. */
+    struct ToriRS_CmdBus* platform_bus;
+    /** The platform's plugin chrome has been asked for, once, at host start.
+     *  @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
+    uint8_t plugin_chrome_requested;
     /**
      * The cache-gameframe nodes the frame binder stamped with a slot tag on
      * its last pass, so a role that moves to a different node (a CS2 rebuild
@@ -1773,18 +1635,6 @@ struct App
     uint32_t plugin_frame_bound_generation;
     uint32_t plugin_frame_bound_id_generation;
     uint8_t plugin_frame_bound_valid;
-    /** Set when the tree is rebuilt or the canvas changes under an active
-     * frame; the next safe layout pass rebuilds before applying anything. */
-    uint8_t plugin_layout_dirty;
-    /**
-     * Tree generation the standing declaration was made against.
-     *
-     * A gameframe REBUILD -- the Display panel's remount, a server IF_OPENTOP
-     * -- clears the tree and bumps this, and every node the declaration named
-     * stops existing with it. Comparing it schedules a frame build against the
-     * new tree instead of retaining indices into the old one.
-     */
-    uint32_t plugin_layout_generation;
     /* The world map surface: which regions are on screen and in what order
      * (game/rs_worldmap_view.h owns that rule), this frame's blits, the baked
      * regions behind them, the overview pane, and the drag-to-pan box the emit
@@ -2252,21 +2102,6 @@ struct App
     /** Latest presenter-owned page allocation, generation fenced. */
     struct ToriRSChromeRailIntent plugin_rail_layout;
     int plugin_rail_has_layout;
-    /**
-     * Plugin navigation inside the lane's own pop-out column, when the profile
-     * names one (`[role:plugin_nav_column]`) and it is on screen. While
-     * `active`, the rail snapshot says `rail_hidden` and the column carries
-     * one engine-owned button per rail destination.
-     * @see plugin/torirs_plugin_popout_nav.u.c.
-     */
-    struct AppPluginPopoutNav plugin_nav;
-    /**
-     * The plugin launcher on the lane's own stone column, when the profile
-     * names an anchor (`[role:plugin_launcher_anchor]`) and that column is on
-     * screen. One engine-owned button, wearing the anchor's stone, a pitch
-     * below it. @see plugin/torirs_plugin_lane_launcher.u.c.
-     */
-    struct AppPluginLaneLauncher plugin_launcher;
     /**
      * The vtable the shell handed over, not yet started.
      *
@@ -3236,18 +3071,16 @@ App_ChromeCheckStyle(struct App const* app);
  * Optional. Without it the plugin window uses the internal in-canvas
  * presenter, the fallback on lanes without a web executor.
  */
+/**
+ * Hand the App the bus it sends platform requests on. main.c owns the bus and
+ * drains it every frame into PlatformWindow_* calls; the App only pushes.
+ */
+void
+App_SetPlatformBus(struct App* app, struct ToriRS_CmdBus* bus);
+
 void
 App_SetPluginChromeExec(
     struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice);
-
-/**
- * Where plugin destinations are offered: enum ToriRSPluginNavMode. `auto` (the
- * default) uses the lane's pop-out column when its profile names one and keeps
- * the separate rail otherwise; `rail` always keeps the rail. From the boot
- * manifest's `[chrome] plugin_nav=`, overridden by TORIRS_PLUGIN_NAV.
- */
-void
-App_SetPluginNavMode(struct App* app, int mode);
 
 /** Device pixels per chrome pixel. */
 int
@@ -3266,20 +3099,6 @@ App_ChromeScale(struct App const* app);
  */
 int
 App_MeasureRightChromeStripWidth(struct App const* app);
-
-/**
- * The width the LANE's own frame is asking for, when the canvas it was given
- * is too narrow to hold it: the fixed-size block a toplevel lays inside the
- * strip-carved area, on the frames where that block comes out wider than the
- * area. 0 when it fits, and when there is no such block.
- *
- * This is the floor a plugin frame's own minimum cannot go below: a layout
- * plugin arranges OVER the lane's toplevel, so the lane's widgets are still
- * laid out by it, and a toplevel that does not fit centres its block and hangs
- * it off both edges of the area the plugin frame was handed.
- */
-int
-App_MeasureLaneFrameCoreWidth(struct App const* app);
 
 /**
  * Fixed-mode canvas width that keeps the classic frame at APP_CANVAS_MIN_W and
@@ -3439,57 +3258,20 @@ struct AppClientScale const*
 App_ClientScale(struct App const* app);
 
 /**
- * Apply the committed frame's canvas policy, or restore the lane policy.
+ * Restate the lane's own window mode: FIXED on a CS1 lane, whose baked frame
+ * has no resizable layout, and the lane default elsewhere.
  *
  * Raised through the SAME pending-window-mode flag a clientscript's
- * setwindowmode raises, deliberately. Fixed versus resizable is a statement
- * about the WINDOW, the App has no platform to make it with, and there is
- * already one drain in the shell that does. A second path would be a second
- * place for the two halves of "resizable" to disagree, which is the exact bug
- * docs/gameframe_layout_resize.md §3A was written about.
+ * setwindowmode raises, deliberately: fixed versus resizable is a statement
+ * about the WINDOW, and there is already one drain in the shell that makes it.
  */
 void
-App_SyncPluginLayoutCanvas(struct App* app);
+App_SyncNativeWindowMode(struct App* app);
 
 /**
- * The canvas a committed plugin frame pinned, or 0 when none did.
- *
- * The shell reads this instead of APP_CANVAS_MIN_W/H when it pins a fixed
- * canvas, so a layout authored for something other than the classic 765x503
- * gets the size it asked for rather than being letterboxed into the wrong one.
- * Returns 1 when both outs were written.
- */
-int
-App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h);
-
-/**
- * The smallest canvas a committed plugin frame accepts, or 0 for native.
- *
- * The floor App_SetCanvasSize clamps to, when this answers. APP_CANVAS_MIN_W/H
- * is the REVCONFIG gameframe's floor and says so: a rev-230 frame's children
- * are insets off 765x503, so a smaller canvas collapses them. A plugin layout
- * is arithmetic on whatever canvas it is handed, so that reasoning does not
- * reach it, and a frame authored for a phone is narrower than 765 without being
- * broken. The selected offer carries the number because its provider
- * is the only thing that knows how small it still computes.
- *
- * Only for a FOLLOW_WINDOW offer: a FIXED one is not clamped toward a minimum,
- * it is pinned outright, and App_PluginLayoutFixedSize is that.
- * Returns 1 when both outs were written.
- */
-int
-App_PluginLayoutMinSize(struct App const* app, int* out_w, int* out_h);
-
-/**
- * Bring the frame up to date once per frame: ask the provider again if the
- * canvas or the tree changed under the claim, and re-assert the chrome
- * suppression the provision made.
- *
- * The re-assert is not redundant. On a cache gameframe the toplevel's own
- * scripts show and hide its decoration constantly, so a suppression applied
- * once is undone by the first script that runs after it.
- *
- * A no-op, costing one branch, when no plugin holds the frame.
+ * Once per frame: bind the cache gameframe's roles and publish widget changes
+ * to the plugins, and restate the lane's window mode once the host has
+ * started. A no-op when there is no plugin host.
  */
 void
 App_PluginLayoutTick(struct App* app);

@@ -204,12 +204,6 @@ RS_UISlots_TabGiven(struct App* app, int tabno)
      * and a strip a display mode folds away is hidden with every icon in it.
      * Walking up would read either as "the player has not got this tab" and
      * blank thirteen icons out of fourteen.
-     *
-     * `frame_hidden` is ignored for a sharper reason: it is the ASKER's own
-     * doing. A tab icon is lane chrome (uitree_frame.c, frame_is_lane_chrome),
-     * so the moment a plugin claims the frame every one of them is suppressed
-     * -- and a verb that counted that would answer "hidden" to the one caller
-     * with any use for the answer.
      */
     return app->tree->components[node].behavior.hide ? 0 : 1;
 }

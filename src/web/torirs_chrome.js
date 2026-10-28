@@ -25,6 +25,11 @@
    * or collapsing the pane may resize the game. */
   const PANEL_WIDTH = 320;
   const GAME_MIN = 765;
+  /* enum ToriRS_PluginChromeStyle (src/cmd/cmdbus.h): what the client asked the
+   * page for at boot. A desk docks the rail beside the game; a touch device
+   * gets a corner tab that slides the rail out over the game. */
+  const STYLE_SIDEBAR = 0;
+  const STYLE_EDGE_TAB = 1;
 
   /* Kept literal so web/test/chrome_enum_sync_test.js can compare the shared
    * command boundary directly with the C header. */
@@ -123,12 +128,16 @@
       this.lastOutboundSequence = 0;
       this.lastLayoutKey = '';
       this.layoutMode = 'closed';
+      /* -1 until the client asks (torirsPluginChromeShow). */
+      this.chromeStyle = -1;
+      this.drawerOpen = false;
+      this.tab = null;
       this.customRevisions = {};
       this.widgetSerials = {};
       this.rail = {
         protocol: PROTOCOL, type: 'rail.snapshot', registryRevision: 0,
         selectionGeneration: 0, pageGeneration: 0, activePlugin: -1,
-        lastSelectedPlugin: -1, selectedEntry: -1, expanded: false, railHidden: false,
+        lastSelectedPlugin: -1, selectedEntry: -1, expanded: false,
         entries: []
       };
       this.ensureFrame();
@@ -270,9 +279,6 @@
           (snapshot.selectedEntry != null ? snapshot.selectedEntry : snapshot.s), -1),
         expanded: !!(snapshot &&
           (snapshot.expanded != null ? snapshot.expanded : snapshot.x)),
-        /* The game lane's own pop-out column carries the destinations: the
-         * dock reserves no rail track, and the page still opens on selection. */
-        railHidden: !!(snapshot && snapshot.railHidden),
         entries
       };
     }
@@ -337,6 +343,41 @@
 
     effectivePageGeneration() {
       return this.rail.pageGeneration || this.rail.selectionGeneration || this.pageGeneration;
+    }
+
+    /* The client's boot request for its plugin chrome. */
+    show(style) {
+      if (style !== STYLE_SIDEBAR && style !== STYLE_EDGE_TAB) return false;
+      if (!this.ensureFrame()) return false;
+      this.chromeStyle = style;
+      if (style === STYLE_EDGE_TAB) this.ensureTab();
+      this.updateLayout();
+      return true;
+    }
+
+    /* The touch device's way into the plugins: a small tab on the right edge,
+     * the same shape as the page's own corner tab (#btn-drawer), that slides
+     * the rail of plugin buttons out over the game and back. */
+    ensureTab() {
+      if (this.tab || !this.document || !this.document.createElement) return !!this.tab;
+      const tab = this.document.createElement('button');
+      tab.type = 'button';
+      tab.id = 'plugin-chrome-tab';
+      tab.setAttribute('aria-label', 'Plugins');
+      tab.setAttribute('aria-controls', 'plugin-chrome-mount');
+      tab.setAttribute('aria-expanded', 'false');
+      tab.textContent = '\u2039';
+      tab.hidden = true;
+      tab.addEventListener('click', () => {
+        this.drawerOpen = !this.drawerOpen;
+        this.updateLayout();
+        if (!this.drawerOpen) this.restoreGameFocus();
+      });
+      const parent = this.document.getElementById('torirs-app') || this.document.body;
+      if (!parent) return false;
+      parent.appendChild(tab);
+      this.tab = tab;
+      return true;
     }
 
     open() {
@@ -669,21 +710,49 @@
       const hasRail = this.rail.entries.length > 0;
       const expanded = hasRail && this.rail.expanded;
       const paneWidth = this.preferredWidth();
-      /* A hidden rail (rail.snapshot railHidden) is drawn by the game lane's
-       * own pop-out column, so none of the modes below reserves its track. */
-      const railWidth = this.rail.railHidden ? 0 : RAIL_WIDTH;
+      const railWidth = RAIL_WIDTH;
+      const html = this.document.documentElement || this.document.body;
+      if (this.chromeStyle === STYLE_EDGE_TAB) {
+        /* Over the game, never beside it: a phone has no width to give the
+         * rail, so the game keeps the whole screen and the drawer slides out
+         * on top of it while the tab is open. */
+        const open = hasRail && this.drawerOpen;
+        const width = Math.min(this.availableWidth(), expanded ? railWidth + paneWidth : railWidth);
+        this.layoutMode = open && expanded ? 'split' : (hasRail ? 'collapsed' : 'closed');
+        classSet(layout, 'torirs-chrome-split', false);
+        classSet(layout, 'torirs-chrome-exclusive', false);
+        classSet(layout, 'torirs-chrome-collapsed', false);
+        classSet(app, 'torirs-chrome-exclusive', false);
+        classSet(this.mount, 'torirs-chrome-overlay', true);
+        if (game) game.hidden = false;
+        this.mount.hidden = !open;
+        if (this.mount.style) {
+          this.mount.style.width = `${width}px`;
+          this.mount.style.flex = '0 0 0px';
+        }
+        if (this.tab) {
+          this.tab.hidden = !hasRail;
+          this.tab.textContent = open ? '\u203a' : '\u2039';
+          this.tab.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        if (html && html.style && html.style.setProperty) {
+          html.style.setProperty('--torirs-dock-width', '0px');
+          html.style.setProperty('--torirs-drawer-width', open ? `${width}px` : '0px');
+        }
+        return;
+      }
       let mode = 'closed';
       if (expanded)
         mode = this.availableWidth() >= GAME_MIN + railWidth + PANEL_WIDTH
           ? 'split' : 'exclusive';
       else if (hasRail) mode = 'collapsed';
       this.layoutMode = mode;
+      classSet(this.mount, 'torirs-chrome-overlay', false);
       classSet(layout, 'torirs-chrome-split', mode === 'split');
       classSet(layout, 'torirs-chrome-exclusive', mode === 'exclusive');
       classSet(layout, 'torirs-chrome-collapsed', mode === 'collapsed');
       classSet(app, 'torirs-chrome-exclusive', mode === 'exclusive');
-      /* Collapsed with the rail hidden leaves the dock nothing to show. */
-      this.mount.hidden = !hasRail || (mode === 'collapsed' && !railWidth);
+      this.mount.hidden = !hasRail;
       if (game) game.hidden = mode === 'exclusive';
       if (this.mount.style) {
         const total = railWidth + paneWidth;
@@ -693,7 +762,6 @@
           : (mode === 'exclusive' ? '1 1 100%'
             : (mode === 'collapsed' ? `0 0 ${railWidth}px` : '0 0 0px'));
       }
-      const html = this.document.documentElement || this.document.body;
       if (html && html.style && html.style.setProperty)
         html.style.setProperty('--torirs-dock-width',
           mode === 'split' ? `${railWidth + paneWidth}px`
@@ -740,6 +808,9 @@
   }
 
   function install(host) {
+    /* The client's request for its plugin chrome, at boot
+     * (PlatformWindow_PluginChromeShow, TORIRS_CMD_PLATFORM_PLUGIN_CHROME). */
+    global.torirsPluginChromeShow = style => host.show(style);
     global.torirsChromeOpen = () => host.open();
     global.torirsChromeEnd = () => { host.end(); };
     global.torirsChromeClose = () => { host.end(); };

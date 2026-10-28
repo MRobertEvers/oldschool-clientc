@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run the real client headless under every frame provider with the whole-tree
+# Run the real client headless, desk and phone identities, with the whole-tree
 # scan meter set to abort (TORIRS_SCAN_METER_STRICT=1), and fail if any run
 # reports a steady frame that keeps walking the UI tree. @see UITREE_SCAN_METER.
 #
@@ -13,8 +13,8 @@
 # times a frame -- 68 ms a frame on the Moto X, 1 ms on this desktop -- and
 # nothing failed. Here it aborts on the desktop, where the time never showed.
 #
-# The last arm is the phone's own configuration: the mobile client identity
-# (toplevel_osm), the mobile plugin set, the Stone Drawer.
+# The second arm is the phone's own configuration: the mobile client identity
+# (toplevel_osm) and the mobile plugin set.
 set -eu
 
 BIN="${1:?usage: tools/scan_meter_gate.sh <client binary>}"
@@ -36,15 +36,14 @@ sed -e "s#^dir=.*#dir=$REPO/cache.osrs239#" \
 
 failed=0
 arm=0
-# name | preferred_frame | plugin prefs | extra env
+# name | plugin prefs | extra env
 run_arm()
 {
-    name="$1"; frame="$2"; plugin_prefs="$3"; extra="$4"
+    name="$1"; plugin_prefs="$2"; extra="$3"
     arm=$((arm + 1))
     dir="$OUT/$name"
     mkdir -p "$dir/saves"
-    printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' \
-        "$frame" > "$dir/preferences.ini"
+    printf '[preferences]\nversion=1\n' > "$dir/preferences.ini"
     cp "$REPO/$plugin_prefs" "$dir/plugin_prefs.ini"
     set +e
     # shellcheck disable=SC2086
@@ -71,12 +70,8 @@ run_arm()
     fi
 }
 
-run_arm auto            auto                            plugin_prefs.ini ""
-run_arm stone-drawer    mobile-gameframe/stone-drawer   plugin_prefs.ini ""
-run_arm classic-fixed   gameframe-layout/classic-fixed  plugin_prefs.ini ""
-run_arm modern-resizable gameframe-layout/modern-resizable plugin_prefs.ini ""
-run_arm phone-stone-drawer mobile-gameframe/stone-drawer plugin_prefs.mobile.ini \
-    "TORIRS_CLIENTTYPE=7 TORIRS_ON_MOBILE=1"
+run_arm desk  plugin_prefs.ini ""
+run_arm phone plugin_prefs.mobile.ini "TORIRS_CLIENTTYPE=7 TORIRS_ON_MOBILE=1"
 
 if [ "$failed" -ne 0 ]; then
     echo "scan_meter_gate: FAIL (logs in $OUT)"

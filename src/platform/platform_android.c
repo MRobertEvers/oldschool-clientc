@@ -113,6 +113,8 @@ static int g_activity_foreground;
 /** Surface rows the soft keyboard covers at the bottom; 0 = away.
  *  @see PlatformAndroid_SetKeyboardInset. */
 static int g_keyboard_inset_px;
+/** Edge-tab taps not yet pushed. @see PlatformAndroid_PostPluginChromeToggle. */
+static int g_plugin_chrome_toggles;
 /** What the device says about its power and its link.
  *  @see PlatformAndroid_SetDeviceStatus. Seeded to the same "full, plugged in,
  *  on wifi" the CS2 host starts from, so a build whose activity never reports
@@ -283,6 +285,14 @@ PlatformAndroid_SetKeyboardInset(int bottom_px)
     pthread_mutex_unlock(&g_lock);
 }
 
+void
+PlatformAndroid_PostPluginChromeToggle(void)
+{
+    pthread_mutex_lock(&g_lock);
+    g_plugin_chrome_toggles++;
+    pthread_mutex_unlock(&g_lock);
+}
+
 int
 PlatformAndroid_KeyboardInset(void)
 {
@@ -364,6 +374,7 @@ PlatformAndroid_ResetForStart(void)
     /* And a keyboard the previous run left up: the new run has not asked for
      * one, and a stale inset would boot the frame with its chat mid-air. */
     g_keyboard_inset_px = 0;
+    g_plugin_chrome_toggles = 0;
     pthread_mutex_unlock(&g_lock);
 }
 
@@ -962,6 +973,20 @@ PlatformWindow_OpenUrl(struct PlatformWindow* p, char const* url)
     PlatformAndroidJni_OpenUrl(url);
 }
 
+/*
+ * A phone's plugin chrome is the activity's edge tab: a native View over the
+ * game surface, whose tap toggles the client's plugin window (drawn in the
+ * canvas, with the plugin buttons in it). The style is always EDGE_TAB here --
+ * a phone has no room beside the game for a sidebar.
+ */
+void
+PlatformWindow_PluginChromeShow(struct PlatformWindow* p, int style)
+{
+    assert(p);
+    (void)style;
+    PlatformAndroidJni_ShowPluginTab();
+}
+
 /* No password manager to hand the login form to. */
 void
 PlatformWindow_SetCredentialForm(
@@ -1255,6 +1280,18 @@ PlatformWindow_PollCommands(struct PlatformWindow* p, struct ToriRS_CmdBus* bus)
             p->last_keyboard_inset = inset;
             CmdBus_PushKeyboardInset(bus, inset);
         }
+    }
+
+    /* The plugin edge tab: one toggle per tap, in order with the input. */
+    {
+        int toggles;
+
+        pthread_mutex_lock(&g_lock);
+        toggles = g_plugin_chrome_toggles;
+        g_plugin_chrome_toggles = 0;
+        pthread_mutex_unlock(&g_lock);
+        while( toggles-- > 0 )
+            CmdBus_PushPluginChromeToggle(bus);
     }
 
     /*

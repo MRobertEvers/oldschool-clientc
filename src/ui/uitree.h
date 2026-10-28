@@ -267,7 +267,6 @@ enum UITreeSlotTag
      * "Look <dir>" ops on (`cc_create` children, so the layer itself carries
      * no op and no click mask of its own and looks like a plain container to
      * everything that reads the tree). Neither half is the compass on its own.
-     * @see UITreeComponent::frame_follows_plus1.
      */
     UITREE_SLOT_COMPASS_CLICK,
 };
@@ -811,23 +810,6 @@ struct UITreeComponent
     int target_priority;
     /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
     uint8_t force_left_click;
-    /**
-     * Suppressed by a plugin gameframe layout (ui/uitree_frame.h).
-     *
-     * A flag of its own rather than a use of `behavior.hide`, and the reason
-     * is not tidiness. `hide` is the CACHE's and the SCRIPTS': the CS1 value
-     * scripts rewrite it every tick on a dat1 frame and the CS2 hooks do the
-     * same on a dat2 one, so a layout borrowing it is overwritten before the
-     * frame it wrote for is drawn. Worse, `UITree_ComponentVisibleById` reads
-     * a hidden node with NO component id as visible -- a rule that is right
-     * for the hover-reveal it was written for and means every revconfig
-     * builtin, which has no id, ignores `hide` completely. Setting it on the
-     * 2004 gameframe's forty-six stones changed nothing at all.
-     *
-     * Nothing but the layout writes this, so it needs no re-asserting and
-     * cannot be argued with.
-     */
-    uint8_t frame_hidden;
     /* Host-owned live-widget geometry edits. Native layout inputs stay in
      * position; deleting/copying a native node never transfers these owners. */
     struct UITreeWidgetGeometry* widget_geometry;
@@ -849,56 +831,10 @@ struct UITreeComponent
     int32_t plugin_canvas_x;
     int32_t plugin_canvas_y;
     /**
-     * A layer the plugin frame released from clipping.
-     *
-     * Every ancestor of a surface the provider moved: the lane's shell and
-     * the toplevel's mount groups are authored for the lane's own gameframe,
-     * and a layer clips to its own box. Widening the box was tried first and was never
-     * enough, because a layer's box has an ORIGIN too -- the 548 toplevel's
-     * `mapcontainer` sits at 516,4, so a compass the frame placed at 504 was
-     * cut off at 516 however wide the layer had been made -- and it was
-     * actively wrong besides: the box is the space the layer's OTHER children
-     * are laid out in, and widening it right-aligned 548's XP-total plate to
-     * the window instead of to the viewport. So the box stays native and this
-     * flag carries the whole release: UITree_LayerChildClip and
-     * UITree_LayerCullsChildren read it, so the emit, hit, hover and drop
-     * walks all agree that the layer clips nothing and culls nothing.
-     *
-     * Written only by the frame layout, like `frame_hidden`.
-     */
-    uint8_t frame_stretched;
-    /**
-     * The node whose resolved box this node takes, plus one; 0 is "its own".
-     *
-     * The lane's own hit region for a live surface a provided frame MOVED. A
-     * surface is one node to the frame -- the one that paints -- and on a cache
-     * toplevel the compass is two: the rose (`clientcode=1339`) and
-     * `compassclick`, the sibling layer holding the "Look North" ops. Moving
-     * only the rose leaves the ops where the cache put them, so the compass
-     * painted beside the drawer's map and answered the pointer over the middle
-     * of it: an invisible hotspot in one place and a dead rose in the other.
-     *
-     * The two are siblings on every toplevel that authors them (548, 161, 164,
-     * 601), which is what makes this a box and not a transform -- the provider
-     * states the surface's box in their shared parent's space, and the hit
-     * region takes that same box. The frame layout is the only writer, it pairs
-     * them only when they DO share a parent, and it clears the link when the
-     * provision ends. @see UITree_FrameCompassClickNode.
-     */
-    int32_t frame_follows_plus1;
-    /**
-     * The other end of that link: the node that takes THIS node's box, plus
-     * one. Kept because the two ends are read from opposite directions --
-     * layout asks a node what its box comes from, and everything that moves a
-     * node has to say who else just moved. Written only by
-     * UITree_SetFrameFollowsAt, which owns both ends.
-     */
-    int32_t frame_followed_by_plus1;
-    /**
      * Suppressed because this title screen is not the one showing.
      *
-     * Its own flag for the reason given above `frame_hidden`: `behavior.hide`
-     * belongs to the cache and its scripts, and -- decisively here --
+     * A flag of its own rather than a use of `behavior.hide`: `hide` belongs
+     * to the cache and its scripts, and -- decisively here --
      * UITree_ComponentVisibleById reads a hidden node with NO component id as
      * visible, which is every revconfig builtin. The login screen's groups are
      * exactly that, so hiding them with `hide` would change nothing at all.
@@ -1769,9 +1705,6 @@ struct UITree
     uint32_t group_map_cap;
     /** Bumped once per interface close; see UITree_GroupCloseSerial. */
     uint32_t group_close_serial;
-    /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
-     *  which it is on every lane until a layout plugin claims one. */
-    struct UITreeFrameLayout* frame_layout;
     /** Retained widget anchor edits alive on this tree; the cheap depth gate. */
     int widget_anchor_edits;
     /** Bumped by every write that can change WHICH nodes are ordering units:
@@ -2369,20 +2302,6 @@ UITree_SetCS1ActiveAt(struct UITree* tree, int32_t idx, int active);
 /** Publish one cached CS1 placeholder value as a visual mutation. */
 bool
 UITree_SetCS1ValueAt(struct UITree* tree, int32_t idx, int value_index, int value);
-
-/** Set frame-layout suppression with unfiltered reachability invalidation. */
-bool
-UITree_SetFrameHiddenAt(struct UITree* tree, int32_t idx, int hidden);
-
-/** Set frame-layout containment release (`frame_stretched`): the layer's
- *  children take the enclosing clip instead of the layer's own box. */
-bool
-UITree_SetFrameStretchedAt(struct UITree* tree, int32_t idx, int stretched);
-
-/** Set frame-layout box following (`frame_follows_plus1`): `target` -1 gives
- *  the node its own box back. */
-bool
-UITree_SetFrameFollowsAt(struct UITree* tree, int32_t idx, int32_t target);
 
 /** As above for `screen_hidden`: hide the subtree of a title screen that is
  *  not the current one. */
@@ -3034,7 +2953,7 @@ static inline bool
 UITree_ChildHiddenForWalks(struct UITreeComponent const* c)
 {
     return c->freed || c->screen_hidden || c->projection_hidden || c->widget_hidden ||
-           c->frame_hidden || c->mount_hidden || c->native_hide ||
+           c->mount_hidden || c->native_hide ||
            (c->behavior.hide && c->if3);
 }
 
@@ -3276,13 +3195,10 @@ UITree_NodeOrAncestorDisplayHidden(
  * while a hide the cache or a script authored still is. Every other flag
  * (behavior.hide, screen, projection, and an orphaned root) fences as before.
  *
- * BOTH of the layer's hides: `frame_hidden`, which a frame provider writes
- * when it puts a region away, and `widget_hidden`, which the widget API's
- * set_hidden writes and which is therefore what Porcelain's `hide` verb
- * reaches. The two say the same thing and a plugin does not choose between
- * them by meaning, so a fence that excused only the first left a plugin that
- * COVERS a native control unable to ask anything about the control underneath
- * -- the minimap orbs, whose run toggle is a child of the orb they hide.
+ * The layer's hide is `widget_hidden`, which the widget API's set_hidden
+ * writes and which is therefore what Porcelain's `hide` verb reaches: a plugin
+ * that COVERS a native control must still be able to ask about the control
+ * underneath it.
  */
 int
 UITree_NodeOrAncestorDisplayHiddenEx(

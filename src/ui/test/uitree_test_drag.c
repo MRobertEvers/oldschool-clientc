@@ -628,14 +628,14 @@ test_press_repeat_and_release(void)
     UITree_Free(tree);
 }
 
-/* Effective frame suppression is display:none for pointer ownership too. A
- * target can become frame-hidden between two input frames when a plugin frame
- * is applied/reasserted; that transition cancels the gesture rather than
- * continuing to dispatch held/release/drag hooks into invisible native UI. */
+/* A plugin's widget hide is display:none for pointer ownership too. A target
+ * can become hidden between two input frames; that transition cancels the
+ * gesture rather than continuing to dispatch held/release/drag hooks into
+ * invisible native UI. */
 void
-test_frame_hidden_cancels_active_input(void)
+test_widget_hidden_cancels_active_input(void)
 {
-    printf("TEST: frame-hidden cancels active press / drag ownership\n");
+    printf("TEST: widget-hidden cancels active press / drag ownership\n");
 
     /* A plugin hit surface owns the physical press from its down edge through
      * release. Native hooks and drag state beneath it never get an edge to
@@ -727,7 +727,7 @@ test_frame_hidden_cancels_active_input(void)
         TEST_ASSERT(interact.input_state.pressed == button, "visible button owns the press");
         TEST_ASSERT(out_has_script(&out, 821), "visible press emits click-repeat");
 
-        tree->components[button].frame_hidden = 1;
+        tree->components[button].widget_hidden = 1;
         LibToriRS_Input_Begin(input, 20);
         LibToriRS_Input_End(input);
         UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
@@ -753,7 +753,7 @@ test_frame_hidden_cancels_active_input(void)
          * the same component id back into the exact array slot while the
          * physical button is still held. Incarnation, rather than either
          * reusable number, keeps that new occupant from inheriting the press. */
-        tree->components[button].frame_hidden = 0;
+        tree->components[button].widget_hidden = 0;
         LibToriRS_Input_Begin(input, 60);
         LibToriRS_Input_PushMouseMove(input, 110, 110);
         LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 110);
@@ -822,7 +822,7 @@ test_frame_hidden_cancels_active_input(void)
         TEST_ASSERT(tree->components[source].drag_active, "drag render state is active");
         TEST_ASSERT(out_has_script(&out, 831), "visible source emits on-drag");
 
-        tree->components[source].frame_hidden = 1;
+        tree->components[source].widget_hidden = 1;
         LibToriRS_Input_Begin(input, 40);
         LibToriRS_Input_End(input);
         UITree_InteractFrame(&interact, tree, &host, input, 40, &out);

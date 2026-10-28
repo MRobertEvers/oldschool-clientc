@@ -1696,8 +1696,7 @@ UITree_ComponentHiddenOrOrphaned(
 
         assert((uint32_t)idx < tree->component_count);
         component = &tree->components[idx];
-        if( component->freed || component->behavior.hide || component->mount_hidden ||
-            component->frame_hidden )
+        if( component->freed || component->behavior.hide || component->mount_hidden )
             return 1;
         idx = component->parent;
     }
@@ -4305,84 +4304,6 @@ UITree_SetCS1ValueAt(
         return true;
     c->cs1_values[value_index] = value;
     uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
-    return true;
-}
-
-bool
-UITree_SetFrameHiddenAt(
-    struct UITree* tree,
-    int32_t idx,
-    int hidden)
-{
-    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
-    if( !c )
-        return false;
-    hidden = hidden ? 1 : 0;
-    if( c->frame_hidden == (uint8_t)hidden )
-        return true;
-    c->frame_hidden = (uint8_t)hidden;
-    uitree_note_mutation(
-        tree,
-        idx,
-        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
-    return true;
-}
-
-bool
-UITree_SetFrameStretchedAt(
-    struct UITree* tree,
-    int32_t idx,
-    int stretched)
-{
-    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
-    if( !c )
-        return false;
-    stretched = stretched ? 1 : 0;
-    if( c->frame_stretched == (uint8_t)stretched )
-        return true;
-    c->frame_stretched = (uint8_t)stretched;
-    /* The clip of every descendant changes, which the retained emit list
-     * cannot patch in place: treat it as the reachability change it is. */
-    uitree_note_mutation(
-        tree,
-        idx,
-        UITREE_IMPACT_EMIT_SELF | UITREE_IMPACT_REACHABILITY);
-    return true;
-}
-
-bool
-UITree_SetFrameFollowsAt(
-    struct UITree* tree,
-    int32_t idx,
-    int32_t target)
-{
-    struct UITreeComponent* c = uitree_component_at_mutable(tree, idx);
-    int32_t const plus1 = target >= 0 ? target + 1 : 0;
-    int32_t was;
-
-    /* A node cannot take its own box: the link would make the pair's
-     * invalidation a cycle, and there is no such thing to express. */
-    assert(target != idx);
-    if( !c )
-        return false;
-    if( c->frame_follows_plus1 == plus1 )
-        return true;
-    /* Both ends, here and nowhere else. A stale back-pointer would make
-     * everything that moves a surface invalidate a node that stopped
-     * following it -- or, worse, skip the one that now does. */
-    was = c->frame_follows_plus1 - 1;
-    if( was >= 0 && (uint32_t)was < tree->component_count )
-        tree->components[was].frame_followed_by_plus1 = 0;
-    c->frame_follows_plus1 = plus1;
-    if( target >= 0 && (uint32_t)target < tree->component_count )
-        tree->components[target].frame_followed_by_plus1 = idx + 1;
-    /* The node's own box changes, so its subtree's does too -- the compass's
-     * hit region carries the two `cc_create` children that hold the ops, and
-     * both are laid out inside it (`setsize_minus`, `setpos_abs_centre`). */
-    uitree_note_mutation(
-        tree,
-        idx,
-        UITREE_IMPACT_LAYOUT_SELF | UITREE_IMPACT_EMIT_SELF);
     return true;
 }
 
@@ -7497,23 +7418,12 @@ uitree_node_or_ancestor_hidden(
             group_root = idx;
             /* The Ex form can excuse the PLUGIN LAYER's own hiding on the
              * whole walk for a caller that names a COMPONENT rather than a
-             * place -- a synthesised press.
-             *
-             * Both of the layer's hides, because a plugin has two verbs for
-             * the same statement and they are not chosen by meaning: a frame
-             * provider puts a region away with `frame_hidden`, and the widget
-             * API's set_hidden -- which is what Porcelain's `hide` reaches --
-             * writes `widget_hidden`. Excusing only the first is what made the
-             * minimap orbs unclickable the moment they started hiding the
-             * lane's own orb under the cover they draw for it: the run toggle
-             * is a CHILD of that orb, so the plugin's own hide fenced every
-             * later question it asked about the button it delegates to.
+             * place -- a synthesised press -- so a plugin that covers a native
+             * control can still ask about the control underneath.
              * @see UITree_NodeOrAncestorDisplayHiddenEx. */
             if( tree->components[idx].behavior.hide || tree->components[idx].mount_hidden ||
                 (include_plugin_hidden &&
-                 (((tree->components[idx].frame_hidden ||
-                    tree->components[idx].widget_hidden) &&
-                   !ignore_plugin_hidden) ||
+                 ((tree->components[idx].widget_hidden && !ignore_plugin_hidden) ||
                   tree->components[idx].screen_hidden ||
                   tree->components[idx].projection_hidden)) )
                 return 1;
@@ -7661,7 +7571,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->mount_hidden || c->frame_hidden || c->screen_hidden ||
+    if( c->behavior.hide || c->mount_hidden || c->screen_hidden ||
         (c->projection_hidden || c->widget_hidden) )
         return 0;
     if( c->component_id == exclude_component_id )
@@ -7780,7 +7690,7 @@ UITree_FindDropTargetNodeHost(
     assert(tree);
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
-        if( tree->components[root].behavior.hide || tree->components[root].mount_hidden || tree->components[root].frame_hidden ||
+        if( tree->components[root].behavior.hide || tree->components[root].mount_hidden ||
             tree->components[root].screen_hidden ||
             (tree->components[root].projection_hidden || tree->components[root].widget_hidden) )
             continue;

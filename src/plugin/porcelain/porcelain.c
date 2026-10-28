@@ -1287,6 +1287,23 @@ porcelain_usable(struct Porcelain* porcelain)
 }
 
 bool
+Porcelain_Usable(struct Porcelain* porcelain, struct ToriRS_WidgetBounds* out)
+{
+    struct PorcelainElementState state;
+
+    assert(porcelain);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    /* A read-out of the element table's own USABLE rect, never derived a
+     * second time here. @see porcelain_usable. */
+    if( !Porcelain_Element(porcelain, PORCELAIN_EL(USABLE), &state) )
+        return false;
+    *out = state.box;
+    return true;
+}
+
+bool
 Porcelain_Element(struct Porcelain* porcelain, struct PorcelainElement element,
                   struct PorcelainElementState* out)
 {
@@ -1852,7 +1869,6 @@ Porcelain_Unsupported(struct ToriRS_PorcelainDescribe* describe, char const* rea
     assert(reason);
     Porcelain_RecordFinding(porcelain, "unsupported", PORCELAIN_EL(NONE),
                             PORCELAIN_FINDING_UNSUPPORTED, reason);
-    Porcelain_FrameNoteUnsupported(porcelain, reason);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -3663,11 +3679,7 @@ porcelain_resolve_pending(struct Porcelain* porcelain)
             watch->pending_fences = 0;
             continue;
         }
-        /* A frame provider that has not come up yet is still watching its
-         * toplevel mount. @see PORCELAIN_ABSENT_FRAME_GRACE. */
-        if( ++watch->pending_fences >=
-            (Porcelain_FrameWaiting(porcelain) ? PORCELAIN_ABSENT_FENCES * PORCELAIN_ABSENT_FRAME_GRACE
-                                               : PORCELAIN_ABSENT_FENCES) )
+        if( ++watch->pending_fences >= PORCELAIN_ABSENT_FENCES )
         {
             watch->state.bind = PORCELAIN_ABSENT;
             porcelain->stamp[PORCELAIN_INPUT_ELEMENT]++;
@@ -3987,11 +3999,8 @@ Porcelain_Close(struct Porcelain* porcelain)
     Porcelain_OverlayRelease(porcelain);
     Porcelain_ReleaseAllAssets(porcelain);
     Porcelain_PanelClose(porcelain);
-    /* Relinquish BEFORE the handle dies: the host keeps both frame providers
-     * alive for one fence by design, so an outgoing provider that kept its
-     * claims would hand the incoming one eight findings instead of a frame. */
+    /* Relinquish BEFORE the handle dies, so no claim outlives its owner. */
     Porcelain_ClaimDropAll(porcelain);
-    Porcelain_FrameForget(porcelain);
     memset(porcelain, 0, sizeof(*porcelain));
 }
 
@@ -4083,7 +4092,6 @@ Porcelain_ResetForTesting(void)
     memset(g_handles, 0, sizeof(g_handles));
     memset(g_claims, 0, sizeof(g_claims));
     Porcelain_PanelResetForTesting();
-    Porcelain_FrameResetForTesting();
     g_handle_count = 0;
     g_epoch = 1;
     g_epoch_dirty = false;
@@ -4167,15 +4175,7 @@ static struct ToriRS_PorcelainApi const PORCELAIN_TABLE = {
     .key_down = Porcelain_KeyDown,
     .config_list_remove = Porcelain_ConfigListRemove,
     .config_list_set = Porcelain_ConfigListSet,
-    .frame = Porcelain_Frame,
-    .frame_event = Porcelain_FrameEvent,
-    .frame_native = Porcelain_FrameNative,
     .usable = Porcelain_Usable,
-    .native_size = Porcelain_NativeSize,
-    .lane_icon = Porcelain_LaneIcon,
-    .tab_group_count = Porcelain_TabGroupCount,
-    .tab_group = Porcelain_TabGroup,
-    .tab_detached = Porcelain_TabDetached,
     .counters_read = Porcelain_CountersRead,
     .counters_reset = Porcelain_CountersReset,
 };

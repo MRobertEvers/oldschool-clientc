@@ -220,19 +220,6 @@ struct ToriRS_PluginEngine
      *  @see screen. */
     int (*screen)(void* user);
 
-    /** Canvas minus what the OS is covering (the soft keyboard), in canvas
-     *  pixels. Returns 1 with the rect, or 0 when the platform reports no
-     *  band and the whole canvas is safe. Carried to every frame provider as
-     *  ToriRS_GameframeEvent.safe, and polled at the frame boundary so a band
-     *  that moves re-asks the provided frame. Optional for focused harnesses;
-     *  absent means the whole canvas, always. @see platform_safe_rect. */
-    int (*platform_safe_rect)(
-        void* user,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-
     int (*world_cycle)(void* user);
     uint64_t (*frame_ms)(void* user);
     uint64_t (*frame_work_us)(void* user);
@@ -309,60 +296,6 @@ struct ToriRS_PluginEngine
         int* out_x,
         int* out_y);
 
-    /**
-     * The size the LANE authored for a placeable region's surface. @see
-     * slot_native_size.
-     *
-     * The engine's to answer because it is a fact about the tree and about
-     * nothing else: no claim and no plugin state is in it.
-     */
-    int (*slot_native_size)(
-        void* user,
-        int slot,
-        int* out_w,
-        int* out_h);
-    /**
-     * The box the LANE authored for one numbered MEMBER of a placeable
-     * surface, relative to the surface's own block. @see
-     * slot_member_native_box.
-     *
-     * The member twin of slot_native_size, and separate because the whole
-     * surface has no offset inside itself to report while a member is nothing
-     * without one: a frame that MOVES the orb block still has to re-seat the
-     * globe and the wiki banner inside it, and 548 draws the globe 30x30
-     * where 601 draws it 34x34.
-     */
-    int (*slot_member_native_box)(
-        void* user,
-        int slot,
-        int member,
-        int* out_x,
-        int* out_y,
-        int* out_w,
-        int* out_h);
-    /**
-     * The largest box inside `w` x `h` that a placeable surface lays itself
-     * out to fill. @see slot_fit.
-     *
-     * The engine's because the answer is the surface's own layout arithmetic
-     * -- the chat builtin's line stride -- and nothing a plugin states.
-     */
-    int (*slot_fit)(
-        void* user,
-        int slot,
-        int w,
-        int h,
-        int* out_w,
-        int* out_h);
-    /**
-     * Centre the content mounted into a placeable surface in the box the
-     * frame gave it. @see surface_center_content. 0 when the lane has no tree
-     * to state it on.
-     */
-    int (*slot_center_content)(
-        void* user,
-        int slot,
-        int centered);
     /** One component's box, by id. @see component_rect. */
     int (*component_rect)(
         void* user,
@@ -372,43 +305,6 @@ struct ToriRS_PluginEngine
         int* out_w,
         int* out_h);
 
-    /* The resolved gameframe. The host selects one published offer; the
-     * engine owns what activation does -- suppressing native chrome, pinning
-     * the canvas, and moving the live surfaces. */
-
-    /** Publish the committed frame state. `active` is 1 for a selected plugin
-     * frame and 0 for the lane-native frame; `canvas` is enum
-     * ToriRS_FrameCanvas and `fixed_w/h` is its pinned or minimum size. */
-    void (*frame_activate)(
-        void* user,
-        int active,
-        int canvas,
-        int fixed_w,
-        int fixed_h);
-
-    /** A frame PROVIDED through the widget API: suppress the lane's chrome and
-     *  bind the roles, but place and hide nothing -- the provider's retained
-     *  widget edits are the layout. `owner` is the provider's widget-edit
-     *  owner id (the one its set_position/set_size requests carry), so only
-     *  the provider's own moves release containment. @see UITree_FrameProvide. */
-    void (*frame_provide)(void* user, uint64_t owner);
-
-    /** The selected sidebar tab, or -1. @see tab_active. */
-    int (*tab_active)(void* user);
-    /** Flip to that tab. @see tab_select. */
-    int (*tab_select)(
-        void* user,
-        int tabno);
-    /** Nonzero when that tab has an interface mounted behind it.
-     *  @see tab_enabled. */
-    int (*tab_enabled)(
-        void* user,
-        int tabno);
-    /** Nonzero while that tab's icon is in the DARK half of the tutorial
-     *  blink. @see tab_flash_hidden. */
-    int (*tab_flash_hidden)(
-        void* user,
-        int tabno);
     /** One skill's boosted and base level. @see stat. */
     int (*stat)(
         void* user,
@@ -463,42 +359,6 @@ struct ToriRS_PluginEngine
         int setting,
         int value);
 
-    /**
-     * The client's shared plugin WINDOW: is it open, and open or close it.
-     *
-     * For a plugin that has taken the launcher duty over from the engine --
-     * a gameframe on a lane where none of the engine's own three launchers
-     * can appear. @see plugin_window_open / plugin_window_show in
-     * torirs_plugin_api.h.
-     *
-     * Optional, like frame_preference: a focused harness that never opens the
-     * window leaves both NULL, the api verbs answer "closed" and do nothing,
-     * and a frame that asks gets a switch that is honest about having no
-     * window behind it rather than a crash.
-     */
-    int (*plugin_window_open)(void* user);
-    void (*plugin_window_show)(
-        void* user,
-        int open);
-
-    /**
-     * The device-local requested gameframe. Returns 1 when the preference was
-     * explicitly present and 0 for a fresh file. The format version is owned
-     * by the preferences store; the host currently needs only the selected id.
-     *
-     * Optional for focused harnesses; an absent callback means `auto` without
-     * persistence.
-     */
-    int (*frame_preference)(
-        void* user,
-        char* out,
-        int out_size,
-        int* out_format_version);
-    int (*frame_preference_set)(
-        void* user,
-        char const* id,
-        int migration_version);
-
     /** The client's live var state, read-only. @see varbit. */
     int (*varbit)(
         void* user,
@@ -518,21 +378,6 @@ struct ToriRS_PluginEngine
     int (*lane)(
         void* user,
         struct ToriRS_LaneInfo* out);
-    /** The live gameframe's root interface group, or -1 on a revconfig frame.
-     *  Optional like `lane`: a harness with no notion of a cache gameframe
-     *  leaves it NULL and every plugin reads -1. */
-    int (*frame_root)(void* user);
-    /** Which native top-level chrome the lane wears (enum ToriRS_NativeLayout),
-     *  and a request for one of them. Both optional and paired: a harness with
-     *  no native chrome to choose leaves them NULL, every plugin reads UNKNOWN
-     *  and every request is refused. `native_layout_select` returns non-zero
-     *  when the lane has been asked -- which is not the same as changed; the
-     *  answer arrives as a new `frame_root`. @see native_layout_select. */
-    int (*native_layout)(void* user);
-    int (*native_layout_select)(
-        void* user,
-        int layout);
-
     /** One objtype, resident-only. @see obj_info. */
     int (*obj_info)(
         void* user,
@@ -1011,6 +856,11 @@ PluginHost_IndexOf(
 /* Seam entry points. Each is a no-op when nothing subscribed.               */
 /* ------------------------------------------------------------------------ */
 
+/** True once PluginHost_Start has run: the boot task has loaded every
+ *  plugin and both preference stores. */
+bool
+PluginHost_Started(struct ToriRS_PluginHost const* host);
+
 /** `drawn_frames` is the client's cumulative rendered-frame count; see
  *  ToriRS_FrameEvent. */
 void
@@ -1103,34 +953,6 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host, int width, int height);
  *  overlay list, and the canvas rather than the world viewport as the clip. */
 void
 PluginHost_DrawCanvas(
-    struct ToriRS_PluginHost* host,
-    int width,
-    int height);
-
-/**
- * A requested offer has finished its non-layout preparation and needs one
- * safe candidate-build attempt. This is independent of committed ownership:
- * native or the previous plugin frame remains live until that attempt commits.
- */
-bool
-PluginHost_FrameNeedsLayout(struct ToriRS_PluginHost const* host);
-
-/**
- * Ask the requested candidate (or committed provider on relayout) to provide
- * the frame against a canvas of `width` x `height`: its on_gameframe edits the
- * live surfaces through the widget API, and a READY answer takes the lane's
- * chrome (engine.frame_provide).
- *
- * The engine calls this at the three moments the last provision stopped
- * being true: the canvas resized, the gameframe was rebuilt, and a selection
- * or explicit invalidation requested another candidate. A no-op with no
- * plugin candidate or committed frame.
- *
- * The two dimensions are ignored for a FIXED offer, which reads its own pinned
- * size back -- see the body.
- */
-void
-PluginHost_Layout(
     struct ToriRS_PluginHost* host,
     int width,
     int height);

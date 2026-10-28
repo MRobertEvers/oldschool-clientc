@@ -89,6 +89,8 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
 
     private SurfaceView surfaceView;
     private Button hideKeyboardButton;
+    /** The plugin edge tab; shown when the client asks. @see #showPluginTab. */
+    private PluginTabView pluginTab;
     private boolean started;
 
     /** Latest battery reading, held so a network change can report both
@@ -156,6 +158,7 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
     private native void nativeKeyboardInset(int bottomPx);
     private native void nativeDeviceStatus(int batteryPercent, int batteryCharging, int networkKind);
     private native void nativeStop();
+    private native void nativePluginChromeToggle();
 
     /* ---- lifecycle ------------------------------------------------------- */
 
@@ -209,6 +212,28 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 FrameLayout.LayoutParams.WRAP_CONTENT);
         keyboardButtonLayout.gravity = Gravity.TOP | Gravity.END;
         rootLayout.addView(hideKeyboardButton, keyboardButtonLayout);
+
+        /*
+         * The plugin edge tab, hidden until the client asks for its plugin
+         * chrome (PlatformWindow_PluginChromeShow): a tab over a client with
+         * the plugins switched off would be a dead button.
+         */
+        final float density = getResources().getDisplayMetrics().density;
+        pluginTab = new PluginTabView(this, (int)(22 * density + 0.5f), (int)(48 * density + 0.5f));
+        pluginTab.setVisibility(View.GONE);
+        pluginTab.setOnClickListener(new View.OnClickListener()
+        {
+            @Override
+            public void onClick(View v)
+            {
+                nativePluginChromeToggle();
+            }
+        });
+        FrameLayout.LayoutParams pluginTabLayout = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT);
+        pluginTabLayout.gravity = Gravity.CENTER_VERTICAL | Gravity.END;
+        rootLayout.addView(pluginTab, pluginTabLayout);
         setContentView(rootLayout);
         surfaceView.requestFocus();
 
@@ -782,6 +807,24 @@ public final class ClientActivity extends Activity implements SurfaceHolder.Call
                 {
                     android.util.Log.w("torirs", "unable to open url " + url, e);
                 }
+            }
+        });
+    }
+
+    /**
+     * Show the plugin edge tab -- the client's request for its plugin chrome.
+     * Called from the frame thread, so the view changes on the UI thread.
+     */
+    @SuppressWarnings("unused") /* invoked by JNI, by name */
+    public void showPluginTab()
+    {
+        runOnUiThread(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                if( pluginTab != null )
+                    pluginTab.setVisibility(View.VISIBLE);
             }
         });
     }

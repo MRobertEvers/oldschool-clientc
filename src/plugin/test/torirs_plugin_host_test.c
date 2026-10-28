@@ -83,27 +83,6 @@ struct FakeEngine
     int mesh_vertices;
     int mesh_faces;
     int mesh_clears;
-    int native_root;
-    int native_tab_selects;
-    /* The lane's native top-level chrome, and how many times something asked
-     * it for a different one. @see native_layout_select. */
-    int native_layout;
-    int native_layout_requests;
-    int frame_provides;
-    int layout_sets;
-    int frame_active;
-    int layout_canvas;
-    int layout_fixed_w;
-    int layout_fixed_h;
-    char frame_preference[TORIRS_PLUGIN_FRAME_ID_MAX];
-    int frame_preference_present;
-    int frame_migration_version;
-    /* The platform band: what platform_safe_rect answers, when `safe_present`. */
-    int safe_present;
-    int safe_x;
-    int safe_y;
-    int safe_w;
-    int safe_h;
 };
 
 static struct FakeEngine g_engine;
@@ -612,15 +591,6 @@ fake_screenshot(
     return 1;
 }
 
-static uint64_t frame_provide_owner;
-static void
-fake_frame_provide(void* u, uint64_t owner)
-{
-    struct FakeEngine* e = u;
-    assert(owner);
-    frame_provide_owner = owner;
-    e->frame_provides++;
-}
 static int
 fake_model_publish(
     void* u,
@@ -903,70 +873,10 @@ fake_mouse_pos(
  * rather than omissions. Each returns the "this frame has none" answer its
  * contract defines.
  */
-static void
-fake_frame_activate(
-    void* u,
-    int active,
-    int canvas,
-    int fixed_w,
-    int fixed_h)
-{
-    struct FakeEngine* e = u;
-    e->layout_sets++;
-    e->frame_active = active;
-    e->layout_canvas = canvas;
-    e->layout_fixed_w = fixed_w;
-    e->layout_fixed_h = fixed_h;
-}
-static int fake_frame_root(void* user) { return ((struct FakeEngine*)user)->native_root; }
-static int fake_platform_safe_rect(void* user,int* out_x,int* out_y,int* out_w,int* out_h)
-{
-    struct FakeEngine* e=user;
-    if( !e->safe_present ) return 0;
-    *out_x=e->safe_x;*out_y=e->safe_y;*out_w=e->safe_w;*out_h=e->safe_h;
-    return 1;
-}
-
-static int
-fake_slot_native_size(
-    void* u,
-    int slot,
-    int* out_w,
-    int* out_h)
-{
-    (void)u;
-    (void)slot;
-    (void)out_w;
-    (void)out_h;
-    return 0;
-}
-
 /** No member of any surface has an authored box in this fake.
  *  @see ToriRS_FrameApi::surface_member_native_box. */
 /** Nothing mounted to centre.  @see ToriRS_FrameApi::surface_center_content. */
-static int
-fake_slot_center_content(void* u, int slot, int centered)
-{
-    (void)u; (void)slot; (void)centered;
-    return 1;
-}
-
 /** One size per surface under test.  @see ToriRS_FrameApi::surface_fit. */
-static int
-fake_slot_fit(void* u, int slot, int w, int h, int* ow, int* oh)
-{
-    (void)u; (void)slot; (void)w; (void)h; (void)ow; (void)oh;
-    return 0;
-}
-
-static int
-fake_slot_member_native_box(
-    void* u, int slot, int member, int* x, int* y, int* w, int* h)
-{
-    (void)u; (void)slot; (void)member; (void)x; (void)y; (void)w; (void)h;
-    return 0;
-}
-
 static int
 fake_display_setting(
     void* u,
@@ -993,83 +903,7 @@ fake_display_setting_set(
     (void)value;
     return 0;
 }
-static int
-fake_frame_preference(
-    void* u,
-    char* out,
-    int out_size,
-    int* migration)
-{
-    struct FakeEngine* e = u;
-    char const* value = e->frame_preference[0] ? e->frame_preference : "auto";
-    snprintf(out, (size_t)out_size, "%s", value);
-    if( migration )
-        *migration = e->frame_migration_version;
-    return e->frame_preference_present;
-}
-static int
-fake_frame_preference_set(
-    void* u,
-    char const* id,
-    int migration)
-{
-    struct FakeEngine* e = u;
-    snprintf(e->frame_preference, sizeof(e->frame_preference), "%s", id);
-    e->frame_preference_present = 1;
-    e->frame_migration_version = migration;
-    return 1;
-}
-static int
-fake_native_layout(void* u)
-{
-    return ((struct FakeEngine*)u)->native_layout;
-}
-static int
-fake_native_layout_select(
-    void* u,
-    int layout)
-{
-    struct FakeEngine* engine = (struct FakeEngine*)u;
-    engine->native_layout_requests++;
-    engine->native_layout = layout;
-    return 1;
-}
-static int
-fake_tab_active(void* u)
-{
-    (void)u;
-    return -1;
-}
-static int
-fake_tab_select(
-    void* u,
-    int tabno)
-{
-    ((struct FakeEngine*)u)->native_tab_selects++;
-    (void)tabno;
-    return 1;
-}
-static int
-fake_tab_enabled(
-    void* u,
-    int tabno)
-{
-    (void)u;
-    (void)tabno;
-    return 1;
-}
 
-/* The tab the engine says is in the dark half of the tutorial blink, or -1. */
-static int g_flash_dark_tab = -1;
-
-static int
-fake_tab_flash_hidden(
-    void* u,
-    int tabno)
-{
-    (void)u;
-    return tabno >= 0 && tabno == g_flash_dark_tab;
-}
 static int
 fake_obj_info(
     void* u,
@@ -1456,24 +1290,9 @@ fake_engine(void)
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
-    e.slot_native_size = fake_slot_native_size;
-    e.slot_member_native_box = fake_slot_member_native_box;
-    e.slot_fit = fake_slot_fit;
-    e.slot_center_content = fake_slot_center_content;
     e.component_rect = fake_component_rect;
-    e.frame_activate = fake_frame_activate;
-    e.frame_root = fake_frame_root;
-    e.native_layout = fake_native_layout;
-    e.native_layout_select = fake_native_layout_select;
-    e.platform_safe_rect = fake_platform_safe_rect;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
-    e.frame_preference = fake_frame_preference;
-    e.frame_preference_set = fake_frame_preference_set;
-    e.tab_active = fake_tab_active;
-    e.tab_select = fake_tab_select;
-    e.tab_enabled = fake_tab_enabled;
-    e.tab_flash_hidden = fake_tab_flash_hidden;
     e.obj_info = fake_obj_info;
     e.inv_slot = fake_inv_slot;
     e.inv_size = fake_inv_size;
@@ -1497,7 +1316,6 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
-    e.frame_provide = fake_frame_provide;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;
@@ -1544,9 +1362,6 @@ static int g_v2_custom_actions;
 static int g_v2_select_actions;
 static char g_v2_select_value[TORIRS_PLUGIN_SELECT_VALUE_MAX];
 static int g_v2_panel_draws;
-static int g_v2_frame_provisions;
-static int g_v2_frame_width;
-static int g_v2_frame_canvas;
 static int g_v2_prefix_starts;
 static int g_v2_started_with_saved_config;
 
@@ -1648,24 +1463,7 @@ v2_probe_logic(
 {
     struct V2ProbeState* state = state_ptr;
 
-    /* The other side of the frame build's allowance: an ordinary tick is
-     * nobody's click and no frame's shape, and it cannot move the player's
-     * sidebar. Asked once, on the first tick, so the count stays a count. */
-    if( state->ticks == 0 )
-    {
-        int const navigation_before = g_engine.native_tab_selects;
-        int const layout_before = g_engine.native_layout_requests;
-        CHECK(!api->cache.tab_select(api, 3) &&
-                  g_engine.native_tab_selects == navigation_before,
-              "a logic tick cannot open a sidebar tab");
-        /* The same rule for the bigger act: a tick is nobody's click and no
-         * frame's shape, and remounting the whole top level from one would be
-         * the client changing chrome behind the player. */
-        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_FIXED) ==
-                      TORIRS_RESULT_UNSUPPORTED &&
-                  g_engine.native_layout_requests == layout_before,
-              "a logic tick cannot ask the lane for a native top level");
-    }
+    (void)api;
     state->ticks += event->cycle;
 }
 
@@ -1777,62 +1575,6 @@ v2_prefix_start(struct ToriRS_Api* api, void* state)
     g_v2_prefix_starts++;
 }
 
-static enum ToriRS_FrameBuildResult
-v2_probe_gameframe(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    struct ToriRS_GameframeEvent const* event)
-{
-    struct V2ProbeState* state = state_ptr;
-    int const navigation_before = g_engine.native_tab_selects;
-
-    /*
-     * The frame build is the one callback that is not a player's click and
-     * may still open a sidebar tab.
-     *
-     * This used to be a refusal, and the refusal was a defect: a frame whose
-     * side well is STRUCTURAL -- both fixed gameframes blit one whatever the
-     * lane is doing -- standing over a toplevel that logs in with every side
-     * panel hidden painted 261 rows of bare rock with no stone lit, and the
-     * only thing that could fill it was the lane's own switch, which no
-     * provider could reach. Narrow on purpose: on_gameframe is the only
-     * thing dispatched under PLUGIN_CALLBACK_LAYOUT, it runs on a frame the
-     * player has just chosen, and every other non-input callback is still
-     * refused -- @see v2_probe_logic. */
-    CHECK(api->cache.tab_select(api, 3) &&
-              g_engine.native_tab_selects == navigation_before + 1,
-          "a frame being built may ask the lane to open a tab");
-    /*
-     * And may ask for the top level its layout is authored for, for the same
-     * reason and at the same moment: on_gameframe is where a provider learns
-     * which root it was handed, so it is the only place the mismatch can be
-     * noticed. A layout outside the selector's own three is the plugin's
-     * mistake and is refused without reaching the lane.
-     */
-    {
-        int const layout_before = g_engine.native_layout_requests;
-
-        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_FIXED) ==
-                      TORIRS_RESULT_OK &&
-                  g_engine.native_layout_requests == layout_before + 1,
-              "a frame being built may ask the lane for a native top level");
-        CHECK(api->frame.native_layout(api) == TORIRS_NATIVE_LAYOUT_FIXED,
-              "and reads back the chrome the lane now reports");
-        CHECK(api->frame.native_layout_select(api, TORIRS_NATIVE_LAYOUT_MOBILE) ==
-                      TORIRS_RESULT_INVALID &&
-                  g_engine.native_layout_requests == layout_before + 1,
-              "the phone's root is not one of the choices");
-    }
-    CHECK(state && state->marker == 3, "selected frame receives its own v2 state");
-    CHECK(strcmp(event->offer_id, "test") == 0, "frame provision receives the local offer id");
-    if( !event->active )
-        return TORIRS_FRAME_READY;
-    g_v2_frame_width = event->width;
-    g_v2_frame_canvas = event->canvas;
-    g_v2_frame_provisions++;
-    return TORIRS_FRAME_READY;
-}
-
 static struct ToriRS_ConfigItem const V2_CONFIG_A_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "1" },
     { .key = "loaded", .label = "Loaded", .type = TORIRS_CONFIG_STRING,
@@ -1843,7 +1585,7 @@ static struct ToriRS_ConfigItem const V2_CONFIG_B_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "2" },
     { 0 },
 };
-static struct ToriRS_ConfigItem const V2_CONFIG_FRAME_ITEMS[] = {
+static struct ToriRS_ConfigItem const V2_CONFIG_C_ITEMS[] = {
     { .key = "marker", .label = "Marker", .type = TORIRS_CONFIG_INT, .default_value = "3" },
     { 0 },
 };
@@ -1851,8 +1593,8 @@ static struct ToriRS_ConfigSchema const V2_CONFIG_A = { .struct_size = sizeof(V2
                                                         .items = V2_CONFIG_A_ITEMS };
 static struct ToriRS_ConfigSchema const V2_CONFIG_B = { .struct_size = sizeof(V2_CONFIG_B),
                                                         .items = V2_CONFIG_B_ITEMS };
-static struct ToriRS_ConfigSchema const V2_CONFIG_FRAME = { .struct_size = sizeof(V2_CONFIG_FRAME),
-                                                            .items = V2_CONFIG_FRAME_ITEMS };
+static struct ToriRS_ConfigSchema const V2_CONFIG_C = { .struct_size = sizeof(V2_CONFIG_C),
+                                                            .items = V2_CONFIG_C_ITEMS };
 
 static struct ToriRS_ConfigItem const V2_CONFIG_BAD_KEY_ITEMS[] = {
     { .key = "bad-key", .type = TORIRS_CONFIG_STRING, .default_value = "safe" },
@@ -1906,18 +1648,6 @@ static struct ToriRS_PluginDef const V2_MULTILINE_CONFIG_DEFAULT = {
     .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks) },
 };
 
-static struct ToriRS_FrameOffer const V2_FRAME_OFFERS[] = {
-    {
-     .struct_size = sizeof(struct ToriRS_FrameOffer),
-     .id = "test",
-     .title = "V2 Test Frame",
-     .canvas = TORIRS_FRAME_CANVAS_WINDOW,
-     .min_width = 640,
-     .min_height = 480,
-     },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
-};
-
 static struct ToriRS_PluginDef const V2_PROBE_A = {
     .struct_size = sizeof(V2_PROBE_A),
     .id = "v2-probe-a",
@@ -1957,21 +1687,18 @@ static struct ToriRS_PluginDef const V2_PROBE_B = {
     .flags = TORIRS_PLUGIN_RUNTIME_HOST,
 };
 
-static struct ToriRS_PluginDef const V2_FRAME_PROVIDER = {
-    .struct_size = sizeof(V2_FRAME_PROVIDER),
-    .id = "v2-frame",
-    .title = "V2 Frame",
+static struct ToriRS_PluginDef const V2_PROBE_C = {
+    .struct_size = sizeof(V2_PROBE_C),
+    .id = "v2-probe-c",
+    .title = "V2 Probe C",
     .version = "2.0.0",
     .state_size = sizeof(struct V2ProbeState),
-    .config = &V2_CONFIG_FRAME,
+    .config = &V2_CONFIG_C,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = v2_probe_start,
         .on_stop = v2_probe_stop,
-        .on_gameframe = v2_probe_gameframe,
     },
-    .frames = V2_FRAME_OFFERS,
-    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 struct V2SeamResults
@@ -2248,30 +1975,6 @@ v2_aba_logic(
         api->scene.instance_model(api, state->instance, state->model) == TORIRS_RESULT_OK;
 }
 
-static enum ToriRS_FrameBuildResult
-v2_aba_gameframe(
-    struct ToriRS_Api* api,
-    void* state_ptr,
-    struct ToriRS_GameframeEvent const* event)
-{
-    (void)api;
-    (void)state_ptr;
-    (void)event;
-    return TORIRS_FRAME_READY;
-}
-
-static struct ToriRS_FrameOffer const V2_ABA_FRAMES[] = {
-    {
-        .struct_size = sizeof(struct ToriRS_FrameOffer),
-        .id = "frame",
-        .title = "ABA frame",
-        .canvas = TORIRS_FRAME_CANVAS_WINDOW,
-        .min_width = 640,
-        .min_height = 480,
-    },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
-};
-
 static struct ToriRS_PluginDef const V2_ABA_PROBE = {
     .struct_size = sizeof(V2_ABA_PROBE),
     .id = "v2-aba",
@@ -2282,10 +1985,7 @@ static struct ToriRS_PluginDef const V2_ABA_PROBE = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = v2_aba_start,
         .on_logic_tick = v2_aba_logic,
-        .on_gameframe = v2_aba_gameframe,
     },
-    .frames = V2_ABA_FRAMES,
-    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
 };
 
 /* A definition ending inside its final callback table exercises append-only
@@ -2303,108 +2003,6 @@ static struct ToriRS_PluginDef const V2_PREFIX_ONLY = {
 };
 
 
-/* Minimal providers used only to exercise the one-time preference migration.
- * Their canonical ids intentionally match the bundled providers; no layout is
- * executed in these cases, but registration still requires on_gameframe. */
-static enum ToriRS_FrameBuildResult
-legacy_gameframe(
-    struct ToriRS_Api* api,
-    void* state,
-    struct ToriRS_GameframeEvent const* event)
-{
-    (void)api;
-    (void)state;
-    (void)event;
-    return TORIRS_FRAME_READY;
-}
-
-static struct ToriRS_FrameOffer const LEGACY_DESKTOP_OFFERS[] = {
-    { .struct_size = sizeof(struct ToriRS_FrameOffer),
-      .id = "classic-fixed", .title = "Classic Fixed",
-      .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503 },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer),
-      .id = "modern-fixed", .title = "Modern Fixed",
-      .canvas = TORIRS_FRAME_CANVAS_FIXED, .width = 765, .height = 503 },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer),
-      .id = "modern-resizable", .title = "Modern Resizable",
-      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 765, .min_height = 503 },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
-};
-
-static struct ToriRS_FrameOffer const LEGACY_MOBILE_OFFERS[] = {
-    { .struct_size = sizeof(struct ToriRS_FrameOffer),
-      .id = "stone-drawer", .title = "Stone Drawer",
-      .canvas = TORIRS_FRAME_CANVAS_WINDOW, .min_width = 640, .min_height = 437 },
-    { .struct_size = sizeof(struct ToriRS_FrameOffer) },
-};
-
-static struct ToriRS_PluginDef const LEGACY_DESKTOP_PROVIDER = {
-    .struct_size = sizeof(struct ToriRS_PluginDef),
-    .id = "gameframe-layout",
-    .title = "Legacy desktop frame",
-    .version = "1",
-    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
-    .frames = LEGACY_DESKTOP_OFFERS,
-    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
-                   .on_gameframe = legacy_gameframe },
-};
-
-static struct ToriRS_PluginDef const LEGACY_MOBILE_PROVIDER = {
-    .struct_size = sizeof(struct ToriRS_PluginDef),
-    .id = "mobile-gameframe",
-    .title = "Legacy mobile frame",
-    .version = "1",
-    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
-    .frames = LEGACY_MOBILE_OFFERS,
-    .callbacks = { .struct_size = sizeof(struct ToriRS_PluginCallbacks),
-                   .on_gameframe = legacy_gameframe },
-};
-
-static void
-check_legacy_frame_migration(
-    char const* layout,
-    int desktop_enabled,
-    int mobile_enabled,
-    int preferred_present,
-    char const* preferred,
-    char const* expected,
-    char const* what)
-{
-    struct ToriRS_PluginEngine engine;
-    struct ToriRS_PluginHost* host;
-    int desktop;
-    int mobile;
-
-    memset(&g_engine, 0, sizeof(g_engine));
-    g_screen_now = TORIRS_SCREEN_GAME;
-    engine = fake_engine();
-    host = PluginHost_New(&engine);
-    desktop = PluginHost_Register(host, &LEGACY_DESKTOP_PROVIDER);
-    mobile = PluginHost_Register(host, &LEGACY_MOBILE_PROVIDER);
-    CHECK(desktop >= 0 && mobile >= 0, "legacy migration providers register");
-    if( desktop_enabled )
-        PluginHost_ConfigApply(host, "gameframe-layout", "enabled", "1");
-    if( mobile_enabled )
-        PluginHost_ConfigApply(host, "mobile-gameframe", "enabled", "1");
-    if( layout )
-        PluginHost_ConfigApply(host, "gameframe-layout", "layout", layout);
-    g_engine.frame_preference_present = preferred_present;
-    g_engine.frame_migration_version = 0;
-    if( preferred )
-        (void)snprintf(
-            g_engine.frame_preference,
-            sizeof(g_engine.frame_preference),
-            "%s",
-            preferred);
-
-    PluginHost_Start(host);
-    CHECK(
-        strcmp(g_engine.frame_preference, expected) == 0 &&
-            g_engine.frame_preference_present &&
-            g_engine.frame_migration_version == 1,
-        what);
-    PluginHost_Free(host);
-}
 
 /* ------------------------------------------------------------------ tests */
 
@@ -2689,247 +2287,6 @@ static void img_draw(struct ToriRS_Api* api,void* state,struct ToriRS_Graphics* 
           "paint cannot anchor a widget");
     CHECK(api->widgets.set_mask(api->widgets.context,(struct ToriRS_WidgetRef){{77,2,3}},img_ref)==TORIRS_CONTRACT_WRONG_CONTEXT,
           "paint cannot re-skin a widget");
-}
-/* Frame provision through the widget API: every offer is served by
- * on_gameframe; the host takes only the chrome (frame_provide). */
-static int gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_widget_ok;
-static int gf_safe_x,gf_safe_y,gf_safe_w,gf_safe_h;
-static struct ToriRS_Api* gf_api;
-static char gf_offer[TORIRS_PLUGIN_FRAME_LOCAL_ID_MAX];
-static enum ToriRS_FrameBuildResult gf_answer=TORIRS_FRAME_READY;
-static enum ToriRS_FrameBuildResult gf_on_gameframe(struct ToriRS_Api* api,void* state,struct ToriRS_GameframeEvent const* ev)
-{
-    struct ToriRS_WidgetRef ref;
-    (void)state;gf_api=api;
-    ++gf_events;gf_active_last=ev->active;gf_w=ev->width;gf_h=ev->height;gf_canvas=ev->canvas;
-    gf_safe_x=ev->safe.x;gf_safe_y=ev->safe.y;gf_safe_w=ev->safe.width;gf_safe_h=ev->safe.height;
-    snprintf(gf_offer,sizeof(gf_offer),"%s",ev->offer_id ? ev->offer_id : "");
-    if( api->widgets.find(api->widgets.context,"viewport",&ref)==TORIRS_CONTRACT_OK &&
-        api->widgets.set_position(api->widgets.context,ref,4,4)==TORIRS_CONTRACT_OK ) gf_widget_ok=1;
-    if( ev->active && gf_answer!=TORIRS_FRAME_READY ) snprintf(ev->reason,ev->reason_capacity,"%s","No stones cut for this lane.");
-    return ev->active ? gf_answer : TORIRS_FRAME_READY;
-}
-static struct ToriRS_FrameOffer const GF_OFFERS[]={
-    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="event",.title="Event Frame",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
-    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
-static struct ToriRS_PluginDef const GF_PROVIDER={.struct_size=sizeof(GF_PROVIDER),.id="gf-provider",.title="Provider",.version="3.0.0",
-    .frames=GF_OFFERS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_gameframe=gf_on_gameframe}};
-static struct ToriRS_FrameOffer const GF_BUILDERLESS[]={
-    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="none",.title="No Handler",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
-    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
-static struct ToriRS_PluginDef const GF_NO_HANDLER={.struct_size=sizeof(GF_NO_HANDLER),.id="gf-none",.title="None",.version="3.0.0",
-    .frames=GF_BUILDERLESS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks)}};
-static void test_gameframe_provider(void)
-{
-    struct ToriRS_PluginEngine engine;
-    struct ToriRS_PluginHost* host;
-    struct ToriRS_FrameSelection selection={.struct_size=sizeof(selection)};
-    memset(&g_engine,0,sizeof(g_engine));
-    g_screen_now=TORIRS_SCREEN_GAME;
-    engine=fake_engine();engine.widget_request=fake_widget_request;
-    host=PluginHost_New(&engine);
-    CHECK(PluginHost_Register(host,&GF_NO_HANDLER)<0,"an offer without on_gameframe is refused");
-    CHECK(PluginHost_Register(host,&GF_PROVIDER)>=0,"an event-driven frame provider registers");
-    g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
-    snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-provider/event");
-    gf_events=0;gf_answer=TORIRS_FRAME_READY;gf_widget_ok=0;frame_provide_owner=0;widget_owner=0;
-    PluginHost_Start(host);
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(frame_provide_owner!=0 && frame_provide_owner==widget_owner,
-          "the publication carries the providing plugin's owner id, the one its widget requests used");
-    printf("GAMEFRAME_PROVIDER events=%d active=%d %dx%d canvas=%d offer=%s provides=%d status=%d id=%s\n",
-           gf_events,gf_active_last,gf_w,gf_h,gf_canvas,gf_offer,g_engine.frame_provides,selection.status,selection.active_id);
-    CHECK(gf_events==1 && gf_active_last==1 && gf_w==765 && gf_h==503 && gf_canvas==TORIRS_FRAME_CANVAS_FIXED && strcmp(gf_offer,"event")==0,
-          "the provider hears its offer activate against the pinned fixed canvas");
-    CHECK(gf_widget_ok==1,"the provider event may find and move widgets");
-    CHECK(g_engine.frame_provides==1 && g_engine.frame_active==1 &&
-          g_engine.layout_canvas==TORIRS_FRAME_CANVAS_FIXED && g_engine.layout_fixed_w==765,
-          "a READY provider publishes chrome suppression and its canvas policy through frame_provide");
-    CHECK(selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
-          "the provided offer is the active frame");
-    {
-        struct ToriRS_FrameOfferInfo offer={.struct_size=sizeof(offer)};
-        CHECK(gf_api->frame.offer_next(gf_api,-1,&offer)==0 && strcmp(offer.id,"gf-provider/event")==0,
-              "the catalogue iterator starts at the provider's own offer");
-        CHECK(gf_api->frame.offer_next(gf_api,INT_MAX,&offer)==-1,
-              "the public iterator rejects INT_MAX without signed overflow");
-    }
-    /* A canvas change asks again. */
-    PluginHost_Layout(host,900,600);
-    CHECK(gf_events==2 && g_engine.frame_provides==2,"every layout pass re-asks the provider");
-    /* The platform band. With none reported the event's safe rect is the
-     * canvas; a band that comes up re-asks the provider once, through the
-     * frame boundary, carrying the engine's rect. */
-    CHECK(gf_safe_x==0 && gf_safe_y==0 && gf_safe_w==765 && gf_safe_h==503,
-          "without a platform band the event's safe rect is the whole canvas");
-    PluginHost_FrameStart(host,1,0);
-    CHECK(!PluginHost_FrameNeedsLayout(host),"an unchanged band requests nothing");
-    g_engine.safe_present=1;g_engine.safe_x=0;g_engine.safe_y=0;g_engine.safe_w=765;g_engine.safe_h=300;
-    PluginHost_FrameStart(host,2,0);
-    CHECK(PluginHost_FrameNeedsLayout(host),"a band that moved requests a re-ask at the frame boundary");
-    PluginHost_Layout(host,900,600);
-    CHECK(gf_events==3 && gf_active_last==1 && gf_safe_x==0 && gf_safe_y==0 && gf_safe_w==765 && gf_safe_h==300,
-          "the re-ask carries the engine's safe rect");
-    CHECK(!PluginHost_FrameNeedsLayout(host) && g_engine.frame_active==1,"the re-ask consumed its request");
-    PluginHost_FrameStart(host,3,0);
-    CHECK(!PluginHost_FrameNeedsLayout(host) && gf_events==3,"the same band re-asks exactly once");
-    g_engine.safe_present=0;
-    PluginHost_FrameStart(host,4,0);
-    CHECK(PluginHost_FrameNeedsLayout(host),"the band going away is a move too");
-    PluginHost_Layout(host,900,600);
-    CHECK(gf_events==4 && gf_safe_w==765 && gf_safe_h==503,"the re-ask carries the whole canvas again");
-    /* PENDING keeps the request standing so the next fence asks again. */
-    gf_answer=TORIRS_FRAME_PENDING;
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==6 && gf_active_last==0 && PluginHost_FrameNeedsLayout(host) &&
-          selection.status==TORIRS_FRAME_STATUS_LOADING && g_engine.frame_active==0,
-          "PENDING releases the standing provision, keeps native up and asks again next fence");
-    gf_answer=TORIRS_FRAME_READY;
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==7 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && !PluginHost_FrameNeedsLayout(host) &&
-          g_engine.frame_active==1,
-          "the next READY answer provides the frame again and the request is consumed");
-    gf_answer=TORIRS_FRAME_UNSUPPORTED;
-    /* Declining with a reason falls back to native with that reason. */
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==9 && gf_active_last==0,"an unsupported answer releases the provider, which hears the release");
-    CHECK(selection.status==TORIRS_FRAME_STATUS_FALLBACK && strcmp(selection.reason,"No stones cut for this lane.")==0 &&
-          g_engine.frame_active==0,
-          "UNSUPPORTED falls back to native carrying the provider's reason");
-    /* NATIVE: the lane's own chrome IS the offer. Nothing is provided, the
-     * lane's chrome stays up, and the offer is ACTIVE under its own id rather
-     * than a fallback. An UNSUPPORTED answer leaves no request standing, so
-     * the selection is re-stated to make the resolver ask once more. */
-    gf_answer=TORIRS_FRAME_NATIVE;
-    CHECK(gf_api->frame.select(gf_api,"auto")==TORIRS_RESULT_OK && gf_api->frame.select(gf_api,"gf-provider/event")==TORIRS_RESULT_OK,
-          "the offer can be re-selected after a refusal");
-    PluginHost_FrameStart(host,5,0);
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    printf("GAMEFRAME_NATIVE events=%d status=%d id=%s active=%d needs=%d\n",
-           gf_events,selection.status,selection.active_id,g_engine.frame_active,PluginHost_FrameNeedsLayout(host));
-    CHECK(gf_events==10 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && strcmp(selection.active_id,"gf-provider/event")==0,
-          "NATIVE reports the offer active under its own id");
-    CHECK(g_engine.frame_active==0 && !PluginHost_FrameNeedsLayout(host),
-          "NATIVE keeps the lane's chrome up and leaves no request standing");
-    PluginHost_Layout(host,900,600);
-    PluginHost_FrameStart(host,6,0);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==10 && selection.status==TORIRS_FRAME_STATUS_ACTIVE,
-          "a NATIVE offer is not re-asked on a canvas change, and the resolver leaves it active");
-    /* A screen change forgets the answer: the next game screen asks again,
-     * since the server opens whatever it opens on a fresh login. */
-    g_screen_now=TORIRS_SCREEN_TITLE;
-    PluginHost_FrameStart(host,7,0);
-    g_screen_now=TORIRS_SCREEN_GAME;
-    PluginHost_FrameStart(host,8,0);
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==11 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active==0,
-          "the next game screen asks the provider again and it answers NATIVE again");
-    /* And a provider that answers READY again after NATIVE provides as before. */
-    gf_answer=TORIRS_FRAME_READY;
-    CHECK(gf_api->frame.select(gf_api,"auto")==TORIRS_RESULT_OK && gf_api->frame.select(gf_api,"gf-provider/event")==TORIRS_RESULT_OK,
-          "re-select after NATIVE");
-    PluginHost_FrameStart(host,9,0);
-    PluginHost_Layout(host,900,600);
-    gf_api->frame.selection(gf_api,&selection);
-    CHECK(gf_events==12 && selection.status==TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active==1,
-          "a READY answer after NATIVE provides the frame");
-    PluginHost_Free(host);
-}
-/*
- * Two offers of ONE provider, and the switch between them.
- *
- * The outgoing frame hears its release BEFORE the incoming one is asked for,
- * and that is not bookkeeping. A description is applied as a DIFF against what
- * the provider already staged, so a provision with no release in front of it
- * dresses the new layout on top of the old one: the owned controls only the
- * new layout declares are created after everything the shared ones already
- * hold, and the engine draws an owned control in the order it made it. On
- * gameframe-layout -- which offers three of the four desktop frames, so this
- * is the ordinary case and not a corner -- that put Classic Fixed's surround
- * over the fourteen tab stones it is supposed to sit behind: a sidebar with a
- * slab of rock where its tabs and its inventory should be.
- *
- * The condition that used to gate the release was `previous != owner`, which
- * is true of a change of PROVIDER and false of a change of OFFER. Restore it
- * and this test sees `beta:1` with no `alpha:0` anywhere.
- *
- * WHAT is asserted is that the release happens at all, and that the incoming
- * offer is asked once more afterwards. The order the two arrive in is not:
- * the release fires from the publication point, which is after the incoming
- * description has been built, so the pass that switches stages a layout that
- * the release then takes straight back off and the pass after it is the one
- * that dresses the lane. Pinning `alpha:0 beta:1` here would be pinning a
- * place the release could reasonably move to, and moving it there was tried --
- * releasing before the callback, with or without a pass of its own, leaves the
- * picture exactly as broken, so the second pass is doing work that is not
- * understood yet and an ordering assertion would claim it is.
- */
-static char gf_sw_log[256];
-static struct ToriRS_Api* gf_sw_api;
-static enum ToriRS_FrameBuildResult
-gf_sw_on_gameframe(struct ToriRS_Api* api,void* state,struct ToriRS_GameframeEvent const* ev)
-{
-    size_t used;
-    (void)state;
-    gf_sw_api=api;
-    used=strlen(gf_sw_log);
-    /* Truncation would turn a missing release into a passing test, so the
-     * table is sized for the handful of events one switch makes and the write
-     * asserts rather than clamping. */
-    assert(used + 24 < sizeof(gf_sw_log));
-    snprintf(gf_sw_log+used,sizeof(gf_sw_log)-used,"%s%s:%d",used?" ":"",
-             ev->offer_id?ev->offer_id:"?",ev->active?1:0);
-    return TORIRS_FRAME_READY;
-}
-static struct ToriRS_FrameOffer const GF_SW_OFFERS[]={
-    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="alpha",.title="Alpha",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
-    {.struct_size=sizeof(struct ToriRS_FrameOffer),.id="beta",.title="Beta",.canvas=TORIRS_FRAME_CANVAS_FIXED,.width=765,.height=503},
-    {.struct_size=sizeof(struct ToriRS_FrameOffer)}};
-static struct ToriRS_PluginDef const GF_SW_PROVIDER={.struct_size=sizeof(GF_SW_PROVIDER),.id="gf-two",.title="Two Offers",.version="3.0.0",
-    .frames=GF_SW_OFFERS,.callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_gameframe=gf_sw_on_gameframe}};
-static void test_gameframe_offer_switch(void)
-{
-    struct ToriRS_PluginEngine engine;
-    struct ToriRS_PluginHost* host;
-    memset(&g_engine,0,sizeof(g_engine));
-    g_screen_now=TORIRS_SCREEN_GAME;
-    engine=fake_engine();engine.widget_request=fake_widget_request;
-    host=PluginHost_New(&engine);
-    CHECK(PluginHost_Register(host,&GF_SW_PROVIDER)>=0,"a provider with two offers registers");
-    g_engine.frame_preference_present=1;g_engine.frame_migration_version=1;
-    snprintf(g_engine.frame_preference,sizeof(g_engine.frame_preference),"%s","gf-two/alpha");
-    gf_sw_log[0]='\0';
-    PluginHost_Start(host);
-    PluginHost_Layout(host,900,600);
-    CHECK(strcmp(gf_sw_log,"alpha:1")==0,"the preferred offer is provided and nothing was released first");
-    gf_sw_log[0]='\0';
-    CHECK(gf_sw_api && gf_sw_api->frame.select(gf_sw_api,"gf-two/beta")==TORIRS_RESULT_OK,
-          "the provider's other offer can be selected");
-    PluginHost_FrameStart(host,1,0);
-    PluginHost_Layout(host,900,600);
-    printf("GAMEFRAME_OFFER_SWITCH %s\n",gf_sw_log);
-    CHECK(strstr(gf_sw_log,"alpha:0")!=NULL,
-          "a change of offer inside one provider releases the outgoing frame");
-    CHECK(strstr(gf_sw_log,"beta:1")!=NULL,"and provides the incoming one");
-    /* The release ran after the incoming description, on the same provider,
-     * so it took that description off. The pass that puts it back is the
-     * host's to ask for: a lane whose tree goes quiet (rs289lc) never asks. */
-    CHECK(PluginHost_FrameNeedsLayout(host),
-          "a same-provider switch asks for the pass after it rather than waiting on the tree");
-    gf_sw_log[0]='\0';
-    PluginHost_FrameStart(host,2,0);
-    PluginHost_Layout(host,900,600);
-    CHECK(strcmp(gf_sw_log,"beta:1")==0,
-          "and the pass after the switch dresses the lane again, with nothing left to release");
-    CHECK(!PluginHost_FrameNeedsLayout(host),"and that pass asks for no other");
-    PluginHost_Free(host);
 }
 static void test_widget_images(void)
 {
@@ -3506,61 +2863,15 @@ main(void)
 {
     struct ToriRS_PluginEngine engine;
 
-    /* ---- pre-V2 frame preference migration ------------------------------ */
-    check_legacy_frame_migration(
-        "Auto", 1, 0, 0, NULL, "auto",
-        "legacy desktop Auto label migrates to automatic selection");
-    check_legacy_frame_migration(
-        "3", 1, 0, 0, NULL, "auto",
-        "legacy desktop Auto numeric value migrates to automatic selection");
-    check_legacy_frame_migration(
-        "Classic Fixed", 1, 0, 0, NULL,
-        "gameframe-layout/classic-fixed",
-        "legacy desktop Classic Fixed label migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "0", 1, 0, 0, NULL, "gameframe-layout/classic-fixed",
-        "legacy desktop Classic Fixed numeric value migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "Modern Fixed", 1, 0, 0, NULL,
-        "gameframe-layout/modern-fixed",
-        "legacy desktop Modern Fixed label migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "1", 1, 0, 0, NULL, "gameframe-layout/modern-fixed",
-        "legacy desktop Modern Fixed numeric value migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "Modern Resizable", 1, 0, 0, NULL,
-        "gameframe-layout/modern-resizable",
-        "legacy desktop Modern Resizable label migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "2", 1, 0, 0, NULL, "gameframe-layout/modern-resizable",
-        "legacy desktop Modern Resizable numeric value migrates to its stable offer id");
-    check_legacy_frame_migration(
-        "Not a frame", 1, 0, 0, NULL, "auto",
-        "invalid legacy desktop selection migrates to automatic selection");
-    check_legacy_frame_migration(
-        NULL, 0, 1, 0, NULL, "mobile-gameframe/stone-drawer",
-        "legacy mobile-only selection migrates to Stone Drawer");
-    check_legacy_frame_migration(
-        "Modern Fixed", 1, 1, 0, NULL,
-        "gameframe-layout/modern-fixed",
-        "legacy desktop selection takes precedence when both frame plugins were enabled");
-    check_legacy_frame_migration(
-        NULL, 0, 0, 0, NULL, "auto",
-        "absent legacy frame selection migrates to automatic selection");
-    check_legacy_frame_migration(
-        "Modern Fixed", 1, 1, 1, "INVALID SAVED VALUE", "auto",
-        "invalid explicit preferred frame migrates to auto instead of legacy settings");
-
     /* ---- V2 registration and lifecycle ---------------------------------- */
     {
         struct ToriRS_PluginHost* hv2;
-        struct ToriRS_FrameSelection selection;
         struct ToriRS_PanelWidget const* widget;
         uint32_t generation;
         int draw_before;
         int a2;
         int b2;
-        int frame2;
+        int c2;
         int prefix2;
 
         memset(&g_engine, 0, sizeof(g_engine));
@@ -3576,7 +2887,6 @@ main(void)
         g_v2_select_actions = 0;
         g_v2_select_value[0] = '\0';
         g_v2_panel_draws = 0;
-        g_v2_frame_provisions = 0;
         g_v2_prefix_starts = 0;
         g_v2_started_with_saved_config = 0;
         g_screen_now = TORIRS_SCREEN_GAME;
@@ -3599,9 +2909,9 @@ main(void)
 
         a2 = PluginHost_Register(hv2, &V2_PROBE_A);
         b2 = PluginHost_Register(hv2, &V2_PROBE_B);
-        frame2 = PluginHost_Register(hv2, &V2_FRAME_PROVIDER);
+        c2 = PluginHost_Register(hv2, &V2_PROBE_C);
         prefix2 = PluginHost_Register(hv2, &V2_PREFIX_ONLY);
-        CHECK(a2 == 0 && b2 == 1 && frame2 == 2, "v2 registration shares host indexing");
+        CHECK(a2 == 0 && b2 == 1 && c2 == 2, "v2 registration shares host indexing");
         CHECK(prefix2 == 3, "a definition ending in a shorter callback-table prefix registers");
         CHECK(
             strcmp(PluginHost_Name(hv2, a2), "v2-probe-a") == 0 &&
@@ -3609,9 +2919,6 @@ main(void)
                 PluginHost_ConfigCount(hv2, a2) == 2,
             "v2 identity, title, and config schema normalize into host metadata");
         CHECK(PluginHost_IsRuntimeHost(hv2, b2), "v2 runtime-host flag normalizes");
-        CHECK(
-            PluginHost_IsEssential(hv2, frame2),
-            "a v2 frame provider has host-controlled lifetime and no switch");
 
         PluginHost_SetEnabled(hv2, a2, false);
         PluginHost_SetEnabled(hv2, a2, true);
@@ -3630,10 +2937,6 @@ main(void)
                 g_v2_starts[3] == 0 && g_v2_prefix_starts == 0,
             "a pre-boot frame boundary cannot start V2 plugins");
         PluginHost_ConfigApply(hv2, "v2-probe-a", "loaded", "saved");
-        snprintf(
-            g_engine.frame_preference, sizeof(g_engine.frame_preference), "%s", "v2-frame/test");
-        g_engine.frame_preference_present = 1;
-        g_engine.frame_migration_version = 1;
         PluginHost_Start(hv2);
         PluginHost_Start(hv2);
         CHECK(
@@ -3676,14 +2979,6 @@ main(void)
         CHECK(
             g_v2_typed_calls == 3 && g_engine.objects_live == 3,
             "typed module calls execute for every live instance");
-        memset(&selection, 0, sizeof(selection));
-        selection.struct_size = sizeof(selection);
-        g_v2_api[1]->frame.selection(g_v2_api[1], &selection);        CHECK(
-            strcmp(selection.active_id, "core/native") == 0 &&
-                selection.status == TORIRS_FRAME_STATUS_LOADING &&
-                PluginHost_FrameNeedsLayout(hv2) && g_engine.frame_active == 0,
-            "v2 offer conversion prepares a candidate without changing native policy");
-
         PluginHost_LogicTick(hv2, 7);
         CHECK(
             ((struct V2ProbeState*)g_v2_latest_state[1])->ticks == 7 &&
@@ -3697,18 +2992,6 @@ main(void)
                 ((struct V2ProbeState*)g_v2_latest_state[2])->canvas_draws == 1,
             "v2 canvas callbacks use scoped builders");
 
-        PluginHost_Layout(hv2, 900, 600);
-        CHECK(
-            g_v2_frame_provisions == 1 && g_v2_frame_width == 900 &&
-                g_v2_frame_canvas == TORIRS_FRAME_CANVAS_WINDOW && g_engine.frame_provides == 1,
-            "the selected v2 offer is provided once and the engine takes the chrome");
-        selection.struct_size = sizeof(selection);
-        g_v2_api[1]->frame.selection(g_v2_api[1], &selection);        CHECK(
-            strcmp(selection.active_id, "v2-frame/test") == 0 &&
-                selection.status == TORIRS_FRAME_STATUS_ACTIVE && g_engine.frame_active == 1 &&
-                g_engine.layout_canvas == TORIRS_FRAME_CANVAS_WINDOW &&
-                g_engine.layout_fixed_w == 640 && g_engine.layout_fixed_h == 480,
-            "READY v2 geometry and its canvas policy publish together");
         CHECK(PluginHost_PanelHasPage(hv2, a2), "v2 on_start panel registration is retained");
         CHECK(PluginHost_PanelSelect(hv2, a2), "v2 panel can be selected");
         generation = PluginHost_PanelSelectionGeneration(hv2);
@@ -4152,20 +3435,12 @@ main(void)
     /* ---- incarnation-fenced V2 resources survive internal slot reuse ----- */
     {
         struct ToriRS_PluginHost* aba_host;
-        struct ToriRS_FrameSelection selection;
         unsigned char* data;
 
         memset(&g_engine, 0, sizeof(g_engine));
         memset(&g_v2_aba, 0, sizeof(g_v2_aba));
         g_v2_aba_starts = 0;
         g_screen_now = TORIRS_SCREEN_GAME;
-        snprintf(
-            g_engine.frame_preference,
-            sizeof(g_engine.frame_preference),
-            "%s",
-            "v2-aba/frame");
-        g_engine.frame_preference_present = 1;
-        g_engine.frame_migration_version = 1;
         engine = fake_engine();
         aba_host = PluginHost_New(&engine);
         CHECK(
@@ -4181,19 +3456,7 @@ main(void)
         PluginHost_AssetDeliver(aba_host, "v2-aba", "aba-old.model", data, 5);
         PluginHost_FrameStart(aba_host, 1, 0);
         PluginHost_LogicTick(aba_host, 1);
-        CHECK(PluginHost_FrameNeedsLayout(aba_host), "the resource probe's offer is requested");
-        PluginHost_Layout(aba_host, 640, 480);
-        memset(&selection, 0, sizeof(selection));
-        selection.struct_size = sizeof(selection);
-        g_v2_aba_api->frame.selection(g_v2_aba_api, &selection);
-        CHECK(
-            strcmp(selection.active_id, "v2-aba/frame") == 0 &&
-                selection.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "the resource probe provides its frame");
-
         PluginHost_LogicTick(aba_host, 2);
-        selection.struct_size = sizeof(selection);
-        g_v2_aba_api->frame.selection(g_v2_aba_api, &selection);
         CHECK(
             g_v2_aba.image_old.value != 0 &&
                 g_v2_aba.image_new.value != g_v2_aba.image_old.value &&
@@ -4211,10 +3474,6 @@ main(void)
             g_engine.image_releases == 1 && g_engine.model_releases == 1 &&
                 g_engine.meshes_live == 1 && g_engine.objects_live == 1,
             "repeated stale release/destroy calls leave all four replacements live");
-        CHECK(
-            strcmp(selection.active_id, "v2-aba/frame") == 0 &&
-                selection.status == TORIRS_FRAME_STATUS_ACTIVE,
-            "a provided frame retains no host-side artwork, so releasing an image leaves it active");
 
         data = ToriMem_Alloc(ToriMem_Net(), 3); /* an IO payload */
         memcpy(data, "NEW", 3);
@@ -4348,8 +3607,6 @@ main(void)
     test_world_draw_context();
     test_world_hull_answers_its_refusals();
     test_world_tile_answers_its_refusal();
-    test_gameframe_provider();
-    test_gameframe_offer_switch();
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures ? 1 : 0;
 }

@@ -267,6 +267,18 @@ CmdBus_PushPluginChromeToggle(struct ToriRS_CmdBus* bus)
     return CmdBus_Push(bus, TORIRS_CMD_PLUGIN_CHROME_TOGGLE, NULL, 0);
 }
 
+int
+CmdBus_PushPluginChrome(
+    struct ToriRS_CmdBus* bus,
+    int style)
+{
+    struct ToriRS_CmdPluginChrome payload;
+
+    assert(style == TORIRS_PLUGIN_CHROME_SIDEBAR || style == TORIRS_PLUGIN_CHROME_EDGE_TAB);
+    payload.style = (uint8_t)style;
+    return CmdBus_Push(bus, TORIRS_CMD_PLATFORM_PLUGIN_CHROME, &payload, sizeof(payload));
+}
+
 /* ---- host commands ------------------------------------------------------ */
 
 int

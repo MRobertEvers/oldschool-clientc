@@ -1,6 +1,6 @@
 # The port gate
 
-Ten captures, one comparison. A plugin ported to Porcelain must do exactly
+Eight captures, one comparison. A plugin ported to Porcelain must do exactly
 what it did before on every lane, and this is what decides whether it did.
 
 ```
@@ -12,59 +12,38 @@ python3 tools/porcelain_gate/gate_diff.py <baseline>/<lane>:<outdir>/<lane> ...
 `TORIRS_GATE_REPO` defaults to the tree the script lives in, which is right
 from the main checkout and wrong from every agent worktree -- a worktree has no
 multi-gigabyte cache in it. Getting it wrong does not look like a
-misconfiguration: all ten lanes come back `exit=1 bounds=0 roles=0 owned=0`,
+misconfiguration: every lane comes back `exit=1 bounds=0 roles=0 owned=0`,
 which reads exactly like a client that crashed on the change under test. The
 tell is in `<outdir>/<lane>/log.txt`: "no dat2 cache at ...".
 
-Pass all ten pairs to one `gate_diff.py` invocation. It prints a verdict per
+Pass all eight pairs to one `gate_diff.py` invocation. It prints a verdict per
 lane and one for the set, and exits non-zero if any lane failed.
 
-## The ten lanes, and why these ten
+## The eight lanes
 
-| tag | layout mode | frame | what it covers |
+Every lane runs the lane's own gameframe: plugins do not provide one.
+
+| tag | layout mode | mobile | what it covers |
 |---|---|---|---|
-| `native548` | 0 | auto | the lane's own frame, no provider. The control. |
-| `classic548` | 0 | classic-fixed | the desktop provider on the default toplevel |
-| `classic161` | 1 | classic-fixed | the same provider on a different toplevel |
-| `modern164` | 2 | modern-resizable | the resizable provider, where staleness shows |
-| `stone601` | 0 | stone-drawer | the touch provider, `TORIRS_CLIENTTYPE=7` |
-| `dat1_254` | 0 | auto | the CS1/RevConfig lane, offline |
-| `dat1_classic` | 0 | classic-fixed | the desktop provider **on CS1** |
-| `dat1_stone` | 0 | stone-drawer | the touch provider **on CS1** |
-| `remount164` | 0 | classic-fixed | switches layout at frame 500: does the port survive its parent dying |
-| `remount548` | 2 | modern-resizable | the same switch the other way: 164 to 548 |
+| `native548` | 0 | no | the default fixed toplevel |
+| `native161` | 1 | no | the classic resizable toplevel |
+| `native164` | 2 | no | the modern resizable toplevel, where staleness shows |
+| `mobile601` | 0 | yes | the phone's toplevel, `TORIRS_CLIENTTYPE=7` |
+| `dat1_254` | 0 | no | the CS1/RevConfig lane, offline |
+| `dat1_mobile` | 0 | yes | the CS1 lane with the phone identity |
+| `remount164` | 0 | no | switches layout at frame 500: does the port survive its parent dying |
+| `remount548` | 2 | no | the same switch the other way: 164 to 548 |
 
-Seven are CS2 and three are CS1, which is the split that matters: a change that
+Six are CS2 and two are CS1, which is the split that matters: a change that
 works only because it read a dat2 fact fails the CS1 lanes and nothing else.
 
-`dat1_classic` and `dat1_stone` were added late, and their absence was a real
-hole rather than an oversight to tidy: with `dat1_254` running `auto`, no lane
-in the set ever switched a frame PROVIDER on for CS1, so a provider that staged
-nothing at all on that lane passed every gate this repository had. The two
-questions look like one and are not -- `dat1_254` proves a port reads no dat2
-fact, which says nothing about whether a provider that must suppress and redraw
-a 2004 lane's chrome actually did.
-
-`remount164` exists because a regression got past the other six. A port can be
-byte-identical on every static lane and still lose every control it owns the
-moment the frame root is replaced, because the layer moves a control through
-its setters and had no arm that re-created one whose parent died. Six captures
-that never remount anything cannot see that. This one switches layout half way
-through and leaves 120 frames for the description to come back.
-
-`remount548` is its mirror, and it is a separate lane rather than a second
-assertion on the first because **a remount is not symmetric**. Going 548 to
-164 replaces a fixed toplevel with a floating one and the only thing that went
-stale was one of the plugin's OWN controls, which the layer already absorbs and
-repairs -- `remount164` was tuned on exactly that and reports nothing else.
-Going 164 to 548 replaces the floating panel with a frame that owns the whole
-right column, and there it is the LANE's nodes that die under a description
-still being written: twenty-five stale references in one fence, and a frame in
-which the old toplevel's collapsed tab strips stood on the new one. Every one
-of those was invisible to seven lanes that only ever switched the other way.
-The frame root is what moves first on such a switch, earlier than any
-element's incarnation, which is why this lane can be red while every static
-lane and its own twin are green.
+The remount lanes exist because a port can be byte-identical on every static
+lane and still lose every control it owns the moment the frame root is
+replaced. They are two lanes and not one because **a remount is not
+symmetric**: 548 to 164 replaces a fixed toplevel with a floating one, while
+164 to 548 replaces the floating panel with a frame that owns the whole right
+column, and there it is the LANE's nodes that die under a description still
+being written.
 
 **A set can exit 0 on every lane and still be worthless.** If the embedded
 server refuses a stale script pack the client never gets a root, and the lanes

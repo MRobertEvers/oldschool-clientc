@@ -142,7 +142,7 @@ hit_test_interactive_recursive(
      * info screen's "Try again" plate, which covers the right half of Login
      * and the left half of Cancel -- both buttons visibly lit and dead over
      * the overlap. */
-    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
         (component->projection_hidden || component->widget_hidden) )
         return -1;
 
@@ -345,8 +345,8 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        component->frame_hidden ) return;
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) ) return;
     if( !UITree_NodeNativeInputPresent(tree, host, node_index) ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
@@ -714,8 +714,8 @@ find_hovered_recursive(
      * visible jewellery-enchant sibling (last-match-wins). IF1 overlayer
      * tooltips stay correct: the visible cell redirects via over_layer_id;
      * the hidden tooltip layer never needs to self-report. */
-    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        component->frame_hidden ) return;
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) ) return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
      * walk), before this node can self-report as hovered via over_layer_id /
@@ -1151,7 +1151,8 @@ scene_build(struct WalkScene* scene, uint32_t seed, int allow_minimenu, struct W
             if( walk_chance(&rng, 2) ) { component->screen_hidden = 1; scene->has_hidden_flag = 1; }
             if( walk_chance(&rng, 2) ) { component->projection_hidden = 1; scene->has_hidden_flag = 1; }
             if( walk_chance(&rng, 2) ) { component->widget_hidden = 1; scene->has_hidden_flag = 1; }
-            if( walk_chance(&rng, 2) ) { component->frame_hidden = 1; scene->has_hidden_flag = 1; }
+            /* The frame-hidden flag's draw, kept so every scene seed stays the scene it was. */
+            (void)walk_chance(&rng, 2);
             if( walk_chance(&rng, 5) )
             {
                 UITree_SetComponentDragActive(scene->tree, node, 1);

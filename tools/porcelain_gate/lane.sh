@@ -1,7 +1,7 @@
 #!/bin/zsh
-# One capture of one lane/frame permutation, with every plugin enabled.
+# One capture of one lane permutation, with every plugin enabled.
 #
-#   lane.sh <outdir> <tag> <binary> <mode 0|1|2> <frame> <mobile 0|1> <manifest> [extra client args]
+#   lane.sh <outdir> <tag> <binary> <mode 0|1|2> <mobile 0|1> <manifest> [extra client args]
 #
 # Every path this takes is resolved to an absolute one before the client runs,
 # because the client is run from the DATA checkout and a relative path would
@@ -13,13 +13,12 @@ set -u
 here=${0:A:h}
 repo=${TORIRS_GATE_REPO:-${here:h:h}}       # the DATA checkout: caches, saves, content
 
-out=${1:A} tag=$2 bin=${3:A} mode=$4 frame=$5 mobile=$6 manifest=${7:A}; shift 7
+out=${1:A} tag=$2 bin=${3:A} mode=$4 mobile=$5 manifest=${6:A}; shift 6
 
 run=$out/$tag
 mkdir -p $run/saves
 
-printf '[preferences]\nversion=1\npreferred_frame=%s\nframe_migration_version=1\n' "$frame" \
-    > $run/preferences.ini
+printf '[preferences]\nversion=1\n' > $run/preferences.ini
 
 # The save carries the layout mode and the spot the client stands in. Both are
 # fixed here rather than left to whatever the checkout's save happens to hold,

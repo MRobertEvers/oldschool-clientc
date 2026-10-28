@@ -278,8 +278,7 @@ mac_url_is_below(NSURL* url, NSURL* root)
     CGFloat width = density > 0 ? (CGFloat)pixels / (CGFloat)density : (CGFloat)pixels;
     if( width < 1.0 && PlatformWindow_ChromeRailHidden(self.platform) )
     {
-        /* Nothing is allocated: the game's own pop-out column carries the
-         * plugins and no page is up. A child window is ordered back in with
+        /* Nothing is allocated: the rail is hidden and no page is up. A child window is ordered back in with
          * its parent, so it is detached rather than merely ordered out. */
         if( self.hostWindow && !self.hostOffScreen )
         {

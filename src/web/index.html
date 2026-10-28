@@ -134,6 +134,45 @@ console.log('[torirs] device: ' + (globalThis.torirsMobileDevice.mobile ? 'mobil
     border: 0;
     background: #0e0e0c;
   }
+  /* A touch device's plugin chrome (torirs_chrome.js, edge-tab style): the
+     rail slides out OVER the game from the right edge, and the game keeps the
+     whole screen. The tab sits on the drawer's left edge, or on the screen's
+     edge while the drawer is shut. */
+  #plugin-chrome-mount.torirs-chrome-overlay {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 15;
+    max-width: 100vw;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+             env(safe-area-inset-bottom, 0px) 0;
+    background: #0e0e0c;
+    box-shadow: -2px 0 6px rgba(0, 0, 0, 0.6);
+  }
+  #plugin-chrome-tab {
+    position: fixed;
+    top: 50%;
+    right: calc(var(--torirs-drawer-width, 0px) + env(safe-area-inset-right, 0px));
+    z-index: 16;
+    transform: translateY(-50%);
+    width: 1.6rem;
+    height: 3.2rem;
+    padding: 0;
+    border: 1px solid #3a2f22;
+    border-right: 0;
+    border-radius: 0.6rem 0 0 0.6rem;
+    background: rgba(20, 16, 12, 0.85);
+    color: #e0d5b8;
+    font-size: 1.1rem;
+    line-height: 1;
+    opacity: 0.6;
+    touch-action: manipulation;
+  }
+  #plugin-chrome-tab:hover,
+  #plugin-chrome-tab:focus-visible,
+  #plugin-chrome-tab[aria-expanded="true"] { opacity: 1; }
+  #plugin-chrome-tab[hidden] { display: none; }
   main.torirs-chrome-exclusive #game-region { display: none; }
   main.torirs-chrome-exclusive #plugin-chrome-mount {
     flex: 1 1 100%;

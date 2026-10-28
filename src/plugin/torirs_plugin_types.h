@@ -21,10 +21,6 @@
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Semantic role spelling, terminator included. */
 #define TORIRS_PLUGIN_ROLE_NAME_MAX 64
-/** Stable canonical frame id (`plugin-id/local-id`), terminator included. */
-#define TORIRS_PLUGIN_FRAME_ID_MAX 128
-/** One provider-local frame id, before the host adds the plugin namespace. */
-#define TORIRS_PLUGIN_FRAME_LOCAL_ID_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
@@ -1160,43 +1156,6 @@ struct ToriRS_LaneInfo
     int epoch;
     /** Numbered in `game`'s own lineage, so it means nothing without it. */
     int revision;
-};
-
-/** The gameframe asked of a frame provider (ToriRS_PluginCallbacks.on_gameframe).
- *  `active` true: this offer is the selected frame and is being laid out
- *  against `width` x `height` (the pinned size for a FIXED canvas, the window
- *  for a WINDOW canvas); the provider answers by editing widgets -- moving,
- *  hiding, skinning and anchoring the live surfaces and its owned controls --
- *  and returns READY, PENDING (assets still loading; native stays up) or
- *  UNSUPPORTED (this lane cannot take the frame), writing `reason` for the
- *  latter two. Raised again on every canvas change while the offer stands.
- *  `active` false: the offer is being released; the return is ignored and the
- *  provider's teardown follows.
- *
- *  `safe` is the canvas less what the PLATFORM is covering -- the soft
- *  keyboard band on a phone, and nothing else so far -- in canvas pixels; it
- *  is the whole canvas (0, 0, width, height) when no band is up. A provider
- *  hanging a strip from the bottom edge hangs it from `safe.y + safe.height`,
- *  and the event is raised again when that band moves, exactly as on a canvas
- *  change. The lane's own popout strip (`lane_chrome_0`) is NOT in it: that
- *  is a widget the provider finds and subtracts itself. */
-struct ToriRS_GameframeEvent
-{
-    char const* offer_id;
-    bool active;
-    int canvas;
-    int width;
-    int height;
-    struct ToriRS_LaneInfo lane;
-    char* reason;
-    size_t reason_capacity;
-    struct
-    {
-        int x;
-        int y;
-        int width;
-        int height;
-    } safe;
 };
 
 /* ------------------------------------------------------------------------ */

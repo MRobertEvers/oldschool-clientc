@@ -214,8 +214,7 @@ struct PlatformWindow
     int     chrome_layout_w;
     int     chrome_collapsed_client_w;
     int     chrome_open;
-    /* The lane's own pop-out column carries the plugin destinations: the
-     * browser child keeps existing but reserves no rail width. See
+    /* The browser child keeps existing but reserves no rail width. See
      * PlatformWindow_ChromeSetRailHidden. */
     int     chrome_rail_hidden;
 
@@ -1894,6 +1893,17 @@ PlatformWindow_PluginBrowserEnsure(struct PlatformWindow* p)
         PlatformWin32Browser_Resize(
             p->chrome_browser, client.right - client.left, client.bottom - client.top);
     return !PlatformWin32Browser_Failed(p->chrome_browser);
+}
+
+/* The rail is the browser child's, beside the game: the sidebar on every
+ * style, since a Windows desk has the width for it. */
+void
+PlatformWindow_PluginChromeShow(struct PlatformWindow* p, int style)
+{
+    assert(p);
+    (void)style;
+    if( !PlatformWindow_PluginBrowserEnsure(p) )
+        fprintf(stderr, "plugin chrome: the embedded browser did not start\n");
 }
 
 bool

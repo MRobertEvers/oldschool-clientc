@@ -1596,9 +1596,9 @@ app_inv_resolve_drop(
         /* Empty dynamic cells are commonly behavior-hidden by their paint
          * script and remain legitimate drop positions, so do not reject that
          * terminal flag.  Their container/ancestors must still be effectively
-         * visible, and an explicitly frame-suppressed cell is not a target. */
+         * visible. */
         if( node < 0 || (uint32_t)node >= app->tree->component_count ||
-            app->tree->components[node].freed || app->tree->components[node].frame_hidden ||
+            app->tree->components[node].freed ||
             (app->tree->components[node].parent >= 0 &&
              UITree_NodeOrAncestorDisplayHidden(app->tree, app->tree->components[node].parent)) )
             continue;
@@ -2452,19 +2452,6 @@ app_minimenu_run_option(
         if( opt.pick.has_node_identity && node >= 0 && (uint32_t)node < app->tree->component_count )
         {
             struct UITreeComponent const* c = &app->tree->components[node];
-            /* The engine's own pop-out buttons are owned nodes too, but no
-             * plugin owns them. */
-            if( c->plugin_owner == APP_PLUGIN_NAV_OWNER )
-            {
-                (void)app_plugin_popout_nav_click(app, node);
-                return 0;
-            }
-            /* And its launcher on a lane's stone column, by its own token. */
-            if( c->plugin_owner == APP_PLUGIN_LAUNCHER_OWNER )
-            {
-                (void)app_plugin_lane_launcher_click(app, node);
-                return 0;
-            }
             PluginHost_WidgetOperation(
                 app->plugins,
                 c->plugin_owner,

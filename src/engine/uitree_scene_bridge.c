@@ -790,27 +790,6 @@ UITreeSceneBridge_PublishPluginImage(
 }
 
 int
-UITreeSceneBridge_PublishNavButton(
-    struct UITreeSceneBridge* bridge,
-    int slot,
-    int width,
-    int height,
-    uint32_t const* argb)
-{
-    int const scene_id = UITREE_SCENE_PLUGIN_NAV_BUTTON_BASE + slot;
-
-    assert(bridge);
-    assert(argb);
-    assert(slot >= 0);
-    assert(slot < UITREE_SCENE_PLUGIN_NAV_BUTTON_SLOTS);
-    /* Composed by the engine at a fixed size, never read off a file. */
-    assert(width > 0);
-    assert(height > 0);
-    bridge_publish_argb(bridge, scene_id, width, height, argb);
-    return scene_id;
-}
-
-int
 UITreeSceneBridge_ReadPluginImage(
     struct UITreeSceneBridge* bridge,
     int slot,
@@ -880,23 +859,6 @@ UITreeSceneBridge_ReadSpriteFrame(
     *out_w = sprite->width;
     *out_h = sprite->height;
     return pixels;
-}
-
-int
-UITreeSceneBridge_PublishLauncherButton(
-    struct UITreeSceneBridge* bridge,
-    int width,
-    int height,
-    uint32_t const* argb)
-{
-    assert(bridge);
-    assert(argb);
-    /* Composed by the engine at the anchor's size, which the caller has
-     * already bounded. */
-    assert(width > 0);
-    assert(height > 0);
-    bridge_publish_argb(bridge, UITREE_SCENE_PLUGIN_LAUNCHER_ID, width, height, argb);
-    return UITREE_SCENE_PLUGIN_LAUNCHER_ID;
 }
 
 void

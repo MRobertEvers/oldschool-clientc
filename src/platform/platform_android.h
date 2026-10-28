@@ -104,6 +104,14 @@ int
 PlatformAndroid_KeyboardInset(void);
 
 /**
+ * The plugin edge tab was tapped (UI thread). Coalesced into one
+ * TORIRS_CMD_PLUGIN_CHROME_TOGGLE at the frame thread's next drain: two taps
+ * between drains are two toggles, so the count is kept, not a flag.
+ */
+void
+PlatformAndroid_PostPluginChromeToggle(void);
+
+/**
  * What the device reports about its power and its network link.
  *
  * `battery_percent` is 0..100, `battery_charging` nonzero while it is on
@@ -257,5 +265,10 @@ PlatformAndroidJni_SetSoftKeyboard(int on);
 /** PlatformWindow_OpenUrl's implementation: the activity's openUrl. */
 void
 PlatformAndroidJni_OpenUrl(char const* url);
+
+/** Show the activity's plugin edge tab, the phone's way into the plugins.
+ *  @see TORIRS_CMD_PLATFORM_PLUGIN_CHROME. */
+void
+PlatformAndroidJni_ShowPluginTab(void);
 
 #endif

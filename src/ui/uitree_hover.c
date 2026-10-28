@@ -125,8 +125,8 @@ find_hovered_recursive(
      * the common one (the ~2,000 hidden chat lines the walk enters a frame),
      * so it goes first and the gate's host questions are asked only of nodes
      * that survive it. */
-    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        component->frame_hidden ) return;
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) ) return;
 
     /* Native visibility for THIS node only; the ancestors' half arrived above.
      * For the paint question the self and ancestor conditions are the same

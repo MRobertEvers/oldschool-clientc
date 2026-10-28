@@ -340,7 +340,7 @@ hit_test_interactive_recursive(
      * info screen's "Try again" plate, which covers the right half of Login
      * and the left half of Cancel -- both buttons visibly lit and dead over
      * the overlap. */
-    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
         (component->projection_hidden || component->widget_hidden) )
         return -1;
 
@@ -542,7 +542,7 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->mount_hidden || component->frame_hidden || component->screen_hidden ||
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
         (component->projection_hidden || component->widget_hidden) )
         return -1;
 
@@ -641,8 +641,8 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->mount_hidden || component->screen_hidden || (component->projection_hidden || component->widget_hidden) ||
-        component->frame_hidden ) return;
+    if( component->behavior.hide || component->mount_hidden || component->screen_hidden ||
+        (component->projection_hidden || component->widget_hidden) ) return;
     /* Availability for THIS node only, evaluated ONCE. It used to be two
      * UITree_NodeNativeInputPresent calls straddling the sidebar gate below,
      * each re-walking the ancestor chain and issuing a host request per

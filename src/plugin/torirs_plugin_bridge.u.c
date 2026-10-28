@@ -3044,31 +3044,6 @@ app_plugin_display_setting(
     return 1;
 }
 
-/*
- * The client's plugin window, for a plugin that has taken over the LAUNCHER.
- *
- * `plugin_panel_visible` and not the executor's state: what a switch labels
- * itself from is whether the window is on screen, which is the same thing the
- * minimenu's "Manage Plugins" row inverts.
- */
-static int
-app_plugin_window_open_query(void* user)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    return app->plugin_panel_visible ? 1 : 0;
-}
-
-static void
-app_plugin_window_show(void* user, int open)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    app_plugin_window_set_open(app, open ? 1 : 0);
-}
-
 static int
 app_plugin_display_setting_set(void* user, int setting, int value)
 {
@@ -3120,52 +3095,6 @@ app_plugin_display_setting_set(void* user, int setting, int value)
      * writer of these two gets -- the cache's own settings scripts included.
      * @see RS_CS2Host_SetOption. */
     RS_CS2Host_SetOption(&app->host, RS_CS2_OPTION_DEVICE, option, value);
-    return 1;
-}
-
-static int
-app_plugin_frame_preference(
-    void* user,
-    char* out,
-    int out_size,
-    int* out_migration_version)
-{
-    struct App* app = (struct App*)user;
-
-    _Static_assert(
-        TORIRS_PLUGIN_FRAME_ID_MAX == RS_PREFS_FRAME_ID_MAX,
-        "plugin frame ids and persistent frame ids must have one bound");
-
-    assert(app);
-    assert(out);
-    assert(out_size > 0);
-    snprintf(out, (size_t)out_size, "%s", app->prefs.preferred_frame);
-    if( out_migration_version )
-        *out_migration_version = app->prefs.frame_migration_version;
-    return app->prefs.preferred_frame_present ? 1 : 0;
-}
-
-static int
-app_plugin_frame_preference_set(
-    void* user,
-    char const* id,
-    int migration_version)
-{
-    struct App* app = (struct App*)user;
-    int changed;
-
-    assert(app);
-    assert(id);
-    changed = RS_Prefs_SetPreferredFrame(&app->prefs, id);
-    if( !app->prefs.preferred_frame_present )
-        return 0;
-    if( migration_version > app->prefs.frame_migration_version )
-    {
-        app->prefs.frame_migration_version = migration_version;
-        changed = 1;
-    }
-    if( changed )
-        app->prefs_dirty_cycle = app->logic_cycle ? app->logic_cycle : 1;
     return 1;
 }
 
@@ -4626,85 +4555,6 @@ app_plugin_node_rect(
 }
 
 /*
- * The size the LANE gave a surface, before this frame moved it.
- * @see slot_native_size.
- *
- * Only the placeable roles, and not because the derived ones are hard: CANVAS
- * and SAFE are computed from the window and from what plugins have reserved,
- * so "the size it would be if nobody placed it" is not a question about them.
- * A layout plugin that asks anyway gets 0 and has lost nothing -- it already
- * knows the canvas, it was handed it.
- */
-static int
-app_plugin_slot_native_size(void* user, int slot, int* out_w, int* out_h)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    if( !app->tree )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    return UITree_FrameSlotNativeSize(app->tree, slot, out_w, out_h);
-}
-
-/*
- * The box the lane gave one numbered member of a surface, block-relative.
- * @see slot_member_native_box.
- *
- * Block-relative, because what a frame does is put the BLOCK somewhere and
- * what it needs back is where each member sat inside it; the pack a cache
- * mounts in the block is an intermediate node with a box of its own, and a
- * parent-relative answer would leave every caller to rediscover and add it.
- */
-static int
-app_plugin_slot_member_native_box(
-    void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    if( !app->tree )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    return UITree_FrameSlotMemberNativeBox(
-        app->tree, slot, member, out_x, out_y, out_w, out_h);
-}
-
-/*
- * The largest box inside `w` x `h` a surface fills. @see slot_fit.
- */
-static int
-app_plugin_slot_fit(void* user, int slot, int w, int h, int* out_w, int* out_h)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    if( !app->tree )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    return UITree_FrameSlotFit(app->tree, slot, w, h, out_w, out_h);
-}
-
-/*
- * Centre a surface's mounted content. @see slot_center_content.
- */
-static int
-app_plugin_slot_center_content(void* user, int slot, int centered)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    if( !app->tree )
-        return 0;
-    if( slot < 0 || slot >= TORIRS_HOST_SURFACE_PLACEABLE_COUNT )
-        return 0;
-    return UITree_FrameSetCenterContent(app->tree, slot, centered);
-}
-
-/*
  * Where a component is. @see component_rect.
  *
  * The same node->rect the region readouts end in, reached by id rather than by
@@ -6071,125 +5921,6 @@ app_plugin_frame_root(void* user)
     return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
 }
 
-/* The App's own enum, handed straight across. The plugin header states the
- * lane's `client_mode_*` values for the three that are choices and one more
- * for the phone's root; both count in the same numbers on purpose, so the
- * asserts are what keep them doing it. @see enum ToriRS_NativeLayout. */
-_Static_assert(
-    (int)TORIRS_NATIVE_LAYOUT_FIXED == (int)APP_NATIVE_LAYOUT_FIXED &&
-        (int)TORIRS_NATIVE_LAYOUT_RESIZABLE_CLASSIC ==
-            (int)APP_NATIVE_LAYOUT_RESIZABLE_CLASSIC &&
-        (int)TORIRS_NATIVE_LAYOUT_RESIZABLE_MODERN ==
-            (int)APP_NATIVE_LAYOUT_RESIZABLE_MODERN &&
-        (int)TORIRS_NATIVE_LAYOUT_MOBILE == (int)APP_NATIVE_LAYOUT_MOBILE,
-    "plugin native-layout values drifted from the App's");
-
-/** @see native_layout. */
-static int
-app_plugin_native_layout(void* user)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    return app_native_layout_mode(app);
-}
-
-/** @see native_layout_select. */
-static int
-app_plugin_native_layout_select(void* user, int layout)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    /* The runtime refuses everything outside the three choices before the
-     * request reaches the engine; said again here because this vtable is also
-     * reachable from a harness. */
-    if( layout < APP_NATIVE_LAYOUT_FIXED || layout > APP_NATIVE_LAYOUT_RESIZABLE_MODERN )
-        return 0;
-    return app_native_layout_select(app, layout) ? 1 : 0;
-}
-
-/*
- * The interface group the gameframe was rooted to, or -1 on a lane whose frame
- * is revconfig builtins.
- *
- * It is what tells a cache toplevel's OWN decoration apart from the interface
- * packs mounted inside it, and getting it wrong is not subtle in either
- * direction: -1 on a dat2 lane leaves the toplevel's stones drawn under the
- * plugin's, and a wrong group id hides an inventory.
- */
-static int
-app_plugin_layout_root_group(struct App const* app)
-{
-    assert(app);
-    if( App_UiLogic((struct App*)app) == APP_UI_LOGIC_CS1 )
-        return -1;
-    return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
-}
-
-/* The canvas less the soft keyboard, for ToriRS_GameframeEvent.safe. The
- * layout's own answer, not a second computation off app->keyboard_inset: a
- * provider hanging a strip from the bottom edge must be dodging exactly the
- * band a profile-authored `safe_area=os:bottom` row dodges, and the clamping
- * (a keyboard can never cover the WHOLE canvas) lives there. */
-static int
-app_plugin_platform_safe_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    assert(out_x);
-    assert(out_y);
-    assert(out_w);
-    assert(out_h);
-    (void)app;
-    *out_x = 0;
-    *out_y = 0;
-    *out_w = UITREE_LAYOUT_ROOT_W;
-    *out_h = UITree_LayoutSafeBottomEdge();
-    return 1;
-}
-
-void
-app_plugin_frame_activate(void* user, int active, int canvas, int fixed_w, int fixed_h)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    app->plugin_frame_active = active ? 1 : 0;
-    app->plugin_layout_canvas = canvas;
-    app->plugin_layout_fixed_w = fixed_w;
-    app->plugin_layout_fixed_h = fixed_h;
-    /* A committed selection change invalidates the frame on screen: native
-     * restores the lane's chrome, while a plugin offer supplies its complete
-     * validated declaration. */
-    app->plugin_layout_dirty = 1;
-    if( !app->plugin_frame_active && app->tree )
-        UITree_FrameRelease(app->tree);
-    App_SyncPluginLayoutCanvas(app);
-}
-
-static void
-app_plugin_frame_provide(void* user, uint64_t owner)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    assert(owner);
-    if( !app->tree )
-        return;
-    if( !app->plugin_frame_active )
-    {
-        UITree_FrameRelease(app->tree);
-        return;
-    }
-    UITree_FrameProvide(app->tree, app_plugin_layout_root_group(app), owner);
-    app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
-    app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
-    app->plugin_layout_generation = app->tree->generation;
-    app->plugin_layout_dirty = 0;
-}
-
 static int
 app_plugin_tab_active(void* user)
 {
@@ -6258,7 +5989,7 @@ app_plugin_tab_select(void* user, int tabno)
             static int said;
             if( !said++ )
                 TORIRS_LOG("plugin: no [script:sidebar_switch] in this profile; "
-                           "a plugin frame cannot switch sidebar tabs\n");
+                           "the plugin drive cannot switch sidebar tabs\n");
             return 0;
         }
         args[0] = tabno;
@@ -6283,63 +6014,6 @@ app_plugin_tab_select(void* user, int tabno)
         return 0;
     RS_UISlots_SetSideTab(app, tabno);
     return 1;
-}
-
-/*
- * Has the server given this player that tab?
- *
- * Asked on behalf of a plugin gameframe that has replaced the client's own
- * chrome and inherited its duty: neither the icon nor the pressed stone is
- * drawn for a tab the player has not got. Every lane rule is
- * RS_UISlots_TabGiven's -- this is the seam, not the knowledge.
- */
-static int
-app_plugin_tab_enabled(void* user, int tabno)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    return RS_UISlots_TabGiven(app, tabno);
-}
-
-/*
- * Is this tab's icon dark right now?
- *
- * The blink the client's own sidebar draws, asked on behalf of a plugin
- * gameframe that has replaced it. The flag is the lane's (@see
- * app_plugin_tab_flagged_flash) and the PHASE is RS_UISlots_FlashDark's, on
- * the same clock the builtin tab icons read -- so a provided frame and the
- * chrome it stands in for are never lit on opposite halves of the cycle.
- *
- * A tab the player is ALREADY LOOKING AT does not blink, and that is the one
- * rule here that is not simply the flag times the clock. Both lanes have it
- * and neither states it the same way, which is why it is folded in rather
- * than left to whoever asks:
- *
- *   dat1  selecting the tab clears `flash_tab` outright (@see
- *         app_host_request's SET_SELECTED_TAB), and TUT_FLASH will not even
- *         flag the open tab -- it moves the player off it first, because a
- *         blink under an open panel is no instruction at all.
- *   cache the varbit is the SERVER's and a client cannot clear it, so the
- *         cache's own `[proc,toplevel_flashicon]` does this instead: `if
- *         ($int4 = %varcint171)` shows the icon and highlights the stone
- *         rather than pulsing it.
- *
- * Without this line the cache lane would keep blinking an icon the player had
- * already opened, for the rest of the tutorial step, while the dat1 lane
- * stopped -- the same content driving two different pictures.
- */
-static int
-app_plugin_tab_flash_hidden(void* user, int tabno)
-{
-    struct App* app = (struct App*)user;
-
-    assert(app);
-    if( tabno < 0 || app_plugin_tab_flagged_flash(app) != tabno )
-        return 0;
-    if( app_plugin_tab_active(app) == tabno )
-        return 0;
-    return RS_UISlots_FlashDark(app->logic_cycle);
 }
 
 static int
@@ -6589,7 +6263,6 @@ app_plugin_engine(struct App* app)
     engine.user = app;
     engine.widget_request = app_plugin_widget_request;
     engine.screen = app_plugin_screen;
-    engine.platform_safe_rect = app_plugin_platform_safe_rect;
     engine.world_cycle = app_plugin_world_cycle;
     engine.frame_ms = app_plugin_frame_ms;
     engine.frame_work_us = app_plugin_frame_work_us;
@@ -6616,17 +6289,10 @@ app_plugin_engine(struct App* app)
     engine.feature_set = app_plugin_feature_set;
     engine.display_setting = app_plugin_display_setting;
     engine.display_setting_set = app_plugin_display_setting_set;
-    engine.plugin_window_open = app_plugin_window_open_query;
-    engine.plugin_window_show = app_plugin_window_show;
-    engine.frame_preference = app_plugin_frame_preference;
-    engine.frame_preference_set = app_plugin_frame_preference_set;
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;
     engine.lane = app_plugin_lane;
-    engine.frame_root = app_plugin_frame_root;
-    engine.native_layout = app_plugin_native_layout;
-    engine.native_layout_select = app_plugin_native_layout_select;
     engine.obj_info = app_plugin_obj_info;
     engine.inv_slot = app_plugin_inv_slot;
     engine.inv_size = app_plugin_inv_size;
@@ -6651,18 +6317,8 @@ app_plugin_engine(struct App* app)
     engine.text_input = app_plugin_text_input;
     engine.chat_focus = app_plugin_chat_focus;
     engine.mouse_pos = app_plugin_mouse_pos;
-    engine.slot_native_size = app_plugin_slot_native_size;
-    engine.slot_member_native_box = app_plugin_slot_member_native_box;
-    engine.slot_fit = app_plugin_slot_fit;
-    engine.slot_center_content = app_plugin_slot_center_content;
     engine.component_rect = app_plugin_component_rect;
     engine.menu_drop = app_plugin_menu_drop;
-    engine.frame_activate = app_plugin_frame_activate;
-    engine.frame_provide = app_plugin_frame_provide;
-    engine.tab_active = app_plugin_tab_active;
-    engine.tab_select = app_plugin_tab_select;
-    engine.tab_enabled = app_plugin_tab_enabled;
-    engine.tab_flash_hidden = app_plugin_tab_flash_hidden;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;

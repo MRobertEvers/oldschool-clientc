@@ -23,10 +23,6 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_WIDGET_DEMO;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
 extern struct ToriRS_PluginDef const TORIRS_FEATURE_FLAGS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MOBILE_GAMEFRAME;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_TRACKER;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LOOT_TRACKER;
@@ -63,13 +59,6 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_CLIENT_SETTINGS,
     &TORIRS_FEATURE_FLAGS,
     &TORIRS_PLUGIN_TILEIND,
-    &TORIRS_PLUGIN_MINIMAP_ORBS,
-    &TORIRS_PLUGIN_XP_ORBS,
-    &TORIRS_PLUGIN_GAMEFRAME,
-    /* Beside the desktop provider for presentation only. Both publish their
-     * offers before startup; the one saved canonical id selects is the only
-     * provider the host runs, independent of this table order. */
-    &TORIRS_PLUGIN_MOBILE_GAMEFRAME,
     &TORIRS_PLUGIN_ITEM_STATS,
     /* The two trackers, beside the other readouts. Both are PAGES and neither
      * draws on the canvas. */
