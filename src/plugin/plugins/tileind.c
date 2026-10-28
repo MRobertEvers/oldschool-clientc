@@ -317,6 +317,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
     .version = "1.0.0",
     .state_size = sizeof(struct TileindState),
     .config = &TILEIND_SCHEMA,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = tileind_on_start,

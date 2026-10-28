@@ -10,6 +10,8 @@
  * web lanes, where a synchronous file read does not exist at all.
  */
 
+#include <stdint.h>
+
 struct ToriRS_PluginHost;
 struct lua_State;
 
@@ -82,12 +84,15 @@ void PluginLua_ThreadDestroy(int registry_ref);
 /** Compile `source` and register it with the host as a plugin in its own
  *  right. Returns the host plugin index, or -1 when the script would not load
  *  (the reason is logged). `name` is the manifest identity and must match the
- *  returned V2 table's `id`. The source bytes are retained for reload. */
+ *  returned V2 table's `id`. The source bytes are retained for reload.
+ *  `flags` are the plugin's policy (`enum ToriRS_PluginDefFlags`); the
+ *  manifest's `enabled=0` arrives as TORIRS_PLUGIN_DISABLED_BY_DEFAULT. */
 int PluginLua_AddScript(
     struct ToriRS_PluginHost* host,
     char const* name,
     char const* source,
-    int source_len);
+    int source_len,
+    uint32_t flags);
 
 /** Closes every script state. Called from the runtime host's own shutdown. */
 void PluginLua_Shutdown(void);

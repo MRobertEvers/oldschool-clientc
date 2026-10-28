@@ -3287,6 +3287,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS = {
     .version = "2.0.0",
     .state_size = sizeof(struct ItemStatsState),
     .config = &ITEM_STATS_SCHEMA,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = is_start,

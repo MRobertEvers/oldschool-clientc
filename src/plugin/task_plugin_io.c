@@ -284,7 +284,6 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
             char* composed = NULL;
             char const* source = (char const*)IOITEM_DATA(item);
             int source_length = IOITEM_DATA_SIZE(item);
-            int index;
 
             if( task->part_count > 0 )
             {
@@ -293,27 +292,19 @@ Task_PluginBoot_Run(struct ToriRS_Task* task_base, struct ToriRS_IOBatch* io)
                 assert(composed);
                 source = composed;
             }
-            index = PluginLua_AddScript(
+            /* The manifest's enabled=0 is the script's DEFAULT, declared the
+             * way a native plugin declares it, and not a state applied over
+             * the settings: applied as state, it won every boot, and a player
+             * who switched the script on found it off again -- the settings
+             * file omits an enabled=1 the plugin did not declare as off. */
+            /* A script that would not load is logged by AddScript. */
+            (void)PluginLua_AddScript(
                 task->host,
                 task->entries[task->at].name,
                 source,
-                source_length);
+                source_length,
+                task->entries[task->at].enabled ? 0u : TORIRS_PLUGIN_DISABLED_BY_DEFAULT);
             ToriMem_Free(ToriMem_Plugins(), composed);
-            /* The manifest's own enabled=0 is applied here rather than left to
-             * the settings file: it is the author's switch, and it has to work
-             * for a script that has never been run and so has no saved state
-             * at all. */
-            if( index >= 0 && !task->entries[task->at].enabled )
-                /* Boot is still assembling the complete registry and neither
-                 * preference store has been published to callbacks yet. Apply
-                 * the author switch as decoded state; the one explicit Start
-                 * below is the only startup fence. SetEnabled would start the
-                 * whole host immediately and recreate the pre-v2 ordering bug. */
-                PluginHost_ConfigApply(
-                    task->host,
-                    PluginHost_Name(task->host, index),
-                    "enabled",
-                    "0");
         }
         else
         {

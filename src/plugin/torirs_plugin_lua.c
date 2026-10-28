@@ -179,6 +179,9 @@ struct LuaScript
     char title[TORIRS_PLUGIN_TITLE_MAX];
     char version[24];
     struct ToriRS_PluginDef def;
+    /* The manifest's switch, as the policy flags every build of `def` carries:
+     * a reload rebuilds `def` from nothing and must not turn the default on. */
+    uint32_t def_flags;
     struct ToriRS_ConfigSchema config_schema;
     struct ToriRS_ConfigItem config[PLUGIN_LUA_MAX_CONFIG + 1];
     char cfg_str[PLUGIN_LUA_MAX_CONFIG][4][PLUGIN_LUA_STR_MAX];
@@ -4638,6 +4641,7 @@ lua_parse_definition(lua_State* L)
     script->def.id = script->name;
     script->def.title = script->title;
     script->def.version = script->version;
+    script->def.flags = script->def_flags;
     /* These addresses are copied into the host once. Keep the stable empty
      * schema published so a reload may add its first item. */
     script->def.config = &script->config_schema;
@@ -4855,7 +4859,8 @@ PluginLua_AddScript(
     struct ToriRS_PluginHost* host,
     char const* name,
     char const* source,
-    int source_len)
+    int source_len,
+    uint32_t flags)
 {
     struct LuaScript* script;
     int index;
@@ -4875,6 +4880,7 @@ PluginLua_AddScript(
     memset(script, 0, sizeof(*script));
     script->host = host;
     script->plugin_index = -1;
+    script->def_flags = flags;
     script->source = ToriMem_Alloc(ToriMem_Plugins(), (size_t)source_len);
     assert(script->source);
     memcpy(script->source, source, (size_t)source_len);

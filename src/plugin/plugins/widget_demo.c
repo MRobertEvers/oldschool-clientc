@@ -237,6 +237,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_WIDGET_DEMO={
     .struct_size=sizeof(struct ToriRS_PluginDef),
     .id="widget-demo",.title="Widget API Probe",.version="1",
     .state_size=sizeof(struct WidgetDemoState),.config=&WIDGET_SCHEMA,
+    .flags=TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks={.struct_size=sizeof(struct ToriRS_PluginCallbacks),.on_start=widget_demo_start,
                 .on_logic_tick=widget_demo_update,.on_script_callback=widget_demo_script,.on_stop=widget_demo_stop,
                 .on_config_changed=widget_demo_config},

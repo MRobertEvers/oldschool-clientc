@@ -2404,6 +2404,7 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
     .version = "3.0.0",
     .state_size = sizeof(struct OrbsState),
     .config = &ORBS_SCHEMA,
+    .flags = TORIRS_PLUGIN_DISABLED_BY_DEFAULT,
     .callbacks = {
         .struct_size = sizeof(struct ToriRS_PluginCallbacks),
         .on_start = orbs_start,
