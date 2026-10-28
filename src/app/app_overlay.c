@@ -1840,29 +1840,6 @@ app_watch_outline_tile(
 }
 
 /**
- * The tap mark (App::tap_mark): the npc or loc a touch's op went to, outlined
- * in its minimenu name colour until the cross goes out. The mesh hull, not the
- * bounds box, because the point is to say WHICH model under the finger took
- * the tap, and a box around every npc's widest pose says that badly. No fill:
- * a wash would hide the thing being pointed at.
- */
-void
-app_overlay_build_tap_mark(struct App* app)
-{
-    assert(app);
-    if( app->tap_mark.until_ms == 0 )
-        return;
-    if( app->last_frame_ms >= app->tap_mark.until_ms )
-    {
-        app->tap_mark.until_ms = 0;
-        return;
-    }
-    /* A model that has gone (despawned, out of view) draws nothing. */
-    (void)app_overlay_outline_element_mesh_trans(
-        app, app->tap_mark.element_id, app->tap_mark.color, -1);
-}
-
-/**
  * The press outline, on the world list of the PRESENTED frame (called with
  * the hover footprint, app_build_entity_overlays). One predicted branch when
  * no script's view is attached.
@@ -2150,6 +2127,78 @@ app_watch_trace(
         app->world_emit_desc.h,
         (unsigned long long)state->canvas_cuts);
     fflush(state->trace);
+}
+
+/*
+ * An op tap's popup text -- Jagex Minimenu::DrawFeedbackText (desktop 216;
+ * Android 241 FUN_00617174's second half): the row the tap ran, "<op> <target>",
+ * in a box beside the tap, right of it on the left half of the canvas and left
+ * of it on the right, clear of the disc. 40 client cycles; with the feedback's
+ * fade on, the alpha falls from cycle 20. Only for an op (the red run) and
+ * only while setfeedbackshowpopuptext (3131) is on, which the cache says for
+ * the phone's toplevel.
+ *
+ * The box is the minimenu's: Android 241's popup draws in the menu palette
+ * (FUN_0068dab8 +0x60: 0x5d5447 edge and fill, 0x000000 rule, white text).
+ */
+#define APP_FEEDBACK_TEXT_CYCLES 40
+#define APP_FEEDBACK_TEXT_FADE_CYCLE 20
+#define APP_FEEDBACK_TEXT_BOX_H 18
+#define APP_FEEDBACK_TEXT_BASELINE 13
+
+void
+app_overlay_build_feedback_text(struct App* app)
+{
+    struct RS_CS2ClientState const* client;
+    int const cycle = app->ink.cycle / APP_FEEDBACK_CYCLE_MS;
+    int font_id;
+    int half = 0;
+    int trans = 0;
+    int box_w;
+    int box_x;
+    int box_y;
+
+    assert(app);
+    client = &app->host.client;
+    if( !UIInk_IsActive(&app->ink) || !client->show_mouse_cross || !client->feedback_popup_text )
+        return;
+    if( app->ink.colour != TORIRS_INKWELL_RED || app->feedback_text[0] == '\0' )
+        return;
+    if( cycle >= APP_FEEDBACK_TEXT_CYCLES )
+        return;
+    if( client->feedback_fade && cycle > APP_FEEDBACK_TEXT_FADE_CYCLE )
+        trans = 255 * (cycle - APP_FEEDBACK_TEXT_FADE_CYCLE) /
+                (APP_FEEDBACK_TEXT_CYCLES - APP_FEEDBACK_TEXT_FADE_CYCLE);
+    if( client->feedback_scene > 0 )
+    {
+        int count = 0;
+        struct ToriDraw_Sprite** frames =
+            ToriDraw_SceneSpriteGet(app->bridge.scene, client->feedback_scene, &count);
+        if( frames && count > 0 )
+            half = frames[0]->width / 2;
+    }
+
+    font_id = app_minimenu_font_scene_id(app);
+    box_w = app_watch_text_width(app, font_id, app->feedback_text) + 6;
+    box_x = app->ink.x <= UITREE_LAYOUT_ROOT_W / 2 ? app->ink.x + half : app->ink.x - half - box_w;
+    box_y = app->ink.y;
+    app_watch_canvas_rect(app, box_x, box_y, box_w, APP_FEEDBACK_TEXT_BOX_H, 0xFF5D5447u, trans);
+    app_watch_canvas_rect(
+        app, box_x + 1, box_y + 1, box_w - 2, APP_FEEDBACK_TEXT_BOX_H - 2, 0xFF000000u, trans);
+    app_watch_canvas_rect(
+        app, box_x + 2, box_y + 2, box_w - 4, APP_FEEDBACK_TEXT_BOX_H - 4, 0xFF5D5447u, trans);
+    {
+        struct UITreeEntityOverlay item = {
+            .kind = UITREE_ENTITY_OVERLAY_TEXT,
+            .x = box_x + box_w / 2,
+            .y = box_y + APP_FEEDBACK_TEXT_BASELINE,
+            .font_id = font_id,
+            .color = 0xFFFFFFFFu,
+            .trans = trans,
+        };
+        snprintf(item.text, sizeof(item.text), "%s", app->feedback_text);
+        app_watch_canvas_push(app, &item);
+    }
 }
 
 /**

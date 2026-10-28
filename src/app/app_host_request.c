@@ -52,43 +52,67 @@ app_host_request(
         int const interact = req->u.get_inkwell.interact_color >= 0
                                  ? req->u.get_inkwell.interact_color
                                  : TORIRS_INKWELL_RED;
+        struct RS_CS2ClientState const* client = &app->host.client;
+        int const scene_id =
+            client->feedback_scene > 0 ? client->feedback_scene : req->u.get_inkwell.scene_id;
         int colour;
+        int atlas;
+        int size;
+        int trans = 0;
 
-        if( !UIInk_IsActive(&app->ink) )
+        /* setshowmousecross (3125) gates the feedback, as the deob's field762
+         * gates its cross. */
+        if( !UIInk_IsActive(&app->ink) || !client->show_mouse_cross )
             return 0;
         colour = app->ink.colour == TORIRS_INKWELL_RED ? interact : walk;
-        if( req->u.get_inkwell.out_x )
-            *req->u.get_inkwell.out_x = app->ink.x;
-        if( req->u.get_inkwell.out_y )
-            *req->u.get_inkwell.out_y = app->ink.y;
-        if( req->u.get_inkwell.scene_id > 0 )
+        if( scene_id > 0 )
         {
-            /* The cache pack (OSRS clickcircle_filled, 1625): a yellow run,
-             * then a red run of the same length, each frame padded to the
-             * pack's canvas at load -- so the frame count and the box are the
-             * pack's own, not numbers restated here. */
+            /*
+             * A cache pack: a yellow run of frames, then a red run of the same
+             * length, each padded to the pack's canvas at load.
+             *
+             * Jagex Android 241 FUN_00617174 (DrawFeedback): the life is
+             * max(run * 2, 20) client cycles -- two cycles a frame, never under
+             * 20 -- and the frame is cycle * run / life. clickcircle_filled's
+             * 20 a run is 40 cycles, 800 ms; the cross's 4 is the 20-cycle
+             * floor, 400 ms. With the fade on, alpha falls 255 -> 0 over the
+             * life.
+             */
             int count = 0;
-            struct ToriDraw_Sprite** frames =
-                ToriDraw_SceneSpriteGet(app->bridge.scene, req->u.get_inkwell.scene_id, &count);
+            struct ToriDraw_Sprite** frames = ToriDraw_SceneSpriteGet(app->bridge.scene, scene_id, &count);
             int run;
+            int life_ms;
 
             if( !frames || count < 2 )
                 return 0; /* not resident yet */
             run = count / 2;
-            if( req->u.get_inkwell.out_atlas_index )
-                *req->u.get_inkwell.out_atlas_index =
-                    (colour == TORIRS_INKWELL_RED ? run : 0) + UIInk_FrameOf(&app->ink, run);
-            if( req->u.get_inkwell.out_size )
-                *req->u.get_inkwell.out_size = frames[0]->width;
+            life_ms = (run * 2 > 20 ? run * 2 : 20) * APP_FEEDBACK_CYCLE_MS;
+            if( app->ink.cycle >= life_ms )
+                return 0;
+            atlas = (colour == TORIRS_INKWELL_RED ? run : 0) + app->ink.cycle * run / life_ms;
+            size = frames[0]->width;
+            if( client->feedback_fade )
+                trans = 255 * app->ink.cycle / life_ms;
         }
         else
         {
-            if( req->u.get_inkwell.out_atlas_index )
-                *req->u.get_inkwell.out_atlas_index =
-                    ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
-            if( req->u.get_inkwell.out_size )
-                *req->u.get_inkwell.out_size = ToriRSInkwell_Size();
+            if( app->ink.cycle >= TORIRS_INKWELL_FRAMES * TORIRS_INKWELL_FRAME_MS )
+                return 0;
+            atlas = ToriRSInkwell_AtlasIndex(style, colour, UIInk_Frame(&app->ink));
+            size = ToriRSInkwell_Size();
         }
+        if( req->u.get_inkwell.out_x )
+            *req->u.get_inkwell.out_x = app->ink.x;
+        if( req->u.get_inkwell.out_y )
+            *req->u.get_inkwell.out_y = app->ink.y;
+        if( req->u.get_inkwell.out_atlas_index )
+            *req->u.get_inkwell.out_atlas_index = atlas;
+        if( req->u.get_inkwell.out_scene_id )
+            *req->u.get_inkwell.out_scene_id = scene_id;
+        if( req->u.get_inkwell.out_size )
+            *req->u.get_inkwell.out_size = size;
+        if( req->u.get_inkwell.out_trans )
+            *req->u.get_inkwell.out_trans = trans;
         return 1;
     }
     case UITREE_HOST_GET_INKWELL_SCENE:

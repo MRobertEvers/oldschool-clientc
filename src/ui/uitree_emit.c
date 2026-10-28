@@ -840,27 +840,31 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_INKWELL:
     {
         /*
-         * The touch marker. The cache pack `sprite=` bound when there is one
-         * (OSRS: clickcircle_filled), drawn at its own canvas size like the
-         * cross; otherwise the generated atlas (ui/torirs_chrome_inkwell.c),
-         * one scene entry holding every style and colour.
+         * The touch marker. A cache pack when there is one -- the one a
+         * clientscript chose, else the one `sprite=` bound -- drawn at its own
+         * canvas size like the cross; otherwise the generated atlas
+         * (ui/torirs_chrome_inkwell.c), one scene entry holding every style and
+         * colour.
          */
         int cx = 0;
         int cy = 0;
         int atlas = 0;
         int size = 0;
-        int scene_id = component->u.inkwell.scene_id;
+        int trans = 0;
+        int scene_id = -1;
         struct UITreeHostRequest req = {
             .kind = UITREE_HOST_GET_INKWELL,
             .u.get_inkwell = {
                 .style = component->u.inkwell.style,
                 .walk_color = component->u.inkwell.walk_color,
                 .interact_color = component->u.inkwell.interact_color,
-                .scene_id = scene_id,
+                .scene_id = component->u.inkwell.scene_id,
                 .out_x = &cx,
                 .out_y = &cy,
                 .out_atlas_index = &atlas,
+                .out_scene_id = &scene_id,
                 .out_size = &size,
+                .out_trans = &trans,
             },
         };
 
@@ -877,6 +881,7 @@ UITree_EmitFill(
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = scene_id;
         out->atlas_index = atlas;
+        out->trans = trans;
         /* Centred on the touch, like the cross -- every frame sits centred in
          * the same square, so the marker does not drift as it grows. */
         out->x = cx - (size / 2);

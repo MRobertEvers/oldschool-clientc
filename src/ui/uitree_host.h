@@ -482,15 +482,20 @@ struct UITreeHostRequest
             int style;
             int walk_color;
             int interact_color;
-            /* In: the cache pack `sprite=` bound (a yellow run of frames, then
-             * a red run of the same length), or <= 0 for the generated atlas. */
+            /* In: the cache pack the profile's `sprite=` bound (a yellow run of
+             * frames, then a red run of the same length), or <= 0. The pack a
+             * clientscript chose (setfeedbacksprite) wins over it. */
             int scene_id;
             int* out_x;
             int* out_y;
             int* out_atlas_index;
+            /* Out: the pack drawn, or <= 0 for the generated atlas. */
+            int* out_scene_id;
             /* Out: the frame's square, in canvas pixels -- the pack's padded
              * canvas, or ToriRSInkwell_Size() for the generated atlas. */
             int* out_size;
+            /* Out: 0 opaque .. 255 clear, for the fade. */
+            int* out_trans;
         } get_inkwell;
         struct
         {

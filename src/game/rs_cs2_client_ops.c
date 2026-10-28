@@ -42,6 +42,8 @@ RS_CS2ClientState_Init(struct RS_CS2ClientState* state)
     state->show_mouseover_text = true;
     state->render_self = true;
     state->show_mouse_cross = true;
+    state->feedback_sprite = -1;
+    state->feedback_scene = -1;
     state->show_loading_messages = true;
     state->remember_username = true;
     state->freecam_speed = 12;
@@ -252,6 +254,9 @@ RS_CS2Host_ExecClientOp(
 
     case CS2_OP_SETSHOWMOUSECROSS:
         state->show_mouse_cross = ints[0] == 1;
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_SETFEEDBACKSHOWPOPUPTEXT:
+        state->feedback_popup_text = ints[0] == 1;
         return CS2VM_EXECNO_OK;
     case CS2_OP_SETSHOWLOADINGMESSAGES:
         state->show_loading_messages = ints[0] == 1;

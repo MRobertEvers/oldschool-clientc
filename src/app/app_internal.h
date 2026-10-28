@@ -1500,12 +1500,11 @@ app_overlay_outline_element_mesh_trans(
 void
 app_overlay_build_hover_footprint(struct App* app);
 
-/** How long a tap's target stays outlined (App::tap_mark): the cross's own
- *  life, so the two go out together. */
-#define APP_TAP_MARK_MS 400
+/** A client cycle, which is what the click feedback's clocks count in. */
+#define APP_FEEDBACK_CYCLE_MS 20
 
 void
-app_overlay_build_tap_mark(struct App* app);
+app_overlay_build_feedback_text(struct App* app);
 
 void
 app_overlay_build_editor_selection(struct App* app);

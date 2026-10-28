@@ -1090,6 +1090,12 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_setgraphic(self);
         break;
 
+    /* setfeedbacksprite: the pack loads like a graphic's. */
+    case CS2VM_HOST_REQUEST_SETFEEDBACKSPRITE:
+        self->await_id = self->pending->u.SETFEEDBACKSPRITE.args.ints[0];
+        self->yield_plan = self->await_id >= 0 ? TASK_CS2_YIELD_SPRITE : TASK_CS2_YIELD_NONE;
+        break;
+
     case CS2VM_HOST_REQUEST_IF_SETMODEL:
         task_cs2_plan_widget_set_model(self);
         break;

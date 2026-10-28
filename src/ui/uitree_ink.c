@@ -3,9 +3,6 @@
 #include <assert.h>
 #include <string.h>
 
-/** Total life, so the last frame is shown for its full slice. */
-#define UI_INK_LIFE_MS (TORIRS_INKWELL_FRAMES * TORIRS_INKWELL_FRAME_MS)
-
 void
 UIInk_Reset(struct UIInk* ink)
 {
@@ -40,21 +37,6 @@ UIInk_IsActive(struct UIInk const* ink)
 {
     assert(ink);
     return ink->active != 0;
-}
-
-int
-UIInk_FrameOf(struct UIInk const* ink, int frames)
-{
-    int frame;
-
-    assert(ink);
-    assert(frames > 0);
-    frame = ink->cycle * frames / UI_INK_LIFE_MS;
-    if( frame < 0 )
-        frame = 0;
-    if( frame >= frames )
-        frame = frames - 1;
-    return frame;
 }
 
 int

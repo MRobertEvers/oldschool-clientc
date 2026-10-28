@@ -513,7 +513,19 @@ struct RS_CS2ClientState
     bool show_mouseover_text;        /* 3118: the top-left "Walk here" line */
     bool render_self;                /* 3119: draw the local player */
     int draw_player_names;           /* 3120..3124: RS_CS2_DRAW_NAMES_* mask */
-    bool show_mouse_cross;           /* 3125: the click-cross sprite */
+    bool show_mouse_cross;           /* 3125: the click feedback, cross or tap */
+    /*
+     * 3130 setfeedbacksprite(sprite, fade): the pack the click feedback draws
+     * (Jagex Minimenu::SetFeedbackSprite). The cache's toplevel_init picks it:
+     * `cross` (299) on a desktop toplevel, clickcircle_filled (1625) -- or its
+     * yellow-only twin (4351) while the interact highlight is on -- on the
+     * phone's. -1 until a script names one; `feedback_scene` is the pack's
+     * scene entry once it is resident, -1 before.
+     */
+    int feedback_sprite;
+    int feedback_scene;
+    bool feedback_fade;              /* 3130: fade the frames out over the life */
+    bool feedback_popup_text;        /* 3131: "<op> <target>" beside an op tap */
     bool show_loading_messages;      /* 3126: the "Loading - please wait." box */
     bool simulated_shift;            /* 3127/3128 */
     int freecam_speed;               /* 3129: free camera step, shift up */
@@ -1000,6 +1012,16 @@ struct RS_CS2Host
     int script_highlight_hover_tile;
     int script_highlight_current_tile;
     int script_highlight_dest_tile;
+
+    /**
+     * The onclick triggers -- Jagex ClientTriggerType onclicknpc / onclickloc /
+     * onclickobj / onclickplayer, fired by the client beside a world op's
+     * packet (app_onclick_trigger). -1 when the profile declares none.
+     */
+    int script_onclick_npc;
+    int script_onclick_loc;
+    int script_onclick_obj;
+    int script_onclick_player;
 
     /**
      * The GROUND-ITEMS overlay hook, and the pile entry `_6859` selected.

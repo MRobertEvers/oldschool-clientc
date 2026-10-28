@@ -569,25 +569,35 @@ App_Init(
      * but NOT started: PluginHost_Start runs after the saved settings have
      * been applied, or every plugin would spend its first frames on defaults
      * and then jump when the ini arrived. `[ui:boot] plugins=0` in the manifest
-     * switches the whole layer off, and TORIRS_PLUGINS outranks the manifest in
-     * both directions -- which is what the headless parity harnesses use to
+     * switches the USER plugins off, and TORIRS_PLUGINS outranks the manifest
+     * in both directions -- which is what the headless parity harnesses use to
      * prove a change is theirs and not a plugin's.
+     *
+     * The nxt-* builtins are not behind that switch. They are the client's own
+     * features -- the cache's All Settings > Activities switches them, and CS2
+     * and server state drive them (the tap's interact highlight is nxt-highlight
+     * drawing what the cache's onclick scripts ask for) -- so a host carrying
+     * only them is built either way.
      */
     {
         char const* plugins_env = getenv("TORIRS_PLUGINS");
         int want_plugins = cfg->plugins >= 0;
+        struct ToriRS_PluginEngine engine = app_plugin_engine(app);
+
         if( plugins_env )
             want_plugins = atoi(plugins_env) != 0;
-        if( want_plugins )
+        app->plugins_user = want_plugins;
+        app->plugin_panel = -1;
+        app->plugin_panel_built_for = 0;
+        /* The client is what LINKS Porcelain; the host only carries the
+         * pointer, so the host's own test binaries stay free of it. */
+        PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
+        app->plugins = PluginHost_New(&engine);
+        app->plugin_prefs_path = PluginPrefs_Path();
+        if( !want_plugins )
+            PluginRegistry_RegisterBuiltins(app->plugins);
+        else
         {
-            struct ToriRS_PluginEngine engine = app_plugin_engine(app);
-            app->plugin_panel = -1;
-            app->plugin_panel_built_for = 0;
-            /* The client is what LINKS Porcelain; the host only carries the
-             * pointer, so the host's own test binaries stay free of it. */
-            PluginHost_SetPorcelain(ToriRS_PorcelainApiTable());
-            app->plugins = PluginHost_New(&engine);
-            app->plugin_prefs_path = PluginPrefs_Path();
             PluginRegistry_RegisterAll(app->plugins);
             /* The test-only quest driver installs `api.drive` here, before any
              * script compiles and only when ContentTest_Enabled() or

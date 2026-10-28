@@ -2178,22 +2178,10 @@ struct App
      * of it on a lane whose profile says `cross@mobile` -> inkwell. @see
      * ui/uitree_ink.h. */
     struct UIInk ink;
-    /*
-     * The tap mark: the npc or loc a touch's op landed on, outlined while the
-     * cross runs. A fingertip covers what it taps, and the red cross says an
-     * op went out but not which of the models under the finger took it; the
-     * outline answers that. Touch lane only (`touch_ui`) -- a mouse leaves its
-     * pointer on the target. Set in app_minimenu_run_option, drawn by
-     * app_overlay_build_tap_mark. `until_ms` 0 = none.
-     */
-    struct
-    {
-        int element_id;
-        /** ARGB: the target's name colour in the minimenu -- npc @yel@,
-         *  loc @cya@ (rs_minimenu_world.c). */
-        uint32_t color;
-        uint64_t until_ms;
-    } tap_mark;
+    /* The op row the feedback is for, "<op> <target>" as the menu printed it
+     * -- the popup text beside an op tap (app_overlay_build_feedback_text).
+     * "" for a walk, which has none. Set with `ink` by app_cross_show. */
+    char feedback_text[UITREE_MINIMENU_OPTION_LEN];
     /** Mouseover text under the pointer, rebuilt every frame (reference: CS2
      * script 4726 rebuilds it every client cycle). */
     struct UIHoverText hover_text;
@@ -2210,11 +2198,17 @@ struct App
      * so the average is already settled the frame it is shown. */
     struct ToriRSChrome dbg_ui;
     /**
-     * Scripting/plugin host (src/plugin/). NULL when plugins are switched off
-     * (TORIRS_PLUGINS=0), which is what every seam call tests before it does
-     * anything -- an absent host has to be as cheap as a disabled one.
+     * Scripting/plugin host (src/plugin/). Always built in App_New: the nxt-*
+     * builtins live in it whatever the plugin switch says. Seam calls still
+     * test it for NULL, which a test App without a host relies on.
      */
     struct ToriRS_PluginHost* plugins;
+    /**
+     * The USER plugins are on: TORIRS_PLUGINS, else `[ui:boot] plugins=`.
+     * Off, the host carries only the nxt-* builtins and the boot task reads no
+     * script manifest.
+     */
+    int plugins_user;
     /**
      * quest-driver event ring (src/plugin/torirs_plugin_drive.h).
      *

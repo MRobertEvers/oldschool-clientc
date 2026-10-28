@@ -2143,7 +2143,8 @@ app_cross_show(
     struct App* app,
     enum UICrossMode mode,
     int x,
-    int y)
+    int y,
+    char const* op_text)
 {
     UICross_Show(&app->cross, mode, x, y);
     UIInk_Show(
@@ -2151,6 +2152,61 @@ app_cross_show(
         mode == UI_CROSS_INTERACT ? TORIRS_INKWELL_RED : TORIRS_INKWELL_YELLOW,
         x,
         y);
+    /* Jagex StartFeedback copies the run row's op and target for the popup
+     * text; a walk passes none. */
+    snprintf(app->feedback_text, sizeof(app->feedback_text), "%s", op_text ? op_text : "");
+}
+
+/*
+ * The onclick triggers: Jagex Client::ExecuteOnClick{NPC,Loc,Obj,Player}Trigger
+ * (desktop 216, run from DoAction beside each world op's packet), which set the
+ * active subject and run the cache's script for it. This cache's scripts for
+ * them (5956..5959) draw the phone's interact highlight -- highlight mode 4,
+ * pulsing for 17 cycles -- and return at once off a phone (~duel_info) or with
+ * the highlight turned off (%varbit13666). Which script answers each is the
+ * profile's `[script:onclick_*]`; an undeclared one fires nothing.
+ */
+static void
+app_onclick_trigger(
+    struct App* app,
+    struct UIMinimenuPick const* pick)
+{
+    struct RS_ClientOpContext ctx;
+    enum RS_ClientOpKind kind;
+    int script_id;
+
+    if( pick->kind == UI_MINIMENU_PICK_NPC )
+    {
+        kind = RS_CLIENTOP_NPC;
+        script_id = app->host.script_onclick_npc;
+    }
+    else if( pick->kind == UI_MINIMENU_PICK_SCENERY )
+    {
+        kind = RS_CLIENTOP_LOC;
+        script_id = app->host.script_onclick_loc;
+    }
+    else if( pick->kind == UI_MINIMENU_PICK_OBJ )
+    {
+        kind = RS_CLIENTOP_OBJ;
+        script_id = app->host.script_onclick_obj;
+    }
+    else if( pick->kind == UI_MINIMENU_PICK_PLAYER )
+    {
+        kind = RS_CLIENTOP_PLAYER;
+        script_id = app->host.script_onclick_player;
+    }
+    else
+        return;
+    if( script_id < 0 || !app->world )
+        return;
+
+    app_clientop_context_reset(&ctx);
+    ctx.kind = kind;
+    if( !app_clientop_subject_from_element(app, kind, pick->id, &ctx) )
+        return;
+    ctx.script_id = script_id;
+    RS_ClientOpContextBegin(&app->host.clientop, &ctx);
+    RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
 }
 
 int
@@ -2202,22 +2258,10 @@ app_minimenu_run_option(
         enum UICrossMode cross_mode = RS_Minimenu_CrossModeForAction(opt.action);
         if( cross_mode != UI_CROSS_OFF && cross_mode != UI_CROSS_WALK )
         {
-            app_cross_show(app, cross_mode, click_x, click_y);
-            /* Same guard: only an op the cross marks outlines its target, so
-             * Examine and the UI rows mark nothing. The outline wears the
-             * colour the row printed the target's name in: rs_minimenu_world.c
-             * writes npcs `@yel@<name>` and locs `@cya@<name>`. */
-            if( app->touch_ui &&
-                (opt.pick.kind == UI_MINIMENU_PICK_NPC ||
-                 opt.pick.kind == UI_MINIMENU_PICK_SCENERY) )
-            {
-                int const rgb = ToriDraw_FontEvaluateColorTag(
-                    opt.pick.kind == UI_MINIMENU_PICK_NPC ? "yel" : "cya");
-
-                app->tap_mark.element_id = opt.pick.id;
-                app->tap_mark.color = 0xFF000000u | (uint32_t)rgb;
-                app->tap_mark.until_ms = app->last_frame_ms + APP_TAP_MARK_MS;
-            }
+            app_cross_show(app, cross_mode, click_x, click_y, opt.text);
+            /* Same guard: the triggers fire for the ops the cross marks, so
+             * Examine and the UI rows run none. */
+            app_onclick_trigger(app, &opt.pick);
         }
     }
 
@@ -2959,12 +3003,12 @@ app_minimenu_run_option(
                 app,
                 net_out_client_cheat(
                     app->net->rev, app->net->random_out, _nsbuf, sizeof(_nsbuf), op_cmd));
-            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y);
+            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y, opt.text);
         }
         return 0;
     case UI_MINIMENU_PICK_HEADING:
         if( app_sailing_send_heading(app, opt.pick.id) )
-            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
         return 0;
     case UI_MINIMENU_PICK_TERRAIN:
         /*
@@ -3014,7 +3058,7 @@ app_minimenu_run_option(
                     deck_route_z,
                     1,
                     app->ctrl_held));
-            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
             return 0;
         }
         /* ABOARD, a ROOT ground click cannot gate on the client BFS below —
@@ -3041,7 +3085,7 @@ app_minimenu_run_option(
                     route_z,
                     1,
                     app->ctrl_held));
-            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
             return 0;
         }
 
@@ -3061,7 +3105,7 @@ app_minimenu_run_option(
          * the router refuses leaves the screen alone. */
         if( app_try_move(
                 app, opt.pick.secondary_id, opt.pick.tertiary_id, 0, 0, 0, 0, app->ctrl_held) )
-            app_cross_show(app, UI_CROSS_WALK, click_x, click_y);
+            app_cross_show(app, UI_CROSS_WALK, click_x, click_y, NULL);
         return 0;
     case UI_MINIMENU_PICK_NPC:
     {
@@ -3200,7 +3244,7 @@ app_minimenu_run_option(
                         abs_z,
                         loc_id));
             }
-            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y);
+            app_cross_show(app, UI_CROSS_INTERACT, click_x, click_y, opt.text);
             return 0;
         }
 

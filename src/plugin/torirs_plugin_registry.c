@@ -82,6 +82,23 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_LUA,
 };
 
+/* The builtins above, on their own: what a host with the user plugins
+ * switched off still registers. */
+static struct ToriRS_PluginDef const* const BUILTIN_TABLE[] = {
+    &TORIRS_PLUGIN_NXT_HIGHLIGHT,
+    &TORIRS_PLUGIN_NXT_BIRD_NEST,
+    &TORIRS_PLUGIN_NXT_CANNON_AMMO,
+    &TORIRS_PLUGIN_NXT_COX_HELPER,
+};
+
+void
+PluginRegistry_RegisterBuiltins(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    for( size_t i = 0; i < sizeof(BUILTIN_TABLE) / sizeof(BUILTIN_TABLE[0]); i++ )
+        (void)PluginHost_Register(host, BUILTIN_TABLE[i]);
+}
+
 void
 PluginRegistry_RegisterAll(struct ToriRS_PluginHost* host)
 {

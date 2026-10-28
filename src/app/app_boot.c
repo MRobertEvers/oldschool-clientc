@@ -547,7 +547,10 @@ Task_AppBoot_Run(
      */
     if( !app->boot_config_ready && app->plugins )
         PT_TASK_AWAITSELF_IF(
-            CreateTask_PluginBoot(app->plugins, PluginManifest_Path(), PluginPrefs_Path()));
+            CreateTask_PluginBoot(
+                app->plugins,
+                app->plugins_user ? PluginManifest_Path() : NULL,
+                PluginPrefs_Path()));
 
     /*
      * Seed the four audio volumes.

@@ -968,6 +968,10 @@ RS_CS2Host_Init(
     host->script_highlight_hover_tile = cs2_host_ref(refs, "script", "highlight_hover_tile");
     host->script_highlight_current_tile = cs2_host_ref(refs, "script", "highlight_current_tile");
     host->script_highlight_dest_tile = cs2_host_ref(refs, "script", "highlight_dest_tile");
+    host->script_onclick_npc = cs2_host_ref(refs, "script", "onclick_npc");
+    host->script_onclick_loc = cs2_host_ref(refs, "script", "onclick_loc");
+    host->script_onclick_obj = cs2_host_ref(refs, "script", "onclick_obj");
+    host->script_onclick_player = cs2_host_ref(refs, "script", "onclick_player");
     /* -1, not 0: 0 is a real player slot, so a zero here would make
      * LOCALPLAYER_GETUID name whichever player the server put in slot 0 before
      * login. */
@@ -5121,6 +5125,34 @@ exec_set_graphic(
 #endif
         (void)UITree_ApplyGraphic(tree, component_id, scene_id, 0);
     }
+    return CS2VM_EXECNO_OK;
+}
+
+/*
+ * setfeedbacksprite(sprite, fade) -- Jagex Minimenu::SetFeedbackSprite (desktop
+ * 216; Android 241 FUN_0068fa50). Loaded the way cc_setgraphic loads a graphic:
+ * yield until the pack is resident, then upload every frame of it.
+ */
+static int
+exec_set_feedback_sprite(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* request)
+{
+    struct CS2VM_HostSignatureArgs const* args = &request->u.SETFEEDBACKSPRITE.args;
+    struct RS_CS2ClientState* state = &host->client;
+    int const sprite = args->ints[0];
+
+    if( !rs_cs2_sprite_ready(host, sprite) &&
+        !rs_cs2_await_spent(thread, request->kind, sprite, -1) )
+        return rs_cs2_yield_load(host, thread, request, sprite, -1);
+
+    state->feedback_sprite = sprite;
+    state->feedback_fade = args->ints[1] == 1;
+    state->feedback_scene = -1;
+    /* Still missing after its load: no feedback art, as for a graphic. */
+    if( sprite >= 0 && host->bridge && rs_cs2_sprite_ready(host, sprite) )
+        state->feedback_scene = UITreeSceneBridge_EnsureSprite(host->bridge, sprite);
     return CS2VM_EXECNO_OK;
 }
 
@@ -10894,6 +10926,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_SETDRAWPLAYERNAMES_SELF:
     case CS2VM_HOST_REQUEST_RESETDRAWPLAYERNAMES:
     case CS2VM_HOST_REQUEST_SETSHOWMOUSECROSS:
+    case CS2VM_HOST_REQUEST_SETFEEDBACKSHOWPOPUPTEXT:
     case CS2VM_HOST_REQUEST_SETSHOWLOADINGMESSAGES:
     case CS2VM_HOST_REQUEST_SETSIMULATEDSHIFTACTIVE:
     case CS2VM_HOST_REQUEST_GETSIMULATEDSHIFTACTIVE:
@@ -10965,6 +10998,9 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_PLATFORMTYPE:
     case CS2VM_HOST_REQUEST_CLIENT_VERSION:
         return RS_CS2Host_ExecClientOp(host, vm, (struct CS2VM_HostSignatureArgs const*)&request->u);
+
+    case CS2VM_HOST_REQUEST_SETFEEDBACKSPRITE:
+        return exec_set_feedback_sprite(host, vm, request);
 
     case CS2VM_HOST_REQUEST_IF_QUERY_REFINE:
         return exec_if_query_refine(host, vm, request);

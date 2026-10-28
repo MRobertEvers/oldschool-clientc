@@ -761,13 +761,12 @@ app_build_canvas_overlays(
 
     app->overlays.canvas_prepared = true;
     OverlayStage_ResetCanvas(&app->overlays);
-    if( !app->plugins )
-        return 0;
-
-    PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-    /* The client's only writer to this list, after every plugin so a
-     * plugin's drawing never covers it: the badge and the runner's ghost
-     * cursor while a script's view is attached (nothing otherwise). */
+    if( app->plugins )
+        PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /* The client's writers to this list, after every plugin so a plugin's
+     * drawing never covers them: an op tap's popup text, and the badge and
+     * the runner's ghost cursor while a script's view is attached. */
+    app_overlay_build_feedback_text(app);
     return app_overlay_build_watch_canvas(app, OverlayStage_Count(&app->overlays, OVERLAY_SURFACE_CANVAS));
 }
 
@@ -943,7 +942,6 @@ app_build_entity_overlays(
     /* What the script's runner just pressed, outlined in the watcher's own
      * projection (a no-op with one view). */
     app_overlay_build_watch_world(app);
-    app_overlay_build_tap_mark(app);
 
     /*
      * Plugins last, so their marks layer above every built-in in this pass.
