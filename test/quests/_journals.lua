@@ -10,6 +10,12 @@
 local function plain(s)
     return (string.gsub(s, "<[^>]*>", ""))
 end
+-- The driver reads a row trimmed; Jagex's rows can open or close with a space
+-- (Dwarf Cannon's "<col=000080> in the dwarves...", "...the Captain. "), which
+-- our wire keeps (a TORIRSSERVER_TRACE_OUT=2 run), so the compare trims too.
+local function plain_read(s)
+    return (string.gsub(plain(s), "^%s*(.-)%s*$", "%1"))
+end
 local IOM_4381 = {
     "<str>I have met an enigmatic man by the name of Cassius lurking",
     "<str>around Farmer Fred's farm in Lumbridge.",
@@ -69,6 +75,38 @@ local FC_4404_4 = {
     "<col=800000>Wolf Mountain<col=000080> and claim my <col=800000>reward",
 }
 
+-- Dwarf Cannon, RSProx index 4409: stage 1 [219] and with the six railings
+-- fixed [561], 2 [573], 4 [640], 6 [943], 7 [1083], 8 [1140], 10 [1476].
+local MC_START = {
+    "<str>I have spoken to Captain Lawgof, he recruited me into the",
+    "<str>Black Guard and asked me to help the dwarves.",
+    "",
+}
+local function mc_rows(...)
+    local rows = {}
+    for _, row in ipairs(MC_START) do rows[#rows + 1] = row end
+    for _, row in ipairs({ ... }) do rows[#rows + 1] = row end
+    return rows
+end
+local MC_4409 = {
+    { 1, false, mc_rows("<col=000080>My first task is to <col=800000>fix the broken railings",
+        "<col=000080> in the dwarves defensive perimeter.") },
+    { 1, true, mc_rows("<str>I have repaired all the broken railings,",
+        "<col=000080>I should report back to Captain Lawgof.") },
+    { 2, true, mc_rows("<str>I have repaired all the broken railings,",
+        "<col=000080> Captain Lawgof has asked me to check up on his guards at",
+        "<col=000080><col=800000>the watchtower <col=000080> to the South of his camp.") },
+    { 4, true, mc_rows("<str>I gave the remains to Captain Lawgof.",
+        "<col=000080>He sent me to find the <col=800000>Goblin base<col=000080>, South-east of the camp.") },
+    { 6, true, mc_rows("<str>I have rescued Lollk and sent him back to the Captain. ",
+        "<col=000080>I need to <col=800000>speak to Captain Lawgof<col=000080> again.") },
+    { 7, true, mc_rows("<col=000080>Captain Lawgof has asked me to <col=800000>fix the multicannon<col=000080>.") },
+    { 8, true, mc_rows("<str>I've fixed the broken multicannon,",
+        "<col=000080>I need to <col=800000>speak to Captain Lawgof<col=000080> again.") },
+    { 10, true, mc_rows("<str>I've spoken to Nulodion,", "<str>He gave me an ammo mould and notes,",
+        "<col=000080>I need to <col=800000>speak to Captain Lawgof<col=000080> again.") },
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -87,7 +125,7 @@ return {
             local lines = (r == "ok" and j and j.lines) or {}
             local diff = nil
             for i = 1, math.max(#want, #lines) do
-                if lines[i] ~= (want[i] and plain(want[i])) then
+                if lines[i] ~= (want[i] and plain_read(want[i])) then
                     diff = "row " .. i .. ": want '" .. tostring(want[i]) .. "' read '" .. tostring(lines[i]) .. "'"
                     break
                 end
@@ -121,6 +159,15 @@ return {
         exact("journal.fishingcontest.willow", "Fishing Contest", FC_4404_2)
         set("::setvar varp11_fishingcompo 4")
         exact("journal.fishingcontest.won", "Fishing Contest", FC_4404_4)
+
+        for _, st in ipairs(MC_4409) do
+            local fixed = st[2] and 1 or 0
+            for b = 2240, 2245 do
+                set("::setvar varb" .. b .. "_mcannon_railing" .. (b - 2239) .. "_fixed " .. fixed)
+            end
+            set("::setvar varp0_mcannon " .. st[1])
+            exact("journal.dwarfcannon." .. st[1] .. (st[2] and "" or ".railings"), "Dwarf Cannon", st[3])
+        end
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

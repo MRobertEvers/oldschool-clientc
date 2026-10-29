@@ -2881,6 +2881,28 @@ ToriRSServer_SceneFindLocExact(
     return tombstone >= 0 ? loc_handle(square, tombstone) : -1;
 }
 
+int
+ToriRSServer_SceneFindStaticLoc(
+    int x,
+    int z,
+    int level,
+    int shape)
+{
+    struct SceneSquare* square = square_of(x, z);
+
+    if( !square )
+        return -1;
+    for( int i = 0; i < square->loc_count; i++ )
+    {
+        struct ToriRSServerSceneLoc* loc = &square->locs[i];
+
+        if( loc->is_static && loc->x == x && loc->z == z && loc->level == level &&
+            loc->shape == shape )
+            return loc_handle(square, i);
+    }
+    return -1;
+}
+
 static void store_stamp_loc(struct ToriRSServerSceneLoc* loc, int add);
 
 int

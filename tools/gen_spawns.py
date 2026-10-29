@@ -473,7 +473,13 @@ OBJ_SPAWN_ID_CORRECTIONS = {
 # https://oldschool.runescape.wiki/w/Shelves_(Getting_Ahead)?oldid=15202355).
 # quest_gettingahead's [oploc,ga_shelves] is that search, so a public pile of
 # both dyes beside it would only be a second, wrong source.
+#
+# Dwarf Cannon: the dump lays mcannonremains (obj 0) on the watch tower's top
+# floor, 2567,3444,2. Jagex's remains there are the loc mcannonremains_multiloc,
+# shown only at stage 3 and taken by its op (RSProx index 4409 [596], [604..607]);
+# no obj is ever sent on that tile. A public obj was a second, wrong source.
 OBJ_SPAWN_EXCLUSIONS = {
+    ("mcannonremains", 2567, 3444, 2),
     ("rd_metal_spade_no_handle", 2473, 4941, 0),
     ("reddye", 1240, 3688, 0),
     ("yellowdye", 1240, 3688, 0),

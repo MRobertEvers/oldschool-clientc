@@ -47631,12 +47631,28 @@ ToriRSServer_WorldSelftest(void)
                                    : -1);
 
                 /* An added loc expires by being removed again, not by turning
-                 * into something else. */
+                 * into something else -- unless the map square has its own loc
+                 * in that slot, which the add only covered: LostCity's LOC_ADD
+                 * is `World.changeLoc` of that loc, and its timer gives it back
+                 * (the 4409 Dwarf Cannon gate, torirs_server_scripts.c). */
                 for( int i = 0; i < 5; i++ )
                     selftest_tick(srv);
-                SELFTEST_CHECK(added >= 0 && ToriRSServer_SceneLoc(added) &&
-                                   !ToriRSServer_SceneLoc(added)->active,
-                               "a loc_add with a duration should expire away again");
+                {
+                    struct ToriRSServerSceneLoc* map =
+                        ToriRSServer_SceneLoc(ToriRSServer_SceneFindStaticLoc(3220, 3220, 0, 10));
+                    struct ToriRSServerSceneLoc* now =
+                        ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(3220, 3220, 0, 10));
+
+                    if( map )
+                        SELFTEST_CHECK(now && now->active && now->loc_id == map->loc_id &&
+                                           now->angle == map->angle,
+                                       "a loc_add over the map's own loc should expire back to it (%d)",
+                                       map->loc_id);
+                    else
+                        SELFTEST_CHECK(added >= 0 && ToriRSServer_SceneLoc(added) &&
+                                           !ToriRSServer_SceneLoc(added)->active,
+                                       "a loc_add with a duration should expire away again");
+                }
             }
 
             /*

@@ -191,6 +191,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     int loc_cannon_broken;
     int loc_remains_shell;
     int loc_remains_child;
+    int loc_ladder;
     int vb_spring;
     int vb_safety;
     int com_tool1;
@@ -241,6 +242,7 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     loc_cannon_broken = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "broken_multicannon");
     loc_remains_shell = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mcannonremains_multiloc");
     loc_remains_child = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mcannonremains_location");
+    loc_ladder = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "mcannonladder");
     vb_spring = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2239_mcannon_spring_set");
     vb_safety = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb2238_mcannon_safety_on");
     com_tool1 = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, "mcannon_interface:mcannon_tool1");
@@ -384,6 +386,23 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     if( ToriRSServer_Varp(player, varp) == 2 )
         mcannon_pass("tower-task", "OPNPC1", "mcannon=2");
 
+    /* ---- the watch tower's top ladder 2 -> 3 (RSProx index 4409 [595]):
+     * the stage Jagex writes on the climb, which is what shows the remains ---- */
+    mcannon_snap(srv, player, 1, 2570, 3442);
+    loc_slot = loc_ladder >= 0 ? mcannon_find_loc(2570, 3443, 1, loc_ladder, 4) : -1;
+    SELFTEST_CHECK(loc_slot >= 0, "mcannonladder should stand at 2570,3443,1");
+    if( loc_slot >= 0 )
+    {
+        mcannon_release(srv, player);
+        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, -1, loc_slot);
+        mcannon_drain(srv, player, 0);
+        mcannon_drain_rewards(srv, player);
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "the tower climb should write mcannon=3, got %d",
+                       ToriRSServer_Varp(player, varp));
+        if( ToriRSServer_Varp(player, varp) == 3 )
+            mcannon_pass("tower", "OPLOC1", "mcannon=3");
+    }
+
     /* ---- remains (tower roof; QH 2567,3444,2) ---- */
     mcannon_snap(srv, player, 2, 2567, 3444);
     loc_slot = -1;
@@ -446,13 +465,13 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
     mcannon_talk(srv, player, npc_lawgof, law_slot);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 3, "remains hand-in should write mcannon=3, got %d",
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "remains hand-in should write mcannon=4, got %d",
                    ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_remains) == 0, "hand-in should consume remains");
-    if( ToriRSServer_Varp(player, varp) == 3 )
-        mcannon_pass("remains-handin", "OPNPC1", "mcannon=3");
+    if( ToriRSServer_Varp(player, varp) == 4 )
+        mcannon_pass("remains-handin", "OPNPC1", "mcannon=4");
 
-    /* ---- cave 3 -> 4 ---- */
+    /* ---- cave 4 -> 5 ---- */
     mcannon_snap(srv, player, 0, 2622, 3392);
     loc_slot = mcannon_find_loc(2622, 3392, 0, loc_cave, 4);
     if( loc_slot < 0 )
@@ -464,13 +483,13 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_cave, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 4, "cave enter should write mcannon=4, got %d",
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "cave enter should write mcannon=5, got %d",
                        ToriRSServer_Varp(player, varp));
-        if( ToriRSServer_Varp(player, varp) == 4 )
-            mcannon_pass("cave", "OPLOC1", "mcannon=4");
+        if( ToriRSServer_Varp(player, varp) == 5 )
+            mcannon_pass("cave", "OPLOC1", "mcannon=5");
     }
 
-    /* ---- Lollk crate 4 -> 5, owned spawn ---- */
+    /* ---- Lollk crate 5 -> 6 ---- */
     mcannon_snap(srv, player, 0, 2571, 9850);
     loc_slot = mcannon_find_loc(2571, 9850, 0, loc_crate, 4);
     if( loc_slot < 0 )
@@ -484,10 +503,10 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_crate, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         mcannon_drain_rewards(srv, player);
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 5, "untie should write mcannon=5, got %d",
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "untie should write mcannon=6, got %d",
                        ToriRSServer_Varp(player, varp));
-        if( ToriRSServer_Varp(player, varp) == 5 )
-            mcannon_pass("lollk", "OPLOC1", "mcannon=5 owned");
+        if( ToriRSServer_Varp(player, varp) == 6 )
+            mcannon_pass("lollk", "OPLOC1", "mcannon=6");
         child_slot = selftest_find_npc(srv, npc_lollk);
         if( child_slot >= 0 )
         {
@@ -496,17 +515,17 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         }
     }
 
-    /* ---- toolkit 5 -> 6 ---- */
+    /* ---- toolkit 6 -> 7 ---- */
     mcannon_snap(srv, player, 0, 2567, 3460);
     mcannon_talk(srv, player, npc_lawgof, law_slot);
     mcannon_choose(srv, player, 1);
     mcannon_drain(srv, player, 0);
     mcannon_drain_rewards(srv, player);
-    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 6, "toolkit accept should write mcannon=6, got %d",
+    SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 7, "toolkit accept should write mcannon=7, got %d",
                    ToriRSServer_Varp(player, varp));
     SELFTEST_CHECK(selftest_count_obj(player, obj_toolkit) >= 1, "toolkit grant should land");
-    if( ToriRSServer_Varp(player, varp) == 6 )
-        mcannon_pass("toolkit", "OPNPC1", "mcannon=6");
+    if( ToriRSServer_Varp(player, varp) == 7 )
+        mcannon_pass("toolkit", "OPNPC1", "mcannon=7");
 
     /* ---- toolkit on cannon opens repair; three pairings write 8 ---- */
     loc_slot = -1;
@@ -532,7 +551,9 @@ selftest_quest_mcannon(struct ToriRSServer* srv, struct ToriRSServerPlayer* play
         ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, use_id, -1, loc_slot);
         mcannon_drain(srv, player, 0);
         player->last_useitem = -1;
-        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 7, "toolkit use should write mcannon=7, got %d",
+        /* The toolkit's use opens the interface and writes no stage
+         * (RSProx index 4409 [1105]). */
+        SELFTEST_CHECK(ToriRSServer_Varp(player, varp) == 7, "toolkit use should leave mcannon=7, got %d",
                        ToriRSServer_Varp(player, varp));
 
         ToriRSServer_ScriptsRunIfButton(srv, com_tool3, 1);

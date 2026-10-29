@@ -9372,6 +9372,41 @@ script_command(
         if( !SSVM_PopInt(state, &coord) )
             return 1;
 
+        /*
+         * What the revert puts back. A `loc_add` onto a slot the map square's
+         * own loc stands in is LostCity's `World.changeLoc` of that loc
+         * (LocOps.ts LOC_ADD), and its timer returns it to its baseInfo; a
+         * loc added anywhere else is removed again. Removing instead
+         * left the ZoneMap holding "deleted" over the square's loc, so every
+         * later catch-up of the zone (a player arriving from elsewhere) re-sent
+         * a LOC_DEL and the loc was gone for them: Dwarf Cannon's camp gate,
+         * whose walk-through puts an inviswall in each leaf's slot for two
+         * ticks (RSProx index 4409 [155..157]), vanished for a player back
+         * from the goblin cave.
+         */
+        int revert_id = -1;
+        int revert_angle = angle;
+        {
+            struct ToriRSServerSceneLoc* standing = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(
+                coord_x(coord), coord_z(coord), coord_level(coord), shape));
+
+            struct ToriRSServerSceneLoc* map = ToriRSServer_SceneLoc(ToriRSServer_SceneFindStaticLoc(
+                coord_x(coord), coord_z(coord), coord_level(coord), shape));
+
+            /* The map's loc, or an earlier revert's copy of it: the first
+             * crossing's revert puts the gate back as an added loc of the
+             * same id and angle over its covered map loc, and the second
+             * crossing must restore it too (the 4409 port's first runs
+             * reverted that one to -1 and the gate went for good). Any other
+             * added loc is removed by its timer, as LostCity's is. */
+            if( standing && standing->active &&
+                (standing->is_static ||
+                 (map && map->loc_id == standing->loc_id && map->angle == standing->angle)) )
+            {
+                revert_id = standing->loc_id;
+                revert_angle = standing->angle;
+            }
+        }
         if( !ToriRSServer_WorldLocSet(srv, coord_x(coord), coord_z(coord), coord_level(coord),
                                    shape, loc_id, angle, TORIRSSERVER_LOC_SET_ADD) )
         {
@@ -9381,9 +9416,8 @@ script_command(
         }
         slot = ToriRSServer_SceneFindLocExact(coord_x(coord), coord_z(coord),
                                             coord_level(coord), shape);
-        /* -1 says "remove it again" rather than "put something back". */
-        ToriRSServer_WorldLocRevertQueue(srv, duration, -1, shape, angle, coord_x(coord),
-                                       coord_z(coord), coord_level(coord));
+        ToriRSServer_WorldLocRevertQueue(srv, duration, revert_id, shape, revert_angle,
+                                       coord_x(coord), coord_z(coord), coord_level(coord));
         /* The reference leaves the added loc active, so the next `loc_change`
          * or `loc_del` in the same script addresses it without a `loc_find`.
          * Outside the scene window there is no slot — the loc lives only in

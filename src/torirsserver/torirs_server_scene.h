@@ -290,6 +290,17 @@ ToriRSServer_SceneFindLocExact(
     int shape);
 
 /**
+ * The map square's own loc at this tile with this shape, active or covered by
+ * an added loc (a tombstone), or -1 when the square has none there.
+ */
+int
+ToriRSServer_SceneFindStaticLoc(
+    int x,
+    int z,
+    int level,
+    int shape);
+
+/**
  * The *live* loc with this id whose south-west corner is this tile, or -1.
  *
  * `loc_find`'s lookup — the reference's `Zone.getLoc(x, z, locId)`, corner tile
