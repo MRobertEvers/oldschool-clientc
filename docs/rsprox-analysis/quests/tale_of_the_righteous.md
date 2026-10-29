@@ -259,8 +259,15 @@ Stages 1-4, 7-13, 15 and 17 are this tree's wording, marked unverified.
   - The poison varp is re-sent on every landed spit.
   - The first poison splat follows the login clock.
   - The boss doesn't re-face when the player steps out and back [1296].
-  - A VM random-number correlation, seen when one trigger made two draws,
-    needs an engine look.
+- **Not a bug: the VM's random draws.** The fight agent saw two draws in one
+  trigger run always agree (7 of 7) and suspected a VM correlation. A probe
+  (2026-10-29) found none. It drew random(3) then random(2) 3000 times in one
+  player script run, 3000 times in one npc `ai_queue` run, and once in each of
+  600 npc runs. The six (a,b) cells gave chi-square 3.7, 8.4 and 7.6 on 5 df,
+  all under the 11.07 cutoff, and consecutive runs repeated their first draw
+  180 times in 599 (about 1/3 expected). Every run loads and saves its subject's
+  Java-Random state (`script_execute`), and the streams are seeded through
+  splitmix. The 7 of 7 was a 1-in-128 chance in a small sample.
 - **Quiz Master branches no recording reaches:**
   - Saying no, ignoring him (the wiki's lines on the Evil Twin's timing), the
     coins, another player's invitation.
