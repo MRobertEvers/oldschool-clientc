@@ -54,6 +54,21 @@ local HUNT_4378 = {
     "<col=000080>expensive.",
 }
 
+-- Fishing Contest, RSProx index 4404: stage 2 [677], stage 4 [1252..1261].
+local FC_4404_2 = {
+    "<str>The Dwarves will let me use the tunnel through White Wolf",
+    "<str><str>Mountain if I can win the Hemenster Fishing Competition",
+    "<col=000080>My <col=800000>fishing spot<col=000080> in the contest is <col=800000>next to the willow tree",
+    "<col=000080>I need to catch the <col=800000>biggest fish<col=000080> to win!",
+}
+local FC_4404_4 = {
+    "<str>The Dwarves will let me use the tunnel through White Wolf",
+    "<str><str>Mountain if I can win the Hemenster Fishing Competition.",
+    "<str>I easily won the contest by catching some Giant Carp.",
+    "<col=000080>I should take the <col=800000>Trophy<col=000080> back to the <col=800000>Dwarf<col=000080> at the side of <col=800000>White",
+    "<col=800000>Wolf Mountain<col=000080> and claim my <col=800000>reward",
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -101,6 +116,11 @@ return {
 
         set("::setvar varp71_hunt 1")
         exact("journal.hunt.rum", "Pirate's Treasure", HUNT_4378)
+
+        set("::setvar varp11_fishingcompo 2")
+        exact("journal.fishingcontest.willow", "Fishing Contest", FC_4404_2)
+        set("::setvar varp11_fishingcompo 4")
+        exact("journal.fishingcontest.won", "Fishing Contest", FC_4404_4)
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

@@ -280,6 +280,12 @@ ToriRSServer_SplitInit(
             break;
 
         styles_at(work, point.rest_start, colour);
+        /* A row that opens with its own colour overrides the carried one at
+         * once, so the carried tag would draw nothing; Jagex's rows have no
+         * such pair (RSProx index 4404 [677]: "<col=000080>I need to catch"
+         * after a row left in <col=800000>). */
+        if( strncmp(work + point.rest_start, "<col=", 5) == 0 )
+            colour[0] = '\0';
         rest_length = strlen(work + point.rest_start);
         prefix_length = strlen(colour);
         next = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), prefix_length + rest_length + 1);

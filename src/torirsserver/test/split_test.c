@@ -184,6 +184,37 @@ test_no_leak_without_close(struct SSVM_State* state)
     check(strcmp(state->split_lines[1], "next") == 0, "the row after it carries nothing");
 }
 
+static void
+test_own_colour_wins(struct SSVM_State* state)
+{
+    /* Fishing Contest at stage 2 (RSProx index 4404 [677]): the third row ends
+     * in <col=800000>, the fourth opens with <col=000080>. Jagex sends the
+     * fourth with no carried tag in front of its own. */
+    static const char* const text =
+        "<col=000080>My <col=800000>fishing spot<col=000080> in the contest is <col=800000>next to the willow tree|"
+        "<col=000080>I need to catch the <col=800000>biggest fish<col=000080> to win!|"
+        "after";
+
+    printf("\n-- a row that opens its own colour --\n");
+    if( !ToriRSServer_SplitInit(state, text, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    {
+        printf("FAIL split_init: %s\n", state->err.message);
+        Failures++;
+        return;
+    }
+    dump(state);
+
+    check(state->split_line_count == 3, "two pipes make three rows");
+    if( state->split_line_count != 3 )
+        return;
+    check(
+        strncmp(state->split_lines[1], "<col=000080>I need", 18) == 0,
+        "the row's own colour is not preceded by the carried one");
+    check(
+        strncmp(state->split_lines[2], "<col=000080>after", 17) == 0,
+        "a row with no colour of its own still inherits the open one");
+}
+
 int
 main(void)
 {
@@ -199,6 +230,7 @@ main(void)
     test_journal(state);
     test_soft_wrap(state);
     test_no_leak_without_close(state);
+    test_own_colour_wins(state);
 
     SSVM_StrPoolFree(&state->pool);
     free(state);
