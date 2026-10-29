@@ -4,6 +4,11 @@ Session 4415 (rev 241.1, world 369, 2026-10-29) plays Client of Kourend start to
 finish, then rides the Lovakengj Minecart Network from every station. Transcripts:
 `rsprox_index.py get 4415` (default and `--bas`).
 
+The same recorder's later sessions use the quest's rewards and the network again:
+4416 (The Queen of Thieves) and 4418 (The Depths of Despair) add memoir pages, use
+Reminisce and ride 7 more carts; 4418 breaks a Kourend Castle teleport tablet; 4419
+wields the memoirs. They are sections 8 and 9 and the 4416/4418 rows of section 7.
+
 Content:
 - `quests/quest_clientofkourend/scripts/clientofkourend.rs2`: rebuilt from this recording.
 - `quests/quest_clientofkourend/scripts/veos_ferry.rs2`: the crossing and the first arrival.
@@ -13,11 +18,18 @@ Content:
 - `general/scripts/interface_menu.rs2`: `~menu_new_pick`, interface 947.
 - `areas/area_arceuus/scripts/trossa.rs2`.
 - `interface_questjournal/scripts/quest_journal.rs2`: the journal title colour.
+- `general/scripts/enchanted_jewellry/kharedst_memoirs.rs2`: the reward book, rebuilt
+  from 4416 and 4418 (section 8).
+- `skill_magic/configs/magic_spells.dbrow`: the Kourend Castle Teleport landing
+  (section 9). `skill_magic/scripts/spells/teleport.rs2`: the teleport guards split
+  out as `~player_teleport_blocked`, for the memoirs' own cast.
 
 Tests:
 - `test/quests/clientofkourend.lua`
 - `test/minecarts/lovakengj_rides.lua`
 - `test/quests/xmarksthespot.lua` (its post-quest Veos check).
+- `test/magic/kharedst_memoirs.lua`: Inspect, the empty entry, both page adds,
+  Reminisce from the menu and from the right-click entry, Check, the castle tablet.
 
 ## 1. Action inventory (`rsprox_actions.py`), a verdict per row
 
@@ -159,6 +171,12 @@ The ride, A = the answer (13/13 recorded rides; ours on the trace, ride 1):
 | A+4 | `minimap_state` 0, busy 0, fade in, `minimap_toggle` 0 | same |
 | A+6 | overlay closed | same (queued, the player is free from A+4) |
 
+- 4416 and 4418 ride 7 more (Travel, `opnpc3`): Kingstown to Piscarilius (4416 [998]);
+  Kingstown to Hosidius West, Hosidius West to Hosidius South, Hosidius South to
+  Arceuus and back, Hosidius South to Kourend Woodland (4418 [97..541]). All 7 land
+  on the tiles above and teleport at A+3 (A+4 four times in 19, each a click the proxy
+  filed a tick early: the fade comes a tick after it, 4415 [1287..1288]). No conductor
+  turns to the player on Travel, in any of the three sessions; ours sends no face.
 - Your own station ([1332] Hordal, [1364] Ferain) gets one page from the conductor:
   chatcon1 "You're already here, human.", with the npc facing you. No coins are taken.
   Ours matches (test).
@@ -178,6 +196,47 @@ UNVERIFIED (wiki Lovakengj_Minecart_Network, Transcript:Loinur):
 - The 100,000-coin refund.
 - "Already here" from a cart loc.
 
+## 8. Kharedst's memoirs (4416, 4418; the quest's reward)
+
+Our tree had a wiki-era script (2026-08) on six private varps (6995..7000,
+`transmit=no`) with invented messages, no menu and no page Inspect. Jagex keeps it
+all on varp 1566's varbits, perm and transmitted: `hosidius_page`..`arceuus_page`
+(6030..6034) and `veos_memoir_charges` (6035). The quest hands the book over with
+none of either (4415).
+
+| interaction | R | ours | verdict |
+|---|---|---|---|
+| Reminisce, plain click (iop1) | C: busy, `chatmenu` "What would you like to remember?", 5 rows: `'<title>' - <house>` per page in, `<col=ff0000>The first entry is missing.<col=ff0000>` (second, third, ...) per page out (4416 [1207] [1216], 4418 [901] [905]) | same (test reads the rows) | fixed |
+| a missing entry | on the answer: "There is nothing here to remember.", menu closed (4418 [903]) | same | fixed |
+| an entry, A = the answer | A: `arceuus_necromancy_anim` (3865), `arceuus_teleport_spotanim` (1296, no height), `sound_area` 200 range 5, menu closed. A+3: memories - 1, "Kharedst's Memoirs now has <col=800080>N</col> memories remaining.", teleport, seq -1 (4416 [1218..1221], 4418 [907..910]) | same, on the trace (A, A+1, A+2, A+3) | fixed |
+| Reminisce, right-click entry (`if_subop`) | the same cast with no menu (the Book of the Dead, 362 [3967], same five places) | same (`last_subop` 1..5) | fixed; memoirs' own unrecorded |
+| landings | Lancalliums 1713,3610 / 1714,3611 / 1714,3612; Flute 1802,3748 / 1803,3749 / 1804,3748; Hearsay 1478,3575; Jubilation 1543,3762; Disposition 1680,3747 (4416, 4418, 362, 3133, 3910) | the wiki pins, within 2 (was 3) | matched |
+| a page on the book, either order | C: the page's varbit 1, memories + 20 (0 -> 20, 18 -> 38), the page gone, objbox of the page "You add an entry to Kharedst's Memoirs." (4416 [1201], 4418 [1041]) | same | fixed |
+| a page's Inspect (its iop1) | player page, chatneu2, "This looks like one of the pages to Kharedst's Memoirs. Maybe I should try adding it to the book." (4418 [1032..1033]) | same | fixed (was unbound) |
+| Wield (iop2) | the equip (4419 [725], synth 2238) | engine equip, wearpos 5 | generic |
+| quest completion | The Depths of Despair (4418) and The Queen of Thieves (4416) complete without setting their page's varbit; it goes out with the add | ours set it at completion in Depths of Despair and Ascent of Arceuus: removed | fixed |
+
+UNVERIFIED (no recording):
+- Check: the Book of the Dead's recorded box (362 [37], "On the inside of the cover a
+  message is displayed in dark ink. It reads: <col=800080>33/250 memories
+  remain.<col=800080>"), with the memoirs' limit, 20 a page (wiki).
+- Reminisce with no memories left, and past level 20 Wilderness (wording ours).
+- A page added twice ("Nothing interesting happens.").
+- Read (iop3): not bound. No recording reads the memoirs; the Book of the Dead's book
+  text (362 [494], interface 392, 30+ pages) is a later book with another title.
+- The Old Memorial's rune top-up and the secret page (`veos_memoir_secret`, 6036).
+
+`charges_selftest.rs2`'s two memoir procs now read the varbits. `pack/varp.alloc`
+retires 6995..7000.
+
+## 9. Kourend Castle Teleport (the quest's spell)
+
+| R | ours | verdict |
+|---|---|---|
+| 10 casts and tablet breaks land in 1639..1643 x 3671..3675: index 354 [3166] [3226] [3477], 362 [3057], 415 [2870], 786 [1575], 1016 [3410], 3907 [813], 3909 [3752], 4418 [36] (tablet) | `tele_coord` was 1631,3673 (wiki), 10 tiles west. Now 1641,3673, radius 2; the test's tablet lands 1639,3672 | fixed |
+
+The tablet's own shape is the generic one (`teleport_tablet.rs2`, checked for TGV).
+
 ## Open
 
 - Veos's possession anim/spotanim ([1592]) is `npc_anim_specific` / `npc_spotanim_specific`,
@@ -190,3 +249,10 @@ UNVERIFIED (wiki Lovakengj_Minecart_Network, Transcript:Loinur):
     identically in X Marks the Spot's test. Both pass headless, so this is a
     client/driver issue, not content.
 - The journal's blank row carries a colour tag (above).
+- The memoirs: Read, Check's wording, the Old Memorial, the secret page (section 8).
+- The Book of the Dead keeps its memories in an item var; Jagex spends
+  `veos_memoir_charges` for it too (362 [6762]). That is A Kingdom Divided's content,
+  not changed here.
+- The conductors' Talk-to is still unrecorded (4415, 4416, 4418, 1418 only Travel).
+- On scriptrun the journal rows (`journal.*`, `quest.journal`) fail: the headless
+  lane has no quest list to open. They pass on the client lane, as before.
