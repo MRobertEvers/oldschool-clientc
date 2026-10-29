@@ -4,6 +4,7 @@
 --   Pirate's Treasure, stage 1: the 6 rows of RSProx index 4378 [74], exactly.
 --   Observatory Quest, stages 2, 3, 4 and 6: RSProx index 4412, exactly.
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
+--   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -210,6 +211,100 @@ local COTS_4408_12 = {
     "<col=000080>and the <col=800000>Eastern Bank<col=000080>.",
 }
 
+-- Tale of the Righteous, RSProx index 4425: stage 5 [894], 6 [914], 14 [1975], 16 [2074].
+local TOR_4425_5 = {
+    "<str>I spoke to Phileas Rimor in Shayzien. He recently received a",
+    "<str>parcel containing evidence to suggest that his ancestor,",
+    "<str>Magnus Rimor, was murdered during an expedition to Mount",
+    "<str>Quidamortem many years ago. He asked me to visit the",
+    "<str>Library Historical Archive to learn more about this expedition.",
+    "<str>I spoke to Pagida in the Library Historical Archive. He didn't",
+    "<str>have any information on the expedition but did agree to let",
+    "<str>me access the Tower of Magic Prison which was built around",
+    "<str>the time the expedition took place.",
+    "<col=000080>I entered the <col=800000>Tower of Magic Prison<col=000080> and managed to unlock",
+    "<col=000080>one of the cells. Inside, I found a skeleton and a strange",
+    "<col=000080>message about <col=800000>Lizards<col=000080> carved into the floor. I should let",
+    "<col=000080><col=800000>Phileas<col=000080> know about this.",
+}
+local TOR_4425_6 = {
+    "<str>I spoke to Phileas Rimor in Shayzien. He recently received a",
+    "<str>parcel containing evidence to suggest that his ancestor,",
+    "<str>Magnus Rimor, was murdered during an expedition to Mount",
+    "<str>Quidamortem many years ago. He asked me to visit the",
+    "<str>Library Historical Archive to learn more about this expedition.",
+    "<str>I spoke to Pagida in the Library Historical Archive. He didn't",
+    "<str>have any information on the expedition but did agree to let",
+    "<str>me access the Tower of Magic Prison which was built around",
+    "<str>the time the expedition took place.",
+    "<str>I entered the Tower of Magic Prison and managed to unlock",
+    "<str>one of the cells. Inside, I found a skeleton and a strange",
+    "<str>message about Lizards carved into the floor.",
+    "<col=000080>I told <col=800000>Phileas<col=000080> about the message and he's now convinced that",
+    "<col=000080>someone survived the expedition. He'd like me to conduct an",
+    "<col=000080>expedition of my own to try and find out what the original",
+    "<col=000080>team discovered. I'll need to get permission from <col=800000>Lord Shiro",
+    "<col=800000>Shayzien<col=000080> to conduct research on <col=800000>Mount Quidamortem<col=000080>. I can",
+    "<col=000080>find him in the <col=800000>War Tent<col=000080> in the <col=800000>Shayzien Encampment<col=000080>.",
+}
+local TOR_4425_14 = {
+    "<str>I spoke to Phileas Rimor in Shayzien. He recently received a",
+    "<str>parcel containing evidence to suggest that his ancestor,",
+    "<str>Magnus Rimor, was murdered during an expedition to Mount",
+    "<str>Quidamortem many years ago. He asked me to visit the",
+    "<str>Library Historical Archive to learn more about this expedition.",
+    "<str>I spoke to Pagida in the Library Historical Archive. He didn't",
+    "<str>have any information on the expedition but did agree to let",
+    "<str>me access the Tower of Magic Prison which was built around",
+    "<str>the time the expedition took place.",
+    "<str>I entered the Tower of Magic Prison and managed to unlock",
+    "<str>one of the cells. Inside, I found a skeleton and a strange",
+    "<str>message about Lizards carved into the floor.",
+    "<str>I told Phileas about the message which convinced him that",
+    "<str>someone survived the expedition. He asked me to conduct an",
+    "<str>expedition of my own to try and find out what the original",
+    "<str>team discovered.",
+    "<col=000080>Following the advice of <col=800000>Historian Duffy<col=000080>, I entered a cave on",
+    "<col=000080>the western face of <col=800000>Mount Quidamortem<col=000080>. Inside, I made some",
+    "<col=000080>interesting discoveries. I found out that the cave was the",
+    "<col=000080>origin point of the <col=800000>Lizardman<col=000080> species and that they were",
+    "<col=000080>created during the time of <col=800000>King Shayzien VII<col=000080>. As well as this, I",
+    "<col=000080>discovered a <col=800000>Strange Altar<col=000080> which seemed to be acting as an",
+    "<col=000080>amplifier for the <col=800000>Dark Altar<col=000080>. I should return to <col=800000>Lord Shayzien<col=000080>",
+    "<col=000080>and let him know what I've discovered.",
+}
+local TOR_4425_16 = {
+    "<str>I spoke to Phileas Rimor in Shayzien. He recently received a",
+    "<str>parcel containing evidence to suggest that his ancestor,",
+    "<str>Magnus Rimor, was murdered during an expedition to Mount",
+    "<str>Quidamortem many years ago. He asked me to visit the",
+    "<str>Library Historical Archive to learn more about this expedition.",
+    "<str>I spoke to Pagida in the Library Historical Archive. He didn't",
+    "<str>have any information on the expedition but did agree to let",
+    "<str>me access the Tower of Magic Prison which was built around",
+    "<str>the time the expedition took place.",
+    "<str>I entered the Tower of Magic Prison and managed to unlock",
+    "<str>one of the cells. Inside, I found a skeleton and a strange",
+    "<str>message about Lizards carved into the floor.",
+    "<str>I told Phileas about the message which convinced him that",
+    "<str>someone survived the expedition. He asked me to conduct an",
+    "<str>expedition of my own to try and find out what the original",
+    "<str>team discovered.",
+    "<str>Following the advice of Historian Duffy, I entered a cave on",
+    "<str>the western face of Mount Quidamortem. Inside, I made some",
+    "<str>interesting discoveries. I found out that the cave was the",
+    "<str>origin point of the Lizardman species and that they were",
+    "<str>created during the time of King Shayzien VII. As well as this, I",
+    "<str>discovered an altar which seemed to be acting as an amplifier",
+    "<str>for the Dark Altar.",
+    "<str>I told Lord Shayzien about my discoveries on Mount",
+    "<str>Quidamortem. He wanted to learn more about the parcel that",
+    "<str>Phileas Rimor received and asked me to go and retrieve it.",
+    "<col=000080>I went to the home of <col=800000>Phileas Rimor<col=000080> but I found the place",
+    "<col=000080>trashed and <col=800000>Phileas<col=000080> gone. I should tell <col=800000>Lord Shayzien<col=000080> about",
+    "<col=000080>this.",
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -295,6 +390,11 @@ return {
         exact("journal.childrenofthesun.6", "Children of the Sun", COTS_4408_6)
         set("::setvar varb9632_vmq1 12")
         exact("journal.childrenofthesun.12", "Children of the Sun", COTS_4408_12)
+
+        for _, st in ipairs({ { 5, TOR_4425_5 }, { 6, TOR_4425_6 }, { 14, TOR_4425_14 }, { 16, TOR_4425_16 } }) do
+            set("::setvar varb6358_shayzienquest " .. st[1])
+            exact("journal.taleoftherighteous." .. st[1], "Tale of the Righteous", st[2])
+        end
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

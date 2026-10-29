@@ -36,7 +36,7 @@ return {
         local tor_bind = {
             varp = "varb6358_shayzienquest",
             constants = {
-                not_started = 0, started = 1, prison = 2, gate_open = 4, skeleton = 5, shiro = 6, duffy = 7,
+                not_started = 0, started = 1, prison = 3, gate_open = 4, skeleton = 5, shiro = 6, duffy = 7,
                 rope = 8, cavern = 9, altar = 10, surface = 11, cave2 = 12, gnosi = 13, shiro2 = 14,
                 house = 15, finish = 16, complete = 17,
             },
@@ -67,13 +67,9 @@ return {
         -- Travel the real way: Port Sarim -> Veos "Can you take me somewhere?" -> "I'd like to travel to Port Piscarilius, please."
         -- (Transcript:Veos "Subsequent dialogue", veos_ferry.rs2) -> Port Piscarilius dock -> overland to Phileas's street.
         t.exec("goto-veosSarim", t.player.goto_tile, 3054, 3246, 0)
-        t.exec("talkToVeos", t.player.talk_to, "veos_sarim", 1)
-        t.exec("talkToVeos-menu", t.chat.drain, { stop_at = "options" })
-        t.exec("talkToVeos-somewhere", t.chat.choose, "Can you take me somewhere?")
-        t.exec("talkToVeos-where", t.chat.drain, { stop_at = "options" })
-        t.exec("talkToVeos-sail", t.chat.choose, "I'd like to travel to Port Piscarilius, please.")
-        t.exec("talkToVeos-done", t.chat.drain, {})
-        t.ticks(4)
+        -- Veos's own "Port Piscarilius" op (veos_ferry.rs2, RSProx index 4415's crossing)
+        t.player.press("veos_sarim", 3, 20)
+        t.ticks(12)
         do local _, da = t.world.tile(); t.check("talkToVeos-landed", da ~= nil and da.x >= 1800 and da.x < 1850, "landed at the Piscarilius dock at " .. tostring(da and (da.x .. "," .. da.z))) end
         t.exec("goto-phileasStreet", t.player.goto_tile, 1538, 3570, 0)
         t.exec("enterHouse-door", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
@@ -138,7 +134,7 @@ return {
         t.ticks(4)
         do local r, h = t.world.tile(); t.check("teleportToArchive.arrived", r == "ok" and h.z > 10000, tostring(r) .. " " .. (r == "ok" and (h.x .. "," .. h.z .. "," .. h.level) or tostring(h)) .. " (want the archive, z > 10000)") end
 
-        -- guide 1.3 talkToPagida (stage 1 -> 2, the prison copy)
+        -- guide 1.3 talkToPagida (stage 1 -> 3 with "Well the prison is abandoned", RSProx index 4425 [597]; the prison copy)
         t.exec("talkToPagida", t.player.talk_to, "raidquest_library_traphunter", 1)
         t.exec("talkToPagida-dialog", t.chat.play, {
             "npc:Hello there, what can I do",
@@ -148,7 +144,7 @@ return {
             "player:I'm trying to find out more",
             "npc:I'm afraid I don't have any information",
             "npc:I could tell you about",
-            "player:Well it's either this",
+            "player:Well it's not like I have anything better to do.",
             "npc:During the time of King Shayzien VII",
             "npc:In fact, he oversaw",
             "player:When was this?",
@@ -167,37 +163,55 @@ return {
         local oz = ptile.z - 10199
         t.check("prison.copy", ptile.x >= 6400, "private prison copy; entry tile " .. ptile.x .. "," .. ptile.z .. " (world-equivalent 1588,10199), offset " .. ox .. "," .. oz)
 
-        -- guide 1.4 pushStrangeDeviceWest: push from the east side, the device slides to x 1575
-        t.exec("pushStrangeDeviceWest", t.player.press, "shayzienquest_puzzle_piece", 1, 20)
-        t.ticks(8)
-        do local r, row = t.npc.nearest("shayzienquest_puzzle_piece", 20); t.check("pushStrangeDeviceWest.read", r == "ok", tostring(r) .. " " .. (r == "ok" and (tostring(row.x) .. "," .. tostring(row.z)) or tostring(row)) .. " (want x 1575 world => " .. (1575 + ox) .. ")") end
+        -- The prison as RSProx index 4425 plays it [605..718]: the device (2x2, SW 1577,10199) is pushed from its east
+        -- side to x 1574, struck with magic from the north (water at the yellow crystal, 1574,10196), with melee from
+        -- the south (fire at the cyan one, 1574,10203), pushed from its west side to x 1580 and struck with ranged from
+        -- the south (earth at the magenta one, 1581,10203): the gates spring open.
+        local function device_x()
+            local r, row = t.npc.nearest("shayzienquest_puzzle_piece", 20)
+            if r ~= "ok" then return nil end
+            return row.x - ox
+        end
+        local function push_to(want, side)
+            for i = 1, 8 do
+                local nx = device_x()
+                if nx == nil or nx == want then break end
+                local px = (side == "east") and (nx + 2) or (nx - 1)
+                t.player.walk_to(px + ox, 10199 + oz, 30)
+                t.exec("pushStrangeDevice-" .. side .. "-" .. i, t.player.press, "shayzienquest_puzzle_piece", 1, 20)
+                t.ticks(4)
+            end
+            local nx = device_x()
+            t.check("pushStrangeDevice." .. side, nx == want, "device SW x " .. tostring(nx) .. " (want " .. want .. ")")
+        end
+        push_to(1574, "east")
 
-        -- guide 1.5 attackWithMagic: from the north side of the device at the west end
-        do local wr = t.player.walk_to(1577 + ox, 10203 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithMagic", wr == "ok", "walk_to 1577 + ox,10203 + oz (instance tile) -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
-        t.exec("attackWithMagic", t.player.cast, "wind_strike", "shayzienquest_puzzle_piece", 14)
-        t.ticks(4)
-        t.exec("attackWithMagic.cleansed", t.msg.expect, "crystal turns white")
+        do local wr = t.player.walk_to(1574 + ox, 10201 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithMagic", wr == "ok", "walk_to 1574 + ox,10201 + oz -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
+        -- a cast can splash (the wiki; the recorded one landed [655]): cast again until the crystal turns
+        local casts = 0
+        for i = 1, 4 do
+            casts = i
+            t.exec("attackWithMagic-" .. i, t.player.cast, "wind_strike", "shayzienquest_puzzle_piece", 14)
+            t.ticks(6)
+            if t.world.loc_near("shayzienquest_crystal_yellow", 20) ~= "ok" then break end
+        end
+        do local lr = t.world.loc_near("shayzienquest_crystal_yellow", 20); t.check("attackWithMagic.cleansed", lr ~= "ok", "yellow crystal gone after " .. casts .. " cast(s): " .. tostring(lr)) end
 
-        -- guide 1.6 attackWithMelee: from the south side, scimitar wielded
-        do local wr = t.player.walk_to(1576 + ox, 10199 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithMelee", wr == "ok", "walk_to 1576 + ox,10199 + oz (instance tile) -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
+        do local wr = t.player.walk_to(1574 + ox, 10198 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithMelee", wr == "ok", "walk_to 1574 + ox,10198 + oz -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
         local melee_target = t.player.by_symbol("npc", "shayzienquest_puzzle_piece")
         t.exec("attackWithMelee", t.drive.click_minimenu, melee_target, 2)
         t.ticks(6)
-        t.exec("attackWithMelee.cleansed", t.msg.expect, "crystal turns white")
+        do local lr = t.world.loc_near("shayzienquest_crystal_cyan", 20); t.check("attackWithMelee.cleansed", lr ~= "ok", "cyan crystal gone: " .. tostring(lr)) end
 
-        -- guide 1.7 pushStrangeDeviceEast: push from the west side
-        do local wr = t.player.walk_to(1573 + ox, 10200 + oz, 30); local _, wt = t.world.tile(); t.check("goto-pushStrangeDeviceEast", wr == "ok", "walk_to 1573 + ox,10200 + oz (instance tile) -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
-        t.exec("pushStrangeDeviceEast", t.player.press, "shayzienquest_puzzle_piece", 1, 20)
-        t.ticks(8)
+        push_to(1580, "west")
 
-        -- guide 1.8 attackWithRanged: from the south side of the east end, bow and arrows wielded
         t.exec("wield-shortbow", t.player.equip, "magic_shortbow")
         t.exec("wield-arrows", t.player.equip, "rune_arrow")
-        do local wr = t.player.walk_to(1581 + ox, 10198 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithRanged", wr == "ok", "walk_to 1581 + ox,10198 + oz (instance tile) -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
+        do local wr = t.player.walk_to(1581 + ox, 10198 + oz, 30); local _, wt = t.world.tile(); t.check("goto-attackWithRanged", wr == "ok", "walk_to 1581 + ox,10198 + oz -> " .. tostring(wr) .. ", standing at " .. tostring(wt.x) .. "," .. tostring(wt.z)) end
         local ranged_target = t.player.by_symbol("npc", "shayzienquest_puzzle_piece")
         t.exec("attackWithRanged", t.drive.click_minimenu, ranged_target, 2)
         t.ticks(6)
-        t.exec("attackWithRanged.cleansed", t.msg.expect, "With the last crystal cleansed")
+        t.exec("attackWithRanged.cleansed", t.msg.expect, "The cell gates spring open.")
         t.expect("quest.stage.gate_open", t.quest.expect_stage("gate_open"))
 
         -- guide 1.9 investigateSkeleton
@@ -335,15 +349,16 @@ return {
         t.ticks(2)
         t.expect("quest.stage.rope", t.quest.expect_stage("rope"))
 
-        -- guide 1.14 useRopeOnCrevice (stage 8 -> 9): the prompt after the rope is answered No, 1.15 enters.
-        t.exec("goto-useRopeOnCrevice", t.player.goto_tile, 1213, 3559, 0)
-        local crevice, crevice_ok = t.player.by_symbol("loc", "shayzienquest_cave")
-        t.exec("useRopeOnCrevice", t.player.use_on, "rope", crevice)
+        -- guide 1.14 (stage 8 -> 9): Inspect with a rope ties it on (RSProx index 4425 [1192]: the rope used up, an
+        -- objbox); the prompt is answered No here, then 1.15 enters through Enter.
+        t.exec("goto-useRopeOnCrevice", t.player.goto_tile, 1215, 3557, 0)
+        t.exec("useRopeOnCrevice", t.player.click_loc, "shayzienquest_cave", 1)
         t.exec("useRopeOnCrevice-dialog", t.chat.play, {
-            "mesbox:You attach a rope",
+            "objbox:You attach a rope to the crevice.",
             "options",
             "choose:No.",
         })
+        t.check("useRopeOnCrevice.rope", select(2, t.inv.count("rope")) == 0, "the rope is used up")
         t.ticks(2)
         t.expect("quest.stage.cavern", t.quest.expect_stage("cavern"))
 
@@ -355,21 +370,23 @@ return {
         })
         t.ticks(6)
         local _, ctile = t.world.tile()
-        local cx = ctile.x - 1170
-        local cz = ctile.z - 9972
-        t.check("enterCrevice.copy", ctile.x ~= 1170, "private cave copy; entry tile " .. ctile.x .. "," .. ctile.z .. " (world-equivalent 1170,9972), offset " .. cx .. "," .. cz)
+        local cx = ctile.x - 1169
+        local cz = ctile.z - 9973
+        t.check("enterCrevice.copy", ctile.x ~= 1169, "private cave copy; entry tile " .. ctile.x .. "," .. ctile.z .. " (world-equivalent 1169,9973), offset " .. cx .. "," .. cz)
 
         -- guide 1.16 mineRockfall, 1.17 pushBoulder
         t.exec("mineRockfall", t.player.click_loc, "shayzienquest_blockage", 1)
-        t.exec("mineRockfall.msg", t.msg.await, "You clear the rockfall", 200)
+        t.exec("mineRockfall.msg", t.msg.await, "...and successfully mine through it.", 30)
         t.exec("pushBoulder", t.player.click_loc, "shayzienquest_boulder", 1)
         t.ticks(10)
-        t.exec("pushBoulder.msg", t.msg.expect, "You push the boulder")
+        t.exec("pushBoulder.msg", t.msg.expect, "You push the boulder out of the way.")
+        do local lr = t.world.loc_near("shayzienquest_boulder_noop", 30); t.check("pushBoulder.rolled", lr == "ok", "the boulder at the bottom of its corridor: " .. tostring(lr)) end
 
-        -- guide 1.19 tryToEnterBarrier (the lizardman appears), 1.18 killLizardman
-        t.exec("tryToEnterBarrier", t.player.click_loc, "shayzienquest_cave_door", 1)
-        t.ticks(4)
-        t.exec("tryToEnterBarrier.msg", t.msg.expect, "a corrupt lizardman appears")
+        -- guide 1.19, 1.18: walking into the room in front of the magic gate calls the lizardman (RSProx index 4425
+        -- [1255..1266]: the fade, the player put on 1172,9953, the boss lands on 1172,9948), then the fight.
+        t.player.walk_to(1175 + cx, 9951 + cz, 40)
+        t.ticks(14)
+        do local r = t.npc.nearest("shayzienquest_lizardman_boss", 10); t.check("bossArrives", r == "ok", "the corrupt lizardman is up: " .. tostring(r)) end
         t.exec("killLizardman", t.player.attack, "shayzienquest_lizardman_boss", 2, 30)
         local _, food0 = t.inv.count("shark")
         local _, kill_detail = t.exec("killLizardman.dead", t.npc.await_dead_engaged, 300, 20, { eat = { item = "shark", below = 40 } })
@@ -380,7 +397,10 @@ return {
         t.expect("quest.stage.altar", t.quest.expect_stage("altar"))
 
         -- guide 1.20 inspectUnstableAltar (stage 10 -> 11): through the gate, then the altar
-        t.exec("passMagicGate", t.player.click_loc, "shayzienquest_cave_door", 1)
+        do -- the gate walks the player three tiles through it (RSProx index 4425 [1388..1392]); no line or page answers
+            local _, g0 = t.world.tile(); t.player.click_loc("shayzienquest_cave_door", 1); t.ticks(4); local _, g1 = t.world.tile()
+            t.check("passMagicGate", g0 and g1 and math.abs(g1.z - g0.z) >= 3, "through the magic gate: z " .. tostring(g0 and g0.z) .. " -> " .. tostring(g1 and g1.z))
+        end
         t.ticks(4)
         t.exec("inspectUnstableAltar", t.player.click_loc, "shayzienquest_lab_altar", 1)
         t.exec("inspectUnstableAltar-dialog", t.chat.play, {
@@ -394,7 +414,10 @@ return {
         t.expect("quest.stage.surface", t.quest.expect_stage("surface"))
 
         -- guide 1.22 leaveCave, 1.21 returnToDuffy (stage 11 -> 12)
-        t.exec("passMagicGate-out", t.player.click_loc, "shayzienquest_cave_door", 1)
+        do -- the gate walks the player three tiles through it (RSProx index 4425 [1388..1392]); no line or page answers
+            local _, g0 = t.world.tile(); t.player.click_loc("shayzienquest_cave_door", 1); t.ticks(4); local _, g1 = t.world.tile()
+            t.check("passMagicGate-out", g0 and g1 and math.abs(g1.z - g0.z) >= 3, "through the magic gate: z " .. tostring(g0 and g0.z) .. " -> " .. tostring(g1 and g1.z))
+        end
         t.ticks(4)
         t.exec("leaveCave", t.player.click_loc, "shayzienquest_lab_exit", 1)
         t.ticks(4)
@@ -409,11 +432,11 @@ return {
             "player:Don't worry, I took care of it.",
             "npc:Well in that case",
         })
-        t.ticks(2)
+        t.ticks(6) -- the fade: the stage two ticks after the click (RSProx index 4425 [1593..1598])
         t.expect("quest.stage.cave2", t.quest.expect_stage("cave2"))
 
         -- guide 1.23 enterCreviceAgain, 1.24 talkToDuffyInCrevice (12 -> 13)
-        t.exec("goto-enterCreviceAgain", t.player.goto_tile, 1213, 3559, 0)
+        t.exec("goto-enterCreviceAgain", t.player.goto_tile, 1215, 3557, 0)
         t.exec("enterCreviceAgain", t.player.click_loc, "shayzienquest_cave", 1)
         t.exec("enterCreviceAgain-dialog", t.chat.play, {
             "options",
@@ -422,13 +445,16 @@ return {
         t.ticks(6)
         -- a fresh private copy: its offset is read again, never reused from the first visit
         local _, c2tile = t.world.tile()
-        local c2x = c2tile.x - 1170
-        local c2z = c2tile.z - 9972
-        t.check("enterCreviceAgain.copy", c2tile.x >= 6400, "private cave copy; entry tile " .. c2tile.x .. "," .. c2tile.z .. " (world-equivalent 1170,9972), offset " .. c2x .. "," .. c2z .. " (first visit " .. cx .. "," .. cz .. ")")
+        local c2x = c2tile.x - 1169
+        local c2z = c2tile.z - 9973
+        t.check("enterCreviceAgain.copy", c2tile.x >= 6400, "private cave copy; entry tile " .. c2tile.x .. "," .. c2tile.z .. " (world-equivalent 1169,9973), offset " .. c2x .. "," .. c2z .. " (first visit " .. cx .. "," .. cz .. ")")
         t.player.walk_to(1171 + c2x, 9956 + c2z, 30) -- toward the gate; the click row below is the assertion
         t.drive.camera(0, 383, 1100)
         t.ticks(2)
-        t.exec("passMagicGate-again", t.player.click_loc, "shayzienquest_cave_door", 1)
+        do -- the gate walks the player three tiles through it (RSProx index 4425 [1388..1392]); no line or page answers
+            local _, g0 = t.world.tile(); t.player.click_loc("shayzienquest_cave_door", 1); t.ticks(4); local _, g1 = t.world.tile()
+            t.check("passMagicGate-again", g0 and g1 and math.abs(g1.z - g0.z) >= 3, "through the magic gate: z " .. tostring(g0 and g0.z) .. " -> " .. tostring(g1 and g1.z))
+        end
         t.ticks(4)
         t.exec("talkToDuffyInCrevice", t.player.talk_to, "shayzienquest_duffy", 1)
         t.exec("talkToDuffyInCrevice-dialog", t.chat.play, {
@@ -472,7 +498,10 @@ return {
         })
         t.ticks(2)
         t.expect("quest.stage.shiro2", t.quest.expect_stage("shiro2"))
-        t.exec("passMagicGate-leave", t.player.click_loc, "shayzienquest_cave_door", 1)
+        do -- the gate walks the player three tiles through it (RSProx index 4425 [1388..1392]); no line or page answers
+            local _, g0 = t.world.tile(); t.player.click_loc("shayzienquest_cave_door", 1); t.ticks(4); local _, g1 = t.world.tile()
+            t.check("passMagicGate-leave", g0 and g1 and math.abs(g1.z - g0.z) >= 3, "through the magic gate: z " .. tostring(g0 and g0.z) .. " -> " .. tostring(g1 and g1.z))
+        end
         t.ticks(4)
         t.exec("leaveCave-again", t.player.click_loc, "shayzienquest_lab_exit", 1)
         t.ticks(4)
@@ -525,6 +554,9 @@ return {
                 t.player.walk_to(1542, 3570, 10)
             else
                 t.exec("returnToPhileasTent-doorstate", t.player.click_loc, "wallkit_shayzien_door01_l_reverse", 1, { at = { 1540, 3570 } })
+                t.ticks(2)
+                -- the doorway itself fires nothing; the step onto 1541,3570 does (RSProx index 4425 [2058..2064])
+                t.player.walk_to(1542, 3570, 10)
             end
         end
         t.exec("returnToPhileasTent.await", t.var.await, "varb6358_shayzienquest", 16, 30)
@@ -571,6 +603,7 @@ return {
         local _, coins1 = t.inv.count("coins")
         t.check("reward.coins", (coins1 or 0) - (coins0 or 0) == 8000, "coins " .. tostring(coins0) .. " -> " .. tostring(coins1) .. " (want +8000)")
         t.expect("reward.page", t.inv.expect_has("veos_memoirs_shay_page", 1))
+        t.check("reward.varbit", select(2, t.var.server("varb6359_shayzienquest_reward")) == 1, "shayzienquest_reward = 1 (RSProx index 4425 [2136])")
         t.finish(0)
     end,
 }

@@ -153,15 +153,16 @@ return {
             "player:Thanks!" })
         t.check("guide.unlock", cr == "ok" and sv("varb5421_raids_guide_travel_unlock") == 1, tostring(tr) .. " " .. tostring(cd))
         tr = t.player.talk_to("raids_mountainguide_temple_multi", 1)
+        -- the trip: no spoken answer, a fade, the teleport two ticks after the click (RSProx index 4425 [1615..1618])
         cr, cd = t.chat.play({ "player:Can you take me somewhere?", "npc:Of course. Where would you like to go?",
-            "options", "choose:The Shayzien Outpost.", "player:The Shayzien Outpost." })
-        t.ticks(3)
+            "options", "choose:The Shayzien Outpost." })
+        t.ticks(5)
         local _, tile = t.world.tile()
         t.check("guide.outpost", cr == "ok" and tile ~= nil and math.abs(tile.x - 1401) <= 3 and math.abs(tile.z - 3536) <= 3,
             tostring(cd) .. " at " .. (tile and (tile.x .. "," .. tile.z) or "?"))
         tr = t.player.talk_to("raids_mountainguide_wall_multi", 3)
-        cr, cd = t.chat.play({ "options", "choose:Mount Quidamortem.", "player:Mount Quidamortem." })
-        t.ticks(3)
+        cr, cd = t.chat.play({ "options", "choose:Mount Quidamortem." })
+        t.ticks(5)
         _, tile = t.world.tile()
         t.check("guide.back", cr == "ok" and tile ~= nil and math.abs(tile.x - 1275) <= 3 and math.abs(tile.z - 3559) <= 3,
             tostring(tr) .. " " .. tostring(cd) .. " at " .. (tile and (tile.x .. "," .. tile.z) or "?"))
