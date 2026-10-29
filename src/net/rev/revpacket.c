@@ -66,6 +66,35 @@ gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type)
     }
 }
 
+int
+gameproto_packet_writes_interface_component(enum GameProtoPktName packet_type)
+{
+    switch( packet_type )
+    {
+    case PKT_NAME_IF_SETANGLE:
+    case PKT_NAME_IF_SETANIM:
+    case PKT_NAME_IF_SETCOLOUR:
+    case PKT_NAME_IF_SETEVENTS:
+    case PKT_NAME_IF_SETHIDE:
+    case PKT_NAME_IF_SETMODEL:
+    case PKT_NAME_IF_SETNPCHEAD:
+    case PKT_NAME_IF_SETNPCHEAD_ACTIVE:
+    case PKT_NAME_IF_SETOBJECT:
+    case PKT_NAME_IF_SETPLAYERHEAD:
+    case PKT_NAME_IF_SETPLAYERMODEL_BASECOLOUR:
+    case PKT_NAME_IF_SETPLAYERMODEL_BODYTYPE:
+    case PKT_NAME_IF_SETPLAYERMODEL_OBJ:
+    case PKT_NAME_IF_SETPLAYERMODEL_SELF:
+    case PKT_NAME_IF_SETPOSITION:
+    case PKT_NAME_IF_SETROTATESPEED:
+    case PKT_NAME_IF_SETSCROLLPOS:
+    case PKT_NAME_IF_SETTEXT:
+        return 1;
+    default:
+        return 0;
+    }
+}
+
 /*
  * Every parser's heap payload is ToriMem_Net()'s, except four still on libc
  * because code outside src/net frees them too: _map_rebuild.zones and

@@ -2860,9 +2860,13 @@ struct App
      * jigsaw piece (b72). So `app_pump_net_packets` releases the held scripts
      * onto the packet pipeline AHEAD of any packet
      * `gameproto_packet_changes_interface_mounts` names: they run before the
-     * mount change, against every packet of the tick before them. Property
-     * writes (IF_SETTEXT, inventories, varps) do not release them -- that is
-     * the price checker case above, which the hold exists for.
+     * mount change, against every packet of the tick before them. A
+     * component property write (`gameproto_packet_writes_interface_component`:
+     * IF_SETTEXT, IF_SETHIDE, ...) releases them too, so a script and a packet
+     * writing the same component keep wire order (Jagex's journal reset before
+     * its rows, RSProx index 4400 [2130]). Inventory and varp writes do not
+     * release them -- that is the price checker case above, which the hold
+     * exists for.
      *
      * The queue itself is game/rs_clientscript_queue.h, including the backstop
      * cycle a fence that never arrives is measured against.

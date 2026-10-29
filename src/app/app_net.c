@@ -723,8 +723,15 @@ app_pump_net_packets(struct App* app)
              * serial, so the scripts settle before the mount task the packet
              * enqueues behind itself -- the CS2 runner would only reach them
              * after the close had already landed.
+             *
+             * Likewise ahead of a component property write (IF_SETTEXT, ...):
+             * a script that writes the same component keeps its wire order.
+             * Held past them, Jagex's `quest_journal_reset` ran after the
+             * journal rows it precedes and blanked every subquest page of
+             * Recipe for Disaster (RSProx index 4400 [2130]).
              */
-            if( gameproto_packet_changes_interface_mounts(packet.packet_type) &&
+            if( (gameproto_packet_changes_interface_mounts(packet.packet_type) ||
+                 gameproto_packet_writes_interface_component(packet.packet_type)) &&
                 RS_ClientScriptQueue_Count(&app->pending_clientscripts) > 0 )
                 App_FlushPendingClientScripts(app, &app->exec_runner);
             TaskRunner_AddRenderBlockingSerialTask(&app->exec_runner, CreateTask_GameProtoExec(app, &packet));

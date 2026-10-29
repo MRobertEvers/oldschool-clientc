@@ -1570,4 +1570,18 @@ gameproto_packet_may_mutate_ui(enum GameProtoPktName packet_type);
 int
 gameproto_packet_changes_interface_mounts(enum GameProtoPktName packet_type);
 
+/**
+ * Does this packet's exec write a property of one interface component (its
+ * text, hide flag, colour, model, events, ...)?
+ *
+ * The packet pump releases the held RUNCLIENTSCRIPTs ahead of these too: a
+ * script that writes the same component must keep its wire order against the
+ * packet. Jagex's journal page sends `quest_journal_reset` (5240, every qj row
+ * to "") and THEN the rows' IF_SETTEXTs (RSProx index 4400 [2130]); held to
+ * the next mount change, the reset ran after the rows and blanked the page.
+ * Inventory and varp writes still do not release them (the price checker).
+ */
+int
+gameproto_packet_writes_interface_component(enum GameProtoPktName packet_type);
+
 #endif
