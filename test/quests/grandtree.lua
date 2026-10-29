@@ -1,587 +1,754 @@
--- The Grand Tree (varp grandtree). Client-driven end to end: every guide step is a real row.
--- Guide source: Quest Helper helpers/quests/thegrandtree/. Requirement: Agility 25 (::setlevel).
--- Combat gear and sharks are the guide's recommended kit (::give); the foreman and the black demon
--- are fought for real. Quest state is only ever advanced by the quest's own dialogue and locs.
+-- The Grand Tree, played the way RSProx index 4429 plays it, end to end
+-- (docs/rsprox-analysis/quests/the_grand_tree.md; every page asserted is a
+-- recorded page, `[tick]` cites are 4429's). Content:
+-- OSRS-Content/osrs-content/server/scripts/quests/quest_grandtree/ and
+-- areas/area_gnome/scripts/{hazelmere,gnome_glider,gnome_gate}.rs2.
 --
--- Every closed space is crossed on foot, in and out, on every visit (door rule, owner 2026-10-03):
---   * the Stronghold's gnome_areagate 2459,3383 is the only way in on foot (reach.py 2461,3386 ->
---     2461,3380 UNREACHABLE at margins 80/160/300): cross_gate on every trip;
---   * the Grand Tree's ground floor is a 20-tile pocket behind the walk-through tree door
---     (treedoorl 2464,3492, gnome_gate.rs2 @open_tree_door): cross_gate on every visit;
---   * the tree's floors, Glough's house, Hazelmere's hut, Anita's room and Glough's watchtower are
---     climbed by their ladders/stairs/tree (t.player.climb); Hazelmere's elfdoor by pass_door;
---   * the Karamja shipyard is a fenced yard behind grandtree_fencegate_l 2945,3041;
---   * Lumbridge -> Kandarin and Karamja -> Kandarin are a real Camelot Teleport each (Karamja is an
---     island and the glider crashes, gnome_glider.rs2:54); overland hops depart and land on open ground.
-
--- The Grand Tree's ladders stand on 2466,3495 on every floor and move the player one plane on the
--- tile it stands on (ladders.loc climb_up_ladder / climb_spiral_middle_ladder / climb_down_ladder).
-local TREE_LADDERS_UP = {
-    { "F0ToF1", "grandtree_ladderbottom", 1, 0 },
-    { "F1ToF2", "grandtree_laddermiddle_bottom", 2, 1 },
-    { "F2ToF3", "grandtree_laddermiddle_top", 2, 2 },
-}
-local TREE_LADDERS_DOWN = {
-    { "F3ToF2", "grandtree_laddertop", 1, 3 },
-    { "F2ToF1", "grandtree_laddermiddle_top", 3, 2 },
-    { "F1ToF0", "grandtree_laddermiddle_bottom", 3, 1 },
-}
-
+-- The recorder started with Agility below 25 and combat below 50 (the start's
+-- warning names both, [281]) and drank an agility potion before the tree
+-- ([1544]); the player here has the Agility and the potion, but melee levels
+-- from the start (the linter keeps stats in setup), so the warning is its
+-- skills-only line. The demon was fire-struck from a safespot ([1633..1913],
+-- the recorder's kit); here it is fought in the recommended kit. Travel between
+-- scenes is ::tele (the recorder's teleports are generic content); every
+-- quest door, ladder, cell, cart and gate is played for real. Femi was helped
+-- before the recording began, so the setup marks her boxes lifted.
 return {
     id = "grandtree",
     fixture = "fresh_lumbridge.ini",
+    max_frames = 240000,
     setup = {
-        "::clearinv", -- the fixture's fourteen tutorial slots, so the quest's items fit
-        "::setlevel agility 25",
-        "::setlevel hitpoints 99",
+        "::clearinv",
+        "::setlevel agility 24",
+        -- Melee for the demon: stats belong in setup (lint), so the start's
+        -- warning is its skills-only line here, not the recorder's two.
         "::setlevel attack 99",
         "::setlevel strength 99",
         "::setlevel defence 99",
+        "::setlevel hitpoints 99",
+        "::give 4dose1agility 1",
         "::give rune_scimitar 1",
-        "::give mithril_platebody 1",
-        "::give rune_platelegs 1",
         "::give rune_full_helm 1",
+        "::give rune_chainbody 1",
+        "::give rune_platelegs 1",
         "::give rune_kiteshield 1",
-        "::give shark 10",
-        -- two Camelot Teleports (magic_spells.dbrow magic_spell_teleport_camelot: level 45, 5 air
-        -- + 1 law): Lumbridge -> Kandarin past the members' wall, and off Karamja after the glider crash
-        "::setlevel magic 45",
-        "::give airrune 10",
-        "::give lawrune 2",
+        "::give shark 12",
+        "::setvar varp6531_femi_help 2",
+        "::tele 0_38_54_34_40",
     },
 
     run = function(t)
-        local function tile_text(r, tl)
-            if r ~= "ok" or type(tl) ~= "table" then
-                return tostring(r)
-            end
-            return tostring(tl.x) .. "," .. tostring(tl.z) .. "," .. tostring(tl.level)
-        end
-
-        local function camelot_teleport(name)
-            t.player.teleport_cast("camelot_teleport", { 2757, 3478, 0 }, { name = name,
-                runes = { { "airrune", 5 }, { "lawrune", 1 } }, where = "Camelot, tele_coord 0_43_54_5_22" })
-        end
-
-        -- The Stronghold gate (gnome_gate.rs2 [oploc1,gnome_areagate]): a press from either entrance
-        -- force-moves the player three tiles through it; north entrance 2461,3385, south 2461,3382.
-        local function gate_in(name)
-            t.exec(name, t.player.cross_gate, { loc = "gnome_areagate", at = { 2459, 3383, 0 }, near = { 2461, 3382 },
-                far_ok = function(tile) return tile.z >= 3385 end, far_desc = "inside the Stronghold, z >= 3385" })
-        end
-        local function gate_out(name)
-            t.exec(name, t.player.cross_gate, { loc = "gnome_areagate", at = { 2459, 3383, 0 }, near = { 2461, 3385 },
-                far_ok = function(tile) return tile.z <= 3382 end, far_desc = "south of the Stronghold gate, z <= 3382" })
-        end
-
-        -- The Grand Tree door (gnome_gate.rs2 @open_tree_door): the press puts the player on x 2465 and
-        -- force-moves two tiles through the door row z 3492.
-        local function tree_door_in(name)
-            t.exec(name, t.player.cross_gate, { loc = "treedoorl", at = { 2464, 3492, 0 }, near = { 2465, 3491 },
-                far_ok = function(tile) return tile.z >= 3493 and tile.z <= 3498 and tile.x >= 2463 and tile.x <= 2468 end,
-                far_desc = "inside the Grand Tree's ground floor, z 3493..3498" })
-        end
-        local function tree_door_out(name)
-            t.exec(name, t.player.cross_gate, { loc = "treedoorl", at = { 2464, 3492, 0 }, near = { 2465, 3493 },
-                far_ok = function(tile) return tile.z <= 3491 end, far_desc = "outside the Grand Tree, z <= 3491" })
-        end
-
-        -- inside the Stronghold: to the tree door (open ground, reach.py 2461,3386 -> 2465,3489
-        -- closed-doors len 111) and through it
-        local function into_tree(pfx)
-            t.exec("goto-" .. pfx .. ".treeDoor", t.player.goto_tile, 2465, 3489, 0)
-            tree_door_in(pfx .. ".treeDoorIn")
-        end
-
-        local function climb_tree_up(suffix)
-            for _, l in ipairs(TREE_LADDERS_UP) do
-                t.exec("climbGrandTree" .. l[1] .. suffix, t.player.climb, { loc = l[2], op = l[3], op_name = "Climb-up",
-                    at = { 2466, 3495, l[4] }, src = { 2466, 3494 }, dest = { 2466, 3494, l[4] + 1 } })
-            end
-        end
-        local function climb_tree_down(suffix)
-            for _, l in ipairs(TREE_LADDERS_DOWN) do
-                t.exec("climbGrandTree" .. l[1] .. suffix, t.player.climb, { loc = l[2], op = l[3], op_name = "Climb-down",
-                    at = { 2466, 3495, l[4] }, src = { 2466, 3494 }, dest = { 2466, 3494, l[4] - 1 } })
-            end
-        end
-
-        -- Glough's house: ladder 2476,3463 (level 0) / laddertop (level 1), +-1 plane on 2476,3462.
-        local function glough_up(name)
-            t.exec(name, t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
-                at = { 2476, 3463, 0 }, src = { 2476, 3462 }, dest = { 2476, 3462, 1 } })
-        end
-        local function glough_down(name)
-            t.exec(name, t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
-                at = { 2476, 3463, 1 }, src = { 2476, 3462 }, dest = { 2476, 3462, 0 } })
-        end
-        -- tree door -> Glough's ladder foot (reach.py 2465,3490 -> 2476,3462 closed-doors len 41) and back
-        local function tree_to_glough(pfx)
-            t.exec(pfx .. ".walkToGlough", t.player.walk_route, { { 2467, 3484 }, { 2468, 3477 }, { 2469, 3470 }, { 2473, 3466 }, { 2477, 3462 }, { 2476, 3462 } })
-        end
-        local function glough_to_tree(pfx)
-            t.exec(pfx .. ".walkToTree", t.player.walk_route, { { 2472, 3464 }, { 2466, 3466 }, { 2466, 3474 }, { 2466, 3482 }, { 2465, 3489 }, { 2465, 3490 } })
-            tree_door_in(pfx .. ".treeDoorIn")
-        end
-
-        local function fight_margin(name, fight, detail)
-            local low = tonumber(tostring(detail):match("lowest hp (%d+)/"))
-            local left_result, left = t.inv.count("shark")
-            t.check(name, low ~= nil and low >= 25 and left_result == "ok" and left ~= nil and left >= 1,
-                fight .. ": lowest hp " .. tostring(low) .. "/99 (staged ::setlevel hitpoints 99), sharks staged 10, left "
-                    .. tostring(left) .. " (" .. tostring(left_result) .. ") -- margin: lowest hp >= 25 AND a shark left")
-        end
+        t.ticklog.start()
+        t.ticks(3)
 
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp150_grandtree",
             constants = {
-                not_started = 0,
-                started = 10,
-                spoken_hazelmere = 20,
-                relayed_message_narnode = 30,
-                spoken_glough = 40,
-                found_prisoner = 50,
-                spoken_prisoner = 60,
-                found_journal = 70,
-                released_prison = 80,
-                obtained_lumber_order = 90,
-                clue_charlie = 100,
-                found_invasion_plans = 110,
-                given_twigs = 120,
-                unlocked_trapdoor = 130,
-                defeated_black_demon = 140,
-                searching_daconia = 150,
-                complete = 160,
+                not_started = 0, started = 10, spoken_hazelmere = 20, relayed_message_narnode = 30,
+                spoken_glough = 40, found_prisoner = 50, spoken_prisoner = 60, found_journal = 70,
+                released_prison = 80, obtained_lumber_order = 90, clue_charlie = 100,
+                found_invasion_plans = 110, given_twigs = 120, unlocked_trapdoor = 130,
+                defeated_black_demon = 140, searching_daconia = 150, complete = 160,
             },
             display = "The Grand Tree",
             points = 5,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
 
-        -- the recommended combat kit, worn for the two fights
-        for _, item in ipairs({ "rune_scimitar", "mithril_platebody", "rune_platelegs", "rune_full_helm", "rune_kiteshield" }) do
+        local function tile_text(r, tt)
+            return r == "ok" and type(tt) == "table" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
+        end
+        local function at(x, z, level)
+            return function()
+                local r, tt = t.world.tile()
+                return r == "ok" and tt.x == x and tt.z == z and tt.level == level
+            end
+        end
+        -- A scene that moves the player: wait for the tile, then grade it.
+        local function landed(name, x, z, level, ticks)
+            local ar = t.await({ level = at(x, z, level), note = name }, ticks)
+            local r, tt = t.world.tile()
+            t.check(name, ar == "ok", tile_text(r, tt) .. " (want " .. x .. "," .. z .. "," .. level .. ")")
+        end
+        -- A page that comes on its own (after a walk, a fade, an arrival).
+        local function page(name, kind, ticks)
+            t.expect(name, t.await({ level = function() return t.chat.kind() == kind end, note = name }, ticks))
+        end
+        -- A modal's rows, read off its components, against the recorded rows
+        -- (the driver reads text without its tags; the tags are the wire's).
+        local function plain(s)
+            return (string.gsub(s or "", "<[^>]*>", ""))
+        end
+        local function rows(name, iface, prefix, first, want)
+            local diff = nil
+            for i, row in ipairs(want) do
+                local _, text = t.ui.text(iface .. ":" .. prefix .. (first + i - 1))
+                if diff == nil and plain(text) ~= plain(row) then
+                    diff = prefix .. (first + i - 1) .. ": want '" .. row .. "' read '" .. tostring(text) .. "'"
+                end
+            end
+            t.check(name, diff == nil, diff or (#want .. " rows match"))
+        end
+        local function scroll(name, item, want)
+            t.exec(name .. ".read", t.player.inv_op, item, 1)
+            t.expect(name .. ".open", t.ui.await_open("messagescroll", 5))
+            rows(name .. ".rows", "messagescroll", "messcroll", 1, want)
+            t.ui.close_modal()
+            t.ticks(1)
+        end
+        -- The first spread of a book: the title and both sides' rows.
+        local function book(name, item, title, left, right)
+            t.exec(name .. ".read", t.player.inv_op, item, 1)
+            t.expect(name .. ".open", t.ui.await_open("book", 5))
+            local _, got = t.ui.text("book:title")
+            t.check(name .. ".title", plain(got) == title, "title '" .. tostring(got) .. "' (want '" .. title .. "')")
+            rows(name .. ".left", "book", "page_left_text_", 1, left)
+            rows(name .. ".right", "book", "page_right_text_", 1, right)
+            t.exec(name .. ".turn", t.ui.read_book, 10)
+        end
+
+        -- ---- 1. The start ([244..308]) ------------------------------------
+        t.exec("start.talk", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("start.pages", t.chat.play, {
+            "npc:Welcome Traveller. I am King Narnode. It's nice to see an outsider.",
+            "player:Hi! It seems to be a busy settlement.",
+            "npc:For now.",
+            "choose:You seem worried, what's up?",
+            "player:You seem worried, what's up?",
+            "npc:Traveller, Can I speak to you in strictest confidence?",
+            "player:Of course sire.",
+            "npc:Not here, follow me.",
+            "end",
+        })
+        -- Down the trapdoor on C+10 onto 2463,9896; the first page on C+17.
+        landed("start.down", 2463, 9896, 0, 20)
+        page("start.foundations.page", "player", 15)
+        t.exec("start.foundations", t.chat.play, {
+            "player:So what is this place?",
+            "npc:These, my friend, are the foundations of the stronghold.",
+            "player:They look like roots to me.",
+            "npc:Not just any roots Traveller!",
+            "player:Impressive. What exactly is the problem?",
+            "npc:In the last two months our tree guardians have",
+            "player:You mean the tree is ill?",
+            "npc:In effect yes.",
+            "mesbox:Before starting this quest, be aware that one or more of your skill",
+            "choose:Yes.",
+            "player:I'd be happy to help!",
+            "npc:Thank Guthix for your arrival!",
+            "npc:The first task is to find out what's killing the tree.",
+            "player:Do you have an idea?",
+            "npc:My top tree guardian, Glough, believes it's human",
+            "player:Who's Hazelmere?",
+            "npc:Hazelmere is one of the mages that created the Grand",
+            "objbox:The king shows you a sample of bark.",
+            "npc:The mage only talks in the old tongue, you'll need this.",
+            "objbox:The king shows you a translation book.",
+            "player:What is it?",
+            "npc:It's a translation book, you'll need it to translate what",
+            "objbox:The king hands you the bark sample and the translation",
+            "npc:I'll show you the way back up.",
+            "end",
+        })
+        t.expect("start.stage", t.quest.expect_stage("started"))
+        t.expect("start.bark", t.inv.expect_has("grandtree_barksample", 1))
+        t.expect("start.book", t.inv.expect_has("grandtree_translationbook", 1))
+        landed("start.up", 2464, 3497, 0, 15)
+
+        book("book", "grandtree_translationbook", "Gnome Translations",
+            { "Gnome Translations", "", "written by Anita", "", "This text contains the ancient", "Gnome words I have",
+                "managed to translate thus", "far." },
+            { "-A-", "arpos: rocks", "ando: gate", "andra: city", "ataris: cow", "", "-C-", "cef: threat", "cheray: lazy",
+                "Cinqo: King", "cretor: bucket" })
+
+        -- ---- 2. Hazelmere ([457..494]) -----------------------------------
+        t.cheat("::tele 0_41_48_53_25")
+        t.ticks(3)
+        t.exec("hazelmere.door", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen", at = { 2677, 3088, 0 },
+            near = { 2677, 3089 }, far = { 2677, 3088 }, far_ok = function(tile) return tile.z <= 3088 end,
+            far_desc = "inside Hazelmere's hut" })
+        t.exec("hazelmere.ladder", t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
+            at = { 2677, 3087, 0 }, dest = { 2677, 3088, 1 }, slack = 1 })
+        t.exec("hazelmere.talk", t.player.talk_to, "grandtree_hazelmere", 1)
+        t.exec("hazelmere.pages", t.chat.play, {
+            "mesbox:The mage starts to speak but all you hear is:",
+            "npc:Blah. Blah, blah, blah, blah...blah!",
+            "objbox:You give the bark sample to Hazelmere.",
+            "mesbox:The mage carefully examines the sample.",
+            "npc:Blah, blah...Daconia...blah, blah.",
+            "player:Can you write this down and I'll try and translate it?",
+            "npc:Blah, blah?",
+            "mesbox:You make a writing motion.",
+            "objbox:Hazelmere has given you the scroll.",
+            "end",
+        })
+        t.expect("hazelmere.stage", t.quest.expect_stage("spoken_hazelmere"))
+        t.expect("hazelmere.bark_gone", t.inv.expect_absent("grandtree_barksample"))
+        scroll("hazelmere.scroll", "grandtree_scroll", { "", "", "", "", "", "", "",
+            "Es lemanto meso pro eis prit ta Cinqo mond.", "Mi lovos ta lemanto Daconia arpos",
+            "et Daconia arpos eto meriz ta priw!", "", "", "", "", "" })
+        t.exec("hazelmere.again", t.player.talk_to, "grandtree_hazelmere", 1)
+        t.exec("hazelmere.again.pages", t.chat.play, {
+            "npc:Blah, blah...Daconia...blah, blah.",
+            "mesbox:You still can't understand Hazelmere.",
+            "end",
+        })
+        -- [488..494]: the scroll dropped (privately) and written again.
+        t.exec("hazelmere.drop", t.player.drop, "grandtree_scroll")
+        t.exec("hazelmere.rewrite", t.player.talk_to, "grandtree_hazelmere", 1)
+        t.exec("hazelmere.rewrite.pages", t.chat.play, {
+            "npc:Blah, blah...Daconia...blah, blah.",
+            "player:Can you write this down and I'll try and translate it?",
+            "npc:Blah, blah?",
+            "mesbox:You make a writing motion.",
+            "objbox:Hazelmere has given you the scroll.",
+            "end",
+        })
+        t.expect("hazelmere.scroll", t.inv.expect_has("grandtree_scroll", 1))
+
+        -- ---- 3. The translation, wrong then right ([611..668]) -----------
+        t.cheat("::tele 0_38_54_34_40")
+        t.ticks(3)
+        t.exec("translate.wrong.talk", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("translate.wrong", t.chat.play, {
+            "player:Hello again, your highness.",
+            "npc:Hello Traveller, did you speak to Hazelmere?",
+            "player:Yes! I managed to find him.",
+            "npc:Do you understand what he said?",
+            "choose:I think so!",
+            "player:I think so!",
+            "npc:So what did he say?",
+            "choose:King Narnode must be stopped, he is a madman!",
+            "player:King Narnode must be stopped, he is a madman!",
+            "choose:The tree is fine, you have nothing to fear.",
+            "player:The tree is fine, you have nothing to fear.",
+            "choose:There is no need for haste, just send a runner.",
+            "player:There is no need for haste.",
+            "choose:Use a bucket of milk from a sacred cow.",
+            "player:Use a bucket of milk from a sacred cow.",
+            "choose:You must wait till the second night.",
+            "player:You must wait till the second night.",
+            "npc:Wait a minute, that doesn't sound like Hazelmere!",
+            "player:Erm...I think so.",
+            "npc:I'm sorry Traveller but this is no good.",
+            "end",
+        })
+        t.exec("translate.right.talk", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("translate.right", t.chat.play, {
+            "player:Hello again, your highness.",
+            "npc:Hello Traveller, did you speak to Hazelmere?",
+            "player:Yes! I managed to find him.",
+            "npc:Do you understand what he said?",
+            "choose:I think so!",
+            "player:I think so!",
+            "npc:So what did he say?",
+            "choose:None of the above.",
+            "choose:None of the above.",
+            "choose:A man came to me with the King's seal.",
+            "player:A man came to me with the King's seal.",
+            "choose:I gave the man Daconia rocks.",
+            "player:I gave the man Daconia rocks.",
+            "choose:And Daconia rocks will kill the tree!",
+            "player:And Daconia rocks will kill the tree!",
+            "npc:Of course! I should've known!",
+            "player:What are Daconia stones?",
+            "npc:Hazelmere created the Daconia stones.",
+            "npc:This is terrible! The stones must be recovered!",
+            "player:Can I help?",
+            "npc:First I must warn the tree guardians.",
+            "npc:If he's not there he will be at his girlfriend Anita's place.",
+            "player:OK! I'll be back soon.",
+            "end",
+        })
+        t.expect("translate.stage", t.quest.expect_stage("relayed_message_narnode"))
+
+        -- ---- 4. Glough, his cupboard and chest ([691..722]) --------------
+        t.cheat("::tele 0_38_54_43_7")
+        t.ticks(3)
+        local function glough_up(name)
+            t.exec(name, t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
+                at = { 2476, 3463, 0 }, dest = { 2475, 3463, 1 }, slack = 1 })
+        end
+        local function glough_down(name)
+            t.exec(name, t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
+                at = { 2476, 3463, 1 }, dest = { 2477, 3463, 0 }, slack = 1 })
+        end
+        glough_up("glough.up")
+        t.exec("glough.talk", t.player.talk_to, "grandtree_glough", 1)
+        t.exec("glough.pages", t.chat.play, {
+            "player:Hello.",
+            "mesbox:The gnome is munching on a worm hole.",
+            "npc:Can I help human? Can't you see I'm eating?!",
+            "mesbox:The gnome continues to eat.",
+            "player:The King asked me to inform you that the Daconia",
+            "npc:Surely not!",
+            "player:Apparently a human took them from Hazelmere.",
+            "npc:I should've known! The humans are going to invade!",
+            "player:Never!",
+            "npc:Your type can't be trusted! I'll take care of this!",
+            "end",
+        })
+        t.expect("glough.stage", t.quest.expect_stage("spoken_glough"))
+        t.exec("cupboard.open", t.player.click_loc, "grandtree_cupboardclosed", 1, { at = { 2476, 3465, 1 } })
+        t.ticks(3)
+        t.exec("cupboard.search", t.player.click_loc, "grandtree_cupboardopen", 2, { at = { 2476, 3465, 1 } })
+        t.expect("cupboard.nothing", t.msg.expect("You search the cupboard but find nothing."))
+        t.exec("chest.locked", t.player.click_loc, "grandtree_chestclosed", 1, { at = { 2482, 3462, 1 } })
+        page("chest.locked.wait", "mesbox", 12)
+        t.exec("chest.locked.page", t.chat.play, { "mesbox:The chest is locked.", "end" })
+
+        -- ---- 5. The King, the prisoner ([754..795]) ----------------------
+        t.cheat("::tele 0_38_54_34_40")
+        t.ticks(3)
+        t.exec("prisoner.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("prisoner.king.pages", t.chat.play, {
+            "player:Hello, your highness. Have you any news on the",
+            "npc:It's OK Traveller, thanks to Glough!",
+            "player:Wow! That was quick!",
+            "npc:Yes Glough really knows what he's doing.",
+            "npc:Maybe Glough was right, maybe humans are invading!",
+            "player:I doubt it, can I speak to the prisoner?",
+            "npc:Certainly. He's on the top level of the tree.",
+            "end",
+        })
+        t.expect("prisoner.stage", t.quest.expect_stage("found_prisoner"))
+        -- The tree's ladder, rung by rung ([768..779]).
+        t.exec("tree.up1", t.player.climb, { loc = "grandtree_ladderbottom", op = 1, op_name = "Climb-up",
+            at = { 2466, 3495, 0 }, dest = { 2466, 3496, 1 }, slack = 1 })
+        t.exec("tree.up2", t.player.climb, { loc = "grandtree_laddermiddle_bottom", op = 2, op_name = "Climb-up",
+            at = { 2466, 3495, 1 }, dest = { 2466, 3496, 2 }, slack = 1 })
+        t.exec("tree.up3", t.player.climb, { loc = "grandtree_laddermiddle_top", op = 2, op_name = "Climb-up",
+            at = { 2466, 3495, 2 }, dest = { 2466, 3496, 3 }, slack = 1 })
+        -- Charlie is answered from where the ladder leaves the player, two
+        -- tiles from him through the cell door ([782]).
+        t.exec("charlie.talk", t.player.talk_to, "grandtree_charlie_multi", 1)
+        t.exec("charlie.pages", t.chat.play, {
+            "player:Tell me. Why would you want to kill the Grand Tree?",
+            "npc:What do you mean?!",
+            "player:Don't tell me, you just happened to be caught carrying",
+            "npc:All I know is that I did what I was asked.",
+            "player:I don't understand.",
+            "npc:Glough paid me to go to this gnome on a hill.",
+            "npc:I've been doing it for weeks",
+            "player:Sounds like Glough is hiding something!",
+            "npc:I don't know what he's up to.",
+            "player:Okay. Thanks Charlie.",
+            "npc:Good luck!",
+            "end",
+        })
+        t.expect("charlie.stage", t.quest.expect_stage("spoken_prisoner"))
+        -- Bottom-Floor from the top ([794..795]).
+        t.exec("tree.bottom", t.player.climb, { loc = "grandtree_laddertop", op = 2, op_name = "Bottom-Floor",
+            at = { 2466, 3495, 3 }, dest = { 2466, 3496, 0 }, slack = 1 })
+        t.exec("culprit.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("culprit.king.pages", t.chat.play, {
+            "npc:Hello Traveller. So, did you speak to the culprit?",
+            "player:Yes I did and something's not right!",
+            "npc:What do you mean?",
+            "player:The prisoner said he was paid by Glough to get the",
+            "npc:That's absurd! He's just trying to save himself!",
+            "npc:Since Glough's wife died he's been a little strange.",
+            "npc:Humans are planning to invade and wipe out the tree",
+            "player:But why?",
+            "npc:Who knows? You may have to leave soon Traveller!",
+            "end",
+        })
+
+        -- ---- 6. The journal, the arrest, the cell ([836..889]) -----------
+        t.cheat("::tele 0_38_54_43_7")
+        t.ticks(3)
+        glough_up("journal.up")
+        t.exec("journal.search", t.player.click_loc, "grandtree_cupboardopen", 2, { at = { 2476, 3465, 1 } })
+        page("journal.found.page", "objbox", 10)
+        t.exec("journal.found", t.chat.play, { "objbox:You've found Glough's Journal!", "end" })
+        t.expect("journal.stage", t.quest.expect_stage("found_journal"))
+        book("journal", "grandtree_journal", "Journal",
+            { "<col=ff0000>The migration failed!", "", "After spending half a century", "hiding underground you" },
+            { "Living in constant fear of", "human aggression, we are in" })
+        t.exec("arrest.talk", t.player.talk_to, "grandtree_glough", 1)
+        t.exec("arrest.pages", t.chat.play, {
+            "player:Glough! I don't know what you're up to but I know",
+            "npc:You're a fool human! You have no idea what's going on.",
+            "player:I know the Grand Tree's dying!",
+            "npc:How dare you accuse me! I'm the head tree guardian!",
+        })
+        page("arrest.guard.page", "npc", 10)
+        t.exec("arrest.guard", t.chat.play, { "npc:Come with me!", "end" })
+        landed("arrest.cell", 2464, 3496, 3, 16)
+        page("cell.king.page", "npc", 12)
+        t.exec("cell.release", t.chat.play, {
+            "npc:Traveller please accept my apologies!",
+        })
+        page("cell.player.page", "player", 8)
+        t.exec("cell.pages", t.chat.play, {
+            "player:I don't think you can trust Glough, your highness.",
+            "npc:I know he can be a bit extreme at times.",
+            "npc:I'm afraid Glough has placed guards on the front gate",
+            "player:Well, OK.",
+            "npc:I'm sorry again Traveller!",
+            "end",
+        })
+        t.expect("cell.stage", t.quest.expect_stage("released_prison"))
+        landed("cell.out", 2465, 3496, 3, 4)
+
+        -- ---- 7. The glider to Karamja ([905..921]) -----------------------
+        t.exec("glider.talk", t.player.talk_to, "pilot_grand_tree", 1)
+        t.exec("glider.pages", t.chat.play, {
+            "npc:Hi, the King said that you need to leave?",
+            "player:Apparently humans are invading!",
+            "npc:I find that hard to believe! I have lots of human friends.",
+            "player:I don't understand it either!",
+            "npc:So where to?",
+            "choose:Take me to Karamja please!",
+            "player:Take me to Karamja please!",
+            "npc:Okay! You're the boss!",
+        })
+        landed("glider.crash", 2918, 3057, 0, 10)
+        page("glider.sorry.page", "npc", 8)
+        t.exec("glider.sorry", t.chat.play, { "npc:Sorry about that.", "*", "*", "*", "*", "*", "*", "*", "*", "end" })
+
+        -- ---- 8. The shipyard: the gate, the foreman ([940..1100]) --------
+        t.cheat("::tele 0_46_47_0_33")
+        t.ticks(3)
+        t.exec("shipyard.gate", t.player.click_loc, "grandtree_fencegate_l", 1, { at = { 2945, 3041, 0 } })
+        t.exec("shipyard.password", t.chat.play, {
+            "npc:Hey you! What are you up to?",
+            "player:I'm trying to open the gate!",
+            "npc:I can see that! Why?",
+            "choose:Glough sent me.",
+            "player:Glough sent me.",
+            "npc:Hmm...really? What for?",
+            "player:You're wasting my time! Take me to your superior!",
+            "npc:OK. Password.",
+            "choose:Ka.", "player:Ka.",
+            "choose:Lu.", "player:Lu.",
+            "choose:Min.", "player:Min.",
+            "npc:Sorry to have kept you.",
+            "end",
+        })
+        landed("shipyard.through", 2945, 3041, 0, 8)
+        t.cheat("::tele 0_46_47_57_36")
+        t.ticks(3)
+        t.exec("foreman.talk", t.player.talk_to, "grandtree_foreman", 1)
+        t.exec("foreman.pages", t.chat.play, {
+            "player:Hello, are you in charge?",
+            "npc:That's right, and you are...?",
+            "player:Glough sent me to check on how you are doing.",
+            "npc:Right. Glough sent a human?",
+            "player:His gnomes are busy.",
+            "npc:Hmm...in that case we'd better go to my office.",
+            "npc:Follow me.",
+        })
+        landed("foreman.office", 2955, 3033, 0, 10)
+        page("foreman.office.page", "npc", 30)
+        -- [1032..1041]: the wrong answer; he says "Die imposter!" and does not attack.
+        t.exec("foreman.wrong", t.chat.play, {
+            "npc:Tell me again why you're here.",
+            "player:Er...Glough sent me?",
+            "npc:By the way how is Glough? Still with his wife?",
+            "choose:Always arguing as usual!",
+            "player:Always arguing as usual!",
+            "npc:Really? That's odd, considering she died last year.",
+            "end",
+        })
+        t.ticks(8)
+        t.exec("foreman.again", t.player.talk_to, "grandtree_foreman", 1)
+        t.exec("foreman.right", t.chat.play, {
+            "npc:Tell me again why you're here.",
+            "player:Er...Glough sent me?",
+            "npc:By the way how is Glough? Still with his wife?",
+            "choose:Sadly his wife is no longer with us!",
+            "player:Sadly his wife is no longer with us!",
+            "npc:Right answer. I have to watch for imposters.",
+            "npc:What's Glough's favourite dish?",
+            "choose:He loves worm holes.",
+            "player:He loves worm holes.",
+            "npc:OK. Just one more. What's the name of his new",
+            "choose:Anita.",
+            "player:Anita.",
+            "npc:Well, well, you do know Glough.",
+            "player:Of course, security is paramount.",
+            "npc:As you can see things are going well.",
+            "player:Indeed.",
+            "npc:When I was asked to build a fleet large enough to",
+            "player:That's a lot of troops!",
+            "npc:True but if the gnomes are really going to take over",
+            "player:Take over?",
+            "npc:Of course, why else would Glough want 30 battleships?",
+            "player:No?",
+            "npc:I mean, for the kind of battleships Glough's ordered I'll",
+            "objbox:The foreman has given you the lumber order.",
+            "player:OK. I'll head off and give this order to Glough.",
+            "end",
+        })
+        t.expect("foreman.stage", t.quest.expect_stage("obtained_lumber_order"))
+        t.expect("foreman.order", t.inv.expect_has("grandtree_order", 1))
+
+        -- ---- 9. Femi's cart ([1159..1182]) -------------------------------
+        t.cheat("::tele 0_38_52_25_54")
+        t.ticks(3)
+        t.exec("femi.talk", t.player.talk_to, "grandtree_femi", 1)
+        t.exec("femi.pages", t.chat.play, {
+            "player:I can't believe they won't let me in!",
+            "npc:I don't believe all this rubbish about an invasion.",
+            "player:I really need to see King Narnode.",
+            "npc:Well, as you helped me I suppose I could.",
+            "player:OK, what should I do?",
+            "npc:Jump in the back of the cart.",
+        })
+        landed("femi.in", 2461, 3407, 0, 12)
+        t.exec("femi.after", t.chat.play, {
+            "npc:Okay, traveller, you'd better get going.",
+            "player:Thanks again!",
+            "npc:That's okay, all the best.",
+            "end",
+        })
+
+        -- ---- 10. Charlie's clue, the King, Anita ([1261..1350]) ----------
+        t.cheat("::tele 0_38_54_34_40")
+        t.ticks(3)
+        t.exec("tree.top", t.player.climb, { loc = "grandtree_ladderbottom", op = 2, op_name = "Top-Floor",
+            at = { 2466, 3495, 0 }, dest = { 2466, 3496, 3 }, slack = 1 })
+        t.exec("clue.talk", t.player.talk_to, "grandtree_charlie_multi", 1)
+        t.exec("clue.pages", t.chat.play, {
+            "player:How are you doing Charlie?",
+            "npc:I've been better.",
+            "player:Glough has some plan to rule Gielinor!",
+            "npc:I wouldn't put it past him, the Gnome's crazy!",
+            "player:I need some proof to convince the King.",
+            "npc:Hmm... you could be in luck!",
+            "player:Okay, I'll see what I can find.",
+            "end",
+        })
+        t.expect("clue.stage", t.quest.expect_stage("clue_charlie"))
+        t.exec("tree.bottom2", t.player.climb, { loc = "grandtree_laddertop", op = 2, op_name = "Bottom-Floor",
+            at = { 2466, 3495, 3 }, dest = { 2466, 3496, 0 }, slack = 1 })
+        t.exec("revolt.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("revolt.king.pages", t.chat.play, {
+            "player:Hello, your highness.",
+            "npc:Please Traveller, if the gnomes see me talking to you",
+            "player:That's crazy!",
+            "npc:Glough's scared the whole town",
+            "player:Don't you understand he's creating his own army?!",
+            "npc:Please Traveller, leave before it's too late!",
+            "end",
+        })
+        t.cheat("::tele 0_37_54_23_55")
+        t.ticks(3)
+        t.exec("anita.up", t.player.climb, { loc = "spiralstairs_wooden", op = 1, op_name = "Climb-up",
+            at = { 2389, 3512, 0 }, dest = { 2388, 3513, 1 }, slack = 1 })
+        t.exec("anita.talk", t.player.talk_to, "grandtree_anita", 1)
+        t.exec("anita.pages", t.chat.play, {
+            "player:Hello there.",
+            "npc:Oh hello, I've seen you with the King.",
+            "player:Yes, I'm helping him with a problem.",
+            "npc:You must know my boyfriend Glough then?",
+            "player:Indeed!",
+            "npc:Could you do me a favour?",
+            "choose:I suppose so.",
+            "player:I suppose so.",
+            "npc:Please give this key to Glough, he left it here last night.",
+            "objbox:Anita gives you a key.",
+            "npc:Thanks a lot.",
+            "player:No... thank you!",
+            "end",
+        })
+        t.expect("anita.key", t.inv.expect_has("grandtree_gloughskey", 1))
+
+        -- ---- 11. The plans, the twigs ([1405..1493]) ---------------------
+        t.cheat("::tele 0_38_54_43_7")
+        t.ticks(3)
+        glough_up("plans.up")
+        t.exec("plans.glough", t.player.talk_to, "grandtree_glough", 1)
+        t.exec("plans.glough.pages", t.chat.play, {
+            "player:I'm going to stop you, Glough!",
+            "npc:You're becoming quite annoying traveller!",
+            "mesbox:Glough is searching his pockets.",
+            "npc:Where are that darn key?",
+            "npc:Leave human, before I have you put in the cage!",
+            "end",
+        })
+        t.exec("plans.chest", t.player.use_on, "grandtree_gloughskey", t.player.by_symbol("loc", "grandtree_chestclosed"))
+        page("plans.found.page", "objbox", 12)
+        t.exec("plans.found", t.chat.play, { "objbox:You have found a scroll!", "end" })
+        t.expect("plans.stage", t.quest.expect_stage("found_invasion_plans"))
+        scroll("plans.scroll", "grandtree_invasionplans", { "", "<col=ff0000>Invasion", "",
+            "Troops board three fleets of battleships at Karamja.", "<col=00ff00>Fleet 1",
+            "Attacks Misthalin from the south.", "<col=00ff00>Fleet 2",
+            "Groups at Crandor and attacks Asgarnia from the west.", "<col=00ff00>Fleet 3",
+            "Sails north to attack Kandarin from south, reinforced", "by gnome foot soldiers leaving gnome stronghold.",
+            "", "<col=ff0000>Take no prisoners!", "", "" })
+        glough_down("plans.down")
+        t.cheat("::tele 0_38_54_34_40")
+        t.ticks(3)
+        t.exec("twigs.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("twigs.king.pages", t.chat.play, {
+            "player:Hi, your highness, did you think about what I said?",
+            "npc:Look, if you're right about Glough I would have him",
+            "player:Look, I found this at Glough's home!",
+            "objbox:You give the King the invasion plans.",
+            "npc:If these are to be believed then this is terrible!",
+            "npc:But it's not proof, any one could have made these.",
+            "npc:On the other hand, if Glough's right about the humans",
+            "npc:The Grand Tree's still slowly dying",
+            "objbox:The King has given you some twigs lashed together.",
+            "end",
+        })
+        t.expect("twigs.stage", t.quest.expect_stage("given_twigs"))
+        t.expect("twigs.plans_gone", t.inv.expect_absent("grandtree_invasionplans"))
+        for _, twig in ipairs({ "grandtree_twigt", "grandtree_twigu", "grandtree_twigz", "grandtree_twigo" }) do
+            t.expect("twigs." .. twig, t.inv.expect_has(twig, 1))
+        end
+
+        -- ---- 12. The watchtower, the pillars ([1522..1566]) --------------
+        t.cheat("::tele 0_38_54_43_7")
+        t.ticks(3)
+        glough_up("tower.up")
+        t.exec("tower.glough", t.player.talk_to, "grandtree_glough", 1)
+        t.exec("tower.glough.pages", t.chat.play, {
+            "player:Hello there!",
+            "npc:You shouldn't be here human!",
+            "player:What do you mean?",
+            "npc:The Gnome Stronghold is for gnomes alone!",
+            "player:Surely not!",
+            "npc:We don't need your sort round here!",
+            "mesbox:He doesn't seem very nice!",
+            "end",
+        })
+        t.exec("tower.refused", t.player.click_loc, "grandtree_climbtree", 1, { at = { 2484, 3464, 1 } })
+        page("tower.refused.wait", "mesbox", 12)
+        t.exec("tower.refused.page", t.chat.play, { "mesbox:You need at least 25 Agility to climb the tree.", "end" })
+        t.exec("tower.potion", t.player.inv_op, "4dose1agility", 1)
+        t.ticks(2)
+        t.expect("tower.boosted", t.inv.expect_has("3dose1agility", 1))
+        t.exec("tower.climb", t.player.climb, { loc = "grandtree_climbtree", op = 1, op_name = "Climb",
+            at = { 2484, 3464, 1 }, dest = { 2486, 3465, 2 }, slack = 1 })
+        local pillars = {
+            { "grandtree_twigt", "grandtree_pillart", 2485 }, { "grandtree_twigu", "grandtree_pillaru", 2486 },
+            { "grandtree_twigz", "grandtree_pillarz", 2487 }, { "grandtree_twigo", "grandtree_pillaro", 2488 },
+        }
+        for _, p in ipairs(pillars) do
+            t.exec("pillar." .. p[2], t.player.use_on, p[1], t.player.by_symbol("loc", p[2]), { at = { p[3], 3467, 2 } })
+            t.ticks(2)
+        end
+        page("pillars.trapdoor.wait", "mesbox", 6)
+        t.exec("pillars.trapdoor", t.chat.play, { "mesbox:With a grinding of machinery, a trapdoor snaps open!", "end" })
+        t.expect("pillars.stage", t.quest.expect_stage("unlocked_trapdoor"))
+
+        -- ---- 13. Glough's scene and the demon ([1574..1913]) -------------
+        for _, item in ipairs({ "rune_scimitar", "rune_full_helm", "rune_chainbody", "rune_platelegs", "rune_kiteshield" }) do
             t.exec("wear." .. item, t.player.equip, item)
         end
-
-        -- Lumbridge -> Kandarin: on foot only through a members' gate, so a real teleport, then the
-        -- overland hop Camelot -> south of the Stronghold gate (reach.py 2757,3478 -> 2461,3380
-        -- closed-doors len 410).
-        camelot_teleport("goToStronghold.camelotTeleport")
-        t.exec("goto-goToStronghold.gate", t.player.goto_tile, 2461, 3379, 0)
-
-        -- First entry: while %varp6531_femi_help = 0 a press from the south with Femi within 6 tiles
-        -- opens her boxes instead of the gate (gnome_gate.rs2:36-38 -> femi.rs2 @grandtree_femi_boxes).
-        -- Helping (option 2) sets femi_help 2, which is what lets her sneak the player in later for free.
-        t.exec("goToStronghold.gateApproach", t.player.walk_route, { { 2461, 3382 } })
-        local press_result, press_detail = t.player.click_loc("gnome_areagate", 1, { at = { 2459, 3383 } })
-        t.await({ level = function()
-            if t.chat.kind() ~= "none" then
-                return true
-            end
-            local r, tl = t.world.tile()
-            return r == "ok" and tl.z >= 3385
-        end, note = "Femi's boxes page or the gate's walk-through" }, 12)
-        if t.chat.kind() ~= "none" then
-            t.exec("goToStronghold.femiBoxes-dialog", t.chat.play, {
-                "npc:Hello there", "player:Hi!", "npc:Could you help me lift", "options", "choose:OK then.",
-                "player:OK then", "npc:Thanks traveller" })
-            -- if_close, then the player lifts the boxes onto the cart before her last page
-            t.expect("goToStronghold.femiBoxes.thanks_page", t.await({ level = function() return t.chat.kind() == "npc" end,
-                note = "Femi's thanks after the boxes" }, 20))
-            t.exec("goToStronghold.femiBoxes-dialog-2", t.chat.play, { "npc:Thanks again friend", "end" })
-            local femi_result, femi_help = t.var.server("varp6531_femi_help")
-            t.check("goToStronghold.femiHelped", femi_result == "ok" and femi_help == 2,
-                "click_loc gnome_areagate -> " .. tostring(press_result) .. "; varp6531_femi_help = " .. tostring(femi_help)
-                    .. " (" .. tostring(femi_result) .. "), want 2: the boxes lifted (femi.rs2 @grandtree_femi_boxes)")
-            gate_in("goToStronghold.gateIn")
-        else
-            -- no page: Femi stood more than 6 tiles off, so the same press was the gate's walk-through
-            local first_result, first_tile = t.world.tile()
-            t.check("goToStronghold.gateIn", first_result == "ok" and first_tile.level == 0 and first_tile.z >= 3385,
-                "click_loc gnome_areagate -> " .. tostring(press_result) .. " " .. tostring(press_detail)
-                    .. "; no Femi page; after the press " .. tile_text(first_result, first_tile)
-                    .. " (want through the gate from 2461,3382: z >= 3385)")
-        end
-        into_tree("talkToKingNarnode")
-
-        -- talkToKingNarnode: (make sure to have two empty inventory slots to start the quest)
-        t.exec("talkToKingNarnode", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("talkToKingNarnode-dialog-1", t.chat.play, {
-            "npc:Welcome Traveller", "player:Hi! It seems", "npc:For now", "options",
-            "choose:You seem worried, what's up?", "player:You seem worried", "npc:Traveller, Can I speak",
-            "player:Of course sire", "npc:Not here, follow me" })
-        t.expect("narnode.caves_page", t.await({ level = function() return t.chat.kind() == "player" end, note = "caves page" }, 60))
-        t.exec("talkToKingNarnodeCaves-dialog", t.chat.play, {
-            "player:So what is this place", "npc:These, my friend", "player:They look like roots", "npc:Not just any roots",
-            "player:Impressive", "npc:In the last two months", "player:You mean the tree is ill", "npc:In effect yes", "options",
-            "choose:I'd be happy to help!", "player:I'd be happy to help", "npc:Thank Guthix", "npc:The first task",
-            "player:Do you have an idea", "npc:My top tree guardian", "player:Who's Hazelmere", "npc:Hazelmere is one of the mages",
-            "objbox:The king has given you a sample of bark", "npc:The mage only talks",
-            "objbox:The king has given you a translation book", "player:What is it", "npc:It's a translation book",
-            "npc:I'll show you the way back up" })
-        -- the king walks to the roots' ladder and the player is telejumped back up beside the
-        -- tree's trapdoor (king_narnode.rs2:271-290: 0_38_54_32_41 = 2464,3497,0)
-        t.expect("narnode.backUp", t.await({ level = function()
-            local r, tl = t.world.tile()
-            return r == "ok" and tl.level == 0 and tl.z < 6400
-        end, note = "Narnode's climb back up out of the roots" }, 40))
-        local up_result, up_tile = t.world.tile()
-        t.check("narnode.backUp.tile", up_result == "ok" and up_tile.x == 2464 and up_tile.z == 3497 and up_tile.level == 0,
-            "after the caves: " .. tile_text(up_result, up_tile) .. " (want 2464,3497,0 inside the Grand Tree)")
-        t.expect("quest.stage.started", t.quest.expect_stage("started"))
-
-        -- climbUpToHazelmere: the island east of Yanille. Out of the tree and the Stronghold on foot,
-        -- then overland (reach.py 2461,3380 -> 2677,3090 closed-doors len 566) to his hut's door.
-        tree_door_out("goToHazelmere.treeDoorOut")
-        t.exec("goto-goToHazelmere.gate", t.player.goto_tile, 2461, 3388, 0)
-        gate_out("goToHazelmere.gateOut")
-        t.exec("goto-climbUpToHazelmere", t.player.goto_tile, 2677, 3090, 0)
-        t.exec("climbUpToHazelmere.doorIn", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
-            at = { 2677, 3088, 0 }, near = { 2677, 3089 }, far = { 2677, 3088 } })
-        t.exec("climbUpToHazelmere", t.player.climb, { loc = "ladder", op = 1, op_name = "Climb-up",
-            at = { 2677, 3087, 0 }, src = { 2677, 3086 }, dest = { 2677, 3086, 1 } })
-        t.exec("talkToHazelmere", t.player.talk_to, "grandtree_hazelmere", 1)
-        t.exec("talkToHazelmere-dialog", t.chat.play, {
-            "mesbox:The mage starts to speak", "npc:Blah. Blah, blah", "objbox:You give the bark sample",
-            "mesbox:The mage carefully examines", "npc:Blah, blah...Daconia", "player:Can you write this down",
-            "npc:Blah, blah?", "mesbox:You make a writing motion", "objbox:Hazelmere has given you the scroll" })
-        t.ticks(2)
-        t.expect("quest.stage.spoken_hazelmere", t.quest.expect_stage("spoken_hazelmere"))
-
-        -- bringScrollToKingNarnode: down, out of the hut, overland back to the Stronghold gate
-        t.exec("leaveHazelmere.ladderDown", t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
-            at = { 2677, 3087, 1 }, src = { 2677, 3086 }, dest = { 2677, 3086, 0 } })
-        t.exec("leaveHazelmere.doorOut", t.player.pass_door, { closed = "elfdoor", open = "elfdooropen",
-            at = { 2677, 3088, 0 }, near = { 2677, 3088 }, far = { 2677, 3090 } })
-        t.exec("goto-bringScrollToKingNarnode.gate", t.player.goto_tile, 2461, 3379, 0)
-        gate_in("bringScrollToKingNarnode.gateIn")
-        into_tree("bringScrollToKingNarnode")
-        t.exec("bringScrollToKingNarnode", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("bringScrollToKingNarnode-dialog", t.chat.play, {
-            "player:Hello again, your highness", "npc:Hello Traveller, did you speak", "player:Yes! I managed",
-            "npc:Do you understand", "options", "choose:I think so!", "player:I think so", "npc:So what did he say",
-            "options", "choose:None of the above.", "options", "choose:None of the above.",
-            "options", "choose:A man came to me with the King's seal.", "player:A man came to me",
-            "options", "choose:I gave the man Daconia rocks.", "player:I gave the man Daconia rocks",
-            "options", "choose:And Daconia rocks will kill the tree!", "player:And Daconia rocks will kill the tree",
-            "npc:Of course! I should've known", "player:What are Daconia stones", "npc:Hazelmere created",
-            "npc:This is terrible", "player:Can I help", "npc:First I must warn", "npc:If he's not there",
-            "player:OK! I'll be back soon" })
-        t.ticks(2)
-        t.expect("quest.stage.relayed_message_narnode", t.quest.expect_stage("relayed_message_narnode"))
-
-        -- climbUpToGlough / talkToGlough
-        tree_door_out("climbUpToGlough.treeDoorOut")
-        tree_to_glough("climbUpToGlough")
-        glough_up("climbUpToGlough")
-        t.exec("talkToGlough", t.player.talk_to, "grandtree_glough", 1)
-        t.exec("talkToGlough-dialog", t.chat.play, {
-            "player:Hello", "mesbox:The gnome is munching", "npc:Can I help human", "mesbox:The gnome continues to eat",
-            "player:The King asked me to inform you", "npc:Surely not", "player:Apparently a human took them",
-            "npc:I should've known", "player:Never", "npc:Your type can't be trusted" })
-        t.ticks(2)
-        t.expect("quest.stage.spoken_glough", t.quest.expect_stage("spoken_glough"))
-
-        -- talkToKingNarnodeAfterGlough
-        glough_down("talkToKingNarnodeAfterGlough.ladderDown")
-        glough_to_tree("talkToKingNarnodeAfterGlough")
-        t.exec("talkToKingNarnodeAfterGlough", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("talkToKingNarnodeAfterGlough-dialog", t.chat.play, {
-            "player:Hello, your highness", "npc:It's OK Traveller, thanks to Glough", "player:Wow! That was quick",
-            "npc:Yes Glough really knows", "npc:Maybe Glough was right", "player:I doubt it, can I speak to the prisoner",
-            "npc:Certainly" })
-        t.ticks(2)
-        t.expect("quest.stage.found_prisoner", t.quest.expect_stage("found_prisoner"))
-
-        -- the Grand Tree's ladders, floor 0 to floor 3
-        climb_tree_up("")
-        t.expect("talkToCharlie.present", t.npc.await_present("grandtree_charlie", 8, 10))
-        t.exec("talkToCharlie", t.player.talk_to, "grandtree_charlie", 1)
-        t.exec("talkToCharlie-dialog", t.chat.play, {
-            "player:Tell me. Why would you want to kill", "npc:What do you mean", "player:Don't tell me",
-            "npc:All I know is that I did what I was asked", "player:I don't understand", "npc:Glough paid me",
-            "npc:I've been doing it for weeks", "player:Sounds like Glough is hiding something",
-            "npc:I don't know what he's up to", "player:OK. Thanks Charlie", "npc:Good luck" })
-        t.ticks(2)
-        t.expect("quest.stage.spoken_prisoner", t.quest.expect_stage("spoken_prisoner"))
-
-        -- back down the tree
-        climb_tree_down("")
-
-        -- returnToGlough / findGloughJournal
-        tree_door_out("returnToGlough.treeDoorOut")
-        tree_to_glough("returnToGlough")
-        glough_up("returnToGlough")
-        t.exec("findGloughJournal.open", t.player.click_loc, "grandtree_cupboardclosed", 1)
-        t.ticks(2)
-        t.exec("findGloughJournal", t.player.click_loc, "grandtree_cupboardopen", 2)
-        t.exec("findGloughJournal-dialog", t.chat.play, { "mesbox:You've found Glough's Journal" })
-        t.ticks(2)
-        t.expect("quest.stage.found_journal", t.quest.expect_stage("found_journal"))
-
-        -- talkToGloughAgain: he has you arrested
-        t.exec("talkToGloughAgain", t.player.talk_to, "grandtree_glough", 1)
-        t.exec("talkToGloughAgain-dialog", t.chat.play, {
-            "player:I don't know what you're up to", "npc:You're a fool human", "player:Grand Tree's dying",
-            "npc:How dare you accuse", "npc:Guards! Guards!" })
-        t.expect("glough.wait_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "Come with me page" }, 40))
-        t.exec("glough.commands", t.chat.play, { "npc:Come with me" })
-        t.expect("charlie.wait_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "cell page" }, 60))
-        t.exec("talkToCharlieFromCell-dialog", t.chat.play, {
-            "npc:So they got you as well", "player:It's Glough", "npc:I shouldn't tell you", "npc:But if you want",
-            "player:Why?", "npc:Glough sent me to Karamja", "npc:Karamja Shipyard", "player:Thanks Charlie" })
-        t.expect("narnode.wait_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "narnode page" }, 60))
-        t.exec("talkToKingNarnodeBeforeEscape-dialog-1", t.chat.play, { "npc:Traveller please accept" })
-        t.expect("narnode.wait_trust", t.await({ level = function() return t.chat.kind() == "player" end, note = "trust page" }, 60))
-        t.exec("talkToKingNarnodeBeforeEscape-dialog-2", t.chat.play, {
-            "player:I don't think you can trust Glough", "npc:I know he can be a bit extreme",
-            "npc:I'm afraid Glough has placed guards", "player:Well, OK", "npc:I'm sorry again", "end" })
-        t.ticks(3)
-        t.expect("quest.stage.released_prison", t.quest.expect_stage("released_prison"))
-
-        -- escapeByGlider: the pilot on top of the Grand Tree; the glider crashes on Karamja at
-        -- 2917,3058 and does not fly back (gnome_glider.rs2:43-66)
-        t.exec("escapeByGlider", t.player.talk_to, "pilot_grand_tree", 1)
-        t.exec("escapeByGlider-dialog", t.chat.play, {
-            "npc:Hi, the King said", "player:Apparently humans are invading", "npc:I find that hard to believe",
-            "player:I don't understand it either", "npc:So where to", "options", "choose:Take me to Karamja please!",
-            "player:Take me to Karamja please", "npc:OK! You're the boss" })
-        -- The crash: if_close, p_teleport(0_45_47_37_50), p_delay(4), then the wreck's pilot (m45_47.spawn
-        -- pilot_grand_tree 2918,3057, bound by npc_find in gnome_glider.rs2) speaks eight pages
-        -- (gnome_glider.rs2 escape branch; LostCity gnome_glider.rs2:101-108, same text).
-        t.expect("escapeByGlider.crashPage", t.await({ level = function() return t.chat.kind() == "npc" end,
-            note = "the crash pilot's first page" }, 20))
-        local crash_result, crash_tile = t.world.tile()
-        t.check("escapeByGlider.landed", crash_result == "ok" and crash_tile.level == 0
-                and math.abs(crash_tile.x - 2917) <= 2 and math.abs(crash_tile.z - 3058) <= 2,
-            "after the glider: " .. tile_text(crash_result, crash_tile) .. " (want the Karamja crash site 0_45_47_37_50 = 2917,3058,0)")
-        -- the speaker is the wreck's pilot standing beside the player, not the Grand Tree's ~450 tiles north
-        local wreck_result, wreck_pilot = t.npc.nearest("pilot_grand_tree", 5)
-        local wreck_ok = wreck_result == "ok" and type(wreck_pilot) == "table"
-        t.check("escapeByGlider.crashPilot", wreck_ok and math.abs(wreck_pilot.x - 2918) <= 2
-                and math.abs(wreck_pilot.z - 3057) <= 2,
-            "pilot_grand_tree within 5: " .. tostring(wreck_result) .. " at "
-                .. (wreck_ok and (tostring(wreck_pilot.x) .. "," .. tostring(wreck_pilot.z)) or "-")
-                .. " (want the wreck's spawn 2918,3057)")
-        local name_result, speaker = t.chat.name()
-        t.check("escapeByGlider.crashSpeaker", name_result == "ok" and wreck_ok and speaker == wreck_pilot.name,
-            "crash page header " .. tostring(speaker) .. " (" .. tostring(name_result) .. "), want the wreck pilot's name "
-                .. (wreck_ok and tostring(wreck_pilot.name) or "-"))
-        t.expect("escapeByGlider.crashHead", t.chat.expect_head("pilot_grand_tree"))
-        t.exec("escapeByGlider-crash-dialog", t.chat.play, {
-            "npc:Sorry about that.",
-            "npc:That turbulence over the Karamja Volcano was a bit unexpected",
-            "player:I'm fine, I can't say the same for your glider!",
-            "npc:I don't think I can fix this.",
-            "player:Where's the shipyard from here?",
-            "npc:I think I saw some buildings on the coast east of here",
-            "npc:Take care adventurer!",
-            "player:Take care little man.",
-            "end" })
-
-        -- enterTheShipyard: walked from the crash (reach.py 2917,3058 -> 2944,3041 closed-doors len 44);
-        -- the worker's password quiz (shipyardworker.rs2 @shipyardworker_gate) opens the gate when he
-        -- stands within 5 tiles, else the gate opens at once (grandtree_shipyard_gate.rs2:16-33)
-        t.exec("enterTheShipyard.walk", t.player.walk_route, { { 2924, 3057 }, { 2931, 3056 }, { 2939, 3056 }, { 2943, 3052 }, { 2944, 3045 }, { 2944, 3041 } })
-        t.exec("enterTheShipyard", t.player.cross_gate, { loc = "grandtree_fencegate_l", at = { 2945, 3041, 0 },
-            near = { 2944, 3041 }, far_ok = function(tile) return tile.x >= 2945 end, far_desc = "inside the shipyard, x >= 2945",
-            chat = {
-                "npc:What are you up to", "player:trying to open the gate", "npc:I can see that", "options",
-                "choose:Glough sent me.", "player:Glough sent me", "npc:really", "player:wasting my time", "npc:Password",
-                "options", "choose:Ka.", "player:Ka.", "options", "choose:Lu.", "player:Lu.", "options", "choose:Min.", "player:Min.",
-                "npc:Sorry to have kept you" },
-            chat_optional = "the shipyard worker quizzes only within 5 tiles of the gate (grandtree_shipyard_gate.rs2:17)" })
-
-        -- talkToForeman: inside the yard (comp.py: one fenced component, the gate its only exit),
-        -- walked to the foreman; the wrong answer makes him attack; kill him for the lumber order
-        t.exec("talkToForeman.walk", t.player.walk_route, { { 2952, 3039 }, { 2956, 3035 }, { 2962, 3033 }, { 2966, 3037 },
-            { 2969, 3042 }, { 2975, 3044 }, { 2981, 3046 }, { 2986, 3049 }, { 2993, 3048 }, { 3000, 3049 }, { 3000, 3043 } })
-        t.exec("talkToForeman", t.player.talk_to, "grandtree_foreman", 1)
-        t.exec("talkToForeman-dialog-1", t.chat.play, {
-            "player:Hello, are you in charge", "npc:That's right", "player:Glough sent me", "npc:Right. Glough sent a human",
-            "player:His gnomes are busy", "npc:Hmm", "npc:Follow me", "end" })
-        t.expect("foreman.wait_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "office page" }, 80))
-        t.exec("talkToForeman-dialog-2", t.chat.play, {
-            "npc:Tell me again", "player:Er", "npc:By the way how is Glough", "options",
-            "choose:Yes, they're getting on great.", "player:Yes, they're getting on great", "npc:Really? That's odd", "end" })
-        local _, foreman_detail = t.exec("talkToForeman.fight", t.npc.await_dead, "grandtree_foreman", 200, 12, 8,
-            { eat = { item = "shark", below = 60 } })
-        fight_margin("talkToForeman.margin", "the foreman (level 23)", foreman_detail)
-        t.ticks(3)
-        t.exec("talkToForeman.order", t.player.click_obj, "grandtree_order", 3)
-        t.expect("quest.stage.obtained_lumber_order", t.quest.expect_stage("obtained_lumber_order"))
-
-        -- goTalkToCharlie3: off Karamja by Camelot Teleport, overland to the Stronghold gate, where
-        -- the guards turn the player away (gnome_gate.rs2:24-31) and Femi sneaks you past it
-        camelot_teleport("gnomeGate.camelotTeleport")
-        t.exec("goto-gnomeGate", t.player.goto_tile, 2461, 3379, 0)
-        t.exec("gnomeGate.approach", t.player.walk_route, { { 2461, 3382 } })
-        t.exec("gnomeGate", t.player.click_loc, "gnome_areagate", 1, { at = { 2459, 3383 } })
-        t.exec("gnomeGate-dialog", t.chat.play, {
-            "npc:I'm afraid that we have orders", "player:Orders from who", "npc:The head tree guardian",
-            "player:Glough!", "npc:I'm sorry but you'll have to leave", "end" })
-        local refused_result, refused_tile = t.world.tile()
-        t.check("gnomeGate.refused", refused_result == "ok" and refused_tile.z <= 3382 and refused_tile.level == 0,
-            "after the guard's refusal: " .. tile_text(refused_result, refused_tile) .. " (want still south of the gate, z <= 3382)")
-        t.exec("femi", t.player.talk_to, "grandtree_femi", 1)
-        t.exec("femi-dialog", t.chat.play, {
-            "player:I can't believe they won't let me in", "npc:I don't believe all this rubbish",
-            "player:I really need to see King Narnode", "npc:Well, as you helped me", "player:OK, what should I do",
-            "npc:Jump in the back of the cart" })
-        -- femi.rs2 @grandtree_femi_sneakin: the cart run lands at 0_38_53_27_17 = 2459,3409 inside
-        t.expect("femi.sneakin_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "Femi's farewell page" }, 30))
-        t.exec("femi.sneakin-dialog", t.chat.play, { "npc:OK, traveller", "player:Thanks again", "npc:That's OK, all the best" })
-        local sneak_result, sneak_tile = t.world.tile()
-        t.check("femi.sneakin", sneak_result == "ok" and sneak_tile.level == 0 and sneak_tile.z >= 3400,
-            "after the cart: " .. tile_text(sneak_result, sneak_tile) .. " (want inside the Stronghold, 2459,3409,0)")
-
-        -- climb to Charlie again
-        into_tree("goTalkToCharlie3")
-        climb_tree_up("-again")
-        t.expect("talkToCharlie3.present", t.npc.await_present("grandtree_charlie", 8, 10))
-        t.exec("talkToCharlie3", t.player.talk_to, "grandtree_charlie", 1)
-        t.exec("talkToCharlie3-dialog", t.chat.play, {
-            "player:How are you doing Charlie", "npc:I've been better", "player:Glough has some plan",
-            "npc:wouldn't put it past him", "player:need some proof", "npc:you could be in luck",
-            "player:Where does she live", "npc:west of the toad swamp", "player:see what I can find", "end" })
-        t.ticks(2)
-        t.expect("quest.stage.clue_charlie", t.quest.expect_stage("clue_charlie"))
-        climb_tree_down("-again")
-
-        -- climbUpToAnita / talkToAnita: her staircase's maplink rows (maplink.dbrow
-        -- maplink_0_37_54_23_56: 2391,3512 -> 2388,3513,1; down 2388,3513,1 -> 2389,3514,0)
-        tree_door_out("climbUpToAnita.treeDoorOut")
-        t.exec("goto-climbUpToAnita", t.player.goto_tile, 2391, 3511, 0)
-        t.exec("climbUpToAnita", t.player.climb, { loc = "spiralstairs_wooden", op = 1, op_name = "Climb-up",
-            at = { 2389, 3512, 0 }, src = { 2391, 3512 }, dest = { 2388, 3513, 1 } })
-        t.exec("talkToAnita", t.player.talk_to, "grandtree_anita", 1)
-        t.exec("talkToAnita-dialog", t.chat.play, {
-            "player:Hello there", "npc:Oh hello, I've seen you with the King", "player:Yes, I'm helping him",
-            "npc:You must know my boyfriend Glough", "player:Indeed", "npc:Could you do me a favour",
-            "player:I suppose so", "npc:Please give this key", "mesbox:Anita gives you a key", "npc:Thanks a lot",
-            "player:No...thank you" })
-        t.exec("leaveAnita.stairsDown", t.player.climb, { loc = "spiralstairstop_wooden", op = 1, op_name = "Climb-down",
-            at = { 2389, 3513, 1 }, src = { 2388, 3513 }, dest = { 2389, 3514, 0 }, slack = 1 })
-
-        -- findInvasionPlans: Glough's key opens his chest (open ground, reach.py 2389,3514 ->
-        -- 2476,3462 closed-doors len 141)
-        t.exec("goto-climbUpToGloughAgain", t.player.goto_tile, 2476, 3461, 0)
-        glough_up("climbUpToGloughAgain")
-        t.exec("findInvasionPlans", t.player.use_on, "grandtree_gloughskey", t.player.by_symbol("loc", "grandtree_chestclosed"))
-        t.exec("findInvasionPlans-dialog", t.chat.play, { "mesbox:You have found a scroll" })
-        t.ticks(2)
-        t.expect("quest.stage.found_invasion_plans", t.quest.expect_stage("found_invasion_plans"))
-
-        -- takeInvasionPlansToKing
-        glough_down("takeInvasionPlansToKing.ladderDown")
-        glough_to_tree("takeInvasionPlansToKing")
-        t.exec("takeInvasionPlansToKing", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("takeInvasionPlansToKing-dialog", t.chat.play, {
-            "player:Hi, your highness, did you think", "npc:Look, if you're right about Glough",
-            "player:Look, I found this at Glough's home", "objbox:You give the King the invasion plans",
-            "npc:If these are to be believed", "npc:But it's not proof", "objbox:The King has given you some twigs",
-            "npc:On the other hand", "npc:The Grand Tree's still slowly dying" })
-        t.ticks(2)
-        t.expect("quest.stage.given_twigs", t.quest.expect_stage("given_twigs"))
-
-        -- climbUpToGloughForWatchtower / climbUpToWatchtower / placeTwigs
-        tree_door_out("climbUpToGloughForWatchtower.treeDoorOut")
-        tree_to_glough("climbUpToGloughForWatchtower")
-        glough_up("climbUpToGloughForWatchtower")
-        -- grandtree_locs_climb.rs2 [oploc1,grandtree_climbtree]: agility 25, telejump to loc +2,+1, one plane up
-        t.exec("climbUpToWatchtower", t.player.climb, { loc = "grandtree_climbtree", op = 1, op_name = "Climb-up",
-            at = { 2484, 3464, 1 }, dest = { 2486, 3465, 2 } })
-        t.exec("placeTwigsT", t.player.use_on, "grandtree_twigt", t.player.by_symbol("loc", "grandtree_pillart"))
-        t.exec("placeTwigsU", t.player.use_on, "grandtree_twigu", t.player.by_symbol("loc", "grandtree_pillaru"))
-        t.exec("placeTwigsZ", t.player.use_on, "grandtree_twigz", t.player.by_symbol("loc", "grandtree_pillarz"))
-        t.exec("placeTwigsO", t.player.use_on, "grandtree_twigo", t.player.by_symbol("loc", "grandtree_pillaro"))
-        t.ticks(2)
-        t.expect("quest.stage.unlocked_trapdoor", t.quest.expect_stage("unlocked_trapdoor"))
-
-        -- climbDownTrapDoor: Glough's black demon. The tower trapdoor (jl2 m38_54 level 2 55,8 =
-        -- 2487,3464) teleports to 0_38_154_59_8 = 2491,9864 (grandtree_locs_climb.rs2 @grandtree_trapdoor_enter)
-        t.exec("climbDownTrapDoor", t.player.climb, { loc = "grandtree_trapdoortoweropen", op = 1, op_name = "Climb-down",
-            at = { 2487, 3464, 2 }, dest = { 2491, 9864, 0 }, slack = 1 })
-        t.expect("glough.page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "Glough headache page" }, 60))
-        t.exec("climbDownTrapDoor-dialog", t.chat.play, {
-            "npc:You really are becoming a headache", "player:You're crazy Glough", "npc:Bah! Well, soon you'll see",
-            "player:What makes you think", "npc:Fool...meet my little friend", "end" })
-        -- Glough's demon cutscene (glough.rs2:143-155): cam_shake, cam_moveto the tower floor, cam_lookat
-        -- the tile beside the player, and cam_reset once the demon has walked in.
-        t.exec("climbDownTrapDoor.cutscene", t.cutscene.await, "climbDownTrapDoor", { expect = {
-            { op = "moveto", coord = "0_38_154_44_13", height = 2000 },
-            { op = "lookat" },
+        local cam0 = t.cutscene.mark()
+        t.exec("trapdoor", t.player.click_loc, "grandtree_trapdoortoweropen", 1, { at = { 2487, 3464, 2 } })
+        page("scene.page", "player", 40)
+        t.exec("scene.pages", t.chat.play, {
+            "player:Glough?",
+            "npc:You really are becoming a headache!",
+            "player:You're crazy, Glough!",
+            "npc:Bah! Well, soon you'll see, the gnomes are ready to",
+            "player:What makes you think I'll let you get away with it?",
+        })
+        -- [1609..1613]: the page with no continue while the demon appears, the
+        -- same page with its continue four ticks later.
+        t.ticks(5)
+        t.exec("scene.friend", t.chat.play, { "npc:Fool... meet my little friend!" })
+        t.exec("scene.camera", t.cutscene.await, "scene", { since = cam0, expect = {
+            { op = "moveto", height = 300 },
+            { op = "lookat", height = 225 },
+            { op = "moveto", height = 500 },
+            { op = "moveto", height = 2000 },
+            { op = "moveto", height = 600 },
+            { op = "lookat", height = 300 },
             { op = "reset" },
         } })
-        t.expect("demon.present", t.npc.await_present("grandtree_blackdemon", 20, 40))
-        local _, demon_detail = t.exec("killBlackDemon", t.npc.await_dead, "grandtree_blackdemon", 400, 20, 10,
-            { eat = { item = "shark", below = 60 } })
-        fight_margin("killBlackDemon.margin", "the black demon (level 172)", demon_detail)
-        t.ticks(3)
-        t.expect("quest.stage.defeated_black_demon", t.quest.expect_stage("defeated_black_demon"))
+        landed("scene.out", 2491, 9864, 0, 10)
+        t.expect("demon.present", t.npc.await_present("grandtree_blackdemon", 20, 20))
+        t.exec("demon.glough", t.player.talk_to, "grandtree_glough_battle", 1)
+        t.exec("demon.glough.page", t.chat.play, { "npc:Just die, human!", "end" })
+        t.exec("demon.fight", t.npc.await_dead, "grandtree_blackdemon", 400, 20, 10, { eat = { item = "shark", below = 60 } })
+        t.expect("demon.stage", t.quest.expect_stage("defeated_black_demon"))
+        t.expect("demon.glough_gone", t.npc.await_gone("grandtree_glough_battle", 12))
 
-        -- climbDownTrapDoorAfterFight / talkToKingAfterFight: the demon's tunnel runs into the roots
-        -- (reach.py 2491,9864 -> 2465,9896 closed-doors len 128): one dungeon, open tile to open tile
-        t.exec("goto-talkToKingAfterFight", t.player.goto_tile, 2465, 9896, 0)
-        t.exec("talkToKingAfterFight", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("talkToKingAfterFight-dialog-1", t.chat.play, {
-            "npc:Traveller you're wounded", "player:It's Glough", "npc:What?! Glough", "player:Glough has a store",
-            "npc:Never! Not Glough" })
-        t.expect("king.guard_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "guard page" }, 40))
-        t.exec("talkToKingAfterFight-dialog-2", t.chat.play, { "npc:Guard!" })
-        t.expect("king.sire_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "guard Sire page" }, 60))
-        t.exec("talkToKingAfterFight-dialog-3", t.chat.play, { "npc:Sire!", "npc:Go and check" })
-        t.expect("king.found_page", t.await({ level = function() return t.chat.kind() == "npc" end, note = "guard found Glough page" }, 60))
-        t.exec("talkToKingAfterFight-dialog-4", t.chat.play, {
-            "npc:We found Glough", "player:That's what I've been trying to tell you", "npc:I..I don't know what to say",
-            "npc:Guard! Call off", "npc:The humans are not attacking", "npc:Yes sir", "npc:You have my full apologies",
-            "npc:And my gratitude", "npc:A reward will have to wait", "npc:Help us search, we have little time!", "end" })
-        t.ticks(2)
-        t.expect("quest.stage.searching_daconia", t.quest.expect_stage("searching_daconia"))
+        -- ---- 14. The King below, the roots, the reward ([1974..2163]) ----
+        t.exec("roots.walk", t.player.walk_route, { { 2462, 9896 } }, { max_hop = 40 })
+        t.exec("roots.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("roots.king.pages", t.chat.play, {
+            "npc:Traveller you're wounded! What happened?",
+            "player:It's Glough! He set a demon on me!",
+            "npc:What?! Glough?! With a demon?!",
+            "player:Glough has a store of Daconia rocks further up the",
+            "npc:Never! Not Glough! He's a good gnome at heart!",
+        })
+        page("roots.guard1", "npc", 4)
+        t.exec("roots.guard1.pages", t.chat.play, { "npc:Guard!" })
+        page("roots.sire", "npc", 10)
+        t.exec("roots.sire.pages", t.chat.play, { "npc:Sire!", "npc:Go and check out that passage!" })
+        page("roots.report", "npc", 10)
+        t.exec("roots.report.pages", t.chat.play, {
+            "npc:We found Glough hiding under a horde of Daconia",
+            "player:That's what I've been trying to tell you!",
+            "npc:I..I don't know what to say!",
+            "npc:Guard! Call off the military training!",
+            "npc:The humans are not attacking!",
+            "npc:Yes sir!",
+            "npc:You have my full apologies Traveller!",
+            "npc:A reward will have to wait though",
+            "end",
+        })
+        t.expect("roots.stage", t.quest.expect_stage("searching_daconia"))
 
-        -- findDaconiaStone: the root the quest picked (daconia_coords), absolute x = 2432 + X, z = 9856 + Z.
-        -- Every root's south tile is walkable from the king (reach.py 2465,9896 -> each, closed-doors len 3..43).
+        -- The rolled root (daconia_coords: index -> coord); its south tile.
         local roots = {
             { "largeroot_gnome", 2456, 9886 }, { "largeroot_gnome", 2456, 9886 }, { "largeroot2_gnome", 2457, 9881 },
             { "largeroot2_gnome", 2455, 9874 }, { "largeroot_gnome", 2443, 9878 },
-            -- root 5 lies west of the scene the demon's trapdoor built (centred on 2491,9864: base x 2440,
-            -- so move_to refuses 2439,9880 from the king); walk first to root 6's foot 2444,9892 (reach.py
-            -- from 2464,9899 len 33), whose approach rebuilds the scene round the player (local x < 16,
-            -- TORIRSSERVER_REBUILD_MARGIN), then on to the root (reach.py 2444,9892 -> 2439,9880 len 17)
             { "largeroot2_gnome", 2439, 9881, via = { 2444, 9892 } },
             { "largeroot2_gnome", 2444, 9893 }, { "largeroot_gnome", 2452, 9893 }, { "largeroot2_gnome", 2465, 9891 },
             { "largeroot2_gnome", 2468, 9890 }, { "largeroot_gnome", 2467, 9896 }, { "largeroot_gnome", 2473, 9897 },
             { "largeroot2_gnome", 2481, 9904 }, { "largeroot_gnome", 2485, 9885 }, { "largeroot_gnome", 2490, 9889 },
             { "largeroot2_gnome", 2467, 9872 },
         }
-        local root_result, root_index = t.var.server("varp6544_daconia_rock_root")
-        t.check("findDaconiaStone.root", root_result == "ok" and root_index ~= nil and roots[root_index + 1] ~= nil,
-            "daconia_rock_root = " .. tostring(root_index))
-        local root = roots[(root_index or 0) + 1]
-        local root_route = { { root[2], root[3] - 1 } }
+        local rr, ri = t.var.server("varp6544_daconia_rock_root")
+        local root = roots[(ri or 0) + 1]
+        t.check("roots.rolled", rr == "ok" and root ~= nil, "daconia_rock_root = " .. tostring(ri))
+        local route = { { root[2], root[3] - 1 } }
         if root.via then
-            root_route = { root.via, { root[2], root[3] - 1 } }
+            route = { root.via, { root[2], root[3] - 1 } }
         end
-        t.exec("findDaconiaStone.walk", t.player.walk_route, root_route, { max_hop = 40 })
-        t.exec("findDaconiaStone", t.player.click_loc, root[1], 1, { at = { root[2], root[3], 0 } })
-        t.exec("findDaconiaStone-dialog", t.chat.play, { "mesbox:You've found a Daconia Rock" })
-        t.exec("findDaconiaStone.have", t.inv.expect_has, "grandtree_daconiarock", 1)
+        t.exec("roots.walk2", t.player.walk_route, route, { max_hop = 40 })
+        t.exec("roots.search", t.player.click_loc, root[1], 1, { at = { root[2], root[3], 0 } })
+        page("roots.found.page", "objbox", 12)
+        t.exec("roots.found", t.chat.play, { "objbox:You've found a Daconia rock!", "end" })
+        t.expect("roots.rock", t.inv.expect_has("grandtree_daconiarock", 1))
 
-        -- giveDaconiaStoneToKingNarnode
-        t.exec("giveDaconiaStoneToKingNarnode.walk", t.player.walk_route, { { 2465, 9896 } }, { max_hop = 40 })
-        local snapshot_result, snapshot = t.skill.snapshot()
-        t.check("giveDaconiaStone.snapshot", snapshot_result == "ok", "snapshot " .. tostring(snapshot_result))
-        t.exec("giveDaconiaStoneToKingNarnode", t.player.talk_to, "grandtree_narnode", 1)
-        t.exec("giveDaconiaStoneToKingNarnode-dialog", t.chat.play, {
-            "npc:Traveller, have you managed to find the Daconia", "player:Is this it", "npc:Yes! Excellent, well done",
-            "objbox:You give the King the Daconia rock", "npc:It's incredible", "npc:To think Glough had me fooled",
-            "player:All that matters now", "npc:I'll drink to that", "npc:From now on I vow", "player:Thanks!",
-            "player:I think!", "npc:It should make your stay", "player:Mine?", "npc:Very few know", "player:Strange!",
-            "npc:That's magic trees for you", "npc:All the best Traveller", "player:You too, your highness", "end" })
-        t.ticks(4)
+        t.exec("reward.walk", t.player.walk_route, { { 2462, 9896 } }, { max_hop = 40 })
+        local sr, snapshot = t.skill.snapshot()
+        t.check("reward.snapshot", sr == "ok", tostring(sr))
+        t.exec("reward.king", t.player.talk_to, "grandtree_narnode", 1)
+        t.exec("reward.pages", t.chat.play, {
+            "npc:Traveller, have you managed to find the Daconia?",
+            "player:Is this it?",
+            "npc:Yes! Excellent, well done!",
+            "objbox:You give the King the Daconia rock.",
+            "npc:It's incredible, the tree's health is improving already!",
+            "npc:To think Glough had me fooled all along!",
+            "player:All that matters now is that humans and gnomes can",
+            "npc:I'll drink to that!",
+            "npc:From now on I vow to make this stronghold a",
+            "player:Thanks!",
+            "player:I think!",
+            "npc:It should make your stay here easier.",
+            "player:Mine?",
+            "npc:Very few know of the secret mine under the Grand",
+            "player:Strange!",
+            "npc:That's magic trees for you!",
+            "npc:All the best Traveller and thanks again!",
+            "player:You too, your highness!",
+            "end",
+        })
+        t.ticks(2)
         t.quest.expect_complete()
-
-        -- rewards: 18400 Attack, 7900 Agility, 2150 Magic experience, 5 quest points
+        t.expect("reward.rock_gone", t.inv.expect_absent("grandtree_daconiarock"))
         t.expect("reward.attack_xp", t.skill.expect_gain("attack", 18400, snapshot))
         t.expect("reward.agility_xp", t.skill.expect_gain("agility", 7900, snapshot))
         t.expect("reward.magic_xp", t.skill.expect_gain("magic", 2150, snapshot))

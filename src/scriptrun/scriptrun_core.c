@@ -657,9 +657,18 @@ player_apply_op(
         break;
     }
     case RSPROT_OP_FACE_COORD:
-        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
-            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick, op->face_coord.x >> 1,
-                    op->face_coord.z >> 1);
+        /* A rev-241 face is printed as the wire states it, the way RSProx
+         * does: the loc's south-west tile, and its size when bigger than one
+         * (`coord=(3302, 3163, 3), sizex=3`). */
+        if( self->cur_pid == core_local_pid(core) && core_wirelog_file() && op->face_coord.modern &&
+            (op->face_coord.size_x > 1 || op->face_coord.size_z > 1) )
+            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\t%d\t%d\n", core->tick,
+                    op->face_coord.tile_x, op->face_coord.tile_z, op->face_coord.size_x,
+                    op->face_coord.size_z);
+        else if( self->cur_pid == core_local_pid(core) && core_wirelog_file() )
+            fprintf(core_wirelog_file(), "%d\tface_coord\t%d\t%d\n", core->tick,
+                    op->face_coord.modern ? op->face_coord.tile_x : op->face_coord.x >> 1,
+                    op->face_coord.modern ? op->face_coord.tile_z : op->face_coord.z >> 1);
         if( op->face_coord.modern )
             World_PlayerBeginModernFacing(world, idx, op->face_coord.movement_mode);
         World_PlayerFaceCoord(world, idx, op->face_coord.x, op->face_coord.z);

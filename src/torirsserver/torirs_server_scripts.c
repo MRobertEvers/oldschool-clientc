@@ -11103,6 +11103,8 @@ script_command(
          * treats faceSquareX/Z as (tile<<1)+1 and 0,0 is the "none" sentinel. */
         player->face_x = ToriRSServer_CoordFine(coord_x(coord), 1);
         player->face_z = ToriRSServer_CoordFine(coord_z(coord), 1);
+        player->face_size_x = 1;
+        player->face_size_z = 1;
         player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
         player->face_square_tick = srv->tick;
         return 1;

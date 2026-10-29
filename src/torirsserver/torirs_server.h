@@ -935,6 +935,14 @@ enum
 /** The masks the classic (rev-230) PLAYER_INFO writer can express. */
 #define TORIRSSERVER_PMASK_CLASSIC 0x7ffu
 
+/** What face a player's client still holds (`face_hold`, player_face_hold). */
+enum
+{
+    TORIRSSERVER_FACE_HOLD_NONE = 0,
+    TORIRSSERVER_FACE_HOLD_SQUARE = 1,
+    TORIRSSERVER_FACE_HOLD_ANGLE = 2,
+};
+
 /*
  * Every hitsplat one entity takes in one tick.
  *
@@ -4292,6 +4300,27 @@ struct ToriRSServerPlayer
      */
     int face_target_x;
     int face_target_z;
+    /**
+     * The footprint of `face_x`/`face_z` (and of the pending target): 1 for a
+     * square, the loc's rotated size for a loc op. Rev 241 sends a faced loc
+     * as its south-west tile plus `sizex`/`sizez` (RSProx, 600 of 601 sized
+     * faces over 23 sessions), not as its centre. 0 reads as 1.
+     */
+    int face_size_x;
+    int face_size_z;
+    int face_target_size_x;
+    int face_target_size_z;
+    /**
+     * A square or angle face the client still holds (player_face_hold): what
+     * the next move has to reset. `face_hold_superseded` is a world op (loc,
+     * obj, npc, player) clicked since, whose own face replaces it; the tile is
+     * where the player stood when it was last checked.
+     */
+    int face_hold;
+    int face_hold_superseded;
+    int face_hold_x;
+    int face_hold_z;
+    int face_hold_level;
     /** The tick a script last faced a square (`facesquare`), for the release
      *  of an entity face (player_face_release); -1 never. */
     int face_square_tick;
@@ -4569,6 +4598,9 @@ struct ToriRSServerPlayer
      *  from the landing until its own `midi_song` -- keeps the region's track
      *  from starting under it. -1 when nothing holds it. */
     int music_hold_until;
+    /** A square crossed while the player was delayed: its region track waits
+     *  for the first tick the delay is over (ToriRSServer_WorldUpdateMap). */
+    int music_region_pending;
     /** The music clock (`ToriRSServer_MusicPlay`): the tick the running track
      *  runs out -- its music-table `duration` + 1 after the row moved to it --
      *  and that row; -1 with no clock. */

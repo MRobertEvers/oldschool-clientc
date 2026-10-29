@@ -1097,3 +1097,15 @@ region_id	square_x	square_z	sw_tile_x	sw_tile_z	track_name	song_archive_name
 # (fades 0/60/60/0); the same track re-sent on every return from the
 # quest's cutscene copies ([481], [539], [622]).
 11830	46	54	2944	3456	Goblin Village	goblin_village
+#
+# 5274, 5532, 5276, 5785 -- The Garden of Death's four ruins (under the camp,
+# Molch Island, Xeric's Shrine, the Ruins of Morra), newer than Kronos. RSProx
+# index 4427 [1407] (the unlock line, musicmulti_23 bit 8, midi_song 729 with
+# fades 0/60/60/0), [1834], [2050], [2330] on each climb down. 5432 -- Molch
+# Island's square: [1813] "Gill Bill" (musicmulti_18 bit 28, midi 618) on the
+# boat's landing at 1369,3639.
+5274	20	154	1280	9856	The Old Ones	old_ones
+5532	21	156	1344	9984	The Old Ones	old_ones
+5276	20	156	1280	9984	The Old Ones	old_ones
+5785	22	153	1408	9792	The Old Ones	old_ones
+5432	21	56	1344	3584	Gill Bill	gill_bill

@@ -125,14 +125,11 @@ line.
 
 ## Still open (outside Draynor's own script)
 
-1. **Helper panel.** On the wallclimb we set varbit 12633 and open
-   `helper_generic` (711) into 161:12. Jagex sent neither, with
-   `agility_helper_disabled` (12379) at 0. This recording does not show which
-   setting opens Jagex's panel. Left as is.
-2. **Player face reset (engine).** Jagex sends `[facing] type=reset` on the first
-   step after a coord face and on teleports ([96], [100], [101], [112], [113],
-   [126], [138], [144], [151]); ours sends none. Already open in
-   `guthixian_archive/ezekiel_plan.md`.
+1. **Helper panel: fixed 2026-10-29** (see alkharid_rooftop.md): the feed's
+   course is server-only and `helper_generic` never opens, as recorded.
+2. **Player face reset: fixed 2026-10-29** (`player_face_hold`): ours now
+   sends [96], [100], [112], [126], [144], [151]. The stance-tick resets [101]
+   and [113] are still missing.
 3. **Music areas (engine data).** `docs/audio/music_regions.tsv` maps square
    12338 to Unknown Land, so on the wall crossing our client switches to it (and
    unlocks it) at (3089,3263). The recordings play Start (151) across the
@@ -146,7 +143,8 @@ line.
    spotanim 199, sounds 2396/2384, jingle 28, `levelup_list_agility` and
    `flashside`. Ours sends only the stat, because levelup.rs2 is a stub.
    Engine-wide.
-5. **Diary varps.** Our diary system does not write Jagex's own task bit
-   (varp 1194 bit 1) or `started_lumbridge_diary` (4453).
+5. **Diary varps: fixed 2026-10-29.** `started_lumbridge_diary` (4453) and
+   bit 1 of `lumb_dray_achievement_diary` (1194, now perm and sent) go out
+   before the line, once, as at [154].
 6. **Marks of grace and failure.** This lap spawned no mark, and the course
    cannot be failed; neither is checked against a recording.

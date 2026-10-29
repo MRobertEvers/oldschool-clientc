@@ -5401,6 +5401,21 @@ player_extended_v5(struct ToriRSServer* srv, struct ToriRSServerPlayer* viewer,
                     &ext.face, viewer, subject->masks, TORIRSSERVER_PMASK_FACE_ENTITY,
                     TORIRSSERVER_PMASK_FACE_COORD, subject->face_entity, subject->face_x,
                     subject->face_z, 0);
+            /* A faced loc is its south-west tile and its footprint, not its
+             * centre: RSProx 4428 [342] `coord=(3302, 3163, 3), sizex=3` for
+             * the zip line at (3302,3163); 600 of 601 sized faces. face_x is
+             * 2 * tile + size (ToriRSServer_CoordFine). */
+            if( ext.has_face && ext.face.kind == MOCK239_FACE_LOC &&
+                (subject->face_size_x > 1 || subject->face_size_z > 1) )
+            {
+                int const size_x = subject->face_size_x > 1 ? subject->face_size_x : 1;
+                int const size_z = subject->face_size_z > 1 ? subject->face_size_z : 1;
+
+                ext.face.x = (subject->face_x - size_x) / 2;
+                ext.face.z = (subject->face_z - size_z) / 2;
+                ext.face.size_x = size_x < 15 ? size_x : 15;
+                ext.face.size_z = size_z < 15 ? size_z : 15;
+            }
             if( (subject->masks & TORIRSSERVER_PMASK_TRANSPARENCY) && srv_wire_revision(viewer) >= 241 )
             {
                 ext.has_transparency = 1;

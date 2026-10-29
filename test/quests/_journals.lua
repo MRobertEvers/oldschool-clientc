@@ -5,6 +5,9 @@
 --   Observatory Quest, stages 2, 3, 4 and 6: RSProx index 4412, exactly.
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
+--   The Grand Tree, stages 20, 60, 80, 90, 100, 110, 120 and 150 (the rock held):
+--   RSProx index 4429, exactly (stage 90's trailing blank row dropped: a read
+--   ends at the last text row).
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -305,6 +308,186 @@ local TOR_4425_16 = {
     "<col=000080>this.",
 }
 
+local GT_4429_20 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<col=800000>Hazelmere<col=000080> took the bark sample and gave me a <col=800000>message <col=000080>that",
+    "<col=000080>I need to <col=800000>translate<col=000080> using the <col=800000>translation book<col=000080>. I then need to",
+    "<col=000080>give the message to <col=800000>King Narnode.",
+}
+local GT_4429_60 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<col=000080>I spoke to <col=800000>Charlie<col=000080> and agreed to <col=800000>search Glough's house<col=000080>, which",
+    "<col=000080>is just in front of the <col=800000>Grand Tree.",
+}
+local GT_4429_80 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<col=800000>King Narnode<col=000080> has told me to use the <col=800000>glider<col=000080>. <col=800000>Charlie <col=000080>told me to",
+    "<col=000080>go to the <col=800000>shipyard<col=000080> in the <col=800000>Karamja jungle<col=000080> and speak to the",
+    "<col=000080><col=800000>foreman<col=000080>. The password is <col=800000>Ka-Lu-Min",
+}
+local GT_4429_90 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<str>I crash landed in Karamja jungle and made my way to the",
+    "<str>shipyard.",
+    "<col=000080>I have an <col=800000>invoice<col=000080> that the foreman had.",
+}
+local GT_4429_100 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<str>I crash landed in Karamja jungle and made my way to the",
+    "<str>shipyard.",
+    "<str>I have an invoice that the foreman had. I should take it back",
+    "<str>to the Grand Tree.",
+    "",
+    "<col=800000>Charlie<col=000080> has suggested I ask <col=800000>Glough's girlfriend<col=000080> for the <col=800000>key<col=000080> to",
+    "<col=000080><col=800000>Glough's chest. <col=000080>She lives west of the <col=800000>toad swamp.",
+}
+local GT_4429_110 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<str>I crash landed in Karamja jungle and made my way to the",
+    "<str>shipyard.",
+    "<str>I have an invoice that the foreman had. I should take it back",
+    "<str>to the Grand Tree.",
+    "",
+    "<str>I obtained the key to Glough's chest from Anita, his girlfriend.",
+    "<str>I found invasion plans in Glough's chest!",
+    "<col=000080>I should talk to the King and see what he says...",
+}
+local GT_4429_120 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<str>I crash landed in Karamja jungle and made my way to the",
+    "<str>shipyard.",
+    "<str>I have an invoice that the foreman had. I should take it back",
+    "<str>to the Grand Tree.",
+    "",
+    "<str>I obtained the key to Glough's chest from Anita, his girlfriend.",
+    "<str>I found invasion plans in Glough's chest!",
+    "<col=800000>King Narnode <col=000080>isn't convinced but gave me some <col=800000>twigs<col=000080> found",
+    "<col=000080>at Glough's house. I wonder what they are for?",
+}
+local GT_4429_150 = {
+    "<str>King Narnode has told me that the Grand Tree is dying and",
+    "<str>has asked me to help. I have taken a bark sample from the",
+    "<str>Grand Tree from King Narnode to Hazelmere.",
+    "<str>Hazelmere took the bark sample and gave me a message that",
+    "<str>I translated and passed on to King Narnode. It seems that",
+    "<str>Daconia rocks are killing the Grand Tree!",
+    "",
+    "<str>On instructions from the King, I found Glough to tell him about",
+    "<str>the Daconia rocks.",
+    "<str>I told Glough about the Daconia rocks and he blames it on",
+    "<str>humans.",
+    "<str>I found Charlie, the prisoner, and talked to him.",
+    "<str>I spoke to Charlie and agreed to search Glough's house, which",
+    "<str>is just in front of the Grand Tree.",
+    "<str>Glough threw me in prison but the King freed me!",
+    "",
+    "<str>I crash landed in Karamja jungle and made my way to the",
+    "<str>shipyard.",
+    "<str>I have an invoice that the foreman had. I should take it back",
+    "<str>to the Grand Tree.",
+    "",
+    "<str>I obtained the key to Glough's chest from Anita, his girlfriend.",
+    "<str>I found invasion plans in Glough's chest!",
+    "<str>I used the twigs to open a trap door in Glough's house.",
+    "",
+    "<str>I defeated the Black Demon that Glough set on me! Glough",
+    "<str>fled like the coward he really is.",
+    "",
+    "<str>I should talk to the King and tell him what happened.",
+    "",
+    "<col=800000>King Narnode<col=000080> has seen the light. I have found a <col=800000>Daconia rock<col=000080>",
+    "<col=000080>that was hidden amongst the <col=800000>Grand Tree's roots. I need to",
+    "<col=800000>give it to the King.",
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -395,6 +578,16 @@ return {
             set("::setvar varb6358_shayzienquest " .. st[1])
             exact("journal.taleoftherighteous." .. st[1], "Tale of the Righteous", st[2])
         end
+
+        for _, st in ipairs({ { 20, GT_4429_20 }, { 60, GT_4429_60 }, { 80, GT_4429_80 }, { 90, GT_4429_90 },
+            { 100, GT_4429_100 }, { 110, GT_4429_110 }, { 120, GT_4429_120 } }) do
+            set("::setvar varp150_grandtree " .. st[1])
+            exact("journal.grandtree." .. st[1], "The Grand Tree", st[2])
+        end
+        set("::give grandtree_daconiarock 1")
+        set("::setvar varp150_grandtree 150")
+        exact("journal.grandtree.150", "The Grand Tree", GT_4429_150)
+        set("::clearinv")
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

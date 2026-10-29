@@ -1478,7 +1478,12 @@ ToriRSServer_WorldInteractionSet(
     {
         player->face_target_x = ToriRSServer_CoordFine(tile_x, sx);
         player->face_target_z = ToriRSServer_CoordFine(tile_z, sz);
+        player->face_target_size_x = sx;
+        player->face_target_size_z = sz;
     }
+    /* The walk to a new target never resets a held face: its own face takes
+     * over (player_face_hold). */
+    player->face_hold_superseded = 1;
 }
 
 /**
@@ -14352,9 +14357,13 @@ handle_resume_textdialog(
                 text.len, (const char*)text.bytes);
     if( name == PKTOUT_NAME_RESUME_P_NAMEDIALOG )
         ToriRSServer_ScriptsResumeNamedialog(srv, text.bytes, text.len);
-    else
+    /* A string prompt the script opened itself (clientscript 110,
+     * meslayer_mode9: The Garden of Death's "Enter a possible translation",
+     * RSProx index 4427 [1484..1496]) is answered with this packet; it
+     * releases the script's p_namedialog_wait like a name. */
+    else if( !ToriRSServer_ScriptsResumeNamedialog(srv, text.bytes, text.len) )
     {
-        /* Nothing waits for a string dialog: Tutorial Island's name box sends
+        /* Otherwise nothing waits for it: Tutorial Island's name box sends
          * its text unasked, ahead of the click that reads it (RSProx index
          * 4289 [18]), so it is kept for `last_string`. */
         int len = text.len < TORIRSSERVER_RESUME_STRING_MAX - 1 ? text.len
@@ -16835,6 +16844,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->last_map_x = -1;
     player->music_track = -1;
     player->music_hold_until = -1;
+    player->music_region_pending = 0;
     player->music_end_tick = -1;
     player->music_end_row = -1;
     player->music_replay_tick = -1;
@@ -18364,9 +18374,62 @@ player_reorient(struct ToriRSServerPlayer* player)
 
     player->face_x = player->face_target_x;
     player->face_z = player->face_target_z;
+    player->face_size_x = player->face_target_size_x;
+    player->face_size_z = player->face_target_size_z;
     player->masks |= TORIRSSERVER_PMASK_FACE_COORD;
     player->face_target_x = -1;
     player->face_target_z = -1;
+}
+
+/*
+ * The reset a held face gets on the player's next move, run just before
+ * PLAYER_INFO is written. The client keeps a square or angle face until told
+ * otherwise, and Jagex tells it on the first move after one (RSProx, rev 241
+ * normal-world sessions; "nothing else faced that tick" in every count):
+ *   - a teleport after a square: the reset (108/113 outside a script, and in
+ *     every agility obstacle: 4428 [305], [344], [375], [400]); after an
+ *     angle: none (0/21; the tree's drop to plane 2, 4428 [367]);
+ *   - a step after a square or angle: the reset (248/249 with no world op
+ *     since; 4428 [313], [333], [356], [380]), unless a loc, obj, npc or
+ *     player was clicked since, whose own face takes over (142/152 none;
+ *     4428 [369], [618]).
+ * Either way the move ends the hold.
+ */
+static void
+player_face_hold(struct ToriRSServerPlayer* player)
+{
+    uint32_t const faces = player->masks & (TORIRSSERVER_PMASK_FACE_ENTITY |
+                                            TORIRSSERVER_PMASK_FACE_COORD |
+                                            TORIRSSERVER_PMASK_FACE_ANGLE);
+    int const moved = player->x != player->face_hold_x || player->z != player->face_hold_z ||
+                      player->level != player->face_hold_level;
+    int const teleported = player->place_dirty && !player->tele_glide;
+
+    player->face_hold_x = player->x;
+    player->face_hold_z = player->z;
+    player->face_hold_level = player->level;
+    if( faces )
+    {
+        /* The block that goes out is what the client holds: the angle wins
+         * over a square and a square over an entity, as the encoder picks. */
+        if( faces & TORIRSSERVER_PMASK_FACE_ANGLE )
+            player->face_hold = TORIRSSERVER_FACE_HOLD_ANGLE;
+        else if( faces & TORIRSSERVER_PMASK_FACE_COORD )
+            player->face_hold = TORIRSSERVER_FACE_HOLD_SQUARE;
+        else
+            player->face_hold = TORIRSSERVER_FACE_HOLD_NONE;
+        player->face_hold_superseded = 0;
+        return;
+    }
+    if( !moved && !teleported )
+        return;
+    if( player->face_entity == -1 &&
+        (teleported ? player->face_hold == TORIRSSERVER_FACE_HOLD_SQUARE
+                    : player->face_hold != TORIRSSERVER_FACE_HOLD_NONE &&
+                          !player->face_hold_superseded) )
+        player->masks |= TORIRSSERVER_PMASK_FACE_ENTITY;
+    player->face_hold = TORIRSSERVER_FACE_HOLD_NONE;
+    player->face_hold_superseded = 0;
 }
 
 /*
@@ -19722,6 +19785,11 @@ phase_info(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player;
 
+    /* Every move of the tick is made: a held face's reset goes in this
+     * tick's masks. */
+    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
+        player_face_hold(player);
+
     /* Before anything is encoded, so all three streams of every observer read
      * one snapshot of where everybody was this tick. */
     ToriRSServer_WorldRefreshObservation(srv);
@@ -20406,12 +20474,33 @@ ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
             int music_z;
 
             ToriRSServer_RegionSquareFor(player, &music_x, &music_z);
-            ToriRSServer_MusicEnterRegion(player, music_x, music_z);
+            /* A square entered while a script holds the player in a delay
+             * starts its track on the tick the delay ends: RSProx index 4427's
+             * boat lands at C+3 and Gill Bill plays at C+5 ([1811] -> [1813],
+             * [1988] -> [1990], [2242] -> [2244]), the scene's p_delay over.
+             * Over the rev 241 transcripts 4300..4429, a player busy at the
+             * jump and released later hears the track on the release tick
+             * 153 of 178 times; a player free at the jump, on the jump's tick
+             * 329 of 347. */
+            if( player_delayed(srv, player) )
+                player->music_region_pending = 1;
+            else
+                ToriRSServer_MusicEnterRegion(player, music_x, music_z);
             /* The bed is keyed at the same granularity, through the same
              * instance-aware square, for the same reason. */
             ToriRSServer_AmbientEnterRegion(player, music_x, music_z);
         }
     }
+    else if( player->music_region_pending && !player_delayed(srv, player) )
+    {
+        int music_x;
+        int music_z;
+
+        ToriRSServer_RegionSquareFor(player, &music_x, &music_z);
+        ToriRSServer_MusicEnterRegion(player, music_x, music_z);
+    }
+    if( !player_delayed(srv, player) )
+        player->music_region_pending = 0;
 
     if( player->last_zone_level != player->level || player->last_zone_x != zx ||
         player->last_zone_z != zz )
