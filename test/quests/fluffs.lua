@@ -1,4 +1,10 @@
--- Gertrude's Cat (quest_fluffs). Hand-authored from the scaffold, resumed
+-- Gertrude's Cat (quest_fluffs), following RSProx index 4401's playthrough
+-- (docs/rsprox-analysis/quests/gertrudes_cat.md): the start confirm, the
+-- boys' pages, the fence's two-tile hop, Fluffs' boxes, the kitten crates, the
+-- kitten returned (Fluffs and her kitten walk off and go), and the reward as a
+-- follower kitten. The tick log is kept for the wire audit (leg.* marks).
+--
+-- History: hand-authored from the scaffold, resumed
 -- after t.player.use_item_on_item landed (was BLOCKED on the missing OPHELDU
 -- verb) and again after a review rejection for two missing item-reward
 -- rows; see QUEUE.tsv's last_failure history for both. Re-driven in
@@ -67,6 +73,8 @@ return {
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3) -- setup cheats' effects are not client-side yet
+        t.ticklog.start()
+        t.ticklog.mark("leg.gertrude_start")
 
         local function tile_text(r, tt)
             return r == "ok" and (tt.x .. "," .. tt.z .. "," .. tt.level) or tostring(r)
@@ -115,32 +123,30 @@ return {
                 function(ft) return ft.level == 0 and ft.z >= 3412 end, "outside the front door, z >= 3412")
         end
 
-        -- The lumber yard's broken fence. [oploc1,gertrudefence] is an
-        -- exactmove between 3308,3491 (outside) and 3308,3492 (the fence
-        -- tile, inside): a one-tile hop after a route, so click_loc can read
-        -- `timeout` on a crossing that landed (start-and-travel: "A short hop
-        -- does not trip it"). It is called directly and graded on the tile,
-        -- which only the crossing reaches (3308,3491 -> 3308,3493 has no
-        -- static route at margin 40).
+        -- The lumber yard's broken fence (index 4401 [404..409]): from
+        -- 3308,3491 a step onto the fence tile 3308,3492, then a hop to
+        -- 3308,3494 (exactmove 3493 -> 3494). The way out is the same shape
+        -- mirrored, 3308,3493 -> 3308,3490 (unrecorded). Graded on the tile,
+        -- which only the crossing reaches.
         local function cross_fence(prefix, entering)
             local near_z = entering and 3491 or 3493
+            local far_z = entering and 3494 or 3490
             t.player.walk_to(3308, near_z, 30)
             local nr, nt = t.world.tile()
             t.check(prefix .. ".atFence", nr == "ok" and nt.x == 3308 and nt.z == near_z and nt.level == 0,
                 "walked to 3308," .. near_z .. " beside the broken fence at 3308,3492 -> " .. tile_text(nr, nt))
             local cr, cd = t.player.click_loc("gertrudefence", 1, { at = { 3308, 3492 } })
             local fr, ft
-            for _ = 1, 8 do
+            for _ = 1, 10 do
                 t.ticks(1)
                 fr, ft = t.world.tile()
-                if fr == "ok" and ((entering and ft.z >= 3492) or ((not entering) and ft.z <= 3491)) then
+                if fr == "ok" and ft.z == far_z then
                     break
                 end
             end
-            t.check(prefix .. ".crossed", fr == "ok" and ft.x == 3308 and ft.level == 0
-                    and ((entering and ft.z == 3492) or ((not entering) and ft.z == 3491)),
+            t.check(prefix .. ".crossed", fr == "ok" and ft.x == 3308 and ft.level == 0 and ft.z == far_z,
                 "click_loc(gertrudefence) -> " .. tostring(cr) .. " " .. tostring(cd) .. "; tile " .. tile_text(fr, ft)
-                    .. " (want " .. (entering and "3308,3492,0 inside the yard" or "3308,3491,0 outside the yard") .. ")")
+                    .. " (want 3308," .. far_z .. ",0 " .. (entering and "inside the yard" or "outside the yard") .. ")")
         end
 
         -- The loft ladder at 3310,3509: ~climb moves the player to the same
@@ -177,13 +183,13 @@ return {
         t.exec("talkToGertrude", t.player.talk_to, "gertrude", 1)
         t.exec("talkToGertrude-dialog", t.chat.play, {
             "player:Hello, are you okay?",
-            "npc:Do I look ok? Those kids drive me crazy.",
+            "npc:Do I look okay? Those kids drive me crazy.",
             "npc:I'm sorry. It's just that I've lost her.",
             "player:Lost who?",
             "npc:Fluffs, poor Fluffs. She never hurt anyone.",
             "player:Who's Fluffs?",
             "npc:My beloved feline friend Fluffs. She's been purring by my side for almost a decade. Please, could you go search for her while I look over the kids?",
-            "choose:Well, I suppose I could.",
+            "choose:Yes.",
             "player:Well, I suppose I could.",
             "npc:Really? Thank you so much! I really have no idea where she could be!",
             "npc:I think my sons, Shilop and Wilough, saw the cat last. They'll be out in the market place.",
@@ -195,6 +201,7 @@ return {
         -- Talk to Shilop in Varrock Square (fluffs_boy_dialogue -> fluffs_boy
         -- -> fluffs_boy_secondary, "What will make you tell me?" -> fluffs_pay,
         -- "Okay then, I'll pay." -- pays the 100 coins for real).
+        t.ticklog.mark("leg.boys")
         t.exec("goto-talkToShilop", t.player.goto_tile, 3221, 3434, 0)
         t.exec("talkToShilop", t.player.talk_to, "shilop", 1)
         t.exec("talkToShilop-dialog", t.chat.play, {
@@ -216,8 +223,8 @@ return {
             "npc:You shouldn't, but we won't help otherwise. We never liked that cat anyway, so what do you say?",
             "choose:Okay then, I'll pay.",
             "player:Okay then, I'll pay.",
-            "mesbox:You give the lad 100 coins.",
-            "player:There you go, now where did you see Fluffs ?",
+            "objbox:You give the lad 100 coins.",
+            "player:There you go, now where did you see Fluffs?",
             "npc:We play at an abandoned lumber mill to the north east. Just beyond the Jolly Boar Inn. I saw Fluffs running around in there.",
             "player:Anything else?",
             "npc:Well, you'll have to find the broken fence to get in. I'm sure you can manage that.",
@@ -231,7 +238,14 @@ return {
         -- ^fluffs_cat_coord = 1_51_54_42_56 -> 3306,3512,1. Over the broken
         -- fence, up the ladder, and give her the milk (OPNPCU,
         -- quest_fluffs.rs2:216-234).
+        t.ticklog.mark("leg.yard")
         up_to_loft("goto-fluffsCat", "climbLadder")
+        -- Pick-up scratches (no hit) and says what she wants (index 4401
+        -- [463..470]); Talk-to is only her "Miaoww" overhead [473].
+        t.exec("pickUpFluffs", t.player.talk_to, "gertrudescat", 1)
+        t.exec("pickUpFluffs-dialog", t.chat.play, { "mesbox:Maybe the cat is thirsty?" })
+        t.player.talk_to("gertrudescat", 4)
+        t.ticks(2)
         local cat = t.player.by_symbol("npc", "gertrudescat")
         t.exec("giveMilkToFluffs", t.player.use_on, "bucket_milk", cat)
         -- OPNPCU's own p_delay (quest_fluffs.rs2:229-234) lands after
@@ -244,6 +258,11 @@ return {
         t.check("milkConsumed", milk_result == "ok" and milk_left == 0,
             "bucket_milk after feeding Fluffs = " .. tostring(milk_left) .. " (read " .. tostring(milk_result) .. ")")
         t.expect("milkBucketEmptied", t.inv.expect_has("bucket_empty", 1)) -- inv_add(inv, bucket_empty, 1), quest_fluffs.rs2:233
+
+        -- An unseasoned sardine is refused (index 4401 [519..524]).
+        local cat_raw = t.player.by_symbol("npc", "gertrudescat")
+        t.exec("rawSardineOnFluffs", t.player.use_on, "raw_sardine", cat_raw)
+        t.exec("rawSardineOnFluffs-dialog", t.chat.play, { "mesbox:The cat doesn't want that raw sardine. It seems to be a very fussy cat!" })
 
         -- Down the ladder and back out over the fence before travelling.
         climb("leaveLoft1", "fai_varrock_laddertop", 0)
@@ -289,10 +308,13 @@ return {
         t.exec("giveSardineToFluffs", t.player.use_on, "seasoned_sardine", cat2)
         t.ticks(3) -- OPNPCU's own p_delay lands after the click's settle, same race as the milk step
         t.exec("quest.stage.gave_sardine", t.quest.expect_stage, "gave_sardine")
+        t.exec("pickUpFluffs2", t.player.talk_to, "gertrudescat", 1)
+        t.exec("pickUpFluffs2-dialog", t.chat.play, { "mesbox:The cat seems afraid to leave. In the distance you can hear kittens mewing..." })
         local sardine_result, sardine_left = t.inv.count("seasoned_sardine")
         t.check("sardineConsumed", sardine_result == "ok" and sardine_left == 0,
             "seasoned_sardine after feeding Fluffs = " .. tostring(sardine_left) .. " (read " .. tostring(sardine_result) .. ")")
 
+        t.ticklog.mark("leg.crates")
         -- The crates are in the yard below the loft: down the ladder.
         climb("climbDownLadderStep", "fai_varrock_laddertop", 0)
 
@@ -356,7 +378,7 @@ return {
                 local outcome, notes = nil, {}
                 for _ = 1, 12 do
                     if t.chat.kind() ~= "none" then
-                        local play_result, play_detail = t.chat.play({ "mesbox:You find a kitten!" })
+                        local play_result, play_detail = t.chat.play({ "mesbox:You find a kitten! You carefully place it in your backpack." })
                         if play_result == "ok" then
                             outcome = "kitten"
                             break
@@ -390,10 +412,13 @@ return {
         -- Give the found kitten back to Fluffs (OPNPCU, quest_fluffs.rs2:249-
         -- 259) -- back up the ladder from the yard; she runs off home with her
         -- offspring, advancing to rescued.
+        t.ticklog.mark("leg.kitten_return")
         climb("climbUpLadderStep", "fai_varrock_ladder", 1)
         local cat3 = t.player.by_symbol("npc", "gertrudescat")
         t.exec("giveKittenToFluffs", t.player.use_on, "gertrudekittens", cat3)
-        t.ticks(3) -- same OPNPCU settle race as the milk and sardine steps
+        -- The stage on the use; Fluffs and her kitten walk off and go, and the
+        -- box comes eleven ticks on (index 4401 [899..910]).
+        t.exec("giveKittenToFluffs-dialog", t.chat.play, { "mesbox:Fluffs has run off home with her offspring." })
         t.exec("quest.stage.rescued", t.quest.expect_stage, "rescued")
         local kitten_left_result, kitten_left = t.inv.count("gertrudekittens")
         t.check("kittenGivenConsumed", kitten_left_result == "ok" and kitten_left == 0,
@@ -410,6 +435,7 @@ return {
         -- colour, a Chocolate Cake and a Stew. Snapshot cooking XP before the
         -- hand-in, per the reward rule (a read: no row of its own; the
         -- expect_gain below fails on a bad snapshot).
+        t.ticklog.mark("leg.handin")
         local _, xp_snapshot = t.skill.snapshot()
         t.exec("goto-handInGertrude", t.player.goto_tile, 3151, 3414, 0)
         enter_house("handInGertrude.door")
@@ -424,36 +450,52 @@ return {
             "player:Well, if it needs a home.",
             "npc:I would sell it to my cousin in West Ardougne. I hear there's a rat epidemic there. But it's too far.",
             "npc:Here you go, look after her and thank you again!",
-            "mesbox:Gertrude gives you a kitten. And some food!",
+            "npc:Oh by the way, the kitten can live in your backpack, but to make it grow you must take it out and feed and stroke it often.",
+            "mesbox:Gertrude gives you a kitten.",
         })
-        t.ticks(3) -- fluffs_settle_rewards's own writes land behind the chat ack, same race as trap in section 8
+        -- The kitten comes out on the box's click, the food five ticks on,
+        -- the scroll four after that (index 4401 [1022..1031]).
+        t.ticks(12)
 
         t.quest.expect_complete()
 
-        -- Reward rows -- the literal grant quest_fluffs.rs2:333-356 makes,
-        -- not a number read back from the scroll. The pet kitten is one of
-        -- six random colours (~gertrude_give_cat's switch_int(random(6))),
-        -- so the six documented colours are tried and exactly one must be
-        -- present, then asserted by its own resolved name.
-        local kitten_names = {
-            "kittenobject", "kittenobject_light", "kittenobject_brown",
-            "kittenobject_black", "kittenobject_browngrey", "kittenobject_bluegrey",
+        -- The kitten is out as a follower (index 4401 [1022]: follower_obj,
+        -- kittenpet1 beside the player). One of six colours: find whichever
+        -- came out, pick it up (Pick-up, op 1) and see it in the pack.
+        local pets = {
+            { npc = "kittenpet1", obj = "kittenobject" },
+            { npc = "kittenpet_light", obj = "kittenobject_light" },
+            { npc = "kittenpet_brown", obj = "kittenobject_brown" },
+            { npc = "kittenpet_black", obj = "kittenobject_black" },
+            { npc = "kittenpet_browngrey", obj = "kittenobject_browngrey" },
+            { npc = "kittenpet_bluegrey", obj = "kittenobject_bluegrey" },
         }
-        local kitten_seen, kitten_seen_count = nil, 0
-        for i = 1, #kitten_names do
-            local has_result, has = t.inv.has(kitten_names[i])
-            if has_result == "ok" and has then
-                kitten_seen = kitten_names[i]
-                kitten_seen_count = kitten_seen_count + 1
+        local pet = nil
+        for i = 1, #pets do
+            local nr = t.npc.nearest(pets[i].npc, 3)
+            if nr == "ok" then
+                pet = pets[i]
+                break
             end
         end
-        t.check("reward.kittenColour", kitten_seen_count == 1,
-            "pet kitten reward: " .. tostring(kitten_seen) .. " present, "
-                .. kitten_seen_count .. " of the six documented colours found")
-        if kitten_seen then
-            t.expect("reward.kitten", t.inv.expect_has(kitten_seen, 1))
-        else
-            t.expect("reward.kitten", "refused", "no pet-kitten colour found in inventory after hand-in")
+        t.check("reward.kittenFollower", pet ~= nil,
+            "follower kitten within 3 tiles: " .. tostring(pet and pet.npc))
+        if pet then
+            -- Pick-up opens no page, so talk_to's settle reads it as a stall:
+            -- graded on the pack instead.
+            local pr, pd = t.player.talk_to(pet.npc, 1)
+            local ar = t.inv.await(pet.obj, 1, 10)
+            t.check("reward.kittenPickUp", ar == "ok",
+                "talk_to(" .. pet.npc .. ", 1) -> " .. tostring(pr) .. " " .. tostring(pd)
+                    .. "; inv.await " .. pet.obj .. " 1 -> " .. tostring(ar))
+            -- Dropping it puts it back out as the follower.
+            local dr, dd = t.player.drop(pet.obj)
+            t.ticks(2)
+            local nr = t.npc.nearest(pet.npc, 3)
+            local cr, cnt = t.inv.count(pet.obj)
+            t.check("reward.kittenDropped", nr == "ok" and cr == "ok" and cnt == 0,
+                "drop(" .. pet.obj .. ") -> " .. tostring(dr) .. " " .. tostring(dd) .. "; follower "
+                    .. pet.npc .. " within 3: " .. tostring(nr) .. "; left in pack: " .. tostring(cnt))
         end
         t.expect("reward.chocolateCake", t.inv.expect_has("chocolate_cake", 1))
         t.expect("reward.stew", t.inv.expect_has("stew", 1))
