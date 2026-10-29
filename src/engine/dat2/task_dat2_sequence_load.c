@@ -368,6 +368,14 @@ Task_Dat2SequenceLoad_Run(
             TORIRS_IO_CACHE_DAT2);
         PT_YIELD(&self->pt);
         self->frame_archive = seq_take_archive(io, 0);
+        /* Another load of this seq registered it while this one waited.
+         * CreateTask_Dat2SequenceLoad dedupes against what is registered, not
+         * what is in flight, so a loc change and its LOC_ANIM in one tick
+         * queue two loads of one sequence; the second decode and bake would
+         * only be freed by ToriDraw_SceneAnimationAdd. A skeletal one is
+         * milliseconds of each (a ship's sail: 3 ms decode, 8 ms bake). */
+        if( ToriDraw_SceneAnimationHas(self->scene, self->seq_id) )
+            PT_EXIT(&self->pt);
         if( self->frame_archive )
         {
             self->frame_filelist = RSCache_FileListNewFromDecode(
@@ -380,10 +388,22 @@ Task_Dat2SequenceLoad_Run(
                 self->cur_file_pos < self->frame_filelist->file_count &&
                 self->frame_filelist->files[self->cur_file_pos] )
             {
-                self->maya = RSCache_Dat2AnimMayaNewDecode(
-                    self->seq->anim_maya_id,
-                    self->frame_filelist->files[self->cur_file_pos],
-                    self->frame_filelist->file_sizes[self->cur_file_pos]);
+                /* Sampled only as far as the seq can play (its mayarange
+                 * end; the bake below stops there too): the curves often run
+                 * far past it, and a ship's sail sampled 811 ticks of 121
+                 * bones to show 30 -- 3 ms a load, three loads a sail change
+                 * (RSProx 4407). */
+                if( self->seq->anim_maya_end > self->seq->anim_maya_start )
+                    self->maya = RSCache_Dat2AnimMayaNewDecodeTicks(
+                        self->seq->anim_maya_id,
+                        self->frame_filelist->files[self->cur_file_pos],
+                        self->frame_filelist->file_sizes[self->cur_file_pos],
+                        self->seq->anim_maya_end);
+                else
+                    self->maya = RSCache_Dat2AnimMayaNewDecode(
+                        self->seq->anim_maya_id,
+                        self->frame_filelist->files[self->cur_file_pos],
+                        self->frame_filelist->file_sizes[self->cur_file_pos]);
             }
         }
         seq_drop_frame_temporaries(self);
@@ -397,6 +417,12 @@ Task_Dat2SequenceLoad_Run(
             PT_YIELD(&self->pt);
             {
                 struct RSCache_Dat2DiskArchive* fm_archive = seq_take_archive(io, 0);
+                /* As above: the bake is the expensive half. */
+                if( ToriDraw_SceneAnimationHas(self->scene, self->seq_id) )
+                {
+                    RSCache_Dat2DiskArchiveFree(fm_archive);
+                    PT_EXIT(&self->pt);
+                }
                 if( fm_archive )
                 {
                     /* The rig rides in the framemap's trailing bytes, so decode
@@ -408,10 +434,20 @@ Task_Dat2SequenceLoad_Run(
                     {
                         self->skeletal_base = RSCache_Dat2SkeletalBaseNewFromFramemap(fm);
                         /* Baked while the framemap is alive: its alpha groups'
-                         * types and face labels are the transparency half. */
+                         * types and face labels are the transparency half.
+                         * Only the frames the seq can show: playback stops at
+                         * its mayarange (seq_register_result), and the curves
+                         * often run far past it -- a ship's sail baked 811
+                         * ticks to play 30 or 90, 8 ms a load (RSProx 4407). */
                         if( self->skeletal_base )
                             self->skeletal = ToriDraw_SkeletalAnimFromRSCache(
-                                self->seq_id, self->maya, self->skeletal_base, fm);
+                                self->seq_id,
+                                self->maya,
+                                self->skeletal_base,
+                                fm,
+                                self->seq->anim_maya_end > self->seq->anim_maya_start
+                                    ? self->seq->anim_maya_end
+                                    : 0);
                         RSCache_Dat2FramemapFree(fm);
                     }
                     RSCache_Dat2DiskArchiveFree(fm_archive);

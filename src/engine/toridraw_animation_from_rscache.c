@@ -332,11 +332,12 @@ static void
 skeletal_rig_from_rscache(
     struct ToriDraw_SkeletalAnim* skeletal,
     struct RSCache_Dat2AnimMaya const* maya,
-    struct RSCache_Dat2SkeletalBase* base)
+    struct RSCache_Dat2SkeletalBase* base,
+    float* locals)
 {
     int const bones = skeletal->bone_count;
-    float* locals = RSCache_Dat2SkeletalBaseBakeLocals(maya, base, skeletal->frame_count);
 
+    assert(locals);
     skeletal->base_id = base->id;
     if( ToriMem_ToriDrawInstalled() )
         locals = ToriMem_Adopt(locals, ToriMem_LibToriDraw());
@@ -363,10 +364,12 @@ ToriDraw_SkeletalAnimFromRSCache(
     int seq_id,
     struct RSCache_Dat2AnimMaya const* maya,
     struct RSCache_Dat2SkeletalBase* base,
-    struct RSCache_Dat2Framemap const* framemap)
+    struct RSCache_Dat2Framemap const* framemap,
+    int frame_limit)
 {
     struct ToriDraw_SkeletalAnim* skeletal;
-    float* palette;
+    float* palette = NULL;
+    float* locals = NULL;
     int frame_count = 0;
     int bone_count = 0;
 
@@ -374,14 +377,13 @@ ToriDraw_SkeletalAnimFromRSCache(
     assert(base);
     assert(framemap);
 
-    palette = RSCache_Dat2SkeletalBaseBakePalette(maya, base, &frame_count, &bone_count);
-    if( !palette )
+    /* A rig with no bones has nothing to bake (the palette path's NULL). */
+    if( base->bone_count <= 0 )
         return NULL;
-    if( frame_count <= 0 || bone_count <= 0 )
-    {
-        RSCACHE_FREE(palette); /* RSCache_Dat2SkeletalBaseBakePalette's */
-        return NULL;
-    }
+    /* The palette and the walkmerge's locals in one pass: each bone's
+     * animMatrix is built once for both. */
+    RSCache_Dat2SkeletalBaseBake(
+        maya, base, frame_limit, &frame_count, &bone_count, &palette, &locals);
 
     skeletal = TORIDRAW_CALLOC(1, sizeof(*skeletal));
     assert(skeletal);
@@ -397,6 +399,6 @@ ToriDraw_SkeletalAnimFromRSCache(
         palette = ToriMem_Adopt(palette, ToriMem_LibToriDraw());
     skeletal->matrices = palette;
     skeletal_alpha_from_rscache(skeletal, maya, framemap);
-    skeletal_rig_from_rscache(skeletal, maya, base);
+    skeletal_rig_from_rscache(skeletal, maya, base, locals);
     return skeletal;
 }

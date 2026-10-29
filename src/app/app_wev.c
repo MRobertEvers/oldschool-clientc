@@ -1861,8 +1861,9 @@ app_wev_advance_bobs(struct App* app)
         }
         /* Playback is bounded by anim->frame_count — the seq's mayarange
          * span (the deob's playable window), which the loader clamps to the
-         * bake. The raw bake can run longer (curves keep authoring range the
-         * game never shows: the 2x5 idle bakes 661 ticks, plays 240). */
+         * bake. The curves can run longer (authoring range the game never
+         * shows: the 2x5 idle's run 661 ticks, it plays 240), and a seq with
+         * a mayarange is baked only that far (task_dat2_sequence_load.c). */
         sk = anim->skeletal;
         if( anim->frame_count <= 0 || sk->frame_count <= 0 || sk->bone_count <= 0 )
             continue;

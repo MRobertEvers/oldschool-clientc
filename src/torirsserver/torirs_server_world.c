@@ -6935,8 +6935,9 @@ ToriRSServer_VesselPlayerControlAllowed(struct ToriRSServer* srv,
     if( ToriRSServer_VesselAtTile(srv,player->x,player->z)!=vessel ||
         ToriRSServer_MapInstanceVarGet(vessel->instance,110) ) return 0;
     if( !ToriRSServer_VesselCanNavigate(srv, player, vessel) ) return 0;
-    /* All three player-boat DB rows in revision239 declare combined navigation. */
-    int combined=vessel->config_id>=1 && vessel->config_id<=3;
+    /* All three player-boat DB rows in revision239 declare combined navigation,
+     * and so does sailing_boat_will_anne (config 4, Pandemonium's intro boat). */
+    int combined=vessel->config_id>=1 && vessel->config_id<=4;
     if( player_helm_vessel(srv,player)==vessel && (!sails || combined) ) return 1;
     if( vessel->owner_uid!=player->pid+1 ) return 0;
     for( int slot=0; slot<5; ++slot )
@@ -9325,7 +9326,10 @@ vessel_deck_build(struct ToriRSServer* srv, struct ToriRSServerVessel* vessel,
     assert(vessel);
     if( vessel->config_id >= 1 && vessel->config_id <= 3 && srv->active_player )
         vessel->owner_uid = srv->active_player->pid + 1;
-    if( vessel->owner_uid && !vessel->cargo_slot )
+    /* Only the three player-owned tiers take an owned-boat slot: a temporary
+     * boat (config 4) must never become one of the player's boats. */
+    if( vessel->owner_uid && !vessel->cargo_slot &&
+        vessel->config_id >= 1 && vessel->config_id <= 3 )
     {
         unsigned used = 0;
         for( int i=0; i<TORIRSSERVER_VESSEL_MAX; ++i )
@@ -9388,8 +9392,11 @@ ToriRSServer_VesselBuildPlayerDeck(struct ToriRSServer* srv, int handle)
 {
     assert(srv);
     struct ToriRSServerVessel* vessel = ToriRSServer_VesselGet(srv, handle);
-    static const int sources[3][2] = {{3840,6456},{3840,6448},{3840,6432}};
-    if( !vessel || vessel->config_id < 1 || vessel->config_id > 3 )
+    /* Raft, skiff, sloop; config 4 is Will and Anne's boat in Pandemonium,
+     * the cache's sailing_boat_will_anne (temporary_boat), whose deck is the
+     * template zone at 3840,6400 (RSProx index 4407 [325]). */
+    static const int sources[4][2] = {{3840,6456},{3840,6448},{3840,6432},{3840,6400}};
+    if( !vessel || vessel->config_id < 1 || vessel->config_id > 4 )
         return 0;
     if( !ToriRSServer_VesselCanOccupy(vessel, vessel->fine_x, vessel->fine_z, vessel->angle) )
         return 0;
@@ -19448,7 +19455,7 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 ? ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode) : 0;
             int at_helm = vessel && player->navigating_vessel == vessel->index &&
                 player->navigating_vessel_serial == vessel->serial;
-            int combined=vessel && vessel->config_id>=1 && vessel->config_id<=3;
+            int combined=vessel && vessel->config_id>=1 && vessel->config_id<=4;
             int at_sails=at_helm && combined;
             int operating_hotspot=-1;
             if( vessel && !at_helm )
@@ -19541,15 +19548,24 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 { ids->varbit_sailing_name_noun, vessel ? vessel->name_noun : 0 },
                 /* Facilities: the hull's OWN slots, set by whoever furnished
                  * the deck (content's [proc,sailing_deck_built] records what
-                 * it placed). The value is a 1-based pick into the boat row's
-                 * option columns, resolved client-side (cs2 9026), so the
-                 * panel lists what is really on the deck. */
+                 * it placed, 1-based). The sail, helm and hull varbits are a
+                 * ZERO-based index into the boat row's option columns: cs2
+                 * 9026 / 8765 / 8817 read db_getfield(varp5117, column,
+                 * varbit) directly, while the hotspot varbits below are
+                 * 1-based (they subtract one). RSProx index 4407 never writes
+                 * 19154/19155/19168 for the raft or Will and Anne's boat --
+                 * their stock parts are option 0 -- and a 1 here pointed the
+                 * single-option intro boat past its only row (an empty
+                 * Facilities tab) and the raft at its second sail. */
                 { ids->varbit_sailing_facility_sail,
-                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_SAIL] : 0 },
+                  vessel && vessel->facility[TORIRSSERVER_VESSEL_FACILITY_SAIL] > 0
+                      ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_SAIL] - 1 : 0 },
                 { ids->varbit_sailing_facility_helm,
-                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HELM] : 0 },
+                  vessel && vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HELM] > 0
+                      ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HELM] - 1 : 0 },
                 { ids->varbit_sailing_facility_hull,
-                  vessel ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HULL] : 0 },
+                  vessel && vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HULL] > 0
+                      ? vessel->facility[TORIRSSERVER_VESSEL_FACILITY_HULL] - 1 : 0 },
                 /* Stats tab, movement block — the mover's own numbers, fine
                  * units per tick (tier * 64; the panel shows /128 as tiles).
                  * Live: ::speedup/::speeddown change the tier and the next
@@ -19571,6 +19587,8 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                 boat_row = ids->dbrow_sailing_boat_skiff;
             else if( vessel && vessel->config_id == 3 )
                 boat_row = ids->dbrow_sailing_boat_sloop;
+            else if( vessel && vessel->config_id == 4 )
+                boat_row = ids->dbrow_sailing_boat_will_anne;
             if( boat_row < 0 )
                 boat_row = 0;
             if( ids->varp_sailing_boat_row >= 0 &&
@@ -19588,15 +19606,35 @@ ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
                     fprintf(stderr, "torirsserver: sailing varbit %d -> %d\n",
                             sync[i].varbit, sync[i].want);
             }
+            /* The sails' anims follow the move mode whatever changed it (a
+             * sidepanel press, the helm let go, an arrival): content plays
+             * the change's transition seqs and synth on this tick and the
+             * steady seqs on the next (RSProx index 4407 [481]/[482],
+             * [1390]/[1391], [1527]). -1 for the old mode is a fresh
+             * boarding: only the steady seqs, a tick later ([1314]). */
             if( vessel && ids->varbit_sailing_move_mode >= 0 && srv->scripts_ok &&
                 (was_aboard == 0 || was_move_mode != ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode)) )
             {
                 struct ToriRSServerPlayer* previous_active = srv->active_player;
+                int32_t mode_args[2];
+
+                mode_args[0] = was_aboard == 0 ? -1 : was_move_mode;
+                mode_args[1] = ToriRSServer_VarbitGet(player, ids->varbit_sailing_move_mode);
                 ToriRSServer_WorldSetActive(srv, player);
-                ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_visual]", NULL, 0);
+                ToriRSServer_ScriptsRunProc(srv, "[proc,sailing_sail_mode_changed]", mode_args, 2);
                 ToriRSServer_WorldSetActive(srv, previous_active);
             }
-            if( was_aboard != (vessel != NULL) && srv->scripts_ok )
+            /* A boarding or a disembark that content did not frame itself
+             * (a cheat, an evacuation) still swaps the stone. Content's own
+             * frames mount the panel on the move's tick (RSProx index 4407
+             * [1313], [1536]: one if_opensub each) and say so in
+             * sailing_sidepanel_visible (19151): a second mount here would
+             * resend the opensub and its whole event list. */
+            int panel_bit = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT,
+                                                       "varb19151_sailing_sidepanel_visible");
+            int panel_up = panel_bit >= 0 ? ToriRSServer_VarbitGet(player, panel_bit) : -1;
+            if( was_aboard != (vessel != NULL) && srv->scripts_ok &&
+                (vessel ? panel_up != 1 : panel_up != 0) )
             {
                 struct ToriRSServerPlayer* previous_active = srv->active_player;
                 ToriRSServer_WorldSetActive(srv, player);

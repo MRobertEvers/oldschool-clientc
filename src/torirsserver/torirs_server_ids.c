@@ -277,6 +277,7 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_DBROW, "sailing_boat_raft", &g_ids.dbrow_sailing_boat_raft },
         { TORIRSSERVER_PACK_DBROW, "sailing_boat_skiff", &g_ids.dbrow_sailing_boat_skiff },
         { TORIRSSERVER_PACK_DBROW, "sailing_boat_sloop", &g_ids.dbrow_sailing_boat_sloop },
+        { TORIRSSERVER_PACK_DBROW, "sailing_boat_will_anne", &g_ids.dbrow_sailing_boat_will_anne },
         /* The Stats tab's movement block (cs2 9034 cases 1..4): values are
          * FINE UNITS PER TICK, shown /128 as tiles — the vessel mover's own
          * unit (speed_tier * 64). */

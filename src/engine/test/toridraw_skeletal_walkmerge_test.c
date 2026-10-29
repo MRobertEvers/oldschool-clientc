@@ -139,7 +139,7 @@ bake(
     CHECK((*base_out)->id == maya->base_id);
 
     struct ToriDraw_SkeletalAnim* sk =
-        ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, *base_out, *fm_out);
+        ToriDraw_SkeletalAnimFromRSCache(seq_id, maya, *base_out, *fm_out, 0);
     assert(sk);
     RSCache_Dat2AnimMayaFree(maya);
     return sk;

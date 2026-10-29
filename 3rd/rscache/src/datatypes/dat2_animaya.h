@@ -35,7 +35,8 @@ struct RSCache_Dat2Curve
     int point_count;
 
     /* sampled values (non-NULL after Load()) */
-    float* values; /* [endTick - startTick + 1] */
+    float* values; /* [sampled_count]: ticks start_tick .. start_tick + sampled_count - 1 */
+    int sampled_count; /* endTick - startTick + 1, unless a tick limit cut it short */
     int start_tick;
     int end_tick;
     float min_value;
@@ -141,6 +142,21 @@ RSCache_Dat2AnimMayaNewDecode(
     int id,
     const char* data,
     int data_size);
+
+/**
+ * RSCache_Dat2AnimMayaNewDecode, sampling each bone curve only below
+ * `tick_limit` (> 0): for a sequence that can show no later tick (its
+ * mayarange end), when the curves run far past it -- a ship's sail samples
+ * 811 ticks of 121 bones to play 30. Every curve keeps its start/end ticks;
+ * RSCache_Dat2AnimMayaCurveGetValue asserts nobody reads a tick that was not
+ * sampled.
+ */
+struct RSCache_Dat2AnimMaya*
+RSCache_Dat2AnimMayaNewDecodeTicks(
+    int id,
+    const char* data,
+    int data_size,
+    int tick_limit);
 
 /** Sample raw CurvePoints to per-tick float arrays; called after decode. */
 void

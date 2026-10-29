@@ -628,6 +628,96 @@ test_root_rebuild_drains_entity_removed(void)
     printf("ok - the root rebuild drains EntityRemoved before World_ResetSceneAlloc\n");
 }
 
+/* World_ForeignDynamicClaimFn for test_deck_rebuild_keeps_tagged_rider: the
+ * one element `userdata` points at, exactly as the app's claim hands it over. */
+static int
+claim_one_rider(
+    void* userdata,
+    struct World* world,
+    int* out_element_ids,
+    int max)
+{
+    assert(userdata);
+    assert(world);
+    assert(out_element_ids);
+    assert(max >= 1);
+    (void)world;
+    (void)max;
+    out_element_ids[0] = *(int const*)userdata;
+    return 1;
+}
+
+/*
+ * A deck rebuild keeps the rider its claim names, whatever kind tag the id
+ * carries.
+ *
+ * RSProx 4407 [325], in the web client: the player was routed aboard (element
+ * retagged into the deck's dynamic pool) BEFORE the deck's REBUILD_WORLDENTITY
+ * landed, because the browser's loads are asynchronous. The deck's sweep asked
+ * the foreign claim, which answered the player's element -- tagged
+ * TORIDRAW_ELEMENT_KIND_PLAYER, 0x3xxxxxxx -- and the sweep threw it away as
+ * out of range, then freed the element. The hull loc took the slot, and the
+ * player was drawn as the hull from then on, ashore too after the [423]
+ * disembark. The native client loads the deck first and never needed the
+ * claim, so only the browser showed it. Needs no cache; never skips.
+ */
+static void
+test_deck_rebuild_keeps_tagged_rider(void)
+{
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct ToriDraw_Scene* scene;
+    struct VarPManager varp;
+    struct World* deck;
+    struct WorldBuilder* builder;
+    int const deck_pool = TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(RAFT_VIEW_ID);
+    int rider;
+    int litter;
+
+    ToriDraw_Init();
+    scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    TEST_WEVR_ASSERT(scene != NULL, "scene allocates");
+    VarPManager_Init(&varp);
+    deck = World_New();
+    World_SetScene(deck, scene);
+    builder = WorldBuilder_New(deck, provider, scene, &varp);
+    TEST_WEVR_ASSERT(builder != NULL, "deck builder allocates");
+    WorldBuilder_SetSceneView(builder, RAFT_VIEW_ID);
+
+    /* The rider: a root player's element, tagged as the spawn tags it, then
+     * retagged into the deck's dynamic pool by the routing pass. */
+    rider = ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    TEST_WEVR_ASSERT(rider >= 0, "the rider's element allocates");
+    rider = ElementId_Raw(ElementId_Make(TORIDRAW_ELEMENT_KIND_PLAYER, rider));
+    TEST_WEVR_ASSERT(
+        rider > TORIDRAW_SCENE_MAX_ELEMENTS, "a player's id carries its kind above the index");
+    ToriDraw_SceneElementSetPool(scene, rider, deck_pool);
+    /* And something in the deck's dynamic pool nobody claims, which the
+     * sweep must still take. */
+    litter = ToriDraw_SceneElementAddPool(scene, deck_pool);
+    TEST_WEVR_ASSERT(litter >= 0, "an unclaimed deck element allocates");
+
+    World_SetForeignDynamicClaimFn(deck, claim_one_rider, &rider);
+    WorldBuilder_RebuildCenterzoneBegin(builder, 800, 800, 8);
+
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, rider),
+        "the deck rebuild kept the rider its claim names, tagged id and all");
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementPool(scene, rider) == deck_pool,
+        "the rider is still in the deck's dynamic pool");
+    TEST_WEVR_ASSERT(
+        !ToriDraw_SceneElementIsLive(scene, litter),
+        "the deck rebuild still swept the element nobody claimed");
+
+    ToriDraw_SceneClearPool(scene, deck_pool);
+    WorldBuilder_Free(builder);
+    World_Free(deck);
+    VarPManager_Free(&varp);
+    dat2_buildcache_free(bc);
+    printf("ok - a deck rebuild keeps a claimed rider whose element id is kind-tagged\n");
+}
+
 static void
 test_raft_deck_rebuild(char const* cache_dir)
 {
@@ -970,6 +1060,7 @@ main(int argc, char** argv)
     test_pool_view_tags();
     test_actor_pool_handoff();
     test_root_rebuild_drains_entity_removed();
+    test_deck_rebuild_keeps_tagged_rider();
     test_raft_deck_rebuild(cache_dir);
 
     printf("wev_rebuild_test: all passed\n");

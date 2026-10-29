@@ -105,6 +105,25 @@ RSCache_Dat2SkeletalBaseBakePalette(
     int* bone_count_out);
 
 /**
+ * RSCache_Dat2SkeletalBaseBakePalette and RSCache_Dat2SkeletalBaseBakeLocals in
+ * one pass, each animMatrix built once for both. The caller owns both arrays,
+ * each [*frame_count_out * *bone_count_out * 16].
+ *
+ * `frame_limit` > 0 bakes only the first frame_limit ticks: the frames a
+ * sequence can show (its mayarange end) when its curves run longer -- a ship's
+ * sail plays 30 or 90 of 811. 0 bakes the whole curve set.
+ */
+void
+RSCache_Dat2SkeletalBaseBake(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int frame_limit,
+    int* frame_count_out,
+    int* bone_count_out,
+    float** palette_out,
+    float** locals_out);
+
+/**
  * The same ticks as RSCache_Dat2SkeletalBaseBakePalette, before the hierarchy:
  * each bone's own animMatrix (its curves over this animation's bind pose),
  *

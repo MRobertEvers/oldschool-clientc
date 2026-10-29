@@ -477,18 +477,18 @@ skb_build_anim_matrix(
     out[14] = tz;
 }
 
-/* animModelMatrix = parent.animModelMatrix * animMatrix, memoised per tick. */
+/* animModelMatrix = parent.animModelMatrix * animMatrix, memoised per tick.
+ * `locals` is this tick's animMatrix per bone. */
 static void
 skb_compute_anim_model_matrix(
     RSCache_SkeletalMat4* anim_model_matrices,
     uint8_t* done,
-    const struct RSCache_Dat2AnimMaya* maya,
     struct RSCache_Dat2SkeletalBase* base,
-    int bone_index,
-    int t)
+    const float* locals,
+    int bone_index)
 {
     struct RSCache_Dat2SkeletalBone* bone;
-    RSCache_SkeletalMat4 anim_matrix;
+    const float* anim_matrix = &locals[(size_t)bone_index * 16];
 
     if( done[bone_index] )
         return;
@@ -497,8 +497,6 @@ skb_compute_anim_model_matrix(
     done[bone_index] = 1;
 
     bone = &base->bones[bone_index];
-    skb_build_anim_matrix(anim_matrix, maya, base, bone_index, t);
-
     if( bone->parent == NULL )
     {
         skb_mat4_copy(anim_model_matrices[bone_index], anim_matrix);
@@ -506,31 +504,19 @@ skb_compute_anim_model_matrix(
     else
     {
         int pi = (int)(bone->parent - base->bones);
-        skb_compute_anim_model_matrix(anim_model_matrices, done, maya, base, pi, t);
+        skb_compute_anim_model_matrix(anim_model_matrices, done, base, locals, pi);
         skb_mat4_mul(anim_model_matrices[bone_index], anim_model_matrices[pi], anim_matrix);
     }
 }
 
-float*
-RSCache_Dat2SkeletalBaseBakePalette(
-    const struct RSCache_Dat2AnimMaya* maya,
-    struct RSCache_Dat2SkeletalBase* base,
-    int* frame_count_out,
-    int* bone_count_out)
+/* Frame f samples curve tick f (SkeletalSeq.updateAnimMatrix), so the
+ * animation runs as long as its longest channel. */
+static int
+skb_bake_frame_count(const struct RSCache_Dat2AnimMaya* maya)
 {
     int max_tick = 0;
     int found = 0;
-    int frame_count;
-    int bone_count;
-    float* palette;
-    RSCache_SkeletalMat4* anim_model_matrices;
-    uint8_t* done;
 
-    if( !maya || !base || base->bone_count <= 0 || !frame_count_out || !bone_count_out )
-        return NULL;
-
-    /* Frame f samples curve tick f (SkeletalSeq.updateAnimMatrix), so the
-     * animation runs as long as its longest channel. */
     for( int b = 0; b < maya->bone_curve_count && maya->bone_curves; b++ )
     {
         const struct RSCache_Dat2BoneCurves* bc = &maya->bone_curves[b];
@@ -561,43 +547,193 @@ RSCache_Dat2SkeletalBaseBakePalette(
         found = 1;
     }
 
-    frame_count = found ? (max_tick + 1) : 1;
-    bone_count = base->bone_count;
+    return found ? (max_tick + 1) : 1;
+}
 
-    palette = RSCACHE_MALLOC((size_t)frame_count * (size_t)bone_count * 16 * sizeof(float));
+/* Whether no curve of `maya` drives the bone: skb_build_anim_matrix then reads
+ * only the bind pose, and gives the same matrix at every tick. */
+static int
+skb_bone_unanimated(
+    const struct RSCache_Dat2AnimMaya* maya,
+    int bone_index)
+{
+    const struct RSCache_Dat2BoneCurves* bc;
+
+    if( !maya->bone_curves || bone_index >= maya->bone_curve_count )
+        return 1;
+    bc = &maya->bone_curves[bone_index];
+    for( int s = 0; s < 9; s++ )
+        if( bc->curves[s] )
+            return 0;
+    return 1;
+}
+
+enum
+{
+    SKB_CHAIN_UNKNOWN = 0,
+    SKB_CHAIN_VISITING,
+    SKB_CHAIN_STILL,
+    SKB_CHAIN_MOVING,
+};
+
+/* Whether the bone and every ancestor are unanimated, so its animModelMatrix
+ * -- and its palette entry -- is the same at every tick. A bone on a cyclic
+ * parent chain (a corrupt rig) is never still: skb_compute_anim_model_matrix
+ * reads whatever the cycle left behind, which is not a per-tick constant. */
+static int
+skb_bone_chain_still(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    uint8_t* state,
+    int bone_index)
+{
+    int still;
+
+    if( state[bone_index] == SKB_CHAIN_STILL )
+        return 1;
+    if( state[bone_index] != SKB_CHAIN_UNKNOWN )
+        return 0;
+    state[bone_index] = SKB_CHAIN_VISITING;
+    still = skb_bone_unanimated(maya, bone_index);
+    if( still && base->bones[bone_index].parent )
+        still = skb_bone_chain_still(
+            maya, base, state, (int)(base->bones[bone_index].parent - base->bones));
+    state[bone_index] = still ? SKB_CHAIN_STILL : SKB_CHAIN_MOVING;
+    return still;
+}
+
+/*
+ * The bake: every tick's animMatrix per bone into `locals`, and its skinning
+ * matrix into `palette`, both [frame_count * bone_count * 16].
+ *
+ * Each animMatrix is built once and composed through the parents from the
+ * locals (it used to be built twice, once per output). A bone no curve drives
+ * has the same animMatrix at every tick, and a bone whose whole chain is
+ * undriven the same palette entry: those are computed on tick 0 and copied.
+ * A ship's 121-bone sail drives few of its bones over 811 ticks, and baking it
+ * whole was a 40 ms frame each time the sail changed state (RSProx 4407).
+ */
+static void
+skb_bake(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int frame_count,
+    float* palette,
+    float* locals)
+{
+    int const bone_count = base->bone_count;
+    size_t const frame_floats = (size_t)bone_count * 16;
+    RSCache_SkeletalMat4* anim_model_matrices;
+    uint8_t* done;
+    uint8_t* unanimated;
+    uint8_t* chain;
+
     anim_model_matrices = RSCACHE_MALLOC((size_t)bone_count * sizeof(RSCache_SkeletalMat4));
     done = RSCACHE_MALLOC((size_t)bone_count);
-    if( !palette || !anim_model_matrices || !done )
-    {
-        RSCACHE_FREE(palette);
-        RSCACHE_FREE(anim_model_matrices);
-        RSCACHE_FREE(done);
-        return NULL;
-    }
+    unanimated = RSCACHE_MALLOC((size_t)bone_count);
+    chain = RSCACHE_MALLOC((size_t)bone_count);
+    assert(anim_model_matrices);
+    assert(done);
+    assert(unanimated);
+    assert(chain);
+    memset(chain, SKB_CHAIN_UNKNOWN, (size_t)bone_count);
+    for( int b = 0; b < bone_count; b++ )
+        unanimated[b] = (uint8_t)skb_bone_unanimated(maya, b);
+    for( int b = 0; b < bone_count; b++ )
+        skb_bone_chain_still(maya, base, chain, b);
 
     for( int f = 0; f < frame_count; f++ )
     {
-        memset(done, 0, (size_t)bone_count);
+        float* frame_locals = &locals[(size_t)f * frame_floats];
+        float* frame_palette = &palette[(size_t)f * frame_floats];
+
         for( int b = 0; b < bone_count; b++ )
-            skb_compute_anim_model_matrix(anim_model_matrices, done, maya, base, b, f);
+        {
+            if( f > 0 && unanimated[b] )
+                memcpy(&frame_locals[(size_t)b * 16], &locals[(size_t)b * 16], 16 * sizeof(float));
+            else
+                skb_build_anim_matrix(&frame_locals[(size_t)b * 16], maya, base, b, f);
+        }
+
+        /* A still chain's animModelMatrix stays as tick 0 left it. */
+        for( int b = 0; b < bone_count; b++ )
+            done[b] = (uint8_t)(f > 0 && chain[b] == SKB_CHAIN_STILL);
+        for( int b = 0; b < bone_count; b++ )
+            skb_compute_anim_model_matrix(anim_model_matrices, done, base, frame_locals, b);
 
         /* Skinning matrix = animModelMatrix * invertedModelMatrix(poseId). */
         for( int b = 0; b < bone_count; b++ )
         {
+            if( f > 0 && chain[b] == SKB_CHAIN_STILL )
+            {
+                memcpy(&frame_palette[(size_t)b * 16], &palette[(size_t)b * 16], 16 * sizeof(float));
+                continue;
+            }
             const RSCache_SkeletalMat4* inv_mm =
                 RSCache_Dat2SkeletalBoneInvertedModelMatrix(base, b, maya->pose_id);
             RSCache_SkeletalMat4 final_m;
             skb_mat4_mul(final_m, anim_model_matrices[b], *inv_mm);
-            memcpy(&palette[(f * bone_count + b) * 16], final_m, 16 * sizeof(float));
+            memcpy(&frame_palette[(size_t)b * 16], final_m, 16 * sizeof(float));
         }
     }
 
+    RSCACHE_FREE(chain);
+    RSCACHE_FREE(unanimated);
     RSCACHE_FREE(done);
     RSCACHE_FREE(anim_model_matrices);
+}
 
+float*
+RSCache_Dat2SkeletalBaseBakePalette(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int* frame_count_out,
+    int* bone_count_out)
+{
+    float* palette = NULL;
+    float* locals = NULL;
+
+    if( !maya || !base || base->bone_count <= 0 || !frame_count_out || !bone_count_out )
+        return NULL;
+    RSCache_Dat2SkeletalBaseBake(maya, base, 0, frame_count_out, bone_count_out, &palette, &locals);
+    RSCACHE_FREE(locals);
+    return palette;
+}
+
+void
+RSCache_Dat2SkeletalBaseBake(
+    const struct RSCache_Dat2AnimMaya* maya,
+    struct RSCache_Dat2SkeletalBase* base,
+    int frame_limit,
+    int* frame_count_out,
+    int* bone_count_out,
+    float** palette_out,
+    float** locals_out)
+{
+    int frame_count;
+    int bone_count;
+    size_t floats;
+
+    assert(maya);
+    assert(base);
+    assert(base->bone_count > 0);
+    assert(frame_count_out);
+    assert(bone_count_out);
+    assert(palette_out);
+    assert(locals_out);
+
+    frame_count = skb_bake_frame_count(maya);
+    if( frame_limit > 0 && frame_count > frame_limit )
+        frame_count = frame_limit;
+    bone_count = base->bone_count;
+    floats = (size_t)frame_count * (size_t)bone_count * 16;
+    *palette_out = RSCACHE_MALLOC(floats * sizeof(float));
+    *locals_out = RSCACHE_MALLOC(floats * sizeof(float));
+    assert(*palette_out);
+    assert(*locals_out);
+    skb_bake(maya, base, frame_count, *palette_out, *locals_out);
     *frame_count_out = frame_count;
     *bone_count_out = bone_count;
-    return palette;
 }
 
 float*

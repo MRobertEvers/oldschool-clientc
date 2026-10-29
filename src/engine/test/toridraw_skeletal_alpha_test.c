@@ -123,7 +123,7 @@ main(int argc, char** argv)
             transparency++;
     CHECK(transparency == 67);
 
-    struct ToriDraw_SkeletalAnim* sk = ToriDraw_SkeletalAnimFromRSCache(9784, maya, base, fm);
+    struct ToriDraw_SkeletalAnim* sk = ToriDraw_SkeletalAnimFromRSCache(9784, maya, base, fm, 0);
     assert(sk);
     CHECK(sk->alpha_group_count == 67);
     CHECK(sk->frame_count >= 31);

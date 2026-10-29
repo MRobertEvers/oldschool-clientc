@@ -494,10 +494,19 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
             world->foreign_dynamic_claim_userdata, world, foreign, TORIDRAW_SCENE_MAX_ELEMENTS);
         assert(n >= 0);
         assert(n <= TORIDRAW_SCENE_MAX_ELEMENTS);
+        /* The ids are as their owners hold them: TAGGED, a player's
+         * 0x3xxxxxxx and an npc's 0x4xxxxxxx, so a bound test on the raw int
+         * reads every actor as out of range. mark_element_keep masks to the
+         * scene index, as world_builder_claim_element does above. Testing the
+         * raw id here skipped every claim, and a deck rebuild that landed
+         * after its rider was routed aboard (the web client's asynchronous
+         * loads: RSProx 4407 [325]) freed the rider's element; the deck's
+         * next allocation -- the hull loc -- took the slot, and the player
+         * was drawn as the hull from then on, ashore too. */
         for( int fi = 0; fi < n; fi++ )
         {
-            if( foreign[fi] >= 0 && foreign[fi] < TORIDRAW_SCENE_MAX_ELEMENTS )
-                world_builder_mark_element_keep(keep, foreign[fi]);
+            assert(foreign[fi] >= 0);
+            world_builder_mark_element_keep(keep, foreign[fi]);
         }
         ToriMem_Free(ToriMem_Scene(), foreign);
     }

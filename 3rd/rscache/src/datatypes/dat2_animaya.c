@@ -7,6 +7,7 @@
 #include "../rsbuffer.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -714,23 +715,30 @@ interpolate_curve(
 
 /* ---- RSCache_Dat2AnimMayaCurveLoad ---- */
 
-void
-RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* c)
+/* Sample the ticks below `tick_limit` (INT_MAX: all of them). The sampling is
+ * sequential -- each tick carries the interpolation state of the one before --
+ * so a cut-short curve's samples are exactly the uncut curve's first ones. */
+static void
+curve_load_ticks(
+    struct RSCache_Dat2Curve* c,
+    int tick_limit)
 {
     if( !c || !c->points || c->point_count == 0 )
         return;
 
     c->start_tick = c->points[0].x;
     c->end_tick = c->points[c->point_count - 1].x;
-    int duration = c->end_tick - c->start_tick;
-    c->values = RSCACHE_MALLOC((size_t)(duration + 1) * sizeof(float));
-    if( !c->values )
-        return;
+    int last = c->end_tick < tick_limit - 1 ? c->end_tick : tick_limit - 1;
+    c->sampled_count = last >= c->start_tick ? last - c->start_tick + 1 : 0;
+    /* Never NULL: a curve wholly past the limit still counts toward the
+     * animation's length (the bake reads its end_tick). */
+    c->values = RSCACHE_MALLOC((size_t)(c->sampled_count > 0 ? c->sampled_count : 1) * sizeof(float));
+    assert(c->values);
 
     int pi = 0, piu = 1, ib = 0;
     float v0 = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0, v5 = 0, v6 = 0, v7 = 0, v8 = 0, v9 = 0;
 
-    for( int t = c->start_tick; t <= c->end_tick; t++ )
+    for( int t = c->start_tick; t <= last; t++ )
         c->values[t - c->start_tick] = interpolate_curve_at(
             c, t, &pi, &piu, &ib, &v0, &v1, &v2, &v3, &v4, &v5, &v6, &v7, &v8, &v9);
 
@@ -741,6 +749,12 @@ RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* c)
     RSCACHE_FREE(c->points);
     c->points = NULL;
     c->point_count = 0;
+}
+
+void
+RSCache_Dat2AnimMayaCurveLoad(struct RSCache_Dat2Curve* c)
+{
+    curve_load_ticks(c, INT_MAX);
 }
 
 float
@@ -754,6 +768,7 @@ RSCache_Dat2AnimMayaCurveGetValue(
         return c->min_value;
     if( t > c->end_tick )
         return c->max_value;
+    assert(t - c->start_tick < c->sampled_count);
     return c->values[t - c->start_tick];
 }
 
@@ -863,11 +878,12 @@ curve_decode(
     return c;
 }
 
-struct RSCache_Dat2AnimMaya*
-RSCache_Dat2AnimMayaNewDecode(
+static struct RSCache_Dat2AnimMaya*
+animaya_decode(
     int id,
     const char* data,
-    int data_size)
+    int data_size,
+    int tick_limit)
 {
     if( !data || data_size < 6 )
         return NULL;
@@ -1009,9 +1025,29 @@ RSCache_Dat2AnimMayaNewDecode(
     for( int b = 0; b < maya->bone_curve_count; b++ )
         for( int s = 0; s < 9; s++ )
             if( maya->bone_curves[b].curves[s] )
-                RSCache_Dat2AnimMayaCurveLoad(maya->bone_curves[b].curves[s]);
+                curve_load_ticks(maya->bone_curves[b].curves[s], tick_limit);
 
     return maya;
+}
+
+struct RSCache_Dat2AnimMaya*
+RSCache_Dat2AnimMayaNewDecode(
+    int id,
+    const char* data,
+    int data_size)
+{
+    return animaya_decode(id, data, data_size, INT_MAX);
+}
+
+struct RSCache_Dat2AnimMaya*
+RSCache_Dat2AnimMayaNewDecodeTicks(
+    int id,
+    const char* data,
+    int data_size,
+    int tick_limit)
+{
+    assert(tick_limit > 0);
+    return animaya_decode(id, data, data_size, tick_limit);
 }
 
 struct RSCache_Dat2AnimMaya*

@@ -83,6 +83,13 @@
 /* Below NET_LINK_TIMEOUT_MS (15 s): a client that never sends
  * MAP_BUILD_COMPLETE is played on, not dropped for silence. */
 #define REPLAY_MAP_WAIT_MS 10000
+/* The longest recorded silence played as silence. A server writes every
+ * 600 ms tick; a longer gap is the recorder's side stalling (a frozen client,
+ * a suspended machine), and the recorder's own session survived it. Played in
+ * full, a gap past NET_LINK_TIMEOUT_MS reads to this client as a dead server:
+ * RSProx 4407 is silent for 18.8 s after tick 747, so the replay dropped and
+ * restarted from the login every time it got there. */
+#define REPLAY_MAX_GAP_MS 5000
 /* Bytes enciphered ahead of the bus. Unlocked, a frame can owe many ticks;
  * this keeps the staging buffer from holding the whole recording. */
 #define REPLAY_PENDING_CAP (256 * 1024)
@@ -476,7 +483,15 @@ play(struct NetTransportReplay* self)
             self->wait_map = 0;
         }
         if( f->t_ms > self->clock_ms )
-            break;
+        {
+            /* A stall in the recording: skip what is left of it. The clock
+             * jumps, so everything after keeps its own spacing. */
+            if( self->next_frame > 0 &&
+                self->clock_ms >= self->rec.frames[self->next_frame - 1].t_ms + REPLAY_MAX_GAP_MS )
+                self->clock_ms = f->t_ms;
+            else
+                break;
+        }
         /* RSProx's pseudo-packets are the proxy's notes, not Jagex bytes. A
          * PACKET_GROUP_END closes what PACKET_GROUP_START already sized. A
          * RECONNECT is where the session moved to a new connection (a

@@ -459,6 +459,7 @@ struct ToriRSServerIds
     int dbrow_sailing_boat_raft;
     int dbrow_sailing_boat_skiff;
     int dbrow_sailing_boat_sloop;
+    int dbrow_sailing_boat_will_anne;
     /** Stats tab movement block: fine units per tick (shown /128 tiles). */
     int varbit_sailing_base_speed;
     int varbit_sailing_speed_cap;
