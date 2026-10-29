@@ -628,7 +628,8 @@ int ContentTestSailing_Save(struct App* app, struct ToriRSServerEmbed* embed,
         for( int slot=0; slot<5; ++slot )
             saved->crew_clocks[i][slot]=srv->vessels[i].in_use
                 ? ToriRSServer_MapInstanceVarGet(srv->vessels[i].instance,117+slot) : 0;
-    memcpy(saved->varps, player->varps, sizeof(saved->varps));
+    for( int i = 0; i < TORIRSSERVER_VARP_COUNT; ++i )
+        saved->varps[i] = ToriRSServer_VarpsGet(&player->varps, i);
     memcpy(saved->stat_level,player->stat_level,sizeof(saved->stat_level));
     memcpy(saved->stat_boosted,player->stat_boosted,sizeof(saved->stat_boosted));
     memcpy(saved->stat_xp_tenths,player->stat_xp_tenths,sizeof(saved->stat_xp_tenths));
@@ -791,7 +792,7 @@ int ContentTestSailing_Restore(struct App* app, struct ToriRSServerEmbed* embed,
     player->navigating_vessel = saved->navigating_vessel;
     player->navigating_vessel_serial = saved->navigating_vessel_serial;
     for( int i = 0; i < TORIRSSERVER_VARP_COUNT; ++i )
-        if( player->varps[i] != saved->varps[i] )
+        if( ToriRSServer_VarpsGet(&player->varps, i) != saved->varps[i] )
             ToriRSServer_WorldSetVarpOn(srv, player, i, saved->varps[i]);
     for( int i=0; i<TORIRSSERVER_STAT_COUNT; ++i )
     {

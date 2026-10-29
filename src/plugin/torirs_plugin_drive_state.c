@@ -187,7 +187,7 @@ DriveState_VarpContent(struct App* app, int varp_id, int* out_value)
         return DRIVE_NOT_FOUND;
     if( varp_id >= TORIRSSERVER_VARP_COUNT )
         return DRIVE_NOT_FOUND;
-    *out_value = (int)player->varps[varp_id];
+    *out_value = (int)ToriRSServer_VarpsGet(&player->varps, varp_id);
     return DRIVE_OK;
 }
 

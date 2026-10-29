@@ -956,7 +956,7 @@ void ContentTest_End(struct App* app, struct NetTransport* transport)
     {
         if( sub < 0 || sub >= TORIRSSERVER_VARP_COUNT ) error("varp index outside server table");
         else snprintf(result,sizeof(result),"{\"ok\":true,\"client\":%d,\"server\":%d}",
-            VarPManager_GetVarp(&app->varps,sub),server ? server->varps[sub] : -1);
+            VarPManager_GetVarp(&app->varps,sub),server ? ToriRSServer_VarpsGet(&server->varps, sub) : -1);
     }
     else if( sscanf(command,"activity %d",&sub)==1 && server )
     {

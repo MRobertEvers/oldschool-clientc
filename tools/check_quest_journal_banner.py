@@ -48,6 +48,9 @@ NOT_A_QUEST_JOURNAL = {
         "POH adventure log reuses the journal interface",
     ("skill_construction/scripts/poh_achievement_gallery.rs2", "[debugproc,pohslayerlog]"):
         "POH slayer kill log reuses the journal interface",
+    ("quests/quest_recipefordisaster/scripts/recipefordisaster_journal.rs2", "[proc,rfd_overview_journal]"):
+        "Recipe for Disaster's own row: text only at stages 1-2, then the subquest menu "
+        "(clientscript 3757, RSProx index 4402 [53]); each subquest's journal carries the banner",
 }
 
 HEADER = re.compile(r"(?m)^(\[[a-z_0-9]+,[^\]]+\])")
