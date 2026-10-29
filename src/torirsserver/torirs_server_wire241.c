@@ -54,6 +54,7 @@
 #include "packets/midi_jingle.h"
 #include "packets/midi_song_stop.h"
 #include "packets/midi_song_v2.h"
+#include "packets/midi_song_withsecondary.h"
 #include "packets/obj_add.h"
 #include "packets/obj_count.h"
 #include "packets/obj_del.h"
@@ -75,6 +76,8 @@
 
 #include <assert.h>
 #include <rsareabuf.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -99,10 +102,17 @@
 /* Running a codec into an RSAreaBuf                                   */
 /* ------------------------------------------------------------------ */
 
+/* The largest packet a client accepts. This was 1024, and a REBUILD_REGION for
+ * an instance of two map squares (320 zones in its window, ~1130 bytes) came
+ * out cut at 1024: the client could not parse it, never rebuilt, and the
+ * player could not walk in the copy (Children of the Sun's tail, 2026-10-29).
+ * The overflow is checked below without assert(), which OPT builds drop. */
+#define W241_PACKET_MAX 40000
+
 static void
 w241_run(struct RSAreaBuf* buf, RsprotVersionRange const* ranges, int count, void* msg)
 {
-    uint8_t tmp[1024];
+    uint8_t tmp[W241_PACKET_MAX];
     RsprotBuf b;
     RsprotExec x;
     RsprotCodecFn fn = rsprot_version_pick(ranges, count, rsprot_osrs(241));
@@ -114,7 +124,11 @@ w241_run(struct RSAreaBuf* buf, RsprotVersionRange const* ranges, int count, voi
     rsprot_exec_encode(&x, &b);
     fn(&x, msg);
     assert(rsprot_exec_ok(&x));
-    assert(!b.err);
+    if( b.err )
+    {
+        fprintf(stderr, "torirsserver: a 241 packet outgrew %d bytes\n", W241_PACKET_MAX);
+        abort();
+    }
     rsab_pdata(buf, tmp, (size_t)b.wpos);
 }
 
@@ -509,6 +523,26 @@ w241_midi_song(
     m.fade_in_delay = fade_in_delay;
     m.fade_in_speed = fade_in_speed;
     W241(rsprot_midi_song_v2_out, m);
+}
+
+static void
+w241_midi_song_withsecondary(
+    struct RSAreaBuf* buf,
+    int primary_id,
+    int secondary_id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
+{
+    MsgMidiSongWithSecondary m = { 0 };
+    m.primary_id = primary_id;
+    m.secondary_id = secondary_id;
+    m.fade_out_delay = fade_out_delay;
+    m.fade_out_speed = fade_out_speed;
+    m.fade_in_delay = fade_in_delay;
+    m.fade_in_speed = fade_in_speed;
+    W241(rsprot_midi_song_withsecondary_out, m);
 }
 
 static void
@@ -1110,6 +1144,7 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
     .synth_sound = w241_synth_sound,
     .midi_song = w241_midi_song,
     .midi_song_stop = w241_midi_song_stop,
+    .midi_song_withsecondary = w241_midi_song_withsecondary,
     .midi_jingle = w241_midi_jingle,
     .ambientsound_start = w241_ambientsound_start,
     .ambientsound_stop = w241_ambientsound_stop,
@@ -1184,6 +1219,7 @@ static const int k_transcribed_osrs241[] = {
     PKT_NAME_HIDENPCOPS,       PKT_NAME_HIDELOCOPS,      PKT_NAME_HIDEOBJOPS,
     PKT_NAME_HINT_ARROW,
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,
+    PKT_NAME_MIDI_SONG_WITHSECONDARY,
     PKT_NAME_MIDI_JINGLE,
     PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_AMBIENTSOUND_START, PKT_NAME_AMBIENTSOUND_STOP,

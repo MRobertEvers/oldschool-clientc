@@ -68,7 +68,7 @@ static const struct Osrs241PacketInDef g_packet_in_definitions_osrs241[] = {
     {   83, 8,                     PKT_NAME_IF_SETPLAYERMODEL_OBJ,      "IF_SETPLAYERMODEL_OBJ" },
     {   65, 5,                     PKT_NAME_IF_SETPLAYERMODEL_SELF,     "IF_SETPLAYERMODEL_SELF" },
     {   29, 10,                    PKT_NAME_MIDI_SONG,                  "MIDI_SONG_V2" },
-    {   79, 12,                    PKT_NAME_NONE,                       "MIDI_SONG_WITHSECONDARY" },
+    {   79, 12,                    PKT_NAME_MIDI_SONG_WITHSECONDARY,    "MIDI_SONG_WITHSECONDARY" },
     {   59, 8,                     PKT_NAME_NONE,                       "MIDI_SWAP" },
     {   50, 4,                     PKT_NAME_MIDI_SONG_STOP,             "MIDI_SONG_STOP" },
     {   84, 5,                     PKT_NAME_MIDI_JINGLE,                "MIDI_JINGLE" },

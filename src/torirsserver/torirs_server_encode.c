@@ -156,6 +156,7 @@ enum
     OP_SYNTH_SOUND = PKT_NAME_SYNTH_SOUND,
     OP_MIDI_SONG = PKT_NAME_MIDI_SONG,
     OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
+    OP_MIDI_SONG_WITHSECONDARY = PKT_NAME_MIDI_SONG_WITHSECONDARY,
     OP_MIDI_JINGLE = PKT_NAME_MIDI_JINGLE,
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
@@ -3189,6 +3190,35 @@ ToriRSServer_SendMidiSongEnvelope(
                 &buf, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
     }
     flush(player, &buf, OP_MIDI_SONG, 0);
+}
+
+void
+ToriRSServer_SendMidiSongWithSecondary(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int secondary_id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->midi_song_withsecondary )
+    {
+        ToriRSServer_SendMidiSongEnvelope(
+            player, id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
+        return;
+    }
+    player->music_envelope[0] = fade_out_delay;
+    player->music_envelope[1] = fade_out_speed;
+    player->music_envelope[2] = fade_in_delay;
+    player->music_envelope[3] = fade_in_speed;
+    open_packet(&buf, 16);
+    pl->midi_song_withsecondary(
+        &buf, id, secondary_id, fade_out_delay, fade_out_speed, fade_in_delay, fade_in_speed);
+    flush(player, &buf, OP_MIDI_SONG_WITHSECONDARY, 0);
 }
 
 void

@@ -81,6 +81,9 @@ CANON_IN = {
     # Named in the checked-in table before the generator knew them; kept here
     # so regenerating reproduces it.
     "MIDI_SONG_STOP": "MIDI_SONG_STOP",
+    # A track with a secondary arrangement (the music table's secondary_track:
+    # Plots and Plans over A Matter of Intrigue, RSProx index 4408 [318]).
+    "MIDI_SONG_WITHSECONDARY": "MIDI_SONG_WITHSECONDARY",
     "WORLDENTITY_INFO_V7": "WORLDENTITY_INFO",
     "REBUILD_WORLDENTITY_V4": "REBUILD_WORLDENTITY",
     "MINIMAP_TOGGLE": "MINIMAP_TOGGLE",

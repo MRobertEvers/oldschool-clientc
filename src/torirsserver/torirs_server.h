@@ -7054,6 +7054,13 @@ ToriRSServer_WorldMapInstanceFree(
     struct ToriRSServer* srv,
     int handle);
 
+/** Stand up in the instance every static spawn whose tile was copied into it
+ *  (`map_instance_spawnnpcs`); the count. */
+int
+ToriRSServer_WorldMapInstanceSpawnNpcs(
+    struct ToriRSServer* srv,
+    int handle);
+
 /** Put the player on an absolute tile, clearing the walk and rebuilding the
  *  scene if the destination left the current one. */
 void
@@ -9679,6 +9686,17 @@ void
 ToriRSServer_SendMidiSongEnvelope(
     struct ToriRSServerPlayer* player,
     int id,
+    int fade_out_delay,
+    int fade_out_speed,
+    int fade_in_delay,
+    int fade_in_speed);
+/* MIDI_SONG_WITHSECONDARY: the track and its secondary arrangement, with the
+ * same envelope. Falls back to MIDI_SONG on a revision with no writer. */
+void
+ToriRSServer_SendMidiSongWithSecondary(
+    struct ToriRSServerPlayer* player,
+    int id,
+    int secondary_id,
     int fade_out_delay,
     int fade_out_speed,
     int fade_in_delay,

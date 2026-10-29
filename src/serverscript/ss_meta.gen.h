@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11296] = {
+static const char* const g_ss_opcode_names[11321] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -617,6 +617,7 @@ static const char* const g_ss_opcode_names[11296] = {
     [11293] = "DISPLAYNAME_CHECK",
     [11294] = "DISPLAYNAME_SET",
     [11295] = "WORLDMAP_OPEN",
+    [11320] = "MAP_INSTANCE_SPAWNNPCS",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -626,7 +627,7 @@ static const char* const g_ss_opcode_names[11296] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11296] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11321] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1237,6 +1238,7 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11296] = {
     [11293] = { 0, 1, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* DISPLAYNAME_CHECK */
     [11294] = { 0, 1, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* DISPLAYNAME_SET */
     [11295] = { 0, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* WORLDMAP_OPEN */
+    [11320] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_SPAWNNPCS */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

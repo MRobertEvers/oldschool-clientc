@@ -4100,6 +4100,49 @@ ToriRSServer_WorldMapInstanceFree(
 }
 
 /*
+ * A copy's own people: the static spawns of the squares an instance was copied
+ * from, each on the copy's tile for its source tile (`map_instance_spawnnpcs`).
+ *
+ * Not the roster's: they carry no `static_spawn`, so the window sync never
+ * retires them, and they go with the instance's release like every npc in it
+ * (ToriRSServer_WorldMapInstanceFree). Their config's own movement applies --
+ * a shopkeeper stands, a man wanders round his copied spawn tile.
+ */
+int
+ToriRSServer_WorldMapInstanceSpawnNpcs(
+    struct ToriRSServer* srv,
+    int handle)
+{
+    int count = 0;
+    const struct ToriRSServerMapNpcSpawn* spawns = ToriRSServer_ContentNpcSpawns(&count);
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    int stood = 0;
+
+    assert(srv);
+    if( !spawns || count <= 0 || !ToriRSServer_MapInstanceSourceBounds(handle, &x0, &z0, &x1, &z1) )
+        return 0;
+    for( int i = 0; i < count; i++ )
+    {
+        const struct ToriRSServerMapNpcSpawn* spawn = &spawns[i];
+        int level;
+        int x;
+        int z;
+
+        if( spawn->x < x0 || spawn->x > x1 || spawn->z < z0 || spawn->z > z1 )
+            continue;
+        if( !ToriRSServer_MapInstanceDestTile(handle, spawn->level, spawn->x, spawn->z, &level, &x,
+                                              &z) )
+            continue;
+        if( npc_spawn(srv, spawn->npc_id, x, z, level) >= 0 )
+            stood++;
+    }
+    return stood;
+}
+
+/*
  * Re-centre a player's scene window when they near its edge.
  *
  * The client holds a 104x104 scene based at (zone - 6) * 8. Once a player is
@@ -19907,10 +19950,16 @@ ToriRSServer_MusicVariableVarp(int variable)
 enum
 {
     MUSIC_TABLE = 44,
+    MUSIC_COL_DISPLAYNAME = 1,
     MUSIC_COL_DURATION = 3,
     MUSIC_COL_MIDI = 4,
+    MUSIC_COL_VARIABLE = 5,
+    MUSIC_COL_AREA = 7,
+    MUSIC_COL_HIDDEN = 9,
+    MUSIC_COL_SECONDARY = 11,
     MUSIC_SILENCE_SONG = 147,
     MUSIC_NOW_PLAYING_SCRIPT = 3932,
+    MUSIC_AREA_MEMBERS_MAX = 64,
 };
 
 static int
@@ -19931,6 +19980,124 @@ music_cell(
     const struct ToriRSServerDbRowColumn* cell = ToriRSServer_DbRowColumn(row, col);
 
     return cell && cell->count > 0 ? cell->values[0].value : -1;
+}
+
+/* A music row's group of tracks (`music:area`), or -1. */
+static int
+music_area(int row_id)
+{
+    const struct ToriRSServerDbRow* row = row_id >= 0 ? ToriRSServer_DbRow(row_id) : NULL;
+
+    return row ? music_cell(row, MUSIC_COL_AREA) : -1;
+}
+
+/* Every row of music area `area`, by row id; the count. */
+static int
+music_area_members(
+    int area,
+    int* rows,
+    int max)
+{
+    int const count = ToriRSServer_DbRowCount(MUSIC_TABLE);
+    int n = 0;
+
+    assert(area >= 0);
+    assert(rows);
+    for( int i = 0; i < count && n < max; i++ )
+    {
+        const struct ToriRSServerDbRow* row = ToriRSServer_DbRowInTable(MUSIC_TABLE, i);
+
+        if( row && music_cell(row, MUSIC_COL_AREA) == area )
+            rows[n++] = row->row_id;
+    }
+    return n;
+}
+
+/*
+ * One of a music area's tracks, other than `not_row` (-1 for any), uniformly.
+ *
+ * A map square plays its AREA, not one track: the cache's music table groups
+ * tracks (`music:area`, with an `area_default`) and Jagex picks among the
+ * group. Varrock's area 4 is Adventure, Garden, Medieval and Spirit, and over
+ * every rev 241 recording on the index the track first sent on walking into
+ * it is each of the four about equally (17 / 18 / 18 / 19), the default no
+ * more than the rest (92 area entries of 295 were the default, the share a
+ * uniform pick gives). A track that ends hands over to another of the group
+ * (34 of 38 recorded track ends), never outside it. -1 when the area has only
+ * `not_row`.
+ */
+static int
+music_area_pick(
+    struct ToriRSServerPlayer* player,
+    int area,
+    int not_row)
+{
+    int rows[MUSIC_AREA_MEMBERS_MAX];
+    int candidates[MUSIC_AREA_MEMBERS_MAX];
+    int const n = music_area_members(area, rows, MUSIC_AREA_MEMBERS_MAX);
+    int c = 0;
+
+    for( int i = 0; i < n; i++ )
+        if( rows[i] != not_row )
+            candidates[c++] = rows[i];
+    if( c == 0 )
+        return -1;
+    return candidates[ToriRSServer_RandomFrom(ToriRSServer_WorldPlayerRandom(player), 0, c - 1)];
+}
+
+/*
+ * The track's unlock, when the player has not got it: the bit of its music
+ * variable (`music:variable`, an index into the musicmulti words) and the line,
+ * as Jagex sends both for any track played -- a scene's own track included
+ * (RSProx index 4408 [241]: "Children of the Sun", musicmulti_24 0 -> 2, before
+ * the track's varp and its MIDI_SONG; [318] "Plots and Plans"). The line is
+ * held back while the player has the unlock messages switched off (varbit
+ * 10078, which content's ~music_unlock honours too). A hidden track unlocks
+ * nothing.
+ */
+static void
+music_unlock_row(
+    struct ToriRSServerPlayer* player,
+    int row_id)
+{
+    const struct ToriRSServerDbRow* row = ToriRSServer_DbRow(row_id);
+    const struct ToriRSServerDbRowColumn* var;
+    const struct ToriRSServerDbRowColumn* name;
+    int varp;
+    int bit;
+    int mask;
+
+    assert(row);
+    if( music_cell(row, MUSIC_COL_HIDDEN) == 1 )
+        return;
+    var = ToriRSServer_DbRowColumn(row, MUSIC_COL_VARIABLE);
+    if( !var || var->count < 2 )
+        return;
+    varp = ToriRSServer_MusicVariableVarp(var->values[0].value);
+    bit = var->values[1].value;
+    if( varp < 0 || bit < 0 || bit >= 32 )
+        return;
+    mask = (int)(1u << bit);
+    if( (ToriRSServer_Varp(player, varp) & mask) != 0 )
+        return;
+    /* A bit write (see ToriRSServer_MusicEnterRegion): the musicmulti words
+     * carry other unlocks. */
+    ToriRSServer_VarpPut(player, varp, ToriRSServer_Varp(player, varp) | mask);
+    ToriRSServer_WorldMarkVarp(player, varp);
+    {
+        int const toggle =
+            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb10078_music_unlock_text_toggle");
+        char line[160];
+
+        name = ToriRSServer_DbRowColumn(row, MUSIC_COL_DISPLAYNAME);
+        if( toggle >= 0 && ToriRSServer_VarbitGet(player, toggle) == 1 )
+            return;
+        if( !name || name->count < 1 || !name->values[0].text )
+            return;
+        snprintf(line, sizeof(line), "You have unlocked a new music track: @mes_hl_red@%s",
+                 name->values[0].text);
+        ToriRSServer_SendMessage(player, line);
+    }
 }
 
 /* The music row that plays `song`, or -1 for a song that is not a track (147,
@@ -19977,17 +20144,30 @@ ToriRSServer_MusicPlay(
      * track the next tick and never the arena's again, 12/12). */
     if( row >= 0 && row != player->music_jingle_row )
         player->music_jingle_end_tick = -1;
+    if( row >= 0 )
+        music_unlock_row(player, row);
     if( row >= 0 && varp >= 0 && ToriRSServer_Varp(player, varp) != row )
     {
         ToriRSServer_WorldSetVarpOn(srv, player, varp, row);
         player->music_end_tick = duration >= 0 ? srv->tick + duration + 1 : -1;
         player->music_end_row = row;
     }
-    if( envelope )
-        ToriRSServer_SendMidiSongEnvelope(player, song, envelope[0], envelope[1], envelope[2],
-                                          envelope[3]);
-    else
-        ToriRSServer_SendMidiSong(player, song);
+    {
+        /* A track with a secondary arrangement goes out as both, the second
+         * held for a MIDI_SWAP (RSProx index 4408 [318]: Plots and Plans, 774,
+         * over A Matter of Intrigue, 810). */
+        static const int k_default_fades[4] = { 0, 60, 60, 0 };
+        const int* fades = envelope ? envelope : k_default_fades;
+        const struct ToriRSServerDbRow* track = row >= 0 ? ToriRSServer_DbRow(row) : NULL;
+        int const second_row = track ? music_cell(track, MUSIC_COL_SECONDARY) : -1;
+        const struct ToriRSServerDbRow* second = second_row >= 0 ? ToriRSServer_DbRow(second_row) : NULL;
+
+        if( second && music_cell(second, MUSIC_COL_MIDI) >= 0 )
+            ToriRSServer_SendMidiSongWithSecondary(player, song, music_cell(second, MUSIC_COL_MIDI),
+                                                   fades[0], fades[1], fades[2], fades[3]);
+        else
+            ToriRSServer_SendMidiSongEnvelope(player, song, fades[0], fades[1], fades[2], fades[3]);
+    }
     ToriRSServer_TicklogMusic(srv, player, song, source);
     if( row >= 0 )
         ToriRSServer_SendRunClientscript(player, MUSIC_NOW_PLAYING_SCRIPT, NULL, 0);
@@ -20025,8 +20205,15 @@ ToriRSServer_MusicClockTick(struct ToriRSServerPlayer* player)
         player->music_replay_tick = -1;
         assert(row);
         if( ToriRSServer_Varp(player, varp) == -1 )
-            ToriRSServer_MusicPlay(player, music_cell(row, MUSIC_COL_MIDI), k_no_fades,
+        {
+            /* An area's track hands over to another of the area's. */
+            int const area = music_cell(row, MUSIC_COL_AREA);
+            int const next = area >= 0 ? music_area_pick(player, area, row->row_id) : -1;
+            const struct ToriRSServerDbRow* play = next >= 0 ? ToriRSServer_DbRow(next) : row;
+
+            ToriRSServer_MusicPlay(player, music_cell(play, MUSIC_COL_MIDI), k_no_fades,
                                    TORIRSSERVER_TICKLOG_MUSIC_CLOCK);
+        }
     }
     if( player->music_jingle_end_tick >= 0 && srv->tick >= player->music_jingle_end_tick )
     {
@@ -20076,65 +20263,50 @@ ToriRSServer_MusicEnterRegion(
 {
     const struct ToriRSServerMusicRegion* track =
         ToriRSServer_MusicForRegion((map_x << 8) | map_z);
+    int duration;
+    int song;
+    int area;
 
     if( !track )
         return; /* 433 squares are mapped; the rest of the world is silent */
-
-    /*
-     * Unlock first. `track->varp` is -1 for a track whose DBTable row carried
-     * no unlock pair, which is a handful of them -- those play without ever
-     * becoming selectable, which is better than writing varp -1.
-     *
-     * `varp` is the musicmulti VARP ID the generator mapped from the
-     * DBTable's music variable (`[proc,music_unlock_var]`: variable 5 is
-     * %varp24_musicmulti_5). It used to be the variable itself, so every
-     * region unlock OR'd a bit into quest varps 1-27: Draynor Village's
-     * "Unknown Land" (variable 5, bit 5) turned %varp5_grail 4 into 36 and
-     * sent the whistle to the restored realm. A row below musicmulti_1 is
-     * that bug again, not a track to skip.
-     */
-    if( track->varp >= 0 && track->bit >= 0 )
-    {
-        assert(track->varp >= TORIRSSERVER_MUSIC_FIRST_UNLOCK_VARP);
-        assert(track->varp < TORIRSSERVER_VARP_COUNT);
-        assert(track->bit < 32);
-        int mask = (int)(1u << track->bit);
-        if( (ToriRSServer_Varp(player, track->varp) & mask) == 0 )
-        {
-            char line[128];
-            /*
-             * A bit write, not a varp write -- so it takes the varbit writers'
-             * path (patch `varps[]`, then mark it for phase 10) rather than
-             * `ToriRSServer_WorldSetVarp`.
-             *
-             * The distinction is enforced, not stylistic: music unlock flags
-             * live in varps that also carry other varbits, and a whole-varp
-             * write clears every neighbouring bit in the same word. The
-             * selftest's carrier-write counter catches exactly this and caught
-             * it here -- the first version of this function used the whole-varp
-             * setter and wiped bits belonging to unrelated content.
-             */
-            ToriRSServer_VarpPut(player, track->varp, ToriRSServer_Varp(player, track->varp) | (mask));
-            ToriRSServer_WorldMarkVarp(player, track->varp);
-            /* As every rev 241 recording sends it (RSProx index 4336, 4340,
-             * 4349, 4360, 4363, 4367): the track's name behind the
-             * @mes_hl_red@ tag, which the chatbox's own translations
-             * (translations_colours_setup) colour. */
-            snprintf(
-                line,
-                sizeof(line),
-                "You have unlocked a new music track: @mes_hl_red@%s",
-                track->name);
-            ToriRSServer_SendMessage(player, line);
-        }
-    }
 
     /* Held by a script that owns the music for now (`midi_hold`): the track is
      * not started and not latched, so the script's own `midi_song` -- or the
      * next square crossed after the hold -- decides what plays. */
     if( player->world && player->world->tick < player->music_hold_until )
         return;
-    if( player->music_track != track->song )
+
+    /*
+     * The square names a track, and the track's music area is what plays
+     * (`music_area_pick`): a track of the area already playing goes on --
+     * walking Varrock's streets re-sends the one track at every square, 329
+     * times over the rev 241 recordings and never another -- and walking in
+     * from anywhere else picks one of the area's at random.
+     *
+     * The unlock and its line are ToriRSServer_MusicPlay's, for whatever track
+     * actually starts (`music_unlock_row`). This used to unlock the square's
+     * own track before anything played, which for an area is a track the
+     * player may not hear at all.
+     */
+    song = track->song;
+    area = music_area(music_row_for_song(track->song, &duration));
+    if( area >= 0 )
+    {
+        int const playing = player->music_track >= 0
+                                ? music_row_for_song(player->music_track, &duration)
+                                : -1;
+
+        if( playing >= 0 && music_area(playing) == area )
+            song = player->music_track;
+        else
+        {
+            int const pick = music_area_pick(player, area, -1);
+
+            if( pick >= 0 )
+                song = music_cell(ToriRSServer_DbRow(pick), MUSIC_COL_MIDI);
+        }
+    }
+    if( player->music_track != song )
     {
         /* As Jagex sends a region's track: the old one fades out over 60
          * cycles, the new one starts after 60 at full gain -- fadeoutdelay 0,
@@ -20145,8 +20317,7 @@ ToriRSServer_MusicEnterRegion(
          * ToriRSServer_MusicPlay sends (rev 237+; no IF_SETTEXT). */
         static const int k_region_fades[4] = { 0, 60, 60, 0 };
 
-        ToriRSServer_MusicPlay(player, track->song, k_region_fades,
-                               TORIRSSERVER_TICKLOG_MUSIC_REGION);
+        ToriRSServer_MusicPlay(player, song, k_region_fades, TORIRSSERVER_TICKLOG_MUSIC_REGION);
     }
 }
 

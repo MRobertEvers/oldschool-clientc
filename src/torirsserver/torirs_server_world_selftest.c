@@ -14778,6 +14778,7 @@ ToriRSServer_WorldSelftest(void)
         int old_unlock;
         int label_at;
         int midi_at;
+        int played;
 
         /* Keep this a pure output test: the selected first row has a real
          * unlock bit, but testing its UI label must not perturb the later
@@ -14796,6 +14797,9 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_CaptureBegin(srv, &capture);
         ToriRSServer_MusicEnterRegion(player, track->region >> 8, track->region & 0xff);
         ToriRSServer_CaptureEnd(srv);
+        /* The square's MUSIC AREA plays, so the track sent is one of the
+         * area's and need not be the square's own (ToriRSServer_MusicEnterRegion). */
+        played = player->music_track;
         player->music_track = old_song;
         ToriRSServer_VarpPut(player, unlock_varp, old_unlock);
         if( track_varp >= 0 )
@@ -14821,7 +14825,7 @@ ToriRSServer_WorldSelftest(void)
                            midi_at, label_at);
         if( strcmp(srv->wire->name, "osrs239") == 0 )
             SELFTEST_CHECK(selftest_capture_has_midi_song_envelope(
-                               &capture, srv->wire, track->song, 0, 60, 60, 0),
+                               &capture, srv->wire, played, 0, 60, 60, 0),
                            "the region track should carry Jagex's 0/60/60/0 fade profile");
     }
 

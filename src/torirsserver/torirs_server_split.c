@@ -179,10 +179,14 @@ find_split(
         width += glyph_advance(metrics, (unsigned char)text[i]);
         if( text[i] == ' ' )
             last = (struct SplitPoint){ i, i + 1 };
-        else if( text[i] == '-' )
-            last = (struct SplitPoint){ i + 1, i + 1 };
         if( max_width > 0 && width > max_width && last.output_end >= 0 )
             return last;
+        /* After the width test, as the client's splitter has it (deob
+         * class671:304): a hyphen that itself overflows breaks at the space
+         * before its word, not after itself ("caught these<br>would-be",
+         * RSProx index 4408 [934]). */
+        if( text[i] == '-' )
+            last = (struct SplitPoint){ i + 1, i + 1 };
     }
     return (struct SplitPoint){ (int)strlen(text), (int)strlen(text) };
 }

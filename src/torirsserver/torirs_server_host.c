@@ -20,11 +20,9 @@
  * bytes between the socket and the session. The world is touched only at the
  * tick boundary, by the work queue (host_drain_queue), as before.
  */
-#include "mem/torirs_mem.h"
 #include "torirs_server_host.h"
-#include <assert.h>
-#include <signal.h>
 
+#include "mem/torirs_mem.h"
 #include "torirs_server.h"
 #include "torirs_server_accountlink.h"
 #include "torirs_server_auth.h"
@@ -39,19 +37,23 @@
 #include "torirs_server_transport.h"
 #include "torirs_server_ws.h"
 
+#include <assert.h>
+#include <signal.h>
+
 #ifdef _WIN32
+#include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-#include <windows.h>
 #define close closesocket
 #else
 #include <arpa/inet.h>
-#include <fcntl.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+
+#include <fcntl.h>
 #include <unistd.h>
 #endif
 
@@ -226,8 +228,9 @@ host_job_push(
      * caller and not a load level. */
     assert(host->job_count < (int)(sizeof(host->jobs) / sizeof(host->jobs[0])));
 
-    job = &host->jobs[(host->job_head + host->job_count) %
-                      (int)(sizeof(host->jobs) / sizeof(host->jobs[0]))];
+    job = &host->jobs
+               [(host->job_head + host->job_count) %
+                (int)(sizeof(host->jobs) / sizeof(host->jobs[0]))];
     job->kind = kind;
     job->conn = conn;
     host->job_count++;
@@ -243,8 +246,7 @@ host_job_pop(
     if( host->job_count == 0 )
         return 0;
     *out = host->jobs[host->job_head];
-    host->job_head = (host->job_head + 1) %
-                     (int)(sizeof(host->jobs) / sizeof(host->jobs[0]));
+    host->job_head = (host->job_head + 1) % (int)(sizeof(host->jobs) / sizeof(host->jobs[0]));
     host->job_count--;
     return 1;
 }
@@ -295,9 +297,9 @@ host_auth_run(struct ToriRSServerPoolJob* job)
 
     auth->result = (int)ToriRSServer_AuthLogin(auth->user, auth->pass);
     memset(auth->pass, 0, sizeof(auth->pass));
-    auth->admin = (auth->result == TORIRSSERVER_AUTH_OK ||
-                   auth->result == TORIRSSERVER_AUTH_CLAIMED) &&
-                  ToriRSServer_AuthIsAdmin(auth->user);
+    auth->admin =
+        (auth->result == TORIRSSERVER_AUTH_OK || auth->result == TORIRSSERVER_AUTH_CLAIMED) &&
+        ToriRSServer_AuthIsAdmin(auth->user);
 }
 
 static void
@@ -582,8 +584,11 @@ host_conn_step(
             do
             {
                 c->refetch = 0;
-                snprintf(c->read.path, sizeof(c->read.path), "%s",
-                         ToriRSServer_SavePath(c->session.display_name));
+                snprintf(
+                    c->read.path,
+                    sizeof(c->read.path),
+                    "%s",
+                    ToriRSServer_SavePath(c->session.display_name));
                 c->read.job.fn = host_read_run;
                 c->read.job.key = host_account_key(c->session.display_name);
                 c->read_seq = host->save_seq;
@@ -660,8 +665,8 @@ host_accept_one(struct ToriRSServerHost* host)
         /* Closed at once rather than left in the backlog: a client that is
          * refused says so, and a client that is ignored hangs on a blank
          * screen. */
-        fprintf(stderr, "torirsserver: %d connections already; refusing\n",
-                TORIRSSERVER_HOST_CONN_CAP);
+        fprintf(
+            stderr, "torirsserver: %d connections already; refusing\n", TORIRSSERVER_HOST_CONN_CAP);
         close(fd);
         return;
     }
@@ -779,8 +784,10 @@ host_stage_login(
      * world's: the pack is already loaded at boot, and the world is built
      * once however many players arrive. */
     ToriRSServer_ScriptsLoad(host->srv, host->config->script_dir);
-    ToriRSServer_WorldInit(host->srv, ToriRSServer_BootZone(host->config->home_x),
-                           ToriRSServer_BootZone(host->config->home_z));
+    ToriRSServer_WorldInit(
+        host->srv,
+        ToriRSServer_BootZone(host->config->home_x),
+        ToriRSServer_BootZone(host->config->home_z));
 
     player = claim == TORIRSSERVER_CLAIM_ANY_SLOT
                  ? ToriRSServer_WorldAddPlayer(host->srv, &c->session)
@@ -903,9 +910,7 @@ host_logout_everyone(struct ToriRSServerHost* host)
             live++;
         host_conn_kill(host, c);
     }
-    fprintf(stderr,
-            "torirsserver: shutting down — saving %d player(s)\n",
-            live);
+    fprintf(stderr, "torirsserver: shutting down — saving %d player(s)\n", live);
     host_drain_queue(host);
     /* Their logouts, which the loop will not reach to send: a moment to hand
      * them to the account server, and what it does not take waits in the
@@ -947,14 +952,16 @@ host_raise_fd_limit(void)
 
     if( getrlimit(RLIMIT_NOFILE, &limit) != 0 || limit.rlim_cur >= want )
         return;
-    limit.rlim_cur = limit.rlim_max == RLIM_INFINITY || limit.rlim_max >= want ? want
-                                                                                : limit.rlim_max;
+    limit.rlim_cur =
+        limit.rlim_max == RLIM_INFINITY || limit.rlim_max >= want ? want : limit.rlim_max;
     if( setrlimit(RLIMIT_NOFILE, &limit) != 0 || limit.rlim_cur < want )
-        fprintf(stderr,
-                "torirsserver: descriptor limit is %llu, below the %llu %d players need; "
-                "raise it (ulimit -n / LimitNOFILE)\n",
-                (unsigned long long)limit.rlim_cur, (unsigned long long)want,
-                TORIRSSERVER_PLAYER_MAX);
+        fprintf(
+            stderr,
+            "torirsserver: descriptor limit is %llu, below the %llu %d players need; "
+            "raise it (ulimit -n / LimitNOFILE)\n",
+            (unsigned long long)limit.rlim_cur,
+            (unsigned long long)want,
+            TORIRSSERVER_PLAYER_MAX);
 #endif
 }
 
@@ -992,8 +999,12 @@ ToriRSServer_HostRun(
     ToriRSServer_CoInit(&host->accept_co, host_accept_step);
     ToriRSServer_PollAdd(host->core.poll, listener, &host->accept_co);
     ToriRSServer_SaveSetSink(host_save_sink, host);
-    fprintf(stderr, "torirsserver: core loop up — %d players, %d connections, %d pool thread(s)\n",
-            TORIRSSERVER_PLAYER_MAX, TORIRSSERVER_HOST_CONN_CAP, host_pool_threads());
+    fprintf(
+        stderr,
+        "torirsserver: core loop up — %d players, %d connections, %d pool thread(s)\n",
+        TORIRSSERVER_PLAYER_MAX,
+        TORIRSSERVER_HOST_CONN_CAP,
+        host_pool_threads());
 
     for( ;; )
     {

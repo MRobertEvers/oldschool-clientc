@@ -422,6 +422,33 @@ ToriRSServer_MapInstanceSourceTile(
     int* out_z);
 
 /**
+ * The other way: where a SOURCE tile landed in the instance. The first set
+ * zone (level, then x, then z) that was copied from the tile's own zone on its
+ * own level, with that zone's rotation applied to the tile. 0 when nothing in
+ * the instance was copied from there. `ToriRSServer_MapInstanceSourceBounds`
+ * is the cheap reject in front of it.
+ */
+int
+ToriRSServer_MapInstanceDestTile(
+    int handle,
+    int src_level,
+    int src_x,
+    int src_z,
+    int* out_level,
+    int* out_x,
+    int* out_z);
+
+/** The rectangle (inclusive tiles) every set zone of the instance was copied
+ *  from, over all levels. 0 for a dead handle or one with nothing set. */
+int
+ToriRSServer_MapInstanceSourceBounds(
+    int handle,
+    int* out_x0,
+    int* out_z0,
+    int* out_x1,
+    int* out_z1);
+
+/**
  * Fill the descriptor window for a scene whose origin zone is (zone_x, zone_z).
  *
  * Returns the number of set zones; 0 means no instance overlaps the scene and

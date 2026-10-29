@@ -632,10 +632,11 @@
 #define SS_OP_DISPLAYNAME_CHECK 11293
 #define SS_OP_DISPLAYNAME_SET 11294
 #define SS_OP_WORLDMAP_OPEN 11295
+#define SS_OP_MAP_INSTANCE_SPAWNNPCS 11320
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11296
+#define SS_OPCODE_MAX 11321
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 610
+#define SS_OPCODE_COUNT 611
 
 #endif

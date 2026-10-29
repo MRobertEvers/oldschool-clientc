@@ -13818,6 +13818,16 @@ script_command(
         return 1;
     }
 
+    case SS_OP_MAP_INSTANCE_SPAWNNPCS:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        ToriRSServer_WorldMapInstanceSpawnNpcs(srv, handle);
+        return 1;
+    }
+
     case SS_OP_MAP_INSTANCE_FIND:
     {
         int32_t coord;

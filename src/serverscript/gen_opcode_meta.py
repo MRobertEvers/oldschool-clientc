@@ -346,6 +346,17 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # still standing in is content's bug and the engine will not cover it.
     "MAP_INSTANCE_FREE": (11013, 1, 0, 0, 0),
 
+    # map_instance_spawnnpcs(int $handle)
+    #
+    # Stand up, in the instance, every static spawn of the map the instance was
+    # copied from: each `.spawn` row whose tile lies in a copied source zone,
+    # on the matching tile of the copy (the zone's rotation applied). Jagex's
+    # copy of Varrock for Children of the Sun carries the square's own people
+    # -- the shopkeepers, the bankers, the wandering men (RSProx index 4408
+    # [318]); most instances (raids, houses) carry none, so this is content's
+    # call to make. They go with the instance's release, as every npc in it.
+    "MAP_INSTANCE_SPAWNNPCS": (11320, 1, 0, 0, 0),
+
     # map_instance_find(coord $coord)(int)
     #
     # The handle of the instance containing `$coord`, or -1. This is the query

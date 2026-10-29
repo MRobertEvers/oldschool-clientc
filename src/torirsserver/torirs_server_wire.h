@@ -219,6 +219,17 @@ struct ToriRSServerWirePayload
         struct RSAreaBuf* buf,
         int fade_out_delay,
         int fade_out_speed);
+    /** MIDI_SONG with a second arrangement held for a later MIDI_SWAP: the
+     *  music table's `secondary_track` (RSProx index 4408 [318]: 774 over
+     *  810). NULL on a revision with no writer; MIDI_SONG is sent instead. */
+    void (*midi_song_withsecondary)(
+        struct RSAreaBuf* buf,
+        int primary_id,
+        int secondary_id,
+        int fade_out_delay,
+        int fade_out_speed,
+        int fade_in_delay,
+        int fade_in_speed);
     /** MidiJingleEncoder v16 (revs 239): p3 length_in_millis, p2Alt3 id.
      *  Confirmed against the vendored rsprot codec, the 239 Kotlin
      *  transcription, and the rev-239 deob -- see torirs_server_wire.c. */

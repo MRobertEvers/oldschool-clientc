@@ -3,6 +3,7 @@
 --   The Ides of Milk, complete: the 33 rows of RSProx index 4381 [870], exactly.
 --   Pirate's Treasure, stage 1: the 6 rows of RSProx index 4378 [74], exactly.
 --   Observatory Quest, stages 2, 3, 4 and 6: RSProx index 4412, exactly.
+--   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -175,6 +176,40 @@ local OBS_4412_6 = obs_rows(OBS_START, {
     -- and a blank row [1180] qj18, which the reader cannot tell from the end
 })
 
+-- Children of the Sun, RSProx index 4408: stage 2 [209], 6 [365], 12 [824]
+-- (and the same 14 rows at [889], [899]).
+local COTS_STRUCK_1 = {
+    "<str>I spoke to Alina and Noah in Varrock Square. They explained",
+    "<str>that a Delegation from the Kingdom of Varlamore would soon",
+    "<str>be arriving to finalise the opening up of the kingdom to",
+    "<str>outsiders.",
+}
+local COTS_4408_2 = {
+    "<col=000080>I spoke to <col=800000>Alina<col=000080> and <col=800000>Noah<col=000080> in <col=800000>Varrock Square<col=000080>. They seemed",
+    "<col=000080>quite excited about something. I should talk to them again and",
+    "<col=000080>see what it is.",
+}
+local COTS_4408_6 = {
+    COTS_STRUCK_1[1], COTS_STRUCK_1[2], COTS_STRUCK_1[3], COTS_STRUCK_1[4],
+    "<col=000080>The <col=800000>Delegation<col=000080> from <col=800000>Varlamore<col=000080> arrived and entered the",
+    "<col=000080><col=800000>Palace<col=000080>. However, as they did, I spotted a <col=800000>Guard<col=000080> acting",
+    "<col=000080>suspicious. I should follow this <col=800000>Guard<col=000080> and see what they're up",
+    "<col=000080>to.",
+}
+local COTS_4408_12 = {
+    COTS_STRUCK_1[1], COTS_STRUCK_1[2], COTS_STRUCK_1[3], COTS_STRUCK_1[4],
+    "<str>The Delegation from Varlamore arrived and entered the",
+    "<str>Palace. However, as they did, I spotted a Guard acting",
+    "<str>suspicious. I followed this Guard to a meeting with some",
+    "<str>Bandits. The Guard gave the Bandits some disguises for them",
+    "<str>to use to attack the Delegation.",
+    "<col=000080>I reported what I'd discovered to <col=800000>Sergeant Tobyn<col=000080> in <col=800000>Varrock",
+    "<col=800000>Square<col=000080>. He asked me to point out the <col=800000>Bandits<col=000080> disguised as",
+    "<col=000080><col=800000>Guards<col=000080>. There are four for me to find, with all four either",
+    "<col=000080>being in <col=800000>Varrock Square<col=000080> or on the road between the <col=800000>Square<col=000080>",
+    "<col=000080>and the <col=800000>Eastern Bank<col=000080>.",
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -234,6 +269,14 @@ return {
         set("::setvar varb692_rd_spoke_to_tiffy 1")
         exact("journal.recruitmentdrive.grounds", "Recruitment Drive", RD_4414)
 
+        for _, st in ipairs(MC_4409) do
+            local fixed = st[2] and 1 or 0
+            for b = 2240, 2245 do
+                set("::setvar varb" .. b .. "_mcannon_railing" .. (b - 2239) .. "_fixed " .. fixed)
+            end
+            set("::setvar varp0_mcannon " .. st[1])
+            exact("journal.dwarfcannon." .. st[1] .. (st[2] and "" or ".railings"), "Dwarf Cannon", st[3])
+        end
 
         set("::setvar varp112_itgronigen 2")
         exact("journal.observatory.bronze", "Observatory Quest", OBS_4412_2)
@@ -246,14 +289,12 @@ return {
         set("::setvar varp112_itgronigen 6")
         exact("journal.observatory.gone_ahead", "Observatory Quest", OBS_4412_6)
 
-        for _, st in ipairs(MC_4409) do
-            local fixed = st[2] and 1 or 0
-            for b = 2240, 2245 do
-                set("::setvar varb" .. b .. "_mcannon_railing" .. (b - 2239) .. "_fixed " .. fixed)
-            end
-            set("::setvar varp0_mcannon " .. st[1])
-            exact("journal.dwarfcannon." .. st[1] .. (st[2] and "" or ".railings"), "Dwarf Cannon", st[3])
-        end
+        set("::setvar varb9632_vmq1 2")
+        exact("journal.childrenofthesun.2", "Children of the Sun", COTS_4408_2)
+        set("::setvar varb9632_vmq1 6")
+        exact("journal.childrenofthesun.6", "Children of the Sun", COTS_4408_6)
+        set("::setvar varb9632_vmq1 12")
+        exact("journal.childrenofthesun.12", "Children of the Sun", COTS_4408_12)
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

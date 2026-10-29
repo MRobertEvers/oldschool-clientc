@@ -866,6 +866,84 @@ ToriRSServer_MapInstanceSourceTile(
 }
 
 int
+ToriRSServer_MapInstanceDestTile(
+    int handle,
+    int src_level,
+    int src_x,
+    int src_z,
+    int* out_level,
+    int* out_x,
+    int* out_z)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    assert(out_level);
+    assert(out_x);
+    assert(out_z);
+    if( !inst )
+        return 0;
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < inst->zone_w; zx++ )
+            for( int zz = 0; zz < inst->zone_h; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &inst->zones[level][zx][zz];
+                int dx;
+                int dz;
+
+                if( !zone->set || zone->src_level != src_level ||
+                    zone->src_zone_x != (src_x >> 3) || zone->src_zone_z != (src_z >> 3) )
+                    continue;
+                ToriRSServer_MapInstanceRotateToDst(zone->rotation, src_x & 7, src_z & 7, 1, 1,
+                                                    &dx, &dz);
+                *out_level = level;
+                *out_x = inst->base_x + zx * 8 + dx;
+                *out_z = inst->base_z + zz * 8 + dz;
+                return 1;
+            }
+    return 0;
+}
+
+int
+ToriRSServer_MapInstanceSourceBounds(
+    int handle,
+    int* out_x0,
+    int* out_z0,
+    int* out_x1,
+    int* out_z1)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+    int any = 0;
+
+    assert(out_x0);
+    assert(out_z0);
+    assert(out_x1);
+    assert(out_z1);
+    if( !inst )
+        return 0;
+    for( int level = 0; level < TORIRSSERVER_MAPINSTANCE_LEVELS; level++ )
+        for( int zx = 0; zx < inst->zone_w; zx++ )
+            for( int zz = 0; zz < inst->zone_h; zz++ )
+            {
+                const struct ToriRSServerMapInstanceZone* zone = &inst->zones[level][zx][zz];
+                int const x0 = zone->src_zone_x << 3;
+                int const z0 = zone->src_zone_z << 3;
+
+                if( !zone->set )
+                    continue;
+                if( !any || x0 < *out_x0 )
+                    *out_x0 = x0;
+                if( !any || z0 < *out_z0 )
+                    *out_z0 = z0;
+                if( !any || x0 + 7 > *out_x1 )
+                    *out_x1 = x0 + 7;
+                if( !any || z0 + 7 > *out_z1 )
+                    *out_z1 = z0 + 7;
+                any = 1;
+            }
+    return any;
+}
+
+int
 ToriRSServer_MapInstanceWindow(
     int zone_x,
     int zone_z,
