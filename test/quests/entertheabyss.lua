@@ -4,36 +4,21 @@
 --   questpoints=0, endstate=4 (^eta_complete), stat_xp_awarded=20,10000
 --   (runecraft, 1000 xp unscaled), displayname="Enter the Abyss".
 --
--- Flow driven here (fresh_lumbridge.ini + ::entertheabyss resets
--- %abyssal_miniquest=0 and teleports to the Wilderness Mage of Zamorak):
---   1. rcu_zammy_mage1 (Wilderness, 3106,3558,0) -- choosing "Alright,
---      I'll go." (never "Let's see what you're selling.", which is a
---      dead-end shop refusal that never advances the stage) sets
---      %abyssal_miniquest = eta_varrock.
---   2. rcu_zammy_mage1_edge (Varrock Chaos Temple, 3259,3383,0), stage
---      eta_varrock -- the real Chaos Temple offer tree (Transcript:
---      Enter_the_Abyss oldid=15263217, content parity fc44e385e0): top
---      menu -> "Where do you get your runes from?" -> care-to-share 4-way
---      -> "Maybe I could make it worth your while?" (mercenary branch) ->
---      "Yes, but I can still help you as well." -> Deal/No deal/think ->
---      "Deal." grants an empty scrying orb and sets
---      %abyssal_miniquest = eta_orb. (The Saradomin-refusal,
---      not-interested, loyal-branch and rat-walk options are dead ends
---      the transcript itself marks as such; this file drives the one real
---      path through to the deal, same as the Wilderness mage's own
---      "Alright, I'll go." choice above.)
---   3. Teleport to the Rune Essence from three distinct NPCs while
---      carrying the orb (aubury 3253,3402,0; head_wizard 3103,9571,0;
---      ardounge_wizard 2683,3326,0) -- ~eta_charge_orb marks one essence
---      spot per distinct source and converts the orb on the third.
---   4. rcu_zammy_mage1_edge again, stage eta_orb with a full orb carried
---      -- hands it over, %abyssal_miniquest = eta_reward.
---   5. rcu_zammy_mage1_edge a third time, stage eta_reward -- the real
---      orb-handover/reward conversation (@eta_reward_handover), ending at
---      a p_choice3 of two OPTIONAL lore topics (Abyss / Z.M.I., which loop
---      back to the same menu) plus "I'd better be off."; choosing that
---      third option is what calls ~eta_quest_complete (XP + items + stage
---      -> eta_complete, opens the reward scroll).
+-- Flow driven here, as recorded in RSProx index 4423
+-- (docs/rsprox-analysis/quests/enter_the_abyss.md; fresh_lumbridge.ini +
+-- ::entertheabyss resets the miniquest's vars):
+--   1. rcu_zammy_mage1 (Wilderness): the first page sends stage 1 ([31]);
+--      "Alright, I'll go." ends it.
+--   2. rcu_zammy_mage1_edge (Varrock Chaos Temple): the first meeting
+--      ([196..208]) -> "Where do you get your runes from?" -> "Maybe I could
+--      make it worth your while?" -> "Yes, but I can still help you as
+--      well." -> "Deal." ([263..291]): stage 2 and the orb with the objbox.
+--   3. The Rune Essence from Aubury (talk, [402..416]), Sedridor (his
+--      Teleport op, [445..453]) and Cromperty (talk, [481..490]) with the orb:
+--      the third charges it ("...absorbed enough teleportation information.").
+--   4. rcu_zammy_mage1_edge again ([538..554]): "Here you go.", the objbox,
+--      the reward pages; stage 4, the xp, the book and the pouch go out with
+--      the two-item box, before the topics menu. No scroll.
 --
 -- Doors (b58 re-drive, the orchestrator's goto rule): every goto departs
 -- from and lands on an open tile outside; every building is entered and
@@ -134,16 +119,14 @@ return {
         -- lands the jump several ticks after the page closes, so await the mine before anything
         -- else (docs sec 2, "A dialogue or loc that TELEPORTS you"), and read the spot varbit
         -- ~eta_charge_orb writes for this teleporter.
-        local function essence_teleport(name, npc, greeting, spot_var)
+        local function essence_teleport(name, npc, op, pages, spot_var)
             local orr, orb_n = t.inv.count("scrying_orb_empty")
             t.check(name .. ".carriesOrb", orr == "ok" and orb_n == 1,
                 "scrying_orb_empty count=" .. tostring(orb_n) .. " (" .. tostring(orr) .. ") before asking " .. npc .. " (want 1: the guide's item for this step)")
-            t.exec(name, t.player.talk_to, npc, 1)
-            t.exec(name .. "-dialog", t.chat.play, {
-                "npc:" .. greeting,
-                "choose:Can you teleport me to the Rune Essence?",
-                "player:Can you teleport me to the Rune Essence?",
-            })
+            t.exec(name, t.player.talk_to, npc, op)
+            if pages then
+                t.exec(name .. "-dialog", t.chat.play, pages)
+            end
             local ar = await_tile(in_mine, 15, "arrival in the essence mine after " .. npc .. "'s teleport")
             local mr, mt = t.world.tile()
             t.check("await-essence-" .. npc, ar == "ok" and mr == "ok" and in_mine(mt),
@@ -152,11 +135,25 @@ return {
             t.expect(name .. ".spot", t.var.await_server(spot_var, 1, 5))
         end
 
-        -- Leave the mine by its nearest exit portal, by the driver's climb verb: the portal
-        -- (essence_mine.rs2 [label,essence_mine_exit]) p_telejumps to map_findsquare(<the
-        -- teleporter's ^essence_mine_to_* coord>, 0, 2) on level 0, so the row is graded on the
-        -- landing within 2 of that coord and inside the teleporter's own room (`room_ok`).
+        -- Leave the mine by its exit. Each jump rolls `essencemine_portal` (2313;
+        -- essence_mine.rs2): 2, 5 and 6 hide the loc portals and show the npc
+        -- portal on one of their tiles (RSProx index 1612 [48], 4423 [416]), the
+        -- other values show the loc portals. Both exits (essence_mine.rs2
+        -- [label,essence_mine_exit]) p_telejump to map_findsquare(<the
+        -- teleporter's ^essence_mine_to_* coord>, 0, 2) on level 0, so the row is
+        -- graded on the landing within 2 of that coord and inside the
+        -- teleporter's own room (`room_ok`).
         local function leave_mine(name, dest_x, dest_z, room_ok, room_desc)
+            local vr, roll = t.var.server("varb2313_essencemine_portal")
+            if vr == "ok" and (roll == 2 or roll == 5 or roll == 6) then
+                t.exec(name, t.player.talk_to, "blankrunestone_exit_portal_1", 1)
+                local ar = await_tile(function(tt) return math.abs(tt.x - dest_x) <= 2 and math.abs(tt.z - dest_z) <= 2 end,
+                    25, "the npc portal's jump to " .. dest_x .. "," .. dest_z)
+                local lr, lt = t.world.tile()
+                t.check(name .. ".landed", ar == "ok" and lr == "ok" and room_ok(lt),
+                    "npc portal (roll " .. tostring(roll) .. ") -> " .. tile_text(lr, lt) .. " (want " .. room_desc .. ")")
+                return
+            end
             local r, tt = t.world.tile()
             local best, best_d = PORTALS[1], 1e9
             if r == "ok" then
@@ -170,7 +167,7 @@ return {
             t.exec(name, t.player.climb, { loc = "blankrunestone_exit_portal", op = 1, op_name = "Use",
                 at = { best[1], best[2], 0 }, dest = { dest_x, dest_z, 0 }, slack = 2, ticks = 25,
                 landed_ok = room_ok, landed_desc = room_desc,
-                same_level = "essence_mine.rs2 [label,essence_mine_exit] p_telejump(map_findsquare(%varp6419_exit_essence_mine_coord, 0, 2))" })
+                same_level = "essence_mine.rs2 [label,essence_mine_exit] p_telejump(map_findsquare(%varp6419_exit_essence_mine_coord, 0, 2)), roll " .. tostring(roll) })
         end
 
         local function chapel_in(prefix)
@@ -214,9 +211,9 @@ return {
         t.exec("goto-talkToMageInWildy", t.player.goto_tile, 3106, 3558, 0) -- from 3106,3523 across the open plain
         t.exec("talkToMageInWildy", t.player.talk_to, "rcu_zammy_mage1", 1)
         t.exec("talkToMageInWildy-dialog", t.chat.play, {
-            "npc:This location is unsafe",
+            "npc:If you want to talk, this isn't the place for it.",
             "choose:Alright, I'll go.",
-            "npc:Good. Do not linger here.",
+            "player:Alright, I'll go.",
         })
         t.expect("quest.stage.varrock", t.quest.expect_stage("varrock"))
 
@@ -240,7 +237,11 @@ return {
             "npc:Ah, you again. The Wilderness is hardly the appropriate place for a conversation",
             "player:Err... I didn't really want anything.",
             "npc:So why did you approach me?",
-            "player:I was just wondering why you sell runes in the Wilderness?",
+            "player:I was just wondering what you were doing.",
+            "npc:I was conducting business.",
+            "player:What business?",
+            "npc:I sell runes.",
+            "player:In the Wilderness? Why?",
             "npc:Well I can't go doing it in the middle of Varrock",
             "choose:Where do you get your runes from?",
             "player:Where do you get your runes from?",
@@ -277,6 +278,7 @@ return {
             "npc:Do you know of three different people who can teleport you there?",
             "player:Maybe?",
             "npc:Well if not, I'm sure one of those fools in the Order of Wizards can tell you. Now, here's the orb.",
+            "objbox:The Mage of Zamorak hands you an orb.",
         })
         t.ticks(1) -- let the granted orb's inv update land before reading it
         local orb_empty_result, orb_empty_count = t.inv.count("scrying_orb_empty")
@@ -294,7 +296,12 @@ return {
         -- Aubury's shop is 10 tiles north of the chapel door: walked, no goto.
         door("talkToAubury.shopDoorIn", "fai_varrock_poor_door", "fai_varrock_poor_door_open", 3253, 3398, 3253, 3397, 3253, 3400,
             function(tt) return tt.z >= 3399 and tt.level == 0 end, "inside Aubury's shop, z >= 3399")
-        essence_teleport("talkToAubury", "aubury", "Do you want to buy some runes?", "varb2315_rcu_essencespot_aubury")
+        essence_teleport("talkToAubury", "aubury", 1, {
+            "npc:Do you want to buy some runes?",
+            "choose:Can you teleport me to the Rune Essence Mine?",
+            "player:Can you teleport me to the Rune Essence Mine?",
+            "npc:Of course. By the way, if you end up making any runes",
+        }, "varb2315_rcu_essencespot_aubury")
         leave_mine("talkToAubury.exitPortal", 3253, 3401, function(tt) return tt.z >= 3399 end,
             "inside Aubury's shop (z >= 3399), within 2 of ^essence_mine_to_aubury 3253,3401")
         door("talkToAubury.shopDoorOut", "fai_varrock_poor_door", "fai_varrock_poor_door_open", 3253, 3398, 3253, 3400, 3253, 3396,
@@ -313,7 +320,7 @@ return {
         -- Sedridor's room: reach.py walks the ladder foot 3104,9576 to 3109,9570 with doors shut.
         door("talkToSedridor.roomIn", "poordoor", "poordooropen", 3108, 9570, 3109, 9570, 3106, 9570,
             function(tt) return tt.x <= 3107 and tt.z >= 9566 and tt.z <= 9574 end, "inside Sedridor's room, x <= 3107")
-        essence_teleport("talkToSedridor", "head_wizard", "Welcome adventurer, to the world renowned Wizards' Tower.", "varb2314_rcu_essencespot_wizardstower")
+        essence_teleport("talkToSedridor", "head_wizard", 3, nil, "varb2314_rcu_essencespot_wizardstower") -- his Teleport op, as recorded [445]
         leave_mine("talkToSedridor.exitPortal", 3106, 9572, function(tt) return tt.x <= 3107 and tt.z >= 9566 and tt.z <= 9574 end,
             "Sedridor's room (x <= 3107, z 9566-9574), within 2 of ^essence_mine_to_sedridor 3106,9572")
         door("talkToSedridor.roomOut", "poordoor", "poordooropen", 3108, 9570, 3107, 9570, 3109, 9570,
@@ -337,15 +344,20 @@ return {
         t.exec("goto-talkToCromperty", t.player.goto_tile, 2677, 3325, 0)
         door("talkToCromperty.houseIn", "castledoubledoorl", "opencastledoubledoorl", 2678, 3325, 2677, 3325, 2680, 3324,
             function(tt) return tt.x >= 2679 and tt.level == 0 end, "inside Cromperty's house, x >= 2679")
-        essence_teleport("talkToCromperty", "ardounge_wizard", "Hello there.", "varb2316_rcu_essencespot_cromperty")
+        essence_teleport("talkToCromperty", "ardounge_wizard", 1, {
+            "npc:Hello there. My name is Cromperty. I am a wizard, and an inventor.",
+            "npc:My good friend Sedridor has told me about you.",
+            "choose:Can you teleport me to the Rune Essence Mine?",
+            "player:Can you teleport me to the Rune Essence Mine?",
+        }, "varb2316_rcu_essencespot_cromperty")
 
         -- eta_charge_orb converts the orb on the third distinct spot and
-        -- prints this system line (mes(), not a dialogue page) DURING
-        -- ~teleport_to_essence_mine's own p_delay(4), before the p_telejump
+        -- prints this system line (mes(), not a dialogue page) on the jump's
+        -- tick, before the p_telejump
         -- that the await-essence row above already waited out -- so the line
         -- is already in the ring by here: t.msg.expect (any line still in the
         -- ring), never t.msg.await (only lines newer than the call; docs sec 8).
-        t.expect("gather.orb_charged", t.msg.expect("absorbed enough teleport information"))
+        t.expect("gather.orb_charged", t.msg.expect("absorbed enough teleportation information"))
         local orb_full_result, orb_full_count = t.inv.count("scrying_orb_full")
         local orb_left_result, orb_left_count = t.inv.count("scrying_orb_empty")
         t.check("gather.orb_full", orb_full_result == "ok" and orb_full_count == 1 and orb_left_result == "ok" and orb_left_count == 0,
@@ -366,15 +378,9 @@ return {
             runes = { { "firerune", 1 }, { "airrune", 3 }, { "lawrune", 1 } }, where = "Varrock square, tele_coord 0_50_53_13_32" })
         t.exec("goto-talkToMageAfterTeleports", t.player.goto_tile, 3253, 3388, 0) -- the street outside the chapel door
         chapel_in("talkToMageAfterTeleports")
-        t.exec("talkToMageAfterTeleports", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
-        t.exec("talkToMageAfterTeleports-dialog", t.chat.play, {
-            "player:Yes I have! I've got it right here!",
-            "npc:Excellent. Give it here",
-            "npc:The Z.M.I. can now reach the essence mine",
-        })
-        t.expect("quest.stage.reward", t.quest.expect_stage("reward"))
 
-        -- ---- 5. Reward snapshot, then talk a third time to complete ----
+        -- ---- 5. Reward snapshot, then hand the orb over: the miniquest completes
+        -- with the book-and-pouch box, before the topics menu ([553]) ----
         local reward_snapshot_result, reward_before = t.skill.snapshot()
         local runecraft_before = type(reward_before) == "table" and reward_before.runecraft or nil
         t.check("reward.snapshot", reward_snapshot_result == "ok" and type(runecraft_before) == "table" and runecraft_before.experience == 0,
@@ -389,11 +395,12 @@ return {
 
         t.exec("talkToMageToFinish", t.player.talk_to, "rcu_zammy_mage1_edge", 1)
         t.exec("talkToMageToFinish-dialog", t.chat.play, {
+            "npc:You again. Have you managed to use that scrying orb to obtain the information I need?",
             "player:Here you go.",
-            "mesbox:You hand the orb to the Mage of Zamorak.",
+            "objbox:You hand the orb to the Mage of Zamorak.",
             "npc:Right, let's take a look at this orb",
             "npc:Yes, this will do nicely. Once again, the Zamorak Magical Institute has overcome the Order of Wizards!",
-            "npc:You have done well. Now, time for us to uphold our end of the bargain.",
+            "npc:You have done well. Now, time for us to uphold our end of the bargin.",
             "npc:The reason we are able to craft so many runes is because we do not visit the runic altars",
             "player:How?",
             "npc:Via another plane known as the Abyss.",
@@ -404,12 +411,36 @@ return {
             "player:What do you mean?",
             "npc:Just don't expect to be using any prayers in there.",
             "npc:Anyway, you may also have this pouch as well. I'm sure you will find it useful. Now, we're done here.",
-            "choose:I'd better be off.",
-            "player:I'd better be off.",
+            "objbox:The Mage of Zamorak hands you a book and a pouch.",
         })
-        t.ticks(3) -- completion is asynchronous -- not padding (docs sec 8)
-
-        t.quest.expect_complete()
+        -- No scroll ([553]): the end is graded on the stage, the miniquest count
+        -- and the varbits that went out with the pages, as Daddy's Home is.
+        t.expect("quest.stage.complete", t.quest.expect_stage("complete"))
+        t.expect("reward.miniquests", t.var.expect("varb14162_miniquests_completed_count", 1))
+        t.expect("var.intro", t.var.expect("varb13731_abyssal_miniquest_intro", 1))
+        t.expect("var.choice", t.var.expect("varb13732_abyssal_miniquest_choice", 1))
+        t.expect("var.orb", t.var.expect("varb13733_abyssal_miniquest_orb", 1))
+        t.expect("var.reward", t.var.expect("varb13734_abyssal_miniquest_reward", 1))
+        t.expect("var.warning", t.var.expect("varb626_rcu_abyssal_warning", 1))
+        t.exec("talkToMageToFinish-topics", t.chat.play, {
+            "choose:Can you tell me more about your group?",
+            "player:Can you tell me more about your group?",
+            "npc:I suppose you have proven yourself trustworthy.",
+            "npc:Few actually know of us.",
+            "player:You don't seem to like the Order of Wizards very much.",
+            "npc:And why would we?",
+            "player:What happened?",
+            "npc:They started to desire more control.",
+            "npc:It all went wrong for them, of course.",
+            "npc:They used it to perform a ritual",
+            "npc:Naturally, they blamed the Zamorakians.",
+            "player:And that's how the Z.M.I. was formed?",
+            "npc:Exactly.",
+            "npc:Now, did you want something else?",
+            "choose:No thanks.",
+            "player:No thanks.",
+        })
+        t.expect("var.tower_story", t.var.expect("varb13736_tower_burning_zam_story", 1))
 
         -- ---- Rewards: literal values the quest documents (dbrow), never
         -- read back from the scroll ----
@@ -417,11 +448,11 @@ return {
         local book_after_result, book_after = t.inv.count("rcu_instruction_book")
         t.check("reward.rcu_instruction_book", book_after_result == "ok" and book_after == 1,
             "rcu_instruction_book count " .. tostring(book_before) .. " -> " .. tostring(book_after) .. " (" .. tostring(book_after_result)
-                .. ") (want 0 -> 1: ~eta_quest_complete gives one Abyssal book)")
+                .. ") (want 0 -> 1: one Abyssal book with the two-item box)")
         local pouch_after_result, pouch_after = t.inv.count("rcu_pouch_small")
         t.check("reward.rcu_pouch_small", pouch_after_result == "ok" and pouch_after == 1,
             "rcu_pouch_small count " .. tostring(pouch_before) .. " -> " .. tostring(pouch_after) .. " (" .. tostring(pouch_after_result)
-                .. ") (want 0 -> 1: ~eta_quest_complete gives one small pouch)")
+                .. ") (want 0 -> 1: one small pouch with the two-item box)")
 
         t.finish(0)
     end,
