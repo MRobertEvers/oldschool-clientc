@@ -14410,6 +14410,8 @@ handle_resume_objdialog(
     srv->active_player->last_item = object_id;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- RESUME_P_OBJDIALOG obj=%d\n", object_id);
+    srv->active_player->last_int = object_id;
+    ToriRSServer_ScriptsResumeCountdialog(srv, object_id);
 }
 
 /* ------------------------------------------------------------------ */
@@ -14419,8 +14421,6 @@ handle_resume_objdialog(
 /*
  * The wire half of docs/FRIENDS_PRIVATE_CHAT.md. The *rules* are all in
  * torirs_server_friends.c (the roster, `isVisibleTo`, the caps, the pm ids); nothing
-    srv->active_player->last_int = object_id;
-    ToriRSServer_ScriptsResumeCountdialog(srv, object_id);
  * below decides anything, it only reads packets and writes packets.
  *
  * The shape is LostCity's, and the correspondence is one-to-one:
