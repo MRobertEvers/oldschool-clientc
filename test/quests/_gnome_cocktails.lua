@@ -160,6 +160,10 @@ return {
         -- then the gate crossing north.
         t.cheat("::tele 0_38_52_28_54")
         t.ticks(4)
+        -- The boxes beside her [651]..[653]: the search line, nothing else.
+        t.exec("boxes3.search", t.player.click_loc, "boxes3", 1)
+        t.ticks(3)
+        t.expect("boxes3.line", t.msg.expect("There is nothing interesting in these boxes."))
         t.exec("femi.gate", t.player.click_loc, "gnome_areagate", 1)
         t.exec("femi.pages", t.chat.play, {
             "npc:Hello there.",
