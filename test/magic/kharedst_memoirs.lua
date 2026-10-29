@@ -9,7 +9,10 @@
 --   - Reminisce from the menu (4416 [1218], 4418 [907]) and from the
 --     right-click entry, each one memory and the page's landing;
 --   - the Kourend Castle teleport tablet, within 2 of 1641,3673 (10 recorded
---     landings, 4418 [36] among them).
+--     landings, 4418 [36] among them);
+--   - all five places, the Kourend & Kebos medium task: each city's bit, and with
+--     the fifth the task's bit on kourend_achievement_diary and the count (index
+--     4426 [2828..2860]).
 --
 --   ./src/build_opt/torirsserver --scriptrun test/magic/kharedst_memoirs.lua --bots 1 \
 --       --name memoirs0 --ticks 600 --session /tmp/memoirs --fixture test/raids/fixtures/fresh_lumbridge.ini
@@ -30,6 +33,7 @@ return {
     setup = {
         "::clearinv", "::give veos_kharedsts_memoirs 1", "::give veos_memoirs_pisc_page 1",
         "::give veos_memoirs_hos_page 1", "::give poh_tablet_kourendteleport 1",
+        "::give veos_memoirs_shay_page 1", "::give veos_memoirs_lova_page 1", "::give veos_memoirs_arc_page 1",
     },
     run = function(t)
         t.ticklog.start()
@@ -84,6 +88,27 @@ return {
         t.exec("castle.break", t.player.inv_op, "poh_tablet_kourendteleport", 1)
         t.ticks(6)
         near(t, "castle.landed", 1641, 3673, 2)
+
+        -- The diary: Piscarilius and Hosidius done above, the other three now.
+        t.expect("diary.pisc", t.var.expect("varb7921_kourend_diary_pisc_teleport", 1))
+        t.expect("diary.hos", t.var.expect("varb7918_kourend_diary_hos_teleport", 1))
+        t.expect("diary.not_yet", t.var.expect("varb7934_kourend_med_count", 0))
+        local rest = {
+            { "veos_memoirs_shay_page", 3, "varb7920_kourend_diary_shay_teleport", 1479, 3575 },
+            { "veos_memoirs_lova_page", 4, "varb7919_kourend_diary_lova_teleport", 1543, 3762 },
+            { "veos_memoirs_arc_page", 5, "varb7917_kourend_diary_arc_teleport", 1681, 3747 },
+        }
+        for _, r in ipairs(rest) do
+            t.ticklog.mark("diary." .. r[1])
+            t.exec("diary.add." .. r[1], t.player.use_item_on_item, r[1], "veos_kharedsts_memoirs")
+            t.exec("diary.add." .. r[1] .. ".chat", t.chat.play, { "objbox:You add an entry to Kharedst's Memoirs.", "end" })
+            t.exec("diary.remember." .. r[1], t.player.inv_op, "veos_kharedsts_memoirs", 1, { subop = r[2] })
+            t.ticks(6)
+            near(t, "diary.landed." .. r[1], r[4], r[5], 2)
+            t.expect("diary.bit." .. r[1], t.var.expect(r[3], 1))
+        end
+        t.expect("diary.started", t.var.expect("varb7924_started_kourend_diary", 1))
+        t.expect("diary.count", t.var.expect("varb7934_kourend_med_count", 1))
         t.finish(0)
     end,
 }

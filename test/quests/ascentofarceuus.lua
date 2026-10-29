@@ -1,7 +1,8 @@
 -- The Ascent of Arceuus. Guide: Quest Helper theascentofarceuus (24 steps, stage 0..13 -> 14).
 -- Prerequisites by cheat: X Marks the Spot, Client of Kourend, Hunter 12 (guide requirements).
 -- Combat kit (guide: "Combat gear"): a rune scimitar worn in setup, sharks after it.
--- Parity notes: docs/quests/ladders/ascentofarceuus.notes.md.
+-- Parity notes: docs/quests/ladders/ascentofarceuus.notes.md. The flow, pages and tiles
+-- follow RSProx index 4426 (docs/rsprox-analysis/quests/ascent_of_arceuus.md).
 return {
     id = "ascentofarceuus",
     fixture = "fresh_lumbridge.ini",
@@ -58,6 +59,7 @@ return {
             "npc:As you wish",
         })
         t.ticks(4)
+        t.ticklog.start()
         local _, dock_arrival = t.world.tile()
         t.check("talkToVeos-landed", dock_arrival ~= nil and dock_arrival.x >= 1800 and dock_arrival.x < 1850,
             "landed at the Piscarilius dock at " .. tostring(dock_arrival and (dock_arrival.x .. "," .. dock_arrival.z)))
@@ -91,12 +93,11 @@ return {
         })
         t.expect("quest.stage.andrews", t.quest.expect_stage("andrews"))
 
-        -- 1.2 goUpToAndrews (s1): the castle staircase fai_varrock_stairs_taller_new_fix (1615,3680, a
-        -- 3x2 footprint 1615-1617,3680-3681) is pressed from its open east side 1618,3681. No maplink row
-        -- names it, so ladders.rs2 [proc,climb] moves the player one plane up on the same tile.
-        t.exec("goto-stairs-andrews", t.player.goto_tile, 1618, 3681, 0)
+        -- 1.2 goUpToAndrews (s1): the castle staircase fai_varrock_stairs_taller_new_fix (1615,3680),
+        -- up from 1618,3680 to 1614,3680,1 as recorded (4426 [1656..1660], maplink_landings.dbrow).
+        t.exec("goto-stairs-andrews", t.player.goto_tile, 1618, 3680, 0)
         t.exec("goUpToAndrews", t.player.climb, { loc = "fai_varrock_stairs_taller_new_fix",
-            at = { 1615, 3680, 0 }, src = { 1618, 3681 }, dest = { 1618, 3681, 1 }, slack = 1 })
+            at = { 1615, 3680, 0 }, src = { 1618, 3680 }, dest = { 1614, 3680, 1 }, slack = 0 })
         t.ticks(2)
         -- 1.3 talkToAndrews (s1)
         t.exec("goto-andrews", t.player.goto_tile, 1620, 3672, 1)
@@ -117,16 +118,16 @@ return {
 
         -- 1.4 returnToMori (s2): back down the castle staircase (fai_varrock_stairs_top 1615,3680,1)
         -- (the press walks to the flight's west side 1614,3681,1 and lands one plane down on that tile)
-        t.exec("goto-stairs-andrews-down", t.player.goto_tile, 1614, 3681, 1)
+        t.exec("goto-stairs-andrews-down", t.player.goto_tile, 1614, 3680, 1)
         t.exec("leaveAndrews", t.player.climb, { loc = "fai_varrock_stairs_top",
-            at = { 1615, 3680, 1 }, src = { 1614, 3681 }, dest = { 1614, 3681, 0 }, slack = 1 })
+            at = { 1615, 3680, 1 }, src = { 1614, 3680 }, dest = { 1618, 3680, 0 }, slack = 0 })
         t.ticks(2)
         t.exec("goto-mori2", t.player.goto_tile, 1698, 3743, 0)
         t.exec("returnToMori", t.player.talk_to, "arcquest_mori_visible", 1)
         t.exec("returnToMori-dialog", t.chat.play, {
             "player:Hello again.",
             "npc:Hello. Have you spoken to Coun",
-            "player:I have. The council won't be h",
+            "player:I have. The Council won't be h",
             "npc:Oh... I shouldn't be surprised",
             "choose:What should we do now?",
             "player:What should we do now?",
@@ -146,12 +147,15 @@ return {
             "npc:A death? This isn't good. The ",
             "choose:Yes.",
         })
+        -- [1848] the step in with the mage's call, [1850] the call again, the one to click.
+        t.ticks(4)
+        t.exec("enterTowerOfMagic-souls", t.chat.play, { "npc:Somebody deal with these souls!" })
         t.expect("quest.stage.souls2", t.quest.expect_stage("souls2"))
         local rt, tile = t.world.tile()
         t.check("tower.instance_tile", rt == "ok", tile and (tile.x .. "," .. tile.z .. "," .. tile.level) or tostring(tile))
 
         -- 1.6 killTormentedSouls (s4): five real fights in the player's own copy
-        local souls = { "arcquest_ghost1", "arcquest_ghost1", "arcquest_ghost1", "arcquest_ghost2", "arcquest_ghost2" }
+        local souls = { "arcquest_ghost1", "arcquest_ghost2", "arcquest_ghost2", "arcquest_ghost2", "arcquest_ghost1" }
         for i = 1, 5 do
             t.exec("killTormentedSouls-" .. i .. ".present", t.npc.await_present, souls[i], 30, 20)
             t.exec("killTormentedSouls-" .. i, t.player.attack, souls[i], 2, 10)
@@ -170,10 +174,18 @@ return {
         t.ticks(3)
         local rt2, tile2 = t.world.tile()
         t.check("tower.upstairs_tile", rt2 == "ok" and tile2.level == 1, rt2 == "ok" and (tile2.x .. "," .. tile2.z .. "," .. tile2.level) or tostring(tile2))
-        -- 1.8 talkToArceuus (s5): Asteros stands at 1579,3818; Trobin is in a trance
+        t.check("tower.upstairs_landing", rt2 == "ok" and tile2.x == 1580 and tile2.z == 3820,
+            "landed " .. (rt2 == "ok" and (tile2.x .. "," .. tile2.z) or "?") .. " == 1580,3820,1 (4426 [2004])")
+        -- 1.8 talkToArceuus (s5): the recorder asked Lord Arceuus in his trance; Asteros answered
+        -- (4426 [2007..2030]).
         t.exec("goto-asteros", t.player.goto_tile, 1580, 3818, 1)
-        t.exec("talkToArceuus", t.player.talk_to, "asteros_arceuus_vis", 1) -- guide names Trobin; content: Asteros (parity notes)
-        t.exec("talkToArceuus-dialog", t.chat.drain, { max_pages = 40 })
+        t.exec("talkToArceuus", t.player.talk_to, "trobin_arceuus_focus_visible", 1)
+        t.exec("talkToArceuus-dialog", t.chat.play, {
+            "player:Lord Arceuus?",
+            "npc:I'm afraid my father is deep i",
+            "npc:Thank you for helping us out w",
+        })
+        t.exec("talkToArceuus-rest", t.chat.drain, { max_pages = 40 })
         t.ticks(3)
         t.expect("quest.stage.kaal", t.quest.expect_stage("kaal"))
 
@@ -186,17 +198,18 @@ return {
         t.ticks(2)
         t.exec("goto-towerdoor-inside", t.player.goto_tile, 1595, 3820, 0)
         t.exec("leaveTower", t.player.cross_gate, { loc = "arcquest_tower_door_right", at = { 1596, 3820, 0 },
-            near = { 1595, 3820 }, far_ok = function(tile) return tile.x >= 1597 end,
-            far_desc = "outside the Tower of Magic, x >= 1597" })
+            near = { 1595, 3820 }, far_ok = function(tile) return tile.x >= 1596 end,
+            far_desc = "outside the Tower of Magic, on the door's tile x >= 1596" })
 
         -- 1.9 enterKaruulm (s7)
         t.exec("goto-elevator", t.player.goto_tile, 1311, 3809, 0)
         t.exec("enterKaruulm", t.player.click_loc, "brimstone_elevator_central_tile", 1)
-        t.ticks(3)
+        t.ticks(8)
         local rk, tk = t.world.tile()
         t.check("karuulm.tile", rk == "ok", rk == "ok" and (tk.x .. "," .. tk.z .. "," .. tk.level) or tostring(tk))
         -- 1.10 talkToKaal (s7)
-        t.exec("goto-kaal", t.player.goto_tile, 1311, 10208, 0)
+        -- The recorder's tile: answered from 5 tiles off (4426 [2155..2158]).
+        t.exec("goto-kaal", t.player.goto_tile, 1311, 10205, 0)
         t.exec("talkToKaal", t.player.talk_to, "tasakaal_ket", 1)
         t.exec("talkToKaal-dialog", t.chat.drain, { max_pages = 80 })
         t.ticks(3)
@@ -210,28 +223,33 @@ return {
         t.exec("goto-grave", t.player.goto_tile, 1348, 3738, 0)
         t.exec("inspectGrave", t.player.click_loc, "arcquest_grave", 1)
         t.ticks(2)
+        t.exec("inspectGrave-box", t.chat.play, { "mesbox:The grave is empty but it looks" })
         t.expect("quest.stage.track", t.quest.expect_stage("track"))
 
         -- 1.17 inspectTrack1 (s9): the bush at 1335,3743
         t.exec("goto-t1", t.player.goto_tile, 1335, 3741, 0)
         t.exec("inspectTrack1", t.player.click_loc, "arcquest_hunting_bush", 1, { at = { 1335, 3743 } })
+        t.ticks(4)
         -- 1.13 inspectTrack2: plant 1317,3750
         t.exec("goto-t2", t.player.goto_tile, 1317, 3748, 0)
         t.exec("inspectTrack2", t.player.click_loc, "arcquest_hunting_plant", 1, { at = { 1317, 3750 } })
+        t.ticks(4)
         -- 1.14 inspectTrack3: plant 1305,3750, reached from the north
         t.exec("goto-t3", t.player.goto_tile, 1305, 3752, 0)
         t.exec("inspectTrack3", t.player.click_loc, "arcquest_hunting_plant", 1, { at = { 1305, 3750 } })
+        t.ticks(4)
         -- 1.15 inspectTrack4: stump 1287,3750
         t.exec("goto-t4", t.player.goto_tile, 1289, 3749, 0)
         t.exec("inspectTrack4", t.player.click_loc, "arcquest_hunting_tree_stump", 1, { at = { 1287, 3750 } })
+        t.ticks(4)
         -- 1.16 inspectTrack5: plant 1285,3737
         t.exec("goto-t5", t.player.goto_tile, 1285, 3736, 0)
         t.exec("inspectTrack5", t.player.click_loc, "arcquest_hunting_plant2", 1, { at = { 1285, 3737 } })
-        t.ticks(2)
+        t.ticks(4)
         -- 1.19 inspectTrack6: final plant, the Trapped Soul appears
         t.exec("goto-end", t.player.goto_tile, 1283, 3728, 0)
         t.exec("inspectTrack6", t.player.click_loc, "arcquest_hunting_end", 1)
-        t.ticks(3)
+        t.ticks(5)
         t.expect("quest.stage.soul", t.quest.expect_stage("soul"))
         -- 1.18 killTrappedSoul (s10)
         t.exec("killTrappedSoul", t.player.attack, "arcquest_soul", 2, 10)
@@ -250,9 +268,9 @@ return {
         -- 1.20 enterKaruulmAgain (s11)
         t.exec("goto-elevator-2", t.player.goto_tile, 1311, 3809, 0)
         t.exec("enterKaruulmAgain", t.player.click_loc, "brimstone_elevator_central_tile", 1)
-        t.ticks(3)
+        t.ticks(8)
         -- 1.21 talkToKaalAgain
-        t.exec("goto-kaal-2", t.player.goto_tile, 1311, 10208, 0)
+        t.exec("goto-kaal-2", t.player.goto_tile, 1311, 10205, 0)
         t.exec("talkToKaalAgain", t.player.talk_to, "tasakaal_ket", 1)
         t.exec("talkToKaalAgain-dialog", t.chat.drain, { max_pages = 60 })
         t.ticks(3)
@@ -283,7 +301,9 @@ return {
                 t.ticks(2)
                 local ks = t.chat.kind()
                 local stage = select(2, t.quest.stage())
-                t.check("searchRocks-" .. i, rr == "ok" and (stage == 12 or stage == 13), "rock " .. i .. " at " .. rx .. "," .. rz .. " via " .. sym .. ": " .. tostring(rr) .. " " .. tostring(rd) .. " chat=" .. tostring(ks) .. " stage=" .. tostring(stage))
+                -- A rock without the device answers nothing (the recorder searched only the right
+                -- one, 4426 [2663]): a click that settles on no change is that rock.
+                t.check("searchRocks-" .. i, (stage == 13 and rr == "ok") or stage == 12, "rock " .. i .. " at " .. rx .. "," .. rz .. " via " .. sym .. ": " .. tostring(rr) .. " " .. tostring(rd) .. " chat=" .. tostring(ks) .. " stage=" .. tostring(stage))
                 if stage == 13 then
                     found = true
                     t.exec("searchRocks-dialog", t.chat.drain, { max_pages = 6 })
@@ -307,7 +327,13 @@ return {
         t.exec("goto-trobin", t.player.goto_tile, 1580, 3821, 1)
         t.exec("talkToArceuusToFinish", t.player.talk_to, "trobin_arceuus_visible", 1)
         t.exec("talkToArceuusToFinish-dialog", t.chat.drain, { max_pages = 30 })
-        t.ticks(3)
+        t.expect("scroll", t.ui.await_open("questscroll", 5))
+        -- Reads the scroll's title, then closes it.
+        t.quest.expect_complete()
+        t.ticks(2)
+        -- [2803..2804] his next page as the scroll closes, then his menu.
+        t.exec("trobin-after", t.chat.drain, { max_pages = 3, stop_at = "options" })
+        t.exec("trobin-goodbye", t.chat.play, { "choose:Goodbye.", "player:Goodbye.", "npc:Farewell." })
 
         local _, sharks_left = t.inv.count("shark")
         local _, hp_end_t = t.skill.read("hitpoints")
@@ -316,7 +342,6 @@ return {
             "hitpoints staged 40, sharks staged 8 / eaten " .. tostring(8 - (sharks_left or 0)) .. " / left " .. tostring(sharks_left)
             .. ", lowest hp over six fights " .. tostring(hp_low) .. "/40, hp after " .. tostring(hp_end) .. "/40, ticks per fight "
             .. table.concat(fight_ticks, ",") .. " (margin: a shark left and lowest hp >= 10, a quarter)")
-        t.quest.expect_complete()
         local _, coins_after = t.inv.count("coins")
         t.check("reward.coins", (coins_after or 0) - (coins_before or 0) == 2000, "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after) .. ", delta " .. tostring((coins_after or 0) - (coins_before or 0)) .. " == 2000 (^aoa_coin_reward)")
         local _, pages = t.inv.count("veos_memoirs_arc_page")
