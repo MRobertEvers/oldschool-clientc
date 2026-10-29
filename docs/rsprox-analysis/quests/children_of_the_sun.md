@@ -34,14 +34,14 @@ rebuilt from the recording.
 | first | n | action | verdict |
 |---|---|---|---|
 | [2] | 1 | welcome_screen:play | login, generic |
-| [112] | 4 | poh_tablet_varrockteleport op2 (Break) | generic: bound, `teleport_tablet.rs2` (TGV audit 2026-10-27); not re-diffed here |
-| [147], [1107] | 2 | 2dose / 1dose stamina Drink | generic: bound, `inferno_potions.rs2`; not re-diffed |
-| [149] | 1 | fai_varrock_bankbooth op2 (Bank) | generic: bound, `bank_booths.rs2` |
+| [112] | 4 | poh_tablet_varrockteleport op2 (Break) | generic: matched on a scratch run (C 4069 d16 + synth 965 d15, C+2 spotanim 678 + 4071, C+4 the move) |
+| [147], [1107] | 2 | 2dose / 1dose stamina Drink | generic: **fixed**. The messages are spam (every drink, dose and "finished" line in the archive is: 7,028 / 3,755 / 841), now in all 26 potion files; `stamina_duration` (varbit 24) goes out 20 at the sip and one less every 10 ticks, on `varp277_dragonresist`, which was `transmit=no`; the expiry line is Jagex's ("<col=8f4808>Your stamina enhancement has expired.</col>" [348], before `stamina_active` 0); `tracking_potions_sipped` (varp 4519) counts every sip, perm and sent |
+| [149] | 1 | fai_varrock_bankbooth op2 (Bank) | generic: bound and works, but the open **differs** (Open list) |
 | [152]..[167] | 13 | bankside withdraw/deposit | the recorder's banking, generic |
 | [178] | 6 | vmq1_alina Talk-to | **this content**: the start, the topics, the tail restarts |
 | [209]..[902] | 13 | questlist / questjournal / overview | **this content**: the journal (below) |
-| [386], [395], [461] | 3 | fai_varrock_door_open / fai_varrock_door (3233,3427/8) | generic doors (`doors.loc` category 167); used in the tail's copy, works there |
-| [436], [657] | 2 | fai_varrock_ladder | generic (`ladders.loc`); [443] the climb out of the tail fails it (ours: off his level = too far) |
+| [386], [395], [461] | 3 | fai_varrock_door_open / fai_varrock_door (3233,3427/8) | generic doors: **fixed**, every door swing was silent. `~door_sound` (door_procs.rs2): door_open 62 / door_close 60 on the op tick with the loc change, per family from the archive (castle doors 44/43, posh and some doubles 81/80, prison 71, Prifddinas 36); fence gates 67 (close 66, unrecorded) |
+| [436], [657] | 2 | fai_varrock_ladder | generic: matched (walked: L+2 anim 828, L+3 up; laddertop from standing: anim on C, down C+1); [443] the climb out of the tail fails it (ours: off his level = too far) |
 | [521], [614] | 2 | fai_varrock_poor_door(_flipped) | generic doors, in the tail's copy |
 | [531] | 1 | rune_scimitar Wield | the recorder's kit |
 | [602] | 1 | fai_varrock_range Cook | generic: **fixed**, "You haven't got anything to cook." in a box (ours said "You have nothing to cook." as a line) |
@@ -50,13 +50,13 @@ rebuilt from the recording.
 | [674] | 1 | fai_varrock_laddertop | generic |
 | [712]..[1163] | 10 | vmq1_guard_sergeant / _roof Talk-to | **this content** |
 | [719], [721] | 2 | vmq1_guard_8/10_noop op6 (Examine) | engine examine |
-| [722] | 1 | events_shop (Nevet) Talk-to | generic: **fixed**, had no binding and no spawn; the first meeting and the shop interface |
+| [722] | 1 | events_shop (Nevet) Talk-to | generic: **fixed**, had no binding and no spawn; the first meeting and the shop interface; she stands on 3209,3435 at every add, so `wanderrange=0` (`areas/varrock/configs/varrock.npc`; the generated block's `wanderrange=5` deleted) |
 | [766]..[886] | 14 | vmq1_guard_1..10 Mark / Unmark | **this content** |
 | [992] | 1 | questscroll close | the scroll |
 | [1048] | 1 | vmq2_quetzal_keeper_varrock Talk-to | **Travel to Varlamore**: the first flight |
 | [1085] | 1 | vmq2_quetzal_keeper_fortis Talk-to | **Travel to Varlamore**: the flight home |
-| [1134] | 5 | fai_varrock_castle_door | generic doors |
-| [1141], [1146] | 2 | varrock_spiralstairs_taller / middle_taller | generic (`ladders.loc`) |
+| [1134] | 5 | fai_varrock_castle_door | generic: matched after the door fix (L+1: del 3203,3493 rot 1, add the open door 3203,3494 rot 2, synth 44) |
+| [1141], [1146] | 2 | varrock_spiralstairs_taller / middle_taller | generic: matched (walked: L+2 to 3204,3497,1; the middle's op2 moves on C to level 2) |
 | [1175] | 1 | logout | generic |
 
 ## Teleports
@@ -197,13 +197,26 @@ Ours: off his level, or past 16 tiles (unverified: 14 is the furthest the
 recording went without a fail). Unverified: leaving the copy by teleport (ours:
 he goes quietly).
 
-The copy is one square's worth of zones from 3200,3384 (the tail reaches z
-3389, the palace road 3442). A copy of the two whole squares 50_52 + 50_53
-(`~map_instance_from_square_block(.., 1, 2)`) put the scriptrun client's
-tiles out by two squares east and three north and nothing could walk in it:
-an engine/client fault in tall block copies, left open below. The copy's
-noop locs (6 bank booths, the tomato crate, the poll booth, the junk source,
-the deep ladder) are added as recorded.
+The copy is the two whole squares 50_52 + 50_53
+(`~map_instance_from_square_block(.., 1, 2)`), as Jagex's. Tall copies
+used to put the scriptrun client's tiles two squares east and three north
+and nothing could walk: the rev-241 writer packed every packet into a
+1024-byte buffer, and a two-square REBUILD_REGION is longer, so the client
+read a truncated one (`w241_run`, now 40000 bytes and an abort past it).
+The copy carries the squares' own people, as Jagex's do
+(`map_instance_spawnnpcs`: every spawn file row inside the copied area,
+moved into the copy; 149 in the delegation's, 138 in the tail's), less
+the square's own Alina and Noah where the cast stands. The copy's noop locs
+(6 bank booths, the tomato crate, the poll booth, the junk source, the deep
+ladder) are added as recorded.
+
+Music in the tail: `midi_song_withsecondary` 774 + 810 (Plots and Plans with
+its second part) at each copy, envelope 0,60,60,0, as recorded: the rev-241
+writer had the prot unmapped, and a cache music row with a
+`secondary_track` now goes out on it. Every track played now unlocks its
+row (the cache's `variable` bit, the "You have unlocked a new music track:"
+line unless the toggle is set, hidden rows silent): Children of the Sun,
+Plots and Plans, The Burning Sun come out on the recorded ticks.
 
 ### The bandits' house [616]..[650]
 
@@ -279,13 +292,12 @@ Promise. Unverified: later talks, "There's something I need to do first.".
 
 ## The journal
 
-Opened at stages 2 [209], 6 [~370] and 12 [824], [889], [899]; a scratch
-scriptrun read of ours (`ui.journal_read` after the journal proc) matches all
-three row for row (3, 8 and 14 rows, the same wraps). Stages 8, 10, 14..22
+Opened at stages 2 [209], 6 [365] and 12 [824], [889], [899].
+`test/quests/_journals.lua` checks all three row for row on the live client
+(3, 8 and 14 rows, every row matches). Stages 8, 10, 14..22
 and the completed journal keep the recorded layout with unverified wording.
 The overview's start text [901] ("talking to Alina and Noah in Varrock
-Square.") is in `quest_overview_start.rs2`. `test/quests/_journals.lua` was
-being edited by another session and has no Children of the Sun rows yet.
+Square.") is in `quest_overview_start.rs2`.
 
 ## Every page
 
@@ -294,28 +306,26 @@ checked mechanically against our scripts: 0 missing, 0 with a different mood.
 
 ## Open
 
-- **Tall block copies.** `~map_instance_from_square_block(square, 1, 2)` gives
-  the scriptrun client tiles two squares east and three north of the real ones
-  and the player cannot walk in it (Ides of Milk and ToB use 2x2/2x1 and
-  never walk by hand). Worked round with a one-square zone copy; the engine or
-  client fault is not fixed.
-- **The copies carry no ambient npcs.** Jagex's copies have the square's own
-  people (the shopkeepers, the bankers, Romeo, the wandering men); ours only
-  the cast. Not built: our copy has no npc copying.
-- **Music.** `midi_song_withsecondary` 774/810 in the tail has no command
-  (774 alone plays); the "You have unlocked a new music track" lines for
-  Children of the Sun / Plots and Plans / The City of Sun / Prospering Fortune
-  are not sent. Back in Varrock square our region music is `garden` (125)
-  where 4408 plays `medieval` (157): the sub-square music areas issue, not
-  this quest's.
-- **Nevet wanders** (the generated block's `defaultmode=wander`, range 5);
-  4408 has her on 3209,3435 at every add. The override belongs in the npc
-  configs, which another session has open.
+- **Varrock Square's area music.** Back in the square ours picks among the
+  Varrock area's tracks (Adventure, Garden, Medieval, Spirit: the cache's
+  music `area` 4, a random member when the square changes area) where 4408
+  played `medieval` (157). The music areas are now the cache's groups, and
+  a track already playing in the same area carries on; which member Jagex
+  picks is a roll, so one recording cannot say more.
+- **The bank's open frame differs from Jagex's** (4408 [151]; the engine's
+  `torirs_server_bank.c`, not this quest): Jagex mounts bankmain and
+  bankside both as modals before any events, sets `if1`/`if2`/`if3`
+  (261..263) to 0 / 77824 / 224, and arms items 0..1409 with ops 1..11,
+  depth 2, drag target and target, 1419..1427 op 1, 1428..1437 drag,
+  tab 10 and tabs 11..19 apart, the looting bag, league inventory, worn
+  ops, incinerator, dropdown and potion store. Ours mounts bankside as type
+  3 after bankmain's events, sends `if2` 0, and arms 12:12 0..1409 and
+  tabs 0..19 with ops 1..10, depth 1, drag. It works; it is not the
+  recorded frame.
 - **The guard's look rule is fitted** (above): two recordings, both hiding
   on the five marked tiles; neither tried another hiding place.
-- **Not wire-diffed here:** the tablets, the stamina drink, the bank, the
-  generic doors and ladders and the castle stairs: each is bound in our tree.
 - **The invisible roof-hiding walls** the house and cell scenes add are not
   copied (they draw nothing).
-- **Live-client lane not run:** the cutscene rows (`t.cutscene.await`, camera
-  heights) only run there; on scriptrun they are skipped.
+- **Live-client lane not run for the quest test:** the cutscene rows
+  (`t.cutscene.await`, camera heights) only run there; on scriptrun they are
+  skipped.
