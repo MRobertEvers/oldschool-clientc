@@ -134,6 +134,32 @@ return {
         t.ticks(5)
         local tr, tt = t.world.tile()
         t.check("portal.landed", tr == "ok" and tt.x == 3213 and tt.z == 3222, tostring(tr) .. " " .. tostring(tt and tt.x) .. "," .. tostring(tt and tt.z))
+
+        -- Back in through each entrance and out through each barrier: the
+        -- double doors walk the player in to the room's (10,11) (4402 [114]..
+        -- [118]), the Cook's door to (5,5) through barrier 1 (4402 [1701]..
+        -- [1704]); barrier 2 puts them at 3213,3222, barrier 1 at 3207,3217.
+        local function in_copy_at(name, dx, dz)
+            local r, w = t.world.tile()
+            t.check(name, r == "ok" and w.x > 6000 and w.x % 64 == dx and w.z % 64 == dz,
+                tostring(r) .. " " .. tostring(w and w.x) .. "," .. tostring(w and w.z) .. " want copy " .. dx .. "," .. dz)
+        end
+        local function landed(name, x, z)
+            local r, w = t.world.tile()
+            t.check(name, r == "ok" and w.x == x and w.z == z, tostring(r) .. " " .. tostring(w and w.x) .. "," .. tostring(w and w.z))
+        end
+        t.exec("doubledoor.in", t.player.click_loc, "hundred_lumbridge_doubledoorl", 1)
+        t.ticks(8)
+        in_copy_at("doubledoor.walked_in", 10, 11)
+        t.exec("barrier2.out", t.player.click_loc, "hundred_portal_door2", 1)
+        t.ticks(5)
+        landed("barrier2.landed", 3213, 3222)
+        t.exec("cookdoor.in", t.player.click_loc, "hundred_lumbridge_door", 1)
+        t.ticks(6)
+        in_copy_at("cookdoor.walked_in", 5, 5)
+        t.exec("barrier1.out", t.player.click_loc, "hundred_portal_door1", 1)
+        t.ticks(5)
+        landed("barrier1.landed", 3207, 3217)
         t.finish(0)
     end,
 }

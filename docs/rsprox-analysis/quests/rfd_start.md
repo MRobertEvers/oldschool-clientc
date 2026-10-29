@@ -91,12 +91,19 @@ its recorded tick and adds the pages the draft did not list.
 
 ## The frozen room
 
+The way in and out is the three "Barrier" locs (`hundred_portal_door1/2/3`,
+op "Pass-through"; m29_83 centrepieces at 5,4 turned 3 and 11,12 / 11,11
+turned 2). Every recorded pass is the same shape: the barrier's slot becomes an
+`inviswall` with an inactive leaf for two ticks, `door_open` (62), and the
+player glides across (`~rfd_pass_through`).
+
 | | recorded | ours |
 |---|---|---|
-| double doors, stage >= 3 (4402 [112]..[117]) | arrival + 1: into a copy at (13,11), Aris and the frozen Culinaromancer added; next tick the door's slot is an inviswall + `inaccastledoubledoorl` for 2 ticks, `door_open`, a step in | the same (`~rfd_doubledoor`); stage < 3 declines to the ordinary door |
-| the Cook's door, stage >= 3 (4402 [1701]) | on the op tick into a copy at (5,3) | the same; its twin inside the copy does nothing (4402 [1787]..[1790]) |
-| `hundred_portal_door2` ([2209]..[2213]) | arrival + 1 face, a step east, out to 3213,3222 a tick later | the same |
-| `hundred_portal_door1` (4402 [1793]) | already there: a 2-tile step on the op tick, out to 3207,3217 next tick | the same |
+| double doors, stage >= 3 (4402 [112]..[118]) | arrival + 1: into a copy at (13,11), Aris and the frozen Culinaromancer added; next tick through the door on (12,11) (`inviswall` 2 + `inaccastledoubledoorl` 3), a tick's hold, then (11,11) and (10,11) as the door comes back | the same |
+| the Cook's door, stage >= 3 (4402 [1701]..[1704]; 551 [13163]..[13166]) | arrival + 1: into a copy at (5,3), outside barrier 1; next tick through it to (5,5) (`inviswall` 3 + `inactiveelfdoor` 2), the door back 2 ticks later | the same; its twin inside the copy does nothing (4402 [1787]..[1790]) |
+| barrier 1 out (4402 [1793]; 551 [13218]) | on the op tick (standing, or at the arrival + 1): through it to (5,3); out to 3207,3217 a tick later | the same |
+| barrier 2 out (4400 [2209]..[2213]) | arrival + 1 face, a step east off its tile, no loc change sent, out to 3213,3222 a tick later | the same |
+| barrier 3 out | no recording | door 2's shape, out to 3213,3221, UNVERIFIED |
 
 ## Aris [2008]..[2119]
 
