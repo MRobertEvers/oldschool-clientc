@@ -14403,8 +14403,10 @@ handle_resume_objdialog(
     (void)name;
     if( !mock239_resume_object_decode(payload, len, &object_id) )
         return;
-    /* There is no OBJDIALOG execution kind yet, but retaining last_item is the
-     * lossless server-side state a future waiter will consume. */
+    /* The item search answers a script that opened it itself (clientscript
+     * meslayer_mode14, the Grand Exchange's "What would you like to buy?",
+     * RSProx index 4426 [84..90]) and waits with `p_countdialog_noprompt`:
+     * the chosen obj lands in last_item and last_int, and releases it. */
     srv->active_player->last_item = object_id;
     if( srv->verbose )
         fprintf(stderr, "torirsserver: <- RESUME_P_OBJDIALOG obj=%d\n", object_id);
@@ -14417,6 +14419,8 @@ handle_resume_objdialog(
 /*
  * The wire half of docs/FRIENDS_PRIVATE_CHAT.md. The *rules* are all in
  * torirs_server_friends.c (the roster, `isVisibleTo`, the caps, the pm ids); nothing
+    srv->active_player->last_int = object_id;
+    ToriRSServer_ScriptsResumeCountdialog(srv, object_id);
  * below decides anything, it only reads packets and writes packets.
  *
  * The shape is LostCity's, and the correspondence is one-to-one:

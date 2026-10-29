@@ -633,10 +633,16 @@
 #define SS_OP_DISPLAYNAME_SET 11294
 #define SS_OP_WORLDMAP_OPEN 11295
 #define SS_OP_MAP_INSTANCE_SPAWNNPCS 11320
+#define SS_OP_STOCKMARKET_SLOT 11321
+#define SS_OP_GE_OFFER_PLACE 11322
+#define SS_OP_GE_OFFER_ABORT 11323
+#define SS_OP_GE_OFFER_GET 11324
+#define SS_OP_GE_OFFER_COLLECT 11325
+#define SS_OP_SEND_VARP_LONG 11326
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11321
+#define SS_OPCODE_MAX 11327
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 611
+#define SS_OPCODE_COUNT 617
 
 #endif

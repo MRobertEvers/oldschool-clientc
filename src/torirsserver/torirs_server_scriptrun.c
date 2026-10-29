@@ -4117,6 +4117,24 @@ d_resume_namedialog(lua_State* L)
     return push_result(L, "ok", "resume_p_namedialog sent");
 }
 
+/* api_drive.resume_objdialog(obj) -> ok
+ *
+ * RESUME_P_OBJDIALOG with `obj`: the client's item search answered (the Grand
+ * Exchange's "What would you like to buy?", RSProx index 4426 [90]). Scriptrun
+ * has no clientscripts to type into, so the test names the item. */
+static int
+d_resume_objdialog(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    lua_Integer obj = luaL_checkinteger(L, 1);
+    uint8_t payload[2];
+
+    payload[0] = (uint8_t)((obj >> 8) & 0xff);
+    payload[1] = (uint8_t)(obj & 0xff);
+    handle(bot, PKTOUT_NAME_RESUME_P_OBJDIALOG, payload, 2);
+    return push_result(L, "ok", "resume_p_objdialog sent");
+}
+
 /* api_drive.resume_stringdialog(text) -> ok | refused
  *
  * RESUME_P_STRINGDIALOG with `text`, as Tutorial Island's display name box
@@ -4594,6 +4612,7 @@ push_drive_table(
     bind(L, bot, "cheat", d_cheat);
     bind(L, bot, "key", d_key);
     bind(L, bot, "resume_namedialog", d_resume_namedialog);
+    bind(L, bot, "resume_objdialog", d_resume_objdialog);
     bind(L, bot, "resume_stringdialog", d_resume_stringdialog);
     bind(L, bot, "if_drag", d_if_drag);
     bind(L, bot, "resume_script", d_resume_script);

@@ -42,6 +42,8 @@ DEFAULT_REF = HERE.parent.parent.parent / "LostCity_Server"
 # from that file. Only commands whose argument TYPES matter belong here; an
 # extra with no row keeps parse_command's hand-written hints.
 EXTRA_DECLARATIONS = [
+    "[command,stockmarket_slot](int $slot, int $status, obj $obj, int $price, int $count, int $completedcount, int $completedgold)",
+    "[command,ge_offer_place](int $slot, int $sell, obj $obj, int $price, int $count)(int)",
     "[command,if_setangle](component $component, int $xan, int $yan, int $zoom)",
     "[command,if_setrotatespeed](component $component, int $xspeed, int $yspeed)",
     "[command,spotanim_npc_slot](spotanim $spotanim, int $height, int $delay, int $slot)",

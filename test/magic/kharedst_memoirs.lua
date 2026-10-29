@@ -94,8 +94,8 @@ return {
         t.expect("diary.hos", t.var.expect("varb7918_kourend_diary_hos_teleport", 1))
         t.expect("diary.not_yet", t.var.expect("varb7934_kourend_med_count", 0))
         local rest = {
-            { "veos_memoirs_shay_page", 3, "varb7920_kourend_diary_shay_teleport", 1479, 3575 },
-            { "veos_memoirs_lova_page", 4, "varb7919_kourend_diary_lova_teleport", 1543, 3762 },
+            { "veos_memoirs_shay_page", 3, "varb7920_kourend_diary_shay_teleport", 1478, 3576 },
+            { "veos_memoirs_lova_page", 4, "varb7919_kourend_diary_lova_teleport", 1545, 3761 },
             { "veos_memoirs_arc_page", 5, "varb7917_kourend_diary_arc_teleport", 1681, 3747 },
         }
         for _, r in ipairs(rest) do

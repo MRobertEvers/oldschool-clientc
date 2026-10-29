@@ -52,6 +52,8 @@
 #include "packets/scriptedproj_add.h"
 #include "packets/message_game.h"
 #include "packets/midi_jingle.h"
+#include "packets/update_stockmarket_slot_v2.h"
+#include "packets/varp_long.h"
 #include "packets/midi_song_stop.h"
 #include "packets/midi_song_v2.h"
 #include "packets/midi_song_withsecondary.h"
@@ -561,6 +563,44 @@ w241_midi_jingle(struct RSAreaBuf* buf, int id, int length_ms)
     m.id = id;
     m.length_in_millis = length_ms;
     W241(rsprot_midi_jingle_out, m);
+}
+
+static void
+w241_varp_long(struct RSAreaBuf* buf, int id, int64_t value)
+{
+    MsgVarpLong m = { 0 };
+    m.id = id;
+    m.high = (int32_t)(value >> 32);
+    m.low = (int32_t)(value & 0xFFFFFFFF);
+    W241(rsprot_varp_long_out, m);
+}
+
+/* The escaped form every 241 slot takes (first_state 7, version 2): `status`
+ * after it, 8-byte price and gold, no extension. RSProx index 4426 [97]:
+ * "slot=3, version=2, status=1, id=hunting_ojibway_bird_snare (10006),
+ * price=21, count=6"; the empty slot [106] is status 0 with nothing set. */
+static void
+w241_update_stockmarket_slot(
+    struct RSAreaBuf* buf,
+    int slot,
+    int status,
+    int obj,
+    int64_t price,
+    int count,
+    int completed_count,
+    int64_t completed_gold)
+{
+    MsgUpdateStockmarketSlotV2 m = { 0 };
+    m.slot = slot;
+    m.first_state = 7;
+    m.version = 2;
+    m.status = status;
+    m.obj = obj;
+    m.price = price;
+    m.count = count;
+    m.completed_count = completed_count;
+    m.completed_gold = completed_gold;
+    W241(rsprot_update_stockmarket_slot_v2_out, m);
 }
 
 static void
@@ -1146,6 +1186,8 @@ static const struct ToriRSServerWirePayload k_payload_osrs241 = {
     .midi_song_stop = w241_midi_song_stop,
     .midi_song_withsecondary = w241_midi_song_withsecondary,
     .midi_jingle = w241_midi_jingle,
+    .update_stockmarket_slot = w241_update_stockmarket_slot,
+    .varp_long = w241_varp_long,
     .ambientsound_start = w241_ambientsound_start,
     .ambientsound_stop = w241_ambientsound_stop,
     .friendlist_loaded = w241_friendlist_loaded,
@@ -1221,6 +1263,8 @@ static const int k_transcribed_osrs241[] = {
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,
     PKT_NAME_MIDI_SONG_WITHSECONDARY,
     PKT_NAME_MIDI_JINGLE,
+    PKT_NAME_UPDATE_STOCKMARKET_SLOT,
+    PKT_NAME_VARP_LONG,
     PKT_NAME_FRIENDLIST_LOADED,
     PKT_NAME_AMBIENTSOUND_START, PKT_NAME_AMBIENTSOUND_STOP,
     PKT_NAME_UPDATE_INV_FULL,  PKT_NAME_UPDATE_INV_PARTIAL,

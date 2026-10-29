@@ -9749,6 +9749,19 @@ ToriRSServer_SendMessageTyped(
  * argument is that number, so a script can centre the arrow on a loc wider
  * than one tile: its centre is a tile centre or a tile edge on each axis.
  */
+/* VARP_LONG: a client long varp (`send_varp_long`). */
+void ToriRSServer_SendVarpLong(struct ToriRSServerPlayer* player, int id, int64_t value);
+/* UPDATE_STOCKMARKET_SLOT: one Grand Exchange offer slot (`stockmarket_slot`). */
+void
+ToriRSServer_SendStockmarketSlot(
+    struct ToriRSServerPlayer* player,
+    int slot,
+    int status,
+    int obj,
+    int64_t price,
+    int count,
+    int completed_count,
+    int64_t completed_gold);
 enum
 {
     TORIRSSERVER_HINT_ARROW_NPC = 1,

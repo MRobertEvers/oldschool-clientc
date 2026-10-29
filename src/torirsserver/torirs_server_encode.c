@@ -158,6 +158,8 @@ enum
     OP_MIDI_SONG_STOP = PKT_NAME_MIDI_SONG_STOP,
     OP_MIDI_SONG_WITHSECONDARY = PKT_NAME_MIDI_SONG_WITHSECONDARY,
     OP_MIDI_JINGLE = PKT_NAME_MIDI_JINGLE,
+    OP_UPDATE_STOCKMARKET_SLOT = PKT_NAME_UPDATE_STOCKMARKET_SLOT,
+    OP_VARP_LONG = PKT_NAME_VARP_LONG,
     OP_AMBIENTSOUND_START = PKT_NAME_AMBIENTSOUND_START,
     OP_AMBIENTSOUND_STOP = PKT_NAME_AMBIENTSOUND_STOP,
     OP_TRIGGER_ONDIALOGABORT = PKT_NAME_TRIGGER_ONDIALOGABORT,
@@ -3283,6 +3285,46 @@ ToriRSServer_SendMidiJingle(
     open_packet(&buf, 8);
     pl->midi_jingle(&buf, id, length_ms);
     flush(player, &buf, OP_MIDI_JINGLE, 0);
+}
+
+/*
+ * UPDATE_STOCKMARKET_SLOT -- one Grand Exchange offer slot, replaced whole;
+ * `status` 0 empties it. A revision with no writer drops the send, as above.
+ */
+void
+ToriRSServer_SendStockmarketSlot(
+    struct ToriRSServerPlayer* player,
+    int slot,
+    int status,
+    int obj,
+    int64_t price,
+    int count,
+    int completed_count,
+    int64_t completed_gold)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->update_stockmarket_slot )
+        return;
+    open_packet(&buf, 40);
+    pl->update_stockmarket_slot(&buf, slot, status, obj, price, count, completed_count,
+                                completed_gold);
+    flush(player, &buf, OP_UPDATE_STOCKMARKET_SLOT, 0);
+}
+
+/* VARP_LONG -- a client long varp; the server keeps no long varps itself. */
+void
+ToriRSServer_SendVarpLong(struct ToriRSServerPlayer* player, int id, int64_t value)
+{
+    struct RSAreaBuf buf;
+    const struct ToriRSServerWirePayload* pl = wire_payload(player);
+
+    if( !pl || !pl->varp_long )
+        return;
+    open_packet(&buf, 16);
+    pl->varp_long(&buf, id, value);
+    flush(player, &buf, OP_VARP_LONG, 0);
 }
 
 /*

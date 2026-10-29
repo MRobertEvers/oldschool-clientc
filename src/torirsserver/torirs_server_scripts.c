@@ -34,6 +34,7 @@
 #include "torirs_server_container.h"
 #include "torirs_server_content.h"
 #include "torirs_server_friends.h"
+#include "torirs_server_ge.h"
 #include "torirs_server_ids.h"
 #include "torirs_server_scene.h"
 #include "torirs_server_session.h"
@@ -12736,6 +12737,108 @@ script_command(
      * cutscene sends it false on its unlock tick (RSProx 4336 [613]). */
     case SS_OP_CAM_UNLOCK:
     {
+    /* `send_varp_long(varp, value)` -- VARP_LONG of an int value. */
+    case SS_OP_SEND_VARP_LONG:
+    {
+        int32_t id;
+        int32_t value;
+
+        if( !SSVM_PopInt(state, &value) || !SSVM_PopInt(state, &id) )
+            return 1;
+        ToriRSServer_SendVarpLong(player, (int)id, (int64_t)value);
+        return 1;
+    }
+
+    /* `stockmarket_slot(slot, status, obj, price, count, completedcount,
+     * completedgold)` -- UPDATE_STOCKMARKET_SLOT, one Grand Exchange slot. */
+    case SS_OP_STOCKMARKET_SLOT:
+    {
+        int32_t values[7];
+
+        for( int i = 6; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_SendStockmarketSlot(player, (int)values[0], (int)values[1], (int)values[2],
+                                         (int64_t)values[3], (int)values[4], (int)values[5],
+                                         (int64_t)values[6]);
+        return 1;
+    }
+
+    /* The Grand Exchange book (torirs_server_ge.c), keyed by the active
+     * player's base-37 name. A place that fills other players' offers queues
+     * `[queue,ge_offer_changed](slot)` on each of them who is online, so their
+     * interface and their message are content's. */
+    case SS_OP_GE_OFFER_PLACE:
+    {
+        int32_t values[5];
+        int64_t owners[16];
+        int slots[16];
+        int changed;
+        int placed;
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        placed = ToriRSServer_GePlace(player->name37, (int)values[0], (int)values[1],
+                                      (int)values[2], (int)values[3], (int)values[4]);
+        changed = ToriRSServer_GeTakeChanged(owners, slots, 16);
+        for( int i = 0; i < changed; i++ )
+        {
+            struct ToriRSServerPlayer* saved = srv->active_player;
+
+            for( int p = 0; p < srv->player_count; p++ )
+            {
+                struct ToriRSServerPlayer* other = &srv->players[p];
+
+                if( !other->active || other->name37 != owners[i] || other == player )
+                    continue;
+                srv->active_player = other;
+                ToriRSServer_ScriptsQueueNamed(srv, "[queue,ge_offer_changed]", 0, slots[i]);
+                srv->active_player = saved;
+            }
+        }
+        SSVM_PushInt(state, placed);
+        return 1;
+    }
+
+    case SS_OP_GE_OFFER_ABORT:
+    {
+        int32_t slot;
+
+        if( !SSVM_PopInt(state, &slot) )
+            return 1;
+        SSVM_PushInt(state, ToriRSServer_GeAbort(player->name37, (int)slot));
+        return 1;
+    }
+
+    case SS_OP_GE_OFFER_GET:
+    {
+        int32_t slot;
+        int32_t field;
+
+        if( !SSVM_PopInt(state, &field) || !SSVM_PopInt(state, &slot) )
+            return 1;
+        SSVM_PushInt(state, ToriRSServer_GeGet(player->name37, (int)slot, (int)field));
+        return 1;
+    }
+
+    case SS_OP_GE_OFFER_COLLECT:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        ToriRSServer_GeCollect(player->name37, (int)values[0], (int)values[1], (int)values[2]);
+        return 1;
+    }
+
         int32_t unlock;
 
         if( !SSVM_PopInt(state, &unlock) )

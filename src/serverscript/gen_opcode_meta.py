@@ -357,6 +357,32 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # call to make. They go with the instance's release, as every npc in it.
     "MAP_INSTANCE_SPAWNNPCS": (11320, 1, 0, 0, 0),
 
+    # stockmarket_slot(int $slot, int $status, obj $obj, int $price, int $count,
+    #                  int $completedcount, int $completedgold)
+    #
+    # UPDATE_STOCKMARKET_SLOT: one Grand Exchange offer slot, replaced whole
+    # (status 0 empties it). RSProx index 4426 [97..106].
+    "STOCKMARKET_SLOT": (11321, 7, 0, 0, 0),
+
+    # ge_offer_place(int $slot, int $sell, obj $obj, int $price, int $count)(int)
+    # ge_offer_abort(int $slot)(int)
+    # ge_offer_get(int $slot, int $field)(int)
+    # ge_offer_collect(int $slot, int $items, int $coins)
+    #
+    # The active player's Grand Exchange offers in the server-wide book
+    # (torirs_server_ge.c): place one and match it against other players' at
+    # once, abort one, read a field, take proceeds off it. Players only.
+    "GE_OFFER_PLACE": (11322, 5, 0, 1, 0),
+    "GE_OFFER_ABORT": (11323, 1, 0, 1, 0),
+    "GE_OFFER_GET": (11324, 2, 0, 1, 0),
+    "GE_OFFER_COLLECT": (11325, 3, 0, 0, 0),
+
+    # send_varp_long(int $varp, int $value)
+    #
+    # VARP_LONG: a client varp holding a long, written from an int. The server
+    # keeps the value itself where content needs it.
+    "SEND_VARP_LONG": (11326, 2, 0, 0, 0),
+
     # map_instance_find(coord $coord)(int)
     #
     # The handle of the instance containing `$coord`, or -1. This is the query
@@ -1933,6 +1959,12 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "IF_SETANGLE": (1 << POINTER_BITS["active_player"], 0),
     "IF_SETROTATESPEED": (1 << POINTER_BITS["active_player"], 0),
     "P_COUNTDIALOG_NOPROMPT": (1 << POINTER_BITS["p_active_player"], 0),
+    "STOCKMARKET_SLOT": (1 << POINTER_BITS["active_player"], 0),
+    "GE_OFFER_PLACE": (1 << POINTER_BITS["active_player"], 0),
+    "GE_OFFER_ABORT": (1 << POINTER_BITS["active_player"], 0),
+    "GE_OFFER_GET": (1 << POINTER_BITS["active_player"], 0),
+    "GE_OFFER_COLLECT": (1 << POINTER_BITS["active_player"], 0),
+    "SEND_VARP_LONG": (1 << POINTER_BITS["active_player"], 0),
     "NPC_SETRESPAWN": (1 << POINTER_BITS["active_npc"], 0),
     # Freezing needs an npc to freeze; without the mask `npc_freeze` in a script
     # with no active npc is a null deref rather than a refusal.

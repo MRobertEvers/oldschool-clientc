@@ -234,6 +234,21 @@ struct ToriRSServerWirePayload
      *  Confirmed against the vendored rsprot codec, the 239 Kotlin
      *  transcription, and the rev-239 deob -- see torirs_server_wire.c. */
     void (*midi_jingle)(struct RSAreaBuf* buf, int id, int length_ms);
+    /** UPDATE_STOCKMARKET_SLOT (rev 241: the 34-byte "version 2" form, RSProx
+     *  index 4426 [97..106]): one Grand Exchange offer slot, whole. `status` 0
+     *  is the empty slot. NULL where a revision has no such packet. */
+    /** VARP_LONG (rev 241): a client varp holding a long (the Grand Exchange's
+     *  ge_newoffer_price, RSProx index 4426 [82..106]). NULL where absent. */
+    void (*varp_long)(struct RSAreaBuf* buf, int id, int64_t value);
+    void (*update_stockmarket_slot)(
+        struct RSAreaBuf* buf,
+        int slot,
+        int status,
+        int obj,
+        int64_t price,
+        int count,
+        int completed_count,
+        int64_t completed_gold);
     /** AmbientSoundStartEncoder v2: p1Add fade flag, p2 soundscape id. The id
      *  is a config-group-15 record, not a sound effect. */
     void (*ambientsound_start)(struct RSAreaBuf* buf, int id, int fade);

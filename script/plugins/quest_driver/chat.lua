@@ -600,6 +600,17 @@ function QD.chat.resume_name(text)
     return api_drive.resume_namedialog(tostring(text))
 end
 
+-- RESUME_P_OBJDIALOG with `obj`: the client's item search answered (the Grand
+-- Exchange's "What would you like to buy?", RSProx index 4426 [90]). Scriptrun
+-- binds api.drive.resume_objdialog; a client, which searches by typing, answers
+-- "unsupported".
+function QD.chat.resume_obj(obj)
+    if not api_drive.resume_objdialog then
+        return "unsupported", "chat.resume_obj: no resume_objdialog on this drive"
+    end
+    return api_drive.resume_objdialog(tonumber(obj))
+end
+
 -- RESUME_P_STRINGDIALOG with `text`, which Tutorial Island's display name box
 -- sends unasked when its name is looked up. The client gets there by typing
 -- (t.text) and pressing "Look up name"; scriptrun, with no clientscripts,
