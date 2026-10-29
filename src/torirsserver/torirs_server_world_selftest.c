@@ -55047,8 +55047,10 @@ ToriRSServer_WorldSelftest(void)
              * p_choice5. A wrong first guess is checked first, proving a
              * mismatched sign does NOT complete the quest. */
             {
+                /* The upstairs professor: the multinpc shows him from stage
+                 * 6 (observatory_professor.rs2, RSProx index 4412). */
                 int npc_professor =
-                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "observatory_professor");
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "observatory_professor_multi2");
                 int varp_itgronigen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "varp112_itgronigen");
                 int vb_starsign =
                     ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "varb3828_observatory_starsign");
@@ -55076,7 +55078,7 @@ ToriRSServer_WorldSelftest(void)
                     int slot = npc_spawn(srv, npc_professor, player->x + 1, player->z, player->level);
 
                     SELFTEST_CHECK(slot >= 0,
-                                   "observatory_professor should spawn for the C-side check");
+                                   "observatory_professor_multi2 should spawn for the C-side check");
                     if( slot >= 0 )
                     {
                         uint8_t opnpc[2];
@@ -55109,6 +55111,25 @@ ToriRSServer_WorldSelftest(void)
                          * player, 231:5 / 217:5) until it waits on the menu
                          * rows: the dialogue gained a player line before the
                          * menu, and a fixed press count fell a step behind. */
+                        for( int c = 0; c < 8 && player->active_script &&
+                                        player->resume_button_count > 0 &&
+                                        player->resume_buttons[0] != rows_uid;
+                             c++ )
+                        {
+                            int want = player->resume_buttons[0];
+                            uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                (uint8_t)(want >> 8), (uint8_t)want };
+                            selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                        }
+                        /* Every visit opens on "Welcome back." and the
+                         * two-line menu; row 1 is the quest, then the
+                         * player's and the professor's pages to the signs. */
+                        button[0] = (uint8_t)(rows_uid >> 24);
+                        button[1] = (uint8_t)(rows_uid >> 16);
+                        button[2] = (uint8_t)(rows_uid >> 8);
+                        button[3] = (uint8_t)rows_uid;
+                        button[5] = 1;
+                        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
                         for( int c = 0; c < 8 && player->active_script &&
                                         player->resume_button_count > 0 &&
                                         player->resume_buttons[0] != rows_uid;
@@ -55164,6 +55185,25 @@ ToriRSServer_WorldSelftest(void)
                          * player, 231:5 / 217:5) until it waits on the menu
                          * rows: the dialogue gained a player line before the
                          * menu, and a fixed press count fell a step behind. */
+                        for( int c = 0; c < 8 && player->active_script &&
+                                        player->resume_button_count > 0 &&
+                                        player->resume_buttons[0] != rows_uid;
+                             c++ )
+                        {
+                            int want = player->resume_buttons[0];
+                            uint8_t cont[4] = { (uint8_t)(want >> 24), (uint8_t)(want >> 16),
+                                                (uint8_t)(want >> 8), (uint8_t)want };
+                            selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, cont, 4);
+                        }
+                        /* Every visit opens on "Welcome back." and the
+                         * two-line menu; row 1 is the quest, then the
+                         * player's and the professor's pages to the signs. */
+                        button[0] = (uint8_t)(rows_uid >> 24);
+                        button[1] = (uint8_t)(rows_uid >> 16);
+                        button[2] = (uint8_t)(rows_uid >> 8);
+                        button[3] = (uint8_t)rows_uid;
+                        button[5] = 1;
+                        selftest_handle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
                         for( int c = 0; c < 8 && player->active_script &&
                                         player->resume_button_count > 0 &&
                                         player->resume_buttons[0] != rows_uid;

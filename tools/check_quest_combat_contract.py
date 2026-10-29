@@ -1431,7 +1431,8 @@ def check_observatory_quest() -> None:
         guard,
         (
             "[opnpc1,qip_obs_goblin_guard]",
-            "npc_changetype(goblin_guard, 250);",
+            # RSProx index 4412 [910]: the sleeper deleted, a goblin_guard added
+            "npc_add($tile, goblin_guard, 500);",
             "npc_say(\"Oi, how dare you wake me up!\");",
             "[opnpc2,goblin_guard]", "[ai_queue3,goblin_guard]",
             "obj_add(npc_coord, bones, 1, ^lootdrop_duration);",
@@ -1469,9 +1470,10 @@ def check_observatory_quest() -> None:
             "npc_add(map_findsquare(coord, 1, 1, ^map_findsquare_lineofwalk), poisonspider, 1000);",
             "[oploc1,opendungeonchest]", "inv_add(inv, 1doseantipoison, 1);",
             "[oploc1,keepgate_closed]", "[oploc1,keepgate_closed_left]",
-            "%varb3826_observatory_gatelock = 0 & inv_total(inv, keep_key) = 0",
+            # RSProx index 4412 [994..998]: the key unlocks it for good, a walk-through
+            "%varb3826_observatory_gatelock = 1;",
             "npc_find(loc_coord, qip_obs_goblin_guard, 8, 0)",
-            "~door_selfstage_open;",
+            "[proc,observatory_kitchen_gate_pass]",
             "[oploc1,qip_obs_dungeon_stove_top_multi]",
             "%varb3837_observatory_mould_pres = 1",
             "inv_add(inv, lens_mould, 1);",

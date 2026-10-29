@@ -2,6 +2,7 @@
 -- with ::setvar, the journal opened through the quest list, and its rows read.
 --   The Ides of Milk, complete: the 33 rows of RSProx index 4381 [870], exactly.
 --   Pirate's Treasure, stage 1: the 6 rows of RSProx index 4378 [74], exactly.
+--   Observatory Quest, stages 2, 3, 4 and 6: RSProx index 4412, exactly.
 --   Misthalin Mystery and Vampyre Slayer (the wiki's journal transcripts): every
 --   state opens with its current step.
 -- The driver reads a row's text without its tags, so rows are compared as plain
@@ -107,6 +108,53 @@ local MC_4409 = {
         "<col=000080>I need to <col=800000>speak to Captain Lawgof<col=000080> again.") },
 }
 
+-- Observatory Quest, RSProx index 4412: stage 2 [607] (the bronze bar not
+-- carried), stage 3 [634] (the glass carried), stage 4 [674] (no mould),
+-- stage 6 [1180].
+local OBS_START = {
+    "<str>I can start this quest by talking to the professor, in the",
+    "<str>Observatory reception, south-west of Ardougne.",
+}
+local OBS_LIST = {
+    "<col=000080>Seems the Observatory telescope needs repairing, due to the",
+    "<col=000080>nearby goblins. The <col=800000>professor<col=000080> wants me to help by getting the",
+    "<col=000080>following, with the help of his <col=800000>assistant<col=000080>:",
+    "",
+}
+local function obs_rows(...)
+    local rows = {}
+    for _, part in ipairs({ ... }) do
+        for _, row in ipairs(part) do rows[#rows + 1] = row end
+    end
+    return rows
+end
+local OBS_4412_2 = obs_rows(OBS_START, OBS_LIST, { "<str>3 plain wooden planks", "<col=800000>1 bronze bar" })
+local OBS_4412_3 = obs_rows(OBS_START, OBS_LIST, { "<str>3 plain wooden planks", "<str>1 bronze bar", "<str>1 molten glass" })
+local OBS_4412_4 = obs_rows(OBS_START, {
+    "<col=000080>Seems the observatory telescope needs repairing due to the",
+    "<col=000080>nearby goblins. The <col=800000>professor<col=000080> wants me to help by getting the",
+    "<col=000080>following with the help of his <col=800000>assistant<col=000080>:",
+    "",
+}, { "<str>3 plain wooden planks", "<str>1 bronze bar", "<str>1 molten glass", "<col=800000>1 lens mould" })
+local OBS_4412_6 = obs_rows(OBS_START, {
+    "<str>Seems the Observatory telescope needs repairing, due to the",
+    "<str>nearby goblins. The professor wants me to help by getting the",
+    "<str>following, with the help of his assistant:",
+    "",
+    "<str>3 plain wooden planks",
+    "<str>1 bronze bar",
+    "<str>1 molten glass",
+    "<str>1 lens mould",
+    "<str>The professor was pleased to have all the pieces needed to",
+    "<str>fix the telescope. Apparently, the professor's last attempt",
+    "<str>at Crafting ended in disaster. So, he wants me to create the",
+    "<str>lens by using the molten glass with the mould. Fine by me!",
+    "<col=000080>The <col=800000>professor<col=000080> has gone ahead to the <col=800000>Observatory<col=000080>. He wants",
+    "<col=000080>me to meet him there by travelling through the <col=800000>dungeon<col=000080> below",
+    "<col=000080>it.",
+    -- and a blank row [1180] qj18, which the reader cannot tell from the end
+})
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -159,6 +207,17 @@ return {
         exact("journal.fishingcontest.willow", "Fishing Contest", FC_4404_2)
         set("::setvar varp11_fishingcompo 4")
         exact("journal.fishingcontest.won", "Fishing Contest", FC_4404_4)
+
+        set("::setvar varp112_itgronigen 2")
+        exact("journal.observatory.bronze", "Observatory Quest", OBS_4412_2)
+        set("::give molten_glass 1")
+        set("::setvar varp112_itgronigen 3")
+        exact("journal.observatory.glass", "Observatory Quest", OBS_4412_3)
+        set("::clearinv")
+        set("::setvar varp112_itgronigen 4")
+        exact("journal.observatory.mould", "Observatory Quest", OBS_4412_4)
+        set("::setvar varp112_itgronigen 6")
+        exact("journal.observatory.gone_ahead", "Observatory Quest", OBS_4412_6)
 
         for _, st in ipairs(MC_4409) do
             local fixed = st[2] and 1 or 0
