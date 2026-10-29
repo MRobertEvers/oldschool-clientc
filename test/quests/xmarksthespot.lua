@@ -145,12 +145,15 @@ return {
         t.expect("lamp.granted", t.msg.expect("300 Agility experience"))
         local lamp2_r, lamp2_n = t.inv.count("cluequest_lamp")
         t.check("lamp.used", lamp2_r == "ok" and lamp2_n == 0, "antique lamp count after the rub " .. tostring(lamp2_n))
-        -- after the quest, Client of Kourend not started (index 4353 [455..461])
+        -- after the quest, never in Kourend (index 4353 [455..461], which left on
+        -- Veos's first page; index 4415 [279..282] reads on to the menu)
+        t.chat.drain({}) -- the level-up box has no continue for chat.play
         t.exec("after.talk", t.player.talk_to, "veos_visible", 1)
         t.exec("after.chat", t.chat.play, {
             "player:Hello Veos", "npc:Hello there. What can I do for you?", "options",
             "choose:/Tell me more/", "player:Tell me more about Great Kourend",
-            "npc:Great Kourend is a magnificent kingdom", "end",
+            "npc:Great Kourend is a magnificent kingdom", "npc:At one time", "npc:However, since the last King",
+            "options", "choose:Goodbye.", "player:Goodbye.", "end",
         })
         t.finish(0)
     end,
