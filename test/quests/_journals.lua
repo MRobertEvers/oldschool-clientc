@@ -76,6 +76,26 @@ local FC_4404_4 = {
     "<col=800000>Wolf Mountain<col=000080> and claim my <col=800000>reward",
 }
 
+-- Recruitment Drive, stage 1: index 4413 [132] (before Sir Tiffy took the
+-- player in) and index 4414 [134] (rd_spoke_to_tiffy).
+local RD_STRUCK = {
+    "<str>Sir Amik Varze told me that he had put my name forward as a",
+    "<str>potential member of some mysterious organisation.",
+}
+local RD_4413 = {
+    RD_STRUCK[1], RD_STRUCK[2],
+    "<col=000080>I should head to <col=800000>Falador Park<col=000080> to meet my <col=800000>Contact<col=000080>, so that I",
+    "<col=000080>can begin my <col=800000>testing for the job<col=000080>.",
+}
+local RD_4414 = {
+    RD_STRUCK[1], RD_STRUCK[2],
+    "<col=000080>A man named <col=800000>Tiffy<col=000080> brought me <col=800000>here, to the secret training",
+    "<col=800000>grounds<col=000080> so that I could be tested for the job.",
+    "",
+    "<col=000080>I should <col=800000>work out<col=000080> what I am supposed to do to complete these",
+    "<col=000080>rooms...",
+}
+
 -- Dwarf Cannon, RSProx index 4409: stage 1 [219] and with the six railings
 -- fixed [561], 2 [573], 4 [640], 6 [943], 7 [1083], 8 [1140], 10 [1476].
 local MC_START = {
@@ -207,6 +227,13 @@ return {
         exact("journal.fishingcontest.willow", "Fishing Contest", FC_4404_2)
         set("::setvar varp11_fishingcompo 4")
         exact("journal.fishingcontest.won", "Fishing Contest", FC_4404_4)
+
+        set("::setvar varb657_rd_main 1")
+        set("::setvar varb692_rd_spoke_to_tiffy 0")
+        exact("journal.recruitmentdrive.park", "Recruitment Drive", RD_4413)
+        set("::setvar varb692_rd_spoke_to_tiffy 1")
+        exact("journal.recruitmentdrive.grounds", "Recruitment Drive", RD_4414)
+
 
         set("::setvar varp112_itgronigen 2")
         exact("journal.observatory.bronze", "Observatory Quest", OBS_4412_2)

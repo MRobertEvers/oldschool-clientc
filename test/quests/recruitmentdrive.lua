@@ -1,46 +1,49 @@
--- Recruitment Drive (Falador -> Temple Knights training grounds).
+-- Recruitment Drive (Falador -> the Temple Knights' training grounds).
 -- Content: OSRS-Content/osrs-content/server/scripts/quests/quest_recruitmentdrive/.
--- Port note (recruitmentdrive.rs2:4-8): only 5-of-7 random rooms + random
--- order per the real wiki quest (Sir Leye mandatory) is DEFERRED -- this
--- port always runs all 7 rooms in a FIXED order: Spishyus(1) -> Kuam(3) ->
--- Tinley(4) -> Lady Table(2) -> Ren(5) -> Cheevers(6) -> Hynn(7). Every guide
--- step from Quest Helper's RecruitmentDrive.java is still driven below, just
--- in the order this port's own scripts actually chain them, not Quest
--- Helper's per-zone panel order.
+-- Analysis: docs/rsprox-analysis/quests/recruitment_drive.md (RSProx index
+-- 4413 and 4414).
 --
--- Travel (door rule, b61): the White Knights' Castle is entered by its
--- double door and both spiral staircases are climbed, up and down. Inside the
--- training grounds there is NO goto: every room is entered by the content's
--- own teleport -- Sir Tiffy's dialogue (recruitmentdrive.rs2 rd_enter_grounds
--- -> ^rd_room_spishyus) and each room's exit door ([oploc1,rd_roomN_exitdoor]
--- -> ~rd_enter_<next>: p_delay(1), p_teleport(^rd_room_<next>)). Each exit door
--- is pressed through t.player.pass_door from its inside tile and graded on the
--- next room's landing tile (recruitmentdrive.constant, 0_38_77 = 2432,4928);
--- Ms Hynn's door lands in Falador Park (^rd_park 0_46_52_45_42 = 2989,3370).
--- Sir Spishyus' bridge and Miss Cheevers' stone door are crossed by their own
--- op (t.player.cross_trap), graded on the content's landing tile.
---
--- Miss Cheevers' room (recruitmentdrive_cheevers.rs2, ported for real in
--- seam26): every item is gathered from the loc Quest Helper's
--- MissCheeversStep.java names (bookshelves, shelves, crates, chest, the spade
--- off the table), and each of its sub-steps is a row below.
+-- The recorded flow: Sir Amik upstairs in the White Knights' Castle, Sir
+-- Tiffy in Falador Park (Testing...? and Organisation...? and walking off,
+-- then refused for carrying something, then taken in), then five rooms of
+-- seven, each picked at random as the last is passed. The rooms are read off
+-- the player's tile on arrival and solved by their own function below. The
+-- first room is failed as the recording failed it when it is Sir Ren's (a
+-- wrong word), Ms. Hynn's (a wrong answer) or Sir Tinley's (fidgeting), and
+-- Sir Tiffy takes the player back in; the fifth door ends in the park with
+-- the completion.
+
+local STEP = {
+    [1] = { 2489, 4972 }, [2] = { 2459, 4979 }, [3] = { 2456, 4964 }, [4] = { 2472, 4956 },
+    [5] = { 2440, 4956 }, [6] = { 2468, 4940 }, [7] = { 2451, 4936 },
+}
+local ROOM_NAME = { "spishyus", "table", "kuam", "tinley", "ren", "cheevers", "hynn" }
+local DOOR = {
+    [1] = { "rd_room1_exitdoor", 2472, 4972 }, [2] = { "rd_room2_exitdoor", 2447, 4979 },
+    [3] = { "rd_room3_exitdoor", 2463, 4963 }, [4] = { "rd_room4_exitdoor", 2480, 4956 },
+    [5] = { "rd_room5_exitdoor", 2446, 4956 }, [6] = { "rd_room6_exitdoor", 2478, 4940 },
+    [7] = { "rd_room7_exitdoor", 2452, 4943 },
+}
+-- recruitmentdrive_ren.rs2 rd_ren_password; [4] = BITE is RSProx 4413 [277..300].
+local REN_WORD = { [1] = "MEAT", [2] = "LAST", [3] = "RAIN", [4] = "BITE", [5] = "TIME", [6] = "FISH" }
+local REN_CLUE = {
+    [1] = "More than words", [2] = "Look closely at the words", [3] = "Rare it is that you will see",
+    [4] = "Better than me, you'll not find", [5] = "This riddle of mine may confuse", [6] = "Feel the aching of your mind",
+}
+-- recruitmentdrive_table.rs2: the place each shuffled order leaves empty, and
+-- the statue standing in that place once the order is 0.
+local TABLE_PLACE = { [1] = 6, [2] = 5, [3] = 4, [4] = 3, [5] = 2, [6] = 1, [7] = 10, [8] = 11, [9] = 12, [10] = 9, [11] = 8, [12] = 7 }
+local TABLE_STATUE = { "rd_1g", "rd_1s", "rd_1b", "rd_2g", "rd_2s", "rd_2b", "rd_3g", "rd_3s", "rd_3b", "rd_4g", "rd_4s", "rd_4b" }
 
 return {
     id = "recruitmentdrive",
     fixture = "fresh_lumbridge.ini",
     setup = {
-        "::clearinv", -- the fixture's fourteen tutorial slots, so a requirement fits
-        "::complete quest_blackknightsfortress", -- prerequisite (getGeneralRequirements); quest_cheat.rs2's own dbrow name
-        "::complete quest_druidicritual", -- prerequisite (getGeneralRequirements); quest_cheat.rs2's own dbrow name
-        -- getCombatRequirements: "Sir Leye (level 20) with no items". A fresh
-        -- level-3 character with 10 hitpoints won that fight bare-handed only
-        -- while the world's single random stream happened to favour it; on
-        -- the player's own stream (seam28) Sir Leye killed him at tick 201.
-        -- Staged to a character that meets the stated requirement.
-        -- owner ruling 2026-10-06: bare-handed, stats staged 25 for margin.
-        -- Combat-level branch check: quest_recruitmentdrive/scripts has no read of
-        -- combat level or Attack/Strength/Defence/Hitpoints (only the npc_type test
-        -- at recruitmentdrive_kuam.rs2:60), so the staged stats change nothing but the fight.
+        "::clearinv", -- the fixture's fourteen tutorial slots
+        "::complete quest_blackknightsfortress",
+        "::complete quest_druidicritual",
+        -- Sir Leye is a level 20 fighter and the room is fought bare-handed
+        -- (owner ruling 2026-10-06: stats staged 25 for margin).
         "::setlevel attack 25",
         "::setlevel strength 25",
         "::setlevel defence 25",
@@ -50,58 +53,53 @@ return {
     run = function(t)
         local bind_result, bind_detail = t.quest.bind({
             varp = "varb657_rd_main",
-            constants = {
-                not_started = 0,
-                referred = 1,
-                testing = 2,
-                passed = 3,
-                complete = 4,
-            },
+            constants = { not_started = 0, started = 1, complete = 2 },
             display = "Recruitment Drive",
             points = 1,
         })
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        t.ticklog.start()
 
-        local function tile_text(r, tt)
-            if r ~= "ok" or type(tt) ~= "table" then
-                return tostring(r)
-            end
-            return tt.x .. "," .. tt.z .. "," .. tt.level
-        end
-
-        -- A content teleport (a dialogue's, not a press the test can name a
-        -- door for) graded on its exact landing tile.
-        local function landed(name, x, z, what, ticks)
-            t.await({
-                level = function()
-                    local r, tt = t.world.tile()
-                    return r == "ok" and tt.x == x and tt.z == z and tt.level == 0
-                end,
-                note = what,
-            }, ticks or 12)
+        local function tile()
             local r, tt = t.world.tile()
-            t.check(name, r == "ok" and tt.x == x and tt.z == z and tt.level == 0,
-                "t.world.tile() -> " .. tile_text(r, tt) .. " (want " .. x .. "," .. z .. ",0: " .. what .. ")")
+            if r ~= "ok" or type(tt) ~= "table" then
+                return nil
+            end
+            return tt
+        end
+        local function at(x, z)
+            local tt = tile()
+            return tt ~= nil and tt.x == x and tt.z == z and tt.level == 0
+        end
+        local function var(name)
+            local r, v = t.var.server(name)
+            return r == "ok" and v or -1
+        end
+        local function count(item)
+            local r, n = t.inv.count(item)
+            return r == "ok" and n or -1
+        end
+        local function room_here()
+            for room, s in pairs(STEP) do
+                if at(s[1], s[2]) then
+                    return room
+                end
+            end
+            return nil
+        end
+        -- The arrival step lands the player one tile into the room
+        -- (recruitmentdrive.rs2 ~rd_room_arrive).
+        local function await_room(name)
+            t.await({ level = function() return room_here() ~= nil end, note = "arrive in a room" }, 25)
+            local room = room_here()
+            local tt = tile()
+            t.check(name, room ~= nil, "tile " .. (tt and (tt.x .. "," .. tt.z) or "?") .. " -> room "
+                .. tostring(room and ROOM_NAME[room]))
+            return room
         end
 
-        -- A training-room exit door: pressed from its inside tile, graded on
-        -- the next room's landing (the content's p_teleport, not a walk).
-        local function exit_door(name, door, x, z, far_x, far_z, far_desc)
-            t.exec(name, t.player.pass_door, { closed = door, at = { x, z, 0 }, near = { x, z },
-                far = { far_x, far_z }, far_desc = far_desc })
-        end
-
-        -- ---- Starting out: climb to Sir Amik Varze (2nd floor Falador Castle) ----
-        -- The White Knights' Castle (blackknight.lua's route): the goto lands
-        -- in the open courtyard 2968,3338 (reach.py walks it to Falador
-        -- square and the park with every door shut); the west keep holding
-        -- the spiral stairs is behind the double door
-        -- fai_falador_castledoubledoorl/r at 2965,3338-3339 (courtyard
-        -- x >= 2965, keep x <= 2964), crossed on foot both ways. The
-        -- staircases are maplink rows (ladders_stairs maplink.dbrow
-        -- maplink_0_46_52_11_9_up / 1_46_52_16_12_up / 2_46_52_15_11_down /
-        -- 1_46_52_12_10_down), graded on their dest tiles.
+        -- ---- Sir Amik Varze, the White Knights' Castle (4413 [105..139]) ----
         t.exec("goto-castle", t.player.goto_tile, 2968, 3338, 0)
         t.exec("castleDoorIn", t.player.pass_door, { closed = "fai_falador_castledoubledoorl",
             open = "fai_falador_opencastledoubledoorl", at = { 2965, 3338, 0 }, near = { 2966, 3338 },
@@ -112,28 +110,22 @@ return {
         t.exec("climbSecondSteps", t.player.climb, { loc = "fai_falador_castle_spiralstairs", op = 1,
             op_name = "Climb-up", at = { 2960, 3338, 1 }, dest = { 2959, 3339, 2 } })
         t.exec("talkToSirAmikVarze", t.player.talk_to, "sir_amik_varze", 1)
-        -- areas/falador/scripts/sir_amik_varze.rs2 label
-        -- black_knights_fortress_sir_amik_postquest (spy=complete via setup,
-        -- rd_main=not_started): opens with the player's own line, then the
-        -- "any other quests" -> "Yes please" branch sets rd_main=referred.
         t.exec("talkToSirAmikVarze-dialog", t.chat.play, {
             "player:Hello Sir Amik.",
             "npc:Hello, friend!",
-            "choose:Do you have any other quests for me to do?",
             "player:Do you have any other quests for me to do?",
-            "npc:Quests, eh? Well, I don't have anything on the go at the moment",
-            "npc:Your work sorting out those Black Knights means I will happily write you a letter of recommendation.",
-            "npc:Would you like me to put your name forwards to them?",
-            "choose:Yes please",
+            "npc:Quests, eh?",
+            "npc:Your excellent work sorting out those Black Knights",
+            "npc:Would you like me to put your name forwards to",
+            "choose:Yes.",
             "player:Sure thing Sir Amik, sign me up!",
             "npc:Erm, well, this is a little embarrassing",
-            "npc:They are the Temple Knights, and you are to meet Sir Tiffy Cashien in Falador park for testing immediately.",
+            "npc:They are called the Temple Knights",
             "player:Okey dokey, I'll go do that then.",
         })
         t.ticks(2)
-        t.expect("quest.stage.referred", t.quest.expect_stage("referred"))
+        t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
-        -- ---- Start the testing: Sir Tiffy Cashien, Falador Park ----
         t.exec("climbDownSecondFloorStaircase", t.player.climb, { loc = "fai_falador_castle_spiralstairstop",
             op = 1, op_name = "Climb-down", at = { 2960, 3339, 2 }, dest = { 2960, 3340, 1 } })
         t.exec("climbDownfirstFloorStaircase", t.player.climb, { loc = "fai_falador_castle_spiralstairstop",
@@ -142,574 +134,528 @@ return {
             open = "fai_falador_opencastledoubledoorl", at = { 2965, 3338, 0 }, near = { 2963, 3338 },
             far = { 2968, 3338 }, far_ok = function(tt) return tt.x >= 2965 end,
             far_desc = "back in the open courtyard, x >= 2965" })
-        -- Courtyard -> Falador Park: open ground both ends (reach.py
-        -- 2968,3338 -> 2989,3370 REACH with every door shut); 2989,3370 is
-        -- the park tile the content itself lands players on (^rd_park).
-        t.exec("goto-talkToSirTiffy", t.player.goto_tile, 2989, 3370, 0)
-        t.exec("talkToSirTiffy", t.player.talk_to, "rd_teleporter_guy", 1)
-        -- recruitmentdrive.rs2 [opnpc1,rd_teleporter_guy], rd_main=referred
-        -- branch, "Yes, let's go!" -> label rd_tiffy_try_enter (inv+worn
-        -- empty from ::clearinv/no gear given) -> rd_main=testing ->
-        -- rd_enter_grounds.
-        t.exec("talkToSirTiffy-dialog", t.chat.play, {
-            "player:Sir Amik Varze sent me to meet you here for some sort of testing",
-            "npc:Ah! Amik told me all about you",
-            "npc:Well, a top-notch adventurer like yourself is just the sort we've been looking for.",
+        t.exec("goto-talkToSirTiffy", t.player.goto_tile, 2996, 3375, 0)
+
+        -- ---- Sir Tiffy Cashien (4413 [176..277]) ----
+        local GREETING = {
+            "player:Sir Amik Varze sent me to meet you here for some",
+            "npc:Amik told me all about you, dontchaknow!",
+            "player:...thanks, I think.",
+            "npc:Well, a top-notch adventurer like yourself",
             "npc:So, are you ready to begin testing?",
-            "choose:Yes, let's go!",
-            "player:Yeah, this sounds right up my street. Let's go!",
-            "npc:Jolly good show! Now the training grounds location is a secret, so",
-        })
-        -- rd_enter_grounds: two p_delay(1) then p_teleport(^rd_room_spishyus).
-        landed("talkToSirTiffy.landedInSpishyusRoom", 2490, 4972, "Sir Spishyus' room, ^rd_room_spishyus")
-        t.expect("quest.stage.testing", t.quest.expect_stage("testing"))
-
-        -- ==================================================================
-        -- Room 1: Sir Spishyus -- fox, chicken and grain river crossing.
-        -- ==================================================================
-        t.exec("talkToSpishyus", t.player.talk_to, "rd_observer_room_1", 1)
-        t.exec("talkToSpishyus-dialog", t.chat.play, {
-            "npc:Ah, welcome.",
-            "player:Hello there. What am I supposed to be doing in this room?",
-            "npc:Well, your task is to take this fox, this chicken and this bag of grain across that bridge",
-            "npc:Firstly, you may only carry one of the objects across at a time",
-            "npc:Secondly, the fox wants to eat the chicken, and the chicken wants to eat the grain.",
-            "player:Okay, I'll see what I can do.",
-        })
-        t.ticks(2)
-        -- The bridge room's default pose photographs unrendered void in the
-        -- checked top-left corner (pre-login fingerprint, runs 1-3): look
-        -- down from the far side instead (eadgar.lua's precedent).
-        t.drive.camera(1024, 383, 400)
-
-        -- Classic river-crossing solution, 7 crossings (verified against
-        -- recruitmentdrive_spishyus.rs2's rd_spishyus_fail conditions):
-        -- 1. chicken over.  2. return empty.  3. fox over.  4. chicken back.
-        -- 5. grain over.  6. return empty.  7. chicken over again.
-        -- The items start on the x >= 2479 bank (the content's "west",
-        -- rd_spishyus_on_west); rd_bridge_left is pressed from that bank and
-        -- the content p_teleports to ^rd_spishyus_east 2476,4972;
-        -- rd_bridge_right from the x < 2479 bank lands on ^rd_spishyus_west
-        -- 2484,4972 (rd_spishyus_cross). The bridge is crossed only by its
-        -- op (a river between the banks), so each crossing is cross_trap:
-        -- the player ON the bank's landing tile before the press and ON the
-        -- far bank's after it. One press: a refused crossing (a fail) is a
-        -- teleport to the park, never retried.
-        -- The bridge locs stand on RAW level 1 (a bridge deck: the client's
-        -- pool answered "nearest copies: 2483,4972,1", run 1) while the
-        -- player walks level 0, and t.player.cross_trap takes the player's
-        -- level from spec.at -- it cannot name this copy (verb gap, reported).
-        -- So the crossing is the same two-tile grade written out: ON the
-        -- bank's landing before the press, ON the far bank's after it.
-        local BRIDGE_LEFT = { 2483, 4972, 1 }
-        local BRIDGE_RIGHT = { 2477, 4972, 1 }
-        local function cross_bridge(name, sym, at, src_x, src_z, dest_x, dest_z, after_press)
-            t.player.walk_to(src_x, src_z, 12)
-            local fr, from = t.world.tile()
-            local cr, cd = t.player.click_loc(sym, 1, { at = at })
-            t.await({
-                level = function()
-                    local r, tt = t.world.tile()
-                    return r == "ok" and tt.x == dest_x and tt.z == dest_z and tt.level == 0
-                end,
-                note = sym .. " lands " .. dest_x .. "," .. dest_z,
-            }, 10)
-            local ar, after = t.world.tile()
-            if after_press then
-                after_press()
-            end
-            t.check(name, fr == "ok" and from.x == src_x and from.z == src_z and from.level == 0
-                    and ar == "ok" and after.x == dest_x and after.z == dest_z and after.level == 0,
-                "from " .. tile_text(fr, from) .. " (want " .. src_x .. "," .. src_z .. ",0) click_loc(" .. sym .. " at "
-                    .. at[1] .. "," .. at[2] .. "," .. at[3] .. ", op1 Cross) -> " .. tostring(cr) .. " " .. tostring(cd)
-                    .. "; landed " .. tile_text(ar, after) .. " (want " .. dest_x .. "," .. dest_z .. ",0)")
+        }
+        local function with(list, more)
+            local out = {}
+            for _, v in ipairs(list) do table.insert(out, v) end
+            for _, v in ipairs(more) do table.insert(out, v) end
+            return out
         end
-        local function cross_east(name, after_press)
-            cross_bridge(name, "rd_bridge_left", BRIDGE_LEFT, 2484, 4972, 2476, 4972, after_press)
-        end
-        local function cross_west(name, after_press)
-            cross_bridge(name, "rd_bridge_right", BRIDGE_RIGHT, 2476, 4972, 2484, 4972, after_press)
-        end
-        t.exec("moveChickenOnRightToLeft-pickup", t.player.click_loc, "rd_room2_chicken_multi", 1)
-        cross_east("moveChickenToLeft")
-        t.exec("dropChickenWest", t.player.inv_op, "rd_chicken", 5)
-        cross_west("moveToEastSide1")
-        t.exec("moveFoxOnRightToLeft-pickup", t.player.click_loc, "rd_room2_fox_multi", 1)
-        cross_east("moveFoxToWest")
-        t.exec("moveFoxOnRightToLeft-drop", t.player.inv_op, "rd_fox", 5)
-        t.exec("moveChickenOnLeftToRight", t.player.click_loc, "rd_room2_chicken_multi_right", 1)
-        cross_west("moveChickenOnLeftToRight-cross")
-        t.exec("moveChickenOnLeftToRight-drop", t.player.inv_op, "rd_chicken", 5)
-        t.exec("moveGrainOnRightToLeft-pickup", t.player.click_loc, "rd_room2_grain_multi", 1)
-        cross_east("moveGrainOnRightToLeft-cross")
-        t.exec("moveGrainOnRightToLeft-drop", t.player.inv_op, "rd_sack", 5)
-        -- Run 2 (seam era): this one crossing photographs the void corner
-        -- (the click re-frames its own pose), so aim the camera after the
-        -- crossing, before the row's shot (eadgar.lua's enterStronghold shape).
-        cross_west("spishyus.return2-empty", function() t.drive.camera(1024, 383, 400) end)
-        t.exec("moveChickenOnRightToLeftAgain", t.player.click_loc, "rd_room2_chicken_multi", 1)
-        cross_east("moveChickenToLeftAgain")
-        t.exec("moveChickenOnRightToLeftAgain-drop", t.player.inv_op, "rd_chicken", 5)
-        t.ticks(2)
-        local room1_r, room1_v = t.var.server("varb659_rd_room1_complete")
-        t.check("spishyus.room1_complete", room1_r == "ok" and room1_v == 1,
-            "var.server(rd_room1_complete) -> " .. tostring(room1_r) .. " " .. tostring(room1_v))
-
-        t.drive.camera(0, 128, 600) -- boot follow pose back for the later rooms
-        exit_door("leaveSirSpishyusRoom", "rd_room1_exitdoor", 2472, 4972, 2455, 4964,
-            "Sir Kuam's room, ^rd_room_kuam 2455,4964,0")
-
-        -- ==================================================================
-        -- Room 3: Sir Kuam Ferentse -- defeat Sir Leye with the steel
-        -- warhammer -- but the warhammer needs Attack 5 to WIELD, which a
-        -- fresh Lumbridge character does not have ("You need to have an
-        -- Attack level of 5.", measured run 2), so this room is solved
-        -- bare-handed (PARITY.tsv: "bare-handed kill completes it", verified
-        -- live) -- rd_leye_weapon only checks worn:rhand for a blade, and
-        -- empty-handed is not one.
-        -- ==================================================================
-        t.exec("talkToSirKuam", t.player.talk_to, "rd_observer_room_3", 1)
-        t.exec("talkToSirKuam-dialog", t.chat.play, {
-            "npc:Ah, you're finally here. Your task for this room is to defeat Sir Leye.",
-            "npc:He has been blessed by Saradomin so that no blade may harm him",
-            "npc:There are some weapons nearby",
-            "npc:If you are having problems, remember: a true warrior uses his wits as much as his brawn.",
-        })
-        t.ticks(2)
-        -- Sir Leye is a real fighter (all.npc [rd_combat_npc_room_3]
-        -- stat1-4 = 18/15/18/20, attackrate 5). Hitpoints are read before
-        -- and after the kill; nothing heals in a 16-tick fight (no food can
-        -- exist: rd_tiffy_try_enter refuses any carried item,
-        -- recruitmentdrive.rs2:112-116, and this room hands out weapons only).
-        local function hp_now()
-            local hr, hp = t.skill.read("hitpoints")
-            if hr == "ok" and type(hp) == "table" then
-                return hp.level
-            end
-            return nil
-        end
-        local hp_before = hp_now()
-        t.exec("killSirLeye-attack", t.player.attack, "rd_combat_npc_room_3", 2, 20)
-        t.exec("killSirLeye", t.npc.await_dead_engaged, 300, 30)
-        local hp_after = hp_now()
-        t.check("killSirLeye.margin", hp_after ~= nil and hp_after >= 7,
-            "Sir Leye, bare-handed: hitpoints " .. tostring(hp_before) .. " before, " .. tostring(hp_after)
-                .. " after (margin: lowest hp >= 7, a quarter of 25 rounded up; food: none -- the quest bars every carried item)")
-        local room3_r, room3_v = t.var.server("varb661_rd_room3_complete")
-        t.check("killSirLeye.room3_complete", room3_r == "ok" and room3_v == 1,
-            "var.server(rd_room3_complete) -> " .. tostring(room3_r) .. " " .. tostring(room3_v))
-
-        exit_door("leaveSirKuamRoom", "rd_room3_exitdoor", 2463, 4963, 2471, 4956,
-            "Sir Tinley's room, ^rd_room_tinley 2471,4956,0")
-
-        -- ==================================================================
-        -- Room 4: Sir Tinley -- patience (wait out the softtimer).
-        -- ==================================================================
-        t.exec("talkToSirTinley", t.player.talk_to, "rd_observer_room_4", 1)
-        t.exec("talkToSirTinley-dialog", t.chat.play, {
-            "npc:Ah, welcome. I have but one clue for you to pass this room's puzzle",
-        })
-        -- rd_tinley_wait_ticks = 15; doNothingStep: do not re-talk or fidget
-        -- during the wait (recruitmentdrive_tinley.rs2 [softtimer,rd_tinley_wait]).
-        -- t.ticks is hollow (trap 12) -- call it directly, not through t.exec.
-        t.ticks(18)
-        local room4_r, room4_v = t.var.server("varb662_rd_room4_complete")
-        t.check("doNothingStep.room4_complete", room4_r == "ok" and room4_v == 1,
-            "var.server(rd_room4_complete) -> " .. tostring(room4_r) .. " " .. tostring(room4_v))
-        -- The softtimer's verdict page (~chatnpc_specific from a softtimer, no
-        -- protected player) can hang on "Please wait..."; room4_complete is
-        -- set before it, so it is closed here, ungraded.
+        -- First: Testing...? then Organisation...?, and walked off at the
+        -- third menu ([184..220]).
+        t.exec("talkToSirTiffy", t.player.talk_to, "rd_teleporter_guy", 1)
+        t.exec("talkToSirTiffy-dialog", t.chat.play, with(GREETING, {
+            "choose:Testing...?",
+            "player:...testing?",
+            "npc:Jolly bad show!",
+            "npc:Well, not your fault I suppose, what?",
+            "player:So...",
+            "npc:Not at all, old bean.",
+            "npc:That's really not the kind of thing",
+            "player:So you want me to go and fetch you some kind of",
+            "player:Because I really hate doing that!",
+            "npc:Haw haw haw",
+            "npc:I know what you mean though",
+            "player:So what exactly will this test consist of?",
+            "npc:Can't let just any old riff-raff in, what?",
+            "player:So you want to test my brains?",
+            "npc:Haw Haw Haw",
+            "npc:Not in the slightest...",
+            "player:What do you want me to do then?",
+            "npc:It's a test of wits, what?",
+            "npc:adventurer.",
+            "npc:Standard puzzle room rules will apply.",
+            "player:Erm... what are 'standard  puzzle room rules' exactly?",
+            "npc:Never done this sort of thing before, what?",
+            "npc:The simple rules are:",
+            "npc:Of course, if you quit a room",
+            "npc:Our organisation manages to filter",
+            "choose:Organisation...?",
+            "player:This organisation you keep mentioning...",
+            "npc:Oh, that Amik!",
+            "player:No...",
+            "npc:Well now old sport",
+            "npc:I represent the Temple Knights.",
+            "npc:centuries ago, and we answer only to him.",
+            "npc:Only the very best of the best",
+            "npc:You might say that we are the front line",
+            "player:So what's the difference between you and the White",
+            "npc:Well, in simple terms, we're better!",
+            "npc:The Temple Knights on the other hand",
+            "npc:Saradomin himself!",
+            "player:Cool, you mean I get to meet Saradomin?",
+            "npc:Well, uh, not exactly...",
+            "npc:Saradomin's implicit permission.",
+            "npc:It's not every job where you have more authority",
+            "player:Wait...",
+            "npc:Well, not me personally",
+            "npc:Plus a few others, so I hear....",
+            "npc:Anyway, this is why we keep our organisation shrouded",
+            "npc:testing?",
+            "options",
+        }))
         t.chat.close()
-
-        exit_door("leaveSirTinleyRoom", "rd_room4_exitdoor", 2480, 4956, 2460, 4979,
-            "Lady Table's room, ^rd_room_table 2460,4979,0")
-
-        -- ==================================================================
-        -- Room 2: Lady Table -- statue memory/observation.
-        -- ==================================================================
-        t.exec("talkToLadyTable", t.player.talk_to, "rd_observer_room_2", 1)
-        t.exec("talkToLadyTable-dialog", t.chat.play, {
-            "npc:Welcome. This room will test your observation skills.",
-            "npc:Study the statues closely. There is one missing statue in this room.",
-            "npc:You have a short time to memorise the statues",
-        })
-        -- Read the answer index (1..12) directly off the server's own
-        -- rd_templock_1 -- recruitmentdrive.varp declares it transmit=yes
-        -- on carrier rd_rooms_tempvar, so var.server reads the live value,
-        -- same shape section 3's Hynn/Ren riddle reads use.
-        local table_answer_result, table_answer = t.var.server("varb666_rd_templock_1")
-        t.check("ladyTableStep.read_answer", table_answer_result == "ok" and type(table_answer) == "number"
-                and table_answer >= 1 and table_answer <= 12,
-            "var.server(rd_templock_1) -> " .. tostring(table_answer_result) .. " " .. tostring(table_answer)
-                .. " (want 1..12: recruitmentdrive_table.rs2 calc(1 + random(12)))")
-        -- recruitmentdrive_table.rs2 index map (1..12), [oploc1,...] rows.
-        local rd_table_symbols = {
-            [1] = "rd_2b", [2] = "rd_2s", [3] = "rd_2g",
-            [4] = "rd_1b", [5] = "rd_1s", [6] = "rd_1g",
-            [7] = "rd_4g", [8] = "rd_4s", [9] = "rd_4b",
-            [10] = "rd_3b", [11] = "rd_3s", [12] = "rd_3g",
-        }
-        local rd_table_target = rd_table_symbols[table_answer] or "rd_2b"
-        -- The window closes and the multiloc's -1 rung re-places (fix
-        -- 57b4ff6a1, Lady Table selftest) when rd_room_order returns to 0;
-        -- rd_table_touch refuses "Memorise the statues first." until then.
-        local table_window_result, table_window_detail = t.var.await_server("varb658_rd_room_order", 0, 20)
-        t.check("ladyTableStep.window_closed", table_window_result == "ok",
-            "var.await_server(rd_room_order, 0) -> " .. tostring(table_window_result) .. " " .. tostring(table_window_detail))
-        -- The same softtimer queues Lady Table's prompt (queue
-        -- rd_table_touch_prompt -> "Please touch the statue you think has
-        -- been added."): read it before touching, or it opens over the walk
-        -- to the statue and the touch is lost (branch probe 8, rd_4s: the
-        -- press answered the prompt's page and room2 stayed 0).
-        t.await({ level = function() return t.chat.kind() ~= "none" end,
-            note = "Lady Table's touch prompt opens" }, 6)
-        t.exec("ladyTableStep-prompt", t.chat.play, {
-            "npc:Please touch the statue you think has been added.",
-        })
-        t.exec("ladyTableStep", t.player.click_loc, rd_table_target, 1)
-        t.ticks(2)
-        t.exec("ladyTableStep-dialog", t.chat.play, {
-            "npc:Excellent work. Please step through the portal to meet your next challenge.",
-        })
-        local room2_r, room2_v = t.var.server("varb660_rd_room2_complete")
-        t.check("ladyTableStep.room2_complete", room2_r == "ok" and room2_v == 1,
-            "var.server(rd_room2_complete) -> " .. tostring(room2_r) .. " " .. tostring(room2_v))
-
-        exit_door("leaveLadyTableRoom", "rd_room2_exitdoor", 2447, 4979, 2439, 4956,
-            "Sir Ren Itchood's room, ^rd_room_ren 2439,4956,0")
-
-        -- ==================================================================
-        -- Room 5: Sir Ren Itchood -- acrostic clue + combination lock.
-        -- ==================================================================
-        local ren_clue_result, ren_clue = t.var.server("varb666_rd_templock_1")
-        t.check("sirRenStep.read_clue", ren_clue_result == "ok" and type(ren_clue) == "number"
-                and ren_clue >= 0 and ren_clue <= 5,
-            "var.server(rd_templock_1) -> " .. tostring(ren_clue_result) .. " " .. tostring(ren_clue)
-                .. " (want 0..5: recruitmentdrive_ren.rs2 rd_enter_ren calc(random(6)))")
-        -- recruitmentdrive_ren.rs2 rd_ren_password: 0=BITE 1=FISH 2=LAST
-        -- 3=MEAT 4=RAIN 5=TIME (this port's own order, NOT Quest Helper's
-        -- live-client answers[] array, which is a different encoding).
-        local rd_ren_words = { [0] = "BITE", [1] = "FISH", [2] = "LAST", [3] = "MEAT", [4] = "RAIN", [5] = "TIME" }
-        local rd_ren_clue_lines = {
-            [0] = "npc:Better than me, you'll not find",
-            [1] = "npc:Feel the aching of your mind",
-            [2] = "npc:Look closely at the words i speak",
-            [3] = "npc:More than words, i have not for you",
-            [4] = "npc:Rare it is that you will see",
-            [5] = "npc:This riddle of mine may confuse",
-        }
-        local ren_word = rd_ren_words[ren_clue] or "BITE"
-        t.exec("sirRenStep.talkToRen", t.player.talk_to, "rd_observer_room_5", 1)
-        local ren_dialog = {
-            "npc:Greetings friend, and welcome here, you'll find my puzzle not so clear.",
-            "npc:Hidden amongst my words, it's true, the password for the door as a clue.",
-            "choose:Can I have the clue for the door?",
-            rd_ren_clue_lines[ren_clue] or rd_ren_clue_lines[0],
-        }
-        t.exec("sirRenStep.talkToRen-dialog", t.chat.play, ren_dialog)
         t.ticks(2)
 
-        -- The door's first press opens the lock (rd_ren_open_combolock), it
-        -- does not take the player anywhere.
-        t.player.walk_to(2446, 4956, 12)
-        t.exec("tryOpenDoor", t.player.click_loc, "rd_room5_exitdoor", 1, { at = { 2446, 4956, 0 } })
-        t.expect("tryOpenDoor.lockOpen", t.ui.await_open("rd_combolock", 10))
+        -- Carrying something: refused ([236..238]).
+        t.cheat("::give coins 1", false)
+        t.ticks(2)
+        t.exec("talkToSirTiffy-carrying", t.player.talk_to, "rd_teleporter_guy", 1)
+        t.exec("talkToSirTiffy-carrying-dialog", t.chat.play, with(GREETING, {
+            "choose:Yes, let's go!",
+            "player:Yeah, this sounds right up my street.",
+            "npc:Well, bad luck old",
+            "npc:Don't want people cheating by smuggling stuff in, what?",
+            "npc:Come and see me again after you've been to the old",
+        }))
+        t.check("tiffy.refused.stage", var("varb657_rd_main") == 1 and var("varb692_rd_spoke_to_tiffy") == 0,
+            "rd_main " .. var("varb657_rd_main") .. " (want 1), rd_spoke_to_tiffy " .. var("varb692_rd_spoke_to_tiffy") .. " (want 0)")
+        t.cheat("::clearinv", false)
+        t.ticks(2)
 
-        -- Dial the four wheels (rd_combolock:rda..rdd), each starting at 'A'
-        -- (index 0), left/right stepping mod 26 (recruitmentdrive_ren.rs2
-        -- rd_ren_combolock_step); each wheel's letter is read back off its
-        -- own text component (if_settext) before Enter.
-        local ren_wa_r, ren_wa_left = t.ui.widget("rd_combolock:rda_left")
-        local _, ren_wa_right = t.ui.widget("rd_combolock:rda_right")
-        local _, ren_wb_left = t.ui.widget("rd_combolock:rdb_left")
-        local _, ren_wb_right = t.ui.widget("rd_combolock:rdb_right")
-        local _, ren_wc_left = t.ui.widget("rd_combolock:rdc_left")
-        local _, ren_wc_right = t.ui.widget("rd_combolock:rdc_right")
-        local _, ren_wd_left = t.ui.widget("rd_combolock:rdd_left")
-        local _, ren_wd_right = t.ui.widget("rd_combolock:rdd_right")
-        local ren_we_r, ren_wenter = t.ui.widget("rd_combolock:rdenter")
-        t.check("sirRenStep.pwEnterDoorCode-widgets", ren_wa_r == "ok" and ren_we_r == "ok",
-            "ui.widget(rd_combolock:rda_left) -> " .. tostring(ren_wa_r) .. ", (rdenter) -> " .. tostring(ren_we_r))
-
-        local ren_wheel_rights = { ren_wa_right, ren_wb_right, ren_wc_right, ren_wd_right }
-        local ren_wheel_lefts = { ren_wa_left, ren_wb_left, ren_wc_left, ren_wd_left }
-        local ren_wheel_texts = { "rd_combolock:rda", "rd_combolock:rdb", "rd_combolock:rdc", "rd_combolock:rdd" }
-        for ren_i = 1, 4 do
-            local ren_letter = string.sub(ren_word, ren_i, ren_i)
-            local ren_target = string.byte(ren_letter) - string.byte("A")
-            if ren_target <= 13 then
-                for _ = 1, ren_target do
-                    t.ui.invoke(ren_wheel_rights[ren_i], 1)
-                end
+        -- Taken in ([258..277]): three pages with nothing to click, then the room.
+        local function taken_in(name, first)
+            t.exec(name, t.player.talk_to, "rd_teleporter_guy", 1)
+            local pages
+            if first then
+                pages = with(GREETING, { "choose:Yes, let's go!" })
             else
-                for _ = 1, (26 - ren_target) do
-                    t.ui.invoke(ren_wheel_lefts[ren_i], 1)
+                pages = { "npc:Ah, what ho!", "choose:Yes, let's go!" }
+            end
+            table.insert(pages, "player:Yeah, this sounds right up my street.")
+            table.insert(pages, "npc:Jolly good show!")
+            t.exec(name .. "-dialog", t.chat.play, pages)
+            return await_room(name .. ".room")
+        end
+        local room = taken_in("talkToSirTiffy-go", true)
+        t.check("tiffy.spoke_to_tiffy", var("varb692_rd_spoke_to_tiffy") == 1,
+            "rd_spoke_to_tiffy " .. var("varb692_rd_spoke_to_tiffy") .. " (want 1)")
+
+        -- ---- The rooms ----
+        local function exit_door(name, room_id)
+            local d = DOOR[room_id]
+            t.exec(name, t.player.click_loc, d[1], 1, { at = { d[2], d[3], 0 } })
+        end
+
+        -- The black comes down on the fail page's click; the move to the park
+        -- is three ticks on and Sir Tiffy's page a tick after it.
+        local function failed(name)
+            t.await({ level = function() return at(2996, 3375) and t.chat.kind() ~= "none" end,
+                note = "Sir Tiffy in Falador Park" }, 12)
+            t.exec(name .. "-tiffy", t.chat.play, {
+                "npc:Oh, jolly bad luck, what?",
+                "npc:Well, never mind!",
+            })
+            t.check(name .. ".park", at(2996, 3375) and var("varb663_rd_room5_complete") == 0,
+                "back in Falador Park at 2996,3375 with no room passed")
+        end
+
+        local solve = {}
+
+        solve[5] = function(fail)
+            t.exec("ren.greeting", t.chat.play, {
+                "npc:Greetings friend, and welcome here,",
+                "choose:Can I have the clue for the door?",
+                "npc:" .. (REN_CLUE[var("varb666_rd_templock_1")] or "?"),
+            })
+            local word = fail and "AAAA" or (REN_WORD[var("varb666_rd_templock_1")] or "BITE")
+            t.exec("ren.door", t.player.click_loc, "rd_room5_exitdoor", 1, { at = { 2446, 4956, 0 } })
+            t.expect("ren.lock", t.ui.await_open("rd_combolock", 10))
+            local wheels = { "rda", "rdb", "rdc", "rdd" }
+            for i = 1, 4 do
+                local letter = string.sub(word, i, i)
+                local n = string.byte(letter) - string.byte("A")
+                local _, right = t.ui.widget("rd_combolock:" .. wheels[i] .. "_right")
+                local _, left = t.ui.widget("rd_combolock:" .. wheels[i] .. "_left")
+                if n <= 13 then
+                    for _ = 1, n do t.ui.invoke(right, 1) end
+                else
+                    for _ = 1, 26 - n do t.ui.invoke(left, 1) end
+                end
+                t.expect("ren.wheel" .. i, t.ui.expect_text("rd_combolock:" .. wheels[i], "/^" .. letter .. "$/", 5))
+            end
+            local _, enter = t.ui.widget("rd_combolock:rdenter")
+            t.ui.invoke(enter, 1)
+            t.ticks(2)
+            if fail then
+                t.exec("ren.fail", t.chat.play, { "npc:It's sad to say, this test beat you." })
+                failed("ren.fail")
+                return "fail"
+            end
+            t.exec("ren.pass", t.chat.play, { "npc:Your wit is sharp, your brains quite clear;" })
+            t.check("ren.room5_complete", var("varb663_rd_room5_complete") == 1, "rd_room5_complete")
+            return "pass"
+        end
+
+        solve[7] = function(fail)
+            local riddle = var("varb667_rd_templock_2")
+            local pages = { "npc:Greetings, " }
+            local count_answer = nil
+            if riddle == 3 then
+                for _, p in ipairs({ "npc:Here is my riddle:", "npc:Your first choice", "npc:Your second choice",
+                    "npc:Your third choice", "npc:Your final choice of fate", "npc:Which fate would you be wise to choose?" }) do
+                    table.insert(pages, p)
+                end
+                table.insert(pages, fail and "choose:The large fire." or "choose:The wolves.")
+            elseif riddle == 4 then
+                for _, p in ipairs({ "npc:Here is my riddle: I dropped four", "npc:The first bucket's water", "npc:Which bucket's stone" }) do
+                    table.insert(pages, p)
+                end
+                table.insert(pages, fail and "choose:Bucket D (35 degrees)" or "choose:Bucket A (32 degrees)")
+            elseif riddle == 5 then
+                table.insert(pages, "npc:Here is my riddle: I estimate")
+                table.insert(pages, "npc:What would be the number")
+                count_answer = fail and 5 or 0
+            elseif riddle == 1 then
+                for _, p in ipairs({ "npc:Here is my riddle: I have both", "npc:My husband is four times", "npc:How old is my daughter now?" }) do
+                    table.insert(pages, p)
+                end
+                count_answer = fail and 20 or 10
+            else
+                table.insert(pages, "npc:Here is my riddle: Which of the following")
+                table.insert(pages, fail and "choose:The number of false statements here is one" or "choose:The number of false statements here is three.")
+            end
+            if count_answer ~= nil then
+                -- "Enter amount:" is clientscript 108, which scriptrun never
+                -- runs (its meslayer_mode is always 0): there the room is
+                -- given up through its entrance portal instead.
+                t.exec("hynn.riddle", t.chat.play, pages)
+                t.ticks(1)
+                local cr, cd = t.chat.count(count_answer)
+                if cr == "ok" then
+                    -- Live, after an npc page the client has been seen to
+                    -- send no RESUME_P_COUNTDIALOG at all (2026-10-29, open
+                    -- in docs/rsprox-analysis/quests/recruitment_drive.md).
+                    t.await({ level = function() return var("varb665_rd_room7_complete") == 1
+                        or (fail and t.chat.kind() ~= "none") end, note = "the answer" }, 6)
+                    if var("varb665_rd_room7_complete") ~= 1 and not fail then
+                        cr, cd = "unsupported", "entered " .. count_answer .. " and the server never heard it"
+                    end
+                end
+                if cr == "unsupported" then
+                    t.step("hynn.count", "BLOCKED", tostring(cd) .. " -- quitting through rd_portal_room7_entrance")
+                    t.exec("hynn.quit", t.player.click_loc, "rd_portal_room7_entrance", 1)
+                    t.ticks(4)
+                    failed("hynn.quit")
+                    return "fail"
+                end
+                t.step("hynn.count", cr == "ok" and "PASS" or "FAIL", tostring(cd))
+                pages = {}
+            end
+            if fail then
+                table.insert(pages, "npc:No... I am very sorry.")
+                t.exec("hynn.fail", t.chat.play, pages)
+                failed("hynn.fail")
+                return "fail"
+            end
+            table.insert(pages, "npc:Excellent work, ")
+            t.exec("hynn.answer", t.chat.play, pages)
+            t.check("hynn.room7_complete", var("varb665_rd_room7_complete") == 1, "rd_room7_complete (riddle " .. riddle .. ")")
+            return "pass"
+        end
+
+        solve[4] = function(fail)
+            t.exec("tinley.greeting", t.chat.play, { "npc:you have arrived." })
+            t.exec("tinley.talk", t.player.talk_to, "rd_observer_room_4", 1)
+            t.exec("tinley.patience", t.chat.play, { "npc:I have but one clue for you" })
+            if fail then
+                t.ticks(4)
+                t.exec("tinley.fidget", t.player.talk_to, "rd_observer_room_4", 1)
+                t.exec("tinley.fail", t.chat.play, { "npc:No... I am very sorry." })
+                failed("tinley.fail")
+                return "fail"
+            end
+            t.ticks(17)
+            t.exec("tinley.pass", t.chat.play, { "npc:Excellent work, " })
+            t.check("tinley.room4_complete", var("varb662_rd_room4_complete") == 1, "rd_room4_complete")
+            return "pass"
+        end
+
+        solve[3] = function()
+            t.exec("kuam.greeting", t.chat.play, { "npc:you're finally here.", "npc:If you are having problems" })
+            t.ticks(2)
+            local passed_before = 0
+            for r = 1, 7 do
+                if var("varb" .. (658 + r) .. "_rd_room" .. r .. "_complete") == 1 then
+                    passed_before = passed_before + 1
                 end
             end
-            t.expect("sirRenStep.pwEnterDoorCode-wheel" .. ren_i,
-                t.ui.expect_text(ren_wheel_texts[ren_i], "/^" .. ren_letter .. "$/", 5))
+            -- A restart (every room passed is cleared) can bring the player
+            -- back to Sir Leye on the hitpoints the last fight left; nothing
+            -- in the rooms heals, so the staged 25 is staged again.
+            local hr, hp = t.skill.read("hitpoints")
+            if hr == "ok" and type(hp) == "table" and hp.level < 20 then
+                t.cheat("::setlevel hitpoints 25", false)
+                t.ticks(1)
+            end
+            -- The warhammer, the one weapon that is not a blade (OSRS wiki).
+            if count("steel_warhammer") < 1 then
+                local r = t.player.click_obj("steel_warhammer", 3)
+                t.step("kuam.take_warhammer", r == "ok" and "PASS" or "FAIL", "click_obj steel_warhammer -> " .. tostring(r))
+                t.ticks(3)
+            end
+            t.exec("kuam.wield", t.player.equip, "steel_warhammer")
+            t.exec("kuam.attack", t.player.attack, "rd_combat_npc_room_3", 2, 20)
+            t.exec("kuam.leye_dead", t.npc.await_dead_engaged, 300, 30)
+            local lines
+            if passed_before >= 4 then
+                lines = { "npc:Excellent work! You have passed all five" }
+            elseif passed_before == 3 then
+                lines = { "npc:Well done, that was your fourth test", "npc:Please step through the portal to your final test" }
+            else
+                lines = { "npc:Excellent work, " }
+            end
+            t.exec("kuam.won", t.chat.play, lines)
+            t.check("kuam.room3_complete", var("varb661_rd_room3_complete") == 1, "rd_room3_complete")
+            return "pass"
         end
-        t.ticks(2)
-        t.ui.invoke(ren_wenter, 1)
-        t.ticks(2)
-        t.exec("sirRenStep.pwEnterDoorCode-dialog", t.chat.play, {
-            "npc:Your wit is sharp, your brains quite clear",
-        })
-        local room5_r, room5_v = t.var.server("varb663_rd_room5_complete")
-        t.check("sirRenStep.room5_complete", room5_r == "ok" and room5_v == 1,
-            "var.server(rd_room5_complete) -> " .. tostring(room5_r) .. " " .. tostring(room5_v))
 
-        exit_door("leaveRoom", "rd_room5_exitdoor", 2446, 4956, 2467, 4940,
-            "Miss Cheevers' room, ^rd_room_cheevers 2467,4940,0")
-
-        -- ==================================================================
-        -- Room 6: Miss Cheevers -- gather, the stone door, the bronze key.
-        -- ==================================================================
-        t.exec("talkToMissCheevers", t.player.talk_to, "rd_observer_room_6", 1)
-        t.exec("talkToMissCheevers-dialog", t.chat.play, {
-            "npc:Welcome to my challenge.",
-            "npc:All you need to do is leave from the opposite door",
-            "npc:more complicated than it may at first appear.",
-            "npc:limited supplies of the items in this room",
-            "npc:Best of luck!",
-        })
-        t.ticks(2)
-        -- the old port's grant: the dialogue must NOT hand anything over.
-        local r0, n0 = t.inv.count("rd_cupric_sulphate")
-        t.check("noGrant", r0 == "ok" and n0 == 0, "inv.count(rd_cupric_sulphate) -> " .. tostring(r0) .. " " .. tostring(n0))
-
-        t.exec("getMagnet", t.player.click_loc, "rd_bookshelf_old_tall", 1)
-        t.ticks(2)
-        t.check("getMagnet.has", t.inv.expect_has("rd_magnet", 1))
-
-        t.exec("getTwoVials", t.player.click_loc, "rd_shelves_chemicals_1", 1)
-        t.exec("getTwoVials-dialog", t.chat.play, { "mesbox:There are two vials on this shelf.", "choose:Take both vials." })
-        t.ticks(2)
-        t.check("getTwoVials.acetic", t.inv.expect_has("rd_acetic_acid", 1))
-        t.check("getTwoVials.liquid", t.inv.expect_has("rd_dihydrogen_monoxide", 1))
-
-        t.exec("getCupricSulfate", t.player.click_loc, "rd_shelves_chemicals_2", 1)
-        t.exec("getCupricSulfate-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getCupricSulfate.has", t.inv.expect_has("rd_cupric_sulphate", 1))
-        t.exec("getGypsum", t.player.click_loc, "rd_shelves_chemicals_3", 1)
-        t.exec("getGypsum-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getGypsum.has", t.inv.expect_has("rd_gypsum", 1))
-        t.exec("getSodiumChloride", t.player.click_loc, "rd_shelves_chemicals_4", 1)
-        t.exec("getSodiumChloride-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getSodiumChloride.has", t.inv.expect_has("rd_sodium_chloride", 1))
-
-        -- The guide's own copies, pressed by tile (rd_large_crate and
-        -- rd_large_crates each stand twice in the room).
-        t.exec("getWire", t.player.click_loc, "rd_small_crates", 1, { at = { 2475, 4943, 0 } })
-        t.ticks(2)
-        t.check("getWire.has", t.inv.expect_has("rd_wire", 1))
-        t.exec("getTin", t.player.click_loc, "rd_large_crate", 1, { at = { 2476, 4943, 0 } })
-        t.ticks(2)
-        t.check("getTin.has", t.inv.expect_has("rd_tin", 1))
-        t.exec("getShears", t.player.click_loc, "rd_chest_closed", 1)
-        t.ticks(2)
-        t.check("getShears.has", t.inv.expect_has("rd_shears", 1))
-        t.exec("getChisel", t.player.click_loc, "rd_large_crates", 1, { at = { 2476, 4937, 0 } })
-        t.ticks(2)
-        t.check("getChisel.has", t.inv.expect_has("rd_chisel", 1))
-
-        -- The south shelves' default pose frames the void past the wall, which
-        -- the gate's pre_login fingerprint mistakes for a boot frame
-        -- (s26rd_full shot 147); face the room instead, as the bridge room does.
-        t.drive.camera(1024, 383, 400)
-        t.exec("getNitrousOxide", t.player.click_loc, "rd_shelves_chemicals_5", 1)
-        t.exec("getNitrousOxide-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getNitrousOxide.has", t.inv.expect_has("rd_nitorus_oxide", 1))
-        t.exec("getTinOrePowder", t.player.click_loc, "rd_shelves_chemicals_6", 1)
-        t.exec("getTinOrePowder-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getTinOrePowder.has", t.inv.expect_has("rd_tin_ore_powder", 1))
-        t.exec("getCupricOrePowder", t.player.click_loc, "rd_shelves_chemicals_7", 1)
-        t.exec("getCupricOrePowder-dialog", t.chat.play, { "mesbox:There is a vial on this shelf.", "choose:YES" })
-        t.ticks(2)
-        t.check("getCupricOrePowder.has", t.inv.expect_has("rd_copper_ore_powder", 1))
-        t.exec("getThreeVials", t.player.click_loc, "rd_shelves_chemicals_8", 1)
-        t.exec("getThreeVials-dialog", t.chat.play, { "mesbox:There are three vials on this shelf.", "choose:Take all three vials" })
-        t.ticks(2)
-        t.check("getThreeVials.has", t.inv.expect_has("rd_dihydrogen_monoxide", 4))
-        t.exec("getKnife", t.player.click_loc, "rd_bookshelf_old_tall3", 1)
-        t.ticks(2)
-        t.check("getKnife.has", t.inv.expect_has("rd_knife", 1))
-        t.drive.camera(0, 128, 600) -- boot follow pose back
-        -- trap 12: click_obj is hollow (ok, nil detail) -- call it and step it
-        local spade_result = t.player.click_obj("rd_metal_spade", 3)
-        t.step("getMetalSpade", spade_result == "ok" and "PASS" or "FAIL", "click_obj rd_metal_spade -> " .. tostring(spade_result))
-        t.ticks(2)
-        t.check("getMetalSpade.has", t.inv.expect_has("rd_metal_spade", 1))
-
-        -- Each "use X on Y" row is followed by the item leaving the pack and
-        -- the effect recruitmentdrive_cheevers.rs2 gives it.
-        local function count(item)
-            local r, n = t.inv.count(item)
-            return r == "ok" and n or -1
+        solve[2] = function()
+            t.exec("table.greeting", t.chat.play, {
+                "npc:This room will test your observation skills.",
+                "npc:Study the statues closely.",
+                "npc:We will also mix the order up",
+                "npc:You have 10 seconds to memorise",
+            })
+            local order = var("varb658_rd_room_order")
+            local place = TABLE_PLACE[order]
+            t.check("table.order", place ~= nil, "rd_room_order " .. order .. " (want 1..12)")
+            t.await({ level = function() return t.chat.kind() ~= "none" end, note = "the lights" }, 25)
+            t.exec("table.lights", t.chat.play, {
+                "npc:We will now dim the lights",
+                "npc:Please touch the statue you think has been added.",
+            })
+            t.exec("table.touch", t.player.click_loc, TABLE_STATUE[place or 1], 1)
+            t.ticks(2)
+            t.exec("table.pass", t.chat.play, { "npc:Excellent work, " })
+            t.check("table.room2_complete", var("varb660_rd_room2_complete") == 1, "rd_room2_complete")
+            return "pass"
         end
-        local function door_state()
-            local r, v = t.var.server("varb686_rd_room6_stone_door")
-            return r == "ok" and v or -1
+
+        solve[1] = function()
+            -- rd_room1_intro_chat stays set once heard (4414 [0]): a second
+            -- visit is greeted with the exchange recorded at 4414 [5..20].
+            if var("varb691_rd_room1_intro_chat") == 1 then
+                t.exec("spishyus.greeting-again", t.chat.play, {
+                    "npc:Ah, welcome",
+                    "player:Listen, this is really annoying me.",
+                    "npc:I am afraid not",
+                    "player:No, but seriously, please?",
+                    "npc:I am truly sorry, but my hands are tied.",
+                    "npc:This is the only help I may give you...",
+                    "player:Well, thanks I guess...",
+                })
+            else
+                t.exec("spishyus.greeting", t.chat.play, {
+                "npc:Ah, welcome",
+                "player:Hello there. What am I supposed to be doing in this room?",
+                "npc:Well, your task is to take this fox",
+                "npc:When you have done that",
+                "player:Is that it?",
+                "npc:Well, it is not quite as simple",
+                "npc:Firstly, you may only carry one",
+                "npc:Secondly, the fox wants to eat the chicken",
+                "npc:one of them will be eaten",
+                "player:Okay, I'll see what I can do.",
+                })
+            end
+            t.ticks(2)
+            t.drive.camera(1024, 383, 400)
+            -- The bridge's ends stand on raw level 1 (a deck); the walk across
+            -- is eight steps, a tile a tick, from the op.
+            local function cross(name, west)
+                local sym, at_tile, dest = "rd_bridge_left", { 2483, 4972, 1 }, 2476
+                if not west then
+                    sym, at_tile, dest = "rd_bridge_right", { 2477, 4972, 1 }, 2484
+                end
+                t.exec(name, t.player.click_loc, sym, 1, { at = at_tile })
+                t.await({ level = function() return at(dest, 4972) end, note = sym .. " -> " .. dest }, 16)
+                t.check(name .. ".landed", at(dest, 4972), "on " .. dest .. ",4972")
+                t.ticks(2)
+            end
+            -- Picked up, an animal goes into a worn slot, not the pack, so
+            -- the click's own settle never sees it land: graded on its varbit.
+            local function take(name, loc, varbit, want)
+                t.player.click_loc(loc, 1)
+                t.await({ level = function() return var(varbit) == want end, note = loc }, 20)
+                t.check(name, var(varbit) == want, varbit .. " " .. var(varbit) .. " (want " .. want .. ")")
+                t.ticks(1)
+            end
+            local function put(name, item)
+                local r = t.player._worn_press(item, 1)
+                t.step(name, r == "ok" and "PASS" or "FAIL", "worn press " .. item .. " -> " .. tostring(r))
+                t.ticks(2)
+            end
+            take("spishyus.chicken1", "rd_room2_chicken_multi", "varb682_rd_chickleft", 1)
+            t.check("spishyus.chicken_worn", count("rd_chicken") == 0, "rd_chicken in the pack " .. count("rd_chicken") .. " (want 0: worn in the left hand)")
+            cross("spishyus.cross1", true)
+            put("spishyus.put_chicken1", "rd_chicken")
+            cross("spishyus.cross2", false)
+            take("spishyus.fox", "rd_room2_fox_multi", "varb680_rd_foxleft", 1)
+            cross("spishyus.cross3", true)
+            put("spishyus.put_fox", "rd_fox")
+            take("spishyus.chicken2", "rd_room2_chicken_multi_right", "varb683_rd_chickright", 0)
+            cross("spishyus.cross4", false)
+            put("spishyus.put_chicken2", "rd_chicken")
+            take("spishyus.grain", "rd_room2_grain_multi", "varb684_rd_grainleft", 1)
+            cross("spishyus.cross5", true)
+            put("spishyus.put_grain", "rd_sack")
+            cross("spishyus.cross6", false)
+            take("spishyus.chicken3", "rd_room2_chicken_multi", "varb682_rd_chickleft", 1)
+            cross("spishyus.cross7", true)
+            put("spishyus.put_chicken3", "rd_chicken")
+            t.drive.camera(0, 128, 600)
+            t.check("spishyus.room1_complete", var("varb659_rd_room1_complete") == 1,
+                "rd_room1_complete; fox/chick/grain right " .. var("varb681_rd_foxright") .. "/"
+                .. var("varb683_rd_chickright") .. "/" .. var("varb685_rd_grainright"))
+            return "pass"
         end
-        local rd_bunsen = t.player.by_symbol("loc", "rd_wooden_table_bunsen_burner")
-        local rd_door = t.player.by_symbol("loc", "rd_stone_door")
-        local rd_keychained = t.player.by_symbol("loc", "rd_key_chained")
-        t.exec("useSpadeOnBunsenBurner", t.player.use_on, "rd_metal_spade", rd_bunsen)
-        t.ticks(2)
-        t.check("useSpadeOnBunsenBurner.head", count("rd_metal_spade") == 0 and count("rd_metal_spade_no_handle") == 1,
-            "rd_metal_spade " .. count("rd_metal_spade") .. " (want 0), rd_metal_spade_no_handle "
-                .. count("rd_metal_spade_no_handle") .. " (want 1)")
-        t.exec("useSpadeHeadOnDoor", t.player.use_on, "rd_metal_spade_no_handle", rd_door)
-        t.ticks(2)
-        t.check("useSpadeHeadOnDoor.inHole", count("rd_metal_spade_no_handle") == 0 and door_state() == 1,
-            "rd_metal_spade_no_handle " .. count("rd_metal_spade_no_handle") .. " (want 0), rd_room6_stone_door "
-                .. door_state() .. " (want 1)")
-        t.exec("useCupricSulfateOnDoor", t.player.use_on, "rd_cupric_sulphate", rd_door)
-        t.ticks(2)
-        local react_r, react_v = t.var.server("varb687_rd_react_on_spade")
-        t.check("useCupricSulfateOnDoor.poured", count("rd_cupric_sulphate") == 0 and react_r == "ok" and react_v == 1,
-            "rd_cupric_sulphate " .. count("rd_cupric_sulphate") .. " (want 0), rd_react_on_spade "
-                .. tostring(react_r) .. " " .. tostring(react_v) .. " (want 1)")
-        t.exec("useVialOfLiquidOnDoor", t.player.use_on, "rd_dihydrogen_monoxide", rd_door)
-        t.ticks(2)
-        t.check("useVialOfLiquidOnDoor.state2", count("rd_dihydrogen_monoxide") == 3 and door_state() == 2,
-            "rd_dihydrogen_monoxide " .. count("rd_dihydrogen_monoxide") .. " (want 3 of 4), rd_room6_stone_door "
-                .. door_state() .. " (want 2)")
-        t.exec("openDoor", t.player.click_loc, "rd_stone_door", 1)
-        t.ticks(2)
-        t.check("openDoor.state3", door_state() == 3, "rd_room6_stone_door " .. door_state() .. " (want 3)")
 
-        t.exec("useVialOfLiquidOnCakeTin", t.player.use_item_on_item, "rd_dihydrogen_monoxide", "rd_tin")
-        t.ticks(1)
-        local water_r, water_v = t.var.server("varb689_rd_water_in_tin")
-        t.check("useVialOfLiquidOnCakeTin.poured", count("rd_dihydrogen_monoxide") == 2 and water_r == "ok" and water_v == 1,
-            "rd_dihydrogen_monoxide " .. count("rd_dihydrogen_monoxide") .. " (want 2), rd_water_in_tin "
-                .. tostring(water_r) .. " " .. tostring(water_v) .. " (want 1)")
-        t.exec("useGypsumOnTin", t.player.use_item_on_item, "rd_gypsum", "rd_tin")
-        t.ticks(2)
-        t.check("useGypsumOnTin.tinfull", count("rd_gypsum") == 0 and count("rd_tin") == 0 and count("rd_tinfull") == 1,
-            "rd_gypsum " .. count("rd_gypsum") .. ", rd_tin " .. count("rd_tin") .. " (want 0, 0), rd_tinfull "
-                .. count("rd_tinfull") .. " (want 1)")
-        t.exec("useTinOnKey", t.player.use_on, "rd_tinfull", rd_keychained)
-        t.ticks(2)
-        t.check("useTinOnKey.mould", count("rd_tinfull") == 0 and count("rd_keymould") == 1,
-            "rd_tinfull " .. count("rd_tinfull") .. " (want 0), rd_keymould " .. count("rd_keymould") .. " (want 1)")
-        t.exec("useCupricOrePowderOnTin", t.player.use_item_on_item, "rd_keymould", "rd_copper_ore_powder")
-        t.ticks(1)
-        t.check("useCupricOrePowderOnTin.poured", count("rd_copper_ore_powder") == 0 and count("rd_keymould") == 0
-                and count("rd_full_keymould_copper") == 1,
-            "rd_copper_ore_powder " .. count("rd_copper_ore_powder") .. ", rd_keymould " .. count("rd_keymould")
-                .. " (want 0, 0), rd_full_keymould_copper " .. count("rd_full_keymould_copper") .. " (want 1)")
-        t.exec("useTinOrePowderOnTin", t.player.use_item_on_item, "rd_full_keymould_copper", "rd_tin_ore_powder")
-        t.ticks(1)
-        t.check("useTinOrePowderOnTin.poured", count("rd_tin_ore_powder") == 0 and count("rd_full_keymould_copper") == 0
-                and count("rd_full_keymould_unheated") == 1,
-            "rd_tin_ore_powder " .. count("rd_tin_ore_powder") .. ", rd_full_keymould_copper "
-                .. count("rd_full_keymould_copper") .. " (want 0, 0), rd_full_keymould_unheated "
-                .. count("rd_full_keymould_unheated") .. " (want 1)")
-        t.exec("useTinOnBunsenBurner", t.player.use_on, "rd_full_keymould_unheated", rd_bunsen)
-        t.ticks(2)
-        t.check("useTinOnBunsenBurner.heated", count("rd_full_keymould_unheated") == 0
-                and count("rd_full_keymould_complete") == 1,
-            "rd_full_keymould_unheated " .. count("rd_full_keymould_unheated") .. " (want 0), rd_full_keymould_complete "
-                .. count("rd_full_keymould_complete") .. " (want 1)")
-        t.exec("useEquipmentOnTin", t.player.use_item_on_item, "rd_wire", "rd_full_keymould_complete")
-        t.ticks(2)
-        t.check("pwMissCheeversStep.key", count("rd_full_keymould_complete") == 0 and count("rd_puzzleroom_key") == 1,
-            "rd_full_keymould_complete " .. count("rd_full_keymould_complete") .. " (want 0), rd_puzzleroom_key "
-                .. count("rd_puzzleroom_key") .. " (want 1)")
+        solve[6] = function()
+            t.exec("cheevers.greeting", t.chat.play, {
+                "npc:Welcome to my challenge.",
+                "npc:All you need to do is leave from the opposite door",
+                "npc:I will warn you that this is more complicated",
+                "npc:I should also warn you",
+                "npc:Best of luck!",
+            })
+            t.exec("cheevers.talk", t.player.talk_to, "rd_observer_room_6", 1)
+            t.exec("cheevers.talk-dialog", t.chat.play, {
+                "player:Can you give me any help?",
+                "npc:No, I am sorry, but that is forbidden by our rules.",
+                "npc:If you are having a particularly tough time",
+                "npc:Sometimes a break from concentration",
+                "player:Okay, thanks!",
+            })
+            local function search(name, loc, item, at_tile)
+                t.exec(name, t.player.click_loc, loc, 1, at_tile and { at = at_tile } or nil)
+                t.ticks(4)
+                t.check(name .. ".has", t.inv.expect_has(item, 1))
+            end
+            local function shelf(name, loc, pages, item, n)
+                t.exec(name, t.player.click_loc, loc, 1)
+                t.exec(name .. "-dialog", t.chat.play, pages)
+                t.ticks(2)
+                t.check(name .. ".has", t.inv.expect_has(item, n or 1))
+            end
+            search("cheevers.magnet", "rd_bookshelf_old_tall", "rd_magnet")
+            shelf("cheevers.vials1", "rd_shelves_chemicals_1", { "mesbox:There are two vials on this shelf.", "choose:Take both vials." }, "rd_acetic_acid")
+            shelf("cheevers.cupric", "rd_shelves_chemicals_2", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_cupric_sulphate")
+            shelf("cheevers.gypsum", "rd_shelves_chemicals_3", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_gypsum")
+            shelf("cheevers.salt", "rd_shelves_chemicals_4", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_sodium_chloride")
+            search("cheevers.wire", "rd_small_crates", "rd_wire", { 2475, 4943, 0 })
+            search("cheevers.tin", "rd_large_crate", "rd_tin", { 2476, 4943, 0 })
+            t.exec("cheevers.chest", t.player.click_loc, "rd_chest_closed", 1)
+            t.ticks(3)
+            search("cheevers.shears", "rd_chest_open", "rd_shears")
+            search("cheevers.chisel", "rd_large_crates", "rd_chisel", { 2476, 4937, 0 })
+            t.drive.camera(1024, 383, 400)
+            shelf("cheevers.n2o", "rd_shelves_chemicals_5", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_nitorus_oxide")
+            shelf("cheevers.tinore", "rd_shelves_chemicals_6", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_tin_ore_powder")
+            shelf("cheevers.copore", "rd_shelves_chemicals_7", { "mesbox:There is a vial on this shelf.", "choose:YES" }, "rd_copper_ore_powder")
+            shelf("cheevers.water1", "rd_shelves_chemicals_8", { "mesbox:There are three vials on this shelf.", "choose:Take one vial" }, "rd_dihydrogen_monoxide", 2)
+            shelf("cheevers.water2", "rd_shelves_chemicals_8", { "mesbox:There are two vials on this shelf.", "choose:Take both vials" }, "rd_dihydrogen_monoxide", 4)
+            search("cheevers.knife", "rd_bookshelf_old_tall3", "rd_knife")
+            t.drive.camera(0, 128, 600)
+            local spade = t.player.click_obj("rd_metal_spade", 3)
+            t.step("cheevers.spade", spade == "ok" and "PASS" or "FAIL", "click_obj rd_metal_spade -> " .. tostring(spade))
+            t.ticks(2)
+            t.check("cheevers.spade.has", t.inv.expect_has("rd_metal_spade", 1))
 
-        -- The open stone door fills the tile before the exit door's alcove;
-        -- its op p_teleports from 2476,4940 to 2478,4940
-        -- (rd_cheevers_walk_through).
-        t.player.walk_to(2476, 4940, 12)
-        t.exec("walkThroughStoneDoor", t.player.cross_trap, { loc = "rd_stone_door", op = 1, at = { 2477, 4940, 0 },
-            src = { 2476, 4940 }, dest = { 2478, 4940 }, attempts = 1 })
-        exit_door("leaveMissCheeversRoom", "rd_room6_exitdoor", 2478, 4940, 2451, 4935,
-            "Ms Hynn Terprett's room, ^rd_room_hynn 2451,4935,0")
-        local room6_r, room6_v = t.var.server("varb664_rd_room6_complete")
-        t.check("pwMissCheeversStep.room6_complete", room6_r == "ok" and room6_v == 1,
-            "var.server(rd_room6_complete) -> " .. tostring(room6_r) .. " " .. tostring(room6_v))
-
-        -- ==================================================================
-        -- Room 7: Ms Hynn Terprett -- riddle (random of five).
-        -- ==================================================================
-        local hynn_r, hynn_riddle = t.var.server("varb666_rd_templock_1")
-        t.check("pwMsHynnTerprett.read_riddle", hynn_r == "ok" and type(hynn_riddle) == "number"
-                and hynn_riddle >= 0 and hynn_riddle <= 4,
-            "var.server(rd_templock_1) -> " .. tostring(hynn_r) .. " " .. tostring(hynn_riddle)
-                .. " (want 0..4: recruitmentdrive_hynn.rs2 rd_enter_hynn calc(random(5)))")
-        -- recruitmentdrive_hynn.rs2 [opnpc1,rd_observer_room_7]: five riddles
-        -- (0..4), correct choice text per branch.
-        local hynn_lines = {
-            [0] = { "npc:I estimate there to be one million inhabitants", "npc:What number would you get if you multiply the number of fingers", "choose:0" },
-            [1] = { "npc:Which of the following statements is true?", "choose:The number of false statements here is three." },
-            [2] = { "npc:I have both a husband and daughter.", "npc:In twenty years time, he will be twice as old", "choose:10" },
-            [3] = { "npc:You may pick your own demise", "npc:Which fate would you be wise to choose?", "choose:The wolves." },
-            [4] = { "npc:I dropped four identical stones", "npc:Which bucket's stone dropped to the bottom last?", "choose:Bucket A (32 degrees)" },
-        }
-        t.exec("msHynnDialogQuiz", t.player.talk_to, "rd_observer_room_7", 1)
-        local hynn_dialog = { "npc:Greetings. I am here to test your wits with a simple riddle." }
-        for _, line in ipairs(hynn_lines[hynn_riddle] or hynn_lines[0]) do
-            table.insert(hynn_dialog, line)
+            local bunsen = t.player.by_symbol("loc", "rd_wooden_table_bunsen_burner")
+            local door = t.player.by_symbol("loc", "rd_stone_door")
+            local key = t.player.by_symbol("loc", "rd_key_chained")
+            t.exec("cheevers.burn", t.player.use_on, "rd_metal_spade", bunsen)
+            t.ticks(2)
+            t.check("cheevers.burn.head", count("rd_metal_spade_no_handle") == 1, "rd_metal_spade_no_handle " .. count("rd_metal_spade_no_handle"))
+            t.exec("cheevers.wedge", t.player.use_on, "rd_metal_spade_no_handle", door)
+            t.ticks(2)
+            t.exec("cheevers.cupric_on_door", t.player.use_on, "rd_cupric_sulphate", door)
+            t.ticks(2)
+            t.exec("cheevers.water_on_door", t.player.use_on, "rd_dihydrogen_monoxide", door)
+            t.ticks(2)
+            t.check("cheevers.door.state2", var("varb686_rd_room6_stone_door") == 2, "rd_room6_stone_door " .. var("varb686_rd_room6_stone_door"))
+            t.exec("cheevers.pull", t.player.click_loc, "rd_stone_door", 1)
+            t.ticks(3)
+            t.check("cheevers.door.open", var("varb686_rd_room6_stone_door") == 3, "rd_room6_stone_door " .. var("varb686_rd_room6_stone_door"))
+            t.exec("cheevers.water_in_tin", t.player.use_item_on_item, "rd_dihydrogen_monoxide", "rd_tin")
+            t.ticks(2)
+            t.exec("cheevers.gypsum_in_tin", t.player.use_item_on_item, "rd_gypsum", "rd_tin")
+            t.ticks(2)
+            t.check("cheevers.tinfull", count("rd_tinfull") == 1, "rd_tinfull " .. count("rd_tinfull"))
+            t.exec("cheevers.impression", t.player.use_on, "rd_tinfull", key)
+            t.ticks(2)
+            t.exec("cheevers.copper", t.player.use_item_on_item, "rd_copper_ore_powder", "rd_keymould")
+            t.ticks(2)
+            t.exec("cheevers.tinpowder", t.player.use_item_on_item, "rd_tin_ore_powder", "rd_full_keymould_copper")
+            t.ticks(2)
+            t.exec("cheevers.heat", t.player.use_on, "rd_full_keymould_unheated", bunsen)
+            t.ticks(2)
+            t.exec("cheevers.prise", t.player.use_item_on_item, "rd_knife", "rd_full_keymould_complete")
+            t.ticks(2)
+            t.check("cheevers.room6_complete", var("varb664_rd_room6_complete") == 1 and count("rd_puzzleroom_key") == 1,
+                "rd_room6_complete " .. var("varb664_rd_room6_complete") .. ", key " .. count("rd_puzzleroom_key"))
+            t.player.walk_to(2476, 4940, 12)
+            -- The walk through is the content's (two forced steps), which the
+            -- click's own settle reads as a walk that never answered: graded
+            -- on the far tile instead.
+            t.player.click_loc("rd_stone_door", 1)
+            t.await({ level = function() return at(2478, 4940) end, note = "through the stone door" }, 8)
+            t.check("cheevers.through.tile", at(2478, 4940), "on 2478,4940")
+            t.ticks(2)
+            return "pass"
         end
-        t.exec("msHynnDialogQuiz-dialog", t.chat.play, hynn_dialog)
-        local room7_r, room7_v = t.var.server("varb665_rd_room7_complete")
-        t.check("pwMsHynnTerprett.room7_complete", room7_r == "ok" and room7_v == 1,
-            "var.server(rd_room7_complete) -> " .. tostring(room7_r) .. " " .. tostring(room7_v))
 
-        exit_door("leaveMsHynnTerprettRoom", "rd_room7_exitdoor", 2452, 4943, 2989, 3370,
-            "Falador Park, ^rd_park 2989,3370,0")
-        t.expect("quest.stage.passed", t.quest.expect_stage("passed"))
+        -- ---- Five rooms ----
+        -- A failure clears every room passed (Sir Tiffy, 4413 [202]).
+        local failed_once = false
+        local passed = 0
+        local entered = 0
+        while passed < 5 and room ~= nil and entered < 14 do
+            entered = entered + 1
+            local fail = (not failed_once) and (room == 4 or room == 5 or room == 7)
+            local outcome = solve[room](fail)
+            if outcome == "fail" then
+                failed_once = true
+                passed = 0
+                room = taken_in("talkToSirTiffy-again" .. entered, false)
+            else
+                passed = passed + 1
+                exit_door("exit." .. ROOM_NAME[room], room)
+                if passed < 5 then
+                    room = await_room("exit." .. ROOM_NAME[room] .. ".next")
+                end
+            end
+        end
+        t.check("rooms.passed", passed == 5, passed .. " rooms passed (want 5) in " .. entered
+            .. " entered; a failure first: " .. tostring(failed_once))
 
-        -- ---- Back to Sir Tiffy in Falador Park: hand in and complete. ----
-        local snapshot_result, snapshot = t.skill.snapshot()
-        t.step("reward.snapshot", snapshot_result == "ok" and "PASS" or "FAIL",
-            "skill.snapshot -> " .. tostring(snapshot_result)
-            .. " prayer=" .. tostring(snapshot and snapshot.prayer and snapshot.prayer.experience)
-            .. " herblore=" .. tostring(snapshot and snapshot.herblore and snapshot.herblore.experience)
-            .. " agility=" .. tostring(snapshot and snapshot.agility and snapshot.agility.experience))
-        local coins_before_result, coins_before = t.inv.count("coins")
-        t.step("reward.coins_before", coins_before_result == "ok" and "PASS" or "FAIL",
-            "inv.count(coins) -> " .. tostring(coins_before_result) .. " " .. tostring(coins_before))
-
-        -- The park scene is rebuilt after the teleport: wait for Sir Tiffy in
-        -- the client's pool before the press (run 2: talk_to found no npc).
-        t.expect("talkToSirTiffy-handin.present", t.npc.await_present("rd_teleporter_guy", 15, 20))
-        t.exec("talkToSirTiffy-handin", t.player.talk_to, "rd_teleporter_guy", 1)
-        -- recruitmentdrive.rs2 rd_main=passed branch -> rd_main=complete,
-        -- stat_advance x3, inv_add coins, quest_complete_rewards.
-        t.exec("talkToSirTiffy-handin-dialog", t.chat.play, {
-            "npc:Oh, jolly well done! Welcome to the team!",
+        -- ---- The finish, beside Sir Tiffy (4414 [368..381]) ----
+        local _, snapshot = t.skill.snapshot()
+        local coins_r, coins_before = t.inv.count("coins")
+        t.await({ level = function() return at(2997, 3374) end, note = "Falador Park beside Sir Tiffy" }, 20)
+        t.exec("finish-dialog", t.chat.play, {
+            "player:I believe I've managed to pass the tests!",
+            "npc:Oh, jolly well done!",
         })
         t.ticks(3)
-
-        -- Quest Helper's getExperienceRewards() lists 1000 XP flat per skill
-        -- (not the wiki's old 1,000.5); recruitmentdrive.rs2's own
-        -- stat_advance(prayer, 10005) is the *10 unit, and the client's
-        -- read floors the fraction, so the delta actually observed is 1000 --
-        -- matches, run 1 measured exactly this.
         t.check("reward.prayer_xp", t.skill.expect_gain("prayer", 1000, snapshot))
         t.check("reward.herblore_xp", t.skill.expect_gain("herblore", 1000, snapshot))
         t.check("reward.agility_xp", t.skill.expect_gain("agility", 1000, snapshot))
-        local coins_after_result, coins_after = t.inv.count("coins")
-        t.check("reward.coins_after", coins_after_result == "ok"
-            and coins_before_result == "ok"
-            and (coins_after - coins_before) == 3000,
-            "inv.count(coins) -> " .. tostring(coins_after_result) .. " " .. tostring(coins_after)
-            .. " (before " .. tostring(coins_before) .. ")")
-
-        -- Quest Helper getItemRewards: Initiate Helm (BASIC_TK_HELM); OSRS wiki
-        -- Rewards: "You will be given a sallet for free".
+        local coins_after_r, coins_after = t.inv.count("coins")
+        t.check("reward.coins", coins_r == "ok" and coins_after_r == "ok" and coins_after - coins_before == 3000,
+            "coins " .. tostring(coins_before) .. " -> " .. tostring(coins_after))
         t.check("reward.initiate_sallet", t.inv.expect_has("basic_tk_helm", 1))
-
         t.quest.expect_complete()
         t.finish(0)
-        return
     end,
 }
