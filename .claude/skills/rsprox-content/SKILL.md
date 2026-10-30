@@ -41,7 +41,9 @@ is green.
    a tick log. Teleport tablets, all recorded breaks the same: C `poh_smash_magic_tablet` (4069)
    delay 16 + synth `poh_tablet_break_teleport` (965) delay 15; C+2 `poh_absorb_tablet_magic`
    (678) + `poh_absorb_tablet_teleport` (4071), the tablet gone; C+4 the teleport
-   (`skill_magic/scripts/spells/teleport_tablet.rs2`).
+   (`skill_magic/scripts/spells/teleport_tablet.rs2`). Every teleport ITEM (jewellery, tablets,
+   scrolls, capes, books) and every maplink is captured from the recordings like any other
+   content: §2b.
 3. **The zone's ambience is content.** Count what happens near the player that the player did
    not cause: `sound_area`, `map_projanim`, npc seqs/says/hits between npcs, `loc_anim`,
    `map_anim`. `rsprox_npcinfo.py --match '<area prefix>'` per npc type; a type with attack
@@ -405,6 +407,55 @@ index 4336, cites in `docs/rsprox-analysis/quests/misthalin_mystery.md`):
   after the anim (`p_delay(0)` after an arrivedelay). Confirm before changing it: the op-tick
   hold and `p_arrivedelay` both shift it.
 - After a plane change, the zone is re-sent (`obj_add_specific`/`loc_add_change` bursts). That is not content.
+
+## 2b. Teleport items and maplinks: captured from the recordings, every one
+
+Every way the recorder moves is content to capture from the recordings: maplinks (§2),
+jewellery (glory, games necklace, ring of dueling, necklace of passage, ...), tablets, scrolls,
+capes and books. That holds for every route to each destination: the backpack's Rub menu, its
+right-click submenu, the worn tab's ops. "Ported from LostCity" or "from the wiki" never
+counts as captured. On 2026-10-29, the 27 sessions of that day (index 4404..4430) used 9
+tablets and 4 jewellery items. The audit found the games necklace and ring of dueling still
+2004 ports: a menu instead of the submenu's destination, Burthorpe Games Rooms and Duel Arena
+only, "Your Games Necklace has 4 uses left." The worn dueling ring's Castle Wars did nothing,
+the worn games necklace said "Nothing interesting happens.", Battlefront teleported with the
+spell cast instead of the tablet break, and every tablet scattered over 5x5 where Jagex lands
+in 3x3.
+
+1. **Find every use, by every route.** Run `rsprox_actions.py` over each session. Its TELEPORTS
+   list names the click before each teleport. Read three click kinds:
+   - `[if_subop] com=inventory:items ... op=6, subop=N`: the right-click submenu (Rub >
+     Castle Wars). Ours gets it as `[opheld4,obj]` with `last_subop` = N + 1, the obj's
+     1-based `subaction=4,<N+1>,<name>` entry. Read the dispatch from `last_subop`, never a menu.
+   - `[if_buttonx] com=wornitems:slotK ... op=N`: a worn op. Ops 2..5 are the obj's
+     `param_451..454` labels. Ours: `[inv_buttonN,wornitems:slotK]` when the slot has one
+     (slot 2's dispatchers are in `amulet_of_glory.rs2` and `twocats.rs2`: add the item there).
+     Otherwise the engine falls through to `[opheldN,obj]`, and the item tells the worn op from
+     Wear (2), Rub (4) and Drop (5) by `last_com = wornitems:slotK` (`ring_of_dueling.rs2`).
+     The engine stops worn ops at 5: a sixth worn destination never reaches content.
+   - `[if_buttonx] com=inventory:items ... op=N`: the backpack op (op 2 = `opheld1`, tablets;
+     op 6 = `opheld4`, plain Rub). A plain Rub opens a chatmenu: copy its title and its options
+     (games necklace, index 4349 [970]: "Where would you like to teleport to?", five entries,
+     no "Nowhere.", locked ones `<str>`).
+2. **Pool landings from every cached session, not one.** One landing is one roll. Grep all of
+   `~/.rsprox-index-cache/home-default/.rsprox/binary/archive/idx*.txt` for the item and
+   tabulate each destination's landings. Fit the tile and radius to the box they fill
+   (`map_findsquare(tile, 0, r, ^map_findsquare_lineofwalk)`): tablets are radius 1 (Varrock
+   82/82 inside 3x3), jewellery radius 2. The tile is often not the spell's `tele_coord`
+   (Ardougne's tablet 2661,3302 vs the spell's 2661,3301; Mind Altar 2979,3509 vs 2980,3512).
+   The wiki's tile can be wrong: Wintertodt Camp is 1631,3940 r4 on the wiki, and both recorded
+   landings are 1623..1624,3938. A destination no session reaches is taken from the wiki and
+   written UNVERIFIED.
+3. **Copy the shape and the lines.** Jewellery: the cast (`human_castteleport` 714 +
+   `teleport_casting` 111 at 92 + `sound_area` 200 range 5, `~player_teleport_normal`) on the
+   click, "You rub the necklace..." as spam on submenu and Rub routes only, then at C+3 the
+   purple charge line with the count in WORDS ("Your games necklace has four uses left.") and the
+   teleport, the item swapped for its next charge in the same slot (worn or backpack). Tablets:
+   the break above, wilderness ones after a "Teleport into the wilderness?" "Yes|No" chatmenu
+   (Cemetery, 4343). Scrolls: `teleport_scroll_open`, three ticks.
+4. **Test every recorded route** (`test/magic/jewellery_teleports.lua`, `teleport_tablets.lua`):
+   `t.player.inv_op(obj, 4, { subop = N })` for a submenu, `t.ui.invoke(<wornitems:slotK>, op)`
+   for a worn op. Check the landing inside the fitted box, the line, and the next charge.
 
 ## 3. Loc changes and adds
 
@@ -925,6 +976,9 @@ gate checks the stage machine, not the words, the scenes or the sounds. Romeo & 
 - **The scope is the recording, not the files.** Run `rsprox_actions.py` before anything and
   give every action and every teleport a verdict; a click that is "not the quest" (a tablet
   break) still has to work (Tree Gnome Village, 2026-10-27: no standard tablet had a Break).
+- **Every teleport and maplink is captured from the recordings, by every route** (§2b): the
+  submenu (`if_subop`), the worn tab and the backpack op of each item, landings pooled across
+  sessions. The games necklace and ring of dueling were still 2004 ports on 2026-10-29.
 - **The varp under a varbit decides whether it is sent.** A quest varbit on a `temp,
   transmit=no` base varp never reaches the client (TGV's 598-602 on varp 279).
 - **A journal nobody opened in a recording is unverified**, however green `quest.journal` is.

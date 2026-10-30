@@ -25,7 +25,7 @@ import argparse
 import re
 import sys
 
-ACTION = re.compile(r"^    \[(op[a-z]*\d*(?:_v\d)?|opnpct|oploct|opobjt|opplayert|opheldt?|if_buttonx|if_buttont|resume_p_objdialog|resume_p_countdialog|resume_p_namedialog|resume_p_stringdialog)\] (.*)$")
+ACTION = re.compile(r"^    \[(op[a-z]*\d*(?:_v\d)?|opnpct|oploct|opobjt|opplayert|opheldt?|if_buttonx|if_subop|if_buttont|resume_p_objdialog|resume_p_countdialog|resume_p_namedialog|resume_p_stringdialog)\] (.*)$")
 TICK = re.compile(r"^\[(\d+)\]")
 TELEPORT = re.compile(r"^\s+\[teleport\] player=\(index=(\d+), name=[^,]*, coord=\(([^)]*)\)\), newcoord=\(([^)]*)\)")
 FOLD = re.compile(r"chatbox:chat_|toplevel_[a-z_]*:stone|chatmenu:|messagebox:|chat_left:|chat_right:|objectbox:|resume_pausebutton")

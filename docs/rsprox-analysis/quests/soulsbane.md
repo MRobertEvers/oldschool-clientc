@@ -206,13 +206,18 @@ Wire audit, our tick log against `rsprox_tells.py 4430 --from 931 --to 3625` by 
 
 ## Open
 
-- **Fights not audited per §13/§13b** (the owner rule: one Opus agent per encounter). What
-  4430 shows and ours does not do yet: the confusion beasts' AND illusions' ranged attack
-  (`confrange` + synth 381) and poison; the hopeless creatures' magic (`hopeless_suck` 495
-  area + `soulbane_hope_travel`, endtime 100 + 5×tiles, impact 635) and `lessattack` + 492;
-  the heads' projectile (`creeper_spit` 385, launch 639, travel 640, impact 641,
-  `fireblast_hit` 156) beside `neckattack` + `bane_tolna_spit` (1784 area, 141 times) and
-  poison; accuracy and max hits. Our attacks are still the config's melee.
+- **The rooms' mobs** (a lighter audit, not the boss rule's Opus pass; `rsprox_player_hits.py`
+  on 4430 and on our scriptrun log):
+
+  | mob / attack | 4430 | ours now |
+  |---|---|---|
+  | confusion beasts + illusions: `confrange` swing, synth 381, poison 5 | n=30 unprayed, max 4; 110/110 zero under Protect from Melee; poison 5 at [1984] | attack anim `confrange` (was `confattack`), `poison_severity` 5; n=24, max 4 |
+  | hopeless creatures: magic projectile, every form | 90 shots; unprayed 15/46 hit, prayed 9/41, max 1; endtime 105 beside | `[ai_applayer2]` in soulsbane_hope.rs2: those rates, max 1, endtime 100 + 5 × tiles from the nearest edge (36/36 at 105) |
+  | hopeless forms 2-3: `lessattack` + 492 beside the player | 60 swings, max 5, prayed 50/50 zero | half the time beside the player [fitted], default melee |
+  | anger monsters, fear reapers | melee, max 5 | config melee (unchanged; matched) |
+
+- **The boss (Tolna's heads)**: a separate Opus audit (owner rule: Opus for boss fights only)
+  is running; its section goes below.
 - The last head plays its config `bane_tolna_death` as well as `bane_tolna_final_death`
   (Jagex: only the latter).
 - Engine: an inventory change made in the tick the inventory side panel is closed never
