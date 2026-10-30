@@ -4,6 +4,7 @@
 #include "cmd/cmdbus.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/world_builder/world_builder.h"
+#include "editor/editor_view.h"
 #include "executor_config.h"
 #include "game/content_test.h"
 #include "game/cs2_harness.h"
@@ -2128,6 +2129,87 @@ static struct NetTransport* sock;
  * left it, which an unlocked replay overrides and a relocked one restores.
  */
 static char const* rsprox_replay_path;
+
+/*
+ * The map editor's VIEWER flags (docs/MAPED_DESIGN.html #windows,
+ * editor/editor_view.h): `--editor-view` boots this process as a view of
+ * another window's editor session, `--maped <url>` names the ToriRSMapEd it
+ * joins, `--maped-group <id>` the Client, `--camera <pose>` where it looks.
+ * The launch service's `view` verb starts exactly this command line.
+ */
+static char const* editor_view_camera_text;
+static int editor_view_flag;
+/** `--maped`'s host, out of the URL; cfg.editor_server_host points here. */
+static char editor_maped_host[128];
+
+/** `tcp://host:port`, `ws://host[:port][/path]` or `wss://...` into
+ *  editor_maped_host and *out_port. On the web the URL itself is the socket's
+ *  (torirs_host.js hands emscripten a ws(s) URL); here only host and port are
+ *  kept, for the label and a native dial. 0 on a malformed URL. */
+static int
+main_parse_maped_url(
+    char const* url,
+    int* out_port)
+{
+    char const* rest;
+    size_t host_length;
+    int port;
+    int default_port;
+
+    if( strncmp(url, "tcp://", 6) == 0 )
+    {
+        rest = url + 6;
+        default_port = 43610; /* TORIRSMAPED_DEFAULT_PORT */
+    }
+    else if( strncmp(url, "ws://", 5) == 0 )
+    {
+        rest = url + 5;
+        default_port = 43610;
+    }
+    else if( strncmp(url, "wss://", 6) == 0 )
+    {
+        rest = url + 6;
+        default_port = 443;
+    }
+    else
+        return 0;
+
+    if( rest[0] == '[' )
+    {
+        char const* close = strchr(rest, ']');
+        if( !close )
+            return 0;
+        host_length = (size_t)(close - rest - 1);
+        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+            return 0;
+        memcpy(editor_maped_host, rest + 1, host_length);
+        editor_maped_host[host_length] = '\0';
+        rest = close + 1;
+    }
+    else
+    {
+        host_length = strcspn(rest, ":/");
+        if( host_length == 0 || host_length >= sizeof(editor_maped_host) )
+            return 0;
+        memcpy(editor_maped_host, rest, host_length);
+        editor_maped_host[host_length] = '\0';
+        rest += host_length;
+    }
+
+    port = default_port;
+    if( rest[0] == ':' )
+    {
+        char* end = NULL;
+        long value = strtol(rest + 1, &end, 10);
+        if( end == rest + 1 || value < 1 || value > 65535 || (*end != '\0' && *end != '/') )
+            return 0;
+        port = (int)value;
+    }
+    else if( rest[0] != '\0' && rest[0] != '/' )
+        return 0;
+    *out_port = port;
+    return 1;
+}
 static struct RsproxRecording rsprox_replay_rec;
 static int rsprox_replay_uncapped;
 static int sim_openmain = -1;
@@ -6603,6 +6685,8 @@ main_print_usage(char const* program)
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--replay <rsprox.bin[.gz]>] "
         "[--world-layout static|edit] "
+        "[--editor-view] [--maped tcp://host:port] [--maped-group N] "
+        "[--camera x,z,level,yaw,pitch,zoom] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
@@ -6750,6 +6834,45 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
         {
             cfg.rev_name = argv[++argi];
+            continue;
+        }
+        /* The map editor's viewer boot (editor/editor_view.h). */
+        if( strcmp(argv[argi], "--editor-view") == 0 )
+        {
+            editor_view_flag = 1;
+            cfg.editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
+            continue;
+        }
+        if( strcmp(argv[argi], "--maped") == 0 && argi + 1 < argc )
+        {
+            int port = 0;
+            if( !main_parse_maped_url(argv[++argi], &port) )
+            {
+                TORIRS_ERR("torirs: --maped takes tcp://host:port (or ws://, wss://), got '%s'\n",
+                    argv[argi]);
+                return 0;
+            }
+            cfg.editor_server = BOOTMANIFEST_EDITOR_SERVER_TCP;
+            cfg.editor_server_host = editor_maped_host;
+            cfg.editor_server_port = port;
+            continue;
+        }
+        if( strcmp(argv[argi], "--maped-group") == 0 && argi + 1 < argc )
+        {
+            char* end = NULL;
+            long group = strtol(argv[++argi], &end, 10);
+            if( end == argv[argi] || *end != '\0' || group < 1 || group > 2147483647L )
+            {
+                TORIRS_ERR("torirs: --maped-group takes a ToriRSMapEd Client id (1..), got '%s'\n",
+                    argv[argi]);
+                return 0;
+            }
+            cfg.editor_client_id = (int)group;
+            continue;
+        }
+        if( strcmp(argv[argi], "--camera") == 0 && argi + 1 < argc )
+        {
+            editor_view_camera_text = argv[++argi];
             continue;
         }
         if( strcmp(argv[argi], "--world-layout") == 0 && argi + 1 < argc )
@@ -7148,7 +7271,67 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
            strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
-           strcmp(argument, "--world-layout") == 0;
+           strcmp(argument, "--world-layout") == 0 || strcmp(argument, "--maped") == 0 ||
+           strcmp(argument, "--maped-group") == 0 || strcmp(argument, "--camera") == 0;
+}
+
+/*
+ * The viewer boot, settled once every argv layer is in: the camera (CLI over
+ * `[editor:boot] camera=`), and what a VIEW may not be -- a window with no
+ * Client to join, or one that dials a game server. Returns 0 to stop the boot
+ * with the reason already printed.
+ */
+static int
+main_settle_editor_view(struct BootManifest const* boot_manifest)
+{
+    char const* camera_text = editor_view_camera_text;
+
+    if( !camera_text && boot_manifest->editor_camera[0] )
+        camera_text = boot_manifest->editor_camera;
+    if( camera_text )
+    {
+        int32_t values[TORIRSMAPED_CAMERA_VALUES];
+        struct EditorViewCamera camera;
+
+        if( !ToriRSMapEd_CameraParse(camera_text, values) )
+        {
+            TORIRS_ERR("torirs: --camera takes x,z,level,yaw,pitch,zoom (x/z in tiles, "
+                "level 0..3, yaw/pitch 0..2047, zoom 0..65535), got '%s'\n",
+                camera_text);
+            return 0;
+        }
+        EditorView_CameraFromValues(values, &camera);
+        EditorView_SetBootCamera(&camera);
+        /* The world loads around the square the camera looks at. */
+        cfg.spawn_x = camera.x / (64 * 128);
+        cfg.spawn_z = camera.z / (64 * 128);
+    }
+
+    if( cfg.editor_client_id > 0 && cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_ERR("torirs: --maped-group joins a Client on a torirsmaped daemon; name it "
+            "with --maped tcp://host:port\n");
+        return 0;
+    }
+    if( cfg.editor_panel != BOOTMANIFEST_EDITOR_PANEL_VIEW )
+        return 1;
+
+    if( cfg.editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_ERR("torirs: --editor-view joins another window's editor session: name its "
+            "ToriRSMapEd with --maped tcp://host:port (an embedded server has no other "
+            "window)\n");
+        return 0;
+    }
+    /* A view opens NO game connection: it is a window onto the editor's
+     * document, and a game server dialled beside it would be a second world. */
+    if( cfg.connect_target && cfg.connect_target[0] )
+    {
+        TORIRS_LOG("torirs: an editor view opens no game connection; ignoring %s%s\n",
+            editor_view_flag ? "--connect/[net:boot] " : "", cfg.connect_target);
+        cfg.connect_target = NULL;
+    }
+    return 1;
 }
 
 /*
@@ -7363,6 +7546,8 @@ main(
             boot_manifest.client_arg_count, manifest_argv, 0, 1, argv[0], &arg_state) )
         return 1;
     if( !main_parse_argument_layer(argc, argv, 1, 0, argv[0], &arg_state) )
+        return 1;
+    if( !main_settle_editor_view(&boot_manifest) )
         return 1;
     if( !rsprox_replay_path && getenv("TORIRS_RSPROX_REPLAY") && getenv("TORIRS_RSPROX_REPLAY")[0] )
         rsprox_replay_path = getenv("TORIRS_RSPROX_REPLAY");

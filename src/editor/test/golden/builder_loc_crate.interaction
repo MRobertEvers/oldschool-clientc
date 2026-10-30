@@ -1,0 +1,37 @@
+// ToriRSEd loc builder model. The builder reads this file back; the
+// scripts and configs beside it are generated from it and never parsed.
+[interaction]
+version=1
+subject=loc
+name=viking_crate
+
+[server]
+category=crate
+param=searched_ticks,3
+
+[op1]
+label=Search
+step=anim|human_pickuptable|||
+step=sound|pick2|||
+step=delay|1|||
+step=if_var|varp7_mock_quest_progress|=|2|
+step=mes||||You find a bucket in the crate.
+step=give|bucket_empty|1||
+step=set_var|varp7_mock_quest_progress|3||
+step=else||||
+step=mes||||There is nothing interesting in the crate.
+step=end||||
+
+[ap2]
+label=Kick
+step=require_level|strength|10||You are not strong enough.
+step=loc_swap|viking_crate_2|50||
+step=call|chatplayer|"Ow, my foot."||
+
+[opu,hammer]
+step=require_obj|hammer|1||You need a hammer.
+step=teleport|0_50_50_10_10|||
+
+[opu,coins]
+step=take|coins|10||
+step=raw||||if (inv_total(inv, coins) = 0) {\n    mes("Broke.");\n}

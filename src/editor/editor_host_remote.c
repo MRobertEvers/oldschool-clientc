@@ -32,6 +32,7 @@
 #include "mem/torirs_mem.h"
 
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_view.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
 /*
@@ -1354,6 +1355,26 @@ Editor_HostMapEdStateSync(struct EditorHost* host)
     if( rpc_status(remote, TORIRSMAPED_REQ_STATE_SYNC, NULL, 0, &count) != EDITOR_HOST_OK )
         return -1;
     return (int)count;
+}
+
+enum EditorHost_Status
+Editor_HostMapEdSpawnView(
+    struct EditorHost* host,
+    const int32_t* camera,
+    int* out_pid)
+{
+    struct maped_remote* remote = as_remote(host);
+    uint8_t payload[4 * TORIRSMAPED_CAMERA_VALUES];
+    uint32_t pid = 0;
+    enum EditorHost_Status status;
+
+    assert(camera);
+    assert(out_pid);
+    for( int i = 0; i < TORIRSMAPED_CAMERA_VALUES; i++ )
+        ToriRSMapEd_WriteU32(payload + 4 * i, (uint32_t)camera[i]);
+    status = rpc_status(remote, TORIRSMAPED_REQ_SPAWN_VIEW, payload, sizeof(payload), &pid);
+    *out_pid = (int)pid;
+    return status;
 }
 
 /* ------------------------------------------------------------------ */

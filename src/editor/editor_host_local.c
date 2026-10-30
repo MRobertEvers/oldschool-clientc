@@ -8,6 +8,7 @@
 
 #include "editor_host.h"
 #include "editor_doc.h"
+#include "editor_if.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -605,6 +606,61 @@ make_parents(
     return EDITOR_HOST_OK;
 }
 
+/* An interface saves its .compack beside it. Block positions are file ids
+ * while the compack is positional, and a structure edit renumbers them
+ * (editor_if.h, Editor_IfCompackForSave). */
+static enum EditorHost_Status
+local_iface_save(
+    const char* path,
+    const char* text,
+    size_t length)
+{
+    struct EditorHost_Blob old_if = { NULL, 0 };
+    struct EditorHost_Blob compack = { NULL, 0 };
+    char compack_path[2300];
+    char* rewritten = NULL;
+    size_t rewritten_length = 0;
+    size_t const path_length = strlen(path);
+    enum EditorHost_Status status;
+
+    assert(path_length > 3); /* Editor_HostDocPath names every IFACE "<name>.if" */
+    assert(strcmp(path + path_length - 3, ".if") == 0);
+    snprintf(compack_path, sizeof(compack_path), "%.*s.compack", (int)(path_length - 3), path);
+    status = read_whole_file(path, &old_if);
+    if( status == EDITOR_HOST_IO_ERROR )
+        return status;
+    status = read_whole_file(compack_path, &compack);
+    if( status == EDITOR_HOST_IO_ERROR )
+    {
+        Editor_HostBlobFree(&old_if);
+        return status;
+    }
+    if( !Editor_IfCompackForSave(compack.data ? compack.data : "",
+            compack.size,
+            old_if.data ? old_if.data : "",
+            old_if.size,
+            text,
+            length,
+            &rewritten,
+            &rewritten_length) )
+    {
+        TORIRS_ERR("editor: %s: its components changed but the .compack is not positional; "
+                   "not saved\n",
+            path);
+        status = EDITOR_HOST_REFUSED;
+    }
+    else
+    {
+        status = write_file_atomic(path, text, length);
+        if( status == EDITOR_HOST_OK && rewritten )
+            status = write_file_atomic(compack_path, rewritten, rewritten_length);
+    }
+    ToriMem_Free(ToriMem_Editor(), rewritten);
+    Editor_HostBlobFree(&old_if);
+    Editor_HostBlobFree(&compack);
+    return status;
+}
+
 static enum EditorHost_Status
 local_doc_save(
     void* user_data,
@@ -636,6 +692,8 @@ local_doc_save(
     if( status != EDITOR_HOST_OK )
         return status;
 
+    if( kind == EDITOR_DOC_IFACE && text )
+        return local_iface_save(path, text, length);
     if( kind != EDITOR_DOC_CFG )
     {
         if( !text )

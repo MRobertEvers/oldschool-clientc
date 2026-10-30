@@ -1,6 +1,6 @@
 /*
  * The launch service of the client's embedded IO server: the session table,
- * its seven verbs, the reaper and the spawners. The contract is in
+ * its eight verbs (seven party verbs and `view`), the reaper and the spawners. The contract is in
  * launch_sessions.h; the design in
  * docs/minigames/raid_loop/SEAM_TRIAGE_2026-10-06j.md (DESIGN (1), (2)).
  */
@@ -223,6 +223,20 @@ struct LaunchSession
     struct LaunchSeat seats[LAUNCH_SESSIONS_PARTY_MAX + 1];
 };
 
+/* One editor viewer the `view` verb started. Not a seat: it joins no party,
+ * reads no mailbox and has no leader to watch -- its life is the host's (the
+ * host's exit ends it) and its own (closing its window). */
+struct LaunchView
+{
+    int spawned;
+    int alive;
+    int number;
+    int pid;
+    int process_group;
+    int exit_code;
+    int exit_signal;
+};
+
 struct LaunchSessions
 {
     char binary_path[LAUNCH_SESSIONS_PATH_MAX];
@@ -238,6 +252,9 @@ struct LaunchSessions
     int kill_grace_ms;
     int next_number;
     struct LaunchSession sessions[LAUNCH_SESSIONS_SESSION_MAX];
+    /* `view`: editor viewer processes (no session, no seats, no mailbox). */
+    int next_view;
+    struct LaunchView views[LAUNCH_SESSIONS_VIEW_MAX];
 };
 
 /* ---- the answer text ---------------------------------------------------- */
@@ -1425,6 +1442,250 @@ verb_close(struct LaunchSessions* table, struct LaunchSession* session,
     text_append(answer, "ok\nstate=%s\n", state_name(session->state));
 }
 
+/* ---- views ----------------------------------------------------------------- */
+
+/* `maped=`: where the viewer's ToriRSMapEd is -- tcp://host:port natively,
+ * ws:// or wss:// for a page's daemon. Passed to the viewer as one argv word,
+ * never to a shell, but still held to a URL's alphabet so a request cannot
+ * smuggle a second flag into it. */
+static int
+view_maped_valid(char const* maped)
+{
+    static char const* const schemes[] = { "tcp://", "ws://", "wss://", NULL };
+    size_t length = strlen(maped);
+    int scheme = -1;
+
+    if( length == 0 || length >= 256 )
+        return 0;
+    for( int i = 0; schemes[i] && scheme < 0; i++ )
+        if( strncmp(maped, schemes[i], strlen(schemes[i])) == 0 )
+            scheme = i;
+    if( scheme < 0 || length == strlen(schemes[scheme]) )
+        return 0;
+    for( size_t i = 0; i < length; i++ )
+    {
+        char c = maped[i];
+        int ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                 c == '.' || c == '-' || c == '_' || c == ':' || c == '/' || c == '[' ||
+                 c == ']';
+        if( !ok )
+            return 0;
+    }
+    return 1;
+}
+
+/* `camera=`: "x,z,level,yaw,pitch,zoom" (torirsmaped/torirs_maped_view.h).
+ * Only its shape is checked here -- six comma-separated decimals -- because
+ * the viewer parses and range-checks it and refuses to boot on a bad one;
+ * this module links no editor code. */
+static int
+view_camera_shaped(char const* camera)
+{
+    int fields = 1;
+    int digits = 0;
+
+    if( !camera[0] || strlen(camera) >= 96 )
+        return 0;
+    for( char const* c = camera; *c; c++ )
+    {
+        if( *c == ',' )
+        {
+            if( digits == 0 )
+                return 0;
+            fields++;
+            digits = 0;
+        }
+        else if( *c >= '0' && *c <= '9' )
+            digits++;
+        else if( *c != '.' )
+            return 0;
+    }
+    return fields == 6 && digits > 0;
+}
+
+static void
+view_environment(struct LaunchSessions const* table, struct LaunchEnvironment* environment)
+{
+    char* const* base = table->base_environment ? table->base_environment : environ;
+
+    memset(environment, 0, sizeof(*environment));
+    for( int i = 0; base && base[i]; i++ )
+        if( strchr(base[i], '=') && !key_is_stripped(base[i]) )
+            environment_put(environment, base[i]);
+    /* Never the owner's preferences.ini from a second process at once. */
+    environment_set(environment, "TORIRS_PREFS", "");
+    environment_set(environment, "TORIRS_STDERR_UNBUFFERED", "1");
+}
+
+static int
+views_alive(struct LaunchSessions const* table)
+{
+    int alive = 0;
+    for( int i = 0; i < LAUNCH_SESSIONS_VIEW_MAX; i++ )
+        if( table->views[i].spawned && table->views[i].alive )
+            alive++;
+    return alive;
+}
+
+static void
+views_signal(struct LaunchSessions const* table, int signal_number)
+{
+    struct LaunchSessions_Spawner const* spawner = table->spawner;
+
+    for( int i = 0; i < LAUNCH_SESSIONS_VIEW_MAX; i++ )
+    {
+        struct LaunchView const* view = &table->views[i];
+        if( !view->spawned || !view->alive )
+            continue;
+        spawner->signal_group(spawner->context, view->process_group, signal_number);
+        spawner->signal_process(spawner->context, view->pid, signal_number);
+    }
+}
+
+static void
+views_reap(struct LaunchSessions* table, int block)
+{
+    struct LaunchSessions_Spawner const* spawner = table->spawner;
+
+    for( int i = 0; i < LAUNCH_SESSIONS_VIEW_MAX; i++ )
+    {
+        struct LaunchView* view = &table->views[i];
+        int exit_code = -1;
+        int exit_signal = 0;
+
+        if( !view->spawned || !view->alive )
+            continue;
+        if( !spawner->reap_child(spawner->context, view->pid, block, &exit_code, &exit_signal) )
+            continue;
+        view->alive = 0;
+        view->exit_code = exit_code;
+        view->exit_signal = exit_signal;
+        fprintf(stderr, "launch: view %d (pid %d) exited: %s %d\n", view->number, view->pid,
+                exit_signal ? "signal" : "code", exit_signal ? exit_signal : exit_code);
+    }
+}
+
+/*
+ * `view`: one editor viewer window (design #windows), the host's own binary
+ * with the host's manifest booted as a view:
+ *
+ *     <binary> --manifest <host manifest> --editor-view --maped <maped>
+ *              --maped-group <group> [--camera <camera>]
+ *
+ * Keys: maped= (required), group= (required, the Client to join), camera=
+ * (optional). Answer: `ok`, `view=<n>`, `pid=<pid>`. No session and no token:
+ * a view is not a party seat, and the request names only where it connects
+ * and where it looks -- never a program, an account or an environment.
+ */
+static void
+verb_view(struct LaunchSessions* table, struct LaunchRequest const* request,
+          struct LaunchText* answer)
+{
+    static char const* const allowed[] = { "maped", "group", "camera", NULL };
+    struct LaunchSessions_Spawner const* spawner = table->spawner;
+    char const* unknown = request_unknown_key(request, allowed);
+    char const* maped = request_value(request, "maped");
+    char const* group_text = request_value(request, "group");
+    char const* camera = request_value(request, "camera");
+    struct LaunchView* view = NULL;
+    struct LaunchEnvironment environment;
+    struct LaunchText directory = { 0 };
+    struct LaunchText log_path = { 0 };
+    char const* argv[16];
+    int argc = 0;
+    long group = 0;
+    int pid = 0;
+    int process_group = 0;
+    int error;
+
+    if( unknown )
+    {
+        answer_error(answer, "launch/view does not take %s=", unknown);
+        return;
+    }
+    if( !maped || !view_maped_valid(maped) )
+    {
+        answer_error(answer, "launch/view needs maped=tcp://host:port (or ws://, wss://)");
+        return;
+    }
+    if( parse_integer(group_text, 1, 2147483647L, &group) != 0 )
+    {
+        answer_error(answer, "launch/view needs group=<the ToriRSMapEd Client to join, 1..>");
+        return;
+    }
+    if( camera && !view_camera_shaped(camera) )
+    {
+        answer_error(answer, "launch/view camera= is x,z,level,yaw,pitch,zoom");
+        return;
+    }
+    if( !table->has_manifest )
+    {
+        answer_error(answer, "this host was started without --manifest; a view boots the "
+                             "host's editor manifest and there is none");
+        return;
+    }
+
+    views_reap(table, 0);
+    for( int i = 0; i < LAUNCH_SESSIONS_VIEW_MAX && !view; i++ )
+        if( !table->views[i].spawned || !table->views[i].alive )
+            view = &table->views[i];
+    if( !view )
+    {
+        answer_error(answer, "%d views are open; close one first", LAUNCH_SESSIONS_VIEW_MAX);
+        return;
+    }
+
+    text_append(&directory, "%s/views", table->launch_directory);
+    error = make_directories(directory.data);
+    if( error )
+    {
+        answer_error(answer, "cannot create %s: %s", directory.data, strerror(error));
+        ToriMem_Free(ToriMem_Net(), directory.data);
+        return;
+    }
+
+    memset(view, 0, sizeof(*view));
+    view->number = ++table->next_view;
+    view->exit_code = -1;
+    text_append(&log_path, "%s/view%d.log", directory.data, view->number);
+    ToriMem_Free(ToriMem_Net(), directory.data);
+
+    argv[argc++] = table->binary_path;
+    argv[argc++] = "--manifest";
+    argv[argc++] = table->manifest_path;
+    argv[argc++] = "--editor-view";
+    argv[argc++] = "--maped";
+    argv[argc++] = maped;
+    argv[argc++] = "--maped-group";
+    argv[argc++] = group_text;
+    if( camera )
+    {
+        argv[argc++] = "--camera";
+        argv[argc++] = camera;
+    }
+    argv[argc] = NULL;
+
+    view_environment(table, &environment);
+    error = spawner->spawn(spawner->context, (char* const*)argv, environment.entries,
+                           log_path.data, 0, &pid, &process_group);
+    environment_free(&environment);
+    if( error )
+    {
+        answer_error(answer, "the view did not start: %s", strerror(error));
+        ToriMem_Free(ToriMem_Net(), log_path.data);
+        return;
+    }
+    view->spawned = 1;
+    view->alive = 1;
+    view->pid = pid;
+    view->process_group = process_group;
+    fprintf(stderr, "launch: view %d is pid %d (maped %s, group %ld%s%s, log %s)\n",
+            view->number, pid, maped, group, camera ? ", camera " : "", camera ? camera : "",
+            log_path.data);
+    ToriMem_Free(ToriMem_Net(), log_path.data);
+    text_append(answer, "ok\nview=%d\npid=%d\n", view->number, pid);
+}
+
 /* ---- the table ---------------------------------------------------------- */
 
 char const*
@@ -1517,6 +1778,8 @@ LaunchSessions_Answer(
         verb_command(table, &request, &answer);
     else if( strcmp(verb, "mail") == 0 )
         verb_mail(table, &request, &answer);
+    else if( strcmp(verb, "view") == 0 )
+        verb_view(table, &request, &answer);
     else if( strcmp(verb, "status") == 0 || strcmp(verb, "heartbeat") == 0 ||
              strcmp(verb, "close") == 0 )
     {
@@ -1542,7 +1805,7 @@ LaunchSessions_Answer(
     }
     else
         answer_error(&answer, "no launch verb %s (open, spawn, command, mail, status, "
-                              "heartbeat, close)", verb);
+                              "heartbeat, close, view)", verb);
     ToriMem_Free(ToriMem_Net(), request.copy);
     *out_size = answer.size;
     {
@@ -1565,6 +1828,7 @@ LaunchSessions_Reap(struct LaunchSessions* table)
 
     assert(table);
     spawner = table->spawner;
+    views_reap(table, 0);
     for( int i = 0; i < LAUNCH_SESSIONS_SESSION_MAX; i++ )
     {
         struct LaunchSession* session = &table->sessions[i];
@@ -1649,11 +1913,20 @@ LaunchSessions_Free(struct LaunchSessions* table)
         session_signal(table, session, LAUNCH_SIGNAL_TERMINATE);
         live++;
     }
+    /* Views end with the host too: they were joined to its editor session. */
+    views_reap(table, 0);
+    if( views_alive(table) > 0 )
+    {
+        views_signal(table, LAUNCH_SIGNAL_TERMINATE);
+        live++;
+    }
     /* Up to a second for a clean exit, then SIGKILL and a blocking reap. */
     for( int waited = 0; live && waited < 1000; waited += 50 )
     {
         live = 0;
         sleep_milliseconds(50);
+        views_reap(table, 0);
+        live += views_alive(table);
         for( int i = 0; i < LAUNCH_SESSIONS_SESSION_MAX; i++ )
         {
             struct LaunchSession* session = &table->sessions[i];
@@ -1676,6 +1949,11 @@ LaunchSessions_Free(struct LaunchSessions* table)
         if( strcmp(session->reason, "-") == 0 )
             snprintf(session->reason, sizeof(session->reason), "the host is exiting");
         session_mark_closed(table, session);
+    }
+    if( views_alive(table) > 0 )
+    {
+        views_signal(table, LAUNCH_SIGNAL_KILL);
+        views_reap(table, 1);
     }
     ToriMem_Free(ToriMem_Net(), table);
 }

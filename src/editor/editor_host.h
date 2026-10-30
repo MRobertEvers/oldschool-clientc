@@ -487,6 +487,17 @@ Editor_HostMapEdStateSet(
 int
 Editor_HostMapEdStateSync(struct EditorHost* host);
 
+/** SPAWN_VIEW (torirsmaped/torirs_maped_view.h): ask the SERVER's host to
+ *  start a viewer joined to this connection's Client, looking at `camera`
+ *  (TORIRSMAPED_CAMERA_VALUES, absolute fine units). OK and *out_pid;
+ *  UNSUPPORTED when the server has no binding (capability bit clear);
+ *  REFUSED for a pose out of range. */
+enum EditorHost_Status
+Editor_HostMapEdSpawnView(
+    struct EditorHost* host,
+    const int32_t* camera,
+    int* out_pid);
+
 /* ---- the catalog (design #catalog, #squares) ------------------------------
  *
  * Read-only questions about the content tree, answered by the server's index

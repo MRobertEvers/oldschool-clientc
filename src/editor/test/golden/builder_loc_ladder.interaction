@@ -1,0 +1,10 @@
+// ToriRSEd loc builder model. The builder reads this file back; the
+// scripts and configs beside it are generated from it and never parsed.
+[interaction]
+version=1
+subject=loc
+name=ed_test_ladder
+
+[server]
+ladder=down,ladder
+maplink=0_50_50_10_10|0_50_150_10_10|0

@@ -1,6 +1,7 @@
 #include "editor_cmd.h"
 
 #include "editor_doc.h"
+#include "editor_if.h"
 #include "editor_spawn.h"
 #include "mem/torirs_mem.h"
 
@@ -242,7 +243,9 @@ Editor_CmdApply(
         return Editor_CfgApply(doc, command, direction);
     case EDITOR_CMD_IF_FIELD:
     case EDITOR_CMD_IF_COMPONENT:
-        return Editor_IfApply(doc, command, direction);
+        /* The interface codec (editor_if.h): canonical field order,
+         * renumbering structure edits, exact undo. */
+        return Editor_IfDocApply(doc, command, direction);
     case EDITOR_CMD_TEXT_SPLICE:
         return apply_text_splice(doc, command, direction);
     }

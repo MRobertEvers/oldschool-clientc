@@ -1455,6 +1455,55 @@ app_overlay_build_editor_selection(struct App* app)
         }
     }
 
+    /* The rest of the loc multi-selection (the first is the primary latch
+     * below) and the rectangle tool's tiles. Both are held by document
+     * address (absolute tiles), turned into scene tiles here. */
+    if( app->world && panel->ui )
+    {
+        for( int i = 1; i < panel->ui->tools.loc_count; i++ )
+        {
+            const struct Editor_LocRef* ref = &panel->ui->tools.locs[i];
+            int const sx = ref->map_x * 64 + ref->x - app->world->_base_tile_x;
+            int const sz = ref->map_z * 64 + ref->z - app->world->_base_tile_z;
+            int const idx = World_SceneryFindAt(app->world, sx, sz, ref->level, ref->shape);
+            struct WorldEntity_Scenery* other =
+                idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
+            if( other )
+            {
+                app_overlay_outline_element_model(
+                    app, other->element_id, APP_OUTLINE_COLOR_EDITOR_SELECT);
+                app_overlay_outline_scenery(app, other);
+            }
+        }
+        if( panel->ui->tools.rect.valid )
+        {
+            /* The same project-and-hull as the terrain latch below, over the
+             * rectangle's four outer corners (absolute -> scene). */
+            const struct Editor_TileRect* r = &panel->ui->tools.rect;
+            int const x0 = (r->x0 < r->x1 ? r->x0 : r->x1) - app->world->_base_tile_x;
+            int const x1 = (r->x0 < r->x1 ? r->x1 : r->x0) - app->world->_base_tile_x + 1;
+            int const z0 = (r->z0 < r->z1 ? r->z0 : r->z1) - app->world->_base_tile_z;
+            int const z1 = (r->z0 < r->z1 ? r->z1 : r->z0) - app->world->_base_tile_z + 1;
+            int const cx[4] = { x0, x1, x1, x0 };
+            int const cz[4] = { z0, z0, z1, z1 };
+            int px[4];
+            int py[4];
+            int hx[4];
+            int hy[4];
+            int n = 0;
+            int const plane_y = app_world_height(app, x0 * 128, z0 * 128, r->level);
+            for( int c = 0; c < 4; c++ )
+                if( app_world_project_at(app, cx[c] * 128, cz[c] * 128, plane_y, &px[n], &py[n]) )
+                    n++;
+            if( n > 0 )
+            {
+                int const hull = ToriDraw_ConvexHull(px, py, n, hx, hy);
+                app_overlay_push_polygon(
+                    app, hx, hy, hull, APP_OUTLINE_COLOR_EDITOR_SELECT, APP_OVERLAY_SEGMENT_WIDTH);
+            }
+        }
+    }
+
     if( panel->sel_kind == EDITOR_SELECTION_NONE || !app->world )
         return;
 

@@ -218,7 +218,7 @@ enum ToriRSMapEdFrameType
      *   17..40  foundations (below; 22..40 free for this owner)
      *   41..48  catalog      CATALOG_QUERY 41, CATALOG_RECORD 42,
      *                        CATALOG_SQUARES 43
-     *   49..52  views        SPAWN_VIEW 49
+     *   49..52  views        SPAWN_VIEW 49 (torirs_maped_view.h)
      *   53..64  live-editor  BUILD 53, RUN 54, LIVE_ATTACH 55, LIVE_DETACH 56,
      *                        LIVE_CHEAT 57, LIVE_SUBSCRIBE 58 */
     TORIRSMAPED_REQ_DOC_OPEN = 17,
@@ -295,7 +295,8 @@ enum ToriRSMapEdStateKey
 
     /* v2 keys, reserved by owner (MAPED_IMPLEMENTATION.md section 3):
      *   6..9    foundations
-     *   10..39  views        STATE_CAMERA_BASE 10 + connection index
+     *   10..39  views        STATE_CAMERA_BASE 10 + connection index,
+     *                        STATE_VIEW_SELF 39 (torirs_maped_view.h)
      *   40..47  live-editor  STATE_LIVE_FOCUS 40 */
     /** The var values a preview resolves multilocs/multinpcs against. */
     TORIRSMAPED_STATE_VAR_PREVIEW = 6,
@@ -526,6 +527,26 @@ struct ToriRSMapEdTransport
 struct ToriRSMapEdSession;
 struct ToriRSMapEdCatalog;
 
+/**
+ * The SPAWN_VIEW binding (torirs_maped_view.h): how this server's host starts
+ * a viewer process joined to a Client. Optional — a server without one
+ * answers SPAWN_VIEW UNSUPPORTED and leaves TORIRSMAPED_CAP_SPAWN_VIEW clear.
+ * Set with ToriRSMapEd_SetViewSpawner; the daemon binds it to the launch
+ * service (platform/launch_sessions.h `view`).
+ */
+struct ToriRSMapEdViewSpawner
+{
+    void* ctx;
+    /** Start one viewer joined to Client `group`, its camera at `camera`
+     *  (TORIRSMAPED_CAMERA_* layout, absolute fine units). OK and *out_pid,
+     *  or why not. */
+    enum EditorHost_Status (*spawn)(
+        void* ctx,
+        uint32_t group,
+        const int32_t* camera,
+        int* out_pid);
+};
+
 /** Sessions one server can hold at once: a viewer, a couple of control
  *  clients, and slack. Bounds the broadcast fan-out, not the world. */
 enum
@@ -575,11 +596,15 @@ struct ToriRSMapEd
     uint32_t next_client_id;
 
     /** TORIRSMAPED_CAP_* for the bindings this server has; FACT_HELLO v2
-     *  reports it. The catalog is bound; build, live and spawn_view are not yet. */
+     *  reports it. The catalog is bound; spawn_view when a host binds it
+     *  (ToriRSMapEd_SetViewSpawner); build and live are not yet. */
     uint32_t capabilities;
     /** The asset catalog and square atlas (torirs_maped_catalog.h); built on
      *  its first query. */
     struct ToriRSMapEdCatalog* catalog;
+    /** SPAWN_VIEW's binding; spawn NULL when this host cannot start viewers
+     *  (torirs_maped_view.h). */
+    struct ToriRSMapEdViewSpawner view_spawner;
 };
 
 /**

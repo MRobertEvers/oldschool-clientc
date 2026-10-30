@@ -11,6 +11,10 @@
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
 #include "editor/editor_derive.h"
+#include "editor/editor_view.h"
+#include "editor/panels/edpanel_common.h"
+#include "editor/panels/edpanel_ops.h"
+#include "editor/panels/edpanels.h"
 #include "engine/world_builder/edit/world_edit.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -18,6 +22,8 @@ static void
 app_map_editor_ghost_forget(struct App* app);
 static void
 app_map_editor_ghost_remove(struct App* app);
+static int
+app_map_editor_ghost_is_edit(struct App const* app);
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
@@ -33,7 +39,7 @@ bool
 app_mapedit_select_active(struct App const* app)
 {
     assert(app);
-    return app->editor_panel.visible && app->editor_panel.tool == EDITOR_TOOL_SELECT;
+    return app->editor_panel.visible && Editor_PanelTool(&app->editor_panel) == EDITOR_TOOL_SELECT;
 }
 
 /** Keyboard belongs to the catalog's model view? (Focused via a click; the
@@ -66,27 +72,6 @@ App_EditorPlaceSpawn(
         app_world_spawn_npc(app, scene_x, scene_z, level, args);
 }
 
-/** Start a load the square browser asked for. Runs on the frame boundary with
- *  the other editor drains, so a panel click never loads a world mid-tick. */
-void
-app_map_editor_open_pending_square(struct App* app)
-{
-    int chunks[2];
-
-    assert(app);
-
-    if( !app->editor || !app->editor_panel.sq_open_pending )
-        return;
-    app->editor_panel.sq_open_pending = 0;
-    if( app->world_load_inflight )
-        return;
-
-    chunks[0] = app->editor_panel.sq_open_x;
-    chunks[1] = app->editor_panel.sq_open_z;
-    TORIRS_LOG("editor: opening m%d_%d\n", chunks[0], chunks[1]);
-    app_world_load_begin(app, chunks, 1);
-}
-
 /** Shared-state facts from this connection's Client land on the panel — the
  *  receiving half of the selection relay. Registered at editor construction;
  *  fires from Editor_PumpFacts inside the per-frame drain below, and for the
@@ -102,6 +87,10 @@ app_editor_on_state(
     struct App* app = user_data;
 
     assert(app);
+    /* STATE_VIEW_SELF or a camera key is the view's alone; STATE_SELECTION
+     * answers 0 here, so the panels still get it. */
+    if( EditorView_AppOnState(app, key, values, count) )
+        return;
     Editor_PanelApplySharedState(&app->editor_panel, app, key, values, count);
 }
 
@@ -157,6 +146,20 @@ struct AppEditCtx
     struct World* world;
     struct ToriDraw_Scene* scene;
 };
+
+void
+app_map_editor_free(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
+        ToriMem_Free(ToriMem_Editor(), sh->tiles);
+        ToriMem_Free(ToriMem_Editor(), sh->locs);
+        ToriMem_Free(ToriMem_Editor(), sh->handles);
+    }
+    memset(&g_app_edit_mirror, 0, sizeof(g_app_edit_mirror));
+}
 
 static struct AppMapEditShadow*
 app_edit_shadow_find(
@@ -289,6 +292,82 @@ app_map_editor_shadow_seed(
     assert(app);
     assert(app->editor);
     app_map_editor_edit_seed(app->editor, app->provider, app->world_builder, map_x, map_z);
+}
+
+/* Squares one world load takes (app_world_load.c's APP_WORLD_MAP_SQUARE_MAX). */
+#define APP_MAP_EDITOR_OPEN_MAX 16
+
+/**
+ * Start a load the square picker asked for. Runs on the frame boundary with
+ * the other editor drains, so a panel click never loads a world mid-tick.
+ *
+ * Replace opens the one square; add keeps every square the document has open
+ * and adds this one (a world load names its whole square list). A square from
+ * a lane (or one DOC_CREATE just made) is opened in the mirror by its full
+ * key first and its provider records seeded from the document, because the
+ * load's own seeding only reads maps/ by coordinates.
+ */
+void
+app_map_editor_open_pending_square(struct App* app)
+{
+    struct Editor_Panel* panel;
+    int chunks[APP_MAP_EDITOR_OPEN_MAX * 2];
+    int count = 0;
+
+    assert(app);
+
+    panel = &app->editor_panel;
+    if( !app->editor || !panel->sq_open_pending )
+        return;
+    if( app->world_load_inflight )
+        return; /* the request waits for the load in flight */
+    panel->sq_open_pending = 0;
+
+    if( panel->sq_open_storage[0] )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        snprintf(key, sizeof(key), "%s/m%d_%d", panel->sq_open_storage, panel->sq_open_x, panel->sq_open_z);
+        if( !Editor_OpenDoc(app->editor, EDITOR_DOC_SQUARE, key) )
+        {
+            TORIRS_ERR("editor: cannot open %s\n", key);
+            return;
+        }
+    }
+
+    if( panel->sq_open_add )
+    {
+        struct Editor_Doc* doc = &app->editor->doc;
+        for( int i = 0; i < doc->square_count && count < APP_MAP_EDITOR_OPEN_MAX - 1; i++ )
+        {
+            if( !doc->squares[i].loaded )
+                continue;
+            if( doc->squares[i].map_x == panel->sq_open_x && doc->squares[i].map_z == panel->sq_open_z )
+                continue;
+            chunks[count * 2] = doc->squares[i].map_x;
+            chunks[count * 2 + 1] = doc->squares[i].map_z;
+            count++;
+        }
+    }
+    chunks[count * 2] = panel->sq_open_x;
+    chunks[count * 2 + 1] = panel->sq_open_z;
+    count++;
+
+    /* Every square already in the mirror seeds the provider from the
+     * document (an open lane square, a created one, unsaved edits). */
+    {
+        struct AppEditCtx ctx = { app->editor, app->provider, app->world_builder, app->world, app->scene };
+        for( int i = 0; i < count; i++ )
+        {
+            struct Editor_Square* square = Editor_DocFindSquare(&app->editor->doc, chunks[i * 2], chunks[i * 2 + 1]);
+            if( square && square->loaded && app->provider )
+                app_edit_seed_provider(&ctx, square);
+        }
+    }
+
+    TORIRS_LOG("editor: opening m%d_%d%s (%d square%s)\n", panel->sq_open_x, panel->sq_open_z,
+        panel->sq_open_add ? ", added" : "", count, count == 1 ? "" : "s");
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, chunks, count);
 }
 
 static int
@@ -611,6 +690,10 @@ app_map_editor_flush(struct App* app)
     if( !app->world || !app->world_active )
         return;
     had_work = app->editor->rebuild_count > 0;
+    /* The document changed under the ghost: take it down first, so the sync
+     * never meets an occupant the ghost has hidden. It is back next frame. */
+    if( had_work && app->map_ghost.active )
+        app_map_editor_ghost_remove(app);
     if( app_map_editor_edit_step(
             app->editor, app->provider, app->world_builder, app->world, app->scene) )
     {
@@ -674,176 +757,366 @@ app_map_editor_drain(struct App* app)
  * @see src/app.c, src/editor/editor.h
  */
 
+/* ---- the world click ---------------------------------------------------- */
+
+/** A shift-click with the select tool: the loc under the cursor joins (or
+ *  leaves) the multi-selection, by document address. */
+static int
+app_map_editor_toggle_loc_at(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    struct EditorUi* ui = app->editor_panel.ui;
+    struct WorldEntity_Scenery* scenery;
+    struct Editor_LocRef ref;
+    int idx;
+
+    if( !app->world || !ui )
+        return 0;
+    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, -1);
+    if( idx < 0 )
+        return 0;
+    scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
+    if( !scenery )
+        return 0;
+    Editor_LocRefAt(
+        &ref, app->world->_base_tile_x + scene_x, app->world->_base_tile_z + scene_z, level,
+        scenery->shape, scenery->loc_id, scenery->angle & 3);
+    (void)Editor_UiToggleLoc(ui, &ref);
+    if( ui->hooks.selection_changed )
+        ui->hooks.selection_changed(ui->hooks_user);
+    return 1;
+}
+
+/** The loc selection's keys: arrows nudge, R rotates, S reshapes, D
+ *  duplicates, Delete deletes. Only with a loc selected, so the same keys
+ *  still fly the camera otherwise; a key that acted consumes the frame. */
+static void
+app_map_editor_loc_keys(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct EditorUi* ui = app->editor_panel.ui;
+    int acted = 1;
+
+    if( !ui || ui->tools.loc_count == 0 || app_text_input_focused(app) || app_modelview_focused(app) )
+        return;
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) )
+        (void)edp_locs_nudge(ui, 0, 1);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
+        (void)edp_locs_nudge(ui, 0, -1);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_LEFT) )
+        (void)edp_locs_nudge(ui, -1, 0);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_RIGHT) )
+        (void)edp_locs_nudge(ui, 1, 0);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_R) )
+        (void)edp_locs_rotate(ui);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) )
+        (void)edp_locs_reshape(ui);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
+        (void)edp_locs_duplicate(ui);
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_DELETE)
+             || LibToriRS_Input_IsKeyDown(input, TORIRSK_BACKSPACE) )
+        (void)edp_locs_delete(ui);
+    else
+        acted = 0;
+    if( acted )
+    {
+        app->input_frame_consumed = 1;
+        app->need_redraw = 1;
+    }
+}
+
+/** The world tile under the cursor, absolute. */
+static int
+app_map_editor_hover_world(
+    struct App* app,
+    int* out_x,
+    int* out_z)
+{
+    if( !app->world || app->frame_view->world_hover_tile_x < 0 )
+        return 0;
+    *out_x = app->world->_base_tile_x + app->frame_view->world_hover_tile_x;
+    *out_z = app->world->_base_tile_z + app->frame_view->world_hover_tile_z;
+    return 1;
+}
+
+/** An open drag -- a brush stroke or a rectangle -- runs to the button's
+ *  release wherever the pointer wanders, and closes there. */
+static void
+app_map_editor_drag(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct EditorUi* ui = panel->ui;
+    int const released =
+        input->curr.mouse_button_up[TORIRSM_LEFT] || !LibToriRS_Input_IsMouseHeld(input, TORIRSM_LEFT);
+    int world_x;
+    int world_z;
+
+    if( panel->stroke_active )
+    {
+        int const hx = app->frame_view->world_hover_tile_x;
+        int const hz = app->frame_view->world_hover_tile_z;
+        if( hx >= 0 && (hx != panel->stroke_last_x || hz != panel->stroke_last_z) )
+        {
+            Editor_PanelApplyToolAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app));
+            panel->stroke_last_x = hx;
+            panel->stroke_last_z = hz;
+            app->need_redraw = 1;
+        }
+        if( released )
+        {
+            /* One drag, one undo step: the stroke opened on press. */
+            ui->tools.stroke_open = 0;
+            Editor_StrokeEnd(app->editor);
+            panel->stroke_active = 0;
+        }
+    }
+    if( panel->rect_dragging )
+    {
+        if( app_map_editor_hover_world(app, &world_x, &world_z) )
+        {
+            ui->tools.rect.x1 = world_x;
+            ui->tools.rect.z1 = world_z;
+        }
+        if( released )
+        {
+            struct Editor_TileRect r;
+            panel->rect_dragging = 0;
+            if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
+                Editor_UiLog(ui, "editor: rectangle %dx%d at %d,%d level %d", r.x1 - r.x0 + 1,
+                    r.z1 - r.z0 + 1, r.x0, r.z0, r.level);
+            else
+                Editor_UiLog(ui, "editor: that rectangle is larger than 64x64 tiles");
+        }
+        app->need_redraw = 1;
+    }
+}
+
 /**
- * A click in the world applies the current tool, as one undoable edit.
+ * A press or click in the world applies the armed tool.
  *
- * Gated on `input_frame_consumed` so a click that landed on the panel does not
- * also paint the tile behind it -- the overlay sets that flag when it takes a
- * press, and this runs after it for exactly that reason.
+ * Brushes paint from the PRESS and keep painting while the button is held, a
+ * tile once per visit, the whole drag one undo step (the stroke opens on
+ * press and closes on release). The rectangle tool drags its rectangle the
+ * same way. The click tools (select, place, move, rotate, delete) act on the
+ * RELEASE, as before.
  *
- * ALSO gated on the minimenu owning this gesture, which is TWO conditions and
- * not one. `input_frame_consumed` covers neither: this runs early in the frame
- * (before UITree_InteractFrame), so nothing has classified the click yet.
+ * Gated on `input_frame_consumed` so a click that landed on a panel does not
+ * also edit the tile behind it, and on the minimenu owning the gesture: both
+ * `minimenu.visible` and `interact.swallow_left_click` -- the menu selects on
+ * mousedown and hides itself, so the release a frame later must still be
+ * recognised as the menu's (see the old note on "Select Object" latching
+ * terrain).
  *
- *   - `minimenu.visible` -- a menu is on screen, so the world is not taking
- *     clicks at all.
- *   - `interact.swallow_left_click` -- the menu already consumed the PRESS
- *     edge of this click and this is the matching RELEASE.
- *
- * The second is the one that actually bites, and checking only the first is
- * why "Select Object" still latched terrain after it was supposedly fixed:
- * the minimenu selects on mousedown and hides itself immediately, so by the
- * time the mouse-up arrives -- the edge THIS function triggers on, a frame
- * later -- `minimenu.visible` is already 0 and the gate opens. The latch is
- * still set at that instant because interact_frame retires it further down
- * the same frame, after this ran. Reading it here is not a race: this runs
- * before the retire by construction, which is the same ordering that made
- * the bug.
- *
- * The tile is the one under the cursor THIS frame. The pickset and hover are
- * refreshed by the render pass, so they are at most one frame stale, which at
- * mouse speed is the tile the user is looking at.
+ * The tile is the one under the cursor this frame; the level is the one the
+ * terrain panel pins (Editor_PanelEditLevel), not the hover's.
  */
 void
 app_map_editor_world_click(
     struct App* app,
     struct LibToriRS_Input* input)
 {
+    struct Editor_Panel* panel;
+    struct EditorUi* ui;
+    enum Editor_Tool tool;
+    int level;
+    int hx;
+    int hz;
+
     assert(app);
     assert(input);
 
-    if( !app->editor || !app->editor_panel.visible )
+    panel = &app->editor_panel;
+    if( !app->editor || !panel->ui )
         return;
-    if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
+    ui = panel->ui;
+    ui->shift_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT) ? 1 : 0;
+
+    if( panel->stroke_active || panel->rect_dragging )
     {
-        if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
-            TORIRS_LOG(
-                "edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
-                app->frame_view->minimenu->visible,
-                app->interact.swallow_left_click);
+        /* The editor closing mid-drag still closes the stroke: an open
+         * stroke would fold every later edit into one undo step. */
+        if( !panel->visible )
+        {
+            if( panel->stroke_active )
+            {
+                ui->tools.stroke_open = 0;
+                Editor_StrokeEnd(app->editor);
+            }
+            panel->stroke_active = 0;
+            panel->rect_dragging = 0;
+            return;
+        }
+        app_map_editor_drag(app, input);
         return;
     }
-    if( app->input_frame_consumed )
-    {
-        if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
-            TORIRS_LOG("edit: click swallowed (input_frame_consumed)\n");
+    if( !panel->visible )
         return;
+    if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
+        return;
+    if( app->input_frame_consumed )
+        return;
+
+    app_map_editor_loc_keys(app, input);
+    if( app->input_frame_consumed )
+        return;
+
+    tool = ui->tools.tool;
+    hx = app->frame_view->world_hover_tile_x;
+    hz = app->frame_view->world_hover_tile_z;
+    if( hx < 0 )
+        return;
+    level = Editor_PanelEditLevel(panel, app);
+
+    /* The press opens a drag for the brushes and the rectangle. */
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] )
+    {
+        if( Editor_ToolIsBrush(tool) )
+        {
+            Editor_StrokeBegin(app->editor);
+            ui->tools.stroke_open = 1;
+            ui->tools.flatten_valid = 0;
+            panel->stroke_active = 1;
+            panel->stroke_last_x = hx;
+            panel->stroke_last_z = hz;
+            Editor_PanelApplyToolAt(panel, app, hx, hz, level);
+            app->need_redraw = 1;
+            return;
+        }
+        if( tool == EDITOR_TOOL_RECT_SELECT )
+        {
+            int world_x;
+            int world_z;
+            if( app_map_editor_hover_world(app, &world_x, &world_z) )
+            {
+                ui->tools.rect.valid = 1;
+                ui->tools.rect.x0 = ui->tools.rect.x1 = world_x;
+                ui->tools.rect.z0 = ui->tools.rect.z1 = world_z;
+                ui->tools.rect.level = level;
+                panel->rect_dragging = 1;
+            }
+            return;
+        }
     }
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
         return;
-    if( getenv("TORIRS_EDIT_DEBUG") )
-        TORIRS_LOG(
-            "edit: click tool=%d consumed=%d hover=%d,%d\n",
-            (int)app->editor_panel.tool,
-            app->input_frame_consumed,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z);
-    if( app->frame_view->world_hover_tile_x < 0 )
-        return;
 
     /*
-     * Modifier accelerators: hold a key to act on a layer without changing the
-     * tool dropdown first.
-     *
-     *   L  place the catalog's picked loc      (the tool's Place loc)
-     *   K  delete the loc under the cursor     (the tool's Delete loc)
-     *   C  clear every loc on the tile
-     *
-     * Deliberately resolving to the SAME functions the tool rows call rather
-     * than to a parallel path, so the readout, the undo step and the document
-     * write are identical however the edit was asked for. Gated on
-     * app_text_input_focused via the caller's chain -- without that, `L` typed
-     * into the catalog's search box would place a loc.
+     * Modifier accelerators: hold a key to act on a layer without changing
+     * the tool first. L places the catalog's loc, K deletes the loc under the
+     * cursor, C clears every loc on the tile. They reach the same functions
+     * the tools do. Gated on text focus: `L` typed into a search box must not
+     * place a loc.
      */
     if( !app_text_input_focused(app) )
     {
-        int const level = Editor_PanelEditLevel(&app->editor_panel, app);
-        int const hx = app->frame_view->world_hover_tile_x;
-        int const hz = app->frame_view->world_hover_tile_z;
-
         if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
         {
-            Editor_PanelPlaceLocAt(&app->editor_panel, app, hx, hz, level);
+            Editor_PanelPlaceLocAt(panel, app, hx, hz, level);
             app->need_redraw = 1;
             return;
         }
         if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_K) )
         {
-            Editor_PanelDeleteLocAt(&app->editor_panel, app, hx, hz, level);
+            Editor_PanelDeleteLocAt(panel, app, hx, hz, level);
             app->need_redraw = 1;
             return;
         }
         if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_C) )
         {
-            Editor_PanelClearLocsAt(&app->editor_panel, app, hx, hz, level);
+            Editor_PanelClearLocsAt(panel, app, hx, hz, level);
             app->need_redraw = 1;
             return;
         }
     }
 
-    /* SELECT latches the plain-click default: the hovered TILE, unambiguous
-     * even where a wall, a wall-decor and a ground loc share it. Picking one
-     * of those exactly is what the minimenu's "Select wall/object/decor" rows
-     * are for (app_minimenu_run_option) -- this is the one-click fallback for
-     * "just the ground". */
-    if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
+    if( tool == EDITOR_TOOL_SELECT )
     {
-        Editor_PanelSelectTerrain(
-            &app->editor_panel,
-            app,
-            app->frame_view->world_hover_tile_x,
-            app->frame_view->world_hover_tile_z,
-            app->frame_view->world_hover_tile_level);
+        /* A plain click latches the TILE (unambiguous where a wall, a decor
+         * and a ground loc share it; the minimenu's "Select wall" rows pick
+         * those exactly). Shift-click adds the loc under it to the
+         * multi-selection instead. */
+        if( ui->shift_held )
+            (void)app_map_editor_toggle_loc_at(app, hx, hz, app->frame_view->world_hover_tile_level);
+        else
+            Editor_PanelSelectTerrain(panel, app, hx, hz, app->frame_view->world_hover_tile_level);
         app->need_redraw = 1;
         return;
     }
+    if( Editor_ToolIsBrush(tool) || tool == EDITOR_TOOL_RECT_SELECT )
+        return;
 
-    /* One click is one undo step. A drag would open the stroke on press and
-     * close it on release; this is the single-click case, which is a stroke of
-     * one and needs no bracketing.
-     *
-     * The level the PANEL says to edit, not the one the pick happened to
-     * return: a pinned plane is the whole point of the Level row, and reading
-     * the hover here would silently ignore it. */
-    Editor_PanelApplyToolAt(
-        &app->editor_panel,
-        app,
-        app->frame_view->world_hover_tile_x,
-        app->frame_view->world_hover_tile_z,
-        Editor_PanelEditLevel(&app->editor_panel, app));
+    Editor_PanelApplyToolAt(panel, app, hx, hz, level);
 
-    /* A Place or Move click landed on the ghost's tile: the real add just
-     * replaced the ghost's element, so the ghost must be FORGOTTEN, not
-     * removed -- removing now would delete the loc that was just placed. */
-    if( app->editor_panel.tool == EDITOR_TOOL_LOC_PLACE ||
-        app->editor_panel.tool == EDITOR_TOOL_LOC_MOVE )
-        app_map_editor_ghost_forget(app);
-
-    /*
-     * The subject follows the work -- BY KIND.
-     *
-     * A tile tool's click latches the tile it painted, so the readout
-     * describes what just happened and Apply repeats there. The LOC tools do
-     * NOT latch terrain: their subject is a loc, and stamping a terrain latch
-     * after every place/move wiped the loc selection the user was working
-     * with -- Place selects what it placed (inside PlaceLocAt), Move keeps
-     * the selection riding the loc, and Delete's handler latches the vacated
-     * tile itself. Switching tools never touches the selection at all.
-     */
+    /* A Place or Move landed where the ghost stood. STATIC: the real add
+     * replaced the ghost's element, so the ghost is FORGOTTEN, not removed
+     * (removing would delete the placed loc). EDIT: the placed loc arrives
+     * through the flush as its own placement, so the ghost is removed and
+     * whatever it hid comes back. */
+    if( tool == EDITOR_TOOL_LOC_PLACE || tool == EDITOR_TOOL_LOC_MOVE )
+    {
+        if( app_map_editor_ghost_is_edit(app) )
+            app_map_editor_ghost_remove(app);
+        else
+            app_map_editor_ghost_forget(app);
+    }
     app->need_redraw = 1;
 }
 
-/**
- * Push the frame's edits back into the provider and rebuild what they changed.
- *
- * Once per frame, not once per edit: a brush drag produces a command per tile,
- * and remeshing a square for each of them would spend the frame rebuilding
- * terrain nobody has seen yet. Draining here coalesces them, so a drag costs
- * one rebuild per square per frame however fast the mouse moves.
+/* ---- the hover ghost ---------------------------------------------------- */
+
+/*
+ * Under the EDIT layout the ghost is a placement of its own, by handle: the
+ * occupant of its slot is hidden by removing ITS placement (and put back as
+ * a fresh one, whose handle the shadow then adopts), and the ghost is
+ * removed by its handle. A runtime App_WorldLocChange would evict the
+ * occupant behind EDIT's back and leave its records naming an element that
+ * is gone (edit-world's phase-2 note).
  */
-/** Forget the ghost WITHOUT removing it from the scene -- for the commit
- *  click, whose real placement just replaced the ghost's element on the same
- *  tile and layer. Removing would delete the loc that was just placed. */
+static struct
+{
+    int ghost_handle;
+    int occupant_handle;
+    /* The bake the handles belong to: after a rebake they name nothing, and
+     * the bake already showed the document without the ghost. */
+    uint32_t bake_serial;
+} g_app_edit_ghost = { WORLD_BUILDER_HANDLE_NONE, WORLD_BUILDER_HANDLE_NONE, 0 };
+
+static int
+app_map_editor_ghost_is_edit(struct App const* app)
+{
+    return app->world_builder
+           && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
+}
+
+/** A shadow loc that named `old_handle` now names `new_handle`. */
+static void
+app_edit_shadow_rebind(
+    int old_handle,
+    int new_handle)
+{
+    if( old_handle == WORLD_BUILDER_HANDLE_NONE )
+        return;
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
+        if( !sh->used )
+            continue;
+        for( int k = 0; k < sh->loc_count; k++ )
+            if( sh->handles[k] == old_handle )
+            {
+                sh->handles[k] = new_handle;
+                return;
+            }
+    }
+}
+
+/** Forget the ghost WITHOUT removing it (STATIC commit). */
 static void
 app_map_editor_ghost_forget(struct App* app)
 {
@@ -851,8 +1124,7 @@ app_map_editor_ghost_forget(struct App* app)
     MapEditorGhost_Commit(&app->map_ghost);
 }
 
-/** Remove the ghost from the scene, put back whatever it displaced, forget.
- *  Which of those happens is MapEditorGhost's; the placements are ours. */
+/** Remove the ghost, put back whatever it displaced, forget. */
 static void
 app_map_editor_ghost_remove(struct App* app)
 {
@@ -863,73 +1135,147 @@ app_map_editor_ghost_remove(struct App* app)
     assert(app);
     if( !MapEditorGhost_Remove(&app->map_ghost, &removed, &has_restore, &restore) )
         return;
+    if( app_map_editor_ghost_is_edit(app) )
+    {
+        struct WorldBuilder* wb = app->world_builder;
+        struct World_LocPlacement live;
+        int const same_bake =
+            WorldEdit_Ready(wb) && WorldEdit_BakeSerial(wb) == g_app_edit_ghost.bake_serial;
+
+        if( !same_bake )
+        {
+            g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
+            g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
+            return;
+        }
+        if( g_app_edit_ghost.ghost_handle != WORLD_BUILDER_HANDLE_NONE
+            && WorldEdit_PlacementGet(wb, g_app_edit_ghost.ghost_handle, &live) )
+            WorldBuilder_LocRemove(wb, g_app_edit_ghost.ghost_handle);
+        if( has_restore )
+        {
+            struct World_LocPlacement place = { restore.scene_x, restore.scene_z, restore.level,
+                                                restore.loc_id, restore.shape, restore.angle };
+            int const handle = WorldBuilder_LocPlace(wb, &place);
+            app_edit_shadow_rebind(g_app_edit_ghost.occupant_handle, handle);
+        }
+        g_app_edit_ghost.ghost_handle = WORLD_BUILDER_HANDLE_NONE;
+        g_app_edit_ghost.occupant_handle = WORLD_BUILDER_HANDLE_NONE;
+        (void)WorldBuilder_Flush(wb);
+        app->need_redraw = 1;
+        return;
+    }
     App_WorldLocChange(
         app, removed.scene_x, removed.scene_z, removed.level, -1, removed.shape, removed.angle);
     /* Scene-only, like the ghost itself -- the document never knew about
      * either. */
     if( has_restore )
         App_WorldLocChange(
-            app,
-            restore.scene_x,
-            restore.scene_z,
-            restore.level,
-            restore.loc_id,
-            restore.shape,
+            app, restore.scene_x, restore.scene_z, restore.level, restore.loc_id, restore.shape,
             restore.angle);
     app->need_redraw = 1;
 }
 
+/** Put the ghost up under EDIT: hide the occupant by handle, place the ghost
+ *  as its own placement. 0 when EDIT cannot place it this frame. */
+static int
+app_map_editor_ghost_place_edit(
+    struct App* app,
+    const struct MapEditorGhostSpec* wanted)
+{
+    struct WorldBuilder* wb = app->world_builder;
+    struct AppEditCtx ctx = { app->editor, app->provider, wb, app->world, app->scene };
+    struct MapEditorGhostSpec displaced;
+    struct World_LocPlacement place;
+    int has_displaced = 0;
+    int occupant;
+
+    if( !WorldEdit_Ready(wb) || !app_edit_loc_ready(&ctx, wanted->loc_id) )
+    {
+        /* Not resident yet: ask for it, show the ghost once it lands. */
+        if( app->provider && !CacheProvider_LocationHas(app->provider, wanted->loc_id) )
+        {
+            struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, wanted->loc_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return 0;
+    }
+    occupant = WorldEdit_FindPlacement(wb, wanted->scene_x, wanted->scene_z, wanted->level, wanted->shape);
+    if( occupant != WORLD_BUILDER_HANDLE_NONE )
+    {
+        struct World_LocPlacement held;
+        if( WorldEdit_PlacementGet(wb, occupant, &held) )
+        {
+            displaced = *wanted;
+            displaced.loc_id = held.loc_id;
+            displaced.shape = held.shape;
+            displaced.angle = held.angle;
+            has_displaced = 1;
+            WorldBuilder_LocRemove(wb, occupant);
+        }
+    }
+    place.scene_x = wanted->scene_x;
+    place.scene_z = wanted->scene_z;
+    place.level = wanted->level;
+    place.loc_id = wanted->loc_id;
+    place.shape = wanted->shape;
+    place.angle = wanted->angle;
+    g_app_edit_ghost.ghost_handle = WorldBuilder_LocPlace(wb, &place);
+    g_app_edit_ghost.occupant_handle = has_displaced ? occupant : WORLD_BUILDER_HANDLE_NONE;
+    g_app_edit_ghost.bake_serial = WorldEdit_BakeSerial(wb);
+    (void)WorldBuilder_Flush(wb);
+    MapEditorGhost_Place(&app->map_ghost, wanted, has_displaced ? &displaced : NULL);
+    return 1;
+}
+
 /**
- * Keep the Place-loc hover ghost current. Once per frame, with the other
+ * Keep the Place / Move hover ghost current. Once per frame, with the other
  * editor drains.
  */
 void
 app_map_editor_ghost_update(struct App* app)
 {
-    int want;
+    struct Editor_Panel* panel;
+    struct EditorUi* ui;
+    int want = 0;
     int id = -1;
     int shape = 0;
     int angle = 0;
-    int level;
+    int level = 0;
 
     assert(app);
 
-    if( !app->editor )
+    panel = &app->editor_panel;
+    if( !app->editor || !panel->ui )
         return;
+    ui = panel->ui;
 
-    /* Two tools ghost: Place previews the CATALOG pick, Move previews the
-     * SELECTED loc at the tile it would land on. Move skips the selection's
-     * own tile -- ghosting a loc onto itself replaces it with its own
-     * translucent double, which reads as flicker, not preview. */
+    /* Place previews the CATALOG pick; Move previews the first selected loc
+     * at the tile it would land on (not on its own tile: a translucent double
+     * of itself reads as flicker). */
     {
-        struct Editor_Panel const* panel = &app->editor_panel;
-        int const hover_ok = app->frame_view->world_hover_tile_x >= 0 &&
-                             !app->frame_view->minimenu->visible && !app->input_frame_consumed;
+        int const hover_ok = app->frame_view->world_hover_tile_x >= 0
+                             && !app->frame_view->minimenu->visible && !app->input_frame_consumed;
 
-        want = 0;
-        if( panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_PLACE &&
-            panel->cat_picked_id >= 0 && panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
+        if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE
+            && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
         {
             want = 1;
-            id = panel->cat_picked_id;
-            Editor_PanelGhostSpec(&app->editor_panel, app, &shape, &angle);
+            id = ui->tools.pick_id;
+            Editor_PanelGhostSpec(panel, app, &shape, &angle);
             level = Editor_PanelEditLevel(panel, app);
         }
-        else if(
-            panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_MOVE &&
-            panel->sel_kind == EDITOR_SELECTION_LOC &&
-            !(app->frame_view->world_hover_tile_x == panel->sel_scene_x &&
-              app->frame_view->world_hover_tile_z == panel->sel_scene_z) )
+        else if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_MOVE
+                 && panel->sel_kind == EDITOR_SELECTION_LOC
+                 && !(app->frame_view->world_hover_tile_x == panel->sel_scene_x
+                      && app->frame_view->world_hover_tile_z == panel->sel_scene_z) )
         {
             want = 1;
             id = panel->sel_loc_id;
             shape = panel->sel_shape;
             angle = panel->sel_angle;
-            /* A move keeps its plane; the Level row is for edits, not this. */
             level = panel->sel_level;
         }
-        else
-            level = Editor_PanelEditLevel(panel, app);
     }
 
     {
@@ -940,70 +1286,61 @@ app_map_editor_ghost_update(struct App* app)
                                                    .shape = shape,
                                                    .angle = angle };
 
-        /* The ghost follows the hover; any change of tile, loc or pose is a
-         * remove + add. Same tile and spec: nothing to do but the alpha pass. */
         if( !want || !MapEditorGhost_Matches(&app->map_ghost, &wanted) )
             app_map_editor_ghost_remove(app);
 
         if( want && !app->map_ghost.active )
         {
-            struct MapEditorGhostSpec displaced;
-            bool has_displaced = false;
-
-            /* Whoever holds this tile's slot in the ghost's layer is about to
-             * be replaced by the add below; remember them for the restore.
-             * Read BEFORE the add is queued -- the capture must see the
-             * pre-ghost scene. */
-            if( app->world )
+            if( app_map_editor_ghost_is_edit(app) )
             {
-                int const occ = World_SceneryFindAt(
-                    app->world, wanted.scene_x, wanted.scene_z, level, shape);
-                if( occ >= 0 )
+                if( app_map_editor_ghost_place_edit(app, &wanted) )
+                    app->need_redraw = 1;
+            }
+            else
+            {
+                struct MapEditorGhostSpec displaced;
+                bool has_displaced = false;
+
+                /* Whoever holds this slot is about to be replaced; remember
+                 * them, read BEFORE the add is queued. */
+                if( app->world )
                 {
-                    struct WorldEntity_Scenery const* occupant =
-                        World_EntityPoolGet(&app->world->entities.scenery, occ);
-                    if( occupant )
+                    int const occ = World_SceneryFindAt(
+                        app->world, wanted.scene_x, wanted.scene_z, level, shape);
+                    if( occ >= 0 )
                     {
-                        has_displaced = true;
-                        displaced = wanted;
-                        displaced.loc_id = occupant->loc_id;
-                        displaced.shape = occupant->shape;
-                        displaced.angle = occupant->angle;
+                        struct WorldEntity_Scenery const* occupant =
+                            World_EntityPoolGet(&app->world->entities.scenery, occ);
+                        if( occupant )
+                        {
+                            has_displaced = true;
+                            displaced = wanted;
+                            displaced.loc_id = occupant->loc_id;
+                            displaced.shape = occupant->shape;
+                            displaced.angle = occupant->angle;
+                        }
                     }
                 }
+                App_WorldLocChange(app, wanted.scene_x, wanted.scene_z, level, id, shape, angle);
+                MapEditorGhost_Place(&app->map_ghost, &wanted, has_displaced ? &displaced : NULL);
+                app->need_redraw = 1;
             }
-
-            App_WorldLocChange(
-                app, wanted.scene_x, wanted.scene_z, level, id, shape, angle);
-            MapEditorGhost_Place(
-                &app->map_ghost, &wanted, has_displaced ? &displaced : NULL);
-            app->need_redraw = 1;
         }
     }
 
-    /* Translucency, once the async add has produced an element. The fade is
-     * written onto the ELEMENT's own model rather than the loc's, so only the
-     * placement under the cursor goes translucent. */
+    /* Translucency, once a placement has produced an element. Written onto
+     * the ELEMENT's own model (ForWrite: placements of one loc share a model,
+     * and fading it in place would ghost every other copy on screen). */
     if( MapEditorGhost_NeedsFade(&app->map_ghost) && app->world && app->scene )
     {
         int const idx = World_SceneryFindAt(
-            app->world,
-            app->map_ghost.spec.scene_x,
-            app->map_ghost.spec.scene_z,
-            app->map_ghost.spec.level,
-            app->map_ghost.spec.shape);
+            app->world, app->map_ghost.spec.scene_x, app->map_ghost.spec.scene_z,
+            app->map_ghost.spec.level, app->map_ghost.spec.shape);
         if( idx >= 0 )
         {
-            struct WorldEntity_Scenery* scenery =
-                World_EntityPoolGet(&app->world->entities.scenery, idx);
-            /* ForWrite, not Get: placements of one loc share a single model
-             * (a ToriDraw_SharedModel), and fading it in place would
-             * ghost every other one of the same fence on screen. It also
-             * answers the tagged-union question -- only a full model carries
-             * faces to fade, and a sprite billboard comes back NULL. */
+            struct WorldEntity_Scenery* scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
             struct ToriDraw_Model* model =
-                scenery ? ToriDraw_SceneElementModelForWrite(app->scene, scenery->element_id)
-                        : NULL;
+                scenery ? ToriDraw_SceneElementModelForWrite(app->scene, scenery->element_id) : NULL;
 
             if( model && model->face_count > 0 )
             {
@@ -1077,18 +1414,25 @@ app_map_editor_preview_update(struct App* app)
     static int last_id = -1;
     struct Editor_Panel* panel = &app->editor_panel;
     struct ToriDraw_Sprite* sprite = NULL;
+    int cat_kind;
+    int cat_view;
     /* Not the pick: while a multiloc VARIANT row is chosen this is that
      * rung's loc, so the well shows the variant the catalog is reading out. */
     int preview_id;
 
     assert(app);
 
-    if( !app->editor || !panel->visible || panel->cat_view < 0 )
+    if( !app->editor || !panel->visible || !panel->ui )
+        return;
+    /* The catalog module owns the well and the pick (panels/edpanel_catalog.c). */
+    cat_kind = panel->ui->tools.pick_kind;
+    cat_view = Editor_Catalog_ModelView(panel->ui);
+    if( cat_view < 0 )
         return;
     preview_id = Editor_PanelCatalogPreviewId(panel);
     if( preview_id < 0 )
     {
-        ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+        ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
         last_kind = -1;
         last_id = -1;
         return;
@@ -1101,10 +1445,10 @@ app_map_editor_preview_update(struct App* app)
         last_kind = -1;
         last_id = -1;
     }
-    if( panel->cat_kind == last_kind && preview_id == last_id )
+    if( cat_kind == last_kind && preview_id == last_id )
         return;
 
-    if( panel->cat_kind == CACHEPROVIDER_CATALOG_OBJ )
+    if( cat_kind == CACHEPROVIDER_CATALOG_OBJ )
     {
         /*
          * The obj's own model, rastered with the preview camera -- NOT the
@@ -1144,8 +1488,8 @@ app_map_editor_preview_update(struct App* app)
         {
             /* A real answer, not a pending one: a bank note or placeholder
              * has no model of its own. Cached, so this does not re-ask. */
-            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
-            last_kind = panel->cat_kind;
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
+            last_kind = cat_kind;
             last_id = preview_id;
             return;
         }
@@ -1181,14 +1525,14 @@ app_map_editor_preview_update(struct App* app)
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
             ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
-            last_kind = panel->cat_kind;
+                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = cat_kind;
             last_id = preview_id;
         }
         return;
     }
 
-    if( panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
+    if( cat_kind == CACHEPROVIDER_CATALOG_LOC )
     {
         struct ToriRS_Location* cfg = CacheProvider_LocationGet(app->provider, preview_id);
         int model_id = -1;
@@ -1212,8 +1556,8 @@ app_map_editor_preview_update(struct App* app)
         }
         if( model_id <= 0 )
         {
-            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
-            last_kind = panel->cat_kind;
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
+            last_kind = cat_kind;
             last_id = preview_id;
             return;
         }
@@ -1258,22 +1602,22 @@ app_map_editor_preview_update(struct App* app)
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
             ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
-            last_kind = panel->cat_kind;
+                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = cat_kind;
             last_id = preview_id;
         }
         return;
     }
 
-    if( panel->cat_kind == CACHEPROVIDER_CATALOG_NPC )
+    if( cat_kind == CACHEPROVIDER_CATALOG_NPC )
     {
         struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, preview_id);
         int missing = 0;
 
         if( !npc || npc->models_count <= 0 )
         {
-            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
-            last_kind = panel->cat_kind;
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
+            last_kind = cat_kind;
             last_id = preview_id;
             return;
         }
@@ -1310,8 +1654,8 @@ app_map_editor_preview_update(struct App* app)
             }
             if( part_count == 0 )
             {
-                ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
-                last_kind = panel->cat_kind;
+                ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
+                last_kind = cat_kind;
                 last_id = preview_id;
                 return;
             }
@@ -1342,15 +1686,15 @@ app_map_editor_preview_update(struct App* app)
                 ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
             ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
             ToriRSChrome_ModelViewSet(
-                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
-            last_kind = panel->cat_kind;
+                &app->dbg_ui, cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = cat_kind;
             last_id = preview_id;
         }
         return;
     }
 
-    ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
-    last_kind = panel->cat_kind;
+    ToriRSChrome_ModelViewSet(&app->dbg_ui, cat_view, 0);
+    last_kind = cat_kind;
     last_id = preview_id;
 }
 

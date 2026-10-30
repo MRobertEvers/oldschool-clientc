@@ -511,12 +511,28 @@ bm_set_kv(
                 bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_INPROCESS;
             else if( strcmp(value, "tab") == 0 )
                 bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_TAB;
+            else if( strcmp(value, "view") == 0 )
+                bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_VIEW;
             else
             {
-                TORIRS_LOG("bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
+                TORIRS_LOG(
+                    "bootmanifest: [editor:boot] panel must be inprocess|tab|view, got '%s'\n",
                     value);
                 bm->editor_panel_error = 1;
             }
+            return;
+        }
+        /* A view's first camera. Text until the client parses it: this file
+         * links no editor code (see BootManifest::editor_camera). */
+        if( strcmp(key, "camera") == 0 )
+        {
+            if( strlen(value) >= sizeof(bm->editor_camera) )
+            {
+                TORIRS_LOG("bootmanifest: [editor:boot] camera is too long: '%s'\n", value);
+                bm->editor_panel_error = 1;
+                return;
+            }
+            snprintf(bm->editor_camera, sizeof(bm->editor_camera), "%s", value);
             return;
         }
         break;
@@ -1548,6 +1564,18 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         TORIRS_LOG("bootmanifest: '%s' sets [editor:boot] host/port/client without "
             "server=tcp; the embedded ToriRSMapEd has no address and no other "
             "process to share a Client with\n",
+            path);
+        return -1;
+    }
+
+    /* A view joins another window's Client, which only a daemon can share:
+     * the embedded server lives inside one process. */
+    if( bm->editor_panel == BOOTMANIFEST_EDITOR_PANEL_VIEW
+        && bm->editor_server != BOOTMANIFEST_EDITOR_SERVER_TCP )
+    {
+        TORIRS_LOG("bootmanifest: '%s' asks for [editor:boot] panel=view without "
+            "server=tcp; a view joins another window's Client on the torirsmaped "
+            "daemon, and an embedded server has no other window\n",
             path);
         return -1;
     }

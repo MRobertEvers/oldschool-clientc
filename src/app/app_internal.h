@@ -1194,6 +1194,11 @@ app_editor_on_state(
 void
 app_map_editor_drain(struct App* app);
 
+/** Release the EDIT flush's per-square shadows (app_map_editor.c), at the
+ *  editor's close. Safe when none were taken. */
+void
+app_map_editor_free(struct App* app);
+
 /** EDIT layout: a square about to load gets its first shadow, and the
  *  provider is seeded from the document (app_map_editor.c). No-op under STATIC. */
 void

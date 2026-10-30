@@ -1,0 +1,95 @@
+// ToriRSEd npc builder model. The builder reads this file back; the
+// scripts and configs beside it are generated from it and never parsed.
+[interaction]
+version=1
+subject=npc
+name=port_roberts_bar_patron
+
+[op1]
+label=Talk-to
+dialogue=1
+
+[opu,*]
+dialogue=1
+
+[dialogue]
+start=hello
+
+[node,hello]
+kind=npc
+text=Welcome to the bar, {player}. What can I get you?
+expr=neutral
+next=ask
+pos=10,10
+
+[node,ask]
+kind=choice
+option=A beer, please.|beer
+option=Any work going?|work
+option=Nothing, thanks.|bye
+pos=146,10
+
+[node,beer]
+kind=player
+text=A beer, please.
+expr=happy
+next=pay
+pos=282,10
+
+[node,pay]
+kind=step
+step=require_obj|coins|2||You can't afford a beer.
+next=served
+pos=418,10
+
+[node,served]
+kind=objbox
+text=The patron hands you a beer.
+obj=beer
+next=thanks
+pos=10,66
+
+[node,work]
+kind=branch
+obj=varp7_mock_quest_progress
+arm=<|2|job
+next=nowork
+pos=146,66
+
+[node,job]
+kind=npc
+text=Clean the tables and I'll see you right.
+expr=neutral
+next=start
+pos=282,66
+
+[node,start]
+kind=quest
+obj=varp7_mock_quest_progress
+value=2
+quest=start
+next=thanks
+pos=418,66
+
+[node,nowork]
+kind=npc
+text=Not today. Anything else?
+expr=sad
+next=ask
+pos=10,122
+
+[node,thanks]
+kind=player
+text=Thanks.
+next=bye
+pos=146,122
+
+[node,bye]
+kind=mesbox
+text=The patron goes back to polishing a glass.
+next=end
+pos=282,122
+
+[node,end]
+kind=end
+pos=418,122

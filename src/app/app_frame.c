@@ -8,7 +8,9 @@
  */
 
 #include "mem/torirs_mem.h"
+#include "app/app_iface_editor.h"
 #include "app/app_internal.h"
+#include "editor/editor_view.h"
 #include "perf_audit.h"
 
 #ifdef TORIRS_EMBED_SERVER
@@ -799,7 +801,17 @@ App_RunOnce(
      * acts on activations the overlay latched during the two calls above. */
     if( app->editor )
     {
+        /* A viewer window's toolbar, camera read-back and broadcast; it takes
+         * the frame's activation only while the command panels are hidden. */
+        EditorView_AppFrame(app);
         Editor_PanelTick(&app->editor_panel, app);
+        /* Interface editor pick: with picking armed, a left press in the view
+         * selects the edited interface's component under it. Ahead of the
+         * world click and of the uitree's own input pass further down. */
+        if( !app->input_frame_consumed && !app->chrome_pointer_owned
+            && input->curr.mouse_button_down[TORIRSM_LEFT] && AppIfaceEditor_PickArmed(app)
+            && AppIfaceEditor_PickAt(app, input->curr.mouse_x, input->curr.mouse_y) )
+            app->input_frame_consumed = 1;
         app_map_editor_world_click(app, input);
         app_map_editor_ghost_update(app);
         app_map_editor_preview_update(app);

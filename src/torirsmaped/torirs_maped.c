@@ -12,6 +12,7 @@
 
 #include "torirs_maped.h"
 #include "torirs_maped_catalog.h"
+#include "torirs_maped_view.h"
 
 #include "editor/editor_jm2.h"
 #include "mem/torirs_mem.h"
@@ -21,6 +22,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include "log/torirs_log.h"
+
+/* Views (torirs_maped_view.c, compiled into this unit at its end). */
+static int
+view_state_set_intercept(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t key);
+static void
+view_session_gone(
+    struct ToriRSMapEd* maped,
+    struct ToriRSMapEdSession* session);
+static void
+handle_spawn_view(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length);
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -119,6 +137,8 @@ ToriRSMapEd_SessionFree(struct ToriRSMapEdSession* session)
 
     if( session->maped )
     {
+        /* Its camera key goes with it (torirs_maped_view.h). */
+        view_session_gone(session->maped, session);
         for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
         {
             if( session->maped->sessions[i] == session )
@@ -1053,8 +1073,15 @@ save_doc(
     {
         assert(handle->text);
         snprintf(out_ref->key, sizeof(out_ref->key), "%s", handle->text->key);
-        status = files->doc_save(
-            user, handle->kind, handle->text->key, 0, handle->text->text, handle->text->length);
+        /* An emptied TEXT document (a detached builder's .interaction) goes
+         * away, like an emptied spawn file; a CFG or IFACE save always names
+         * its text. */
+        status = files->doc_save(user,
+            handle->kind,
+            handle->text->key,
+            0,
+            handle->kind == EDITOR_DOC_TEXT && handle->text->length == 0 ? NULL : handle->text->text,
+            handle->text->length);
     }
 
     if( status != EDITOR_HOST_OK )
@@ -1536,6 +1563,10 @@ handle_frame(
             session->alive = 0;
             return;
         }
+        /* The VIEW_SELF question, and camera keys only their owner may set
+         * (torirs_maped_view.h). */
+        if( view_state_set_intercept(session, maped, key) )
+            return;
 
         /* Store last-writer-wins under the requester's group, for that
          * group's STATE_SYNC replay. The store never interprets the values —
@@ -1639,6 +1670,11 @@ handle_frame(
             catalog_atlas_changed(maped, 0);
         return;
     }
+    if( v2 && type == TORIRSMAPED_REQ_SPAWN_VIEW )
+    {
+        handle_spawn_view(session, maped, body, length);
+        return;
+    }
     if( v2
         && (type == TORIRSMAPED_REQ_CATALOG_QUERY || type == TORIRSMAPED_REQ_CATALOG_RECORD
             || type == TORIRSMAPED_REQ_CATALOG_SQUARES) )
@@ -1719,3 +1755,7 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
  * the embed test, the daemon) already names this file. See the note at the
  * top of torirs_maped_catalog.c. */
 #include "torirs_maped_catalog.c"
+
+/* Views: SPAWN_VIEW, the camera keys and STATE_VIEW_SELF. Compiled into this
+ * unit for the catalog's reason (torirs_maped_view.h, BUILD NOTE). */
+#include "torirs_maped_view.c"

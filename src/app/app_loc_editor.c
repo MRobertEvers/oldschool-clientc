@@ -277,14 +277,19 @@ app_loc_editor_nudge(
     int dz)
 {
     struct LocEditorMove move;
+    int recorded;
+    int const edit_layout =
+        app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 
     if( !LocEditorSelection_Nudge(&app->locedit_selection, dx, dz, &move) )
         return;
-    App_WorldLocChange(app, move.from_x, move.from_z, move.level, -1, move.shape, move.from_angle);
-    /* The scene edit above is client-side only; this records the same move
-     * against the authored loc list so it survives a reload and can be saved.
-     * Both ends, which is why the move carries them. */
-    Editor_PanelRecordLocEdit(
+    /* The document first: the same move against the authored loc list, so it
+     * survives a reload and can be saved. Under the EDIT layout that is the
+     * whole edit -- the flush moves the placement -- and a runtime change on
+     * top would leave a second, default-lit copy. STATIC still shows it
+     * through the zone-packet seam (and so does EDIT when the square is not
+     * open in the document, which the record then refused). */
+    recorded = Editor_PanelRecordLocEdit(
         &app->editor_panel,
         app,
         move.from_x,
@@ -296,8 +301,12 @@ app_loc_editor_nudge(
         move.to_x,
         move.to_z,
         move.to_angle);
-    App_WorldLocChange(
-        app, move.to_x, move.to_z, move.level, move.loc_id, move.shape, move.to_angle);
+    if( !edit_layout || !recorded )
+    {
+        App_WorldLocChange(app, move.from_x, move.from_z, move.level, -1, move.shape, move.from_angle);
+        App_WorldLocChange(
+            app, move.to_x, move.to_z, move.level, move.loc_id, move.shape, move.to_angle);
+    }
     app_loc_editor_refresh_labels(app);
 }
 
@@ -308,11 +317,15 @@ static void
 app_loc_editor_rotate(struct App* app)
 {
     struct LocEditorMove move;
+    int recorded;
+    int const edit_layout =
+        app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT;
 
     if( !LocEditorSelection_Rotate(&app->locedit_selection, &move) )
         return;
-    /* Same pair as a nudge: the authored record first, then the scene. */
-    Editor_PanelRecordLocEdit(
+    /* Same pair as a nudge: the authored record first, then (STATIC, or a
+     * square the document does not hold) the scene. */
+    recorded = Editor_PanelRecordLocEdit(
         &app->editor_panel,
         app,
         move.from_x,
@@ -324,8 +337,9 @@ app_loc_editor_rotate(struct App* app)
         move.to_x,
         move.to_z,
         move.to_angle);
-    App_WorldLocChange(
-        app, move.to_x, move.to_z, move.level, move.loc_id, move.shape, move.to_angle);
+    if( !edit_layout || !recorded )
+        App_WorldLocChange(
+            app, move.to_x, move.to_z, move.level, move.loc_id, move.shape, move.to_angle);
     app_loc_editor_refresh_labels(app);
 }
 

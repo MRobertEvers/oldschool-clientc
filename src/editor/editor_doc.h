@@ -17,9 +17,8 @@
  *           to (`pack:<ns>.alloc|client|server|pack`, `compack:<type>`).
  *
  * CFG, IFACE and TEXT documents are held as TEXT. CFG_* commands go through
- * the config codec (editor_cfg.h, Editor_CfgApply); IF_* commands are still
- * plain splices on that text (Editor_IfApply) until the interface codec
- * replaces that body, the signature stays.
+ * the config codec (editor_cfg.h, Editor_CfgApply); IF_* commands go through
+ * the interface codec (editor_if.h, Editor_IfDocApply).
  *
  * The document is the source of truth while the editor runs. It is loaded
  * from the text in OSRS-Content rather than from the baked cache, and it is
@@ -316,22 +315,9 @@ Editor_CfgApply(
     const struct Editor_Cmd* command,
     enum Editor_CmdDirection direction);
 
-/**
- * Apply an IF_FIELD / IF_COMPONENT command to an IFACE document — the `.if`
- * text, one `[block]` per component, component N the Nth block — as a plain
- * text splice.
- *
- *   IF_FIELD      like CFG_FIELD, inside block `component`.
- *   IF_COMPONENT  add: a header-only block "[component<N>]" (with `layer=`
- *                 when parent_after >= 0) inserted at index_after; remove:
- *                 the block at index_before when it is exactly such a block;
- *                 both: `layer=` of block index_before changes from
- *                 parent_before to parent_after (-1 = absent), then the block
- *                 moves from index_before to index_after.
- *
- * Returns 1 when the text changed, 0 when the command does not match it.
- * Phase 3's interface codec replaces this body; the signature is fixed.
- */
+/** Apply an IF_FIELD / IF_COMPONENT to an IFACE document through the
+ *  interface codec. Command meanings are in editor_if.h. Returns 1 when the
+ *  text changed. */
 int
 Editor_IfApply(
     struct Editor_Doc* doc,

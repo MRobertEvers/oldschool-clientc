@@ -7,6 +7,7 @@
  */
 
 #include "app/app_internal.h"
+#include "editor/editor_view.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static int
@@ -445,6 +446,13 @@ app_world_paint(struct App* app)
         editor_vis_mask = Editor_PanelVisLevelMask(&app->editor_panel);
         if( editor_vis_mask )
             level_mask = editor_vis_mask;
+    }
+    /* A viewer window's level cap (editor/editor_view.h); 0 = every level. */
+    if( app->editor )
+    {
+        uint8_t const view_mask = EditorView_AppLevelMask(app);
+        if( view_mask )
+            level_mask = view_mask;
     }
     /* CAM_SHAKE jitter (reference Client-TS 4448): each axis is a sine plus a
      * random spread, and all five compound. It displaces the camera for this
