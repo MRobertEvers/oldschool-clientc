@@ -207,6 +207,12 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_SAVE == (int)ToriRSChromeSkin_SLOT_SaveButton,
     "chrome skin: SAVE is not the baked SaveButton");
 _Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT == (int)ToriRSChromeSkin_SLOT_SliderTrackLeft,
+    "chrome skin: SLIDER_TRACK_LEFT is not the baked SliderTrackLeft");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT == (int)ToriRSChromeSkin_SLOT_SliderTrackRight,
+    "chrome skin: SLIDER_TRACK_RIGHT is not the baked SliderTrackRight");
+_Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");
 

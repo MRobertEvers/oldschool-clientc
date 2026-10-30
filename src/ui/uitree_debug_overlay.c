@@ -7460,6 +7460,189 @@ dbg_panel_move_to(struct ToriRSChrome* ui, int panel, int x, int y)
     dbg_dirty_panel(ui, panel);
 }
 
+/* ---- snapping a dropped panel ----------------------------------------------
+ *
+ * Runs once, on the release that ends a title drag or a grip resize: the panel
+ * moved freely while held, and only where it was let go is adjusted. Edges win
+ * over the grid -- a panel dropped beside another should touch it, not stop a
+ * few pixels short on a grid line -- and the grid takes whatever no edge
+ * claimed, so an origin in open space still lands somewhere tidy.
+ */
+
+/** Panels a dropped one snaps against: visible, built, floating windows,
+ *  toolbars and menu bars. Popup menus and modals come and go over the
+ *  layout and are not part of it. */
+static int
+dbg_snap_neighbour(struct ToriRSChrome const* ui, int panel, int other)
+{
+    struct ToriRSChromePanel const* o = &ui->panels[other];
+
+    if( other == panel || !o->visible || o->modal || o->last_rect.w <= 0 || o->last_rect.h <= 0 )
+        return 0;
+    return o->style == TORIRS_CHROME_PANEL_WINDOW || o->style == TORIRS_CHROME_PANEL_TOOLBAR ||
+           o->style == TORIRS_CHROME_PANEL_MENUBAR;
+}
+
+/** Nearest multiple of `grid` (floor-based, so negative origins round too). */
+static int
+dbg_snap_round(int v, int grid)
+{
+    int const q = (v >= 0 ? v + grid / 2 : v - grid + 1 + grid / 2) / grid;
+    return q * grid;
+}
+
+/**
+ * Offer one snap: the edge now at `edge` would move to `at`, which puts the
+ * box's origin at `lo_if`. Kept when it is the closest offer so far and
+ * inside the tolerance.
+ */
+static void
+dbg_snap_offer(int edge, int at, int lo_if, int tolerance, int* best, int* best_d)
+{
+    int const d = edge > at ? edge - at : at - edge;
+    if( d <= tolerance && d < *best_d )
+    {
+        *best = lo_if;
+        *best_d = d;
+    }
+}
+
+/**
+ * One axis of a moved box: `lo` and `len` along the axis, `cross_lo` and
+ * `cross_len` across it. Returns the new `lo`. Abutting a neighbour (my near
+ * edge on its far one, or my far edge on its near one) counts only when the
+ * two overlap across the axis; aligning with its matching edge only when they
+ * touch across it (stacked in a column, or side by side in a row).
+ */
+static int
+dbg_snap_axis_move(
+    struct ToriRSChrome const* ui,
+    int panel,
+    int horizontal,
+    int lo,
+    int len,
+    int cross_lo,
+    int cross_len)
+{
+    int const extent = horizontal ? ui->surface_w : ui->surface_h;
+    int const tol = ui->snap_tolerance;
+    int best = lo;
+    int best_d = tol + 1;
+
+    dbg_snap_offer(lo, 0, 0, tol, &best, &best_d);
+    if( extent > 0 )
+        dbg_snap_offer(lo + len, extent, extent - len, tol, &best, &best_d);
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct ToriRSChromeRect const r = ui->panels[i].last_rect;
+        int const o_lo = horizontal ? r.x : r.y;
+        int const o_hi = o_lo + (horizontal ? r.w : r.h);
+        int const oc_lo = horizontal ? r.y : r.x;
+        int const oc_hi = oc_lo + (horizontal ? r.h : r.w);
+
+        if( !dbg_snap_neighbour(ui, panel, i) )
+            continue;
+        if( cross_lo < oc_hi && oc_lo < cross_lo + cross_len )
+        {
+            dbg_snap_offer(lo, o_hi, o_hi, tol, &best, &best_d);
+            dbg_snap_offer(lo + len, o_lo, o_lo - len, tol, &best, &best_d);
+        }
+        if( cross_lo <= oc_hi + tol && oc_lo <= cross_lo + cross_len + tol )
+        {
+            dbg_snap_offer(lo, o_lo, o_lo, tol, &best, &best_d);
+            dbg_snap_offer(lo + len, o_hi, o_hi - len, tol, &best, &best_d);
+        }
+    }
+    return best_d <= tol ? best : dbg_snap_round(lo, ui->snap_grid);
+}
+
+/**
+ * One axis of a resized box: the far edge at `hi` moves, `lo` stays. Returns
+ * the new length. Edges as for a move, but only the far edge is offered;
+ * otherwise the LENGTH rounds to the grid (never below one cell).
+ */
+static int
+dbg_snap_axis_size(
+    struct ToriRSChrome const* ui,
+    int panel,
+    int horizontal,
+    int lo,
+    int hi,
+    int cross_lo,
+    int cross_len)
+{
+    int const extent = horizontal ? ui->surface_w : ui->surface_h;
+    int const tol = ui->snap_tolerance;
+    int best = hi;
+    int best_d = tol + 1;
+    int len;
+
+    if( extent > 0 )
+        dbg_snap_offer(hi, extent, extent, tol, &best, &best_d);
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct ToriRSChromeRect const r = ui->panels[i].last_rect;
+        int const o_lo = horizontal ? r.x : r.y;
+        int const o_hi = o_lo + (horizontal ? r.w : r.h);
+        int const oc_lo = horizontal ? r.y : r.x;
+        int const oc_hi = oc_lo + (horizontal ? r.h : r.w);
+
+        if( !dbg_snap_neighbour(ui, panel, i) || o_lo <= lo )
+            continue;
+        if( cross_lo < oc_hi && oc_lo < cross_lo + cross_len )
+            dbg_snap_offer(hi, o_lo, o_lo, tol, &best, &best_d);
+        if( cross_lo <= oc_hi + tol && oc_lo <= cross_lo + cross_len + tol )
+            dbg_snap_offer(hi, o_hi, o_hi, tol, &best, &best_d);
+    }
+    if( best_d <= tol )
+        return best - lo;
+    len = dbg_snap_round(hi - lo, ui->snap_grid);
+    return len < ui->snap_grid ? ui->snap_grid : len;
+}
+
+/** The release of a title drag: snap the panel's origin (both axes against
+ *  the box it was dropped in). */
+static void
+dbg_panel_snap_drop(struct ToriRSChrome* ui, int panel)
+{
+    struct ToriRSChromePanel const* p = &ui->panels[panel];
+    int const w = p->last_rect.w;
+    int const h = p->last_rect.h;
+    int x;
+    int y;
+
+    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE || w <= 0 || h <= 0 )
+        return;
+    x = dbg_snap_axis_move(ui, panel, 1, p->x, w, p->y, h);
+    y = dbg_snap_axis_move(ui, panel, 0, p->y, h, x, w);
+    dbg_panel_move_to(ui, panel, x, y);
+}
+
+/** The release of a grip resize: snap the dragged right and bottom edges. */
+static void
+dbg_panel_snap_size(struct ToriRSChrome* ui, int panel)
+{
+    struct ToriRSChromePanel const* p = &ui->panels[panel];
+    int w;
+    int h;
+
+    if( ui->snap_grid <= 0 || p->dock != TORIRS_CHROME_DOCK_NONE || p->fixed_w <= 0 || p->fixed_h <= 0 )
+        return;
+    w = dbg_snap_axis_size(ui, panel, 1, p->x, p->x + p->fixed_w, p->y, p->fixed_h);
+    h = dbg_snap_axis_size(ui, panel, 0, p->y, p->y + p->fixed_h, p->x, w);
+    dbg_panel_resize_to(ui, panel, p->x + w, p->y + h);
+}
+
+void
+ToriRSChrome_SetSnap(struct ToriRSChrome* ui, int grid, int tolerance)
+{
+    assert(ui);
+    assert(grid >= 0);
+    assert(tolerance >= 0);
+    ui->snap_grid = grid;
+    ui->snap_tolerance = tolerance;
+}
+
 /* ---- panel scrolling ------------------------------------------------------
  *
  * The bar is geometry, not a widget: it belongs to the panel the way the resize
@@ -8040,6 +8223,8 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             ui->resize_grab_y =
                 y - (ui->panels[grip].last_rect.y + ui->panels[grip].last_rect.h);
             ui->resize_panel = grip;
+            ui->resize_from_w = ui->panels[grip].last_rect.w;
+            ui->resize_from_h = ui->panels[grip].last_rect.h;
             ui->press = -1;
             dbg_focus_release(ui);
             return 1;
@@ -8060,6 +8245,8 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             ui->drag_panel = header;
             ui->drag_grab_x = x - ui->panels[header].x;
             ui->drag_grab_y = y - ui->panels[header].y;
+            ui->drag_from_x = ui->panels[header].x;
+            ui->drag_from_y = ui->panels[header].y;
             ui->press = -1;
             dbg_focus_release(ui);
             return 1;
@@ -8235,20 +8422,33 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
     if( ui->resize_panel >= 0 )
     {
         if( dbg_valid_panel(ui, ui->resize_panel) )
+        {
+            struct ToriRSChromePanel* p = &ui->panels[ui->resize_panel];
             dbg_panel_resize_to(
                 ui, ui->resize_panel, x - ui->resize_grab_x, y - ui->resize_grab_y);
+            dbg_panel_snap_size(ui, ui->resize_panel);
+            if( p->fixed_w != ui->resize_from_w || p->fixed_h != ui->resize_from_h )
+                p->user_placed = 1;
+        }
         ui->resize_panel = -1;
         ui->press = -1;
         return 1;
     }
 
     /* The release that ends a drag. It lands the panel at the cursor one last
-     * time and retires the grab -- and reports consumed, so the click that
-     * dropped the panel is not also delivered to whatever is underneath it. */
+     * time, snaps it (ToriRSChrome_SetSnap) and retires the grab -- and
+     * reports consumed, so the click that dropped the panel is not also
+     * delivered to whatever is underneath it. */
     if( ui->drag_panel >= 0 )
     {
         if( dbg_valid_panel(ui, ui->drag_panel) )
+        {
+            struct ToriRSChromePanel* p = &ui->panels[ui->drag_panel];
             dbg_panel_move_to(ui, ui->drag_panel, x - ui->drag_grab_x, y - ui->drag_grab_y);
+            dbg_panel_snap_drop(ui, ui->drag_panel);
+            if( p->x != ui->drag_from_x || p->y != ui->drag_from_y )
+                p->user_placed = 1;
+        }
         ui->drag_panel = -1;
         ui->press = -1;
         return 1;

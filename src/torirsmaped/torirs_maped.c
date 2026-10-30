@@ -16,6 +16,8 @@
 #include "torirs_maped_build.h"
 #include "torirs_maped_live.h"
 
+#include "editor/editor_alloc.h"
+#include "editor/editor_cfg.h"
 #include "editor/editor_jm2.h"
 #include "mem/torirs_mem.h"
 
@@ -84,6 +86,7 @@ ToriRSMapEd_Open(
 
     memset(maped, 0, sizeof(*maped));
     Editor_HostOpenLocal(&maped->files, content_dir, repo_root);
+    snprintf(maped->content_dir, sizeof(maped->content_dir), "%s", content_dir);
     maped->open = 1;
 
     /* The document never derives here — deriving needs the cache profile,
@@ -1419,6 +1422,186 @@ handle_doc_create(
     send_status_extra(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_OK, (uint32_t)filled);
 }
 
+/** Open (kind, key) in the authority and read it, once. NULL when the
+ *  document cannot be opened or read; an absent file is an empty document. */
+static struct Editor_TextDoc*
+authority_text_doc(
+    struct ToriRSMapEd* maped,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    struct Editor_DocHandle handle;
+
+    if( !Editor_DocOpen(&maped->doc, kind, key, &handle) || !handle.text )
+        return NULL;
+    if( authority_load_doc(maped, &handle, key) != EDITOR_HOST_OK )
+        return NULL;
+    return handle.text;
+}
+
+static struct Editor_AllocText
+alloc_text_of(const struct Editor_TextDoc* doc)
+{
+    struct Editor_AllocText text;
+
+    text.text = doc->length > 0 ? doc->text : NULL;
+    text.length = doc->length;
+    return text;
+}
+
+/**
+ * SAVE_AS(CFG, "<type>:<name>", "<type>:<new name>"): copy a loc, npc or obj
+ * definition to a new name with a fresh id (design #save "Save as new").
+ *
+ * The id is chosen the way tools/ss_allocate.py would choose it
+ * (editor_alloc.h) over the tree's layers, with the ledger and the member
+ * index read from their OPEN documents when they are open — an allocation
+ * not saved yet holds its id, one an undo took back does not. The copy goes
+ * out as ordinary FACT_CMDs in one undo step: the ledger line, the
+ * pack/<type>.client line (the copy is a cache record with model data, so it
+ * needs a client half; the allocation alone routes it server-side), the
+ * CFG_BLOCK add and every field of the source.
+ */
+static void
+handle_save_as(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t kind;
+    char key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    char type[32];
+    char new_type[32];
+    char name[EDITOR_CMD_NAME_MAX];
+    char new_name[EDITOR_CMD_NAME_MAX];
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    struct Editor_TextDoc* source;
+    struct Editor_TextDoc* target;
+    struct Editor_TextDoc* ledger;
+    struct Editor_TextDoc* client;
+    struct Editor_TextDoc* index = NULL;
+    struct Editor_DocHandle handle;
+    struct Editor_AllocNs state;
+    struct Editor_AllocCopyRequest request;
+    struct Editor_AllocText ledger_text;
+    struct Editor_AllocText index_text;
+    struct Editor_AllocResult result;
+    struct Editor_Cmd* commands;
+    enum Editor_AllocStatus status;
+    int capacity;
+    int was_in_stroke;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, key, sizeof(key));
+    ToriRSMapEd_GetString(&reader, new_key, sizeof(new_key));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    if( kind != EDITOR_DOC_CFG )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
+        return;
+    }
+    if( !Editor_CfgKeySplit(key, type, sizeof(type), name, sizeof(name))
+        || !Editor_CfgKeySplit(new_key, new_type, sizeof(new_type), new_name, sizeof(new_name))
+        || strcmp(type, new_type) != 0 || !name[0] || !new_name[0] )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_REFUSED);
+        return;
+    }
+    if( strcmp(type, "loc") != 0 && strcmp(type, "npc") != 0 && strcmp(type, "obj") != 0 )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
+        return;
+    }
+
+    source = authority_text_doc(maped, EDITOR_DOC_CFG, key);
+    if( !source || source->length == 0 )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_ABSENT);
+        return;
+    }
+    /* The new record must be nobody's: no block of that name on disk or in
+     * the authority. The allocator refuses a name any id layer binds. */
+    target = authority_text_doc(maped, EDITOR_DOC_CFG, new_key);
+    if( !target || target->length > 0 )
+    {
+        TORIRS_LOG("torirsmaped: SAVE_AS refused — %s already exists\n", new_key);
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_REFUSED);
+        return;
+    }
+    Editor_AllocDocKey(type, "alloc", doc_key, sizeof(doc_key));
+    ledger = authority_text_doc(maped, EDITOR_DOC_TEXT, doc_key);
+    Editor_AllocDocKey(type, "client", doc_key, sizeof(doc_key));
+    client = authority_text_doc(maped, EDITOR_DOC_TEXT, doc_key);
+    if( !ledger || !client )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_IO_ERROR);
+        return;
+    }
+    /* The member index is read from disk unless someone has it open. */
+    Editor_AllocDocKey(type, "index", doc_key, sizeof(doc_key));
+    if( Editor_DocFind(&maped->doc, EDITOR_DOC_TEXT, doc_key, &handle) && handle.text
+        && handle.text->loaded )
+        index = handle.text;
+
+    ledger_text = alloc_text_of(ledger);
+    if( index )
+        index_text = alloc_text_of(index);
+    if( !Editor_AllocNsLoadWith(
+            &state, maped->content_dir, type, index ? &index_text : NULL, &ledger_text) )
+    {
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_IO_ERROR);
+        return;
+    }
+
+    memset(&request, 0, sizeof(request));
+    request.ns = type;
+    request.source_name = name;
+    request.source_text = source->text;
+    request.source_length = source->length;
+    request.new_name = new_name;
+    request.target = EDITOR_ALLOC_LEDGER;
+    request.member_client = 1;
+    request.member_server = 0;
+    request.id_file = ledger_text;
+    request.client_file = alloc_text_of(client);
+    capacity = Editor_AllocCopyCommandBound(&request);
+    commands = ToriMem_Alloc(ToriMem_Editor(), sizeof(*commands) * (size_t)capacity);
+    assert(commands);
+    status = Editor_AllocCopyPlan(&state, &request, commands, capacity, &result);
+    Editor_AllocNsFree(&state);
+    if( status != EDITOR_ALLOC_OK )
+    {
+        TORIRS_LOG("torirsmaped: SAVE_AS %s -> %s refused (allocation status %d)\n", key, new_key,
+            (int)status);
+        ToriMem_Free(ToriMem_Editor(), commands);
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS,
+            status == EDITOR_ALLOC_NO_ROOM ? EDITOR_HOST_IO_ERROR : EDITOR_HOST_REFUSED);
+        return;
+    }
+
+    /* One undo step, whatever stroke a client has open. */
+    was_in_stroke = maped->undo.in_stroke;
+    Editor_UndoStrokeBegin(&maped->undo);
+    for( int i = 0; i < result.command_count; i++ )
+        server_command(maped, &commands[i]);
+    Editor_UndoStrokeEnd(&maped->undo);
+    if( was_in_stroke )
+        Editor_UndoStrokeBegin(&maped->undo);
+    ToriMem_Free(ToriMem_Editor(), commands);
+
+    TORIRS_LOG("torirsmaped: copied %s to %s:%s, id %d (%d commands)\n", key, type, result.name,
+        result.id, result.command_count);
+    send_status_extra(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_OK, (uint32_t)result.id);
+}
+
 /* ---- catalog dispatch (torirs_maped_catalog.c does the work) ---- */
 
 static void
@@ -1695,9 +1878,7 @@ handle_frame(
     }
     if( v2 && type == TORIRSMAPED_REQ_SAVE_AS )
     {
-        /* Reserved (design #save): the id allocation it needs is phase 2's.
-         * A square's "save as new" is DOC_CREATE with the copy template. */
-        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
+        handle_save_as(session, maped, body, length);
         return;
     }
     if( v2 && type == TORIRSMAPED_REQ_DOC_CREATE )

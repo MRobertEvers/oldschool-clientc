@@ -6,6 +6,7 @@
  */
 
 #include "edpanel_common.h"
+#include "edpanel_ops.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
@@ -42,6 +43,52 @@ struct TerrainPanel
     enum Editor_Tool shown_tool;
     int shown_level;
 };
+
+/* ---- the footprint --------------------------------------------------------- */
+
+int
+Editor_Terrain_BrushFootprint(
+    const struct Editor_Brush* brush,
+    struct Editor_BrushTile* out,
+    int max)
+{
+    int count = 0;
+
+    assert(brush);
+    assert(out);
+    assert(brush->radius >= 0);
+    assert(brush->radius <= EDITOR_BRUSH_RADIUS_MAX);
+
+    /* Centre first, so a caller short of room still shows where it lands. */
+    if( max > 0 )
+    {
+        out[0].dx = 0;
+        out[0].dz = 0;
+        out[0].weight = Editor_BrushWeight(brush, 0, 0);
+        count = 1;
+    }
+    /* The square Editor_BrushCommands walks, kept where Editor_BrushWeight
+     * (the stroke's own weight) is above zero: the preview cannot disagree
+     * with the stroke about which tiles, or how strongly. */
+    for( int dz = -brush->radius; dz <= brush->radius; dz++ )
+        for( int dx = -brush->radius; dx <= brush->radius; dx++ )
+        {
+            double const weight = Editor_BrushWeight(brush, dx, dz);
+            if( weight <= 0.0 || (dx == 0 && dz == 0) || count >= max )
+                continue;
+            out[count].dx = dx;
+            out[count].dz = dz;
+            out[count].weight = weight;
+            count++;
+        }
+    return count;
+}
+
+int
+Editor_Terrain_ToolUsesFalloff(int tool)
+{
+    return tool == EDITOR_TOOL_RAISE || tool == EDITOR_TOOL_LOWER || tool == EDITOR_TOOL_SMOOTH;
+}
 
 static void
 terrain_readout(

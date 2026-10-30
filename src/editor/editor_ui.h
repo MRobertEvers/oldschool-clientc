@@ -255,6 +255,23 @@ struct EditorUiPanel
     /** A shared-state fact from this connection's Client (any key). */
     void (*on_state)(struct EditorUi* ui, void* self, uint32_t key, const int32_t* values, int count);
     void (*destroy)(struct EditorUi* ui, void* self);
+    /**
+     * Optional, for a panel with a part that grows into whatever height the
+     * layout gives it (the picker's map well). Returns that part's current
+     * height in chrome pixels and states the least it may shrink to and the
+     * height it asks for; the default layout measures the panel without it.
+     * NULL: the panel is its content's height.
+     */
+    int (*stretch)(struct EditorUi* ui, void* self, int* out_min_h, int* out_natural_h);
+};
+
+/** A box in surface pixels. */
+struct EditorUiRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
 };
 
 #define EDITOR_UI_PANELS_MAX 48
@@ -340,8 +357,9 @@ struct EditorUi
     /** Bumps on every line, so the console panel refreshes only on change. */
     int console_serial;
 
-    /** The default arrangement ran (Editor_UiTick, the first frame the
-     *  surface and the panels have sizes); later moves are the user's. */
+    /** The default layout ran for the current surface and scale
+     *  (Editor_UiTick, the first frame the surface and the panels have
+     *  sizes); cleared by a surface or scale change and by Reset layout. */
     int laid_out;
     /** The chrome panels the registered modules created, [panel_first,
      *  panel_end), and the chrome scale their pixel sizes were given in: a
@@ -350,14 +368,34 @@ struct EditorUi
     int panel_first;
     int panel_end;
     int layout_scale;
-    /** The surface the arrangement was made for, and where it put each
-     *  module window (indexed by chrome panel - panel_first): a surface that
-     *  changes size later (the side pane arriving, a window resize) is
-     *  arranged again while nothing has been dragged since. */
+    /** The surface the layout was made for. */
     int layout_surface_w;
     int layout_surface_h;
-    int placed_x[EDITOR_UI_LAYOUT_PANELS_MAX];
-    int placed_y[EDITOR_UI_LAYOUT_PANELS_MAX];
+    /** View > Snap to grid (default on): dropped and resized panels snap to
+     *  the EDP_GRID cell and to their neighbours' edges. */
+    int snap;
+    /** What the default layout left the world view, and the dock column on
+     *  the right edge (x, width) and the band it runs in (top, bottom). */
+    struct EditorUiRect world;
+    int dock_x;
+    int dock_w;
+    int dock_top;
+    int dock_bottom;
+    /**
+     * Per module window (indexed by chrome panel - panel_first):
+     *   member      part of the default set (shown by the first layout, or
+     *               opened since and docked by a later one);
+     *   boot_member the default set as the first layout found it (Reset);
+     *   docked      placed in the column by the last layout;
+     *   closed      docked, then closed by the user: a re-layout leaves it shut;
+     *   flown       opened while not docked, and placed beside the column.
+     */
+    unsigned char member[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned char boot_member[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned char docked[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned char closed[EDITOR_UI_LAYOUT_PANELS_MAX];
+    unsigned char flown[EDITOR_UI_LAYOUT_PANELS_MAX];
+    int booted_layout;
 };
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
@@ -413,6 +451,37 @@ Editor_UiSetVisible(
  */
 void
 Editor_UiTick(struct EditorUi* ui);
+
+/**
+ * The default layout, for the surface the chrome has now: the menu bar
+ * across the top, the tool rail at the left edge, one column of panels docked
+ * to the right edge (Terrain, Palette, Locs, Spawns, Rectangle, Inspector,
+ * Squares, Catalog, in that order, each given at least a few rows and the
+ * rest of the column shared top-down), the output console as a strip along
+ * the bottom of the world when it is short enough, and the world view the
+ * rectangle that is left -- the largest on the surface. Panels of the default
+ * set that do not fit the column are hidden (the View menu opens them, beside
+ * the column). Panels the user dragged or resized keep their place.
+ * Editor_UiTick runs it on the first frame and whenever the surface or the
+ * chrome scale changes.
+ */
+void
+Editor_UiLayout(struct EditorUi* ui);
+
+/** View > Reset layout: every module window back in the default layout for
+ *  the current surface, the default set shown again, drags forgotten. */
+void
+Editor_UiResetLayout(struct EditorUi* ui);
+
+/** View > Snap to grid. */
+void
+Editor_UiSetSnap(
+    struct EditorUi* ui,
+    int on);
+
+/** What the last layout left the world view (all zero before the first). */
+struct EditorUiRect
+Editor_UiWorldRect(const struct EditorUi* ui);
 
 /**
  * A window whose panels are hidden (a viewer, or the main window with its

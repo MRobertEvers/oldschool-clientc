@@ -462,7 +462,7 @@ Editor_Live_RegisterWith(
     ToriRSChrome_Separator(ui->chrome, self->panel);
     self->button_run = ToriRSChrome_Button(ui->chrome, self->panel, "RUN");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_run,
-        "Save everything, build the packs and the client cache, reload the live server");
+        "Save all, build packs and client cache, reload the live server");
     self->button_packs = ToriRSChrome_Button(ui->chrome, self->panel, "Build packs");
     self->button_client = ToriRSChrome_Button(ui->chrome, self->panel, "Build client cache");
     ToriRSChrome_Separator(ui->chrome, self->panel);

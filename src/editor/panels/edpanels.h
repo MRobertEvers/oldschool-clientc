@@ -13,6 +13,8 @@
  * inspector.
  */
 
+#include <stdint.h>
+
 struct EditorUi;
 
 /** Output console: the registry's log ring as a VLIST. "console" */
@@ -50,6 +52,26 @@ Editor_SquarePicker_Register(struct EditorUi* ui);
 void
 Editor_Spawns_Register(struct EditorUi* ui);
 
+struct Editor_SpawnRow;
+
+/** The spawns panel's multi-selection size; 0 while the panel is hidden
+ *  (so the D key duplicates locs, or nothing, when it is closed). */
+int
+Editor_Spawns_SelectionCount(struct EditorUi* ui);
+
+/** Duplicate [D]: the selected spawns copied one tile east, or to the
+ *  latched tile, as one undo step; the copies become the selection.
+ *  Returns the commands the authority accepted. */
+int
+Editor_Spawns_Duplicate(struct EditorUi* ui);
+
+/** Copy up to `max` selected rows into `out`; returns the selection's size. */
+int
+Editor_Spawns_Selection(
+    struct EditorUi* ui,
+    struct Editor_SpawnRow* out,
+    int max);
+
 /** The New square / Copy to / Save as new modal. "new_square" */
 void
 Editor_NewSquare_Register(struct EditorUi* ui);
@@ -58,8 +80,9 @@ Editor_NewSquare_Register(struct EditorUi* ui);
 void
 Editor_SaveGuard_Register(struct EditorUi* ui);
 
-/** The provider-backed loc / npc / obj catalog with the model well.
- *  App-bound. "catalog" */
+/** The asset catalog over the server's index (kind, find, paged results,
+ *  the record, Copy to new), with the provider's model well when an App is
+ *  bound (the panel runs without one). "catalog" */
 void
 Editor_Catalog_Register(struct EditorUi* ui);
 
@@ -125,6 +148,28 @@ Editor_Catalog_PreviewId(struct EditorUi* ui);
 int
 Editor_Catalog_ModelView(struct EditorUi* ui);
 
+/**
+ * Copy the loc / npc / obj definition `name` (`kind` a
+ * TORIRSMAPED_CATALOG_LOC..OBJ) to `new_name` with a fresh id: SAVE_AS on
+ * the authority, one undo step (Editor_CopyRecord). On success the copy is
+ * the pick and is open in this mirror; the console says what happened.
+ * Returns 1 when the copy was made. The catalog's and the shell editor's
+ * "Copy to new..." both end here.
+ */
+int
+Editor_Catalog_CopyRecord(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name,
+    const char* new_name);
+
+struct Editor_CatalogModel;
+
+/** The catalog panel's model (edpanel_catalog_model.h), NULL without the
+ *  panel: what the tests read. */
+const struct Editor_CatalogModel*
+Editor_Catalog_Model(struct EditorUi* ui);
+
 /** The catalog follows a selected loc: kind Locs, pick = that loc. */
 void
 Editor_Catalog_Adopt(
@@ -135,5 +180,71 @@ Editor_Catalog_Adopt(
  *  made, before the broadcast lands). */
 void
 Editor_SquarePicker_Refresh(struct EditorUi* ui);
+
+/* ---- editing feedback: brush footprint, spawn placement, history ---------- */
+
+struct Editor_Brush;
+
+/** One tile a brush application touches: its offset from the centre and the
+ *  weight the stroke gives it (Editor_BrushWeight, the same call). */
+struct Editor_BrushTile
+{
+    int dx;
+    int dz;
+    double weight;
+};
+
+/** The tiles the next application of `brush` touches, centre first: what
+ *  the footprint preview draws and exactly the set Editor_BrushCommands
+ *  visits. Returns the count (at most `max`). edpanel_terrain.c */
+int
+Editor_Terrain_BrushFootprint(
+    const struct Editor_Brush* brush,
+    struct Editor_BrushTile* out,
+    int max);
+
+/** Whether `tool`'s effect fades with the brush weight (raise, lower,
+ *  smooth); the others treat every footprint tile alike. */
+int
+Editor_Terrain_ToolUsesFalloff(int tool);
+
+/** Place the catalog's npc / obj pick (tools.pick_kind 1 / 2) as a spawn row
+ *  at absolute (world_x, world_z, level): the click the spawn ghost
+ *  previews. The pick is resolved to its pack symbol through the server's
+ *  catalog. Returns 1 when the authority took the row. edpanel_locs.c */
+int
+Editor_Locs_PlaceSpawn(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level);
+
+/** The session's undo groups, newest first, click to undo / redo to one;
+ *  filter by document key. "history" */
+void
+Editor_History_Register(struct EditorUi* ui);
+
+/** Undo / redo until `target_groups` of the history's groups are applied
+ *  (0 = everything this window saw undone). Returns the steps taken. */
+int
+Editor_History_Jump(
+    struct EditorUi* ui,
+    int target_groups);
+
+/** The History panel's row `row` (0 newest): what a click asks for (applied
+ *  groups) and its text; -1 / NULL past the end. For tests. */
+int
+Editor_History_RowTarget(
+    struct EditorUi* ui,
+    int row);
+
+const char*
+Editor_History_RowText(
+    struct EditorUi* ui,
+    int row);
+
+/** How many times the History panel rebuilt its rows (tests). */
+int
+Editor_History_Rebuilds(struct EditorUi* ui);
 
 #endif

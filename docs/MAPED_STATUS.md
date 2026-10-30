@@ -1,4 +1,4 @@
-# ToriRSEd status (branch v3-maped, after phase 4)
+# ToriRSEd status (branch v3-maped, after phase 5)
 
 The design is `docs/MAPED_DESIGN.html`; the per-phase ownership brief is
 `docs/MAPED_IMPLEMENTATION.md`. This page says what is built against each
@@ -7,8 +7,10 @@ file and line to start from), and how to run the editor. Read it first when
 picking the editor up again.
 
 Commits: phase 0 `86bc224de` (design + brief), 0b `f2998b6af` (picker and New
-square in the brief), 1 `a0eeeb676`, 2 `ffdc6be36`, 3 `aa8798eae`, 4 (this
-commit; its hash is in the phase-4 integrator's report).
+square in the brief), 1 `a0eeeb676`, 2 `ffdc6be36`, 3 `aa8798eae`, 4 `ceabbc9c2`,
+5 (this commit: the owner's follow-ups after the first live-window run on
+2026-10-30 -- dock layout, server catalog panel, record copy, spawn duplicate,
+brush footprint, spawn ghosts, History panel, slider skin).
 
 ## How to run it
 
@@ -89,19 +91,21 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 4 | The editing World | WorldBuilderOps with STATIC (pure refactor) and EDIT (resident build maps, placement handles, tile-local flush); `[world:boot] layout=`; per-tile derive | local flush gaps (occluders, minimap icons, LINK_BELOW rebakes); ghost under EDIT still uses runtime loc changes |
 | 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab | layer toggles not read by the painter; embedded editor cannot spawn views; viewer not yet exercised against a daemon in an open window |
 | 6 | Server state and protocol | protocol v2, HELLO capabilities, frame/state-key reservations, group state relay | — |
-| 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER, RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; 26 baked skin slots; DOM rendering | DOM multi-panel dock layout |
-| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD; mtime refresh | first build blocks the server pump (~1 s warm, ~6 s cold) |
-| 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear | — |
+| 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering | DOM multi-panel dock layout; layout not persisted between runs (no editor prefs store) |
+| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD; mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
+| 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
 | 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE | picker Delete only clears the square (no DOC_DELETE); tab strip unreadable with ~50 areas; a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet |
-| 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress | — |
+| 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate [D]; translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination | spawn move has no command to preview; arrow nudges commit per press (no preview) |
 | 11 | Loc interaction builder | `.interaction` model, loc emitter (oploc/oplocu/aploc), step templates, sscompile Check | Check runs synchronously on the UI thread |
 | 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
-| 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
+| 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
 | 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` | client cache eviction beyond interface packs; player list and position in the control protocol; Restart offer; stale list (always 0) |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
-| 18–19 | Build order, risks | phases 0–4 done in order | see open issues |
+| 3b | History panel | `Editor_History` (editor_cmd.c) rebuilt from the FACT_CMD stream + own undo/redo; rows newest first with names ("Raise 21 tiles m50_50 L0", "New square m1_1 (copy of m50_50)"), undone prefix, current marker, filter by key, click-to-jump; rebuilds only on serial change | a late-joining window lists only steps since it connected; another window's long drag may show as several rows until an undo re-cuts them |
+| 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
+| 18–19 | Build order, risks | phases 0–5 done in order | see open issues |
 
 ## The live lane end to end (phase 4)
 
@@ -163,8 +167,10 @@ Every issue the phase reports left open, by area, with where to start.
   src/torirsmaped/torirs_maped.c:909 `handle_doc_close`.
 - No DOC_DELETE; the picker's Delete clears the square instead:
   src/editor/panels/edpanel_squares.c:845.
-- SAVE_AS is reserved and answers UNSUPPORTED (design §15 Save as new):
-  src/torirsmaped/torirs_maped.c (TORIRSMAPED_REQ_SAVE_AS).
+- SAVE_AS copies only loc / npc / obj records, and only their cache block
+  (configs/all.<type>): server overlay fields are not copied, and the copy
+  is written into configs/all.<type>, not a server overlay file. Other kinds
+  answer UNSUPPORTED: src/torirsmaped/torirs_maped.c `handle_save_as`.
 - CFG_BLOCK add/remove leaves a separator blank line on undo when the file
   ended in one: src/editor/editor_cfg.c.
 - IF_COMPONENT remove only takes back blocks the stub added: src/editor/editor_if.c.
@@ -176,8 +182,8 @@ Every issue the phase reports left open, by area, with where to start.
   fields): src/editor/editor_cmd.h.
 - The catalog's first build (~1 s warm, ~6 s cold) runs inside the server
   pump: src/torirsmaped/torirs_maped_catalog.c.
-- The allocator and the vars bit map are not wired to the protocol or a panel:
-  src/editor/editor_alloc.c, src/editor/editor_vars.c.
+- The allocator is wired only to SAVE_AS; the vars bit map is not wired to
+  the protocol or a panel: src/editor/editor_alloc.c, src/editor/editor_vars.c.
 - 3 non-positional compacks are not locked in the mirror: src/editor/editor_if.c.
 
 ### World, views, chrome, panels
@@ -195,9 +201,16 @@ Every issue the phase reports left open, by area, with where to start.
 - The viewer window and Open in new view have not been run against a daemon
   in an open window (only in tests and headless boots).
 - The DOM chrome has no multi-panel dock layout: src/plugin_chrome/runtime-source.js.
-- The picker's tab strip is unreadable with ~50 areas, and at chrome scale 2
-  on a ~1000-row canvas the panels overlap: src/editor/panels/edpanel_squares.c,
-  src/editor/editor_ui.c `ui_default_layout`.
+- (closed in phase 5) the picker's tab strip is gone (the Area dropdown picks
+  the area) and the default layout no longer overlaps; the atlas re-fits to the
+  panel until the user zooms or pans. Still open: the viewer window's toolbar
+  never calls `ToriRSChrome_SetSnap`; the web executor's sprite list lacks the
+  two new slider slots (src/plugin_chrome/runtime*.js draws an HTML range input).
+- The npc placement ghost is a real scene npc, so it appears under the cursor
+  in the right-click menu while it is up: src/app/app_map_editor.c.
+- `TORIRS_EDITOR_HOVER=<x>,<z>[,<tool>[,npc|obj|loc,<id>]]` parks the editor
+  hover for photographs (documented in src/app/app_map_editor.c); there is still
+  no pointer injection for a scripted click.
 - IF1 type 8 (peng_emote) cannot be mounted: src/app/app_iface_editor.c.
 - Builder Check (sscompile) and CS2 compile run synchronously on the UI
   thread: src/editor/builder/builder_ssc.c:624 `Builder_SscRun`,

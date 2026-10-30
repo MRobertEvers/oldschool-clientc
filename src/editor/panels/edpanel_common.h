@@ -17,6 +17,30 @@
 #define EDP_COL_W 196
 #define EDP_PICKER_W 400
 
+/* The default layout (editor_ui.c Editor_UiLayout), in 1x chrome pixels.
+ *
+ * EDP_GRID is the dock grid's cell: a dropped panel's origin and a resized
+ * panel's size snap to it. 8 because every chrome metric is built on it at 1x
+ * -- the 6 px pad plus the 1 px rule each side, the 18 px row plus its 3 px
+ * gap is 21, the 32 px icon box plus its gap is 34 -- so one cell is about
+ * one gap's slack: a panel never lands more than 4 px from where it was let
+ * go, and two panels on grid lines are never one rule apart. 16 would visibly
+ * jump a panel half a row. It scales with the chrome (16 px at 2x).
+ *
+ * The dock column takes EDP_DOCK_W_PERCENT of the surface's width, at least
+ * EDP_DOCK_W_MIN (the 196 px the panels were authored at) and at most
+ * EDP_DOCK_W_MAX (the picker's authored width). Each panel in it gets at
+ * least EDP_DOCK_MIN_H (its title and about six rows; the rest scrolls). */
+#define EDP_GRID 8
+#define EDP_DOCK_W_PERCENT 22
+#define EDP_DOCK_W_MIN 200
+#define EDP_DOCK_W_MAX 400
+#define EDP_DOCK_MIN_H 160
+/* The tool rail: one column is the 32 px box plus 3 px of strip each side;
+ * each further column adds a box and a 2 px gap (dbg_build_toolbar). */
+#define EDP_RAIL_W 38
+#define EDP_RAIL_PITCH 34
+
 /** A 1x-authored layout constant at the chrome's current scale. */
 static inline int
 edp_px(

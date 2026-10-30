@@ -319,6 +319,26 @@ Editor_SpawnDeleteCommand(
     const struct Editor_SpawnRow* row,
     struct Editor_Cmd* out);
 
+/**
+ * Duplicate spawn rows: each of `rows` copied by (dx, dz, dlevel) as a plain
+ * SPAWN add (a copy of a generated row is an EDITED row: the generated file
+ * is never written), into the edited document of the square the copy lands
+ * in — which may differ from the original's. `out_rows` (n of them, may be
+ * NULL) gets each copy, for the selection. Returns the commands written;
+ * a copy that would leave the world (negative tile, level outside 0..3) is
+ * skipped.
+ */
+int
+Editor_SpawnOpsDuplicate(
+    const struct Editor_SpawnRow* rows,
+    int n,
+    int dx,
+    int dz,
+    int dlevel,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_SpawnRow* out_rows);
+
 /** Whether `edited` suppresses the generated `row`. */
 int
 Editor_SpawnIsSuppressed(

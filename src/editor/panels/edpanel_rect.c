@@ -138,7 +138,7 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     self->button_fill = ToriRSChrome_Button(ui->chrome, self->panel, "Fill with palette");
     self->button_clear = ToriRSChrome_Button(ui->chrome, self->panel, "Clear");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_paste,
-        "Paste at the rectangle's SW corner; authored heights shift to the new ground");
+        "Paste at the SW corner; authored heights follow the new ground");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_clear, "Every tile back to no tokens");
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 

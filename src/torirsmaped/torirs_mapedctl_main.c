@@ -34,6 +34,11 @@
  *                          one TEXT_SPLICE on a text document ("rs2:<path
  *                          under server/scripts>"): the first <find> becomes
  *                          <replace>; unsaved until save or RUN
+ *   cfg-copy <type> <name> <new_name>
+ *                          SAVE_AS: copy the loc / npc / obj definition
+ *                          <name> to <new_name> with a fresh id from
+ *                          pack/<type>.alloc and its pack/<type>.client line,
+ *                          as one undo step; unsaved until save or RUN
  *   tile-height <mx> <mz> <level> <lx> <lz> <height>
  *                          one TILE command on square m<mx>_<mz>: the tile
  *                          keeps every field but its raw height byte
@@ -440,6 +445,43 @@ cmd_text_replace(
     return 0;
 }
 
+/** SAVE_AS on a config record: "<type>:<name>" -> "<type>:<new_name>". */
+static int
+cmd_cfg_copy(
+    struct EditorHost* host,
+    char const* type,
+    char const* name,
+    char const* new_name)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    enum EditorHost_Status status;
+    int id = -1;
+    int written;
+
+    written = snprintf(key, sizeof(key), "%s:%s", type, name);
+    if( written <= 0 || (size_t)written >= sizeof(key) )
+    {
+        fprintf(stderr, "torirsmapedctl: %s:%s is too long\n", type, name);
+        return 1;
+    }
+    written = snprintf(new_key, sizeof(new_key), "%s:%s", type, new_name);
+    if( written <= 0 || (size_t)written >= sizeof(new_key) )
+    {
+        fprintf(stderr, "torirsmapedctl: %s:%s is too long\n", type, new_name);
+        return 1;
+    }
+    status = Editor_HostMapEdSaveAs(host, EDITOR_DOC_CFG, key, new_key, &id);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: copying %s to %s was refused (status %d)\n", key, new_key,
+            (int)status);
+        return 1;
+    }
+    printf("copied %s to %s, id %d\n", key, new_key, id);
+    return 0;
+}
+
 /** One `.jm2` tile line's tokens (`h<n> o<id>;<shape>;<rot> f<n> u<n>`), the
  *  grammar editor_jm2.c parses. 0 for a token it does not know. */
 static int
@@ -766,7 +808,7 @@ main(
             "  select <x> <z> <level> | tool <n> | sync | undo | redo | save | bake\n"
             "  doc <square|spawn|cfg|iface|text> <key>\n"
             "  new <x> <z> [storage] [empty|flat <height>|copy <key>]\n"
-            "  text-replace <key> <find> <replace>\n"
+            "  text-replace <key> <find> <replace> | cfg-copy <type> <name> <new_name>\n"
             "  tile-height <mx> <mz> <level> <lx> <lz> <height>\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  build packs|client [seconds] | run [seconds]\n");
@@ -859,6 +901,8 @@ main(
     }
     else if( strcmp(command, "text-replace") == 0 && arg_count >= 3 )
         result = cmd_text_replace(&host, args[0], args[1], args[2]);
+    else if( strcmp(command, "cfg-copy") == 0 && arg_count >= 3 )
+        result = cmd_cfg_copy(&host, args[0], args[1], args[2]);
     else if( strcmp(command, "tile-height") == 0 && arg_count >= 6 )
         result = cmd_tile_height(&host, atoi(args[0]), atoi(args[1]), atoi(args[2]),
             atoi(args[3]), atoi(args[4]), atoi(args[5]));

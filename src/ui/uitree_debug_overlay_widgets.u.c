@@ -43,6 +43,15 @@
 #define DBG_KNOB DBG_PX(16)
 #define DBG_SLIDER_VALUE_W DBG_PX(36)
 #define DBG_SLIDER_TRACK_H DBG_PX(6)
+/** The baked track: 14 px tall, 8 px end caps, a 16 px middle repeated. */
+#define DBG_SLIDER_SKIN_H DBG_PX(14)
+#define DBG_SLIDER_CAP_W DBG_PX(8)
+#define DBG_SLIDER_TILE_W DBG_PX(16)
+/** A slider's caption column: at most this share of the row, so the track
+ *  always gets at least half of it (the fixed 104 px column left a 196 px
+ *  panel's track 40 px long). */
+#define DBG_SLIDER_LABEL_PERCENT 30
+#define DBG_SLIDER_LABEL_GAP DBG_PX(6)
 /** A docked panel's splitter band, on its inner edge. */
 #define DBG_SPLIT DBG_PX(5)
 /** Smallest a splitter drag may make a docked panel. */
@@ -83,8 +92,10 @@ static const unsigned char k_dbg_slot_size[TORIRS_CHROME_SKIN_SLOT_COUNT][2] = {
     [TORIRS_CHROME_SKIN_TREE_OPEN] = { 16, 16 },
     [TORIRS_CHROME_SKIN_RADIO_ON] = { 17, 17 },
     [TORIRS_CHROME_SKIN_RADIO_OFF] = { 17, 17 },
-    [TORIRS_CHROME_SKIN_SLIDER_TRACK] = { 16, 16 },
+    [TORIRS_CHROME_SKIN_SLIDER_TRACK] = { 16, 14 },
     [TORIRS_CHROME_SKIN_SLIDER_KNOB] = { 16, 16 },
+    [TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT] = { 8, 14 },
+    [TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT] = { 8, 14 },
     [TORIRS_CHROME_SKIN_SPLITTER_GRIP] = { 7, 11 },
     [TORIRS_CHROME_SKIN_WARNING] = { 7, 18 },
     [TORIRS_CHROME_SKIN_ERROR] = { 16, 16 },
@@ -1136,13 +1147,33 @@ ToriRSChrome_SliderValue(struct ToriRSChrome const* ui, int widget)
     return ui->widgets[widget].ivalue;
 }
 
+/**
+ * A slider's caption column: the row's fixed label column, narrowed to
+ * DBG_SLIDER_LABEL_PERCENT of the row, but never narrower than the caption
+ * itself plus a gap. Stacked and unlabelled rows keep what every row gets.
+ */
+static int
+dbg_slider_label_w(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    int const fixed = dbg_row_box_offset(ui, w);
+    int const share = w->w * DBG_SLIDER_LABEL_PERCENT / 100;
+    int text;
+
+    if( fixed <= 0 || w->w <= 0 || share >= fixed )
+        return fixed;
+    text = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) + DBG_SLIDER_LABEL_GAP;
+    if( text > fixed )
+        return fixed;
+    return share > text ? share : text;
+}
+
 /** The track's box in a laid-out slider row. */
 static struct ToriRSChromeRect
 dbg_slider_track(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
 {
     struct ToriRSChromeRect r;
 
-    r.x = w->x + dbg_row_box_offset(ui, w);
+    r.x = w->x + dbg_slider_label_w(ui, w);
     r.y = w->y;
     r.w = w->x + w->w - DBG_SLIDER_VALUE_W - r.x;
     r.h = DBG_ROW_H;
@@ -1805,7 +1836,10 @@ dbg_ext_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
                                    ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label)
                                            : 0);
     case TORIRS_CHROME_W_SLIDER:
-        return dbg_row_box_offset(ui, w) + DBG_INPUT_MIN_W + DBG_SLIDER_VALUE_W;
+        return (w->label[0] ? ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label)
+                                  + DBG_SLIDER_LABEL_GAP
+                            : 0)
+               + DBG_INPUT_MIN_W + DBG_SLIDER_VALUE_W;
     case TORIRS_CHROME_W_RADIO:
         return DBG_PX(TORIRS_CHROME_M_BOX) + DBG_CHECK_GAP +
                ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
@@ -2236,12 +2270,30 @@ dbg_ext_draw(
             dbg_push_text(
                 ui, row_x, dbg_row_text_baseline(ui, row_y, row_h), w->label,
                 w->color ? w->color : th->text_dim, ui->theme.font_row, 0, clip);
-        if( th->skin_dropdown && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK) )
+        if( th->skin_dropdown && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK)
+            && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT)
+            && dbg_skin_has(ui, TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT) && t.w >= 2 * DBG_SLIDER_CAP_W )
         {
-            struct ToriRSChromeRect track_clip = dbg_rect_clip(clip, t);
-            dbg_fill_tiled(
-                ui, t.x, mid_y - DBG_PX(8), t.w, DBG_PX(16), TORIRS_CHROME_SKIN_SLIDER_TRACK,
-                DBG_PX(16), DBG_PX(16), track_clip);
+            /* The settings tab's track, one continuous bar: the pointed caps
+             * at the two ends and the plain middle repeated between them,
+             * each drawn as a box at the chrome's scale (a native-size blit
+             * stepped by a scaled pitch leaves a gap after every tile). */
+            int const y = mid_y - DBG_SLIDER_SKIN_H / 2;
+            int const mid_x0 = t.x + DBG_SLIDER_CAP_W;
+            int const mid_x1 = t.x + t.w - DBG_SLIDER_CAP_W;
+            struct ToriRSChromeRect middle = { mid_x0, y, mid_x1 - mid_x0, DBG_SLIDER_SKIN_H };
+            struct ToriRSChromeRect const middle_clip = dbg_rect_clip(clip, middle);
+
+            dbg_push_sprite_box(
+                ui, t.x, y, DBG_SLIDER_CAP_W, DBG_SLIDER_SKIN_H, TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT, clip);
+            if( middle_clip.w > 0 && middle_clip.h > 0 )
+                for( int x = mid_x0; x < mid_x1; x += DBG_SLIDER_TILE_W )
+                    dbg_push_sprite_box(
+                        ui, x, y, DBG_SLIDER_TILE_W, DBG_SLIDER_SKIN_H, TORIRS_CHROME_SKIN_SLIDER_TRACK,
+                        middle_clip);
+            dbg_push_sprite_box(
+                ui, mid_x1, y, DBG_SLIDER_CAP_W, DBG_SLIDER_SKIN_H, TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT,
+                clip);
         }
         else
         {

@@ -1228,6 +1228,38 @@ Editor_HostMapEdDocCreate(
 }
 
 enum EditorHost_Status
+Editor_HostMapEdSaveAs(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key,
+    const char* new_key,
+    int* out_id)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    enum EditorHost_Status status;
+    uint32_t id = 0;
+
+    assert(key);
+    assert(new_key);
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)kind);
+    ToriRSMapEd_PutString(&payload, key);
+    ToriRSMapEd_PutString(&payload, new_key);
+    status = rpc_status(
+        remote,
+        TORIRSMAPED_REQ_SAVE_AS,
+        ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload),
+        &id);
+    ToriRSMapEd_BufFree(&payload);
+    if( out_id )
+        *out_id = status == EDITOR_HOST_OK ? (int)id : -1;
+    return status;
+}
+
+enum EditorHost_Status
 Editor_HostMapEdSquareOpen(
     struct EditorHost* host,
     int map_x,

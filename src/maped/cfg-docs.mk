@@ -10,6 +10,19 @@
 MAPED_CLIENT_SRCS += editor/editor_cfg.c
 MAPED_SERVER_SRCS += editor/editor_cfg.c
 
+# SAVE_AS (a config record copied to a new name, torirs_maped.c
+# handle_save_as) allocates the id with editor_alloc.c, which reads the
+# namespace floors from the content register. Every binary that links
+# torirs_maped.c links them: torirsmaped and the tests through
+# MAPED_SERVER_SRCS, the client through MAPED_CLIENT_SRCS (it already links
+# ini.o; with EMBED_SERVER=1 the server's own list carries the register).
+MAPED_SERVER_SRCS += editor/editor_alloc.c content/content_register.c $(INI_SRC)
+MAPED_CLIENT_SRCS += editor/editor_alloc.c
+ifneq ($(EMBED_SERVER),1)
+MAPED_CLIENT_SRCS += content/content_register.c
+endif
+test-torirsmaped-embed: TORIMEM_SRCS += editor/editor_alloc.c content/content_register.c $(INI_SRC)
+
 # The editor tests in src/makefile list their sources by hand, and that file is
 # closed to this owner. A target-specific append puts the codec on exactly
 # those link lines (each recipe names $(TORIMEM_SRCS)). If the integrator adds

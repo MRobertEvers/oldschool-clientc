@@ -469,7 +469,9 @@ enum ToriRSChromeSkinSlot
     /** options_radio_buttons frames 2 (on) and 0 (off), 17x17 like CheckOn. */
     TORIRS_CHROME_SKIN_RADIO_ON,
     TORIRS_CHROME_SKIN_RADIO_OFF,
-    /** The settings slider's track tile and its bobble knob. */
+    /** The settings tab's slider: the plain middle of its track (repeated
+     *  across the track; the caps are SLIDER_TRACK_LEFT/RIGHT below) and the
+     *  brightness slider's bobble (2858). */
     TORIRS_CHROME_SKIN_SLIDER_TRACK,
     TORIRS_CHROME_SKIN_SLIDER_KNOB,
     /** A 7x11 drag handle, centred on a splitter's grip band. */
@@ -482,6 +484,10 @@ enum ToriRSChromeSkinSlot
     TORIRS_CHROME_SKIN_STOP,
     TORIRS_CHROME_SKIN_BUILD,
     TORIRS_CHROME_SKIN_SAVE,
+    /** The slider track's two pointed end caps, 8x14 each. Appended rather
+     *  than placed beside SLIDER_TRACK so no earlier slot changes index. */
+    TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT,
+    TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
@@ -1425,6 +1431,13 @@ struct ToriRSChromePanel
     int dock;
     int dock_size;
     int dock_min;
+    /**
+     * Set when the user ends a drag or a resize that changed this panel's box
+     * (ToriRSChrome_MouseUp); never cleared by the chrome. A host that lays
+     * its windows out itself reads it as "leave this one where it was put"
+     * and clears it when it takes the layout back (the editor's Reset layout).
+     */
+    int user_placed;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -1608,6 +1621,10 @@ struct ToriRSChrome
     int drag_panel;
     int drag_grab_x;
     int drag_grab_y;
+    /** Where the dragged panel was when it was picked up: a release that puts
+     *  it back there is a click on the title, not a placement. */
+    int drag_from_x;
+    int drag_from_y;
 
     /**
      * Panel being resized by its grip, or -1.
@@ -1619,6 +1636,9 @@ struct ToriRSChrome
     int resize_panel;
     int resize_grab_x;
     int resize_grab_y;
+    /** The resized panel's box when the grip was taken (see drag_from_x). */
+    int resize_from_w;
+    int resize_from_h;
 
     /** Widget handles, -1 for none. */
     int focus;
@@ -1765,6 +1785,13 @@ struct ToriRSChrome
     int graph_hover_key;
     /** Docked panel whose splitter is being dragged, or -1. */
     int split_panel;
+    /**
+     * Snapping for a dropped or resized floating panel, in chrome pixels
+     * (ToriRSChrome_SetSnap). `snap_grid` 0 is off: the panel lands where it
+     * was let go, as before.
+     */
+    int snap_grid;
+    int snap_tolerance;
     /** Host clock as of the last ToriRSChrome_Tick, and when the current
      *  hover began on it (-1 = not yet stamped). */
     int64_t now_ms;
@@ -2874,6 +2901,20 @@ ToriRSChrome_ModalAdd(struct ToriRSChrome* ui, char const* title, int width);
 /** The topmost visible modal panel, or -1. */
 int
 ToriRSChrome_ModalPanel(struct ToriRSChrome const* ui);
+
+/* Snapping */
+/**
+ * Snap floating panels when the user lets go of them. On the release of a
+ * title-bar drag the panel's left and top edges (or its right and bottom
+ * ones) go to the nearest edge of the surface or of a visible neighbour
+ * within `tolerance` pixels -- abutting it, or aligned with it when the two
+ * sit side by side -- and otherwise to the nearest multiple of `grid`. On the
+ * release of a resize grip the dragged right and bottom edges snap the same
+ * way, and otherwise the size rounds to the grid. Nothing snaps mid-gesture.
+ * `grid` 0 turns snapping off; a negative value is a caller bug.
+ */
+void
+ToriRSChrome_SetSnap(struct ToriRSChrome* ui, int grid, int tolerance);
 
 /* Docking and splitters */
 /** enum ToriRSChromeDock; `size` the docked extent (ignored for FILL/NONE). */

@@ -17,6 +17,11 @@
 #      else's.
 #   5. The authoritative document answers a square open to a client that
 #      holds no document of its own.
+#   7. cfg-copy (SAVE_AS on a config record) through the daemon: the copy's
+#      block, its ledger id and its client membership line land byte-exact
+#      on save; a second copy takes the next id; undo takes the whole copy
+#      back as one step; a taken name, a missing source and a non-config
+#      type are refused.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -57,9 +62,22 @@ lacks() {
 }
 
 rm -rf "$SCRATCH"
-mkdir -p "$SCRATCH/maps"
+mkdir -p "$SCRATCH/maps" "$SCRATCH/configs" "$SCRATCH/pack"
 cp "$SAMPLE_JM2" "$SCRATCH/maps/"
 cp "$SAMPLE_JL2" "$SCRATCH/maps/"
+
+# A loc type of two records for cfg-copy (7): a repeated key, a comment and a
+# blank line inside the block, an empty value and a value past what one
+# CFG_FIELD carries (both go across as splices).
+LONG_VALUE=$(printf 'x%.0s' $(seq 1 240))
+{
+    printf '// two locs for cfg-copy\n\n'
+    printf '[src_loc]\nname=Crate\nmodels=15402\n// a comment the copy drops\nparam=a,1\n'
+    printf 'desc=\nparam=b,2\nop1=Search\nlongfield=%s\n\n' "$LONG_VALUE"
+    printf '[other_loc]\nname=Other\n'
+} > "$SCRATCH/configs/all.loc"
+printf '0=src_loc\n1=other_loc\n' > "$SCRATCH/configs/all.loc.compack"
+printf '// Which loc entities have a client half.\n' > "$SCRATCH/pack/loc.client"
 
 # --repo-root '' disables baking: a test must never shell out to a cache build.
 "$DAEMON" "$PORT" --content-dir "$SCRATCH" --repo-root '' > "$SCRATCH/daemon.log" 2>&1 &
@@ -109,6 +127,63 @@ contains "$SCRATCH/sync_c2.log" "0 state key(s)" "the other Client's store is em
 "$CTL" --port "$PORT" open 50 50 > "$SCRATCH/open.log" 2>&1
 contains "$SCRATCH/open.log" "m50_50 open:" "the document answers a square open"
 contains "$SCRATCH/open.log" "dirty map=0 loc=0" "a freshly opened square is clean"
+
+# 7. cfg-copy through the daemon.
+cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.before"
+cp "$SCRATCH/pack/loc.client" "$SCRATCH/loc.client.before"
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_loc > "$SCRATCH/copy.log" 2>&1 || true
+contains "$SCRATCH/copy.log" "copied loc:src_loc to loc:copy_loc, id 70000" \
+    "cfg-copy coins the namespace's floor id (70000, the register's loc base)"
+"$CTL" --port "$PORT" save > "$SCRATCH/copy_save.log" 2>&1 || true
+contains "$SCRATCH/copy_save.log" "loc:copy_loc" "save writes the copied record"
+contains "$SCRATCH/copy_save.log" "pack:loc.alloc" "and the ledger"
+contains "$SCRATCH/copy_save.log" "pack:loc.client" "and the client membership"
+{
+    cat "$SCRATCH/all.loc.before"
+    printf '\n[copy_loc]\nname=Crate\nmodels=15402\nparam=a,1\ndesc=\nparam=b,2\nop1=Search\n'
+    printf 'longfield=%s\n' "$LONG_VALUE"
+} > "$SCRATCH/all.loc.expected"
+if cmp -s "$SCRATCH/all.loc.expected" "$SCRATCH/configs/all.loc"; then
+    check 1 "configs/all.loc gains exactly [copy_loc] with every field, after a separator"
+else
+    check 0 "configs/all.loc gains exactly [copy_loc] with every field, after a separator"
+    diff "$SCRATCH/all.loc.expected" "$SCRATCH/configs/all.loc" | head -20
+fi
+{ cat "$SCRATCH/loc.client.before"; printf 'copy_loc\n'; } > "$SCRATCH/loc.client.expected"
+if cmp -s "$SCRATCH/loc.client.expected" "$SCRATCH/pack/loc.client"; then
+    check 1 "pack/loc.client gains exactly one copy_loc line"
+else
+    check 0 "pack/loc.client gains exactly one copy_loc line"
+fi
+check "$( [ "$(tail -n 1 "$SCRATCH/pack/loc.alloc")" = "70000=copy_loc" ] && echo 1 )" \
+    "pack/loc.alloc ends with 70000=copy_loc"
+check "$( [ "$(grep -c 'allocated below this line by tools/ss_allocate.py' "$SCRATCH/pack/loc.alloc")" = 1 ] && echo 1 )" \
+    "the new ledger carries ss_allocate.py's marker once"
+cp "$SCRATCH/configs/all.loc" "$SCRATCH/all.loc.saved"
+cp "$SCRATCH/pack/loc.alloc" "$SCRATCH/loc.alloc.saved"
+cp "$SCRATCH/pack/loc.client" "$SCRATCH/loc.client.saved"
+
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_two > "$SCRATCH/copy2.log" 2>&1 || true
+contains "$SCRATCH/copy2.log" "copied loc:src_loc to loc:copy_two, id 70001" \
+    "a second copy takes the next id"
+"$CTL" --port "$PORT" undo > "$SCRATCH/copy_undo.log" 2>&1 || true
+contains "$SCRATCH/copy_undo.log" "undo " "undo answers"
+lacks "$SCRATCH/copy_undo.log" "undo 0 command(s)" "and takes the copy back"
+"$CTL" --port "$PORT" save > "$SCRATCH/copy_save2.log" 2>&1 || true
+for f in configs/all.loc pack/loc.alloc pack/loc.client; do
+    b=$(basename "$f")
+    if cmp -s "$SCRATCH/$f" "$SCRATCH/$b.saved"; then
+        check 1 "after undo + save, $f is byte-identical to before the second copy"
+    else
+        check 0 "after undo + save, $f is byte-identical to before the second copy"
+    fi
+done
+"$CTL" --port "$PORT" cfg-copy loc src_loc copy_loc > "$SCRATCH/copy_taken.log" 2>&1 || true
+contains "$SCRATCH/copy_taken.log" "was refused" "copying onto a taken name is refused"
+"$CTL" --port "$PORT" cfg-copy loc no_such_loc copy_three > "$SCRATCH/copy_absent.log" 2>&1 || true
+contains "$SCRATCH/copy_absent.log" "was refused" "copying a record that is not there is refused"
+"$CTL" --port "$PORT" cfg-copy enum some_enum copy_enum > "$SCRATCH/copy_enum.log" 2>&1 || true
+contains "$SCRATCH/copy_enum.log" "was refused" "a non-loc/npc/obj type is refused"
 
 # 6. The browser's route in: the same daemon, upgraded, framed. Skipped
 # rather than failed when python3 is absent — the probe needs a WebSocket

@@ -24,6 +24,8 @@ static void
 app_map_editor_ghost_remove(struct App* app);
 static int
 app_map_editor_ghost_is_edit(struct App const* app);
+static void
+app_map_editor_spawn_ghost_remove(struct App* app);
 static struct ToriDraw_Sprite*
 app_preview_raster(
     struct App* app,
@@ -801,8 +803,20 @@ app_map_editor_loc_keys(
     struct EditorUi* ui = app->editor_panel.ui;
     int acted = 1;
 
-    if( !ui || ui->tools.loc_count == 0 || app_text_input_focused(app) || app_modelview_focused(app) )
+    if( !ui || app_text_input_focused(app) || app_modelview_focused(app) )
         return;
+    /* No loc selected: D duplicates the spawns panel's selection instead
+     * (Duplicate [D] there), while that panel is open and holds one. */
+    if( ui->tools.loc_count == 0 )
+    {
+        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) && Editor_Spawns_SelectionCount(ui) > 0 )
+        {
+            (void)Editor_Spawns_Duplicate(ui);
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+        return;
+    }
     if( LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) )
         (void)edp_locs_nudge(ui, 0, 1);
     else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
@@ -979,6 +993,8 @@ app_map_editor_world_click(
         if( Editor_ToolIsBrush(tool) )
         {
             Editor_StrokeBegin(app->editor);
+            /* The History panel's row says which brush made the stroke. */
+            Editor_HistoryName(app->editor, Editor_ToolName(tool));
             ui->tools.stroke_open = 1;
             ui->tools.flatten_valid = 0;
             panel->stroke_active = 1;
@@ -1050,6 +1066,21 @@ app_map_editor_world_click(
     }
     if( Editor_ToolIsBrush(tool) || tool == EDITOR_TOOL_RECT_SELECT )
         return;
+
+    /* Place with an npc / obj pick commits what the spawn ghost showed: a row
+     * in the square's edited .spawn. The ghost comes down first -- it is a
+     * scene entity of its own, not the spawn. */
+    if( tool == EDITOR_TOOL_LOC_PLACE && (ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2)
+        && ui->tools.pick_id >= 0 )
+    {
+        int world_x;
+        int world_z;
+        app_map_editor_spawn_ghost_remove(app);
+        if( app_map_editor_hover_world(app, &world_x, &world_z) )
+            (void)Editor_Locs_PlaceSpawn(ui, world_x, world_z, level < 0 ? 0 : level > 3 ? 3 : level);
+        app->need_redraw = 1;
+        return;
+    }
 
     Editor_PanelApplyToolAt(panel, app, hx, hz, level);
 
@@ -1228,6 +1259,291 @@ app_map_editor_ghost_place_edit(
     return 1;
 }
 
+/* ---- the pointer, and the spawn ghost ------------------------------------ */
+
+/*
+ * TORIRS_EDITOR_HOVER=<x>,<z>[,<tool>[,npc|obj|loc,<id>]] -- a headless
+ * photograph has no pointer, so this parks the editor's hover on ABSOLUTE
+ * tile (x, z) for every frame, and once, at the first frame with panels,
+ * arms the named tool (Editor_ToolName, case-insensitive, spaces as '_':
+ * raise, paint_underlay, place, move) and the catalog pick. Only the
+ * previews read it (the brush footprint, the loc / spawn ghosts, the move
+ * footprints); clicks still need a real pointer. Read once per process.
+ */
+static struct
+{
+    int resolved;
+    int on;
+    int abs_x;
+    int abs_z;
+    int armed;
+    char tool[32];
+    char pick_kind[8];
+    int pick_id;
+    int logged;
+} g_app_editor_hover_env;
+
+static void
+app_map_editor_hover_env_resolve(void)
+{
+    const char* value;
+
+    if( g_app_editor_hover_env.resolved )
+        return;
+    g_app_editor_hover_env.resolved = 1;
+    g_app_editor_hover_env.pick_id = -1;
+    value = getenv("TORIRS_EDITOR_HOVER");
+    if( !value || !value[0] )
+        return;
+    if( sscanf(value, "%d,%d,%31[^,],%7[^,],%d", &g_app_editor_hover_env.abs_x, &g_app_editor_hover_env.abs_z,
+            g_app_editor_hover_env.tool, g_app_editor_hover_env.pick_kind, &g_app_editor_hover_env.pick_id)
+        >= 2 )
+        g_app_editor_hover_env.on = 1;
+}
+
+/** Arm TORIRS_EDITOR_HOVER's tool and pick, once. */
+static void
+app_map_editor_hover_env_arm(struct EditorUi* ui)
+{
+    if( !g_app_editor_hover_env.on || g_app_editor_hover_env.armed )
+        return;
+    g_app_editor_hover_env.armed = 1;
+    if( g_app_editor_hover_env.tool[0] )
+    {
+        for( int t = 0; t < EDITOR_TOOL_COUNT; t++ )
+        {
+            const char* name = Editor_ToolName((enum Editor_Tool)t);
+            int i = 0;
+            for( ; name[i] && g_app_editor_hover_env.tool[i]; i++ )
+            {
+                char a = name[i] == ' ' ? '_' : (char)(name[i] | 0x20);
+                char b = (char)(g_app_editor_hover_env.tool[i] | 0x20);
+                if( a != b )
+                    break;
+            }
+            if( !name[i] && !g_app_editor_hover_env.tool[i] )
+            {
+                Editor_UiSetTool(ui, (enum Editor_Tool)t);
+                break;
+            }
+        }
+    }
+    if( g_app_editor_hover_env.pick_id >= 0 )
+    {
+        ui->tools.pick_kind = strcmp(g_app_editor_hover_env.pick_kind, "npc") == 0   ? 1
+                              : strcmp(g_app_editor_hover_env.pick_kind, "obj") == 0 ? 2
+                                                                                      : 0;
+        ui->tools.pick_id = g_app_editor_hover_env.pick_id;
+    }
+}
+
+/** This frame's pointer for the previews: the hover tile (or the env's), the
+ *  level the next edit writes. Not valid over a panel or the minimenu. */
+static void
+app_map_editor_hover_update(
+    struct App* app,
+    struct Editor_Panel* panel)
+{
+    struct MapEditorHover* hover = &app->map_ghost.hover;
+
+    app_map_editor_hover_env_resolve();
+    memset(hover, 0, sizeof(*hover));
+    if( !app->world || !panel->visible )
+        return;
+    if( g_app_editor_hover_env.on )
+    {
+        hover->scene_x = g_app_editor_hover_env.abs_x - app->world->_base_tile_x;
+        hover->scene_z = g_app_editor_hover_env.abs_z - app->world->_base_tile_z;
+        hover->valid = hover->scene_x >= 0 && hover->scene_z >= 0 && hover->scene_x < app->world->_scene_size
+                       && hover->scene_z < app->world->_scene_size;
+        if( g_app_editor_hover_env.logged != hover->valid + 1 )
+        {
+            /* Once per change: a shot whose preview is missing says why. */
+            g_app_editor_hover_env.logged = hover->valid + 1;
+            TORIRS_REPORT("editor: TORIRS_EDITOR_HOVER parks at %d,%d (scene %d,%d of %d): %s\n",
+                g_app_editor_hover_env.abs_x, g_app_editor_hover_env.abs_z, hover->scene_x, hover->scene_z,
+                app->world->_scene_size, hover->valid ? "in the scene" : "outside the scene");
+        }
+    }
+    else
+    {
+        hover->scene_x = app->frame_view->world_hover_tile_x;
+        hover->scene_z = app->frame_view->world_hover_tile_z;
+        hover->valid = hover->scene_x >= 0 && !app->frame_view->minimenu->visible && !app->input_frame_consumed;
+    }
+    hover->level = Editor_PanelEditLevel(panel, app);
+}
+
+/** Take the spawn ghost down: despawn exactly the entity it became. */
+static void
+app_map_editor_spawn_ghost_remove(struct App* app)
+{
+    struct MapEditorSpawnSpec spec;
+    int entity;
+
+    if( !MapEditorSpawnGhost_Remove(&app->map_ghost.spawn, app->world ? app->world->load_seq : 0, &spec, &entity) )
+        return;
+    if( entity < 0 || !app->world )
+        return;
+    if( spec.kind == MAP_EDITOR_SPAWN_NPC )
+        World_NpcDespawn(app->world, entity);
+    else
+        App_WorldObjStackDel(app, spec.scene_x, spec.scene_z, spec.level, spec.id);
+    app->need_redraw = 1;
+}
+
+/*
+ * Ask once per id for what a spawn ghost needs resident: the npc's config and
+ * body (through the multinpc loader the spawn task uses), the obj's config
+ * and ground model. A request outlives the frame that made it, so the out
+ * slot it writes is file-static.
+ */
+static struct
+{
+    int npc_requested;
+    int npc_resolved;
+    int obj_requested;
+    int model_requested;
+} g_app_spawn_ghost_loads = { -1, -1, -1, -1 };
+
+/** Place the pending spawn ghost if its assets are resident; 1 when landed. */
+static int
+app_map_editor_spawn_ghost_land(struct App* app)
+{
+    struct MapEditorSpawnGhost* ghost = &app->map_ghost.spawn;
+    struct MapEditorSpawnSpec const* spec = &ghost->spec;
+
+    if( !app->world || !app->provider )
+        return 0;
+    if( spec->kind == MAP_EDITOR_SPAWN_NPC )
+    {
+        struct ToriRS_Npctype* npctype;
+        struct WorldEntity_NPC* npc;
+        int idx;
+
+        if( g_app_spawn_ghost_loads.npc_requested != spec->id )
+        {
+            struct ToriRS_Task* task;
+            g_app_spawn_ghost_loads.npc_requested = spec->id;
+            g_app_spawn_ghost_loads.npc_resolved = -1;
+            task = CreateTask_NpcMultiLoad(app, spec->id, &g_app_spawn_ghost_loads.npc_resolved);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        npctype = CacheProvider_NpctypeGet(app->provider, spec->id);
+        if( !npctype || !app_world_npc_models_resident(app, npctype) )
+            return 0;
+        idx = app_world_spawn_npc_now(app, spec->id, -1, spec->scene_x, spec->scene_z, spec->level);
+        npc = idx >= 0 ? World_EntityPoolGet(&app->world->entities.npc, idx) : NULL;
+        if( !npc )
+            return 0;
+        /* Translucent through the npc fade the frame loop already applies
+         * (rev-241 transparency): it survives the idle animation re-posing
+         * the body every frame, which a one-off write would not. */
+        WorldEntityTransparency_Set(&npc->transparency, app->world->cycle, app->world->cycle,
+            app->world->cycle, 150, 150, 1);
+        MapEditorSpawnGhost_Land(ghost, idx, app->world->load_seq, npc->size);
+        ghost->faded = true;
+        app->need_redraw = 1;
+        return 1;
+    }
+    {
+        struct ToriRS_Objtype* obj;
+        int idx;
+
+        if( g_app_spawn_ghost_loads.obj_requested != spec->id )
+        {
+            struct ToriRS_Task* task = CreateTask_ObjLoad(app->provider, spec->id);
+            g_app_spawn_ghost_loads.obj_requested = spec->id;
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        obj = CacheProvider_ObjtypeGet(app->provider, spec->id);
+        if( !obj )
+            return 0;
+        if( obj->inventory_model_id > 0 && !CacheProvider_ModelHas(app->provider, obj->inventory_model_id) )
+        {
+            if( g_app_spawn_ghost_loads.model_requested != obj->inventory_model_id )
+            {
+                struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, obj->inventory_model_id);
+                g_app_spawn_ghost_loads.model_requested = obj->inventory_model_id;
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+            }
+            return 0;
+        }
+        idx = App_WorldObjStackAdd(app, spec->scene_x, spec->scene_z, spec->level, spec->id, 1);
+        if( idx < 0 )
+            return 0;
+        MapEditorSpawnGhost_Land(ghost, idx, app->world->load_seq, 1);
+        app->need_redraw = 1;
+        return 1;
+    }
+}
+
+/** The obj ghost's fade: written once onto the stack element's own model
+ *  (ForWrite: the obj's models are shared). */
+static void
+app_map_editor_spawn_ghost_fade(struct App* app)
+{
+    struct MapEditorSpawnGhost* ghost = &app->map_ghost.spawn;
+    struct WorldEntity_ObjStack* stack;
+    struct ToriDraw_Model* model;
+
+    if( !ghost->active || ghost->entity < 0 || ghost->faded || !app->world || !app->scene )
+        return;
+    stack = World_EntityPoolGet(&app->world->entities.obj_stack, ghost->entity);
+    model = stack ? ToriDraw_SceneElementModelForWrite(app->scene, stack->element_id) : NULL;
+    if( !model || model->face_count <= 0 )
+        return;
+    if( !model->face_alphas )
+    {
+        /* lib:toridraw: the model's array; ToriDraw_ModelFree frees it. */
+        model->face_alphas = TORIDRAW_MALLOC((size_t)model->face_count);
+        assert(model->face_alphas);
+    }
+    memset(model->face_alphas, 150, (size_t)model->face_count);
+    ghost->faded = true;
+    app->need_redraw = 1;
+}
+
+/**
+ * The Place tool with an NPC or OBJ catalog pick: a translucent npc (its
+ * idle pose, its size) or ground item on the hovered tile, scene only -- the
+ * document hears nothing until the click places the row.
+ */
+static void
+app_map_editor_spawn_ghost_update(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    struct MapEditorSpawnSpec want;
+    int const wanted = hover->valid && ui->tools.tool == EDITOR_TOOL_LOC_PLACE
+                       && (ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2) && ui->tools.pick_id >= 0;
+
+    memset(&want, 0, sizeof(want));
+    if( wanted )
+    {
+        want.kind = ui->tools.pick_kind == 1 ? MAP_EDITOR_SPAWN_NPC : MAP_EDITOR_SPAWN_OBJ;
+        want.id = ui->tools.pick_id;
+        want.scene_x = hover->scene_x;
+        want.scene_z = hover->scene_z;
+        want.level = hover->level;
+    }
+    /* A rebuild freed what the ghost became: forget it, place it again. */
+    if( app->map_ghost.spawn.active && app->map_ghost.spawn.entity >= 0
+        && (!app->world || app->map_ghost.spawn.load_seq != app->world->load_seq) )
+        app_map_editor_spawn_ghost_remove(app);
+    if( !wanted || !MapEditorSpawnGhost_Matches(&app->map_ghost.spawn, &want) )
+        app_map_editor_spawn_ghost_remove(app);
+    if( wanted && !app->map_ghost.spawn.active )
+        MapEditorSpawnGhost_Place(&app->map_ghost.spawn, &want);
+    if( MapEditorSpawnGhost_Pending(&app->map_ghost.spawn) )
+        (void)app_map_editor_spawn_ghost_land(app);
+    app_map_editor_spawn_ghost_fade(app);
+}
+
 /**
  * Keep the Place / Move hover ghost current. Once per frame, with the other
  * editor drains.
@@ -1249,13 +1565,15 @@ app_map_editor_ghost_update(struct App* app)
     if( !app->editor || !panel->ui )
         return;
     ui = panel->ui;
+    app_map_editor_hover_update(app, panel);
+    app_map_editor_hover_env_arm(ui);
+    app_map_editor_spawn_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc
      * at the tile it would land on (not on its own tile: a translucent double
      * of itself reads as flicker). */
     {
-        int const hover_ok = app->frame_view->world_hover_tile_x >= 0
-                             && !app->frame_view->minimenu->visible && !app->input_frame_consumed;
+        int const hover_ok = app->map_ghost.hover.valid;
 
         if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_PLACE
             && ui->tools.pick_kind == CACHEPROVIDER_CATALOG_LOC && ui->tools.pick_id >= 0 )
@@ -1267,8 +1585,8 @@ app_map_editor_ghost_update(struct App* app)
         }
         else if( panel->visible && hover_ok && ui->tools.tool == EDITOR_TOOL_LOC_MOVE
                  && panel->sel_kind == EDITOR_SELECTION_LOC
-                 && !(app->frame_view->world_hover_tile_x == panel->sel_scene_x
-                      && app->frame_view->world_hover_tile_z == panel->sel_scene_z) )
+                 && !(app->map_ghost.hover.scene_x == panel->sel_scene_x
+                      && app->map_ghost.hover.scene_z == panel->sel_scene_z) )
         {
             want = 1;
             id = panel->sel_loc_id;
@@ -1280,8 +1598,8 @@ app_map_editor_ghost_update(struct App* app)
 
     {
         struct MapEditorGhostSpec const wanted = { .loc_id = id,
-                                                   .scene_x = app->frame_view->world_hover_tile_x,
-                                                   .scene_z = app->frame_view->world_hover_tile_z,
+                                                   .scene_x = app->map_ghost.hover.scene_x,
+                                                   .scene_z = app->map_ghost.hover.scene_z,
                                                    .level = level,
                                                    .shape = shape,
                                                    .angle = angle };

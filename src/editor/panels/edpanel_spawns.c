@@ -12,6 +12,14 @@
  *               row (`-name x z level`) instead, because writing into the
  *               generated file would be undone by its next regeneration.
  *   Restore     drops a suppression; the generated spawn is back.
+ *   Duplicate   the selected rows copied one tile east — or, when a tile is
+ *               latched that is not the first selected spawn's own, to that
+ *               tile (the rest keep their offsets from the first) — as one
+ *               undo step; the copies become the selection. A copy of a
+ *               generated row is an edited row.
+ *
+ * The list selects one row per click and shift-click adds or takes a row out
+ * of the selection (marked *), the way the loc multi-selection works.
  *
  * The list shows both files: edited rows marked +, suppressed generated rows
  * marked -, the rest as they come.
@@ -30,6 +38,8 @@
 
 #define SPAWNS_ROWS_MAX 1024
 #define SPAWNS_LIST_ROWS 10
+/** Rows one selection (and so one Duplicate) holds. */
+#define SPAWNS_SELECTION_MAX 64
 
 enum
 {
@@ -51,6 +61,7 @@ struct SpawnsPanel
     int list;
     int button_delete;
     int button_restore;
+    int button_duplicate;
     int input_name;
     int radio_npc;
     int radio_obj;
@@ -71,6 +82,10 @@ struct SpawnsPanel
 
     struct SpawnsListRow rows[SPAWNS_ROWS_MAX];
     int row_count;
+    /** The multi-selection, by row CONTENT (a rebuild reorders the list,
+     *  an edit elsewhere in the file moves line numbers). */
+    struct Editor_SpawnRow selection[SPAWNS_SELECTION_MAX];
+    int selection_count;
     /** What the list was built from. */
     uint32_t built_hash;
 };
@@ -177,6 +192,44 @@ spawns_hash(
     return hash;
 }
 
+static int
+spawns_row_same(
+    const struct Editor_SpawnRow* a,
+    const struct Editor_SpawnRow* b)
+{
+    return a->is_obj == b->is_obj && a->abs_x == b->abs_x && a->abs_z == b->abs_z && a->level == b->level
+           && (!a->is_obj || a->count == b->count) && strcmp(a->name, b->name) == 0;
+}
+
+/** Index of `row` in the selection, or -1. */
+static int
+spawns_selection_find(
+    const struct SpawnsPanel* self,
+    const struct Editor_SpawnRow* row)
+{
+    for( int i = 0; i < self->selection_count; i++ )
+        if( spawns_row_same(&self->selection[i], row) )
+            return i;
+    return -1;
+}
+
+/** Drop selected rows the list no longer has (deleted, undone). */
+static void
+spawns_selection_prune(struct SpawnsPanel* self)
+{
+    int kept = 0;
+
+    for( int i = 0; i < self->selection_count; i++ )
+    {
+        int present = 0;
+        for( int r = 0; r < self->row_count && !present; r++ )
+            present = spawns_row_same(&self->rows[r].row, &self->selection[i]);
+        if( present )
+            self->selection[kept++] = self->selection[i];
+    }
+    self->selection_count = kept;
+}
+
 static void
 spawns_rebuild(
     struct EditorUi* ui,
@@ -206,6 +259,7 @@ spawns_rebuild(
         self->row_count++;
     }
     ToriRSChrome_VListSetCount(ui->chrome, self->list, self->row_count);
+    spawns_selection_prune(self);
     /* Every visible row's text is stale now. */
     {
         int first;
@@ -237,6 +291,7 @@ spawns_tick(
         if( self->square_valid )
         {
             self->square_valid = 0;
+            self->selection_count = 0;
             ToriRSChrome_SetText(ui->chrome, self->row_square, "open a square, latch a tile");
             self->row_count = 0;
             ToriRSChrome_VListSetCount(ui->chrome, self->list, 0);
@@ -250,6 +305,7 @@ spawns_tick(
         self->map_z = map_z;
         self->square_valid = 1;
         self->built_hash = 0;
+        self->selection_count = 0;
         Editor_SquareKey(key, map_x, map_z);
         (void)edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key);
     }
@@ -277,9 +333,9 @@ spawns_tick(
     {
         const struct SpawnsListRow* row = &self->rows[r];
         char text[TORIRS_CHROME_INPUT_MAX];
-        snprintf(text, sizeof(text), "%c %s %s %d %d %d%s", row->edited ? '+' : row->suppressed ? '-' : ' ',
-            row->row.is_obj ? "obj" : "npc", row->row.name, row->row.abs_x, row->row.abs_z,
-            row->row.level, row->suppressed ? "  (suppressed)" : "");
+        snprintf(text, sizeof(text), "%s%c %s %s %d %d %d%s", spawns_selection_find(self, &row->row) >= 0 ? "* " : "",
+            row->edited ? '+' : row->suppressed ? '-' : ' ', row->row.is_obj ? "obj" : "npc", row->row.name,
+            row->row.abs_x, row->row.abs_z, row->row.level, row->suppressed ? "  (suppressed)" : "");
         ToriRSChrome_VListSetRow(ui->chrome, self->list, r, text);
     }
 }
@@ -426,6 +482,101 @@ spawns_place(
             row.abs_x, row.abs_z, row.level);
 }
 
+/** A click on the list: select that row, or with shift add / remove it. */
+static void
+spawns_select_click(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    int const row = ToriRSChrome_VListSelected(ui->chrome, self->list);
+    int at;
+
+    if( row < 0 || row >= self->row_count )
+        return;
+    at = spawns_selection_find(self, &self->rows[row].row);
+    if( !ui->shift_held )
+    {
+        self->selection[0] = self->rows[row].row;
+        self->selection_count = 1;
+    }
+    else if( at >= 0 )
+    {
+        self->selection[at] = self->selection[self->selection_count - 1];
+        self->selection_count--;
+    }
+    else if( self->selection_count < SPAWNS_SELECTION_MAX )
+        self->selection[self->selection_count++] = self->rows[row].row;
+    else
+        Editor_UiLog(ui, "editor: a spawn selection holds %d rows", SPAWNS_SELECTION_MAX);
+    /* The * markers changed. */
+    {
+        int first;
+        int shown;
+        if( ToriRSChrome_VListWindow(ui->chrome, self->list, &first, &shown) )
+            for( int r = first; r < first + shown; r++ )
+                ToriRSChrome_VListSetRow(ui->chrome, self->list, r, "");
+    }
+}
+
+static int
+spawns_duplicate(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    struct Editor_SpawnRow rows[SPAWNS_SELECTION_MAX];
+    struct Editor_SpawnRow copies[SPAWNS_SELECTION_MAX];
+    struct Editor_Cmd* commands;
+    int capacity;
+    int n = 0;
+    int count;
+    int applied;
+    int dx = 1;
+    int dz = 0;
+    int dlevel = 0;
+
+    for( int i = 0; i < self->selection_count; i++ )
+    {
+        struct Editor_SpawnRow probe = self->selection[i];
+        int suppressed = 0;
+        for( int r = 0; r < self->row_count; r++ )
+            if( spawns_row_same(&self->rows[r].row, &probe) )
+                suppressed = self->rows[r].suppressed;
+        if( !suppressed )
+            rows[n++] = probe;
+    }
+    if( n == 0 )
+    {
+        Editor_UiLog(ui, "editor: select the spawns to duplicate (a suppressed one is not live)");
+        return 0;
+    }
+    /* At the latched tile, when one is latched that is not where the first
+     * selected spawn already stands; else one tile east, beside it. */
+    if( ui->tools.tile_valid
+        && (ui->tools.tile_x != rows[0].abs_x || ui->tools.tile_z != rows[0].abs_z
+            || ui->tools.tile_level != rows[0].level) )
+    {
+        dx = ui->tools.tile_x - rows[0].abs_x;
+        dz = ui->tools.tile_z - rows[0].abs_z;
+        dlevel = ui->tools.tile_level - rows[0].level;
+    }
+    commands = edp_scratch(&capacity);
+    count = Editor_SpawnOpsDuplicate(rows, n, dx, dz, dlevel, commands, capacity, copies);
+    for( int i = 0; i < count; i++ )
+        if( !edp_ensure_doc(ui, EDITOR_DOC_SPAWN, commands[i].doc_key) )
+        {
+            Editor_UiLog(ui, "editor: could not open the spawn document %s", commands[i].doc_key);
+            return 0;
+        }
+    applied = edp_apply(ui, commands, count, "duplicate spawn");
+    if( applied == count && count > 0 )
+    {
+        memcpy(self->selection, copies, sizeof(copies[0]) * (size_t)count);
+        self->selection_count = count;
+        Editor_UiLog(ui, "editor: duplicated %d spawn(s) by %d,%d; the copies are selected", count, dx, dz);
+    }
+    return applied;
+}
+
 static int
 spawns_activate(
     struct EditorUi* ui,
@@ -434,10 +585,17 @@ spawns_activate(
 {
     struct SpawnsPanel* self = opaque;
 
-    if( widget == self->list || widget == self->radio_npc || widget == self->radio_obj
-        || widget == self->slider_count || widget == self->input_name )
+    if( widget == self->list )
+    {
+        spawns_select_click(ui, self);
         return 1;
-    if( widget == self->button_delete )
+    }
+    if( widget == self->radio_npc || widget == self->radio_obj || widget == self->slider_count
+        || widget == self->input_name )
+        return 1;
+    if( widget == self->button_duplicate )
+        (void)spawns_duplicate(ui, self);
+    else if( widget == self->button_delete )
         spawns_delete(ui, self);
     else if( widget == self->button_restore )
         spawns_restore(ui, self);
@@ -494,8 +652,10 @@ Editor_Spawns_Register(struct EditorUi* ui)
     self->list = ToriRSChrome_VList(chrome, self->panel, "", SPAWNS_LIST_ROWS, 0);
     self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete / suppress");
     ToriRSChrome_SetTooltip(chrome, self->button_delete,
-        "An edited row is removed; a generated one is suppressed (-name x z level)");
+        "Edited rows go; generated ones are suppressed (-name x z level)");
     self->button_restore = ToriRSChrome_Button(chrome, self->panel, "Restore");
+    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate  [D]");
+    ToriRSChrome_SetTooltip(chrome, self->button_duplicate, "Copy the selection one tile east, or to the latched tile");
     ToriRSChrome_Separator(chrome, self->panel);
     self->input_name = ToriRSChrome_TextInput(chrome, self->panel, "Name", "");
     self->radio_npc = ToriRSChrome_Radio(chrome, self->panel, "npc", SPAWNS_GROUP_KIND, 1);
@@ -516,4 +676,47 @@ Editor_Spawns_Register(struct EditorUi* ui)
     desc.set_visible = spawns_set_visible;
     desc.destroy = spawns_destroy;
     Editor_UiAddPanel(ui, &desc);
+}
+
+int
+Editor_Spawns_SelectionCount(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self || !ui->chrome->panels[self->panel].visible )
+        return 0;
+    return self->selection_count;
+}
+
+int
+Editor_Spawns_Duplicate(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self )
+        return 0;
+    return spawns_duplicate(ui, self);
+}
+
+int
+Editor_Spawns_Selection(
+    struct EditorUi* ui,
+    struct Editor_SpawnRow* out,
+    int max)
+{
+    struct SpawnsPanel* self;
+    int count;
+
+    assert(ui);
+    assert(out || max == 0);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self )
+        return 0;
+    count = self->selection_count < max ? self->selection_count : max;
+    memcpy(out, self->selection, sizeof(*out) * (size_t)count);
+    return self->selection_count;
 }

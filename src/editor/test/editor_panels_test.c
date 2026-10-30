@@ -15,6 +15,7 @@
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanel_catalog_model.h"
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_newform.h"
 #include "editor/panels/edpanel_ops.h"
@@ -32,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 static int g_checks;
 static int g_failed;
@@ -717,6 +719,420 @@ test_spawns(void)
 
 /* ---- the picker ------------------------------------------------------------------ */
 
+/* ---- the catalog over the server's index; Copy to new; spawn Duplicate ------------ */
+
+/* Written into the tmp tree before the embedded server opens it, so the
+ * catalog's first build indexes them: two locs, an npc, an obj, and the loc
+ * client membership file a copy appends to. */
+static void
+write_text(
+    const char* root,
+    const char* relative,
+    const char* text)
+{
+    char path[2048];
+    FILE* f;
+
+    snprintf(path, sizeof(path), "%s/%s", root, relative);
+    f = fopen(path, "wb");
+    if( !f )
+    {
+        printf("FAIL: cannot write %s\n", path);
+        exit(1);
+    }
+    fputs(text, f);
+    fclose(f);
+}
+
+static void
+write_catalog_fixture(const char* root)
+{
+    char path[2048];
+
+    snprintf(path, sizeof(path), "%s/pack", root);
+    mkdir(path, 0755);
+    write_text(root, "configs/all.loc",
+        "// test locs\n\n[test_crate]\nname=Crate\nmodels=15402\nop1=Search\n\n[test_door]\nname=Door\nop1=Open\n");
+    write_text(root, "configs/all.loc.compack", "0=test_crate\n1=test_door\n");
+    write_text(root, "configs/all.npc", "[test_guard]\nname=Guard\nop1=Talk-to\n");
+    write_text(root, "configs/all.npc.compack", "0=test_guard\n");
+    write_text(root, "configs/all.obj", "[test_knife]\nname=Knife\n");
+    write_text(root, "configs/all.obj.compack", "0=test_knife\n");
+    write_text(root, "pack/loc.client", "// loc client half\n");
+}
+
+/** The model over the embedded server: a query per change, none per frame. */
+static void
+test_catalog_model(void)
+{
+    struct Editor_CatalogModel model;
+    struct EditorHost* host = &g_editor.host;
+    const struct EditorHost_CatalogRecord* record;
+    char text[96];
+    int queries;
+    int pages;
+
+    Editor_CatalogModelInit(&model, TORIRSMAPED_CATALOG_LOC, 5);
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "");
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1 && model.queries == 1, "catalog: the first frame asks");
+    Editor_CatalogModelCountText(&model, text, sizeof(text));
+    CHECK(strcmp(text, "2 of 2 loc") == 0, "catalog: the count is the server's (%s)", text);
+    for( int i = 0; i < 4; i++ )
+    {
+        Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "");
+        (void)Editor_CatalogModelRefresh(&model, host);
+    }
+    CHECK(model.queries == 1, "catalog: four unchanged frames ask nothing (%d queries)", model.queries);
+
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "crat");
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 0, "catalog: a changed find text settles a frame first");
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "crate");
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 0 && model.queries == 1,
+        "catalog: typing on restarts the settle; nothing asked for the prefix");
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "crate");
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1 && model.queries == 2, "catalog: the settled word is asked");
+    Editor_CatalogModelCountText(&model, text, sizeof(text));
+    CHECK(strcmp(text, "1 of 1 loc") == 0 && Editor_CatalogModelRowCount(&model) == 1
+              && strcmp(Editor_CatalogModelRow(&model, 0)->name, "test_crate") == 0,
+        "catalog: 'crate' finds test_crate (%s)", text);
+
+    record = Editor_CatalogModelRecord(&model, host, 0);
+    CHECK(record && model.record_fetches == 1 && strcmp(record->name, "test_crate") == 0 && record->field_count >= 3,
+        "catalog: the picked row's record comes back with its fields");
+    if( record )
+    {
+        int found = 0;
+        for( int i = 0; i < record->field_count; i++ )
+            found |= strcmp(record->fields[i].key, "op1") == 0 && strcmp(record->fields[i].value, "Search") == 0;
+        CHECK(found, "catalog: the record carries op1=Search from the config block");
+    }
+    (void)Editor_CatalogModelRecord(&model, host, 0);
+    CHECK(model.record_fetches == 1, "catalog: the same row's record is held, not asked again");
+
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "zzz_matches_nothing");
+    (void)Editor_CatalogModelRefresh(&model, host);
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1, "catalog: a miss is asked once");
+    queries = model.queries;
+    Editor_CatalogModelCountText(&model, text, sizeof(text));
+    CHECK(strcmp(text, "0 of 0 loc") == 0, "catalog: and reads 0 of 0 (%s)", text);
+    for( int i = 0; i < 3; i++ )
+    {
+        Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_LOC, "zzz_matches_nothing");
+        (void)Editor_CatalogModelRefresh(&model, host);
+    }
+    CHECK(model.queries == queries, "catalog: the miss is remembered (%d queries)", model.queries);
+
+    /* A kind change asks at once; paging through the underlays. */
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_UNDERLAY, "");
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1, "catalog: a kind change asks without settling");
+    pages = (int)Editor_CatalogModelPageCount(&model);
+    CHECK(model.result.total > 5 && Editor_CatalogModelRowCount(&model) == 5 && pages > 1,
+        "catalog: a page is the page size (5 of %u underlays, %d pages)", model.result.total, pages);
+    Editor_CatalogModelSetPage(&model, 1);
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1 && model.result.page == 1, "catalog: Next asks page 1");
+    Editor_CatalogModelSetPage(&model, 100000);
+    CHECK(model.page == (uint32_t)pages - 1, "catalog: a page past the end clamps to the last");
+    (void)Editor_CatalogModelRefresh(&model, host);
+    CHECK(Editor_CatalogModelRowCount(&model) >= 1 && Editor_CatalogModelRowCount(&model) <= 5,
+        "catalog: the last page holds the remainder");
+    queries = model.queries;
+    Editor_CatalogModelInvalidate(&model);
+    CHECK(Editor_CatalogModelRefresh(&model, host) == 1 && model.queries == queries + 1,
+        "catalog: an invalidation asks again");
+
+    Editor_CatalogModelWant(&model, TORIRSMAPED_CATALOG_ANY, "test_");
+    (void)Editor_CatalogModelRefresh(&model, host);
+    (void)Editor_CatalogModelRefresh(&model, host);
+    CHECK(model.result.total >= 4, "catalog: all kinds finds the four test_ records (%u)", model.result.total);
+    CHECK(Editor_CatalogModelKindCount() == TORIRSMAPED_CATALOG_KIND_COUNT + 1
+              && Editor_CatalogModelKindAt(Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_SQUARE))
+                     == TORIRSMAPED_CATALOG_SQUARE,
+        "catalog: the dropdown offers every kind and all of them");
+    Editor_CatalogModelFree(&model);
+}
+
+static struct ToriRSChrome g_cat_chrome;
+static struct EditorUi g_cat_ui;
+
+static void
+cat_frame(void)
+{
+    ToriRSChrome_Build(&g_cat_chrome);
+    Editor_UiTick(&g_cat_ui);
+    ToriRSChrome_Build(&g_cat_chrome);
+}
+
+static void
+cat_activate(int widget)
+{
+    assert(widget >= 0);
+    g_cat_chrome.activated = widget;
+    cat_frame();
+}
+
+static int
+cat_widget(
+    int panel,
+    int kind,
+    const char* caption)
+{
+    for( int i = 0; i < g_cat_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_cat_chrome.widgets[i];
+        if( w->panel != panel || w->kind != kind )
+            continue;
+        if( !caption || strcmp(w->label, caption) == 0 || strcmp(w->text, caption) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+static int
+cat_panel(const char* title)
+{
+    for( int i = 0; i < g_cat_chrome.panel_count; i++ )
+        if( strcmp(g_cat_chrome.panels[i].title, title) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+cat_console_has(const char* needle)
+{
+    for( int i = 0; i < 8; i++ )
+    {
+        const char* line = Editor_UiConsoleLine(&g_cat_ui, i);
+        if( line && strstr(line, needle) )
+            return 1;
+    }
+    return 0;
+}
+
+/** The registered Catalog panel, driven through its widgets: find, pick,
+ *  Copy to new; the Spawns panel's Duplicate and the catalog pick. */
+static void
+test_catalog_panel(void)
+{
+    const struct Editor_CatalogModel* model;
+    struct Editor_DocHandle handle;
+    char text[96];
+    int panel;
+    int find;
+    int list;
+    int new_name;
+    int copy;
+    int kind;
+    int queries;
+
+    ToriRSChrome_Init(&g_cat_chrome);
+    ToriRSChrome_SetSurface(&g_cat_chrome, 1280, 800);
+    Editor_UiInit(&g_cat_ui, &g_cat_chrome, &g_editor);
+    Editor_Catalog_Register(&g_cat_ui);
+    Editor_Spawns_Register(&g_cat_ui);
+    Editor_UiSetVisible(&g_cat_ui, 1);
+    panel = cat_panel("Catalog");
+    CHECK(panel >= 0, "catalog: the panel registers without an App");
+    if( panel < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_cat_chrome, panel, 1);
+    find = cat_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Find");
+    new_name = cat_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "New name");
+    copy = cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Copy to new...");
+    list = cat_widget(panel, TORIRS_CHROME_W_VLIST, NULL);
+    kind = cat_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Kind");
+    CHECK(find >= 0 && new_name >= 0 && copy >= 0 && list >= 0 && kind >= 0, "catalog: its widgets are there");
+    if( find < 0 || new_name < 0 || copy < 0 || list < 0 || kind < 0 )
+        return;
+
+    cat_frame();
+    model = Editor_Catalog_Model(&g_cat_ui);
+    CHECK(model && model->queries == 1, "catalog: opening asks once");
+    Editor_CatalogModelCountText(model, text, sizeof(text));
+    CHECK(strcmp(text, "2 of 2 loc") == 0 && cat_widget(panel, TORIRS_CHROME_W_LABEL, text) >= 0,
+        "catalog: the count row reads %s from the server's total, not the provider's", text);
+    for( int i = 0; i < 3; i++ )
+        cat_frame();
+    CHECK(model->queries == 1, "catalog: idle frames ask nothing");
+
+    ToriRSChrome_SetText(&g_cat_chrome, find, "crate");
+    cat_frame();
+    queries = model->queries;
+    cat_frame();
+    CHECK(model->queries == queries + 1 && model->result.total == 1, "catalog: the typed find asks once it settles");
+    cat_frame();
+    CHECK(model->queries == queries + 1, "catalog: and not again");
+
+    /* Pick it: a loc row is the pick, and arms Place. */
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    CHECK(g_cat_ui.tools.pick_kind == 0 && g_cat_ui.tools.pick_id == 0
+              && strcmp(g_cat_ui.tools.pick_name, "test_crate (0)") == 0,
+        "catalog: picking test_crate makes it the pick (%d %d %s)", g_cat_ui.tools.pick_kind, g_cat_ui.tools.pick_id,
+        g_cat_ui.tools.pick_name);
+    CHECK(g_cat_ui.tools.tool == EDITOR_TOOL_LOC_PLACE, "catalog: a loc pick arms Place");
+    CHECK(model->record_fetches == 1 && cat_widget(panel, TORIRS_CHROME_W_LABEL, "loc test_crate  id 0  Crate") >= 0,
+        "catalog: the record view names it");
+    cat_frame();
+    CHECK(model->record_fetches == 1, "catalog: the record is not asked per frame");
+
+    /* Copy to new... */
+    ToriRSChrome_SetText(&g_cat_chrome, new_name, "Bad Name");
+    cat_activate(copy);
+    CHECK(g_cat_ui.tools.pick_id == 0 && cat_console_has("must be [a-z0-9_]"), "catalog: a bad new name is refused here");
+    ToriRSChrome_SetText(&g_cat_chrome, new_name, "test_crate_copy");
+    cat_activate(copy);
+    CHECK(g_cat_ui.tools.pick_kind == 0 && g_cat_ui.tools.pick_id == 70000
+              && strcmp(g_cat_ui.tools.pick_name, "test_crate_copy (70000)") == 0,
+        "catalog: Copy to new makes the copy the pick, id 70000 (%d)", g_cat_ui.tools.pick_id);
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, "loc:test_crate_copy", &handle) && handle.text
+              && handle.text->length == strlen("[test_crate_copy]\nname=Crate\nmodels=15402\nop1=Search\n")
+              && memcmp(handle.text->text, "[test_crate_copy]\nname=Crate\nmodels=15402\nop1=Search\n",
+                     handle.text->length)
+                     == 0,
+        "catalog: the copy is open in the mirror with every field of the source");
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_TEXT, "pack:loc.client", &handle) == 0
+              || (handle.text && strstr(handle.text->text, "test_crate_copy\n")),
+        "catalog: a mirror holding the membership file follows it");
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_frame();
+    queries = model->queries;
+    cat_frame();
+    CHECK(queries >= 2, "catalog: the copy invalidated the page (asked again)");
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    cat_activate(copy);
+    CHECK(cat_console_has("refused") && g_cat_ui.tools.pick_id == 0, "catalog: copying onto a taken name is refused");
+    CHECK(Editor_Undo(&g_editor) >= 3, "catalog: one undo takes the whole copy back");
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, "loc:test_crate_copy", &handle) && handle.text
+              && handle.text->length == 0,
+        "catalog: after the undo the copy's record is empty again");
+
+    /* The npc kind, and the spawns panel resolving the pick to a symbol. */
+    ToriRSChrome_SetText(&g_cat_chrome, find, "");
+    ToriRSChrome_DropdownSetSelected(&g_cat_chrome, kind, Editor_CatalogModelKindIndex(TORIRSMAPED_CATALOG_NPC));
+    cat_activate(kind);
+    cat_frame();
+    cat_frame();
+    Editor_CatalogModelCountText(model, text, sizeof(text));
+    CHECK(strcmp(text, "1 of 1 npc") == 0, "catalog: kind npc lists the npc (%s)", text);
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    CHECK(g_cat_ui.tools.pick_kind == 1 && g_cat_ui.tools.pick_id == 0, "catalog: an npc row is the pick");
+    {
+        int spawns = cat_panel("Spawns");
+        int use = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_BUTTON, "Use catalog pick") : -1;
+        int name = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_TEXTINPUT, "Name") : -1;
+        CHECK(use >= 0 && name >= 0, "spawns: Use catalog pick is there");
+        if( use >= 0 && name >= 0 )
+        {
+            cat_activate(use);
+            CHECK(strcmp(ToriRSChrome_Text(&g_cat_chrome, name), "test_guard") == 0,
+                "spawns: the npc pick resolves to its pack symbol through the catalog");
+        }
+    }
+}
+
+/** Duplicate [D] on the Spawns panel: the selection one tile east, then at
+ *  the latched tile; one undo step each; the copies are the selection. */
+static void
+test_spawn_duplicate(void)
+{
+    struct Editor_SpawnRow rows[4];
+    struct Editor_SpawnRow selected[4];
+    struct Editor_SpawnRow copies[4];
+    struct Editor_Cmd commands[4];
+    struct Editor_DocHandle handle;
+    int spawns;
+    int list;
+    int duplicate;
+    int count;
+
+    /* The op: plain SPAWN adds, into the square the copy lands in. */
+    memset(rows, 0, sizeof(rows));
+    rows[0].suppress = 1;
+    snprintf(rows[0].name, sizeof(rows[0].name), "goblin");
+    rows[0].abs_x = SQ_X0 + 63;
+    rows[0].abs_z = SQ_Z0 + 5;
+    rows[1] = rows[0];
+    rows[1].abs_x = SQ_X0 + 10;
+    rows[1].level = 3;
+    count = Editor_SpawnOpsDuplicate(rows, 2, 1, 0, 0, commands, 4, copies);
+    CHECK(count == 2 && commands[0].kind == EDITOR_CMD_SPAWN && commands[0].has_after && !commands[0].has_before
+              && strcmp(commands[0].doc_key, "m51_50") == 0 && strcmp(commands[1].doc_key, "m50_50") == 0
+              && copies[0].suppress == 0 && copies[0].abs_x == SQ_X0 + 64,
+        "spawns: a duplicate is a SPAWN add, in the square it lands in");
+    CHECK(Editor_SpawnOpsDuplicate(rows, 2, 0, 0, 1, commands, 4, copies) == 1,
+        "spawns: a copy past level 3 is skipped");
+
+    spawns = cat_panel("Spawns");
+    list = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_VLIST, NULL) : -1;
+    duplicate = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_BUTTON, "Duplicate  [D]") : -1;
+    CHECK(list >= 0 && duplicate >= 0, "spawns: the panel has Duplicate [D]");
+    if( list < 0 || duplicate < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_cat_chrome, spawns, 1);
+    g_cat_ui.tools.tile_valid = 1;
+    g_cat_ui.tools.tile_x = SQ_X0 + 1;
+    g_cat_ui.tools.tile_z = SQ_Z0 + 1;
+    g_cat_ui.tools.tile_level = 0;
+    cat_frame();
+    cat_frame();
+
+    /* Select two rows: a click, then a shift-click. */
+    g_cat_ui.shift_held = 0;
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    g_cat_ui.shift_held = 1;
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 1);
+    cat_activate(list);
+    g_cat_ui.shift_held = 0;
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, selected, 4) == 2, "spawns: click + shift-click select two rows");
+    if( Editor_Spawns_Selection(&g_cat_ui, selected, 4) != 2 )
+        return;
+
+    /* Latched on the first one's own tile: one tile east. */
+    g_cat_ui.tools.tile_x = selected[0].abs_x;
+    g_cat_ui.tools.tile_z = selected[0].abs_z;
+    g_cat_ui.tools.tile_level = selected[0].level;
+    cat_activate(duplicate);
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, copies, 4) == 2 && copies[0].abs_x == selected[0].abs_x + 1
+              && copies[1].abs_x == selected[1].abs_x + 1 && copies[0].abs_z == selected[0].abs_z
+              && strcmp(copies[0].name, selected[0].name) == 0 && !copies[0].suppress,
+        "spawns: Duplicate copies the selection one tile east, and the copies are selected");
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        Editor_SpawnDocKeyAt(key, copies[0].abs_x, copies[0].abs_z);
+        CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, key, &handle) && handle.spawn
+                  && Editor_SpawnFind(&handle.spawn->file, &copies[0]) >= 0,
+            "spawns: the copy is a row of the edited file");
+    }
+    CHECK(Editor_Undo(&g_editor) == 2, "spawns: one undo takes both copies back");
+    cat_frame();
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, copies, 4) == 0, "spawns: and the vanished copies leave the selection");
+
+    /* At the latched tile, offsets kept. */
+    g_cat_ui.shift_held = 0;
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    g_cat_ui.shift_held = 1;
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 1);
+    cat_activate(list);
+    g_cat_ui.shift_held = 0;
+    (void)Editor_Spawns_Selection(&g_cat_ui, selected, 4);
+    g_cat_ui.tools.tile_x = SQ_X0 + 20;
+    g_cat_ui.tools.tile_z = SQ_Z0 + 30;
+    g_cat_ui.tools.tile_level = selected[0].level;
+    cat_activate(duplicate);
+    CHECK(Editor_Spawns_Selection(&g_cat_ui, copies, 4) == 2 && copies[0].abs_x == SQ_X0 + 20
+              && copies[0].abs_z == SQ_Z0 + 30
+              && copies[1].abs_x - copies[0].abs_x == selected[1].abs_x - selected[0].abs_x
+              && copies[1].abs_z - copies[0].abs_z == selected[1].abs_z - selected[0].abs_z,
+        "spawns: with another tile latched the copies land there, offsets kept");
+    CHECK(Editor_Undo(&g_editor) == 2, "spawns: and undo as one step");
+
+    Editor_UiFree(&g_cat_ui);
+}
+
 static struct Editor_Picker g_picker;
 
 static void
@@ -992,9 +1408,11 @@ test_chrome(void)
     /* The well shows the surface around m50_50. */
     {
         struct Editor_PickerSearch search;
-        int const tabs = find_widget(squares_panel, TORIRS_CHROME_W_TABSTRIP, NULL);
-        CHECK(tabs >= 0 && g_chrome.widgets[tabs].option_count == picker->tab_count,
-            "one tab per area plus Unmapped (%d)", picker->tab_count);
+        int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
+        CHECK(find_widget(squares_panel, TORIRS_CHROME_W_TABSTRIP, NULL) < 0,
+            "no tab strip: ~50 area labels in one row cannot be read");
+        CHECK(area >= 0 && g_chrome.widgets[area].option_count == picker->tab_count,
+            "the Area dropdown lists every area plus Unmapped (%d)", picker->tab_count);
         (void)search;
         search_field("m50_50");
         CHECK(picker->items_drawn > 4, "the well was drawn (%d items)", picker->items_drawn);
@@ -1075,12 +1493,12 @@ test_chrome(void)
         CHECK(!g_chrome.panels[new_panel].visible, "Cancel closes it");
     }
 
-    /* The tab strip switches the area the well draws. */
+    /* The Area dropdown switches the area the well draws, fitted. */
     {
-        int const tabs = find_widget(squares_panel, TORIRS_CHROME_W_TABSTRIP, NULL);
-        ToriRSChrome_PanelSetActiveTab(&g_chrome, squares_panel, 1);
-        activate(tabs);
-        CHECK(picker->active_tab == 1, "the tab strip picks the area (%s)", picker->tabs[picker->active_tab].title);
+        int const area = find_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Area");
+        ToriRSChrome_DropdownSetSelected(&g_chrome, area, 1);
+        activate(area);
+        CHECK(picker->active_tab == 1, "the Area dropdown picks the area (%s)", picker->tabs[picker->active_tab].title);
         search_field("m50_50");
         CHECK(picker->active_tab == 0, "a search switches back to the square's tab");
     }
@@ -1251,6 +1669,672 @@ test_chrome(void)
     Editor_UiFree(&g_ui);
 }
 
+/* ---- the default layout and the dock grid ---------------------------------------- */
+
+static int
+rects_overlap(
+    struct ToriRSChromeRect a,
+    struct ToriRSChromeRect b)
+{
+    return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/** A panel that is part of the layout: visible, built, not a popup menu. */
+static int
+layout_panel(int i)
+{
+    const struct ToriRSChromePanel* p = &g_chrome.panels[i];
+    return p->visible && p->last_rect.w > 0 && p->last_rect.h > 0 && p->style != TORIRS_CHROME_PANEL_MENU
+           && !p->modal;
+}
+
+static void
+layout_boot(
+    int w,
+    int h,
+    int scale)
+{
+    ToriRSChrome_Init(&g_chrome);
+    ToriRSChrome_SetScale(&g_chrome, scale);
+    ToriRSChrome_SetSurface(&g_chrome, w, h);
+    Editor_UiInit(&g_ui, &g_chrome, &g_editor);
+    g_ui.hooks.open_square = fake_open_square;
+    g_ui.hooks.open_in_new_view = fake_open_in_new_view;
+    g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.view_window = fake_view_window;
+    g_ui.hooks.selection_changed = fake_selection_changed;
+    Editor_UiRegisterToolsPanels(&g_ui);
+    Editor_UiSetVisible(&g_ui, 1);
+    for( int i = 0; i < 4; i++ )
+        frame();
+}
+
+/** No two layout panels overlap, none covers the world, all are on the
+ *  surface, and the world is the largest rectangle. */
+static void
+layout_check(const char* what)
+{
+    struct EditorUiRect const world = Editor_UiWorldRect(&g_ui);
+    struct ToriRSChromeRect world_r;
+    long const world_area = (long)world.w * world.h;
+    long const column_area = (long)g_ui.dock_w * (g_chrome.surface_h - g_ui.dock_top);
+    int shown = 0;
+
+    world_r.x = world.x;
+    world_r.y = world.y;
+    world_r.w = world.w;
+    world_r.h = world.h;
+    CHECK(g_ui.laid_out && world.w > 0 && world.h > 0, "%s: laid out, world %dx%d", what, world.w, world.h);
+    CHECK(world_area > column_area, "%s: the world (%ld) is larger than the dock column (%ld)", what,
+        world_area, column_area);
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+    {
+        struct ToriRSChromeRect const r = g_chrome.panels[i].last_rect;
+        if( !layout_panel(i) )
+            continue;
+        shown++;
+        CHECK(r.x >= 0 && r.y >= 0 && r.x + r.w <= g_chrome.surface_w && r.y + r.h <= g_chrome.surface_h,
+            "%s: '%s' %d,%d %dx%d is on the surface", what, g_chrome.panels[i].title, r.x, r.y, r.w, r.h);
+        CHECK(!rects_overlap(r, world_r), "%s: '%s' does not cover the world", what, g_chrome.panels[i].title);
+        CHECK((long)r.w * r.h < world_area, "%s: '%s' is smaller than the world", what,
+            g_chrome.panels[i].title);
+        for( int j = i + 1; j < g_chrome.panel_count; j++ )
+            if( layout_panel(j) )
+                CHECK(!rects_overlap(r, g_chrome.panels[j].last_rect), "%s: '%s' and '%s' do not overlap",
+                    what, g_chrome.panels[i].title, g_chrome.panels[j].title);
+    }
+    CHECK(shown >= 4, "%s: the menu bar, the rail and at least two panels show (%d)", what, shown);
+    printf("layout %s: world %d,%d %dx%d, column x %d w %d:", what, world.x, world.y, world.w, world.h,
+        g_ui.dock_x, g_ui.dock_w);
+    for( int i = 0; i < g_chrome.panel_count; i++ )
+        if( layout_panel(i) && g_chrome.panels[i].style == TORIRS_CHROME_PANEL_WINDOW )
+            printf(" %s@%d,%d %dx%d", g_chrome.panels[i].title, g_chrome.panels[i].last_rect.x,
+                g_chrome.panels[i].last_rect.y, g_chrome.panels[i].last_rect.w, g_chrome.panels[i].last_rect.h);
+    printf("\n");
+    CHECK(find_panel("Terrain") >= 0 && g_chrome.panels[find_panel("Terrain")].visible,
+        "%s: Terrain heads the column", what);
+}
+
+static void
+drag(
+    int from_x,
+    int from_y,
+    int to_x,
+    int to_y)
+{
+    ToriRSChrome_MouseMove(&g_chrome, from_x, from_y);
+    (void)ToriRSChrome_MouseDown(&g_chrome, from_x, from_y);
+    ToriRSChrome_MouseMove(&g_chrome, (from_x + to_x) / 2, (from_y + to_y) / 2);
+    frame();
+    ToriRSChrome_MouseMove(&g_chrome, to_x, to_y);
+    (void)ToriRSChrome_MouseUp(&g_chrome, to_x, to_y);
+    frame();
+}
+
+static void
+test_layout(void)
+{
+    static const int sizes[][2] = { { 1280, 800 }, { 1530, 1006 }, { 1920, 1080 }, { 2560, 1440 } };
+    char what[64];
+
+    for( int scale = 1; scale <= 2; scale++ )
+        for( int s = 0; s < (int)(sizeof(sizes) / sizeof(sizes[0])); s++ )
+        {
+            layout_boot(sizes[s][0], sizes[s][1], scale);
+            snprintf(what, sizeof(what), "%dx%d at %dx", sizes[s][0], sizes[s][1], scale);
+            layout_check(what);
+            Editor_UiFree(&g_ui);
+        }
+
+    /* A frame resize lays out again; so does every size in between. */
+    layout_boot(1280, 800, 1);
+    ToriRSChrome_SetSurface(&g_chrome, 1920, 1080);
+    frame();
+    frame();
+    CHECK(g_ui.layout_surface_w == 1920, "a surface resize lays out again");
+    layout_check("resized to 1920x1080");
+
+    /* A dropped panel snaps its origin to the grid, and it stays put. */
+    {
+        int const terrain = find_panel("Terrain");
+        int const palette = find_panel("Palette");
+        int const grid = EDP_GRID;
+        struct EditorUiRect const world = Editor_UiWorldRect(&g_ui);
+        struct ToriRSChromeRect r = g_chrome.panels[terrain].last_rect;
+        int const to_x = world.x + 333;
+        int const to_y = world.y + 211;
+
+        CHECK(g_ui.snap && g_chrome.snap_grid == grid, "snapping is on by default (grid %d)", g_chrome.snap_grid);
+        drag(r.x + 30, r.y + 6, to_x + 30, to_y + 6);
+        CHECK(g_chrome.panels[terrain].user_placed, "the drag marked Terrain as the user's");
+        CHECK(g_chrome.panels[terrain].x % grid == 0 && g_chrome.panels[terrain].y % grid == 0
+                  && abs(g_chrome.panels[terrain].x - to_x) <= grid / 2
+                  && abs(g_chrome.panels[terrain].y - to_y) <= grid / 2,
+            "dropped at %d,%d, Terrain landed on the grid at %d,%d", to_x, to_y, g_chrome.panels[terrain].x,
+            g_chrome.panels[terrain].y);
+
+        /* Dropped a few pixels off Terrain's right edge, level with it: it
+         * abuts and aligns instead of landing on a grid line. */
+        r = g_chrome.panels[terrain].last_rect;
+        {
+            struct ToriRSChromeRect const p = g_chrome.panels[palette].last_rect;
+            int const want_x = r.x + r.w + 5;
+            int const want_y = r.y + 3;
+            drag(p.x + 30, p.y + 6, want_x + 30, want_y + 6);
+            CHECK(g_chrome.panels[palette].x == r.x + r.w && g_chrome.panels[palette].y == r.y,
+                "Palette dropped at %d,%d snapped to Terrain's edge (%d,%d), at %d,%d", want_x, want_y,
+                r.x + r.w, r.y, g_chrome.panels[palette].x, g_chrome.panels[palette].y);
+        }
+
+        /* A resize rounds the size to the grid. */
+        r = g_chrome.panels[terrain].last_rect;
+        drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 + 37, r.y + r.h - 4 - 45);
+        CHECK(g_chrome.panels[terrain].fixed_w % grid == 0 && g_chrome.panels[terrain].fixed_h % grid == 0
+                  && g_chrome.panels[terrain].fixed_w != r.w,
+            "Terrain resized from %dx%d to %dx%d, on the grid", r.w, r.h, g_chrome.panels[terrain].fixed_w,
+            g_chrome.panels[terrain].fixed_h);
+
+        /* A resize of the frame leaves the dragged panel where it was. */
+        r = g_chrome.panels[terrain].last_rect;
+        ToriRSChrome_SetSurface(&g_chrome, 2560, 1440);
+        frame();
+        frame();
+        CHECK(g_chrome.panels[terrain].x == r.x && g_chrome.panels[terrain].y == r.y,
+            "a dragged panel keeps its place through a frame resize");
+
+        /* Snap off: a drop lands where it was let go. */
+        Editor_UiSetSnap(&g_ui, 0);
+        frame();
+        r = g_chrome.panels[terrain].last_rect;
+        drag(r.x + 30, r.y + 6, r.x + 30 + 13, r.y + 6 + 7);
+        CHECK(g_chrome.panels[terrain].x == r.x + 13 && g_chrome.panels[terrain].y == r.y + 7,
+            "with Snap to grid off a drop is exact");
+        Editor_UiSetSnap(&g_ui, 1);
+
+        /* View > Snap to grid toggles it; View > Reset layout takes it all
+         * back. Both are rows after the panel rows of the View menu. */
+        {
+            int view = -1;
+            int snap_row = -1;
+            int reset_row = -1;
+            for( int i = 0; i < g_chrome.widget_count; i++ )
+                if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
+                    && strcmp(g_chrome.widgets[i].text, "View") == 0 )
+                    view = i;
+            CHECK(view >= 0, "the menu bar has a View menu");
+            if( view >= 0 )
+            {
+                int const rows = g_chrome.widgets[view].option_count;
+                reset_row = rows - 2;
+                snap_row = rows - 1;
+                ToriRSChrome_DropdownSetSelected(&g_chrome, view, snap_row);
+                activate(view);
+                CHECK(!g_ui.snap && g_chrome.snap_grid == 0, "View > Snap to grid turns snapping off");
+                ToriRSChrome_DropdownSetSelected(&g_chrome, view, snap_row);
+                activate(view);
+                CHECK(g_ui.snap && g_chrome.snap_grid == EDP_GRID, "and on again");
+                ToriRSChrome_DropdownSetSelected(&g_chrome, view, reset_row);
+                activate(view);
+            }
+            else
+                Editor_UiResetLayout(&g_ui);
+        }
+        frame();
+        frame();
+        CHECK(!g_chrome.panels[terrain].user_placed && g_chrome.panels[terrain].x == g_ui.dock_x
+                  && g_chrome.panels[terrain].y == g_ui.dock_top,
+            "Reset layout puts Terrain back at the head of the column (%d,%d)", g_chrome.panels[terrain].x,
+            g_chrome.panels[terrain].y);
+        layout_check("after Reset layout at 2560x1440");
+    }
+
+    /* A popup opened later goes beside the column, over the world only. */
+    {
+        int const locs = find_panel("Locs");
+        struct Editor_LocRef ref;
+        memset(&ref, 0, sizeof(ref));
+        ref.map_x = 50;
+        ref.map_z = 50;
+        Editor_UiSelectLoc(&g_ui, &ref);
+        frame();
+        frame();
+        CHECK(locs >= 0 && g_chrome.panels[locs].visible, "selecting a loc opens Locs");
+        if( locs >= 0 )
+            for( int i = 0; i < g_chrome.panel_count; i++ )
+                if( i != locs && layout_panel(i) )
+                    CHECK(!rects_overlap(g_chrome.panels[locs].last_rect, g_chrome.panels[i].last_rect),
+                        "Locs opens beside the column, clear of '%s'", g_chrome.panels[i].title);
+        Editor_UiSelectLoc(&g_ui, NULL);
+        frame();
+    }
+    Editor_UiFree(&g_ui);
+}
+
+/* ---- editing feedback: brush footprint, spawn ghosts, the History panel ------------ */
+
+#include "editor/map_editor_ghost.h"
+
+static struct ToriRSChrome g_fb_chrome;
+static struct EditorUi g_fb_ui;
+
+static void
+fb_frame(void)
+{
+    ToriRSChrome_Build(&g_fb_chrome);
+    Editor_UiTick(&g_fb_ui);
+    ToriRSChrome_Build(&g_fb_chrome);
+}
+
+/** The footprint the preview draws is the set of tiles the stroke edits, for
+ *  every falloff and a spread of radii: one weight function, two callers. */
+static void
+fb_test_footprint(void)
+{
+    static struct Editor_BrushTile tiles[EDITOR_BRUSH_TILES_MAX];
+    static unsigned char marked[2 * EDITOR_BRUSH_RADIUS_MAX + 1][2 * EDITOR_BRUSH_RADIUS_MAX + 1];
+    static const int k_radii[] = { 0, 1, 2, 3, 5, 9 };
+    int const cx = SQ_X0 + 32;
+    int const cz = SQ_Z0 + 32;
+    int mismatches = 0;
+    int cases = 0;
+
+    for( int f = 0; f < EDITOR_BRUSH_FALLOFF_COUNT; f++ )
+        for( int r = 0; r < (int)(sizeof(k_radii) / sizeof(k_radii[0])); r++ )
+        {
+            struct Editor_BrushOp op;
+            int n;
+            int count;
+            int inside = 1;
+
+            memset(&op, 0, sizeof(op));
+            op.tool = EDITOR_TOOL_RAISE;
+            op.world_x = cx;
+            op.world_z = cz;
+            op.brush.radius = k_radii[r];
+            op.brush.falloff = (enum Editor_BrushFalloff)f;
+            op.brush.step = 4;
+            n = Editor_Terrain_BrushFootprint(&op.brush, tiles, EDITOR_BRUSH_TILES_MAX);
+            memset(marked, 0, sizeof(marked));
+            for( int i = 0; i < n; i++ )
+            {
+                marked[tiles[i].dz + op.brush.radius][tiles[i].dx + op.brush.radius] = 1;
+                if( tiles[i].weight != Editor_BrushWeight(&op.brush, tiles[i].dx, tiles[i].dz) )
+                    inside = 0;
+            }
+            count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+            for( int i = 0; i < count; i++ )
+            {
+                int const dx = 50 * 64 + g_cmds[i].u.tile.x - cx;
+                int const dz = 50 * 64 + g_cmds[i].u.tile.z - cz;
+                if( dx < -op.brush.radius || dx > op.brush.radius || dz < -op.brush.radius || dz > op.brush.radius
+                    || !marked[dz + op.brush.radius][dx + op.brush.radius] )
+                    inside = 0;
+            }
+            if( count != n || !inside )
+                mismatches++;
+            cases++;
+        }
+    CHECK(mismatches == 0, "footprint: the preview's tiles and weights are the stroke's, %d cases (%d differ)",
+        cases, mismatches);
+    {
+        struct Editor_Brush brush = { 2, EDITOR_BRUSH_FALLOFF_LINEAR, 4, 50 };
+        int const n = Editor_Terrain_BrushFootprint(&brush, tiles, EDITOR_BRUSH_TILES_MAX);
+        CHECK(n == 21 && tiles[0].dx == 0 && tiles[0].dz == 0 && tiles[0].weight == 1.0,
+            "footprint: a radius-2 disc is 21 tiles, centre first at full weight (%d)", n);
+        CHECK(Editor_Terrain_BrushFootprint(&brush, tiles, 4) == 4, "footprint: a short array takes what fits");
+        CHECK(Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_RAISE) && !Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_PAINT_UNDERLAY)
+                  && !Editor_Terrain_ToolUsesFalloff(EDITOR_TOOL_FLATTEN),
+            "footprint: height brushes fade, flatten and paint do not");
+    }
+}
+
+/** The spawn ghost's bookkeeping: pending until landed, a remove hands back
+ *  exactly what landed (or nothing), and the loc ghost leaves it alone. */
+static void
+fb_test_spawn_ghost(void)
+{
+    struct MapEditorGhost ghost;
+    struct MapEditorSpawnSpec npc = { MAP_EDITOR_SPAWN_NPC, 0, 40, 41, 0 };
+    struct MapEditorSpawnSpec obj = { MAP_EDITOR_SPAWN_OBJ, 0, 40, 41, 0 };
+    struct MapEditorSpawnSpec moved = npc;
+    struct MapEditorSpawnSpec out;
+    struct MapEditorGhostSpec loc = { 1530, 10, 10, 0, 10, 0 };
+    struct MapEditorGhostSpec removed;
+    struct MapEditorGhostSpec restore;
+    bool has_restore;
+    int entity = 99;
+
+    MapEditorGhost_Reset(&ghost);
+    CHECK(!MapEditorSpawnGhost_Matches(&ghost.spawn, &npc), "spawn ghost: none up matches nothing");
+    MapEditorSpawnGhost_Place(&ghost.spawn, &npc);
+    CHECK(MapEditorSpawnGhost_Pending(&ghost.spawn) && MapEditorSpawnGhost_Matches(&ghost.spawn, &npc),
+        "spawn ghost: an npc ghost is pending until its body lands");
+    moved.scene_x++;
+    CHECK(!MapEditorSpawnGhost_Matches(&ghost.spawn, &moved) && !MapEditorSpawnGhost_Matches(&ghost.spawn, &obj),
+        "spawn ghost: another tile or kind is another ghost");
+    MapEditorSpawnGhost_Land(&ghost.spawn, 7, 3, 2);
+    CHECK(!MapEditorSpawnGhost_Pending(&ghost.spawn) && ghost.spawn.size == 2,
+        "spawn ghost: landed as pool 7, 2x2 footprint");
+
+    /* The loc ghost's place / commit / remove clear the loc ghost alone. */
+    MapEditorGhost_Place(&ghost, &loc, NULL);
+    MapEditorGhost_Commit(&ghost);
+    MapEditorGhost_Place(&ghost, &loc, NULL);
+    (void)MapEditorGhost_Remove(&ghost, &removed, &has_restore, &restore);
+    CHECK(ghost.spawn.active && ghost.spawn.entity == 7, "spawn ghost: the loc ghost's place/commit/remove leave it up");
+
+    CHECK(MapEditorSpawnGhost_Remove(&ghost.spawn, 3, &out, &entity) && entity == 7 && out.kind == MAP_EDITOR_SPAWN_NPC,
+        "spawn ghost: removal hands back the npc it became");
+    CHECK(!MapEditorSpawnGhost_Remove(&ghost.spawn, 3, &out, &entity), "spawn ghost: a second removal has nothing");
+
+    MapEditorSpawnGhost_Place(&ghost.spawn, &obj);
+    entity = 99;
+    CHECK(MapEditorSpawnGhost_Remove(&ghost.spawn, 3, &out, &entity) && entity == -1 && out.kind == MAP_EDITOR_SPAWN_OBJ,
+        "spawn ghost: an obj ghost that never landed despawns nothing");
+    MapEditorSpawnGhost_Place(&ghost.spawn, &obj);
+    MapEditorSpawnGhost_Land(&ghost.spawn, 4, 3, 1);
+    CHECK(MapEditorSpawnGhost_Remove(&ghost.spawn, 4, &out, &entity) && entity == -1,
+        "spawn ghost: after a rebuild (another load_seq) the entity is already gone");
+}
+
+/** Synthetic facts through the derived history: names, a cut, a merge, a
+ *  remote redo. */
+static void
+fb_test_history_model(void)
+{
+    struct Editor_History history;
+    struct Editor_Cmd command;
+    char name[160];
+
+    Editor_HistoryInit(&history);
+
+    /* A 12x8 paste: every tile gains an underlay and an overlay. */
+    Editor_HistoryBreak(&history, NULL);
+    for( int z = 0; z < 8; z++ )
+        for( int x = 0; x < 12; x++ )
+        {
+            Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 50, 50);
+            command.u.tile.x = 4 + x;
+            command.u.tile.z = 6 + z;
+            command.u.tile.after.underlay_id = 3;
+            command.u.tile.after.has_overlay = 1;
+            command.u.tile.after.overlay_id = 2;
+            Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+        }
+    CHECK(history.count == 1 && history.groups[0].cmd_count == 96, "history: a pump of 96 facts is one group");
+    Editor_HistoryGroupName(&history.groups[0], name, sizeof(name));
+    CHECK(strcmp(name, "Paste 12x8 m50_50 L0") == 0, "history: names a paste (%s)", name);
+
+    /* A loc placement, a spawn, a config field: one group each. */
+    Editor_HistoryBreak(&history, NULL);
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, 50, 50);
+    command.has_after = 1;
+    command.u.loc.after.loc_id = 1530;
+    command.u.loc.after.shape = 10;
+    Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+    Editor_HistoryGroupName(&history.groups[1], name, sizeof(name));
+    CHECK(strcmp(name, "Place loc 1530 m50_50") == 0, "history: names a loc placement (%s)", name);
+
+    Editor_HistoryBreak(&history, NULL);
+    Editor_CmdInit(&command, EDITOR_DOC_SPAWN, "m50_50", EDITOR_CMD_SPAWN);
+    command.has_after = 1;
+    snprintf(command.u.spawn.name, sizeof(command.u.spawn.name), "goblin");
+    command.u.spawn.abs_x = 3200;
+    command.u.spawn.abs_z = 3238;
+    Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+    Editor_HistoryGroupName(&history.groups[2], name, sizeof(name));
+    CHECK(strcmp(name, "Spawn npc goblin 3200,3238") == 0, "history: names a spawn (%s)", name);
+
+    Editor_HistoryBreak(&history, NULL);
+    Editor_CmdInit(&command, EDITOR_DOC_CFG, "loc:door", EDITOR_CMD_CFG_FIELD);
+    snprintf(command.u.cfg_field.key, sizeof(command.u.cfg_field.key), "name");
+    Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+    Editor_HistoryGroupName(&history.groups[3], name, sizeof(name));
+    CHECK(strcmp(name, "Cfg loc:door.name") == 0, "history: names a config field (%s)", name);
+
+    Editor_HistoryBreak(&history, "New square m1_1 (copy of m50_50)");
+    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 1, 1);
+    Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+    Editor_HistoryGroupName(&history.groups[4], name, sizeof(name));
+    CHECK(strcmp(name, "New square m1_1 (copy of m50_50)") == 0, "history: an intent's label is the row (%s)", name);
+    CHECK(history.count == 5 && history.applied == 5, "history: five groups, all applied");
+
+    /* The authority's group was smaller than the paste row: an undo of 40
+     * cuts it, 56 applied below the position and 40 undone above. */
+    Editor_HistoryReplayBegin(&history, -1);
+    for( int i = 0; i < 4; i++ )
+        Editor_HistoryOnFact(&history, EDITOR_CMD_INVERSE, &command);
+    Editor_HistoryReplayEnd(&history, 4);
+    /* One undo that answered 4 commands: the four one-command rows were one
+     * group on the authority, so they fold into one. */
+    CHECK(history.applied == 1 && history.count == 2 && history.groups[1].cmd_count == 4,
+        "history: an undo of 4 commands folds the 4 rows it took (%d/%d)", history.applied, history.count);
+    Editor_HistoryReplayBegin(&history, -1);
+    for( int i = 0; i < 40; i++ )
+        Editor_HistoryOnFact(&history, EDITOR_CMD_INVERSE, &command);
+    Editor_HistoryReplayEnd(&history, 40);
+    CHECK(history.count == 3 && history.applied == 1 && history.groups[0].cmd_count == 56
+              && history.groups[1].cmd_count == 40 && history.groups[1].approximate,
+        "history: an undo shorter than the row cuts it where the authority stopped (%d/%d, %d+%d)", history.applied,
+        history.count, history.groups[0].cmd_count, history.groups[1].cmd_count);
+
+    /* A redo that spans two rows: the authority's group was both. */
+    Editor_HistoryReplayBegin(&history, 1);
+    for( int i = 0; i < 41; i++ )
+        Editor_HistoryOnFact(&history, EDITOR_CMD_FORWARD, &command);
+    Editor_HistoryReplayEnd(&history, 41);
+    CHECK(history.applied == 2 && history.count == 3 && history.groups[1].cmd_count == 41,
+        "history: a redo across two rows merges them (%d/%d, %d)", history.applied, history.count,
+        history.groups[1].cmd_count);
+    CHECK(Editor_HistoryAppliedCommands(&history) == 97, "history: 97 commands applied (%d)",
+        Editor_HistoryAppliedCommands(&history));
+
+    /* Another window's undo and redo: inverse facts then the same command
+     * forward, in pumps of their own. */
+    {
+        struct Editor_History remote;
+        struct Editor_Cmd a;
+        struct Editor_Cmd b;
+
+        Editor_HistoryInit(&remote);
+        Editor_CmdInitSquare(&a, EDITOR_CMD_LOC, 50, 50);
+        a.has_after = 1;
+        a.u.loc.after.loc_id = 1;
+        b = a;
+        b.u.loc.after.loc_id = 2;
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_FORWARD, &a);
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_FORWARD, &b);
+        Editor_HistoryBatchEnd(&remote);
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_INVERSE, &b);
+        Editor_HistoryBatchEnd(&remote);
+        CHECK(remote.count == 2 && remote.applied == 1, "history: a remote undo moves the position");
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_FORWARD, &b);
+        Editor_HistoryBatchEnd(&remote);
+        CHECK(remote.count == 2 && remote.applied == 2, "history: the same command forward is that window's redo");
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_INVERSE, &b);
+        Editor_HistoryBatchEnd(&remote);
+        Editor_HistoryBreak(&remote, NULL);
+        Editor_HistoryOnFact(&remote, EDITOR_CMD_FORWARD, &a);
+        Editor_HistoryBatchEnd(&remote);
+        CHECK(remote.count == 2 && remote.applied == 2 && remote.groups[1].first_hash == Editor_CmdHash(&a),
+            "history: a different command is a new edit and drops the redo tail");
+        Editor_HistoryFree(&remote);
+    }
+    Editor_HistoryFree(&history);
+}
+
+/** The session's own history through the embedded authority, and the
+ *  History panel over it: names, the marker, jump to a row and back. */
+static void
+fb_test_history_panel(void)
+{
+    const struct Editor_History* history = Editor_GetHistory(&g_editor);
+    struct Editor_BrushOp op;
+    struct Editor_LocOpResult result;
+    struct Editor_Tile after_first[25];
+    char name[160];
+    int const cx = SQ_X0 + 40;
+    int const cz = SQ_Z0 + 44;
+    int first;
+    int count;
+    int rebuilds;
+    int list;
+    int row_a = -1;
+    int panel = -1;
+
+    ToriRSChrome_Init(&g_fb_chrome);
+    ToriRSChrome_SetSurface(&g_fb_chrome, 1280, 800);
+    Editor_UiInit(&g_fb_ui, &g_fb_chrome, &g_editor);
+    Editor_History_Register(&g_fb_ui);
+    Editor_UiSetVisible(&g_fb_ui, 1);
+    for( int i = 0; i < g_fb_chrome.panel_count; i++ )
+        if( strcmp(g_fb_chrome.panels[i].title, "History") == 0 )
+            panel = i;
+    CHECK(panel >= 0, "history panel: registers");
+    if( panel < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_fb_chrome, panel, 1);
+
+    /* A: a named raise stroke on untouched ground. */
+    memset(&op, 0, sizeof(op));
+    op.tool = EDITOR_TOOL_RAISE;
+    op.world_x = cx;
+    op.world_z = cz;
+    op.brush.radius = 2;
+    op.brush.falloff = EDITOR_BRUSH_FALLOFF_FLAT;
+    op.brush.step = 2;
+    count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+    Editor_StrokeBegin(&g_editor);
+    Editor_HistoryName(&g_editor, "Raise");
+    for( int i = 0; i < count; i++ )
+        (void)Editor_Apply(&g_editor, &g_cmds[i]);
+    Editor_StrokeEnd(&g_editor);
+    first = history->count - 1;
+    for( int i = 0; i < 25; i++ )
+        after_first[i] = *tile_at(cx + i % 5 - 2, cz + i / 5 - 2, 0);
+    Editor_HistoryGroupName(&history->groups[first], name, sizeof(name));
+    CHECK(strcmp(name, "Raise 21 tiles m50_50 L0") == 0 && history->groups[first].cmd_count == 21,
+        "history: the stroke is one row named by its brush (%s, %d)", name, history->groups[first].cmd_count);
+
+    /* B: the same raise again, unnamed: the tallies say Raise. */
+    count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+    CHECK(apply_all(g_cmds, count) == count, "history: the second raise applies");
+    Editor_HistoryGroupName(&history->groups[first + 1], name, sizeof(name));
+    CHECK(strcmp(name, "Raise 21 tiles m50_50 L0") == 0, "history: an unnamed raise is named from its commands (%s)", name);
+
+    /* C: a loc, one command outside any stroke. */
+    count = Editor_LocOpsPlace(&g_editor.doc, 1530, 10, 0, cx + 6, cz, 0, g_cmds, 1, &result);
+    CHECK(count == 1 && Editor_Apply(&g_editor, &g_cmds[0]), "history: the loc applies");
+    Editor_HistoryGroupName(&history->groups[first + 2], name, sizeof(name));
+    CHECK(strcmp(name, "Place loc 1530 m50_50") == 0, "history: a single apply is its own row (%s)", name);
+
+    /* D: the Place tool with an npc pick: a spawn row through the catalog. */
+    g_fb_ui.tools.pick_kind = 1;
+    g_fb_ui.tools.pick_id = 0;
+    CHECK(Editor_Locs_PlaceSpawn(&g_fb_ui, cx, cz + 6, 0) == 1, "spawn place: the npc pick places a spawn row");
+    {
+        struct Editor_DocHandle handle;
+        char key[EDITOR_DOC_KEY_MAX];
+        int found = 0;
+        Editor_SpawnDocKeyAt(key, cx, cz + 6);
+        if( Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, key, &handle) && handle.spawn->loaded )
+            for( int i = 0; i < handle.spawn->file.line_count; i++ )
+                if( handle.spawn->file.lines[i].kind == EDITOR_SPAWN_LINE_ROW
+                    && strcmp(handle.spawn->file.lines[i].row.name, "test_guard") == 0
+                    && handle.spawn->file.lines[i].row.abs_x == cx && handle.spawn->file.lines[i].row.abs_z == cz + 6 )
+                    found = 1;
+        CHECK(found, "spawn place: the row is test_guard at the clicked tile (the pick's symbol)");
+    }
+    Editor_HistoryGroupName(&history->groups[first + 3], name, sizeof(name));
+    snprintf(g_fb_ui.tools.pick_name, sizeof(g_fb_ui.tools.pick_name), "%d,%d", cx, cz + 6);
+    CHECK(strstr(name, "npc test_guard") && strstr(name, g_fb_ui.tools.pick_name),
+        "history: the spawn row is named with its symbol and tile (%s)", name);
+    CHECK(history->count == first + 4 && history->applied == first + 4, "history: four new rows, all applied");
+
+    /* The panel: newest first, the marker on the newest applied. */
+    fb_frame();
+    CHECK(Editor_History_RowText(&g_fb_ui, 0) && strncmp(Editor_History_RowText(&g_fb_ui, 0), "> ", 2) == 0
+              && strstr(Editor_History_RowText(&g_fb_ui, 0), "test_guard"),
+        "history panel: row 0 is the spawn, marked current (%s)", Editor_History_RowText(&g_fb_ui, 0));
+    rebuilds = Editor_History_Rebuilds(&g_fb_ui);
+    fb_frame();
+    fb_frame();
+    CHECK(Editor_History_Rebuilds(&g_fb_ui) == rebuilds, "history panel: unchanged frames rebuild nothing");
+
+    /* Undo: the spawn row greys to "undone" above the marker. */
+    CHECK(Editor_Undo(&g_editor) == 1, "history: undo takes the spawn back");
+    fb_frame();
+    CHECK(Editor_History_Rebuilds(&g_fb_ui) == rebuilds + 1, "history panel: the undo rebuilt the rows once");
+    CHECK(strncmp(Editor_History_RowText(&g_fb_ui, 0), "  undone ", 9) == 0
+              && strncmp(Editor_History_RowText(&g_fb_ui, 1), "> ", 2) == 0,
+        "history panel: the spawn is undone, the loc is current (%s | %s)", Editor_History_RowText(&g_fb_ui, 0),
+        Editor_History_RowText(&g_fb_ui, 1));
+
+    /* Click row A: back to just after the first raise. */
+    for( int row = 0; Editor_History_RowText(&g_fb_ui, row); row++ )
+        if( Editor_History_RowTarget(&g_fb_ui, row) == first + 1 )
+            row_a = row;
+    CHECK(row_a == 3, "history panel: the first raise is row 3 (%d)", row_a);
+    list = -1;
+    for( int i = 0; i < g_fb_chrome.widget_count; i++ )
+        if( g_fb_chrome.widgets[i].panel == panel && g_fb_chrome.widgets[i].kind == TORIRS_CHROME_W_VLIST )
+            list = i;
+    CHECK(list >= 0, "history panel: has its list");
+    if( list >= 0 && row_a >= 0 )
+    {
+        int restored = 1;
+        ToriRSChrome_VListSetSelected(&g_fb_chrome, list, row_a);
+        g_fb_chrome.activated = list;
+        fb_frame();
+        for( int i = 0; i < 25; i++ )
+            if( memcmp(tile_at(cx + i % 5 - 2, cz + i / 5 - 2, 0), &after_first[i], sizeof(after_first[i])) != 0 )
+                restored = 0;
+        CHECK(history->applied == first + 1 && restored,
+            "history panel: a click on the first raise undoes back to it (%d applied, tiles %s)", history->applied,
+            restored ? "as after it" : "differ");
+        CHECK(Editor_LocRefResolve(&g_editor.doc, &result.refs[0]) < 0, "history panel: the loc is gone with it");
+    }
+    CHECK(Editor_History_Jump(&g_fb_ui, first + 4) == 3 && history->applied == first + 4,
+        "history: a jump to the newest redoes the three steps (%d)", history->applied);
+    CHECK(Editor_LocRefResolve(&g_editor.doc, &result.refs[0]) >= 0, "history: the loc is back");
+
+    /* Filter by document key. */
+    {
+        int input = -1;
+        int rows = 0;
+        for( int i = 0; i < g_fb_chrome.widget_count; i++ )
+            if( g_fb_chrome.widgets[i].panel == panel && g_fb_chrome.widgets[i].kind == TORIRS_CHROME_W_TEXTINPUT )
+                input = i;
+        CHECK(input >= 0, "history panel: has its filter");
+        if( input >= 0 )
+        {
+            ToriRSChrome_SetText(&g_fb_chrome, input, "no_such_doc");
+            fb_frame();
+            while( Editor_History_RowText(&g_fb_ui, rows) )
+                rows++;
+            CHECK(rows == 1 && strstr(Editor_History_RowText(&g_fb_ui, 0), "session start"),
+                "history panel: a filter nothing matches leaves the start row (%d rows)", rows);
+            ToriRSChrome_SetText(&g_fb_chrome, input, "");
+            fb_frame();
+        }
+    }
+    Editor_UiFree(&g_fb_ui);
+}
+
+static void
+test_editing_feedback(void)
+{
+    fb_test_footprint();
+    fb_test_spawn_ghost();
+    fb_test_history_model();
+    fb_test_history_panel();
+}
+
 int
 main(
     int argc,
@@ -1271,6 +2355,7 @@ main(
         printf("FAIL: no osrs241 profile\n");
         return 1;
     }
+    write_catalog_fixture(root);
     if( !Editor_HostOpenMapEdEmbed(&host, root, NULL) )
     {
         printf("FAIL: the embedded ToriRSMapEd did not open %s\n", root);
@@ -1286,10 +2371,15 @@ main(
     test_rect();
     test_locs();
     test_spawns();
+    test_catalog_model();
     test_picker();
     test_newform();
     test_chrome();
+    test_layout();
 
+    test_catalog_panel();
+    test_spawn_duplicate();
+    test_editing_feedback();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);
     printf("editor_panels_test: %d checks, %d failed\n", g_checks, g_failed);

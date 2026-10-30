@@ -1,6 +1,8 @@
 /*
  * The square picker (docs/MAPED_DESIGN.html #squares): a map of every square
- * the content tree holds, one tab per world-map area plus Unmapped.
+ * the content tree holds, one page per world-map area plus Unmapped, chosen
+ * with the Area dropdown (a tab per area made a strip of ~50 overlapping
+ * labels nobody could read).
  *
  *   the well       thumbnail cells in each square's average floor colour,
  *                  north up, map coordinates on the axes; wheel zooms about
@@ -34,7 +36,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* The well's height when the panel is content-sized, and the least it shrinks
+ * to when the layout gives the panel a height to fill (1x pixels). */
 #define SQUARES_WELL_H 300
+#define SQUARES_WELL_MIN_H 120
 #define SQUARES_DRAG_SLOP 3
 #define SQUARES_STORAGE_ROWS 32
 
@@ -59,7 +64,6 @@ struct SquaresPanel
     struct Editor_PickerColors colors;
 
     int panel;
-    int tabs;
     int input_search;
     int dropdown_area;
     int dropdown_storage;
@@ -89,7 +93,9 @@ struct SquaresPanel
     int fetched;
     int want_refresh;
     int dirty;
-    int fitted;
+    /** The user zoomed, panned or searched: the view is theirs, and a well
+     *  that changes size keeps it instead of fitting the page again. */
+    int user_view;
 
     /* Gesture state. */
     int pressing;
@@ -119,7 +125,6 @@ squares_point_widgets(
 {
     struct Editor_Picker* picker = &self->picker;
 
-    ToriRSChrome_TabsSetTitles(ui->chrome, self->tabs, picker->tab_titles, picker->tab_count);
     ToriRSChrome_DropdownSetOptions(
         ui->chrome, self->dropdown_area, picker->tab_titles, picker->tab_count, picker->active_tab);
 }
@@ -203,7 +208,7 @@ squares_take_atlas(
     if( Editor_PickerSetAtlas(&self->picker, atlas) || !self->fetched )
         squares_point_widgets(ui, self);
     else
-        ToriRSChrome_PanelSetActiveTab(ui->chrome, self->panel, self->picker.active_tab);
+        ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_area, self->picker.active_tab);
     squares_storage_rows(ui, self);
     self->fetched = 1;
     self->dirty = 1;
@@ -259,6 +264,48 @@ squares_well_h(
     int const scale = ToriRSChrome_Scale(ui->chrome);
     int const h = ui->chrome->widgets[self->graph].h / (scale > 0 ? scale : 1);
     return h > 32 ? h : SQUARES_WELL_H;
+}
+
+/**
+ * The well fills the panel. Content-sized (no layout height), it is
+ * SQUARES_WELL_H at the chrome's scale; given a height by the layout or a
+ * resize, it takes what the other rows leave, down to SQUARES_WELL_MIN_H.
+ * Converges in one Build: the other rows' height does not depend on it.
+ */
+static void
+squares_size_well(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    struct ToriRSChromePanel const* p = &ui->chrome->panels[self->panel];
+    struct ToriRSChromeWidget const* well = &ui->chrome->widgets[self->graph];
+    int want = edp_px(ui, SQUARES_WELL_H);
+
+    if( p->fixed_h > 0 && p->view_h > 0 && p->content_h > 0 )
+    {
+        want = p->view_h - (p->content_h - well->view_h);
+        if( want < edp_px(ui, SQUARES_WELL_MIN_H) )
+            want = edp_px(ui, SQUARES_WELL_MIN_H);
+    }
+    if( want != well->view_h )
+        ToriRSChrome_SetCustomHeight(ui->chrome, self->graph, want);
+}
+
+/** EditorUiPanel::stretch: the well is the part that fills. */
+static int
+squares_stretch(
+    struct EditorUi* ui,
+    void* opaque,
+    int* out_min_h,
+    int* out_natural_h)
+{
+    struct SquaresPanel* self = opaque;
+
+    assert(out_min_h);
+    assert(out_natural_h);
+    *out_min_h = edp_px(ui, SQUARES_WELL_MIN_H);
+    *out_natural_h = edp_px(ui, SQUARES_WELL_H);
+    return ui->chrome->widgets[self->graph].view_h;
 }
 
 static uint32_t
@@ -341,10 +388,13 @@ squares_tick(
     if( !self->fetched )
         return;
 
-    if( !self->fitted && ui->chrome->widgets[self->graph].w > 0 )
+    squares_size_well(ui, self);
+    /* Fitted until the user moves the view: the first frame the well has a
+     * size, and again whenever the layout changes that size. */
+    if( !self->user_view && ui->chrome->widgets[self->graph].w > 0
+        && (picker->well_w != squares_well_w(ui, self) || picker->well_h != squares_well_h(ui, self)) )
     {
         Editor_PickerFit(picker, squares_well_w(ui, self), squares_well_h(ui, self));
-        self->fitted = 1;
         self->dirty = 1;
     }
 
@@ -501,6 +551,7 @@ squares_event(
         if( self->dragging )
         {
             Editor_PickerPan(picker, event->x - self->last_x, event->y - self->last_y);
+            self->user_view = 1;
             self->dirty = 1;
         }
         self->last_x = event->x;
@@ -529,6 +580,7 @@ squares_event(
         break;
     case TORIRS_CHROME_EVENT_GRAPH_WHEEL:
         Editor_PickerZoom(picker, event->value, event->x, event->y);
+        self->user_view = 1;
         self->dirty = 1;
         break;
     default:
@@ -551,7 +603,7 @@ squares_search(
         return;
     }
     Editor_PickerShow(&self->picker, &result);
-    ToriRSChrome_PanelSetActiveTab(ui->chrome, self->panel, self->picker.active_tab);
+    self->user_view = 1;
     ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_area, self->picker.active_tab);
     if( result.kind == EDITOR_PICKER_SEARCH_AREA )
         Editor_UiLog(ui, "editor: %s", self->picker.tabs[self->picker.active_tab].title);
@@ -631,24 +683,13 @@ squares_activate(
         return 1;
     }
 
-    if( widget == self->tabs )
-    {
-        int const tab = ToriRSChrome_PanelActiveTab(ui->chrome, self->panel);
-        if( tab >= 0 && tab < picker->tab_count )
-        {
-            Editor_PickerSetTab(picker, tab);
-            ToriRSChrome_DropdownSetSelected(ui->chrome, self->dropdown_area, tab);
-            self->dirty = 1;
-        }
-        return 1;
-    }
     if( widget == self->dropdown_area )
     {
         int const tab = ToriRSChrome_DropdownSelected(ui->chrome, widget);
         if( tab >= 0 && tab < picker->tab_count )
         {
             Editor_PickerSetTab(picker, tab);
-            ToriRSChrome_PanelSetActiveTab(ui->chrome, self->panel, tab);
+            self->user_view = 0;
             self->dirty = 1;
         }
         return 1;
@@ -685,6 +726,7 @@ squares_activate(
     if( widget == self->button_fit )
     {
         Editor_PickerFit(picker, squares_well_w(ui, self), squares_well_h(ui, self));
+        self->user_view = 0;
         self->dirty = 1;
         return 1;
     }
@@ -815,22 +857,18 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, x, edp_px(ui, EDP_TOP_Y), edp_px(ui, EDP_PICKER_W), "Squares");
     assert(self->panel >= 0);
-    self->tabs = ToriRSChrome_Tabs(chrome, self->panel, k_loading_titles, 1, 0);
-    /* Every row shows on every tab: the strip picks the AREA the well draws,
-     * not a page of rows. */
-    ToriRSChrome_PanelBeginTab(chrome, self->panel, -1);
     self->input_search = ToriRSChrome_TextInput(chrome, self->panel, "Find", "");
     ToriRSChrome_SetTooltip(chrome, self->input_search, "m50_50, 50 50, 3222 3218, or an area name; Enter");
     self->dropdown_area = ToriRSChrome_Dropdown(chrome, self->panel, "Area", k_loading_titles, 1, 0);
     self->dropdown_storage = ToriRSChrome_Dropdown(chrome, self->panel, "Storage", NULL, 0, -1);
-    self->graph = ToriRSChrome_Graph(chrome, self->panel, "", SQUARES_WELL_H);
+    self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, SQUARES_WELL_H));
     self->row_hover = ToriRSChrome_Label(chrome, self->panel, " ");
     self->row_status = ToriRSChrome_Label(chrome, self->panel, "");
     self->button_open = ToriRSChrome_Button(chrome, self->panel, "Open");
     self->button_add = ToriRSChrome_Button(chrome, self->panel, "Add to open set");
     self->button_new = ToriRSChrome_Button(chrome, self->panel, "New square...");
     ToriRSChrome_SetTooltip(chrome, self->button_new,
-        "Create a square: where it is stored (maps/ or a lane) and what it starts as");
+        "Create a square: its storage (maps/ or a lane) and its template");
     self->button_fit = ToriRSChrome_Button(chrome, self->panel, "Fit");
     self->button_refresh = ToriRSChrome_Button(chrome, self->panel, "Refresh");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
@@ -860,5 +898,6 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     desc.event = squares_event;
     desc.set_visible = squares_set_visible;
     desc.destroy = squares_destroy;
+    desc.stretch = squares_stretch;
     Editor_UiAddPanel(ui, &desc);
 }

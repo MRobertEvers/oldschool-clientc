@@ -430,4 +430,192 @@ Editor_UndoRedo(
     void (*on_reapplied)(void* user_data, const struct Editor_Cmd* command),
     void* user_data);
 
+/* ---- the history as a mirror sees it ---------------------------------------
+ *
+ * The undo stack above is the AUTHORITY's (torirs_maped.c `maped->undo`); a
+ * window is a mirror and holds no stack. What a mirror does see is the
+ * authority's FACT_CMD stream -- every command, in order, with its direction
+ * -- and its own intents (Editor_Apply, a stroke, Undo, Redo). Editor_History
+ * is the list of undo groups DERIVED from exactly that, for the History panel:
+ * one summary row per group, with where the applied position is. It is never
+ * applied to anything and never sent anywhere; the authority's stack stays the
+ * one source of truth, and every Undo / Redo still goes to it.
+ *
+ * How the facts are grouped:
+ *   - this window's own edits: a group per Editor_Apply outside a stroke, per
+ *     stroke, per DOC_CREATE / SAVE_AS -- exactly the authority's grouping,
+ *     because the same calls make both;
+ *   - another window's edits: a group per pump of facts (that window's stroke
+ *     boundaries are not on the wire), so a long drag elsewhere can show as
+ *     several rows; a Undo from THIS window re-cuts the rows it consumed to the
+ *     authority's answer (Editor_HistoryReplayEnd);
+ *   - INVERSE facts undo the newest applied group; FORWARD facts during this
+ *     window's Redo redo the next one, and a forward fact from elsewhere whose
+ *     command is the next redo group's first is taken as that window's Redo
+ *     (a new edit would truncate the tail, which is what anything else does).
+ */
+
+/** Groups the derived history keeps; the oldest fall off past it. */
+#define EDITOR_HISTORY_GROUPS_MAX 1024
+/** Bytes of a group's intent label ("New square m1_1 (copy of m50_50)"). */
+#define EDITOR_HISTORY_LABEL_MAX 96
+
+/** One undo group: what its commands did, tallied as they arrived. */
+struct Editor_HistoryGroup
+{
+    int cmd_count;
+    /** Editor_CmdHash of the first and last command: a remote Redo is matched
+     *  on the first, a remote Undo starts from the last. */
+    uint32_t first_hash;
+    uint32_t last_hash;
+    /** The first command's document; `doc_keys` 2 once another key joined. */
+    enum Editor_DocKind doc_kind;
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    int doc_keys;
+    /** What the window that made it called the action ("Raise", "nudge
+     *  locs"; "" = derive the verb from the tallies), or the whole row text
+     *  for an intent whose commands do not say what it was (DOC_CREATE). */
+    char verb[32];
+    char label[EDITOR_HISTORY_LABEL_MAX];
+    /** Cut or merged to follow the authority's count; tallies are the
+     *  pre-cut group's. */
+    int approximate;
+    int kinds[EDITOR_CMD_KIND_COUNT];
+
+    /* TILE: absolute bounds, the first level, and what changed. */
+    int tile_level;
+    int tile_x0;
+    int tile_z0;
+    int tile_x1;
+    int tile_z1;
+    int raised;
+    int lowered;
+    int underlay;
+    int overlay;
+    int flags;
+    int cleared;
+
+    /* LOC */
+    int loc_adds;
+    int loc_removes;
+    int loc_moves;
+    int loc_turns;
+    int loc_id;
+
+    /* SPAWN / SPAWN_SUPPRESS */
+    int spawn_adds;
+    int spawn_removes;
+    int spawn_is_obj;
+    int suppress_adds;
+    int suppress_removes;
+    char name[EDITOR_CMD_NAME_MAX];
+
+    /* CFG_* / IF_*: the first block or component's key. */
+    int block_adds;
+    int block_removes;
+    int block_renames;
+    int component;
+    char field[EDITOR_CMD_NAME_MAX];
+};
+
+struct Editor_History
+{
+    /** EDITOR_HISTORY_GROUPS_MAX, allocated on the first group. */
+    struct Editor_HistoryGroup* groups;
+    int count;
+    /** Groups [0, applied) are applied; the rest are the redo tail. */
+    int applied;
+    /** Groups that fell off the old end. */
+    int dropped;
+    /** Bumps on every change: the panel rebuilds only when it moves. */
+    uint32_t serial;
+
+    /** 0: the next new forward fact opens a group (with `next_verb` and
+     *  `next_label`). */
+    int open;
+    char next_verb[32];
+    char next_label[EDITOR_HISTORY_LABEL_MAX];
+
+    /** A group being undone (-1) or redone (+1) fact by fact, and how many of
+     *  its commands are still to come / have come. */
+    int replay;
+    int replay_left;
+    int replay_done;
+    /** This window's own Undo / Redo is in progress (ReplayBegin..End) and
+     *  how many groups it finished so far. */
+    int local_replay;
+    int local_groups;
+};
+
+/** A stable 32-bit hash of a command's bytes (FNV-1a over the struct; the
+ *  wire decode zeroes the struct first, so equal commands hash equal). */
+uint32_t
+Editor_CmdHash(const struct Editor_Cmd* command);
+
+void
+Editor_HistoryInit(struct Editor_History* history);
+
+/** Frees the groups. NULL-tolerant. */
+void
+Editor_HistoryFree(struct Editor_History* history);
+
+/** The next NEW forward fact opens a group. `label` (may be NULL) is its
+ *  whole row text, for an intent whose commands do not say what it was
+ *  (DOC_CREATE, SAVE_AS). */
+void
+Editor_HistoryBreak(
+    struct Editor_History* history,
+    const char* label);
+
+/** Name the action of the group being recorded (or about to be): "Raise",
+ *  "nudge locs". The row keeps the derived counts and document after it. */
+void
+Editor_HistoryVerb(
+    struct Editor_History* history,
+    const char* verb);
+
+/** This window's Undo (direction -1) or Redo (+1) is about to run. */
+void
+Editor_HistoryReplayBegin(
+    struct Editor_History* history,
+    int direction);
+
+/** It answered `count` commands: re-cut the groups it consumed to that
+ *  count (the authority's group boundary). */
+void
+Editor_HistoryReplayEnd(
+    struct Editor_History* history,
+    int count);
+
+/** A pump of facts from elsewhere ended: a group half undone / redone is
+ *  cut where the facts stopped. */
+void
+Editor_HistoryBatchEnd(struct Editor_History* history);
+
+/** One FACT_CMD, as the mirror applied it. */
+void
+Editor_HistoryOnFact(
+    struct Editor_History* history,
+    int direction,
+    const struct Editor_Cmd* command);
+
+/** Commands of the applied groups (what a jump compares against). */
+int
+Editor_HistoryAppliedCommands(const struct Editor_History* history);
+
+/** Commands of groups [0, groups). */
+int
+Editor_HistoryCommandsThrough(
+    const struct Editor_History* history,
+    int groups);
+
+/** The row text for one group: "Raise 9 tiles m50_50 L0", "Place loc 1530
+ *  m50_50", "Paste 12x8 m50_50 L0", "Spawn npc goblin 3200,3238",
+ *  "Cfg loc:door.name". Returns `out`. */
+const char*
+Editor_HistoryGroupName(
+    const struct Editor_HistoryGroup* group,
+    char* out,
+    int out_size);
+
 #endif

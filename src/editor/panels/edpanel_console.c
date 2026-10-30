@@ -13,7 +13,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#define CONSOLE_ROWS 8
+/* A short strip along the bottom of the world (Editor_UiLayout). */
+#define CONSOLE_ROWS 5
 
 struct ConsolePanel
 {

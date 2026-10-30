@@ -7,6 +7,8 @@
  */
 
 #include "app/app_internal.h"
+#include "editor/editor_doc.h"
+#include "editor/panels/edpanels.h"
 
 /**
  * Directions sampled around a projected mesh when reducing it to a hull.
@@ -1413,6 +1415,294 @@ app_overlay_build_hover_footprint(struct App* app)
     }
 }
 
+/* ---- the editor's previews: what the next click will touch ----------------- */
+
+/* The brush footprint's colour (a cyan apart from the select green and the
+ * footprint red), the spawn ghost's and the move destinations'. */
+#define APP_EDITOR_BRUSH_COLOR 0xFF3CC8FFu
+#define APP_EDITOR_GHOST_COLOR 0xFFFFC040u
+/* Brushes up to this many tiles draw every tile (radius 5); larger ones
+ * draw nested washes, so a radius-16 brush stays inside the overlay budget
+ * (OVERLAY_STAGE_WORLD_MAX). Up to the smaller count each tile is outlined
+ * too (radius 3). */
+#define APP_EDITOR_BRUSH_TILE_FILLS 121
+#define APP_EDITOR_BRUSH_TILE_EDGES 49
+
+/** One tile at its own four corner heights (it is the terrain being edited,
+ *  so it bends with it), filled at `trans` (-1 none) and outlined at
+ *  `line_width` (0 none). */
+static void
+app_overlay_editor_tile(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    uint32_t color,
+    int trans,
+    int line_width)
+{
+    static const int corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+    int px[4];
+    int py[4];
+    int hx[4];
+    int hy[4];
+    int n = 0;
+    int hull;
+
+    for( int c = 0; c < 4; c++ )
+    {
+        int const fx = (scene_x + corner[c][0]) * 128;
+        int const fz = (scene_z + corner[c][1]) * 128;
+        if( app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &px[n], &py[n]) )
+            n++;
+    }
+    if( n == 0 )
+        return;
+    hull = ToriDraw_ConvexHull(px, py, n, hx, hy);
+    if( trans >= 0 )
+        app_overlay_push_polygon_filled(app, hx, hy, hull, color, trans);
+    if( line_width > 0 )
+        app_overlay_push_polygon(app, hx, hy, hull, color, line_width);
+}
+
+/**
+ * The hull of a set of whole tiles -- the outer corners of each row's first
+ * and last tile, which for a disc or a rectangle is every hull vertex -- at
+ * each corner's own height, filled at `trans` (-1 none) and outlined at
+ * `line_width` (0 none). `row_x0/row_x1` per row (z0 + i), -1 for an empty
+ * row.
+ */
+static void
+app_overlay_editor_rows_hull(
+    struct App* app,
+    int z0,
+    int rows,
+    const int* row_x0,
+    const int* row_x1,
+    int level,
+    uint32_t color,
+    int trans,
+    int line_width)
+{
+    int px[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int py[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int hx[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int hy[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+    int n = 0;
+    int hull;
+
+    for( int i = 0; i < rows; i++ )
+    {
+        int const xs[2] = { row_x0[i], row_x1[i] + 1 };
+        if( row_x0[i] < 0 )
+            continue;
+        for( int e = 0; e < 2; e++ )
+            for( int dz = 0; dz < 2; dz++ )
+            {
+                int const fx = xs[e] * 128;
+                int const fz = (z0 + i + dz) * 128;
+                if( n < TORIDRAW_CONVEX_HULL_MAX_POINTS
+                    && app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &px[n], &py[n]) )
+                    n++;
+            }
+    }
+    if( n == 0 )
+        return;
+    hull = ToriDraw_ConvexHull(px, py, n, hx, hy);
+    if( trans >= 0 )
+        app_overlay_push_polygon_filled(app, hx, hy, hull, color, trans);
+    if( line_width > 0 )
+        app_overlay_push_polygon(app, hx, hy, hull, color, line_width);
+}
+
+/** A size_x x size_z block of tiles from its SW corner (a spawn's footprint,
+ *  a move destination). */
+static void
+app_overlay_editor_block(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int size_x,
+    int size_z,
+    int level,
+    uint32_t color,
+    int trans)
+{
+    int x0[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+    int x1[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+
+    if( size_z > EDITOR_BRUSH_RADIUS_MAX * 2 + 1 )
+        size_z = EDITOR_BRUSH_RADIUS_MAX * 2 + 1;
+    for( int i = 0; i < size_z; i++ )
+    {
+        x0[i] = scene_x;
+        x1[i] = scene_x + size_x - 1;
+    }
+    app_overlay_editor_rows_hull(
+        app, scene_z, size_z, x0, x1, level, color, trans, APP_OVERLAY_SEGMENT_WIDTH);
+}
+
+/**
+ * The tiles the next brush application touches, around the hovered tile on
+ * the edit level -- the same list the stroke walks
+ * (Editor_Terrain_BrushFootprint, Editor_BrushWeight), so the preview and
+ * the edit cannot disagree. The falloff is the wash's strength: the centre
+ * strongest, the rim faintest; flat, flatten and the paint brushes alike.
+ * A tile whose square is not open is left out: the stroke skips it too.
+ * During a drag it follows the pointer like the stroke does.
+ */
+static void
+app_overlay_build_brush_footprint(struct App* app)
+{
+    static struct Editor_BrushTile tiles[EDITOR_BRUSH_TILES_MAX];
+    struct EditorUi* ui = app->editor_panel.ui;
+    struct MapEditorHover const* hover = &app->map_ghost.hover;
+    int row_x0[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+    int row_x1[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+    int count;
+    int falloff;
+    int radius;
+
+    if( !ui || !hover->valid || !app->world || !app->editor || !Editor_ToolIsBrush(ui->tools.tool) )
+        return;
+    radius = ui->tools.brush.radius;
+    count = Editor_Terrain_BrushFootprint(&ui->tools.brush, tiles, EDITOR_BRUSH_TILES_MAX);
+    falloff = Editor_Terrain_ToolUsesFalloff((int)ui->tools.tool)
+              && ui->tools.brush.falloff != EDITOR_BRUSH_FALLOFF_FLAT;
+    for( int i = 0; i < 2 * radius + 1; i++ )
+        row_x0[i] = row_x1[i] = -1;
+
+    for( int i = 0; i < count; i++ )
+    {
+        int const sx = hover->scene_x + tiles[i].dx;
+        int const sz = hover->scene_z + tiles[i].dz;
+        int const wx = app->world->_base_tile_x + sx;
+        int const wz = app->world->_base_tile_z + sz;
+        struct Editor_Square* square;
+        double const weight = falloff ? tiles[i].weight : 1.0;
+        int const row = tiles[i].dz + radius;
+
+        if( sx < 0 || sz < 0 || sx >= app->world->_scene_size || sz >= app->world->_scene_size )
+            continue;
+        square = Editor_DocFindSquare(&app->editor->doc, wx / EDITOR_SQUARE_X, wz / EDITOR_SQUARE_Z);
+        if( !square || !square->loaded )
+            continue;
+        if( row_x0[row] < 0 || sx < row_x0[row] )
+            row_x0[row] = sx;
+        if( row_x1[row] < 0 || sx > row_x1[row] )
+            row_x1[row] = sx;
+        if( count <= APP_EDITOR_BRUSH_TILE_FILLS )
+            /* 0 opaque .. 255 clear: the centre at 95, a weight-0.1 rim
+             * near 230. */
+            app_overlay_editor_tile(app, sx, sz, hover->level, APP_EDITOR_BRUSH_COLOR,
+                245 - (int)(weight * 150.0), count <= APP_EDITOR_BRUSH_TILE_EDGES && tiles[i].dx == 0 && tiles[i].dz == 0
+                                                ? APP_OVERLAY_SEGMENT_WIDTH
+                                                : count <= APP_EDITOR_BRUSH_TILE_EDGES ? 1 : 0);
+    }
+    if( count > APP_EDITOR_BRUSH_TILE_FILLS )
+    {
+        /* Nested discs, each a light wash: where they overlap -- the centre
+         * -- reads strongest. One band for an even brush. */
+        static const double k_bands[4] = { 0.0, 0.25, 0.5, 0.75 };
+        int const bands = falloff ? 4 : 1;
+        for( int b = 0; b < bands; b++ )
+        {
+            int bx0[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+            int bx1[EDITOR_BRUSH_RADIUS_MAX * 2 + 1];
+            for( int i = 0; i < 2 * radius + 1; i++ )
+                bx0[i] = bx1[i] = -1;
+            for( int i = 0; i < count; i++ )
+            {
+                int const sx = hover->scene_x + tiles[i].dx;
+                int const row = tiles[i].dz + radius;
+                if( tiles[i].weight <= k_bands[b] || row_x0[row] < 0 || sx < row_x0[row] || sx > row_x1[row] )
+                    continue;
+                if( bx0[row] < 0 || sx < bx0[row] )
+                    bx0[row] = sx;
+                if( bx1[row] < 0 || sx > bx1[row] )
+                    bx1[row] = sx;
+            }
+            app_overlay_editor_rows_hull(app, hover->scene_z - radius, 2 * radius + 1, bx0, bx1, hover->level,
+                APP_EDITOR_BRUSH_COLOR, falloff ? 215 : 160, 0);
+        }
+    }
+    /* The rim: one outline round everything the stroke will touch. */
+    app_overlay_editor_rows_hull(app, hover->scene_z - radius, 2 * radius + 1, row_x0, row_x1, hover->level,
+        APP_EDITOR_BRUSH_COLOR, -1, APP_OVERLAY_SEGMENT_WIDTH);
+
+    /* A headless shot (TORIRS_EDITOR_HOVER) says once what it drew, so a
+     * photograph with no footprint in it is explained by its log. */
+    {
+        static int reported = -1;
+        int drawn = 0;
+        int sx = -1;
+        int sy = -1;
+        if( reported < 0 )
+            reported = getenv("TORIRS_EDITOR_HOVER") ? 0 : 1;
+        for( int i = 0; i < 2 * radius + 1; i++ )
+            drawn += row_x0[i] >= 0 ? row_x1[i] - row_x0[i] + 1 : 0;
+        if( !reported )
+        {
+            reported = 1;
+            (void)app_world_project_at(app, hover->scene_x * 128 + 64, hover->scene_z * 128 + 64,
+                app_world_height(app, hover->scene_x * 128 + 64, hover->scene_z * 128 + 64, hover->level), &sx, &sy);
+            TORIRS_REPORT("editor: brush footprint %d of %d tiles at scene %d,%d level %d (screen %d,%d)\n", drawn,
+                count, hover->scene_x, hover->scene_z, hover->level, sx, sy);
+        }
+    }
+}
+
+/**
+ * The spawn ghost's footprint (the npc's size x size tiles, an obj's one),
+ * and, while the Move tool aims a multi-selection, where every other
+ * selected loc would land -- the primary's own ghost and footprint are the
+ * loc ghost's. Nothing here is in the document yet.
+ */
+static void
+app_overlay_build_editor_ghosts(struct App* app)
+{
+    struct Editor_Panel const* panel = &app->editor_panel;
+    struct MapEditorSpawnGhost const* spawn = &app->map_ghost.spawn;
+    struct MapEditorHover const* hover = &app->map_ghost.hover;
+
+    if( !app->world )
+        return;
+    if( spawn->active && spawn->entity >= 0 && spawn->load_seq == app->world->load_seq )
+    {
+        if( spawn->spec.kind == MAP_EDITOR_SPAWN_NPC )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(&app->world->entities.npc, spawn->entity);
+            if( npc && npc->element_id >= 0 )
+                app_overlay_outline_element_model(app, npc->element_id, APP_EDITOR_GHOST_COLOR);
+        }
+        app_overlay_editor_block(app, spawn->spec.scene_x, spawn->spec.scene_z, spawn->size, spawn->size,
+            spawn->spec.level, APP_EDITOR_GHOST_COLOR, APP_OUTLINE_FILL_TRANS);
+    }
+    if( panel->ui && hover->valid && panel->ui->tools.tool == EDITOR_TOOL_LOC_MOVE
+        && panel->sel_kind == EDITOR_SELECTION_LOC && panel->ui->tools.loc_count > 1 )
+    {
+        const struct Editor_LocRef* first = &panel->ui->tools.locs[0];
+        int const dx = hover->scene_x - (first->map_x * 64 + first->x - app->world->_base_tile_x);
+        int const dz = hover->scene_z - (first->map_z * 64 + first->z - app->world->_base_tile_z);
+
+        if( dx == 0 && dz == 0 )
+            return;
+        for( int i = 1; i < panel->ui->tools.loc_count; i++ )
+        {
+            const struct Editor_LocRef* ref = &panel->ui->tools.locs[i];
+            int const sx = ref->map_x * 64 + ref->x - app->world->_base_tile_x;
+            int const sz = ref->map_z * 64 + ref->z - app->world->_base_tile_z;
+            int const idx = World_SceneryFindAt(app->world, sx, sz, ref->level, ref->shape);
+            struct WorldEntity_Scenery* other =
+                idx >= 0 ? World_EntityPoolGet(&app->world->entities.scenery, idx) : NULL;
+            int const size_x = other && other->debug.draw_size_x > 0 ? other->debug.draw_size_x : 1;
+            int const size_z = other && other->debug.draw_size_z > 0 ? other->debug.draw_size_z : 1;
+            app_overlay_editor_block(
+                app, sx + dx, sz + dz, size_x, size_z, ref->level, APP_EDITOR_GHOST_COLOR, APP_OUTLINE_FILL_TRANS);
+        }
+    }
+}
+
 /**
  * The map editor SELECT tool's latch (editor_panel.sel_kind) -- distinct from
  * the hover footprint above: hover follows the mouse every frame, this stays
@@ -1431,6 +1721,11 @@ app_overlay_build_editor_selection(struct App* app)
      * SELECT-only gate predates select-then-operate. */
     if( !panel->visible )
         return;
+
+    /* What the next click touches: the brush's tiles, the spawn ghost, the
+     * move destinations. */
+    app_overlay_build_brush_footprint(app);
+    app_overlay_build_editor_ghosts(app);
 
     /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
      * looks like, this says which tiles it will own -- the question that

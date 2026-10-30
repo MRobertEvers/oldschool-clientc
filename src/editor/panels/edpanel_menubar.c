@@ -50,7 +50,15 @@ static const char* const k_edit_rows[EDIT_COUNT] = {
     "Paste tiles",    "Fill tiles",     "Clear tiles",
 };
 
-#define MENUBAR_VIEW_MAX EDITOR_UI_PANELS_MAX
+/* After the panel rows: the layout's own two. */
+enum
+{
+    VIEW_RESET_LAYOUT = 0,
+    VIEW_SNAP,
+    VIEW_LAYOUT_COUNT
+};
+
+#define MENUBAR_VIEW_MAX (EDITOR_UI_PANELS_MAX + VIEW_LAYOUT_COUNT)
 
 struct MenuBarPanel
 {
@@ -63,7 +71,10 @@ struct MenuBarPanel
     const char* view_rows[MENUBAR_VIEW_MAX];
     int view_targets[MENUBAR_VIEW_MAX];
     int view_count;
+    /** Rows that are panels; the layout rows follow them. */
+    int view_panel_count;
     int view_built_for;
+    int view_built_snap;
 };
 
 /** The square File > Save as new copies: the picker's selection, else the
@@ -103,7 +114,7 @@ menubar_build_view(
     struct MenuBarPanel* self)
 {
     self->view_count = 0;
-    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX; i++ )
+    for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_LAYOUT_COUNT; i++ )
     {
         const struct EditorUiPanel* panel = &ui->panels[i];
         if( !panel->title || panel->chrome_panel < 0 )
@@ -113,8 +124,17 @@ menubar_build_view(
         self->view_targets[self->view_count] = i;
         self->view_count++;
     }
+    self->view_panel_count = self->view_count;
+    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Reset layout");
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
+    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Snap to grid: %s",
+        ui->snap ? "on" : "off");
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_view, self->view_rows, self->view_count, -1);
     self->view_built_for = ui->panel_count;
+    self->view_built_snap = ui->snap;
 }
 
 static void
@@ -124,11 +144,13 @@ menubar_tick(
 {
     struct MenuBarPanel* self = opaque;
 
-    if( self->view_built_for != ui->panel_count )
+    int const width = ui->chrome->surface_w > 0 ? ui->chrome->surface_w : UITREE_LAYOUT_ROOT_W;
+
+    if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap )
         menubar_build_view(ui, self);
     /* The bar spans whatever the screen is now. */
-    if( ui->chrome->panels[self->panel].fixed_w != UITREE_LAYOUT_ROOT_W )
-        ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, UITREE_LAYOUT_ROOT_W);
+    if( ui->chrome->panels[self->panel].fixed_w != width )
+        ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, width);
 }
 
 static void
@@ -197,7 +219,13 @@ menubar_edit(
     else if( row == EDIT_DELETE )
         (void)edp_locs_delete(ui);
     else if( row == EDIT_DUPLICATE )
-        (void)edp_locs_duplicate(ui);
+    {
+        /* Duplicate what is selected: the spawn selection when no loc is. */
+        if( ui->tools.loc_count == 0 && Editor_Spawns_SelectionCount(ui) > 0 )
+            (void)Editor_Spawns_Duplicate(ui);
+        else
+            (void)edp_locs_duplicate(ui);
+    }
     else if( row == EDIT_ROTATE )
         (void)edp_locs_rotate(ui);
     else if( row == EDIT_RESHAPE )
@@ -230,7 +258,17 @@ menubar_activate(
         menubar_file(ui, row);
     else if( widget == self->menu_edit && row < EDIT_COUNT )
         menubar_edit(ui, row);
-    else if( widget == self->menu_view && row < self->view_count )
+    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
+    {
+        Editor_UiResetLayout(ui);
+        Editor_UiLog(ui, "editor: layout reset for %dx%d", ui->chrome->surface_w, ui->chrome->surface_h);
+    }
+    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )
+    {
+        Editor_UiSetSnap(ui, !ui->snap);
+        menubar_build_view(ui, self);
+    }
+    else if( widget == self->menu_view && row < self->view_panel_count )
     {
         struct EditorUiPanel* target = &ui->panels[self->view_targets[row]];
         int const panel = target->chrome_panel;

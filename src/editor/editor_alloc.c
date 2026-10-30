@@ -1,5 +1,7 @@
 #include "editor_alloc.h"
 
+#include "editor_cfg.h"
+
 #include "content/content_register.h"
 #include "mem/torirs_mem.h"
 
@@ -757,6 +759,35 @@ Editor_AllocNsLoad(
     const char* content_dir,
     const char* ns)
 {
+    return Editor_AllocNsLoadWith(state, content_dir, ns, NULL, NULL);
+}
+
+/** Feed one layer from `text` when it is given (an open document's current
+ *  text; text NULL = absent), else from the file at `path`. */
+static void
+feed_layer(
+    struct Editor_AllocNs* state,
+    const char* path,
+    const struct Editor_AllocText* text,
+    void (*feed)(struct Editor_AllocNs*, const char*, size_t))
+{
+    if( !text )
+    {
+        feed_file(state, path, feed);
+        return;
+    }
+    if( text->text && text->length > 0 )
+        feed(state, text->text, text->length);
+}
+
+int
+Editor_AllocNsLoadWith(
+    struct Editor_AllocNs* state,
+    const char* content_dir,
+    const char* ns,
+    const struct Editor_AllocText* index_text,
+    const struct Editor_AllocText* ledger_text)
+{
     char value[64];
     char path[4096];
     int floor = 0;
@@ -792,7 +823,7 @@ Editor_AllocNsLoad(
 
     /* The cache layer's member index, then every lane's, in name order. */
     member_index_path(path, sizeof(path), content_dir, ns);
-    feed_file(state, path, Editor_AllocNsAddMembers);
+    feed_layer(state, path, index_text, Editor_AllocNsAddMembers);
     snprintf(path, sizeof(path), "%s/ported", content_dir);
     {
         DIR* dir = opendir(path);
@@ -846,7 +877,7 @@ Editor_AllocNsLoad(
     feed_file(state, path, Editor_AllocNsAddConfig);
 
     snprintf(path, sizeof(path), "%s/pack/%s.alloc", content_dir, ns);
-    feed_file(state, path, Editor_AllocNsAddLedger);
+    feed_layer(state, path, ledger_text, Editor_AllocNsAddLedger);
     return 1;
 }
 
@@ -1356,4 +1387,167 @@ no_room:
     result->status = EDITOR_ALLOC_NO_ROOM;
     result->command_count = 0;
     return EDITOR_ALLOC_NO_ROOM;
+}
+
+/* ---- copying a record ---------------------------------------------------------- */
+
+int
+Editor_AllocCopyCommandBound(const struct Editor_AllocCopyRequest* request)
+{
+    int lines = 1;
+
+    assert(request);
+    assert(request->source_text || request->source_length == 0);
+    for( size_t i = 0; i < request->source_length; i++ )
+        lines += request->source_text[i] == '\n';
+    /* id line + two membership lines, each at most a few splices of a
+     * header-sized append, plus the block add. */
+    return lines + 3 * 8 + 1;
+}
+
+/** "key=value\n" as a TEXT_SPLICE at `offset` of the new record. */
+static void
+copy_splice_line(
+    struct Editor_Cmd* out,
+    const char* doc_key,
+    size_t offset,
+    const char* line,
+    size_t length)
+{
+    Editor_CmdInit(out, EDITOR_DOC_CFG, doc_key, EDITOR_CMD_TEXT_SPLICE);
+    out->has_before = 0;
+    out->has_after = 1;
+    out->u.text_splice.offset = (uint32_t)offset;
+    out->u.text_splice.before_len = 0;
+    out->u.text_splice.after_len = (uint32_t)(length + 1);
+    memcpy(out->u.text_splice.text, line, length);
+    out->u.text_splice.text[length] = '\n';
+}
+
+enum Editor_AllocStatus
+Editor_AllocCopyPlan(
+    struct Editor_AllocNs* state,
+    const struct Editor_AllocCopyRequest* request,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_AllocResult* result)
+{
+    struct Editor_AllocRequest alloc;
+    struct Editor_CfgBlock source;
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    enum Editor_AllocStatus status;
+    int header;
+    int count;
+    int line_index = 1;
+    size_t record_length;
+
+    assert(state);
+    assert(request);
+    assert(request->ns);
+    assert(request->source_name);
+    assert(request->new_name);
+    assert(request->source_text || request->source_length == 0);
+    assert(out || max == 0);
+    assert(result);
+
+    memset(result, 0, sizeof(*result));
+    result->id = -1;
+    Editor_CfgBlockInit(&source);
+    Editor_CfgBlockSet(&source, request->source_text ? request->source_text : "", request->source_length);
+    header = Editor_CfgBlockHeader(&source);
+    if( header < 0 || !Editor_CfgBlockNameIs(&source, request->source_name) )
+    {
+        Editor_CfgBlockFree(&source);
+        result->status = EDITOR_ALLOC_REFUSED;
+        return EDITOR_ALLOC_REFUSED;
+    }
+    /* Room is decided before anything is coined: a plan that cannot be
+     * emitted must leave the state as it was. */
+    status = EDITOR_ALLOC_OK;
+    if( max < Editor_AllocCopyCommandBound(request) )
+        status = EDITOR_ALLOC_NO_ROOM;
+    for( int i = header + 1; i < source.line_count; i++ )
+        if( source.lines[i].length + 1 > EDITOR_CMD_SPLICE_MAX )
+            status = EDITOR_ALLOC_NO_ROOM;
+    if( status != EDITOR_ALLOC_OK )
+    {
+        Editor_CfgBlockFree(&source);
+        result->status = status;
+        return status;
+    }
+
+    memset(&alloc, 0, sizeof(alloc));
+    alloc.ns = request->ns;
+    alloc.name = request->new_name;
+    alloc.target = request->target;
+    alloc.member_client = request->member_client;
+    alloc.member_server = request->member_server;
+    alloc.add_record = 1;
+    alloc.id_file = request->id_file;
+    alloc.client_file = request->client_file;
+    alloc.server_file = request->server_file;
+    status = Editor_AllocPlan(state, &alloc, out, max, result);
+    if( status != EDITOR_ALLOC_OK )
+    {
+        Editor_CfgBlockFree(&source);
+        return status;
+    }
+    count = result->command_count;
+    snprintf(doc_key, sizeof(doc_key), "%s:%s", request->ns, result->name);
+    /* What CFG_BLOCK add leaves: "[name]\n". */
+    record_length = strlen(result->name) + 3;
+
+    for( int i = header + 1; i < source.line_count; i++ )
+    {
+        const struct Editor_CfgLine* line = &source.lines[i];
+        const char* text = source.text + line->start;
+        char key[EDITOR_CMD_NAME_MAX];
+        char spec[EDITOR_CMD_NAME_MAX];
+        size_t value_length = line->kind == EDITOR_CFG_LINE_FIELD ? line->length - line->part - 1 : 0;
+        int occurrence = 0;
+        int spec_ok = 0;
+
+        if( line->kind != EDITOR_CFG_LINE_FIELD && line->kind != EDITOR_CFG_LINE_OTHER )
+            continue;
+        assert(count < max);
+        if( line->kind == EDITOR_CFG_LINE_FIELD && line->part < sizeof(key) )
+        {
+            memcpy(key, text, line->part);
+            key[line->part] = '\0';
+            /* The occurrence among the lines copied so far. */
+            for( int j = header + 1; j < i; j++ )
+                if( source.lines[j].kind == EDITOR_CFG_LINE_FIELD && source.lines[j].part == line->part
+                    && memcmp(source.text + source.lines[j].start, key, line->part) == 0 )
+                    occurrence++;
+            {
+                char parsed[EDITOR_CMD_NAME_MAX];
+                int parsed_occurrence;
+                int parsed_line;
+
+                /* A key the spec grammar cannot name ('#', '@', ...) goes
+                 * across as a splice instead. */
+                spec_ok = Editor_CfgFieldSpecFormat(key, occurrence, line_index, spec, sizeof(spec))
+                          && Editor_CfgFieldSpecParse(
+                              spec, parsed, sizeof(parsed), &parsed_occurrence, &parsed_line)
+                          && strcmp(parsed, key) == 0;
+            }
+        }
+        if( spec_ok && value_length > 0 && value_length < EDITOR_CMD_VALUE_MAX )
+        {
+            Editor_CmdInit(&out[count], EDITOR_DOC_CFG, doc_key, EDITOR_CMD_CFG_FIELD);
+            out[count].has_before = 0;
+            out[count].has_after = 1;
+            snprintf(out[count].u.cfg_field.key, sizeof(out[count].u.cfg_field.key), "%s", spec);
+            memcpy(out[count].u.cfg_field.after, text + line->part + 1, value_length);
+            out[count].u.cfg_field.after[value_length] = '\0';
+        }
+        else
+            copy_splice_line(&out[count], doc_key, record_length, text, line->length);
+        count++;
+        record_length += line->length + 1;
+        line_index++;
+    }
+    Editor_CfgBlockFree(&source);
+    result->command_count = count;
+    return EDITOR_ALLOC_OK;
 }

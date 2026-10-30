@@ -76,6 +76,10 @@ struct Builder_Services
     int (*triggers)(void* user_data, const char* subject, struct Builder_ExistingList* out);
     /** Publish a shared-state field (STATE_VAR_PREVIEW). May be NULL. */
     int (*state_set)(void* user_data, uint32_t key, const int32_t* values, int count);
+    /** Copy the loc / npc definition `name` to `new_name` with a fresh id
+     *  (SAVE_AS, one undo step). 1 when the copy was made. May be NULL
+     *  (Copy then says it is unavailable). */
+    int (*copy_record)(void* user_data, enum Builder_Subject subject, const char* name, const char* new_name);
 };
 
 /** Register the panels over explicit services (what the tests call). The

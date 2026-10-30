@@ -21,8 +21,10 @@
  */
 
 #include "editor/editor_alloc.h"
+#include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "mem/torirs_mem.h"
 #include "torirsserver/torirs_server.h"
 
 #include <stdio.h>
@@ -541,6 +543,284 @@ test_plan(void)
     Editor_DocFree(&g_doc);
 }
 
+/* ---- copying a record (SAVE_AS's plan) ---------------------------------------- */
+
+/** The name of the first block in `text` holding a line of at least
+ *  `min_line` bytes (0: the first block), into `out`. */
+static int
+find_block(
+    const char* text,
+    size_t length,
+    size_t min_line,
+    char* out,
+    size_t out_size)
+{
+    size_t at = 0;
+    size_t header = (size_t)-1;
+
+    while( at < length )
+    {
+        const char* newline = memchr(text + at, '\n', length - at);
+        size_t stop = newline ? (size_t)(newline - text) : length;
+
+        if( text[at] == '[' )
+            header = at;
+        if( header != (size_t)-1 && stop - at >= min_line )
+        {
+            const char* close = memchr(text + header, ']', stop - header);
+            if( text[header] == '[' && close && (size_t)(close - text - header - 1) < out_size )
+            {
+                snprintf(out, out_size, "%.*s", (int)(close - text - header - 1), text + header + 1);
+                return 1;
+            }
+        }
+        at = newline ? stop + 1 : length;
+    }
+    return 0;
+}
+
+/** Copy `source_name` of `ns` from the real tree, through the plan and the
+ *  documents, and hold every byte. */
+static void
+test_copy_one(
+    const char* content_dir,
+    const char* ns,
+    size_t min_line)
+{
+    char path[4096];
+    char name[EDITOR_CMD_NAME_MAX];
+    char what[512];
+    char ledger_key[EDITOR_DOC_KEY_MAX];
+    char client_key[EDITOR_DOC_KEY_MAX];
+    char record_key[EDITOR_DOC_KEY_MAX];
+    const char* new_name = "editor_alloc_copy_probe";
+    size_t config_length;
+    size_t ledger_length;
+    size_t client_length;
+    size_t start;
+    size_t end;
+    char* config;
+    char* ledger_file;
+    char* client_file;
+    char* expected;
+    size_t expected_length;
+    struct Editor_AllocNs state;
+    struct Editor_AllocCopyRequest request;
+    struct Editor_AllocResult result;
+    struct Editor_CfgBlock source;
+    struct Editor_Cmd* commands;
+    struct Editor_UndoStack undo;
+    struct Editor_TextDoc* ledger;
+    struct Editor_TextDoc* client;
+    struct Editor_DocHandle record;
+    int capacity;
+    int next_id;
+    int splices = 0;
+    int fields = 0;
+
+    snprintf(path, sizeof(path), "%s/configs/all.%s", content_dir, ns);
+    config = slurp(path, &config_length);
+    snprintf(what, sizeof(what), "copy: configs/all.%s reads", ns);
+    check(config != NULL, what);
+    if( !config )
+        return;
+    snprintf(what, sizeof(what), "copy: all.%s has a block with a %d-byte line", ns, (int)min_line);
+    check(find_block(config, config_length, min_line, name, sizeof(name)), what);
+    check(Editor_CfgBlockExtent(config, config_length, name, &start, &end), "copy: the block's extent");
+    snprintf(path, sizeof(path), "%s/pack/%s.alloc", content_dir, ns);
+    ledger_file = slurp(path, &ledger_length);
+    snprintf(path, sizeof(path), "%s/pack/%s.client", content_dir, ns);
+    client_file = slurp(path, &client_length);
+
+    memset(&g_doc, 0, sizeof(g_doc));
+    Editor_DocInit(&g_doc, NULL);
+    Editor_UndoInit(&undo);
+    check(Editor_AllocNsLoad(&state, content_dir, ns), "copy: the namespace loads");
+    next_id = Editor_AllocNsNextId(&state);
+
+    memset(&request, 0, sizeof(request));
+    request.ns = ns;
+    request.source_name = name;
+    request.source_text = config + start;
+    request.source_length = end - start;
+    request.new_name = new_name;
+    request.target = EDITOR_ALLOC_LEDGER;
+    request.member_client = 1;
+    request.id_file.text = ledger_file;
+    request.id_file.length = ledger_length;
+    request.client_file.text = client_file;
+    request.client_file.length = client_length;
+    capacity = Editor_AllocCopyCommandBound(&request);
+    commands = calloc((size_t)capacity, sizeof(*commands));
+    if( !commands )
+        exit(2);
+
+    check(Editor_AllocCopyPlan(&state, &request, commands, 1, &result) == EDITOR_ALLOC_NO_ROOM
+              && Editor_AllocNsNextId(&state) == next_id,
+        "copy: too few slots is NO_ROOM, and nothing was coined");
+    {
+        struct Editor_AllocCopyRequest missing = request;
+        missing.source_name = "not_this_block";
+        check(Editor_AllocCopyPlan(&state, &missing, commands, capacity, &result) == EDITOR_ALLOC_REFUSED,
+            "copy: a source text without that header is REFUSED");
+    }
+    {
+        struct Editor_AllocCopyRequest taken = request;
+        taken.new_name = name;
+        check(Editor_AllocCopyPlan(&state, &taken, commands, capacity, &result) == EDITOR_ALLOC_EXISTS,
+            "copy: onto a name the namespace binds is EXISTS");
+    }
+    snprintf(what, sizeof(what), "copy: %s:%s plans", ns, name);
+    check(Editor_AllocCopyPlan(&state, &request, commands, capacity, &result) == EDITOR_ALLOC_OK, what);
+    snprintf(what, sizeof(what), "copy: the copy gets the id a fresh name gets (%d, wanted %d)", result.id,
+        next_id);
+    check(result.id == next_id && strcmp(result.name, new_name) == 0, what);
+    for( int i = 0; i < result.command_count; i++ )
+    {
+        if( commands[i].doc_kind != EDITOR_DOC_CFG )
+            continue;
+        splices += commands[i].kind == EDITOR_CMD_TEXT_SPLICE;
+        fields += commands[i].kind == EDITOR_CMD_CFG_FIELD;
+    }
+
+    Editor_AllocDocKey(ns, "alloc", ledger_key, sizeof(ledger_key));
+    Editor_AllocDocKey(ns, "client", client_key, sizeof(client_key));
+    snprintf(record_key, sizeof(record_key), "%s:%s", ns, new_name);
+    ledger = open_text(ledger_key, ledger_file, ledger_length);
+    client = open_text(client_key, client_file, client_length);
+    check(ledger && client && Editor_DocOpen(&g_doc, EDITOR_DOC_CFG, record_key, &record) && record.text,
+        "copy: the ledger, the membership file and the new record open");
+    if( !ledger || !client || !record.text )
+        goto done;
+    Editor_TextDocSet(record.text, "", 0);
+
+    snprintf(what, sizeof(what), "copy: all %d commands apply as one stroke", result.command_count);
+    check(apply_all(&undo, commands, result.command_count) == result.command_count, what);
+
+    /* The record: "[new]\n" and every FIELD / OTHER line of the source. */
+    Editor_CfgBlockInit(&source);
+    Editor_CfgBlockSet(&source, config + start, end - start);
+    expected = malloc((end - start) + EDITOR_CMD_NAME_MAX + 8);
+    if( !expected )
+        exit(2);
+    expected_length = (size_t)sprintf(expected, "[%s]\n", new_name);
+    for( int i = Editor_CfgBlockHeader(&source) + 1; i < source.line_count; i++ )
+    {
+        const struct Editor_CfgLine* line = &source.lines[i];
+        if( line->kind != EDITOR_CFG_LINE_FIELD && line->kind != EDITOR_CFG_LINE_OTHER )
+            continue;
+        memcpy(expected + expected_length, source.text + line->start, line->length);
+        expected_length += line->length;
+        expected[expected_length++] = '\n';
+    }
+    snprintf(what, sizeof(what), "copy: [%s] is [%s]'s fields byte for byte (%d CFG_FIELD, %d splices)",
+        new_name, name, fields, splices);
+    check(record.text->length == expected_length && memcmp(record.text->text, expected, expected_length) == 0,
+        what);
+    if( min_line >= EDITOR_CMD_VALUE_MAX )
+        check(splices > 0, "copy: a value past one CFG_FIELD went across as a splice");
+
+    /* The ledger and the membership file: appended, nothing else touched. */
+    {
+        char bytes[4096];
+        struct Editor_AllocText current = { ledger_file, ledger_length };
+        size_t added = Editor_AllocLedgerAppend(ns, &current, result.id, new_name, bytes, sizeof(bytes));
+
+        check(ledger->length == ledger_length + added
+                  && (ledger_length == 0 || memcmp(ledger->text, ledger_file, ledger_length) == 0)
+                  && memcmp(ledger->text + ledger_length, bytes, added) == 0,
+            "copy: the ledger is its old bytes plus write_pack's append");
+    }
+    {
+        int newline = client_length > 0 && client_file[client_length - 1] != '\n';
+        size_t name_length = strlen(new_name);
+        check(client->length == client_length + newline + name_length + 1
+                  && memcmp(client->text, client_file, client_length) == 0
+                  && memcmp(client->text + client->length - name_length - 1, new_name, name_length) == 0,
+            "copy: the client membership file gains exactly the name's line");
+    }
+
+    /* Round trips through the codecs: the ledger reads back the id; the
+     * record saved into all.<type> indexes, and the file around it is
+     * untouched and re-emits byte for byte. */
+    {
+        struct Editor_AllocNs reread;
+        int id = -1;
+
+        Editor_AllocNsInit(&reread, ns, 0, 1);
+        Editor_AllocNsAddLedger(&reread, ledger->text, ledger->length);
+        check(Editor_AllocNsLookup(&reread, new_name, &id, NULL, 0) && id == result.id,
+            "copy: the saved ledger binds the copy to its id");
+        Editor_AllocNsFree(&reread);
+    }
+    {
+        size_t merged_length = 0;
+        char* merged = Editor_CfgFileReplaceBlock(
+            config, config_length, new_name, record.text->text, record.text->length, &merged_length);
+        struct Editor_CfgFile file;
+        size_t at;
+        size_t emitted = 0;
+        int block;
+        int round_trip = 1;
+
+        Editor_CfgFileIndex(&file, merged, merged_length);
+        block = Editor_CfgFileFind(&file, new_name);
+        check(block >= 0 && file.blocks[block].end - file.blocks[block].start == record.text->length
+                  && memcmp(merged + file.blocks[block].start, record.text->text, record.text->length) == 0,
+            "copy: the record saved into all.<type> is found whole");
+        check(memcmp(merged, config, config_length) == 0, "copy: every byte before it is the file's own");
+        at = block >= 0 ? file.blocks[block].start : merged_length;
+        while( at < merged_length )
+        {
+            struct Editor_CfgLine line;
+            size_t next = Editor_CfgLineParse(merged, merged_length, at, &line);
+            char buffer[2048];
+            size_t written = Editor_CfgEmitLines(merged, &line, 1, NULL);
+
+            if( written > sizeof(buffer) )
+            {
+                round_trip = 0;
+                break;
+            }
+            Editor_CfgEmitLines(merged, &line, 1, buffer);
+            round_trip &= written == next - at && memcmp(buffer, merged + at, written) == 0;
+            emitted += written;
+            at = next;
+        }
+        check(round_trip && block >= 0 && emitted == merged_length - file.blocks[block].start,
+            "copy: the saved record re-emits byte for byte through the line codec");
+        Editor_CfgFileFree(&file);
+        ToriMem_Free(ToriMem_Editor(), merged);
+    }
+
+    check(Editor_UndoUndo(&undo, &g_doc, NULL, NULL) == result.command_count,
+        "copy: one undo takes the whole copy back");
+    check(ledger->length == ledger_length && client->length == client_length && record.text->length == 0
+              && (ledger_length == 0 || memcmp(ledger->text, ledger_file, ledger_length) == 0)
+              && memcmp(client->text, client_file, client_length) == 0,
+        "copy: after the undo every document is its old bytes");
+
+    free(expected);
+    Editor_CfgBlockFree(&source);
+done:
+    free(commands);
+    Editor_AllocNsFree(&state);
+    Editor_UndoFree(&undo);
+    Editor_DocFree(&g_doc);
+    free(config);
+    free(ledger_file);
+    free(client_file);
+}
+
+static void
+test_copy(const char* content_dir)
+{
+    test_copy_one(content_dir, "loc", 0);
+    test_copy_one(content_dir, "npc", 0);
+    /* An obj with a param past EDITOR_CMD_VALUE_MAX: the splice path. */
+    test_copy_one(content_dir, "obj", EDITOR_CMD_VALUE_MAX + 8);
+}
+
 int
 main(
     int argc,
@@ -548,6 +828,8 @@ main(
 {
     test_rules();
     test_plan();
+    if( argc > 1 )
+        test_copy(argv[1]);
     if( argc > 3 )
         test_against_oracle(argv[1], argv[2], argv[3]);
     else

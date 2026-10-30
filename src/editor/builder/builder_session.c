@@ -9,6 +9,7 @@
 
 #include "editor/editor.h"
 #include "editor/editor_ui.h"
+#include "editor/panels/edpanels.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -210,6 +211,18 @@ session_state_set(
     return Editor_UiPublish(ui, key, values, count);
 }
 
+static int
+session_copy_record(
+    void* user_data,
+    enum Builder_Subject subject,
+    const char* name,
+    const char* new_name)
+{
+    struct EditorUi* ui = user_data;
+    return Editor_Catalog_CopyRecord(
+        ui, subject == BUILDER_SUBJECT_NPC ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_LOC, name, new_name);
+}
+
 static void
 session_services(
     struct EditorUi* ui,
@@ -225,6 +238,7 @@ session_services(
     out->record = session_record;
     out->triggers = session_triggers;
     out->state_set = session_state_set;
+    out->copy_record = session_copy_record;
 }
 
 /** TORIRS_BUILDER_SSCOMPILE / _CONTENT / _WORK: the compile check's paths

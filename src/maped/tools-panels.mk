@@ -17,7 +17,10 @@ TOOLS_PANELS_SRCS = editor/editor_ui.c \
 	editor/panels/edpanel_rect.c editor/panels/edpanel_squares.c \
 	editor/panels/edpanel_newsquare.c editor/panels/edpanel_locs.c \
 	editor/panels/edpanel_spawns.c editor/panels/edpanel_catalog.c \
+	editor/panels/edpanel_catalog_model.c \
 	editor/panels/edpanel_inspector.c
+# The History panel (editing feedback): the undo groups, click to jump.
+TOOLS_PANELS_SRCS += editor/panels/edpanel_history.c
 MAPED_CLIENT_SRCS += $(TOOLS_PANELS_SRCS)
 
 # The panels, headless, against the real chrome model and an embedded

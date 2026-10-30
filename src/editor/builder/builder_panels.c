@@ -1613,6 +1613,7 @@ struct shell_panel
     int p_main;
     int p_slots;
     int w_kind, w_name, w_open, w_status, w_var_kind, w_var, w_default_none, w_summary;
+    int w_new_name, w_copy;
     int w_child, w_set, w_hidden, w_insert, w_append, w_remove, w_apply;
     int w_preview, w_preview_label;
     int slot_rows[BUILDER_SHELL_SLOTS_MAX];
@@ -1737,6 +1738,42 @@ sp_open(
     return 1;
 }
 
+/** Copy to new...: the open record's definition under the typed name with
+ *  a fresh id (one undo step); the copy becomes the open record. */
+static void
+sp_copy(
+    struct EditorUi* ui,
+    struct shell_panel* self)
+{
+    const char* new_name = ToriRSChrome_Text(ui->chrome, self->w_new_name);
+    const char* colon = strchr(self->doc_key, ':');
+    char line[160];
+
+    if( !self->has_shell || !colon )
+    {
+        sp_status(ui, self, "open a record first");
+        return;
+    }
+    if( !new_name || !Builder_NameValid(new_name) )
+    {
+        sp_status(ui, self, "a new record name: [a-z0-9_]");
+        return;
+    }
+    if( !self->services.copy_record )
+    {
+        sp_status(ui, self, "copying needs an editor server");
+        return;
+    }
+    if( !self->services.copy_record(self->services.user_data, self->shell.subject, colon + 1, new_name) )
+    {
+        snprintf(line, sizeof(line), "%s was not copied to %s (see the console)", self->doc_key, new_name);
+        sp_status(ui, self, line);
+        return;
+    }
+    ToriRSChrome_SetText(ui->chrome, self->w_name, new_name);
+    sp_open(ui, self);
+}
+
 static int
 sp_apply(
     struct EditorUi* ui,
@@ -1828,6 +1865,13 @@ sp_activate(
     if( widget == self->w_open || widget == self->w_name )
     {
         sp_open(ui, self);
+        return 1;
+    }
+    if( widget == self->w_new_name )
+        return 1;
+    if( widget == self->w_copy )
+    {
+        sp_copy(ui, self);
         return 1;
     }
     if( widget == self->w_kind || widget == self->w_var_kind )
@@ -2019,6 +2063,9 @@ Builder_ShellPanelRegister(
     self->w_name = ToriRSChrome_TextInput(chrome, p, "Name", "");
     self->w_open = ToriRSChrome_Button(chrome, p, "Open");
     self->w_status = ToriRSChrome_Label(chrome, p, "Open a multiloc or multinpc.");
+    self->w_new_name = ToriRSChrome_TextInput(chrome, p, "New name", "");
+    self->w_copy = ToriRSChrome_Button(chrome, p, "Copy to new...");
+    ToriRSChrome_SetTooltip(chrome, self->w_copy, "This record under New name, with a fresh id");
     self->w_var_kind = ToriRSChrome_Dropdown(chrome, p, "Var kind", k_var_options, 2, 0);
     self->w_var = ToriRSChrome_TextInput(chrome, p, "Var (varb<id>_name / varp<id>_name)", "");
     self->w_default_none = ToriRSChrome_Checkbox(chrome, p, "No default loc (multidefaultnone)", 0);

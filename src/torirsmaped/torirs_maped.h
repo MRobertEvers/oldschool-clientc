@@ -153,8 +153,17 @@
  *                                                u32 count, count *
  *                                                (u32 kind, string key)
  *                                              then FACT_STATUS (extra = count)
- *     SAVE_AS      u32 kind, string key,    -> FACT_STATUS UNSUPPORTED
- *                  string new_key              (reserved: design #save)
+ *     SAVE_AS      u32 kind, string key,    -> FACT_CMD stream (one undo
+ *                  string new_key              step), then FACT_STATUS
+ *                                              (extra = the new id)
+ *                  (design #save "Save as new". A CFG record of a loc, npc
+ *                   or obj type: "loc:<name>" copied to "loc:<new name>" --
+ *                   the id from pack/<type>.alloc, the pack/<type>.client
+ *                   line, the [new name] block with every field of the
+ *                   source; editor_alloc.h Editor_AllocCopyPlan. REFUSED
+ *                   when the new name is taken or not a name, ABSENT when
+ *                   the source record is not there, UNSUPPORTED for every
+ *                   other kind; a square's save-as-new is DOC_CREATE.)
  *     DOC_CREATE   u32 kind, string key,    -> FACT_CMD stream (the fill, one
  *                  string storage,             undo step), then FACT_STATUS
  *                  u32 template,               (REFUSED when the key exists
@@ -568,6 +577,8 @@ struct ToriRSMapEd
 {
     struct EditorHost files;
     int open;
+    /** The tree `files` serves; SAVE_AS reads its allocation layers. */
+    char content_dir[1024];
 
     /** The document. Clients hold mirrors of it; this is the original. */
     struct Editor_Doc doc;

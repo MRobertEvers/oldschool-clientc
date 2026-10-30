@@ -50,7 +50,10 @@ edp_apply(
         return 0;
     }
     if( !ui->tools.stroke_open )
+    {
         Editor_StrokeBegin(ui->editor);
+        Editor_HistoryName(ui->editor, what);
+    }
     for( int i = 0; i < count; i++ )
         applied += Editor_Apply(ui->editor, &commands[i]) ? 1 : 0;
     if( !ui->tools.stroke_open )

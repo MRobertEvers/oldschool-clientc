@@ -600,10 +600,7 @@ Editor_PanelPlaceLocAt(
     if( !ui || !panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
         return 0;
     if( ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2 )
-    {
-        Editor_UiLog(ui, "editor: npc / obj picks place from the Spawns panel (a pack symbol)");
-        return 0;
-    }
+        return Editor_Locs_PlaceSpawn(ui, world_x, world_z, level);
     if( ui->tools.pick_kind != 0 )
     {
         Editor_UiLog(ui, "editor: pick a loc in the catalog first");

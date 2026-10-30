@@ -194,6 +194,22 @@ Editor_AllocNsLoad(
     const char* content_dir,
     const char* ns);
 
+struct Editor_AllocText;
+
+/**
+ * Editor_AllocNsLoad with the member index and the ledger taken from the
+ * given texts instead of the files — the CURRENT text of an open document
+ * (an allocation not yet saved, or one an undo took back). NULL reads the
+ * file; a text whose `text` is NULL is an absent (empty) layer.
+ */
+int
+Editor_AllocNsLoadWith(
+    struct Editor_AllocNs* state,
+    const char* content_dir,
+    const char* ns,
+    const struct Editor_AllocText* index_text,
+    const struct Editor_AllocText* ledger_text);
+
 /** 1 when any layer binds `name` (for a var, its prefixed spelling too):
  *  the id and the bound spelling, each when asked for. */
 int
@@ -315,6 +331,59 @@ enum Editor_AllocStatus
 Editor_AllocPlan(
     struct Editor_AllocNs* state,
     const struct Editor_AllocRequest* request,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_AllocResult* result);
+
+/* ---- copying a record (design #save, "Save as new") ------------------------ */
+
+struct Editor_AllocCopyRequest
+{
+    /** The namespace, which is also the CFG document's type ("loc"). */
+    const char* ns;
+    /** The record copied: its CFG document's current text (the whole
+     *  `[name]` block, header included) and its name. */
+    const char* source_name;
+    const char* source_text;
+    size_t source_length;
+    /** The copy's name as typed. */
+    const char* new_name;
+    /** Where the id goes (EDITOR_ALLOC_LEDGER for a server-allocated id),
+     *  and which membership lines the copy needs. */
+    enum Editor_AllocTarget target;
+    int member_client;
+    int member_server;
+    /** Current texts, as Editor_AllocRequest. */
+    struct Editor_AllocText id_file;
+    struct Editor_AllocText client_file;
+    struct Editor_AllocText server_file;
+};
+
+/** Commands one copy of `source_length` bytes can need at most: the id line
+ *  and the two membership lines (each split into splices), the CFG_BLOCK add,
+ *  and one command per line of the source. */
+int
+Editor_AllocCopyCommandBound(const struct Editor_AllocCopyRequest* request);
+
+/**
+ * A config record copied to a new name with a fresh id, as one list of
+ * commands for one undo step: everything Editor_AllocPlan emits for the new
+ * name (the id line, the membership lines, the CFG_BLOCK add of
+ * "<ns>:<new name>"), then every FIELD line of the source block, in order,
+ * on the new record — a CFG_FIELD insert positioned at its line
+ * ("key#occurrence@line"), or, for a value CFG_FIELD cannot carry (empty, or
+ * past EDITOR_CMD_VALUE_MAX - 1 bytes) and for an OTHER line, a TEXT_SPLICE
+ * of the whole line at the end of the record. Comments and blank lines are
+ * not copied. The new record's CFG document must be empty when the commands
+ * apply (a name nobody holds).
+ *
+ * EDITOR_ALLOC_REFUSED when the source text holds no `[source_name]` header;
+ * every other status is Editor_AllocPlan's. Nothing is emitted unless OK.
+ */
+enum Editor_AllocStatus
+Editor_AllocCopyPlan(
+    struct Editor_AllocNs* state,
+    const struct Editor_AllocCopyRequest* request,
     struct Editor_Cmd* out,
     int max,
     struct Editor_AllocResult* result);

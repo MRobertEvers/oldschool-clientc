@@ -30,6 +30,7 @@ Editor_OpenHost(
 
     memset(editor, 0, sizeof(*editor));
     Editor_DocInit(&editor->doc, profile);
+    Editor_HistoryInit(&editor->history);
 
     editor->host = *host;
     editor->host_open = 1;
@@ -73,6 +74,7 @@ Editor_Close(struct Editor* editor)
         editor->host_open = 0;
     }
     Editor_DocFree(&editor->doc);
+    Editor_HistoryFree(&editor->history);
 }
 
 /**
@@ -271,11 +273,23 @@ Editor_CreateSquare(
     assert(editor);
     assert(request);
 
+    {
+        char label[EDITOR_HISTORY_LABEL_MAX];
+        if( request->template_kind == EDITOR_DOC_TEMPLATE_COPY )
+            snprintf(label, sizeof(label), "New square %.24s (copy of %.40s)", request->key, request->source_key);
+        else
+            snprintf(label, sizeof(label), "New square %.24s (%s)", request->key,
+                request->template_kind == EDITOR_DOC_TEMPLATE_FLAT ? "flat" : "empty");
+        editor->history_intent++;
+        Editor_HistoryBreak(&editor->history, label);
+    }
     status = Editor_HostMapEdDocCreate(&editor->host, request);
     /* The fill's FACT_CMDs went out before the ack; this mirror does not
      * hold the square yet, so they applied to nothing — opening it now
      * receives the filled text in one answer. */
     Editor_PumpFacts(editor);
+    editor->history_intent--;
+    Editor_HistoryBreak(&editor->history, NULL);
     if( status != EDITOR_HOST_OK )
         return status;
     if( request->storage[0] && strcmp(request->storage, "maps") != 0 )
@@ -283,6 +297,50 @@ Editor_CreateSquare(
     else
         snprintf(key, sizeof(key), "%s", request->key);
     return Editor_OpenDoc(editor, EDITOR_DOC_SQUARE, key) ? EDITOR_HOST_OK : EDITOR_HOST_IO_ERROR;
+}
+
+enum EditorHost_Status
+Editor_CopyRecord(
+    struct Editor* editor,
+    const char* type,
+    const char* name,
+    const char* new_name,
+    int* out_id)
+{
+    enum EditorHost_Status status;
+    char key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    int written;
+
+    assert(editor);
+    assert(type);
+    assert(name);
+    assert(new_name);
+
+    if( out_id )
+        *out_id = -1;
+    written = snprintf(key, sizeof(key), "%s:%s", type, name);
+    if( written <= 0 || (size_t)written >= sizeof(key) )
+        return EDITOR_HOST_REFUSED;
+    written = snprintf(new_key, sizeof(new_key), "%s:%s", type, new_name);
+    if( written <= 0 || (size_t)written >= sizeof(new_key) )
+        return EDITOR_HOST_REFUSED;
+    {
+        char label[EDITOR_HISTORY_LABEL_MAX];
+        snprintf(label, sizeof(label), "Copy %.40s to %.40s", key, new_name);
+        editor->history_intent++;
+        Editor_HistoryBreak(&editor->history, label);
+    }
+    status = Editor_HostMapEdSaveAs(&editor->host, EDITOR_DOC_CFG, key, new_key, out_id);
+    /* The copy's FACT_CMDs went out before the ack: the ledger and
+     * membership documents this mirror holds take them now; the new record
+     * this mirror does not hold yet arrives whole when it opens. */
+    Editor_PumpFacts(editor);
+    editor->history_intent--;
+    Editor_HistoryBreak(&editor->history, NULL);
+    if( status != EDITOR_HOST_OK )
+        return status;
+    return Editor_OpenDoc(editor, EDITOR_DOC_CFG, new_key) ? EDITOR_HOST_OK : EDITOR_HOST_IO_ERROR;
 }
 
 int
@@ -405,6 +463,9 @@ mirror_on_cmd(
         command,
         direction == EDITOR_CMD_INVERSE ? EDITOR_CMD_INVERSE : EDITOR_CMD_FORWARD);
     queue_span(editor, command);
+    Editor_HistoryOnFact(
+        &editor->history, direction == EDITOR_CMD_INVERSE ? EDITOR_CMD_INVERSE : EDITOR_CMD_FORWARD,
+        command);
 }
 
 static void
@@ -468,7 +529,22 @@ Editor_PumpFacts(struct Editor* editor)
     sink.on_saved = mirror_on_saved;
     sink.on_state = mirror_on_state;
     sink.on_resync = mirror_on_resync;
-    return Editor_HostMapEdDrainFacts(&editor->host, &sink);
+    if( editor->history_intent )
+        return Editor_HostMapEdDrainFacts(&editor->host, &sink);
+    {
+        /* Facts no intent of this session asked for: another window's. Its
+         * stroke boundaries are not on the wire, so one pump is one group
+         * (inside this session's own stroke they join it, as the
+         * authority's single open stroke does). */
+        int drained;
+        if( !editor->history_stroke )
+            Editor_HistoryBreak(&editor->history, NULL);
+        drained = Editor_HostMapEdDrainFacts(&editor->host, &sink);
+        Editor_HistoryBatchEnd(&editor->history);
+        if( !editor->history_stroke )
+            Editor_HistoryBreak(&editor->history, NULL);
+        return drained;
+    }
 }
 
 /* ---- intents ------------------------------------------------------------- */
@@ -481,12 +557,21 @@ Editor_Apply(
     assert(editor);
     assert(command);
 
+    /* Outside a stroke every command is its own undo step on the authority,
+     * and so its own row here. */
+    if( !editor->history_stroke )
+        Editor_HistoryBreak(&editor->history, NULL);
+    editor->history_intent++;
     if( Editor_HostMapEdCmd(&editor->host, command) != EDITOR_HOST_OK )
+    {
+        editor->history_intent--;
         return 0;
+    }
     /* The authority broadcast before it acked, so the echo is in hand;
      * consuming it here is what lets callers read the document's new state
      * the moment this returns, as they always could. */
     Editor_PumpFacts(editor);
+    editor->history_intent--;
     return 1;
 }
 
@@ -497,8 +582,15 @@ Editor_Undo(struct Editor* editor)
 
     assert(editor);
 
+    /* Facts from elsewhere that are already queued are a batch of their
+     * own, not part of this undo. */
+    Editor_PumpFacts(editor);
+    editor->history_intent++;
+    Editor_HistoryReplayBegin(&editor->history, -1);
     count = Editor_HostMapEdUndo(&editor->host);
     Editor_PumpFacts(editor);
+    Editor_HistoryReplayEnd(&editor->history, count);
+    editor->history_intent--;
     return count;
 }
 
@@ -509,8 +601,13 @@ Editor_Redo(struct Editor* editor)
 
     assert(editor);
 
+    Editor_PumpFacts(editor);
+    editor->history_intent++;
+    Editor_HistoryReplayBegin(&editor->history, 1);
     count = Editor_HostMapEdRedo(&editor->host);
     Editor_PumpFacts(editor);
+    Editor_HistoryReplayEnd(&editor->history, count);
+    editor->history_intent--;
     return count;
 }
 
@@ -519,6 +616,25 @@ Editor_StrokeBegin(struct Editor* editor)
 {
     assert(editor);
     Editor_HostMapEdStroke(&editor->host, 1);
+    editor->history_stroke = 1;
+    Editor_HistoryBreak(&editor->history, NULL);
+}
+
+const struct Editor_History*
+Editor_GetHistory(const struct Editor* editor)
+{
+    assert(editor);
+    return &editor->history;
+}
+
+void
+Editor_HistoryName(
+    struct Editor* editor,
+    const char* verb)
+{
+    assert(editor);
+    assert(verb);
+    Editor_HistoryVerb(&editor->history, verb);
 }
 
 void
@@ -526,6 +642,8 @@ Editor_StrokeEnd(struct Editor* editor)
 {
     assert(editor);
     Editor_HostMapEdStroke(&editor->host, 0);
+    editor->history_stroke = 0;
+    Editor_HistoryBreak(&editor->history, NULL);
 }
 
 int

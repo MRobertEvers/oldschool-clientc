@@ -76,6 +76,17 @@ struct Editor
      */
     int rebuild_queue[EDITOR_REBUILD_QUEUE_MAX * 2];
     int rebuild_count;
+
+    /** The undo groups as this mirror saw them (editor_cmd.h Editor_History):
+     *  derived from the FACT_CMD stream and this session's own intents, for
+     *  the History panel. The authority's stack is still the only one Undo
+     *  and Redo act on. */
+    struct Editor_History history;
+    /** Inside an intent (Apply, Undo, Redo, a create): the facts its pump
+     *  drains are this window's, not a batch from elsewhere. */
+    int history_intent;
+    /** Between StrokeBegin and StrokeEnd: the facts join one group. */
+    int history_stroke;
 };
 
 /**
@@ -179,6 +190,21 @@ Editor_CreateSquare(
     const struct EditorHost_DocCreate* request);
 
 /**
+ * Copy a loc / npc / obj definition (CFG "<type>:<name>") to `new_name` with
+ * a fresh id: SAVE_AS on the authority (one undo step: the id line, the
+ * client membership line, the new block with every field of the source),
+ * then open "<type>:<new_name>" in this mirror. `out_id` (may be NULL) gets
+ * the new id. EDITOR_HOST_REFUSED when the name is taken or not a name.
+ */
+enum EditorHost_Status
+Editor_CopyRecord(
+    struct Editor* editor,
+    const char* type,
+    const char* name,
+    const char* new_name,
+    int* out_id);
+
+/**
  * Apply an edit: submit it to the authority, and on acceptance apply its
  * echo to the mirror, mark dirty, and queue the squares it invalidates —
  * the same three effects the local apply used to have, now guaranteed to
@@ -202,6 +228,18 @@ Editor_Redo(struct Editor* editor);
 /** Group every command until StrokeEnd into one undo step (a brush drag). */
 void
 Editor_StrokeBegin(struct Editor* editor);
+
+/** The mirror's derived history (read only): one summary per undo group,
+ *  `applied` the position, `serial` bumping on every change. */
+const struct Editor_History*
+Editor_GetHistory(const struct Editor* editor);
+
+/** Name the action the open (or next) undo group records -- "Raise",
+ *  "nudge locs" -- for the History panel's row. Affects nothing else. */
+void
+Editor_HistoryName(
+    struct Editor* editor,
+    const char* verb);
 
 void
 Editor_StrokeEnd(struct Editor* editor);

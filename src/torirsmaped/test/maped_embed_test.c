@@ -1024,6 +1024,87 @@ main(
             "an absent spawn text deletes the file");
     }
 
+    /* ---- SAVE_AS: a config record copied to a new name ---------------------- */
+
+    {
+        char dir[1300];
+        struct EditorHost_DocText text;
+        struct Editor_DocHandle handle;
+        int id = -1;
+        char const* npc_text = "// one npc\n\n[src_npc]\nname=Src\nop1=Talk-to\n";
+        char const* client_text = "// npc client half\n";
+        FILE* f;
+
+        snprintf(dir, sizeof(dir), "%s/configs", scratch);
+        mkdir_p_or_die(dir);
+        snprintf(dir, sizeof(dir), "%s/pack", scratch);
+        mkdir_p_or_die(dir);
+        snprintf(path, sizeof(path), "%s/configs/all.npc", scratch);
+        f = fopen(path, "wb");
+        check(f != NULL, "the npc fixture is written");
+        if( f )
+        {
+            fputs(npc_text, f);
+            fclose(f);
+        }
+        snprintf(path, sizeof(path), "%s/configs/all.npc.compack", scratch);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fputs("0=src_npc\n", f);
+            fclose(f);
+        }
+        snprintf(path, sizeof(path), "%s/pack/npc.client", scratch);
+        f = fopen(path, "wb");
+        if( f )
+        {
+            fputs(client_text, f);
+            fclose(f);
+        }
+
+        /* Client 2's mirror holds the membership file: it must follow. */
+        check(open_doc_into(&b, mb.doc, EDITOR_DOC_TEXT, "pack:npc.client"),
+            "a second Client mirrors pack:npc.client");
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_CFG, "npc:src_npc", "npc:copy_npc", &id)
+                  == EDITOR_HOST_OK,
+            "SAVE_AS copies npc:src_npc to npc:copy_npc");
+        check(id == 20000, "the copy takes the npc floor id (20000)");
+        drain(&b, &mb);
+        check(Editor_DocFind(mb.doc, EDITOR_DOC_TEXT, "pack:npc.client", &handle) && handle.text
+                  && handle.text->length == strlen(client_text) + strlen("copy_npc\n")
+                  && memcmp(handle.text->text + strlen(client_text), "copy_npc\n", 9) == 0,
+            "the other Client's mirror receives the membership line as FACT_CMDs");
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_CFG, "npc:copy_npc", &text) == EDITOR_HOST_OK
+                  && text.part_count == 1
+                  && text.parts[0].size == strlen("[copy_npc]\nname=Src\nop1=Talk-to\n")
+                  && memcmp(text.parts[0].data, "[copy_npc]\nname=Src\nop1=Talk-to\n",
+                         text.parts[0].size)
+                         == 0,
+            "the copy opens as [copy_npc] with every field of the source");
+        Editor_HostDocTextFree(&text);
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a2, EDITOR_DOC_TEXT, "pack:npc.alloc", &text) == EDITOR_HOST_OK
+                  && text.part_count == 1 && text.parts[0].data
+                  && strstr((char const*)text.parts[0].data, "\n20000=copy_npc\n") != NULL,
+            "the ledger holds 20000=copy_npc");
+        Editor_HostDocTextFree(&text);
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_CFG, "npc:src_npc", "npc:copy_npc", &id)
+                  == EDITOR_HOST_REFUSED,
+            "a second copy onto the same name is refused");
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_SQUARE, "m50_50", "m50_51", &id)
+                  == EDITOR_HOST_UNSUPPORTED,
+            "SAVE_AS of a square is UNSUPPORTED (that is DOC_CREATE)");
+        check(Editor_HostMapEdUndo(&a) > 0, "undo takes the copy back");
+        drain(&b, &mb);
+        check(Editor_DocFind(mb.doc, EDITOR_DOC_TEXT, "pack:npc.client", &handle) && handle.text
+                  && handle.text->length == strlen(client_text),
+            "and the other mirror's membership file is its old bytes");
+        drain(&a, &ma);
+        drain(&a2, &ma2);
+        drain(&c, &mc);
+    }
+
     /* ---- a v1 peer on the same protocol ------------------------------------ */
 
     test_v1_peer(scratch);

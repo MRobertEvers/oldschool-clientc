@@ -1061,3 +1061,38 @@ Editor_SpawnDeleteCommand(
     Editor_SpawnCommand(out, &target, 1);
     return 1;
 }
+
+int
+Editor_SpawnOpsDuplicate(
+    const struct Editor_SpawnRow* rows,
+    int n,
+    int dx,
+    int dz,
+    int dlevel,
+    struct Editor_Cmd* out,
+    int max,
+    struct Editor_SpawnRow* out_rows)
+{
+    int count = 0;
+
+    assert(rows || n == 0);
+    assert(n >= 0);
+    assert(out || max == 0);
+
+    for( int i = 0; i < n && count < max; i++ )
+    {
+        struct Editor_SpawnRow copy = rows[i];
+
+        copy.suppress = 0;
+        copy.abs_x += dx;
+        copy.abs_z += dz;
+        copy.level += dlevel;
+        if( copy.abs_x < 0 || copy.abs_z < 0 || copy.level < 0 || copy.level >= EDITOR_SQUARE_LEVELS )
+            continue;
+        Editor_SpawnCommand(&out[count], &copy, 1);
+        if( out_rows )
+            out_rows[count] = copy;
+        count++;
+    }
+    return count;
+}

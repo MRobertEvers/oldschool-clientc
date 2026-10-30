@@ -447,6 +447,24 @@ Editor_HostMapEdDocCreate(
     struct EditorHost* host,
     const struct EditorHost_DocCreate* request);
 
+/**
+ * SAVE_AS: copy a document under a new key in the authority (design #save
+ * "Save as new"). Today a CFG record of a loc, npc or obj type: "loc:<name>"
+ * to "loc:<new name>", with a fresh id from the namespace's .alloc ledger,
+ * its pack/<type>.client line and every field of the source, broadcast as
+ * one undo step (editor_alloc.h Editor_AllocCopyPlan). `out_id` (may be
+ * NULL) gets the new id. REFUSED when the new name is taken or not a name,
+ * ABSENT when the source record is not there, UNSUPPORTED for other kinds.
+ * Nothing is written until Save.
+ */
+enum EditorHost_Status
+Editor_HostMapEdSaveAs(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key,
+    const char* new_key,
+    int* out_id);
+
 /** Submit one edit. OK means the authority applied it and the echo is on
  *  its way; ABSENT means the square was never opened server-side. */
 enum EditorHost_Status

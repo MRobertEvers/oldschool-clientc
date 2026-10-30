@@ -442,7 +442,7 @@ Editor_NewSquare_Register(struct EditorUi* ui)
     self->input_z = ToriRSChrome_TextInput(chrome, self->panel, "Map z", "");
     self->dropdown_storage = ToriRSChrome_Dropdown(chrome, self->panel, "Stored in", NULL, 0, -1);
     ToriRSChrome_SetTooltip(chrome, self->dropdown_storage,
-        "maps/ is what the cache pack reads; a lane ships behind its lane descriptor");
+        "maps/ is what the cache pack reads; a lane ships with its lane");
     self->input_lane = ToriRSChrome_TextInput(chrome, self->panel, "Lane", "");
     ToriRSChrome_SetTooltip(chrome, self->input_lane, "The new lane's directory: ported/<lane>/maps");
     self->row_template = ToriRSChrome_Label(chrome, self->panel, "Starts as");

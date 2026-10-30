@@ -15,6 +15,8 @@
 #include "edpanel_ops.h"
 #include "edpanels.h"
 #include "mem/torirs_mem.h"
+#include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -54,6 +56,68 @@ struct LocsPanel
     /** The selection was empty last frame: the panel follows it up and down. */
     int was_empty;
 };
+
+/* ---- the Place tool with an npc / obj pick ---------------------------------- */
+
+int
+Editor_Locs_PlaceSpawn(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level)
+{
+    struct EditorHost_CatalogRecord record;
+    struct Editor_SpawnRow row;
+    struct Editor_Cmd command;
+    char key[EDITOR_DOC_KEY_MAX];
+    uint32_t kind;
+    int placed;
+
+    assert(ui);
+    assert(level >= 0);
+    assert(level < EDITOR_SQUARE_LEVELS);
+    /* The caller armed this for an npc / obj pick; a loc pick is the loc
+     * path's. */
+    assert(ui->tools.pick_kind == 1 || ui->tools.pick_kind == 2);
+
+    if( !ui->editor || !(ui->editor->capabilities & TORIRSMAPED_CAP_CATALOG) )
+    {
+        Editor_UiLog(ui, "editor: the server has no catalog; place the spawn by name in Spawns");
+        return 0;
+    }
+    /* The provider knows display names; the spawn grammar takes the pack
+     * symbol, which the server's catalog answers. */
+    kind = ui->tools.pick_kind == 1 ? TORIRSMAPED_CATALOG_NPC : TORIRSMAPED_CATALOG_OBJ;
+    memset(&record, 0, sizeof(record));
+    if( Editor_HostMapEdCatalogRecord(&ui->editor->host, kind, ui->tools.pick_id, "", &record) != EDITOR_HOST_OK
+        || !record.name || !record.name[0] || strlen(record.name) >= EDITOR_CMD_NAME_MAX )
+    {
+        Editor_UiLog(ui, "editor: no catalog symbol for %s %d", ui->tools.pick_kind == 1 ? "npc" : "obj",
+            ui->tools.pick_id);
+        Editor_HostCatalogRecordFree(&record);
+        return 0;
+    }
+    memset(&row, 0, sizeof(row));
+    row.is_obj = ui->tools.pick_kind == 2;
+    snprintf(row.name, sizeof(row.name), "%s", record.name);
+    Editor_HostCatalogRecordFree(&record);
+    row.abs_x = world_x;
+    row.abs_z = world_z;
+    row.level = level;
+    row.count = 1;
+    Editor_SpawnDocKeyAt(key, world_x, world_z);
+    if( !edp_ensure_doc(ui, EDITOR_DOC_SPAWN, key) )
+    {
+        Editor_UiLog(ui, "editor: could not open the spawn document %s", key);
+        return 0;
+    }
+    Editor_SpawnCommand(&command, &row, 1);
+    placed = edp_apply(ui, &command, 1, "place spawn");
+    if( placed )
+        Editor_UiLog(ui, "editor: placed %s %s at %d,%d level %d", row.is_obj ? "obj" : "npc", row.name,
+            world_x, world_z, level);
+    return placed;
+}
 
 static void
 locs_tick(

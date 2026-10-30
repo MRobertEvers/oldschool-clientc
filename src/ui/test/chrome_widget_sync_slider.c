@@ -22,10 +22,17 @@ cw_test_slider(void)
         "VALUE carries value, min, max and step");
     CW_CHECK(cw_prims_with_slot(TORIRS_CHROME_SKIN_SLIDER_KNOB) == 1, "the baked knob is drawn");
 
-    /* Drag the knob from the left end to the right end. */
+    CW_CHECK(cw_prims_with_slot(TORIRS_CHROME_SKIN_SLIDER_TRACK_LEFT) == 1 &&
+                 cw_prims_with_slot(TORIRS_CHROME_SKIN_SLIDER_TRACK_RIGHT) == 1 &&
+                 cw_prims_with_slot(TORIRS_CHROME_SKIN_SLIDER_TRACK) >= 4,
+        "the track is one bar: two caps and the middle repeated between them");
+
+    /* Drag the knob from the left end to the right end. The caption column
+     * is 30% of the row (a short caption), so the track is over half of it. */
     w = &g_cw_ui.widgets[radius];
-    left = w->x + 104 + 2;
+    left = w->x + w->w * 30 / 100 + 2;
     right = w->x + w->w - 36 - 2;
+    CW_CHECK(right - left >= w->w / 2, "the track takes at least half the row");
     ToriRSChrome_MouseMove(&g_cw_ui, left, w->y + 9);
     ToriRSChrome_MouseDown(&g_cw_ui, left, w->y + 9);
     CW_CHECK(ToriRSChrome_SliderValue(&g_cw_ui, radius) == 1, "pressing at the left end is the minimum");
