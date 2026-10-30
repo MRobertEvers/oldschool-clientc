@@ -13,6 +13,8 @@
 #include "torirs_maped.h"
 #include "torirs_maped_catalog.h"
 #include "torirs_maped_view.h"
+#include "torirs_maped_build.h"
+#include "torirs_maped_live.h"
 
 #include "editor/editor_jm2.h"
 #include "mem/torirs_mem.h"
@@ -39,6 +41,33 @@ handle_spawn_view(
     struct ToriRSMapEd* maped,
     const uint8_t* body,
     uint32_t length);
+
+/* Builds, RUN and the live link (torirs_maped_build.c, torirs_maped_live.c,
+ * compiled into this unit at its end). */
+static struct ToriRSMapEdJobs* jobs_create(void);
+static void jobs_free(struct ToriRSMapEd* maped);
+static void jobs_note_saved(
+    struct ToriRSMapEd* maped,
+    const struct Editor_DocRef* rows,
+    int count);
+static void handle_build(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length);
+static void handle_run(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t length);
+static void handle_live(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length);
+static void catalog_atlas_changed(
+    struct ToriRSMapEd* maped,
+    int disk_changed);
 
 /* ------------------------------------------------------------------ */
 /* Server lifecycle                                                    */
@@ -73,6 +102,11 @@ ToriRSMapEd_Open(
     /* The catalog reads nothing until its first query. */
     maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
     maped->capabilities |= TORIRSMAPED_CAP_CATALOG;
+
+    /* Builds and the live link: empty until a host binds them, or the
+     * environment names a live lane (torirs_maped_live.h). */
+    maped->jobs = jobs_create();
+    ToriRSMapEd_BindLiveFromEnv(maped, repo_root, content_dir);
 }
 
 void
@@ -89,6 +123,8 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         Editor_UndoFree(&maped->undo);
         ToriRSMapEdCatalog_Free(maped->catalog);
         maped->catalog = NULL;
+        /* Stops a running build and whatever the live link launched. */
+        jobs_free(maped);
         maped->open = 0;
     }
 }
@@ -291,6 +327,8 @@ broadcast_saved(
 
     if( count <= 0 )
         return;
+    /* What RUN's next reload names (torirs_maped_build.c). */
+    jobs_note_saved(maped, rows, count);
 
     memset(&v2, 0, sizeof(v2));
     memset(&v1, 0, sizeof(v1));
@@ -1675,6 +1713,23 @@ handle_frame(
         handle_spawn_view(session, maped, body, length);
         return;
     }
+    if( v2 && type == TORIRSMAPED_REQ_BUILD )
+    {
+        handle_build(session, maped, body, length);
+        return;
+    }
+    if( v2 && type == TORIRSMAPED_REQ_RUN )
+    {
+        handle_run(session, maped, length);
+        return;
+    }
+    if( v2
+        && (type == TORIRSMAPED_REQ_LIVE_ATTACH || type == TORIRSMAPED_REQ_LIVE_DETACH
+            || type == TORIRSMAPED_REQ_LIVE_CHEAT || type == TORIRSMAPED_REQ_LIVE_SUBSCRIBE) )
+    {
+        handle_live(session, maped, type, body, length);
+        return;
+    }
     if( v2
         && (type == TORIRSMAPED_REQ_CATALOG_QUERY || type == TORIRSMAPED_REQ_CATALOG_RECORD
             || type == TORIRSMAPED_REQ_CATALOG_SQUARES) )
@@ -1747,6 +1802,9 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
 
     if( peer_gone )
         session->alive = 0;
+    /* Builds and the live link advance on every pump: an embed pumps every
+     * frame, so it needs no other call (torirs_maped_live.h). */
+    ToriRSMapEd_Service(maped);
     return session->alive;
 }
 
@@ -1759,3 +1817,9 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
 /* Views: SPAWN_VIEW, the camera keys and STATE_VIEW_SELF. Compiled into this
  * unit for the catalog's reason (torirs_maped_view.h, BUILD NOTE). */
 #include "torirs_maped_view.c"
+
+/* Builds, RUN and the live link. Compiled into this unit for the catalog's
+ * reason (torirs_maped_build.h, BUILD NOTE); the live half shares the build
+ * half's job state, so it follows it. */
+#include "torirs_maped_build.c"
+#include "torirs_maped_live.c"

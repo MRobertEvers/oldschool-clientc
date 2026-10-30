@@ -34,6 +34,7 @@
 
 /* The client's framing table, for the length check in ToriRSServer_Send. */
 #include "torirsserver/torirs_server_scene.h"
+#include "torirs_server_control.h"
 #include "torirsserver/wire/osrs230/packetin.h"
 /* The appearance vocabulary and every wire spelling of it — the writers below
  * choose an encoding, never a tag. */
@@ -975,6 +976,9 @@ send_rebuild_normal_at(
 void
 ToriRSServer_SendRebuildNormal(struct ToriRSServerPlayer* player)
 {
+    /* REBUILD_NORMAL has no reload field; spend the mark so a later region
+     * rebuild does not inherit it. */
+    (void)ToriRSServer_WorldTakeRebuildReload(player);
     /* The player's own window origin: the scene this client holds is the one
      * their movement is judged against, whoever else is online. */
     send_rebuild_normal_at(player, player->zone_x, player->zone_z, 1);
@@ -1079,8 +1083,11 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
     open_packet(&buf, 8192);
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
+        /* Spent on every region rebuild, so the classic packet (no reload
+         * field) does not leave the mark for a later one. */
+        int reload = ToriRSServer_WorldTakeRebuildReload(player);
         if( pl && pl->rebuild_region )
-            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0, zones, key_count);
+            pl->rebuild_region(&buf, player->zone_x, player->zone_z, reload, zones, key_count);
         else
         {
             /* The classic packet: header, grid, then one key block per source

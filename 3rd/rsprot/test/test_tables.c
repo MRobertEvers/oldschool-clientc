@@ -58,11 +58,17 @@ static void test_rev239_known_facts(void)
 	if (!t)
 		return;
 
-	/* docs/RSPROT_OSRS239_PORT.md SS3: highest server opcode is 148. */
+	/* docs/RSPROT_OSRS239_PORT.md SS3: Jagex's highest server opcode is 148.
+	 * ToriRS's own prots (spec/packets/cache_invalidate.ini) sit above every
+	 * Jagex opcode on purpose and are not part of that fact. */
 	for (i = 0; i < t->server_count; i++)
-		if (t->server[i].code > max_code)
+		if (strcmp(t->server[i].name, "CACHE_INVALIDATE") != 0 && t->server[i].code > max_code)
 			max_code = t->server[i].code;
 	CHECK_EQ_I(max_code, 148, "rev239 highest server opcode is 148");
+	d = rsprot_find_server_prot(t, "CACHE_INVALIDATE");
+	CHECK(d != NULL, "our CACHE_INVALIDATE present at rev239");
+	if (d)
+		CHECK_EQ_I(d->code, 237, "CACHE_INVALIDATE at opcode 237 (0xED)");
 
 	/* docs/RSPROT_OSRS239_PORT.md 5b: IF_OPENTOP op=96 payload=2 at rev239. */
 	d = rsprot_find_server_prot(t, "IF_OPENTOP");

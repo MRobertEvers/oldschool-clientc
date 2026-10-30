@@ -32,6 +32,7 @@
 #include "mem/torirs_mem.h"
 
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_build.h"
 #include "torirsmaped/torirs_maped_view.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
@@ -104,14 +105,44 @@ struct maped_remote
      *  until Editor_HostMapEdCatalogSquaresChanged takes it (only the newest
      *  matters: each one is a whole atlas). NULL when none is pending. */
     struct stashed_fact* atlas_changed;
+    /** Live-editor facts (173..190: builds, RUN, the live link) DrainFacts
+     *  kept for Editor_HostMapEdLiveTake, oldest first. */
+    struct stashed_fact* live_head;
+    struct stashed_fact* live_tail;
 };
+
+static int
+is_live_fact(uint32_t type)
+{
+    return type >= TORIRSMAPED_FACT_LIVE_RANGE_FIRST && type <= TORIRSMAPED_FACT_LIVE_RANGE_LAST;
+}
 
 static int
 is_broadcast(uint32_t type)
 {
+    /* Build and live facts go to every connection (torirs_maped_build.h), so
+     * one can arrive in the middle of any request's exchange. */
     return type == TORIRSMAPED_FACT_CMD || type == TORIRSMAPED_FACT_STATE
            || type == TORIRSMAPED_FACT_SAVED
-           || type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED;
+           || type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED || is_live_fact(type);
+}
+
+/** Keep one live-editor fact for Editor_HostMapEdLiveTake. */
+static void
+live_keep(struct maped_remote* remote, uint32_t type, const uint8_t* body, uint32_t length)
+{
+    struct stashed_fact* fact = ToriMem_Alloc(ToriMem_Editor(), sizeof(*fact) + length);
+    assert(fact);
+    fact->next = NULL;
+    fact->type = type;
+    fact->length = length;
+    if( length > 0 )
+        memcpy(fact->data, body, length);
+    if( remote->live_tail )
+        remote->live_tail->next = fact;
+    else
+        remote->live_head = fact;
+    remote->live_tail = fact;
 }
 
 static int
@@ -693,6 +724,12 @@ remote_free(void* user_data)
 #endif
     free_stash(remote);
     ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
+    while( remote->live_head )
+    {
+        struct stashed_fact* next = remote->live_head->next;
+        ToriMem_Free(ToriMem_Editor(), remote->live_head);
+        remote->live_head = next;
+    }
     ToriRSMapEd_BufFree(&remote->in);
     ToriMem_Free(ToriMem_Editor(), remote);
 }
@@ -1377,6 +1414,44 @@ Editor_HostMapEdSpawnView(
     return status;
 }
 
+int
+Editor_HostMapEdLiveSend(struct EditorHost* host, uint32_t type, const uint8_t* payload, uint32_t length)
+{
+    struct maped_remote* remote = as_remote(host);
+    assert(payload || length == 0);
+    /* Only the live-editor's requests ride this: anything else has its own
+     * call that awaits its answer. */
+    assert(type >= TORIRSMAPED_REQ_LIVE_RANGE_FIRST);
+    assert(type <= TORIRSMAPED_REQ_LIVE_RANGE_LAST);
+    return send_request(remote, type, payload, length);
+}
+
+int
+Editor_HostMapEdLiveTake(struct EditorHost* host, uint32_t* out_type, uint8_t** out_body, uint32_t* out_length)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct stashed_fact* fact;
+    assert(out_type);
+    assert(out_body);
+    assert(out_length);
+    fact = remote->live_head;
+    if( !fact )
+        return 0;
+    remote->live_head = fact->next;
+    if( !remote->live_head )
+        remote->live_tail = NULL;
+    /* The fact's own allocation carries the body: hand back a copy the
+     * caller frees, and free the record. */
+    *out_type = fact->type;
+    *out_length = fact->length;
+    *out_body = ToriMem_Alloc(ToriMem_Editor(), fact->length ? fact->length : 1);
+    assert(*out_body);
+    if( fact->length > 0 )
+        memcpy(*out_body, fact->data, fact->length);
+    ToriMem_Free(ToriMem_Editor(), fact);
+    return 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* The catalog                                                         */
 /* ------------------------------------------------------------------ */
@@ -1913,6 +1988,14 @@ Editor_HostMapEdDrainFacts(
         remote->stash_head = fact->next;
         if( !remote->stash_head )
             remote->stash_tail = NULL;
+        if( is_live_fact(fact->type) )
+        {
+            /* Kept for the Live panel's poll (Editor_HostMapEdLiveTake). */
+            live_keep(remote, fact->type, fact->data, fact->length);
+            ToriMem_Free(ToriMem_Editor(), fact);
+            delivered++;
+            continue;
+        }
         if( fact->type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED )
         {
             /* Kept for the picker's poll rather than handed to the sink. */
@@ -1942,7 +2025,15 @@ Editor_HostMapEdDrainFacts(
         }
         body = take_frame(remote, &type, &length);
         if( !body )
-            break;
+        {
+            /* A header whose body has not all arrived: read what the wire
+             * has, or stop until the next poll. Breaking without the read
+             * would stall every later drain on the same partial frame (a
+             * build streaming FACT_BUILD_LINEs found it). */
+            if( link_fill(remote, 0) <= 0 )
+                break;
+            continue;
+        }
         if( type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED )
         {
             struct stashed_fact* fact =
@@ -1954,6 +2045,11 @@ Editor_HostMapEdDrainFacts(
             memcpy(fact->data, body, length);
             ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
             remote->atlas_changed = fact;
+            delivered++;
+        }
+        else if( is_live_fact(type) )
+        {
+            live_keep(remote, type, body, length);
             delivered++;
         }
         else if( is_broadcast(type) )

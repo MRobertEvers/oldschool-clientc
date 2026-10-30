@@ -325,6 +325,11 @@ enum GameProtoPktName
     PKT_NAME_LOGOUT_TRANSFER,        /* struct PktLogoutTransfer */
     PKT_NAME_GROUP_FULL,             /* struct PktRawPayload */
 
+    /* Our own prot, in no Jagex revision (3rd/rsprot/spec/packets/
+     * cache_invalidate.ini): the live reload's "forget these archives"
+     * (struct PktCacheInvalidate). Appended likewise. */
+    PKT_NAME_CACHE_INVALIDATE,
+
     PKT_NAME_COUNT
 };
 

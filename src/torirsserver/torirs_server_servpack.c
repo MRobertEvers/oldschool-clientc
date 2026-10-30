@@ -1,8 +1,11 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_rscache.h"
 #include "torirs_server_servpack.h"
+#include "torirs_server_control.h"
+#include "torirs_server_packcheck.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -340,4 +343,138 @@ ToriRSServer_ServPackClientIdBound(
         return -1;
     }
     return bound;
+}
+
+/* ------------------------------------------------------------------ */
+/* Live reload (docs/serverpack.md "The hot-reload contract", point 5)  */
+/* ------------------------------------------------------------------ */
+
+/* Written into the reload's answer directly rather than through
+ * ToriRSServer_ReloadRestart: this file also links into the pack tool and
+ * tests that carry no control link. */
+static void
+servpack_restart(
+    struct ToriRSServerReloadResult* result,
+    const char* fmt,
+    ...)
+{
+    char line[TORIRSSERVER_RELOAD_LINE_MAX];
+    va_list args;
+
+    va_start(args, fmt);
+    vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    fprintf(stderr, "torirsserver: reload: restart needed: %s\n", line);
+    if( !result )
+        return;
+    for( int i = 0; i < result->restart_count; i++ )
+        if( strcmp(result->restart[i], line) == 0 )
+            return;
+    if( result->restart_count < TORIRSSERVER_RELOAD_RESTART_MAX )
+        snprintf(result->restart[result->restart_count++], TORIRSSERVER_RELOAD_LINE_MAX, "%s",
+                 line);
+}
+
+/* The config kind a server-pack group belongs to, or -1 for one that holds
+ * no kind's records (the name tables). Records sit at kind + 64, a kind's
+ * server bands at the kind itself, and the defaults and client-id groups
+ * hold one archive per kind. */
+static int
+servpack_group_kind(
+    int group,
+    int archive)
+{
+    if( group >= 0 && group < RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET )
+        return group;
+    if( group >= RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET && group < RSCACHE_SERVERPACK_NAMES_GROUP_BASE )
+        return group - RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET;
+    if( group == RSCACHE_SERVERPACK_DEFAULTS_GROUP || group == RSCACHE_SERVERPACK_CLIENT_IDS_GROUP )
+        return archive >= 0 && archive < RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET ? archive : -1;
+    return -1;
+}
+
+int
+ToriRSServer_ServPackReloadGroups(
+    const char* pack_dir,
+    const int* groups,
+    int group_count,
+    ToriRSServerServPackKindReload reload,
+    void* context,
+    struct ToriRSServerReloadResult* result)
+{
+    struct RSCache_ServerPack pack;
+    uint8_t done[RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET];
+    int replaced = 0;
+    long lock;
+
+    assert(pack_dir);
+    assert(reload);
+    if( group_count <= 0 )
+        return 0;
+    assert(groups);
+    memset(done, 0, sizeof(done));
+    /* Shared for the whole read, as at boot (ToriRSServer_BootLoad): every
+     * archive below comes from one build. */
+    lock = ToriRSServer_PackLockShared(pack_dir);
+    if( !RSCache_ServerPackOpen(&pack, pack_dir) )
+    {
+        ToriRSServer_PackUnlock(lock);
+        fprintf(stderr, "torirsserver: reload: no server pack at %s\n", pack_dir);
+        return -1;
+    }
+    /* Pairs: group, archive. */
+    for( int i = 0; i < group_count; i++ )
+    {
+        int group = groups[2 * i];
+        int archive = groups[2 * i + 1];
+        int kind = servpack_group_kind(group, archive);
+        int answer;
+
+        if( kind < 0 )
+        {
+            servpack_restart(result, "server pack group %d (a name table: the content loader's "
+                                     "symbols)", group);
+            continue;
+        }
+        if( done[kind] )
+        {
+            replaced += done[kind] == 1;
+            continue;
+        }
+        answer = reload(context, &pack, kind);
+        if( answer > 0 )
+        {
+            done[kind] = 1;
+            replaced++;
+            continue;
+        }
+        done[kind] = 2;
+        if( answer == 0 )
+            servpack_restart(result, "config kind %d records (held by the world as copies or "
+                                     "pointers, read at boot)", kind);
+        else
+            servpack_restart(result, "config kind %d: the server pack refused it (rebuild the "
+                                     "pack)", kind);
+    }
+    RSCache_ServerPackClose(&pack);
+    ToriRSServer_PackUnlock(lock);
+    return replaced;
+}
+
+void
+ToriRSServer_ServPackStampText(
+    const char* pack_dir,
+    char* out,
+    size_t cap)
+{
+    struct RSCache_ServerPackStamp stamp;
+
+    assert(pack_dir);
+    assert(out);
+    if( !RSCache_ServerPackStampRead(pack_dir, &stamp) )
+    {
+        snprintf(out, cap, "%s", "");
+        return;
+    }
+    snprintf(out, cap, "%016llx", (unsigned long long)stamp.fingerprint);
 }

@@ -526,6 +526,7 @@ struct ToriRSMapEdTransport
 
 struct ToriRSMapEdSession;
 struct ToriRSMapEdCatalog;
+struct ToriRSMapEdJobs;
 
 /**
  * The SPAWN_VIEW binding (torirs_maped_view.h): how this server's host starts
@@ -597,7 +598,8 @@ struct ToriRSMapEd
 
     /** TORIRSMAPED_CAP_* for the bindings this server has; FACT_HELLO v2
      *  reports it. The catalog is bound; spawn_view when a host binds it
-     *  (ToriRSMapEd_SetViewSpawner); build and live are not yet. */
+     *  (ToriRSMapEd_SetViewSpawner); build and live when a host binds a
+     *  BuildRunner / LiveLink (torirs_maped_build.h, torirs_maped_live.h). */
     uint32_t capabilities;
     /** The asset catalog and square atlas (torirs_maped_catalog.h); built on
      *  its first query. */
@@ -605,6 +607,11 @@ struct ToriRSMapEd
     /** SPAWN_VIEW's binding; spawn NULL when this host cannot start viewers
      *  (torirs_maped_view.h). */
     struct ToriRSMapEdViewSpawner view_spawner;
+    /** BUILD, RUN and the live link: the BuildRunner and LiveLink bindings,
+     *  the lane, the build in flight, RUN's step, what the next reload names
+     *  (torirs_maped_build.h, torirs_maped_live.h). Created at Open; the
+     *  bindings stay empty until a host sets them (capabilities build/live). */
+    struct ToriRSMapEdJobs* jobs;
 };
 
 /**

@@ -2836,7 +2836,9 @@ pack_type(
             stats->failed++;
             continue;
         }
-        if( !RSCache_Dat2EditPutFile(edit, config_table, type->config_kind, id, buffer, size) )
+        /* Through cp_client_put: the incremental client pack captures a type's
+         * records to compare them with the cache before staging (cp_incremental.c). */
+        if( !cp_client_put(edit, config_table, type->config_kind, id, buffer, size) )
         {
             fprintf(stderr, "cachepack: %s [%s] failed to stage\n", type->name, rec->debugname);
             stats->failed++;
@@ -2879,6 +2881,29 @@ pack_type(
         return 0;
     }
     return 1;
+}
+
+int
+cp_client_pack_type(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type_id,
+    struct RSCache_Dat2Edit* edit,
+    int config_table,
+    int* out_records,
+    int* out_failed)
+{
+    struct CP_PackStats stats;
+    int ok;
+
+    assert(ctx);
+    assert(edit);
+    assert(out_records);
+    assert(out_failed);
+    /* The client half alone: no server dir, so pack_type writes no band. */
+    ok = pack_type(ctx, type_id, edit, config_table, NULL, &stats);
+    *out_records = stats.records;
+    *out_failed = stats.failed + stats.membership_errors;
+    return ok;
 }
 
 int

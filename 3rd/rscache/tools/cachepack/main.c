@@ -26,6 +26,7 @@ usage(void)
         "  cachepack pack   --src DIR --out DIR --rev NAME --asset-only\n"
         "                   --assets=interfaces,scripts [--archive-list FILE]\n"
         "  cachepack pack   --src DIR --server-only [--lane NAME]... [--server-out DIR] [--force]\n"
+        "  cachepack pack   --src DIR --out DIR --incremental [--base DIR] [--rev NAME] [--types a,b]\n"
         "  (either pack)    [--defaults=warn|error] [--defaults-report FILE]\n"
         "  cachepack verify --cache DIR --rev NAME --src DIR [--types a,b]\n"
         "                   [--assets[=models,sprites]] [--tmp DIR]\n"
@@ -116,6 +117,11 @@ usage(void)
         "                  cachepack reads the table, so this cannot affect a boot.\n"
         "  --binary        also move the non-config tables, as raw container bytes.\n"
         "                  On unpack, --binary=5,7 limits it to those idx files.\n"
+        "  --incremental   on pack: the client configs IN PLACE in --out (seeded from\n"
+        "                  --base the first time): only the types whose inputs moved\n"
+        "                  repack, only the archives whose records differ are written,\n"
+        "                  and the reference table is bumped. <out>/client.changed\n"
+        "                  lists what was written (cp_incremental.h).\n"
         "  --tmp DIR       scratch directory for `verify --assets` (default\n"
         "                  build/cachepack_verify). Never the content tree.\n"
         "  --warn N        cap repeated warnings at N per kind (-1 for no cap, default 20)\n"
@@ -359,6 +365,7 @@ main(int argc, char** argv)
     int check_only = 0;
     int server_only = 0;
     int asset_only = 0;
+    int incremental = 0;
     const char* digest_dir = NULL;
     int warn_limit = 20;
 
@@ -383,6 +390,8 @@ main(int argc, char** argv)
             check_only = 1;
         else if( strcmp(arg, "--server-only") == 0 )
             server_only = 1;
+        else if( strcmp(arg, "--incremental") == 0 )
+            incremental = 1;
         else if( strcmp(arg, "--lane") == 0 && i + 1 < argc )
         {
             if( lane_count == CP_MAX_LANES )
@@ -681,6 +690,15 @@ main(int argc, char** argv)
             cp_names_free(&ctx.names);
             return 1;
         }
+        if( incremental && (check_only || server_only || asset_only || want_assets || want_binary ||
+                            want_gamevals) )
+        {
+            fprintf(stderr, "cachepack: --incremental packs the client configs alone; it cannot be "
+                            "combined with --check-only, --server-only, --asset-only, --assets, "
+                            "--binary or --gamevals\n");
+            cp_names_free(&ctx.names);
+            return 1;
+        }
         if( asset_only && !want_assets )
         {
             fprintf(stderr, "cachepack: --asset-only requires --assets or --assets=<kinds>\n");
@@ -744,6 +762,18 @@ main(int argc, char** argv)
         }
         else if( server_only )
             rc = cp_pack_server_run(&ctx, &sel) ? 0 : 1;
+        else if( incremental )
+        {
+            /* The client cache in place (cp_incremental.h): only the types
+             * whose inputs moved, only the archives whose records did. The
+             * raw groups and assets are the cache's already. */
+            if( base_dir && !cp_check_base_identity(src_dir, base_dir) )
+            {
+                cp_names_free(&ctx.names);
+                return 1;
+            }
+            rc = cp_pack_client_incremental(&ctx, &sel, base_dir, out_dir) ? 0 : 1;
+        }
         else
         {
             if( base_dir && !cp_check_base_identity(src_dir, base_dir) )
@@ -770,7 +800,7 @@ main(int argc, char** argv)
          * assets so a failure surfaces next to the config report it belongs
          * with; skipped for --asset-only, whose target began as a complete
          * cache and already holds them. */
-        if( !asset_only && ctx.cache_open && writable )
+        if( !asset_only && !incremental && ctx.cache_open && writable )
         {
             if( !cp_raw_groups_import(&ctx, check_only ? NULL : out_dir) )
                 rc = 1;

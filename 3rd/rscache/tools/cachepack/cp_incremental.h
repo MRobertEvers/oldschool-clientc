@@ -22,7 +22,10 @@
 
 #include "cachepack.h"
 
+#include <stdbool.h>
 #include <stdint.h>
+
+struct RSCache_Dat2Edit;
 
 /** What an encoder looked up, recorded against the type being packed. */
 enum CP_Lookup
@@ -97,5 +100,62 @@ int
 cp_server_stamp_write(
     struct CP_Ctx* ctx,
     const char* server_dir);
+
+/*
+ * The incremental CLIENT pack (`pack --incremental`), on the server pack's unit
+ * model. A unit is one config type; its key is the same hash of its own files
+ * and routing files, its recorded lookups are replayed the same way, and the
+ * global inputs (fields/, content.ini, meta.ini, the asset and interface
+ * indexes, the param types, this binary, the lanes) repack every type when
+ * they move. `<out>/cp.client.state` keeps the keys and lookups.
+ *
+ * What differs is the output. The client cache is written IN PLACE (copied
+ * from --base on the first build only), so a repacked type's records are
+ * captured (cp_client_put) and compared, file by file, with the archive the
+ * cache already holds: an archive is staged only when a record in it differs
+ * or is new. Every staged archive goes through ONE RSCache_Dat2Edit commit,
+ * which writes those archives and nothing else and bumps the config table's
+ * reference table (its version, and each written archive's crc and version).
+ * A build where nothing differs commits nothing and leaves the reference
+ * table alone.
+ *
+ * `<out>/client.changed` lists what this build wrote, one `archive <table>
+ * <archive> <type>` line each (empty when nothing changed), for the editor's
+ * RUN to name in its reload (torirsmaped/torirs_maped_build.h).
+ *
+ * Pack-on-base semantics, as the full pack has: a record deleted from the text
+ * is not removed from an archive that holds it.
+ */
+
+/** Every client config record write goes through here: into the type being
+ *  captured when the incremental client pack is comparing one, else straight
+ *  to RSCache_Dat2EditPutFile. Same return. */
+bool
+cp_client_put(
+    struct RSCache_Dat2Edit* edit,
+    int table_id,
+    int archive_id,
+    int file_id,
+    const uint8_t* data,
+    uint32_t size);
+
+/** The client half of one type (cp_pack.c's pack_type with no server dir).
+ *  Returns 1 on success; records and failures counted out. */
+int
+cp_client_pack_type(
+    struct CP_Ctx* ctx,
+    enum CP_TypeId type_id,
+    struct RSCache_Dat2Edit* edit,
+    int config_table,
+    int* out_records,
+    int* out_failed);
+
+/** `pack --incremental --src S --out O [--base B]`. Returns 1 on success. */
+int
+cp_pack_client_incremental(
+    struct CP_Ctx* ctx,
+    const struct CP_Selection* sel,
+    const char* base_cache_dir,
+    const char* out_cache_dir);
 
 #endif

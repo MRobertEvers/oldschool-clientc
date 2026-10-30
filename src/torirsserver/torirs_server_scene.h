@@ -488,6 +488,28 @@ ToriRSServer_SceneDebugReloadSquare(
     int sx,
     int sz);
 
+/**
+ * The live reload: every listed square the store holds is dropped and read
+ * again from the cache (keeping its holders); one nobody holds needs nothing.
+ * Returns the squares now current (resident ones reloaded plus non-resident
+ * ones); `out_resident` (may be NULL) gets how many were held. The windows'
+ * views and the clients' REBUILD are the world's
+ * (ToriRSServer_WorldReloadSquares).
+ */
+int
+ToriRSServer_SceneReloadSquares(
+    const int* map_x,
+    const int* map_z,
+    int count,
+    int* out_resident);
+
+/** Does the window's 104x104 overlap map square (sx, sz)? 0 when unbuilt. */
+int
+ToriRSServer_SceneWindowCoversSquare(
+    const struct ToriRSServerSceneWindow* window,
+    int sx,
+    int sz);
+
 /** The window at `index` if one is allocated, else NULL. For walks over the
  *  whole pool, which must not allocate every slot they look at. */
 struct ToriRSServerSceneWindow*

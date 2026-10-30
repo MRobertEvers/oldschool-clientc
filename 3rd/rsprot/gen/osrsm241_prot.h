@@ -171,6 +171,7 @@ static const RsprotProtDef rsprot_osrsm241_server[] = {
     { "MAP_PROJANIM_V2", -1, 24, NULL },
     { "SCRIPTEDPROJ_ADD", -1, 37, NULL },
     { "SCRIPTEDPROJ_CHANGE", -1, 18, NULL },
+    { "CACHE_INVALIDATE", 237, RSPROT_VARU16, NULL },
 };
 static const RsprotProtDef rsprot_osrsm241_client[] = {
     { "IGNORELIST_DEL", 0, RSPROT_VARU8, NULL },

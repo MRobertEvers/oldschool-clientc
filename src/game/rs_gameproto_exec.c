@@ -2779,6 +2779,34 @@ RS_GameProto_Exec(
             ctx->app->hint_arrow.height = packet->_hint_arrow.height;
         }
         break;
+    case PKT_NAME_CACHE_INVALIDATE:
+        /*
+         * Our own prot (3rd/rsprot/spec/packets/cache_invalidate.ini): the
+         * live reload rebuilt these archives. What is resident and can be
+         * dropped without pulling it from under live state is dropped
+         * (CacheProvider_InvalidateArchive); maps need nothing here, because
+         * the REBUILD the server sends after this packet reloads the window.
+         */
+        if( ctx->app && ctx->app->provider )
+        {
+            int evicted = 0;
+            int deferred = 0;
+
+            for( int i = 0; i < packet->_cache_invalidate.count; i++ )
+            {
+                enum CacheProviderInvalidate done = CacheProvider_InvalidateArchive(
+                    ctx->app->provider, packet->_cache_invalidate.index,
+                    packet->_cache_invalidate.archives[i]);
+
+                evicted += done == CACHE_PROVIDER_INVALIDATE_EVICTED;
+                deferred += done == CACHE_PROVIDER_INVALIDATE_DEFERRED;
+            }
+            TORIRS_LOG("cache invalidate: index %d, %d archive(s): %d dropped, %d until the next "
+                       "login\n",
+                       packet->_cache_invalidate.index, packet->_cache_invalidate.count, evicted,
+                       deferred);
+        }
+        break;
     case PKT_NAME_RESET_ANIMS:
         if( ctx->app && ctx->app->scene )
         {

@@ -40,6 +40,13 @@
  *   TORIRSSERVER_GATE=1  behind io_server's sign-in gate (also `--gate`):
  *                       WebSockets need its ticket, a web login made from
  *                       an invite (`--account invite`). torirs_server_auth.h.
+ *   TORIRSSERVER_NAME=x  the name the control link's CTL_FACT_HELLO reports
+ *
+ * The listening port also carries the editor's CONTROL LINK: a connection
+ * whose first byte is 0xED (torirs_server_control.h, docs/MAPED_IMPLEMENTATION.md
+ * section 4) -- STATUS, RELOAD (scripts, server-pack groups, map squares,
+ * spawns, and the client archives forwarded as CACHE_INVALIDATE), CHEAT,
+ * SUBSCRIBE. Loopback only, or with the gate's ticket in its HELLO.
  */
 #include "mem/torirs_mem.h"
 #include "mem/torirs_mem_libs.h"

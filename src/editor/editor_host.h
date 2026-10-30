@@ -682,6 +682,33 @@ Editor_HostMapEdCatalogSquaresChanged(
 void
 Editor_HostCatalogSquaresFree(struct EditorHost_CatalogSquares* atlas);
 
+/* ---- BUILD, RUN and the live link -------------------------------------------
+ *
+ * torirsmaped/torirs_maped_build.h and torirs_maped_live.h define the frames;
+ * editor/live/live_client.h encodes the requests and decodes the facts. The
+ * host only carries them, so a new live frame needs no change here.
+ */
+
+/** Send one live-editor request (BUILD, RUN, LIVE_*: types 53..64) with its
+ *  payload, fire and forget -- every answer is a broadcast fact. 1 when sent,
+ *  0 when the connection is gone. */
+int
+Editor_HostMapEdLiveSend(
+    struct EditorHost* host,
+    uint32_t type,
+    const uint8_t* payload,
+    uint32_t length);
+
+/** The oldest live-editor fact (types 173..190) Editor_HostMapEdDrainFacts
+ *  kept, oldest first; 0 when none is waiting. *out_body is ToriMem_Editor's
+ *  (ToriMem_Free it). Poll after DrainFacts. */
+int
+Editor_HostMapEdLiveTake(
+    struct EditorHost* host,
+    uint32_t* out_type,
+    uint8_t** out_body,
+    uint32_t* out_length);
+
 /** Where broadcasts land. Any callback may be NULL to ignore that kind. */
 struct EditorHostMapEdFacts
 {

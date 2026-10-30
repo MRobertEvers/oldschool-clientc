@@ -1793,6 +1793,34 @@ CacheProvider_ComponentPackHas(
     return CacheProvider_ComponentPackGet(provider, iface_id) != NULL;
 }
 
+enum CacheProviderInvalidate
+CacheProvider_InvalidateArchive(
+    struct CacheProvider* provider,
+    int index,
+    int archive)
+{
+    assert(provider);
+    assert(index >= 0);
+    assert(archive >= 0);
+    /* Index 3: one archive per interface, keyed by its id. */
+    if( index == 3 )
+    {
+        struct MapEntry_ProviderComponentPack* entry;
+
+        if( !provider->componentpack_cache )
+            return CACHE_PROVIDER_INVALIDATE_NONE;
+        entry = (struct MapEntry_ProviderComponentPack*)hmap_search(
+            provider->componentpack_cache, &archive, HMAP_REMOVE);
+        if( !entry )
+            return CACHE_PROVIDER_INVALIDATE_NONE;
+        if( entry->pack )
+            ToriRS_ComponentPackFree(entry->pack);
+        entry->pack = NULL;
+        return CACHE_PROVIDER_INVALIDATE_EVICTED;
+    }
+    return CACHE_PROVIDER_INVALIDATE_DEFERRED;
+}
+
 void
 CacheProvider_ComponentPacksCleanup(struct CacheProvider* provider)
 {

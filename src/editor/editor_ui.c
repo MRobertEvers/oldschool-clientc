@@ -3,6 +3,7 @@
 #include "editor.h"
 #include "builder/builder_panels.h"
 #include "iface/iface_panels.h"
+#include "live/live_panel.h"
 #include "log/torirs_log.h"
 #include "panels/edpanel_common.h"
 #include "panels/edpanels.h"
@@ -169,6 +170,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_ShellEditor_Register(ui);
     Editor_Iface_Register(ui);
     Editor_Cs2_Register(ui);
+    /* Phase 4: the Live panel (editor/live/), hidden until the View menu
+     * opens it; it talks to the editor server's live link. */
+    Editor_Live_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
     ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
 }

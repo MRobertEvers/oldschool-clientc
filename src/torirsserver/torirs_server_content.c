@@ -38,6 +38,7 @@
 #include "torirs_server_servercodec.h"
 #include "torirs_server_servpack.h"
 #include "torirs_server_shop.h"
+#include "torirs_server_control.h"
 
 #include <rscache.h>
 #include "rscache_valuetype.h"
@@ -1970,19 +1971,18 @@ suppressed(
     return 0;
 }
 
-int
-ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
+/*
+ * Apply the merged suppression rows to the merged spawn tables, once: one
+ * pass per table, compacting in place so the merge order of every surviving
+ * spawn is unchanged -- and a tree with no `-` rows is untouched. Frees the
+ * suppression list. Returns the spawns removed.
+ */
+static int
+spawn_apply_suppressions(void)
 {
     int removed = 0;
     int kept;
 
-    assert(scripts_dir);
-
-    walk_configs(scripts_dir, ".spawn", load_spawn_config);
-
-    /* One pass per table, compacting in place so the merge order of every
-     * surviving spawn is unchanged — and a tree with no `-` rows is
-     * untouched. */
     if( g_spawn_suppression_count > 0 )
     {
         kept = 0;
@@ -2026,6 +2026,261 @@ ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
     g_spawn_suppression_count = 0;
     g_spawn_suppression_capacity = 0;
     return removed;
+}
+
+/*
+ * Each .spawn file's own rows, as parsed and before any suppression: what
+ * lets the live reload re-read ONE lane file and rebuild the merged tables
+ * without parsing the other ~970 (docs/MAPED_DESIGN.html #run, "Spawns").
+ * Kept in walk order, so a rebuilt table merges in the order a boot would.
+ */
+struct SpawnFileRows
+{
+    /* Relative to the scripts directory, as the walk built the path. */
+    char rel[512];
+    struct ToriRSServerMapNpcSpawn* npcs;
+    int npc_count;
+    struct ToriRSServerMapObjSpawn* objs;
+    int obj_count;
+    struct SpawnSuppression* supps;
+    int supp_count;
+};
+static struct SpawnFileRows* g_spawn_files;
+static int g_spawn_file_count;
+static int g_spawn_file_capacity;
+static char g_spawn_scripts_dir[1024];
+
+static void
+spawn_file_rows_clear(struct SpawnFileRows* rows)
+{
+    ToriMem_Free(ToriMem_ServerContent(), rows->npcs);
+    ToriMem_Free(ToriMem_ServerContent(), rows->objs);
+    ToriMem_Free(ToriMem_ServerContent(), rows->supps);
+    rows->npcs = NULL;
+    rows->objs = NULL;
+    rows->supps = NULL;
+    rows->npc_count = rows->obj_count = rows->supp_count = 0;
+}
+
+static void*
+spawn_rows_copy(
+    const void* from,
+    int count,
+    size_t element)
+{
+    void* copy;
+
+    if( count <= 0 )
+        return NULL;
+    copy = ToriMem_Alloc(ToriMem_ServerContent(), (size_t)count * element);
+    assert(copy);
+    memcpy(copy, from, (size_t)count * element);
+    return copy;
+}
+
+/* Parse `path` through the one parser and keep what it appended as `rows`'
+ * own. The merged tables still hold the appended rows; a reload rebuilds them
+ * after (spawn_tables_rebuild), a boot keeps them. */
+static void
+spawn_file_parse(
+    struct SpawnFileRows* rows,
+    const char* path)
+{
+    int npc0 = g_npc_spawn_count;
+    int obj0 = g_obj_spawn_count;
+    int supp0 = g_spawn_suppression_count;
+
+    load_spawn_config(path);
+    rows->npc_count = g_npc_spawn_count - npc0;
+    rows->obj_count = g_obj_spawn_count - obj0;
+    rows->supp_count = g_spawn_suppression_count - supp0;
+    rows->npcs = spawn_rows_copy(g_npc_spawns + npc0, rows->npc_count, sizeof(*g_npc_spawns));
+    rows->objs = spawn_rows_copy(g_obj_spawns + obj0, rows->obj_count, sizeof(*g_obj_spawns));
+    rows->supps = spawn_rows_copy(g_spawn_suppressions + supp0, rows->supp_count,
+                                  sizeof(*g_spawn_suppressions));
+}
+
+static struct SpawnFileRows*
+spawn_file_add(const char* rel)
+{
+    struct SpawnFileRows* rows;
+
+    g_spawn_files =
+        grow(g_spawn_files, &g_spawn_file_capacity, g_spawn_file_count, sizeof(*g_spawn_files));
+    assert(g_spawn_files);
+    rows = &g_spawn_files[g_spawn_file_count++];
+    memset(rows, 0, sizeof(*rows));
+    snprintf(rows->rel, sizeof(rows->rel), "%s", rel);
+    return rows;
+}
+
+/* The walk's per-file callback at boot. */
+static void
+load_spawn_config_tracked(const char* path)
+{
+    size_t dir_length = strlen(g_spawn_scripts_dir);
+    const char* rel = path;
+
+    if( dir_length && strncmp(path, g_spawn_scripts_dir, dir_length) == 0 && path[dir_length] == '/' )
+        rel = path + dir_length + 1;
+    spawn_file_parse(spawn_file_add(rel), path);
+}
+
+int
+ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
+{
+    assert(scripts_dir);
+
+    snprintf(g_spawn_scripts_dir, sizeof(g_spawn_scripts_dir), "%s", scripts_dir);
+    walk_configs(scripts_dir, ".spawn", load_spawn_config_tracked);
+    return spawn_apply_suppressions();
+}
+
+/* Merged tables again from every file's rows, in walk order, then the
+ * suppressions over them. */
+static int
+spawn_tables_rebuild(void)
+{
+    g_npc_spawn_count = 0;
+    g_obj_spawn_count = 0;
+    g_spawn_suppression_count = 0;
+    for( int f = 0; f < g_spawn_file_count; f++ )
+    {
+        const struct SpawnFileRows* rows = &g_spawn_files[f];
+
+        for( int i = 0; i < rows->npc_count; i++ )
+        {
+            g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
+                                sizeof(*g_npc_spawns));
+            g_npc_spawns[g_npc_spawn_count++] = rows->npcs[i];
+        }
+        for( int i = 0; i < rows->obj_count; i++ )
+        {
+            g_obj_spawns = grow(g_obj_spawns, &g_obj_spawn_capacity, g_obj_spawn_count,
+                                sizeof(*g_obj_spawns));
+            g_obj_spawns[g_obj_spawn_count++] = rows->objs[i];
+        }
+        for( int i = 0; i < rows->supp_count; i++ )
+        {
+            g_spawn_suppressions = grow(g_spawn_suppressions, &g_spawn_suppression_capacity,
+                                        g_spawn_suppression_count, sizeof(*g_spawn_suppressions));
+            g_spawn_suppressions[g_spawn_suppression_count] = rows->supps[i];
+            g_spawn_suppressions[g_spawn_suppression_count].matched = 0;
+            g_spawn_suppression_count++;
+        }
+    }
+    return spawn_apply_suppressions();
+}
+
+/* A reload names a file relative to the scripts directory, as
+ * `server/scripts/...` (relative to the content root), or absolutely. */
+static int
+spawn_file_rel(
+    const char* scripts_dir,
+    const char* file,
+    char* out,
+    size_t cap)
+{
+    static const char content_prefix[] = "server/scripts/";
+    size_t dir_length = strlen(scripts_dir);
+
+    if( strncmp(file, scripts_dir, dir_length) == 0 && file[dir_length] == '/' )
+    {
+        snprintf(out, cap, "%s", file + dir_length + 1);
+        return 1;
+    }
+    if( file[0] == '/' )
+    {
+        char real_dir[PATH_MAX];
+        size_t real_length;
+
+#if defined(_WIN32)
+        if( !_fullpath(real_dir, scripts_dir, sizeof(real_dir)) )
+            return 0;
+#else
+        if( !realpath(scripts_dir, real_dir) )
+            return 0;
+#endif
+        real_length = strlen(real_dir);
+        if( strncmp(file, real_dir, real_length) != 0 || file[real_length] != '/' )
+            return 0;
+        snprintf(out, cap, "%s", file + real_length + 1);
+        return 1;
+    }
+    if( strncmp(file, content_prefix, sizeof(content_prefix) - 1) == 0 )
+        file += sizeof(content_prefix) - 1;
+    snprintf(out, cap, "%s", file);
+    return 1;
+}
+
+static void
+spawn_reload_restart(
+    struct ToriRSServerReloadResult* result,
+    const char* rel)
+{
+    char line[TORIRSSERVER_RELOAD_LINE_MAX];
+
+    snprintf(line, sizeof(line), "%s: the generated spawn lane is boot-only", rel);
+    fprintf(stderr, "torirsserver: reload: restart needed: %s\n", line);
+    if( result && result->restart_count < TORIRSSERVER_RELOAD_RESTART_MAX )
+        snprintf(result->restart[result->restart_count++], TORIRSSERVER_RELOAD_LINE_MAX, "%s",
+                 line);
+}
+
+int
+ToriRSServer_ContentReloadSpawnFiles(
+    const char* scripts_dir,
+    const char* const* files,
+    int file_count,
+    struct ToriRSServerReloadResult* result)
+{
+    static const char generated[] = "areas/world/configs/";
+    int reread = 0;
+
+    assert(scripts_dir);
+    if( file_count <= 0 )
+        return 0;
+    assert(files);
+    for( int i = 0; i < file_count; i++ )
+    {
+        char rel[512];
+        char path[1600];
+        struct SpawnFileRows* rows = NULL;
+        FILE* probe;
+
+        assert(files[i]);
+        if( !spawn_file_rel(scripts_dir, files[i], rel, sizeof(rel)) )
+        {
+            fprintf(stderr, "torirsserver: reload: %s is not under %s; not a spawn file of "
+                            "this world\n",
+                    files[i], scripts_dir);
+            continue;
+        }
+        if( strncmp(rel, generated, sizeof(generated) - 1) == 0 )
+        {
+            spawn_reload_restart(result, rel);
+            continue;
+        }
+        for( int f = 0; f < g_spawn_file_count && !rows; f++ )
+            if( strcmp(g_spawn_files[f].rel, rel) == 0 )
+                rows = &g_spawn_files[f];
+        if( !rows )
+            rows = spawn_file_add(rel);
+        spawn_file_rows_clear(rows);
+        snprintf(path, sizeof(path), "%s/%s", scripts_dir, rel);
+        /* A deleted file is a file with no rows. */
+        probe = fopen(path, "rb");
+        if( probe )
+        {
+            fclose(probe);
+            spawn_file_parse(rows, path);
+        }
+        reread++;
+    }
+    if( !reread )
+        return 0;
+    spawn_tables_rebuild();
+    return 1;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3379,6 +3634,12 @@ ToriRSServer_ContentFree(void)
     g_npc_spawn_count = g_npc_spawn_capacity = 0;
     ToriMem_Free(ToriMem_ServerContent(), g_obj_spawns);
     g_obj_spawns = NULL;
+    for( int f = 0; f < g_spawn_file_count; f++ )
+        spawn_file_rows_clear(&g_spawn_files[f]);
+    ToriMem_Free(ToriMem_ServerContent(), g_spawn_files);
+    g_spawn_files = NULL;
+    g_spawn_file_count = 0;
+    g_spawn_file_capacity = 0;
     g_obj_spawn_count = g_obj_spawn_capacity = 0;
     g_errors = 0;
 }

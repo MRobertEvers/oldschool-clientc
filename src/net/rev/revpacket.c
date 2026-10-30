@@ -157,6 +157,11 @@ gameproto_free(struct RevPacket* p)
         p->_raw_payload.data = NULL;
         p->_raw_payload.length = 0;
         break;
+    case PKT_NAME_CACHE_INVALIDATE:
+        ToriMem_Free(ToriMem_Net(), p->_cache_invalidate.archives);
+        p->_cache_invalidate.archives = NULL;
+        p->_cache_invalidate.count = 0;
+        break;
     case PKT_NAME_UPDATE_TRADINGPOST:
         ToriMem_Free(ToriMem_Net(), p->_update_tradingpost.offers);
         p->_update_tradingpost.offers = NULL;

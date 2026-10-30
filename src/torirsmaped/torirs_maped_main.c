@@ -3,6 +3,7 @@
  *
  *   src/build/torirsmaped [port] [--content-dir <dir>] [--repo-root <dir>]
  *                         [--view-binary <torirs> --view-manifest <editor.ini>]
+ *                         [--live-dir <dir>]
  *
  * Defaults: port 43610 (TORIRSMAPED_DEFAULT_PORT), content dir
  * $TORIRSMAPED_CONTENT_DIR or OSRS-Content/osrs-content, repo root
@@ -37,6 +38,7 @@
 #endif
 
 #include "torirs_maped.h"
+#include "torirs_maped_live.h"
 #include "torirs_maped_view.h"
 
 #include "mem/torirs_mem.h"
@@ -475,6 +477,18 @@ daemon_views_bind(
  *  whichever have bytes. One thread — the sessions never block, so neither
  *  does this loop, and a broadcast provoked by one connection's intent is
  *  sent to the others from inside that connection's pump. */
+/* SIGTERM / SIGINT: leave the loop so ToriRSMapEd_Close runs -- it stops a
+ * launched live lane (torirs_maped_live.h), which would otherwise outlive the
+ * daemon as an orphan holding the lane's ports. */
+static volatile sig_atomic_t g_daemon_stop;
+
+static void
+daemon_on_stop(int signal_number)
+{
+    (void)signal_number;
+    g_daemon_stop = 1;
+}
+
 static void
 serve_forever(
     struct ToriRSMapEd* maped,
@@ -482,11 +496,13 @@ serve_forever(
 {
     static struct conn conns[TORIRSMAPED_SESSION_MAX];
 
-    for( ;; )
+    while( !g_daemon_stop )
     {
         fd_set readable;
         fd_set writable;
-        struct timeval timeout = { 0, 500 * 1000 };
+        /* A build, a RUN or a connecting live link is advanced by the
+         * service pass below: wake often while one is in flight. */
+        struct timeval timeout = { 0, ToriRSMapEd_Busy(maped) ? 20 * 1000 : 500 * 1000 };
         int top = listen_fd;
 
         FD_ZERO(&readable);
@@ -515,6 +531,10 @@ serve_forever(
         /* At most every half second (the select timeout): views that exited. */
         if( g_views.table )
             (void)LaunchSessions_Reap(g_views.table);
+        /* Builds, RUN and the live link (torirs_maped_live.h): the sessions
+         * only pump when their sockets are readable, so a build streaming
+         * lines while every client is idle is advanced here. */
+        ToriRSMapEd_Service(maped);
 
         if( FD_ISSET(listen_fd, &readable) )
         {
@@ -591,6 +611,7 @@ main(
     const char* repo_root = getenv("TORIRSMAPED_REPO_ROOT");
     const char* view_binary = getenv("TORIRSMAPED_VIEW_BINARY");
     const char* view_manifest = getenv("TORIRSMAPED_VIEW_MANIFEST");
+    const char* live_dir = NULL;
     int port = TORIRSMAPED_DEFAULT_PORT;
     int listen_fd;
     struct sockaddr_in addr;
@@ -612,6 +633,8 @@ main(
             view_binary = argv[++i];
         else if( strcmp(argv[i], "--view-manifest") == 0 && i + 1 < argc )
             view_manifest = argv[++i];
+        else if( strcmp(argv[i], "--live-dir") == 0 && i + 1 < argc )
+            live_dir = argv[++i];
         else if( argv[i][0] >= '0' && argv[i][0] <= '9' )
             port = atoi(argv[i]);
         else
@@ -619,7 +642,7 @@ main(
             fprintf(
                 stderr,
                 "usage: torirsmaped [port] [--content-dir <dir>] [--repo-root <dir>] "
-                "[--view-binary <torirs> --view-manifest <editor.ini>]\n");
+                "[--view-binary <torirs> --view-manifest <editor.ini>] [--live-dir <dir>]\n");
             return 1;
         }
     }
@@ -627,6 +650,8 @@ main(
         repo_root = NULL;
 
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, daemon_on_stop);
+    signal(SIGINT, daemon_on_stop);
 
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if( listen_fd < 0 )
@@ -650,6 +675,10 @@ main(
         return 1;
     }
 
+    /* --live-dir beats $TORIRSMAPED_LIVE_DIR (which Open reads): BUILD, RUN
+     * and the live link, everything a build writes under that dir. */
+    if( live_dir )
+        setenv("TORIRSMAPED_LIVE_DIR", live_dir, 1);
     ToriRSMapEd_Open(&maped, content_dir, repo_root);
     daemon_views_bind(&maped, view_binary, view_manifest, port);
 

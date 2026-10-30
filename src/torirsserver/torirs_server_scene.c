@@ -4269,6 +4269,73 @@ ToriRSServer_SceneDebugReloadSquare(
     return square_reload(sx, sz);
 }
 
+/*
+ * The live reload's squares (docs/MAPED_DESIGN.html #run, "Map squares"): what
+ * was the debug hook above, maintained. A square the store holds is dropped
+ * and read again from the cache -- the build wrote a new one -- with its
+ * collision restamped and its locs re-read, and every window that held it
+ * holds the fresh copy. A square nobody holds needs nothing: the next load
+ * reads the cache as it now is.
+ *
+ * The windows' derived views (the collision copies a player routes on) are
+ * the world's to rebuild (ToriRSServer_WorldReloadSquares), as is the client's
+ * REBUILD.
+ */
+int
+ToriRSServer_SceneReloadSquares(
+    const int* map_x,
+    const int* map_z,
+    int count,
+    int* out_resident)
+{
+    int reloaded = 0;
+    int resident = 0;
+
+    if( count <= 0 )
+    {
+        if( out_resident )
+            *out_resident = 0;
+        return 0;
+    }
+    assert(map_x);
+    assert(map_z);
+    for( int i = 0; i < count; i++ )
+    {
+        if( !square_at(map_x[i], map_z[i]) )
+        {
+            reloaded++;
+            continue;
+        }
+        resident++;
+        if( square_reload(map_x[i], map_z[i]) )
+            reloaded++;
+        else
+            fprintf(stderr, "torirsserver: reload: m%d_%d did not load again from the cache\n",
+                    map_x[i], map_z[i]);
+    }
+    if( out_resident )
+        *out_resident = resident;
+    return reloaded;
+}
+
+int
+ToriRSServer_SceneWindowCoversSquare(
+    const struct ToriRSServerSceneWindow* window,
+    int sx,
+    int sz)
+{
+    int x0;
+    int z0;
+
+    assert(window);
+    if( window->base_x < 0 )
+        return 0;
+    x0 = sx * SQUARE_TILES;
+    z0 = sz * SQUARE_TILES;
+    return window->base_x < x0 + SQUARE_TILES && x0 < window->base_x + TORIRSSERVER_SCENE_TILES &&
+           window->base_z < z0 + SQUARE_TILES && z0 < window->base_z + TORIRSSERVER_SCENE_TILES;
+}
+
 static int
 square_reload(
     int sx,

@@ -30,12 +30,32 @@
  *   undo | redo            drive the shared history
  *   save                   save every dirty square, server-side
  *   bake                   run the bake, streaming its output
+ *   text-replace <key> <find> <replace>
+ *                          one TEXT_SPLICE on a text document ("rs2:<path
+ *                          under server/scripts>"): the first <find> becomes
+ *                          <replace>; unsaved until save or RUN
+ *   tile-height <mx> <mz> <level> <lx> <lz> <height>
+ *                          one TILE command on square m<mx>_<mz>: the tile
+ *                          keeps every field but its raw height byte
+ *   live-attach launch|<host:port> [ticket]
+ *                          attach the editor server's live link (launch
+ *                          starts the lane's servers) and wait for the answer
+ *   live-detach            detach (a launched lane's servers stop)
+ *   live-cheat <player> <line>
+ *                          a debugproc on the attached server
+ *   build packs|client [seconds]
+ *   run [seconds]          RUN: save all, build packs, build the client
+ *                          cache, reload the attached server; streams every
+ *                          line and exits 0 when RUN finished every step
  *
  * Exit status is 0 when the command did what it said, 1 otherwise.
  */
 
 #include "editor/editor_host.h"
+#include "mem/torirs_mem.h"
 #include "torirs_maped.h"
+#include "torirs_maped_build.h"
+#include "torirs_maped_live.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -365,6 +385,346 @@ cmd_watch(
     return 0;
 }
 
+/* ---- documents ------------------------------------------------------------- */
+
+/** TEXT_SPLICE: the first `find` in the document becomes `replace`. */
+static int
+cmd_text_replace(
+    struct EditorHost* host,
+    char const* key,
+    char const* find,
+    char const* replace)
+{
+    struct EditorHost_DocText text;
+    struct Editor_Cmd splice;
+    char const* body;
+    char const* at;
+    size_t find_length = strlen(find);
+    size_t replace_length = strlen(replace);
+    enum EditorHost_Status status;
+
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_TEXT, key, &text) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: cannot open %s\n", key);
+        return 1;
+    }
+    body = text.parts[0].data ? (char const*)text.parts[0].data : "";
+    at = find_length > 0 ? strstr(body, find) : NULL;
+    if( !at )
+    {
+        fprintf(stderr, "torirsmapedctl: '%s' is not in %s\n", find, key);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    if( find_length + replace_length > EDITOR_CMD_SPLICE_MAX )
+    {
+        fprintf(stderr, "torirsmapedctl: a splice holds %d bytes\n", (int)EDITOR_CMD_SPLICE_MAX);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    Editor_CmdInit(&splice, EDITOR_DOC_TEXT, key, EDITOR_CMD_TEXT_SPLICE);
+    splice.u.text_splice.offset = (uint32_t)(at - body);
+    splice.u.text_splice.before_len = (uint32_t)find_length;
+    splice.u.text_splice.after_len = (uint32_t)replace_length;
+    memcpy(splice.u.text_splice.text, find, find_length);
+    memcpy(splice.u.text_splice.text + find_length, replace, replace_length);
+    Editor_HostDocTextFree(&text);
+    status = Editor_HostMapEdCmd(host, &splice);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the splice was refused (status %d)\n", (int)status);
+        return 1;
+    }
+    printf("spliced %s at %u: '%s' -> '%s'\n", key, splice.u.text_splice.offset, find, replace);
+    return 0;
+}
+
+/** One `.jm2` tile line's tokens (`h<n> o<id>;<shape>;<rot> f<n> u<n>`), the
+ *  grammar editor_jm2.c parses. 0 for a token it does not know. */
+static int
+tile_parse_tokens(
+    char const* tokens,
+    struct Editor_Tile* tile)
+{
+    char const* p = tokens;
+
+    memset(tile, 0, sizeof(*tile));
+    while( *p && *p != '\n' )
+    {
+        char kind;
+        unsigned long value;
+        char* end;
+
+        while( *p == ' ' )
+            p++;
+        if( !*p || *p == '\n' )
+            break;
+        kind = *p++;
+        value = strtoul(p, &end, 10);
+        if( end == p )
+            return 0;
+        p = end;
+        if( kind == 'h' )
+        {
+            tile->has_height = 1;
+            tile->height = (uint8_t)value;
+        }
+        else if( kind == 'o' )
+        {
+            tile->has_overlay = 1;
+            tile->overlay_id = (uint16_t)value;
+            if( *p == ';' )
+            {
+                tile->shape = (uint8_t)strtoul(p + 1, &end, 10);
+                p = end;
+                if( *p == ';' )
+                {
+                    tile->rotation = (uint8_t)strtoul(p + 1, &end, 10);
+                    p = end;
+                }
+            }
+        }
+        else if( kind == 'f' )
+            tile->settings = (uint8_t)value;
+        else if( kind == 'u' )
+            tile->underlay_id = (uint8_t)value;
+        else
+            return 0;
+    }
+    return 1;
+}
+
+/** TILE: square m<mx>_<mz>'s tile (level, lx, lz) with its raw height byte set
+ *  to `height` (1 spells an explicit zero, as the format does). */
+static int
+cmd_tile_height(
+    struct EditorHost* host,
+    int map_x,
+    int map_z,
+    int level,
+    int lx,
+    int lz,
+    int height)
+{
+    struct EditorHost_DocText text;
+    struct Editor_Cmd command;
+    char key[EDITOR_DOC_KEY_MAX];
+    char prefix[32];
+    char const* body;
+    char const* line = NULL;
+    enum EditorHost_Status status;
+
+    if( level < 0 || level > 3 || lx < 0 || lx > 63 || lz < 0 || lz > 63 || height < 1 || height > 255 )
+    {
+        fprintf(stderr, "torirsmapedctl: tile-height wants level 0..3, a local tile 0..63 and a "
+                        "height 1..255\n");
+        return 1;
+    }
+    Editor_SquareKey(key, map_x, map_z);
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_SQUARE, key, &text) != EDITOR_HOST_OK
+        || !text.parts[0].data )
+    {
+        fprintf(stderr, "torirsmapedctl: cannot open %s\n", key);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    body = (char const*)text.parts[0].data;
+    snprintf(prefix, sizeof(prefix), "%d %d %d:", level, lx, lz);
+    for( char const* p = body; p && *p; )
+    {
+        if( strncmp(p, prefix, strlen(prefix)) == 0 )
+        {
+            line = p + strlen(prefix);
+            break;
+        }
+        p = strchr(p, '\n');
+        if( p )
+            p++;
+    }
+    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, map_x, map_z);
+    command.u.tile.level = level;
+    command.u.tile.x = lx;
+    command.u.tile.z = lz;
+    /* No line: the all-default tile. */
+    if( line && !tile_parse_tokens(line, &command.u.tile.before) )
+    {
+        fprintf(stderr, "torirsmapedctl: %s's line '%s' does not parse\n", key, prefix);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    if( !line )
+        memset(&command.u.tile.before, 0, sizeof(command.u.tile.before));
+    Editor_HostDocTextFree(&text);
+    command.u.tile.after = command.u.tile.before;
+    command.u.tile.after.has_height = 1;
+    command.u.tile.after.height = (uint8_t)height;
+    status = Editor_HostMapEdCmd(host, &command);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the tile edit was refused (status %d)\n", (int)status);
+        return 1;
+    }
+    printf("%s tile %d %d %d: height %s%d -> %d\n", key, level, lx, lz,
+        command.u.tile.before.has_height ? "" : "(none) ", command.u.tile.before.height, height);
+    return 0;
+}
+
+/* ---- builds, RUN and the live link ----------------------------------------- */
+
+static const struct EditorHostMapEdFacts k_quiet_sink = { 0 };
+
+/** The outcome a live wait is for. */
+struct live_wait
+{
+    /** FACT_LIVE_STATUS: wait for ATTACHED/FAILED (attach), DETACHED (detach). */
+    int want_status;
+    /** FACT_BUILD_DONE (build) or FACT_RUN_DONE (run). */
+    uint32_t want_fact;
+    int done;
+    int ok;
+};
+
+/** Print one live-editor fact; fold it into `wait`. */
+static void
+live_print(
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length,
+    struct live_wait* wait)
+{
+    struct ToriRSMapEdReader reader;
+    char text[1024];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    if( type == TORIRSMAPED_FACT_BUILD_LINE )
+    {
+        uint32_t what = ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        printf("  [build %u] %s\n", what, text);
+    }
+    else if( type == TORIRSMAPED_FACT_BUILD_DONE )
+    {
+        uint32_t what = ToriRSMapEd_GetU32(&reader);
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        uint32_t units = ToriRSMapEd_GetU32(&reader);
+        printf("build %u done: status %u, %u unit(s)\n", what, status, units);
+        if( wait->want_fact == TORIRSMAPED_FACT_BUILD_DONE )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK;
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_RUN_DONE )
+    {
+        uint32_t status = ToriRSMapEd_GetU32(&reader);
+        uint32_t step = ToriRSMapEd_GetU32(&reader);
+        uint32_t counts[5];
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        for( int i = 0; i < 5; i++ )
+            counts[i] = ToriRSMapEd_GetU32(&reader);
+        printf("RUN done: status %u, step %u, '%s'; scripts_swapped %u groups_replaced %u "
+               "squares_reloaded %u spawns_changed %u restart %u\n",
+            status, step, text, counts[0], counts[1], counts[2], counts[3], counts[4]);
+        for( uint32_t i = 0; i < counts[4] && !reader.bad; i++ )
+        {
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+            printf("  restart needed: %s\n", text);
+        }
+        if( wait->want_fact == TORIRSMAPED_FACT_RUN_DONE )
+        {
+            wait->done = 1;
+            wait->ok = status == EDITOR_HOST_OK && step == TORIRSMAPED_RUN_STEP_DONE;
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_LIVE_STATUS )
+    {
+        uint32_t state = ToriRSMapEd_GetU32(&reader);
+        uint32_t launched = ToriRSMapEd_GetU32(&reader);
+        char address[256];
+        char name[128];
+        char stamp[256];
+        uint32_t players;
+        uint32_t tick;
+        uint32_t stale;
+        ToriRSMapEd_GetString(&reader, address, sizeof(address));
+        ToriRSMapEd_GetString(&reader, name, sizeof(name));
+        players = ToriRSMapEd_GetU32(&reader);
+        tick = ToriRSMapEd_GetU32(&reader);
+        ToriRSMapEd_GetString(&reader, stamp, sizeof(stamp));
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        stale = ToriRSMapEd_GetU32(&reader);
+        for( uint32_t i = 0; i < stale && !reader.bad; i++ )
+            ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        printf("live: state %u%s %s '%s' players %u tick %u script '%s' %s\n", state,
+            launched ? " (launched)" : "", address, name, players, tick, stamp, text);
+        if( wait->want_status == 1 && (state == TORIRSMAPED_LIVE_ATTACHED || state == TORIRSMAPED_LIVE_FAILED) )
+        {
+            wait->done = 1;
+            wait->ok = state == TORIRSMAPED_LIVE_ATTACHED;
+        }
+        else if( wait->want_status == 2 && state == TORIRSMAPED_LIVE_DETACHED )
+        {
+            wait->done = 1;
+            wait->ok = 1;
+        }
+    }
+    else if( type == TORIRSMAPED_FACT_LIVE_LINE )
+    {
+        ToriRSMapEd_GetString(&reader, text, sizeof(text));
+        printf("  [live] %s\n", text);
+    }
+    fflush(stdout);
+}
+
+/** Send one live request and print facts until `wait` is answered or the
+ *  deadline passes. */
+static int
+live_request(
+    struct EditorHost* host,
+    uint32_t type,
+    struct ToriRSMapEdBuf* payload,
+    struct live_wait* wait,
+    int seconds)
+{
+    time_t const started = time(NULL);
+    int sent = Editor_HostMapEdLiveSend(host, type, payload->data ? payload->data + payload->head : NULL,
+        (uint32_t)ToriRSMapEd_BufAvailable(payload));
+
+    ToriRSMapEd_BufFree(payload);
+    if( !sent )
+    {
+        fprintf(stderr, "torirsmapedctl: the connection is gone\n");
+        return 1;
+    }
+    while( !g_stop && !wait->done )
+    {
+        uint32_t fact_type;
+        uint8_t* body;
+        uint32_t length;
+
+        Editor_HostMapEdDrainFacts(host, &k_quiet_sink);
+        while( Editor_HostMapEdLiveTake(host, &fact_type, &body, &length) )
+        {
+            live_print(fact_type, body, length, wait);
+            ToriMem_Free(ToriMem_Editor(), body);
+        }
+        if( wait->done )
+            break;
+        if( difftime(time(NULL), started) >= seconds )
+        {
+            fprintf(stderr, "torirsmapedctl: no answer in %d s\n", seconds);
+            return 1;
+        }
+#if !defined(_WIN32)
+        usleep(20 * 1000);
+#endif
+    }
+    return wait->ok ? 0 : 1;
+}
+
 int
 main(
     int argc,
@@ -375,7 +735,7 @@ main(
     uint32_t join_group = 0;
     struct EditorHost host;
     char const* command = NULL;
-    char const* args[5] = { NULL, NULL, NULL, NULL, NULL };
+    char const* args[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     int arg_count = 0;
     int result = 0;
 
@@ -389,7 +749,7 @@ main(
             join_group = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if( !command )
             command = argv[i];
-        else if( arg_count < 5 )
+        else if( arg_count < 6 )
             args[arg_count++] = argv[i];
         else
         {
@@ -405,7 +765,11 @@ main(
             "  watch [seconds] | status | squares [limit] | open <x> <z>\n"
             "  select <x> <z> <level> | tool <n> | sync | undo | redo | save | bake\n"
             "  doc <square|spawn|cfg|iface|text> <key>\n"
-            "  new <x> <z> [storage] [empty|flat <height>|copy <key>]\n");
+            "  new <x> <z> [storage] [empty|flat <height>|copy <key>]\n"
+            "  text-replace <key> <find> <replace>\n"
+            "  tile-height <mx> <mz> <level> <lx> <lz> <height>\n"
+            "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
+            "  build packs|client [seconds] | run [seconds]\n");
         return 1;
     }
 
@@ -492,6 +856,52 @@ main(
             printf("saved %d document(s)\n", saved);
             Editor_HostMapEdDrainFacts(&host, &k_printing_sink);
         }
+    }
+    else if( strcmp(command, "text-replace") == 0 && arg_count >= 3 )
+        result = cmd_text_replace(&host, args[0], args[1], args[2]);
+    else if( strcmp(command, "tile-height") == 0 && arg_count >= 6 )
+        result = cmd_tile_height(&host, atoi(args[0]), atoi(args[1]), atoi(args[2]),
+            atoi(args[3]), atoi(args[4]), atoi(args[5]));
+    else if( strcmp(command, "live-attach") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 1, 0, 0, 0 };
+        int launch = strcmp(args[0], "launch") == 0;
+        ToriRSMapEd_PutU32(&payload, launch ? 1u : 0u);
+        ToriRSMapEd_PutString(&payload, launch ? "" : args[0]);
+        ToriRSMapEd_PutString(&payload, arg_count >= 2 ? args[1] : "");
+        result = live_request(&host, TORIRSMAPED_REQ_LIVE_ATTACH, &payload, &wait, 90);
+    }
+    else if( strcmp(command, "live-detach") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 2, 0, 0, 0 };
+        result = live_request(&host, TORIRSMAPED_REQ_LIVE_DETACH, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "live-cheat") == 0 && arg_count >= 2 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        /* Answered by lines, then a status. */
+        struct live_wait wait = { 1, 0, 0, 0 };
+        ToriRSMapEd_PutString(&payload, args[0]);
+        ToriRSMapEd_PutString(&payload, args[1]);
+        result = live_request(&host, TORIRSMAPED_REQ_LIVE_CHEAT, &payload, &wait, 30);
+    }
+    else if( strcmp(command, "build") == 0 && arg_count >= 1 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 0, TORIRSMAPED_FACT_BUILD_DONE, 0, 0 };
+        ToriRSMapEd_PutU32(&payload, strcmp(args[0], "client") == 0 ? TORIRSMAPED_BUILD_CLIENT_CACHE
+                                                                     : TORIRSMAPED_BUILD_PACKS);
+        result = live_request(&host, TORIRSMAPED_REQ_BUILD, &payload, &wait,
+            arg_count >= 2 ? atoi(args[1]) : 1800);
+    }
+    else if( strcmp(command, "run") == 0 )
+    {
+        struct ToriRSMapEdBuf payload = { 0 };
+        struct live_wait wait = { 0, TORIRSMAPED_FACT_RUN_DONE, 0, 0 };
+        result = live_request(&host, TORIRSMAPED_REQ_RUN, &payload, &wait,
+            arg_count >= 1 ? atoi(args[0]) : 1800);
     }
     else if( strcmp(command, "bake") == 0 )
         result = host.vtable->bake(host.user_data, print_bake_line, NULL) == EDITOR_HOST_OK

@@ -724,6 +724,33 @@ CacheProvider_ComponentPackHas(
 void
 CacheProvider_ComponentPacksCleanup(struct CacheProvider* provider);
 
+/* What CacheProvider_InvalidateArchive did with one archive. */
+enum CacheProviderInvalidate
+{
+    /** Nothing decoded from it was resident: the next read fetches it. */
+    CACHE_PROVIDER_INVALIDATE_NONE = 0,
+    /** Its decoded records were dropped. */
+    CACHE_PROVIDER_INVALIDATE_EVICTED = 1,
+    /** Records of this index are held by live state (a running CS2 frame, an
+     *  entity's type) and are not dropped under it: the change shows at the
+     *  next login. */
+    CACHE_PROVIDER_INVALIDATE_DEFERRED = 2,
+};
+
+/**
+ * CACHE_INVALIDATE (the live reload): drop what was decoded from archive
+ * `archive` of cache index `index`, so the next use reads the rebuilt one.
+ * Interfaces (index 3) are dropped -- replacing a mounted interface's pack is
+ * the same operation the interface editor's live mount already performs. Every
+ * other index answers DEFERRED today (docs/MAPED_DESIGN.html #run lists what
+ * each still needs).
+ */
+enum CacheProviderInvalidate
+CacheProvider_InvalidateArchive(
+    struct CacheProvider* provider,
+    int index,
+    int archive);
+
 /** packed_id = (iface_id << 16) | (child & 0xFFFF). Resolves into pack cache. */
 struct ToriRS_Component*
 CacheProvider_ComponentGet(

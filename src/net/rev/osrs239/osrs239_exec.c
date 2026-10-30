@@ -26,6 +26,7 @@
 #include "packets/ambientsound_start.h"
 #include "packets/ambientsound_stop.h"
 #include "packets/bug_report.h"
+#include "packets/cache_invalidate.h"
 #include "packets/cam_lookat_v2.h"
 #include "packets/cam_lookat_v3.h"
 #include "packets/cam_moveto_arc_v2.h"
@@ -2319,6 +2320,23 @@ in_unknown_string(uint8_t const* data, int len, struct RevPacket* out)
     return adapt_unknown_string(&m, out);
 }
 
+/* CACHE_INVALIDATE, opcode 237 */
+static int
+in_cache_invalidate(uint8_t const* data, int len, struct RevPacket* out)
+{
+    MsgCacheInvalidate m;
+    RsprotExec x;
+    RsprotBuf b;
+
+    memset(&m, 0, sizeof(m));
+    rsprot_buf_wrap_read(&b, data, len);
+    rsprot_exec_decode(&x, &b);
+    packet_cache_invalidate_osrs239_out(&x, &m);
+    if( !rev_exec_whole(&x, &b, len) )
+        return 0;
+    return adapt_cache_invalidate(&m, out);
+}
+
 /* The revision's zone sub-packets, by the ordinal that leads each. */
 static int
 zone_sub(RsprotBuf* c, struct PktZoneSubPacket* out)
@@ -3726,7 +3744,7 @@ out_set_heading(struct ProtoOutArgs const* a, RsprotBuf* b)
     return 1;
 }
 
-#define TOP 149
+#define TOP 238
 #define NO_PROT (-100)
 
 /* Server opcode -> its arm, its canonical name, its size. */
@@ -3854,6 +3872,7 @@ static int (*const k_in[TOP])(uint8_t const* data, int len, struct RevPacket* ou
     [115] = in_send_ping,
     [93] = in_packet_group_start,
     [24] = in_unknown_string,
+    [237] = in_cache_invalidate,
 };
 
 static int16_t const k_in_name[TOP] = {
@@ -3980,6 +3999,7 @@ static int16_t const k_in_name[TOP] = {
     [115] = PKT_NAME_SEND_PING,
     [93] = PKT_NAME_PACKET_GROUP_START,
     [24] = PKT_NAME_UNKNOWN_STRING,
+    [237] = PKT_NAME_CACHE_INVALIDATE,
 };
 
 /* Every opcode's size; NO_PROT where the revision has none. */
@@ -4133,6 +4153,95 @@ static int16_t const k_in_size[TOP] = {
     [146] = 8,
     [147] = 9,
     [148] = 11,
+    [149] = NO_PROT,
+    [150] = NO_PROT,
+    [151] = NO_PROT,
+    [152] = NO_PROT,
+    [153] = NO_PROT,
+    [154] = NO_PROT,
+    [155] = NO_PROT,
+    [156] = NO_PROT,
+    [157] = NO_PROT,
+    [158] = NO_PROT,
+    [159] = NO_PROT,
+    [160] = NO_PROT,
+    [161] = NO_PROT,
+    [162] = NO_PROT,
+    [163] = NO_PROT,
+    [164] = NO_PROT,
+    [165] = NO_PROT,
+    [166] = NO_PROT,
+    [167] = NO_PROT,
+    [168] = NO_PROT,
+    [169] = NO_PROT,
+    [170] = NO_PROT,
+    [171] = NO_PROT,
+    [172] = NO_PROT,
+    [173] = NO_PROT,
+    [174] = NO_PROT,
+    [175] = NO_PROT,
+    [176] = NO_PROT,
+    [177] = NO_PROT,
+    [178] = NO_PROT,
+    [179] = NO_PROT,
+    [180] = NO_PROT,
+    [181] = NO_PROT,
+    [182] = NO_PROT,
+    [183] = NO_PROT,
+    [184] = NO_PROT,
+    [185] = NO_PROT,
+    [186] = NO_PROT,
+    [187] = NO_PROT,
+    [188] = NO_PROT,
+    [189] = NO_PROT,
+    [190] = NO_PROT,
+    [191] = NO_PROT,
+    [192] = NO_PROT,
+    [193] = NO_PROT,
+    [194] = NO_PROT,
+    [195] = NO_PROT,
+    [196] = NO_PROT,
+    [197] = NO_PROT,
+    [198] = NO_PROT,
+    [199] = NO_PROT,
+    [200] = NO_PROT,
+    [201] = NO_PROT,
+    [202] = NO_PROT,
+    [203] = NO_PROT,
+    [204] = NO_PROT,
+    [205] = NO_PROT,
+    [206] = NO_PROT,
+    [207] = NO_PROT,
+    [208] = NO_PROT,
+    [209] = NO_PROT,
+    [210] = NO_PROT,
+    [211] = NO_PROT,
+    [212] = NO_PROT,
+    [213] = NO_PROT,
+    [214] = NO_PROT,
+    [215] = NO_PROT,
+    [216] = NO_PROT,
+    [217] = NO_PROT,
+    [218] = NO_PROT,
+    [219] = NO_PROT,
+    [220] = NO_PROT,
+    [221] = NO_PROT,
+    [222] = NO_PROT,
+    [223] = NO_PROT,
+    [224] = NO_PROT,
+    [225] = NO_PROT,
+    [226] = NO_PROT,
+    [227] = NO_PROT,
+    [228] = NO_PROT,
+    [229] = NO_PROT,
+    [230] = NO_PROT,
+    [231] = NO_PROT,
+    [232] = NO_PROT,
+    [233] = NO_PROT,
+    [234] = NO_PROT,
+    [235] = NO_PROT,
+    [236] = NO_PROT,
+    [237] = PKTIN_LENGTH_VARU16,
 };
 
 /* A canonical name's first opcode, plus one. */
@@ -4253,6 +4362,7 @@ static int16_t const k_name_wire1[PKT_NAME_COUNT] = {
     [PKT_NAME_UNSET_MAP_FLAG] = 144,
     [PKT_NAME_AMBIENTSOUND_START] = 146,
     [PKT_NAME_CAM_MOVETO] = 147,
+    [PKT_NAME_CACHE_INVALIDATE] = 238,
 };
 
 /* Client: canonical name -> opcode plus one; opcode -> size plus one. */
@@ -4484,6 +4594,95 @@ static int16_t const k_out_size[TOP] = {
     [146] = NO_PROT,
     [147] = NO_PROT,
     [148] = NO_PROT,
+    [149] = NO_PROT,
+    [150] = NO_PROT,
+    [151] = NO_PROT,
+    [152] = NO_PROT,
+    [153] = NO_PROT,
+    [154] = NO_PROT,
+    [155] = NO_PROT,
+    [156] = NO_PROT,
+    [157] = NO_PROT,
+    [158] = NO_PROT,
+    [159] = NO_PROT,
+    [160] = NO_PROT,
+    [161] = NO_PROT,
+    [162] = NO_PROT,
+    [163] = NO_PROT,
+    [164] = NO_PROT,
+    [165] = NO_PROT,
+    [166] = NO_PROT,
+    [167] = NO_PROT,
+    [168] = NO_PROT,
+    [169] = NO_PROT,
+    [170] = NO_PROT,
+    [171] = NO_PROT,
+    [172] = NO_PROT,
+    [173] = NO_PROT,
+    [174] = NO_PROT,
+    [175] = NO_PROT,
+    [176] = NO_PROT,
+    [177] = NO_PROT,
+    [178] = NO_PROT,
+    [179] = NO_PROT,
+    [180] = NO_PROT,
+    [181] = NO_PROT,
+    [182] = NO_PROT,
+    [183] = NO_PROT,
+    [184] = NO_PROT,
+    [185] = NO_PROT,
+    [186] = NO_PROT,
+    [187] = NO_PROT,
+    [188] = NO_PROT,
+    [189] = NO_PROT,
+    [190] = NO_PROT,
+    [191] = NO_PROT,
+    [192] = NO_PROT,
+    [193] = NO_PROT,
+    [194] = NO_PROT,
+    [195] = NO_PROT,
+    [196] = NO_PROT,
+    [197] = NO_PROT,
+    [198] = NO_PROT,
+    [199] = NO_PROT,
+    [200] = NO_PROT,
+    [201] = NO_PROT,
+    [202] = NO_PROT,
+    [203] = NO_PROT,
+    [204] = NO_PROT,
+    [205] = NO_PROT,
+    [206] = NO_PROT,
+    [207] = NO_PROT,
+    [208] = NO_PROT,
+    [209] = NO_PROT,
+    [210] = NO_PROT,
+    [211] = NO_PROT,
+    [212] = NO_PROT,
+    [213] = NO_PROT,
+    [214] = NO_PROT,
+    [215] = NO_PROT,
+    [216] = NO_PROT,
+    [217] = NO_PROT,
+    [218] = NO_PROT,
+    [219] = NO_PROT,
+    [220] = NO_PROT,
+    [221] = NO_PROT,
+    [222] = NO_PROT,
+    [223] = NO_PROT,
+    [224] = NO_PROT,
+    [225] = NO_PROT,
+    [226] = NO_PROT,
+    [227] = NO_PROT,
+    [228] = NO_PROT,
+    [229] = NO_PROT,
+    [230] = NO_PROT,
+    [231] = NO_PROT,
+    [232] = NO_PROT,
+    [233] = NO_PROT,
+    [234] = NO_PROT,
+    [235] = NO_PROT,
+    [236] = NO_PROT,
+    [237] = NO_PROT,
 };
 
 static int (*const k_out[PKTOUT_NAME_COUNT])(struct ProtoOutArgs const* a, RsprotBuf* b) = {
