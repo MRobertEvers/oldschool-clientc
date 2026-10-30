@@ -35,7 +35,7 @@
 /* pack/13_fonts.pack: 495=p12_full, the journal row font. */
 #define JOURNAL_FONT 495
 /* ^questjournal_text_width */
-#define JOURNAL_WIDTH 415
+#define JOURNAL_WIDTH 350
 /* ^questjournal_max_lines */
 #define JOURNAL_LINES 210
 
@@ -215,6 +215,36 @@ test_own_colour_wins(struct SSVM_State* state)
         "a row with no colour of its own still inherits the open one");
 }
 
+static void
+test_wrap_restates_colour(struct SSVM_State* state)
+{
+    /* Scorpion Catcher at stage 2 (RSProx index 4421 [1730]): the row wraps
+     * in <col=000080> right before a <col=800000> name. Jagex restates the
+     * carried colour in front of the row's own, as in every one of the 51
+     * such rows recorded; a hard break (above) does not. */
+    static const char* const text =
+        "<col=000080>I need to talk to the <col=800000>Seer<col=000080> again now I've caught the first <col=800000>Kharid Scorpion.";
+
+    printf("\n-- a wrap before a row's own colour --\n");
+    if( !ToriRSServer_SplitInit(state, text, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    {
+        printf("FAIL split_init: %s\n", state->err.message);
+        Failures++;
+        return;
+    }
+    dump(state);
+
+    check(state->split_line_count == 2, "the paragraph wraps once");
+    if( state->split_line_count != 2 )
+        return;
+    check(
+        strcmp(state->split_lines[0], "<col=000080>I need to talk to the <col=800000>Seer<col=000080> again now I've caught the first") == 0,
+        "the first row is Jagex's");
+    check(
+        strcmp(state->split_lines[1], "<col=000080><col=800000>Kharid Scorpion.") == 0,
+        "the wrapped row restates the carried colour before its own");
+}
+
 int
 main(void)
 {
@@ -231,6 +261,7 @@ main(void)
     test_soft_wrap(state);
     test_no_leak_without_close(state);
     test_own_colour_wins(state);
+    test_wrap_restates_colour(state);
 
     SSVM_StrPoolFree(&state->pool);
     free(state);

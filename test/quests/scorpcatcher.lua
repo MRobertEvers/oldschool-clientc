@@ -24,7 +24,7 @@
 --     the blue dragons and black demons, the dusty-key door needs the
 --     Jailer). Quest Helper picks the strange floor at 80 Agility
 --     (ScorpionCatcher.java:256), so setup stages Agility 80. Then the Old
---     wall (scorpionwall 2875,9799) is searched and the room walked into;
+--     wall (scorpionwall 2875,9799), a walk-through both ways (RSProx 4421);
 --   * the Barbarian Outpost: barbariangatel 2545,3570 (doors_selfstage) and
 --     the prison room's prisondoor_r 2551,3570 (doubledoors);
 --   * the monastery: only members of the order may climb its ladder
@@ -32,16 +32,16 @@
 --     player in (abbot_langley.rs2, Prayer 31), then the ladder and the
 --     dormitory's poordoor 3058,3485,1.
 --
--- Staged levels: Prayer 31 (thormac.rs2's start requirement) and Agility 80
--- (the strange floor). Neither Thormac, the seer, Abbot Langley nor the
--- monastery ladder branches on the combat level (no combat_level read in
--- thormac.rs2, seer.rs2, abbot_langley.rs2, prayer_guild.rs2), so the staged
--- player sees the same dialogue as any other.
+-- Staged: the barcrawl done (the start's requirement), Prayer 31 (Abbot
+-- Langley's order) and Agility 80 (the strange floor). The staged player is
+-- below combat 40, so Thormac shows the combat warning before the confirm, as
+-- RSProx index 4421 [215] (the recorder was 35). The pages and timings are
+-- 4421's: docs/rsprox-analysis/quests/scorpion_catcher.md.
 --
 -- Reward: 1 quest point and 6,625 Strength XP (wiki; Quest Helper
 -- ScorpionCatcher.java:327; LostCity quest_scorpcatcher.rs2:60
--- `stat_advance(strength, 66250)`), paid by this pack's
--- [queue,scorpcatcher_quest_complete] since seam matthew-mbp-m4-b66-seam1.
+-- `stat_advance(strength, 66250)`), paid by [proc,scorpcatcher_complete] on
+-- the last page's click (4421 [2145]).
 --
 -- Catch order is the guide's: Taverley (empty -> scorpioncagea), the
 -- monastery (a -> scorpioncageac), the outpost (ac -> scorpioncagefull);
@@ -55,7 +55,8 @@ return {
     fixture = "fresh_lumbridge.ini",
     setup = {
         "::clearinv", -- fourteen tutorial slots, so the scorpion cage fits
-        "::setlevel prayer 31", -- thormac.rs2's only real start requirement
+        "::setvar varb13714_barcrawl_progress 2", -- the start's requirement (quest dbrow requirement_quests)
+        "::setlevel prayer 31", -- Abbot Langley's order (the dbrow's requirement_stats; not checked on start)
         "::setlevel agility 80", -- Taverley Dungeon's strange floor (maplink_agility.dbrow level 80)
         -- The guide's combat requirement is "the ability to run past ... level 64 poison spiders"
         -- (ScorpionCatcher.java getCombatRequirements). Run 1 with the fixture's 10 Hitpoints: a
@@ -68,6 +69,7 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp76_scorpcatcher",
             constants = {
@@ -131,15 +133,9 @@ return {
         t.exec("goto-thormac", t.player.goto_tile, 2702, 3400, 0)
         tower_up("sorcerersTowerLadder0")
         t.exec("talk.thormac1", t.player.talk_to, "thormac", 1)
-        -- [opnpc1,thormac]: not_started & prayer>=31 -> @thormac_assistance.
-        -- 2026-09-23 parity2 (area_seers/scripts/thormac.rs2) restored the
-        -- p_choice3 offer ("how to catch" / "what's in it for me" / "not
-        -- interested") -- choose "So how would I go about catching them
-        -- then?" -> @thormac_how_catch. Its cage-empty branch (setup's
-        -- ::clearinv leaves no cage) if_close's the page, `mes("Thormac gives
-        -- you a cage.")`, then mounts a fresh npc page after p_delay(4): one
-        -- chat.play list dies on that reopened page (docs/QUEST_AUTHORING.md
-        -- section 8), so split it in two and await the remount.
+        -- RSProx index 4421 [202..221]: one straight run, the cage and its line
+        -- on the click of "Well I have a scorpion cage...", the combat warning
+        -- (the staged player is below 40), the start confirm, the stage on Yes.
         t.exec("talk.thormac1-dialog", t.chat.play, {
             "npc:Hello I am Thormac the sorcere",
             "choose:What do you need assistance with?",
@@ -147,31 +143,15 @@ return {
             "npc:I've lost my pet scorpions. Th",
             "npc:I left their cage door open, n",
             "npc:There's three of them, and the",
-            "choose:So how would I go about catching them then?",
-            "player:So how would I go about catchi",
+            "player:How would I go about catching",
             "npc:Well I have a scorpion cage he",
-            "end",
+            "npc:If you go up to the village of",
+            "mesbox:Before starting this quest, be",
+            "choose:Yes.",
+            "player:Okay, I will do it then.",
         })
         t.expect("thormac.cage_given_msg", t.msg.expect("Thormac gives you a cage."))
-
-        local reopen1_result, reopen1_detail = t.await({
-            level = function()
-                return t.chat.kind() == "npc"
-            end,
-            note = "thormac.howcatch_reopen",
-        }, 15)
-        t.step("thormac.howcatch_reopen", reopen1_result == "ok" and "PASS" or "FAIL",
-            "await(chat.kind() == npc) after if_close+mes+p_delay(4) -> "
-                .. tostring(reopen1_result) .. " " .. tostring(reopen1_detail)
-                .. " -- chat.kind() now " .. tostring(t.chat.kind()))
-
-        -- thormac_how_catch's reopened page + its p_choice2 -> "Ok, I will do
-        -- it then" -> @thormac_startquest (cage already held; varp write).
-        t.exec("talk.thormac1-dialog2", t.chat.play, {
-            "npc:If you go up to the village of",
-            "choose:Ok, I will do it then",
-            "player:Ok, I will do it then.",
-        })
+        t.expect("thormac.started_msg", t.msg.expect("Scorpion Catcher</col>"))
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
         local cage_count = select(2, t.inv.count("scorpioncageempty"))
         t.check("thormac.cage_in_pack", cage_count == 1, "scorpioncageempty in the pack: " .. tostring(cage_count))
@@ -184,6 +164,9 @@ return {
         tower_down("speakToSeer1")
         t.exec("goto-seer1", t.player.goto_tile, 2716, 3484, 0)
         t.exec("talk.seer1", t.player.talk_to, "seer", 1)
+        -- 4421 [277..303]: the looking glass's click closes the chat; three
+        -- lines 0, 4 and 8 ticks on, the next page 12 ticks on. One chat.play
+        -- list dies on a reopened page (docs/QUEST_AUTHORING.md section 8).
         t.exec("talk.seer1-dialog", t.chat.play, {
             "npc:Many greetings.",
             "choose:I need to locate some scorpions.",
@@ -192,6 +175,18 @@ return {
             "npc:Do you need to locate any part",
             "player:I'm looking for some lesser Kh",
             "npc:Let me look into my looking gl",
+            "end",
+        })
+        local glass_result, glass_detail = t.await({
+            level = function()
+                return t.chat.kind() == "npc"
+            end,
+            note = "seer1.looking_glass",
+        }, 20)
+        t.step("seer1.looking_glass", glass_result == "ok" and "PASS" or "FAIL",
+            "await(chat.kind() == npc) after the three lines -> " .. tostring(glass_result) .. " " .. tostring(glass_detail))
+        t.expect("seer1.mirror_msg", t.msg.expect("The seer smoothes his hair with his hand"))
+        t.exec("talk.seer1-dialog2", t.chat.play, {
             "npc:I can see a scorpion that you ",
             "npc:The scorpion seems to be going",
             "npc:Well see if you can find that ",
@@ -217,15 +212,16 @@ return {
             { { 2877, 9813 }, { 2875, 9810 }, { 2875, 9805 }, { 2875, 9800 }, { 2875, 9799 } },
             { vitals = VITALS })
 
-        -- The Old wall (scorpcatcher_scorpions.rs2 [oploc1,scorpionwall]):
-        -- first_hint or later -> mes, a mesbox, then loc_del(500). The
-        -- scorpion's room (x 2874-2879, z 9793-9798) has no other way in.
+        -- The Old wall (scorpcatcher_scorpions.rs2 [oploc1,scorpionwall]), a
+        -- walk-through (4421 [1408..1413]): the line, the wall's slot an
+        -- inviswall and its leaf on 2875,9798 for 2 ticks, the player stepped
+        -- into the room. The room (x 2874-2879, z 9793-9798) has no other way in.
         t.exec("searchOldWall", t.player.click_loc, "scorpionwall", 1, { at = { 2875, 9799, 0 } })
-        t.exec("searchOldWall-dialog", t.chat.play, { "mesbox:You find a hidden catch" })
+        t.expect("searchOldWall.msg", t.msg.expect("You've found a secret door!"))
+        t.ticks(3)
         local wall_result = t.world.loc_near("scorpionwall", 3, { at = { 2875, 9799, 0 } })
-        t.check("searchOldWall.opened", wall_result == "not_found",
-            "scorpionwall at 2875,9799,0 after the search: " .. tostring(wall_result) .. " (want not_found: loc_del(500))")
-        t.exec("walk-catchTaverleyScorpion", t.player.walk_to, 2875, 9798)
+        t.check("searchOldWall.closedAgain", wall_result == "ok",
+            "scorpionwall at 2875,9799,0 three ticks on: " .. tostring(wall_result) .. " (want ok: back after 2 ticks)")
         local in_room_result, in_room = t.world.tile()
         t.check("catchTaverleyScorpion.inRoom", in_room_result == "ok" and in_room.z <= 9798 and in_room.level == 0,
             "inside the secret room (z <= 9798): " .. (in_room_result == "ok"
@@ -234,6 +230,11 @@ return {
         local scorpion_a, scorpion_a_result = t.player.by_symbol("npc", "questscorpiona")
         t.step("lookup.scorpiona", scorpion_a_result == "ok" and "PASS" or "FAIL",
             "by_symbol npc questscorpiona -> " .. tostring(scorpion_a_result))
+        -- 4421 [1415]: the recorder picked it up first. "The scorpion stings
+        -- you!" on the op, a 3 on the player the tick after. No page follows,
+        -- so the press is not a row of its own.
+        t.player.talk_to("questscorpiona", 1)
+        t.expect("sting.scorpiona.msg", t.msg.expect("The scorpion stings you!"))
         local cage_before_a = select(2, t.inv.count("scorpioncageempty"))
         t.exec("catch.scorpiona", t.player.use_on, "scorpioncageempty", scorpion_a)
         -- [opnpcu,questscorpiona] -> ~scorpcatcher_catch_scorpion: swaps the
@@ -244,10 +245,17 @@ return {
             "scorpioncageempty " .. tostring(cage_before_a) .. " -> " .. tostring(cage_after_a)
                 .. ", scorpioncagea " .. tostring(cage_a_count))
 
-        -- Out the way it came: the wall is still gone (500 ticks), the floor
-        -- back east (src 2878,9813 -> 2881,9813), the ladder up.
+        -- Out the way it came: the wall again from inside (4421 [1424..1428]),
+        -- the floor back east (src 2878,9813 -> 2881,9813), the ladder up.
+        t.exec("walk-leaveScorpionRoom.toWall", t.player.walk_to, 2875, 9798)
+        t.exec("leaveScorpionRoom", t.player.click_loc, "scorpionwall", 1, { at = { 2875, 9799, 0 } })
+        t.ticks(2)
+        local out_result, out_tile = t.world.tile()
+        t.check("leaveScorpionRoom.out", out_result == "ok" and out_tile.z == 9799,
+            "through the Old wall from inside: " .. (out_result == "ok"
+                and (out_tile.x .. "," .. out_tile.z .. "," .. out_tile.level) or tostring(out_result)) .. " (want z 9799)")
         t.exec("walk-leaveScorpionRoom", t.player.walk_route,
-            { { 2875, 9798 }, { 2875, 9799 }, { 2875, 9804 }, { 2875, 9809 }, { 2876, 9813 }, { 2878, 9813 } },
+            { { 2875, 9799 }, { 2875, 9804 }, { 2875, 9809 }, { 2876, 9813 }, { 2878, 9813 } },
             { vitals = VITALS })
         t.exec("goOverStrangeFloorBack", t.player.cross_trap, { loc = "taverly_dungeon_floor_spikes_sc",
             op_name = "Jump-over", at = { 2879, 9813, 0 }, src = { 2878, 9813 }, dest = { 2881, 9813 },
@@ -306,23 +314,40 @@ return {
             "player:Well can I join your order?",
             "npc:Ok, I see you are someone suit",
         })
-        -- varp6426_prayer_guild is server-authored (configs/prayer_guild.varp): the client has no
-        -- copy (run 2: t.var.varp -> not_found), so read the server's.
-        local guild_result, guild_value, guild_source = t.var.server("varp6426_prayer_guild")
+        -- 4421 [1516]: the join sets Jagex's monastery_enter (varbit 4907), sent to the client.
+        local guild_result, guild_value = t.var.varbit("varb4907_monastery_enter")
         t.check("enterMonastery.joinedOrder", guild_result == "ok" and guild_value == 1,
-            "varp6426_prayer_guild after Abbot Langley: " .. tostring(guild_result) .. " " .. tostring(guild_value)
-                .. " (" .. tostring(guild_source) .. "; want 1, abbot_langley.rs2 @ask_to_join_abbot_langley2)")
+            "varb4907_monastery_enter after Abbot Langley: " .. tostring(guild_result) .. " " .. tostring(guild_value)
+                .. " (want 1, prayer_guild.rs2 @ask_to_join_abbot_langley2)")
         -- No maplink row: [proc,climb] moves the player one plane on the tile
         -- it stands on.
         t.exec("enterMonastery", t.player.climb, { loc = "monasteryladder", op = 1, op_name = "Climb-up",
             at = { 3057, 3483, 0 }, src = { 3057, 3484 }, dest = { 3057, 3484, 1 } })
         -- The dormitory: poordoor 3058,3485,1 is the north wall of its tile.
-        t.exec("dormitoryDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
-            at = { 3058, 3485, 1 }, near = { 3058, 3485 }, far = { 3058, 3486 } })
+        -- Scorpion C wanders both sides of it (RSProx 4421, 468, 3114, 1501:
+        -- z 3485..3491; 4421 [1529] caught it at 3056,3485 without the door),
+        -- so the door is passed only when it is north of the wall.
+        -- The door's open leaf (3058,3486 rot 2, recorded at 4421 [1532])
+        -- walls off the nook at 3059,3486 (a recorded scorpion tile, 468 and
+        -- 3114), so a scorpion standing there is waited out with the door shut.
+        for _ = 1, 60 do
+            local _, c_wait = t.npc.nearest("questscorpionc", 12)
+            if not (type(c_wait) == "table" and c_wait.x == 3059 and c_wait.z == 3486) then break end
+            t.ticks(1)
+        end
+        local c_near_result, c_near = t.npc.nearest("questscorpionc", 12)
+        t.note("scorpion C before the catch: " .. tostring(c_near_result) .. " "
+            .. ((type(c_near) == "table" and c_near.z) and (tostring(c_near.x) .. "," .. tostring(c_near.z)) or tostring(c_near)))
+        local c_in_dorm = type(c_near) == "table" and type(c_near.z) == "number" and c_near.z >= 3486
+        if c_in_dorm then
+            t.exec("dormitoryDoorIn", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 3058, 3485, 1 }, near = { 3058, 3485 }, far = { 3058, 3486 } })
+        end
         local scorpion_c, scorpion_c_result = t.player.by_symbol("npc", "questscorpionc")
         t.step("lookup.scorpionc", scorpion_c_result == "ok" and "PASS" or "FAIL",
             "by_symbol npc questscorpionc -> " .. tostring(scorpion_c_result))
         local cage_a_before_c = select(2, t.inv.count("scorpioncagea"))
+        scorpion_c = select(1, t.player.by_symbol("npc", "questscorpionc")) or scorpion_c
         t.exec("catch.scorpionc", t.player.use_on, "scorpioncagea", scorpion_c)
         -- ~scorpcatcher_next_cage(a, catch_c) -> scorpioncageac.
         local cage_a_after_c = select(2, t.inv.count("scorpioncagea"))
@@ -330,8 +355,10 @@ return {
         t.check("catch.scorpionc.inv", cage_a_before_c == 1 and cage_a_after_c == 0 and cage_ac_count == 1,
             "scorpioncagea " .. tostring(cage_a_before_c) .. " -> " .. tostring(cage_a_after_c)
                 .. ", scorpioncageac " .. tostring(cage_ac_count))
-        t.exec("dormitoryDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
-            at = { 3058, 3485, 1 }, near = { 3058, 3486 }, far = { 3058, 3485 } })
+        if c_in_dorm then
+            t.exec("dormitoryDoorOut", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+                at = { 3058, 3485, 1 }, near = { 3058, 3486 }, far = { 3058, 3485 } })
+        end
         t.exec("leaveMonastery", t.player.climb, { loc = "laddertop", op = 1, op_name = "Climb-down",
             at = { 3057, 3483, 1 }, src = { 3057, 3484 }, dest = { 3057, 3484, 0 } })
         t.exec("walk-leaveMonastery", t.player.walk_to, 3051, 3471)
@@ -380,20 +407,23 @@ return {
         local reward_snapshot_result, reward_before = t.skill.snapshot()
         local qp_result, qp_before = t.var.varp("varp101_qp")
 
-        -- [opnpc1,thormac]'s cagefull & stage != complete branch takes the
-        -- cage and queues scorpcatcher_quest_complete.
+        -- 4421 [2142..2145]: the hand-in completes on the last page's click.
         t.exec("talk.thormac2", t.player.talk_to, "thormac", 1)
         t.exec("talk.thormac2-dialog", t.chat.play, {
             "npc:How goes your quest?",
             "player:I have retrieved all your scorpions.",
             "npc:Aha, my little scorpions home at",
         })
-        t.ticks(3) -- the queued scorpcatcher_quest_complete is not client-side yet
+        t.ticks(3)
         local full_after = select(2, t.inv.count("scorpioncagefull"))
         t.check("returnToThormac.cageHandedIn", full_after == 0,
             "scorpioncagefull after the hand-in: " .. tostring(full_after) .. " (want 0, thormac.rs2 inv_del)")
 
         t.quest.expect_complete()
+        -- 4421 [2145]: the completion zeroes varp 77 (the barcrawl's own state is barcrawl_progress).
+        local bc_result, bc_value = t.var.varp("varp77_barcrawl")
+        t.check("complete.barcrawl_varp_zeroed", bc_result == "ok" and bc_value == 0,
+            "varp77_barcrawl after the hand-in: " .. tostring(bc_result) .. " " .. tostring(bc_value))
 
         -- Literal rewards: 1 quest point (a before/after delta), 6,625 Strength XP.
         local qp_after_result, qp_after = t.var.varp("varp101_qp")

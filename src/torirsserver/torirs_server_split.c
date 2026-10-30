@@ -284,11 +284,15 @@ ToriRSServer_SplitInit(
             break;
 
         styles_at(work, point.rest_start, colour);
-        /* A row that opens with its own colour overrides the carried one at
-         * once, so the carried tag would draw nothing; Jagex's rows have no
-         * such pair (RSProx index 4404 [677]: "<col=000080>I need to catch"
-         * after a row left in <col=800000>). */
-        if( strncmp(work + point.rest_start, "<col=", 5) == 0 )
+        /* After a wrap Jagex restates the carried colour even when the row
+         * then opens with its own: "<col=000080><col=800000>Kharid Scorpion."
+         * (RSProx index 4421 [1730]; 51 such rows across the recorded
+         * journals, never the same colour twice). After a hard break the
+         * next row starts clean: "<col=000080>I need to catch" after a row
+         * left in <col=800000> (index 4404 [677]). */
+        if( strncmp(work + point.rest_start, "<col=", 5) == 0 &&
+            (work[point.output_end] == '|' || strncmp(work + point.output_end, "<br>", 4) == 0 ||
+             strncmp(work + point.rest_start, colour, strlen(colour)) == 0) )
             colour[0] = '\0';
         rest_length = strlen(work + point.rest_start);
         prefix_length = strlen(colour);

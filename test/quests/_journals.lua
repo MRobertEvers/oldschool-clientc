@@ -5,6 +5,7 @@
 --   Observatory Quest, stages 2, 3, 4 and 6: RSProx index 4412, exactly.
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
+--   Scorpion Catcher, stage 2 with the full cage: RSProx index 4421 [1730], exactly.
 --   The Grand Tree, stages 20, 60, 80, 90, 100, 110, 120 and 150 (the rock held):
 --   RSProx index 4429, exactly (stage 90's trailing blank row dropped: a read
 --   ends at the last text row).
@@ -520,6 +521,20 @@ local FT_4424_6 = {
     "<col=000080>some <col=800000>Old Notes<col=000080> on some shelves which might be useful.",
 }
 
+-- Scorpion Catcher, RSProx index 4421 [1730]: stage 2 with the full cage held.
+local SC_4421_2 = {
+    "<str>I've spoken to Thormac, he's lost his pet Kharid Scorpions and",
+    "<str>needs my help to find them.",
+    "",
+    "<str>I've spoken to the Seer and been given the location of one of",
+    "<str>the Kharid Scorpions.",
+    "",
+    "<str>The first Kharid Scorpion is in a secret room near some Nasty",
+    "<str>Spiders with two Coffins nearby.",
+    "",
+    "<col=000080>I need to talk to the <col=800000>Seer<col=000080> again now I've caught the first",
+    "<col=000080><col=800000>Kharid Scorpion.",
+}
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -629,6 +644,10 @@ return {
         set("::setvar varb7808_lovaquest_foundnotes 1")
         exact("journal.forsakentower.6", "The Forsaken Tower", FT_4424_6)
 
+        set("::give scorpioncagefull 1")
+        set("::setvar varp76_scorpcatcher 2")
+        exact("journal.scorpioncatcher.2", "Scorpion Catcher", SC_4421_2)
+        set("::clearinv")
         local MM = {
             { 5, 1, "I agreed to sail to the island" },
             { 20, 3, "I need to stop the killer" },

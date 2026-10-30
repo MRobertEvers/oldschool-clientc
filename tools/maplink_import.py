@@ -784,6 +784,32 @@ def split_unambiguous(accepted):
     return table_rows, ambiguous, dropped_multi_placement
 
 
+def read_authored_landings(path):
+    """(src, dir) of every row maplink_landings.dbrow states by hand. A landing
+    a recording proves goes there; a generated row on the same tile and
+    direction would race it in ~maplink_try (db_find order is unspecified), so
+    the generated one is dropped."""
+    keys = set()
+    src = direction = None
+    try:
+        handle = open(path, encoding="utf-8")
+    except OSError:
+        return keys
+    with handle:
+        for line in handle:
+            line = line.strip()
+            if line.startswith("["):
+                src = direction = None
+            elif line.startswith("data=src,"):
+                src = line[len("data=src,"):].split("//")[0].strip()
+            elif line.startswith("data=dir,"):
+                direction = int(line[len("data=dir,"):].split("//")[0].strip())
+            if src is not None and direction is not None:
+                keys.add((src, direction))
+                src = direction = None
+    return keys
+
+
 def build_dbtable_text():
     return (
         "// The climb destinations `~climb` cannot derive from the loc's own\n"
@@ -1177,6 +1203,10 @@ def main():
     merged_table_rows, cross_class_conflicts = merge_table_rows(
         table_rows, list(category_ok)
     )
+    authored = read_authored_landings(os.path.join(ladders_dir, "configs", "maplink_landings.dbrow"))
+    merged_table_rows = [
+        row for row in merged_table_rows if (to_coord_literal(*row[0]), row[3]) not in authored
+    ]
     dbtable_text = build_dbtable_text()
     dbrow_text = build_dbrow_text(merged_table_rows, args.near_miss)
     rejects_text = build_rejects_doc(

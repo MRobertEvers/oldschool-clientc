@@ -422,6 +422,12 @@ python3 tools/maplink_import.py [--content <dir>] [--data <dir>]
 | `skill_agility/scripts/maplink_agility.rs2` | hand-authored — `~maplink_agility`, the three category triggers |
 | `docs/MAPLINKS_REJECTS.md` | **generated** — every dropped row from all three classes, grouped by reason |
 
+`ladders_stairs/configs/maplink_landings.dbrow` is hand-authored: landings a
+recording or a landing audit proves. A generated row on the same `(src, dir)` as
+an authored one is dropped, because `~maplink_try` takes whichever `db_find`
+returns first. An authored row that replaces a generated one keeps that row's
+name, so it keeps its dbrow id (the Sorcerer's Tower top ladder, RSProx 4421).
+
 `--near-miss` includes the "within 3 tiles" class alongside genuine jumps;
 without it, only jumps are emitted. Applies to climb only. All three classes
 compile clean through `sscompile` — see §6.

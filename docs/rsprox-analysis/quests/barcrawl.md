@@ -157,8 +157,8 @@ before completion (the nearest guard answers).
 2. Fire Brandy's attack constant 6 and Hand of Death's 3% are fitted to one
    sample each.
 3. The hand-in menu's one-tick delay is one sample.
-4. Scorpion Catcher (Thormac) and Horror from the Deep still do not require the
-   barcrawl (their own ports; 4421 is the Scorpion Catcher recording).
+4. Horror from the Deep still does not require the barcrawl. Scorpion Catcher
+   does (its port from 4421, `scorpion_catcher.md`).
 5. `stat_sub`/`stat_drain` both use the base level; RuneScript's `stat_drain` is
    the current level (LostCity's PlayerOps). 106 call sites rely on ours; not
    changed here.
