@@ -488,6 +488,38 @@ local GT_4429_150 = {
     "<col=800000>give it to the King.",
 }
 
+-- The Forsaken Tower, stage 6 (RSProx index 4424 [1002]): power and furnace
+-- done, the refinery tried (2) with the notes found, the altar untouched.
+local FT_4424_6 = {
+    "<str>I spoke to Lady Vulcana Lovakengj and Councillor Unkar in the",
+    "<str>Lovakengj Assembly. They told me that Undor, a master",
+    "<str>smith, had found an issue with the Doors of Dinh. However, he",
+    "<str>needed some help resolving it.",
+    "<str>I spoke to Undor outside the Doors of Dinh. He informed me",
+    "<str>that the doors had been damaged by sabotage. However, he",
+    "<str>believed that he could repair them. Undor asked me to",
+    "<str>recover Dinh's Hammer, the only tool capable of fixing the",
+    "<str>doors. Undor believed that the hammer would be found within",
+    "<str>The Forsaken Tower, a tower that was once owned by Dinh.",
+    "<col=000080>I travelled to <col=800000>The Forsaken Tower<col=000080> to the west of <col=800000>Lovakengj<col=000080>.",
+    "<col=000080>Inside, I found <col=800000>Dinh's Hammer<col=000080> sealed in a display case. I'll",
+    "<col=000080>need to find a way to open the display case and recover the",
+    "<col=000080>hammer.",
+    "",
+    "<str>I found an old Steam Generator in the basement of the tower",
+    "<str>which I managed to activate. The power from the generator",
+    "<str>was flowing into a nearby Power Grid which I realigned,",
+    "<str>providing power to the whole tower.",
+    "",
+    "<str>I found an ancient Furnace in the tower which was inactive. I",
+    "<str>refilled the Coolant Container supplying the Furnace. I then lit",
+    "<str>the Furnace.",
+    "",
+    "<col=000080>I found an old <col=800000>Refinery<col=000080> in the tower. It's still in working order",
+    "<col=000080>but it will need cleansing before it can be activated. I found",
+    "<col=000080>some <col=800000>Old Notes<col=000080> on some shelves which might be useful.",
+}
+
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -588,6 +620,14 @@ return {
         set("::setvar varp150_grandtree 150")
         exact("journal.grandtree.150", "The Grand Tree", GT_4429_150)
         set("::clearinv")
+
+        set("::setvar varb7796_lovaquest 6")
+        set("::setvar varb7797_lovaquest_electricity 4")
+        set("::setvar varb7798_lovaquest_furnace 4")
+        set("::setvar varb7799_lovaquest_refinery 2")
+        set("::setvar varb7804_lovaquest_foundhammer 1")
+        set("::setvar varb7808_lovaquest_foundnotes 1")
+        exact("journal.forsakentower.6", "The Forsaken Tower", FT_4424_6)
 
         local MM = {
             { 5, 1, "I agreed to sail to the island" },
