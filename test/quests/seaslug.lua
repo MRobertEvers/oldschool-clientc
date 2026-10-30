@@ -84,6 +84,7 @@ return {
             points = 1,
         })
         t.ticks(3) -- setup's ::give/::setlevel cheats are not client-side yet
+        t.ticklog.start()
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         -- The Taverley members' wall. Owner ruling (docs/quest_authoring/
@@ -155,7 +156,9 @@ return {
         t.expect("caroline.drain_to_choice", drain1_result, drain1_detail)
         t.shot("caroline-choice-menu")
 
-        t.exec("caroline.choose_help", t.chat.choose, "I suppose so, how do I get there?")
+        -- RSProx index 4405 [2204]: the rev 241 start, "Start the Sea Slug quest?"
+        -- Yes./No. (the Firemaking warning box only below 30; setup stages 50).
+        t.exec("caroline.choose_help", t.chat.choose, "Yes.")
         local drain2_result, drain2_detail = t.chat.drain({ stop_at = "none" })
         t.expect("caroline.drain_close", drain2_result, drain2_detail)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
@@ -406,39 +409,31 @@ return {
         end
 
         -- --------------------------------------------------- give Holgart the paste
-        -- Two separate conversations, by content design: the FIRST talk to
-        -- Holgart (at any stage <= started) only asks for swamp paste and
-        -- advances %seaslugquest to spoken_holgart (holgart.rs2's
-        -- [label,holgart_wantboat]) -- it does not read the backpack at all.
-        -- Only the SECOND talk (now that the stage is spoken_holgart) reaches
-        -- [label,holgart_paste], which checks inv_total(inv, swamppaste) and
-        -- hands it over.
+        -- RSProx index 4406 [50]..[84]: carrying the paste, the first talk takes
+        -- it ("In fact, unless me nose be mistaken, you've got some in yer
+        -- pack."), 1 -> 3 on the last page's click, and the boat-repair scene
+        -- plays (a fade, a copy of Witchaven's square, 20 ticks). The second
+        -- talk is the crossing ([126]..[141]).
         taverley_gate("holgart1.gateIn", true)
         t.exec("holgart1.goto", t.player.goto_tile, 2720, 3306, 0)
         t.exec("holgart1.greet", t.player.talk_to, "holgartland")
         local hdrain1_result, hdrain1_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart1.drain_close", hdrain1_result, hdrain1_detail)
-        t.expect("quest.stage.spoken_holgart", t.quest.expect_stage("spoken_holgart"))
+        t.ticks(26)
+        t.expect("quest.stage.boat_repaired", t.quest.expect_stage("boat_repaired"))
 
         t.exec("holgart2.greet", t.player.talk_to, "holgartland")
         local hdrain2_result, hdrain2_detail = t.chat.drain({ stop_at = "options" })
         t.expect("holgart2.drain_to_choice", hdrain2_result, hdrain2_detail)
         t.shot("holgart2-choice-menu")
-        t.exec("holgart2.choose_board", t.chat.choose, "Okay, lets do it.")
-        -- holgart_paste's own board-out (~board_ardougne_to_fishing_platform)
-        -- is if_close then a few ticks later a fresh mesbox arrival page --
-        -- the same reopen shape section 8 describes -- so drain twice: once
-        -- for whatever is still open right after the choose, then again after
-        -- a short buffer for the delayed arrival mesbox, rather than trust a
-        -- single drain call not to stop on the transient close in between.
+        t.exec("holgart2.choose_board", t.chat.choose, "Will you take me there?")
         local hdrain3_result, hdrain3_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart2.drain_board", hdrain3_result, hdrain3_detail)
-        t.ticks(3)
+        t.ticks(9)
         local hdrain4_result, hdrain4_detail = t.chat.drain({ stop_at = "none" })
         t.check("holgart2.drain_arrival",
             hdrain4_result == "ok",
             "post-board drain -> " .. tostring(hdrain4_result) .. " " .. tostring(hdrain4_detail))
-        t.expect("quest.stage.boat_repaired", t.quest.expect_stage("boat_repaired"))
         -- talkToHolgartWithSwampPaste: the paste left the pack.
         local paste_gone_read, paste_gone_count = t.inv.count("swamppaste")
         t.check("talkToHolgartWithSwampPaste.paste_taken",
@@ -472,7 +467,7 @@ return {
         t.exec("goToIsland", t.player.talk_to, "holgartplatform")
         local hdrain5_result, hdrain5_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart3.drain_board", hdrain5_result, hdrain5_detail)
-        t.ticks(3)
+        t.ticks(11) -- the crossing: 8..11 ticks to the arrival box (4406)
         local hdrain6_result, hdrain6_detail = t.chat.drain({ stop_at = "none" })
         t.check("holgart3.drain_arrival",
             hdrain6_result == "ok",
@@ -527,7 +522,8 @@ return {
             "await chat reopen -> " .. tostring(reopen1_result) .. " " .. tostring(reopen1_detail))
 
         t.exec("kent.slug_removal_wait", t.chat.play, {
-            "npc:Traveller wait",
+            -- 4406 [439]: the recorder's name, "<displayname> wait!".
+            "npc:wait!",
             "end",
         })
 
@@ -554,7 +550,7 @@ return {
         t.exec("returnFromIsland", t.player.talk_to, "holgartsunkboat")
         local sdrain1_result, sdrain1_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgartsunkboat.drain_board", sdrain1_result, sdrain1_detail)
-        t.ticks(3)
+        t.ticks(11) -- the crossing: 8..11 ticks to the arrival box (4406)
         local sdrain2_result, sdrain2_detail = t.chat.drain({ stop_at = "none" })
         t.check("holgartsunkboat.drain_arrival",
             sdrain2_result == "ok",
@@ -702,8 +698,11 @@ return {
         t.exec("activateCrane", t.player.click_loc, "seaslug_crane", 1, { at = { 2770, 3287, 2 } })
         -- t.expect, not t.exec: msg.await answers ("ok", nil) and the hollow
         -- rule would FAIL an ok with no detail.
-        t.expect("crane.kennith_lowered", t.msg.await("lower Kennith to the row boat", 12),
-            "msg.await(\"lower Kennith to the row boat\")")
+        -- 4406 [907]..[934]: the crane's scene, the stage at [928], then the
+        -- "Down below, you see Holgart collect the boy" box after the unlock.
+        t.ticks(26)
+        local cdrain_result, cdrain_detail = t.chat.drain({ stop_at = "none" })
+        t.expect("crane.kennith_lowered", cdrain_result, cdrain_detail)
         t.expect("quest.stage.saved_kennith", t.quest.expect_stage("saved_kennith"))
 
         -- ----------------------------------------------------- back to shore
@@ -712,7 +711,7 @@ return {
         t.exec("returnWithHolgart", t.player.talk_to, "holgartplatform")
         local hdrain7_result, hdrain7_detail = t.chat.drain({ stop_at = "none" })
         t.expect("holgart4.drain_board", hdrain7_result, hdrain7_detail)
-        t.ticks(3)
+        t.ticks(11) -- the crossing: 8..11 ticks to the arrival box (4406)
         local hdrain8_result, hdrain8_detail = t.chat.drain({ stop_at = "none" })
         t.check("holgart4.drain_arrival",
             hdrain8_result == "ok",

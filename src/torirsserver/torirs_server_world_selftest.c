@@ -56942,12 +56942,22 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(
                     srv, SS_TRIGGER_OPLOC1, loc_crane, -1,
                     ToriRSServer_SceneFindLocId(2770, 3287, 1, loc_crane));
-                for( t = 0; t < 20 && player->active_script; t++ )
+                /* The crane's scene writes the stage 21 ticks after the op
+                 * (RSProx index 4406 [907]..[928], seaslug_boat.rs2), then waits
+                 * on its last box: wait for the stage, not the script. */
+                for( t = 0; t < 40 && ToriRSServer_Varp(player, varp_seaslug) == 10; t++ )
                     selftest_tick(srv);
                 SELFTEST_CHECK(ToriRSServer_Varp(player, varp_seaslug) == 11 /* seaslug_saved_kennith */,
                                "rotating seaslug_crane close enough at "
                                "seaslug_need_kennith_path should save Kennith, got %d",
                                ToriRSServer_Varp(player, varp_seaslug));
+                /* Past the stage the scene unlocks and waits on its last box:
+                 * close it so the next stanza's trigger runs on a free player. */
+                for( t = 0; t < 10 && player->active_script; t++ )
+                {
+                    ToriRSServer_WorldCloseModal(srv);
+                    selftest_tick(srv);
+                }
 
                 /* ---- the seaslug npc's own pickup damage ---- */
                 player->hitpoints = 99;
