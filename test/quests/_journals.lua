@@ -6,6 +6,8 @@
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
 --   Scorpion Catcher, stage 2 with the full cage: RSProx index 4421 [1730], exactly.
+--   Holy Grail, stages 2, 3, 4, 8 (and with the feather) and 9 (and with the
+--   Grail): RSProx index 4435, exactly.
 --   Death Plateau, stages 20, 30, 40, 50, 55 and four states of 70: RSProx index
 --   4431, exactly.
 --   The Grand Tree, stages 20, 60, 80, 90, 100, 110, 120 and 150 (the rock held):
@@ -681,6 +683,109 @@ local DP_4431_70_SCOUTED = {
 }
 
 -- Scorpion Catcher, RSProx index 4421 [1730]: stage 2 with the full cage held.
+-- Holy Grail, RSProx index 4435: every state the recorder opened ([125] 2,
+-- [420] 3, [1588] 4, [2888] 8, [2989] 8 with the feather, [3146] 9, [3447] 9
+-- with the Grail). Jagex's stray mid-row <str> tags are part of the rows.
+local HG_4435_2 = {
+    "<col=800000>King Arthur<col=000080> has sent me questing for the <col=800000>Holy Grail<col=000080> of <col=000080>legend.",
+    "<col=000080>I should start my quest by speaking to <col=800000>Merlin<col=000080> in <col=800000>his study",
+    "<col=800000>next to the Camelot library<col=000080> for directions to it.",
+}
+local HG_4435_3 = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<col=800000>Merlin<col=000080> suggested two things to help find the <col=800000>Grail<col=000080>:",
+    "<col=000080>Speak to <col=800000>Galahad<col=000080> who lives <col=800000>West<col=000080> of <col=800000>McGrubor's Wood<col=000080>.",
+    "<col=000080>Talk to someone on a '<col=800000>Holy Island<col=000080>' he can't remember<col=000080>.",
+}
+local HG_4435_4 = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<col=000080>According to a Crone on <col=800000>Entrana<col=000080> I need to go to where the <col=000080>'<col=800000>Six",
+    "<col=800000>Heads' face<col=000080> and blow a <col=800000>magic whistle<col=000080> there.",
+    "<col=000080>To get the <col=800000>Magic Whistle<col=000080> I need to carry something from <col=000080>the",
+    "<col=000080><col=800000>Realm of the Fisher King<col=000080> to a <col=800000>Haunted House<col=000080>...",
+}
+local HG_4435_8 = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<str>I spoke to Galahad in his shack West of McGrubor's Wood.",
+    "<str>Galahad gave me a napkin from the Realm of the Fisher King. <str>I",
+    "<str>used the napkin to find a holy whistle that could <str>teleport me",
+    "<str>to the Realm of the Fisher King.",
+    "<str>I blew the Whistle at the correct location and was <str>teleported",
+    "<str>to the Realm of the Fisher King. The path to <str>the Fisher King's",
+    "<str>castle was blocked by a mighty warrior <str>called the Black Knight",
+    "<str>Titan who seemed invincible!",
+    "<str>I defeated the Black Knight Titan with Excalibur's power.<str>Once",
+    "<str>past the Titan I entered the Grail Castle.",
+    "<str>The Fisher King couldn't give me the Grail, but legends <str>say",
+    "<str>that the person who restores the land could claim the Grail.",
+    "<col=000080>The <col=800000>Fisher King<col=000080> is very sick. He has asked me to find <col=000080>his son",
+    "<col=000080><col=800000>Sir Percival<col=000080>, a <col=800000>Knight of the Round Table<col=000080>.",
+}
+local HG_4435_8F = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<str>I spoke to Galahad in his shack West of McGrubor's Wood.",
+    "<str>Galahad gave me a napkin from the Realm of the Fisher King. <str>I",
+    "<str>used the napkin to find a holy whistle that could <str>teleport me",
+    "<str>to the Realm of the Fisher King.",
+    "<str>I blew the Whistle at the correct location and was <str>teleported",
+    "<str>to the Realm of the Fisher King. The path to <str>the Fisher King's",
+    "<str>castle was blocked by a mighty warrior <str>called the Black Knight",
+    "<str>Titan who seemed invincible!",
+    "<str>I defeated the Black Knight Titan with Excalibur's power.<str>Once",
+    "<str>past the Titan I entered the Grail Castle.",
+    "<str>The Fisher King couldn't give me the Grail, but legends <str>say",
+    "<str>that the person who restores the land could claim the Grail.",
+    "<col=000080>The <col=800000>Fisher King<col=000080> is very sick. He has asked me to find <col=000080>his son",
+    "<col=000080><col=800000>Sir Percival<col=000080>, a <col=800000>Knight of the Round Table<col=000080>.",
+    "<col=800000>King Arthur<col=000080> gave me a <col=800000>magic golden feather<col=000080> to help locate <col=800000>Sir",
+    "<col=800000>Percival<col=000080> - I should use it to find him!",
+}
+local HG_4435_9 = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<str>I spoke to Galahad in his shack West of McGrubor's Wood.",
+    "<str>Galahad gave me a napkin from the Realm of the Fisher King. <str>I",
+    "<str>used the napkin to find a holy whistle that could <str>teleport me",
+    "<str>to the Realm of the Fisher King.",
+    "<str>I blew the Whistle at the correct location and was <str>teleported",
+    "<str>to the Realm of the Fisher King. The path to <str>the Fisher King's",
+    "<str>castle was blocked by a mighty warrior <str>called the Black Knight",
+    "<str>Titan who seemed invincible!",
+    "<str>I defeated the Black Knight Titan with Excalibur's power.<str>Once",
+    "<str>past the Titan I entered the Grail Castle.",
+    "<str>The Fisher King couldn't give me the Grail, but legends <str>say",
+    "<str>that the person who restores the land could claim the Grail.",
+    "<str>I honoured the Fisher King's request to find his son, and <str>used",
+    "<str>a Magic Golden Feather to track him down. When he <str>heard of",
+    "<str>his father's illness he rushed back to the Grail <str>Castle using a",
+    "<str>Magic Whistle that I gave him.",
+    "<col=000080>I should follow him to the <col=800000>Castle<col=000080> to get the <col=800000>Holy Grail<col=000080>.",
+}
+local HG_4435_9G = {
+    "<str>I started my Quest for the Holy Grail in Camelot Castle.",
+    "<str>King Arthur sent me to Merlin for advice on locating it.",
+    "<str>I spoke to Galahad in his shack West of McGrubor's Wood.",
+    "<str>Galahad gave me a napkin from the Realm of the Fisher King. <str>I",
+    "<str>used the napkin to find a holy whistle that could <str>teleport me",
+    "<str>to the Realm of the Fisher King.",
+    "<str>I blew the Whistle at the correct location and was <str>teleported",
+    "<str>to the Realm of the Fisher King. The path to <str>the Fisher King's",
+    "<str>castle was blocked by a mighty warrior <str>called the Black Knight",
+    "<str>Titan who seemed invincible!",
+    "<str>I defeated the Black Knight Titan with Excalibur's power.<str>Once",
+    "<str>past the Titan I entered the Grail Castle.",
+    "<str>The Fisher King couldn't give me the Grail, but legends <str>say",
+    "<str>that the person who restores the land could claim the Grail.",
+    "<str>I honoured the Fisher King's request to find his son, and <str>used",
+    "<str>a Magic Golden Feather to track him down. When he <str>heard of",
+    "<str>his father's illness he rushed back to the Grail <str>Castle using a",
+    "<str>Magic Whistle that I gave him.",
+    "<col=000080>Now I have the <col=800000>Grail<col=000080> with me. I should take it to <col=800000>Arthur<col=000080>.",
+}
 local SC_4421_2 = {
     "<str>I've spoken to Thormac, he's lost his pet Kharid Scorpions and",
     "<str>needs my help to find them.",
@@ -828,6 +933,23 @@ return {
         set("::setvar varp6442_death_map 0")
         set("::setvar varp314_death_equiproom 0")
         set("::clearinv")
+
+        -- Holy Grail, RSProx index 4435: every state the recorder opened; stage
+        -- 8 with and without the feather, 9 with and without the Grail.
+        for _, st in ipairs({ { 2, HG_4435_2 }, { 3, HG_4435_3 }, { 4, HG_4435_4 }, { 8, HG_4435_8 },
+                { 9, HG_4435_9 } }) do
+            set("::setvar varp5_grail " .. st[1])
+            exact("journal.holygrail." .. st[1], "Holy Grail", st[2])
+        end
+        set("::give magic_golden_feather 1")
+        set("::setvar varp5_grail 8")
+        exact("journal.holygrail.8.feather", "Holy Grail", HG_4435_8F)
+        set("::clearinv")
+        set("::give holy_grail 1")
+        set("::setvar varp5_grail 9")
+        exact("journal.holygrail.9.grail", "Holy Grail", HG_4435_9G)
+        set("::clearinv")
+        set("::setvar varp5_grail 0")
         set("::clearinv")
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

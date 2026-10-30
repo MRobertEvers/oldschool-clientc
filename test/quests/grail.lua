@@ -3,6 +3,10 @@
 -- merlin.rs2, high_priest_of_entrana.rs2/grail_crone.rs2, brother_galahad.rs2,
 -- black_knight_titan.rs2, grail_realm_npcs.rs2, fisher_king.rs2,
 -- sir_percival.rs2) -- every branch below was read from the .rs2 source.
+-- Since 2026-10-30 the pages, menus, whistle, bell, sacks and stairs follow
+-- RSProx index 4435 (docs/rsprox-analysis/quests/holy_grail.md); the route
+-- notes below predate it where they say otherwise (the bell now lands inside
+-- the ground floor, 2761,4692, and the Fisher King is reached by the stairs).
 --
 -- Route (state machine on %grail, quest_grail.constant):
 --   king_arthur (grailstart, needs %arthur=arthur_complete) -> grail_started
@@ -19,7 +23,7 @@
 --   blow a whistle under the tower NW of Brimhaven -> the corrupted realm
 --   black_knight_titan: real fight, killing blow with Excalibur WORN
 --   grail_fisherman: choice 2 drops grail_bell outside the castle wall
---   ring the held bell (a grail_maiden within 4) -> beside fisher_king
+--   ring the held bell on its tile -> inside, 2761,4692; spiral stairs up
 --   fisher_king "You don't look too well." -> grail_finding_percival
 --   whistle out; king_arthur again -> magic_golden_feather
 --   Goblin Village percy_sacks op2 (feather held) -> sir_percival ->
@@ -139,6 +143,8 @@ return {
         t.step("quest.bind", bind_result == "ok" and "PASS" or "FAIL", bind_detail)
         t.ticks(3) -- the setup cheats are not client-side yet
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
+        -- The wire audit's tick log (docs/rsprox-analysis/quests/holy_grail.md).
+        t.ticklog.start()
 
         -- ===============================================================
         -- Helpers: a walk graded on its tile, the Camelot doors, the
@@ -248,10 +254,9 @@ return {
             t.exec(prefix .. ".memberGate", t.player.cross_gate, { loc = "membergatel", at = { 2816, 3182, 0 },
                 near = { 2817, 3182 }, far_ok = function(tile) return tile.x <= 2815 end,
                 far_desc = "west of the gate in Brimhaven, x <= 2815" })
-            -- ^grail_whistle_blow_coord 0_42_50_52_32 = 2740,3232 is a
-            -- jungle tile; 2742,3232 is the nearest walkable one under the
-            -- tower (distance 2 <= ^grail_whistle_blow_radius 6).
-            t.exec("goto-" .. prefix, t.player.goto_tile, 2742, 3232, 0)
+            -- Under the tower's four pillars (2740..2743, 3234..3237): RSProx
+            -- index 4435 blew from 2742,3236 [2086] and 2742,3235 [3267].
+            t.exec("goto-" .. prefix, t.player.goto_tile, 2742, 3236, 0)
         end
 
         -- ---------------------------------------------------------------
@@ -270,12 +275,13 @@ return {
             "npc:Well, we recently found out that the Holy Grail",
             "npc:This is most fortuitous!",
             "npc:None of my knights ever did return with it",
-            "choose:I'd enjoy trying that.",
+            "choose:Yes.",
             "player:I'd enjoy trying that.",
             "npc:Go speak to Merlin.",
             "npc:He has set up his workshop",
         })
         t.check("quest.stage.started", t.quest.expect_stage("started"))
+        t.expect("quest.started_msg", t.msg.expect("Holy Grail</col>"))
 
         -- ---------------------------------------------------------------
         -- Merlin's workshop, upstairs: kr_cam_woodenstairs (maplink
@@ -338,8 +344,10 @@ return {
             "player:Yes, okay, I'm ready to go.",
             "npc:Very well. One moment please.",
             "mesbox:The monk quickly searches you.",
+            "npc:All is satisfactory. You may board the boat now.",
         })
-        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 10, "goToEntrana")
+        -- ship_journey holds the player at sea for 14 ticks (^journey_ticks_entrana).
+        await_tile(function(tt) return tt.level == 1 and tt.x < 2900 end, 25, "goToEntrana")
         local entrana_deck_r, entrana_deck = t.world.tile()
         t.check("goToEntrana.onDeck", entrana_deck_r == "ok" and entrana_deck.level == 1
                 and math.abs(entrana_deck.x - 2834) <= 2 and math.abs(entrana_deck.z - 3331) <= 2,
@@ -358,6 +366,7 @@ return {
         t.exec("talkToHighPriest", t.player.talk_to, "high_priest_of_entrana", 1)
         t.exec("talkToHighPriest-dialog", t.chat.play, {
             "npc:Many greetings. Welcome to our",
+            "choose:Ask about the Holy Grail Quest.",
             "player:Hello, I am in search of the Holy Grail.",
             "npc:The object of which you speak did once pass",
             "npc:Nor do I really care.",
@@ -382,7 +391,7 @@ return {
             "player:Yes, I'm ready to go.",
             "npc:Okay, let's board",
         })
-        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 end, 12, "leaveEntrana")
+        await_tile(function(tt) return tt.level == 1 and tt.x > 3000 and tt.x < 3060 end, 25, "leaveEntrana")
         local sarim_deck_r, sarim_deck = t.world.tile()
         t.check("leaveEntrana.onDeckAtPortSarim", sarim_deck_r == "ok" and sarim_deck.level == 1
                 and math.abs(sarim_deck.x - 3048) <= 2 and math.abs(sarim_deck.z - 3231) <= 2,
@@ -514,10 +523,8 @@ return {
         -- (quest_grail.rs2:113-132).
         -- ---------------------------------------------------------------
         to_brimhaven_tower("goToTeleportLocation1")
+        -- A bare teleport on the click: no seq, no sound, no line (4435 [2086]).
         t.exec("blowWhistle1", t.player.inv_op, "magic_whistle", 1)
-        t.exec("blowWhistle1-dialog", t.chat.play, {
-            "mesbox:You blow the whistle and the world dissolves",
-        })
         t.ticks(2)
         -- The whistle lands on the EAST bank, the titan's side of the bridge
         -- (quest_grail.constant ^grail_realm_entry_coord 0_43_73_54_43, as
@@ -541,8 +548,8 @@ return {
         t.exec("attackTitan-talk", t.player.talk_to, "black_knight_titan", 1)
         t.exec("attackTitan-dialog", t.chat.play, {
             "npc:I am the Black Knight Titan!",
-            "choose:Ok, have at ye oh evil knight!",
-            "player:Ok, have at ye oh evil knight!",
+            "choose:Okay, have at ye oh evil knight!",
+            "player:Okay, have at ye oh evil knight!",
         })
         t.exec("attackTitan", t.player.attack, "black_knight_titan", 2, 20)
         local titan_r, titan_d = t.npc.await_dead_engaged(300, 12, { eat = { item = "shark", below = 60 } })
@@ -584,6 +591,11 @@ return {
         -- ---------------------------------------------------------------
         -- South along the river on foot (reach.py 2790,4722 -> 2800,4706
         -- REACH closed-doors len=28; wiki: "head south along the river").
+        -- An unhappy peasant on the way (4435 [2567]).
+        t.exec("talkToUnhappyPeasant", t.player.talk_to, "unhappy_peasant", 1)
+        t.exec("talkToUnhappyPeasant-dialog", t.chat.play, {
+            "npc:Woe is me! Our crops are all failing",
+        })
         walk("talkToFisherman.walk", 2800, 4706, 0)
         t.exec("talkToFisherman", t.player.talk_to, "grail_fisherman", 1)
         t.exec("talkToFisherman-dialog", t.chat.play, {
@@ -597,16 +609,13 @@ return {
         })
 
         -- ---------------------------------------------------------------
-        -- pickupBell / ringBell: the ground menu carries only Take (the .obj
-        -- has no ground op1), so the bell is picked up and rung HELD
-        -- ([opheld1,grail_bell], quest_grail.rs2:151-156): it needs a
-        -- grail_maiden within 4 (one spawns at 2763,4690, inside the wall,
-        -- 4 from the bell's tile) and p_teleports to ^grail_castle_entry_coord
-        -- 1_43_73_11_16 = 2763,4688,1, beside the Fisher King. Rung from the
-        -- tile the bell was picked up on, as the guide says; a maiden that
-        -- wandered out of range answers "Nothing happens." and the ring is
-        -- tried again after a few ticks.
-        -- -- ANY-OF: goUpStairsBrokenCastle ringBell quest_grail.rs2:151-156 teleports directly beside fisher_king, same destination a stairs climb would reach
+        -- pickupBell / ringBell: the bell is the player's own, laid on
+        -- 2762,4694 outside the castle's north wall; the ground menu carries
+        -- only Take, so it is picked up and rung HELD from that tile, as the
+        -- recorder did (4435 [2722..2733]): "Ting-a-ling-a-ling!", the
+        -- maiden's welcome, "Somehow you are now inside the castle." and the
+        -- move to 2761,4692,0. The Fisher King is upstairs: the spiral stairs
+        -- at 2761,4680 land on 2762,4682,1 (4435 [2807..2809]).
         -- ---------------------------------------------------------------
         t.exec("goto-pickupBell", t.player.goto_tile, 2762, 4695, 0)
         local take_bell_result, take_bell_detail = t.player.click_obj("grail_bell", 3)
@@ -615,26 +624,33 @@ return {
             "click_obj(grail_bell) -> " .. tostring(take_bell_result) .. " " .. tostring(take_bell_detail)
                 .. "; grail_bell held " .. tostring(bell_n))
         walk("ringBell.onBellTile", 2762, 4694, 0)
-        local ring_log = ""
-        local rang = false
-        for attempt = 1, 4 do
-            local ir = t.player.inv_op("grail_bell", 1)
-            t.ticks(1)
-            if t.chat.kind() == "mesbox" then
-                t.exec("ringBell-dialog", t.chat.play, { "mesbox:Ting-a-ling-a-ling!" })
-                rang = true
-                ring_log = ring_log .. "ring " .. attempt .. ": " .. tostring(ir) .. " mesbox; "
-                break
-            end
-            ring_log = ring_log .. "ring " .. attempt .. ": " .. tostring(ir) .. " no mesbox (no maiden within 4); "
-            t.ticks(4)
-        end
-        await_tile(function(tt) return tt.level == 1 end, 6, "ringBell")
+        t.exec("ringBell", t.player.inv_op, "grail_bell", 1)
+        t.exec("ringBell-dialog", t.chat.play, {
+            "mesbox:Ting-a-ling-a-ling!",
+            "npc:Welcome to the Grail castle. You should come",
+            "mesbox:Somehow you are now inside the castle.",
+        })
         local inside_r, inside = t.world.tile()
-        t.check("ringBell", rang and inside_r == "ok" and inside.level == 1
-                and math.abs(inside.x - 2763) <= 1 and math.abs(inside.z - 4688) <= 1,
-            ring_log .. "landed " .. tile_text(inside_r, inside)
-                .. " (want ^grail_castle_entry_coord 1_43_73_11_16 = 2763,4688,1, rung from 2762,4694,0 outside the wall)")
+        t.check("ringBell.inside", inside_r == "ok" and inside.level == 0 and inside.x == 2761 and inside.z == 4692,
+            "landed " .. tile_text(inside_r, inside) .. " (want 2761,4692,0: 4435 [2733])")
+        -- The recorder's way to those stairs: round the hall and through two
+        -- poordoors, 2763,4676 and 2758,4681 (4435 [2741..2806]).
+        -- A maiden inside (4435 [2738]).
+        t.exec("talkToGrailMaiden", t.player.talk_to, "grail_maiden", 1)
+        t.exec("talkToGrailMaiden-dialog", t.chat.play, { "npc:Welcome to the Grail castle." })
+        walk("goUpBrokenCastleStairs.toDoor1", 2763, 4677, 0)
+        t.exec("goUpBrokenCastleStairs.door1", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2763, 4676, 0 }, near = { 2763, 4676 }, far = { 2761, 4676 } })
+        t.exec("goUpBrokenCastleStairs.door2", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2758, 4681, 0 }, near = { 2758, 4680 }, far = { 2759, 4681 } })
+        t.exec("goUpBrokenCastleStairs", t.player.climb, { loc = "spiralstairs", op_name = "Climb-up",
+            at = { 2761, 4680, 0 }, src = { 2760, 4681 }, dest = { 2762, 4682, 1 } })
+        -- Upstairs, the door east of the landing and the diagonal door by the
+        -- Fisher King's room (4435 [2814..2833]).
+        t.exec("toFisherKing.door1", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2766, 4684, 1 }, near = { 2765, 4684 }, far = { 2767, 4684 } })
+        t.exec("toFisherKing.door2", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
+            at = { 2766, 4688, 1 }, near = { 2766, 4687 }, far = { 2767, 4687 } })
 
         -- ---------------------------------------------------------------
         -- Fisher King: "You don't look too well." sets grail_finding_
@@ -658,15 +674,12 @@ return {
         -- Exit the realm: blowing inside the bounding box always routes back
         -- to the Brimhaven tower (quest_grail.rs2:114-118).
         t.exec("blowWhistleExit1", t.player.inv_op, "magic_whistle", 1)
-        t.exec("blowWhistleExit1-dialog", t.chat.play, {
-            "mesbox:You blow the whistle and are pulled back",
-        })
         t.ticks(2)
         local exit1_result, exit1_tile = t.world.tile()
         t.check("blowWhistleExit1.arrived", exit1_result == "ok" and exit1_tile.level == 0
-                and math.abs(exit1_tile.x - 2740) <= 1 and math.abs(exit1_tile.z - 3232) <= 1,
+                and exit1_tile.x == 2741 and exit1_tile.z == 3235,
             "t.world.tile() -> " .. tile_text(exit1_result, exit1_tile)
-                .. " (^grail_whistle_blow_coord 0_42_50_52_32 = 2740,3232,0)")
+                .. " (want 2741,3235,0: 4435 [3427])")
 
         -- ---------------------------------------------------------------
         -- King Arthur again: %grail=finding_percival hands out
@@ -683,7 +696,7 @@ return {
             "npc:Not exactly.",
             "npc:They certainly point somewhere",
             "npc:Just blowing gently on them",
-            "mesbox:King Arthur gives you a feathe",
+            "objbox:King Arthur gives you a feather.",
         })
         t.check("talkToKingArthur2.feather", t.inv.expect_has("magic_golden_feather", 1))
         camelot_out("talkToKingArthur2")
@@ -692,23 +705,18 @@ return {
         -- Goblin Village (Falador Teleport, then open ground: reach.py
         -- 2965,3378 -> 2958,3506): the sacks stand in a hut whose door is
         -- goblin_outpost_poordoor (east wall of 2958,3506). op2 Open, with
-        -- the feather held and grail=finding_percival, npc_adds sir_percival
-        -- on the player's tile (sir_percival.rs2 [oploc2,percy_sacks]).
+        -- the feather held and grail=finding_percival, adds sir_percival on
+        -- 2961,3505 (sir_percival.rs2 [oploc2,percy_sacks]).
         -- ---------------------------------------------------------------
         falador_teleport("openSack.faladorTeleport")
         t.exec("goto-openSack", t.player.goto_tile, 2956, 3506, 0)
         t.exec("openSack.hutDoorIn", t.player.pass_door, { closed = "goblin_outpost_poordoor",
             open = "goblin_outpost_openpoordoor", at = { 2958, 3506, 0 }, near = { 2958, 3506 }, far = { 2960, 3506 } })
+        -- Open answers with a mesbox; on its click Percival climbs out on
+        -- 2961,3505 and his first page opens (4435 [3069..3071]).
         t.exec("openSack", t.player.click_loc, "percy_sacks", 2)
-        t.check("openSack.found", t.msg.expect("bedraggled knight"))
-        local percival_present_result, percival_present_detail = t.npc.await_present("sir_percival", 10, 10)
-        t.step("talkToPercival.present", percival_present_result == "ok" and "PASS" or "FAIL",
-            "npc.await_present(sir_percival) -> " .. tostring(percival_present_result) .. " " .. tostring(percival_present_detail))
-
-        -- Sir Percival: hands him a whistle (inv_total(magic_whistle) > 0;
-        -- blowing never consumes one) -> grail_given_whistle.
-        t.exec("talkToPercival", t.player.talk_to, "sir_percival", 1)
         t.exec("talkToPercival-dialog", t.chat.play, {
+            "mesbox:You hear muffled noises from the sack. You open the sack.",
             "npc:Wow, thank you! I could hardly breathe",
             "choose:Your father wishes to speak to you.",
             "player:Your father wishes to speak to you.",
@@ -731,9 +739,6 @@ return {
         -- ---------------------------------------------------------------
         to_brimhaven_tower("goToTeleportLocation2")
         t.exec("blowWhistle2", t.player.inv_op, "magic_whistle", 1)
-        t.exec("blowWhistle2-dialog", t.chat.play, {
-            "mesbox:You blow the whistle and the world dissolves",
-        })
         t.ticks(2)
         -- The restored realm's landing (quest_grail.constant
         -- ^grail_realm_restored_coord 0_41_73_54_43, as LostCity
@@ -765,11 +770,13 @@ return {
         walk("goUpNewCastleStairs.toTowerDoor", 2645, 4684, 0)
         t.exec("goUpNewCastleStairs.towerDoor", t.player.pass_door, { closed = "poordoor", open = "poordooropen",
             at = { 2645, 4684, 0 }, near = { 2645, 4684 }, far = { 2646, 4684 } })
+        -- The spiral stairs land on 2649,4685,1 (4435 [3406..3408]); the
+        -- ladder climbs on the player's tile (4435 [3410..3413]).
         t.exec("goUpNewCastleStairs", t.player.climb, { loc = "spiralstairs", op_name = "Climb-up",
-            at = { 2648, 4683, 0 }, src = { 2647, 4683 }, dest = { 2647, 4683, 1 } })
-        walk("goUpNewCastleLadder.toLadder", 2650, 4684, 1)
+            at = { 2648, 4683, 0 }, src = { 2647, 4684 }, dest = { 2649, 4685, 1 } })
+        walk("goUpNewCastleLadder.toLadder", 2651, 4685, 1)
         t.exec("goUpNewCastleLadder", t.player.climb, { loc = "ladder", op_name = "Climb-up",
-            at = { 2651, 4684, 1 }, src = { 2650, 4684 }, dest = { 2650, 4684, 2 } })
+            at = { 2651, 4684, 1 }, src = { 2651, 4685 }, dest = { 2651, 4685, 2 } })
         local take_grail_result, take_grail_detail = t.player.click_obj("holy_grail", 3)
         t.step("takeGrail", take_grail_result == "ok" and "PASS" or "FAIL",
             tostring(take_grail_result) .. " " .. tostring(take_grail_detail))
@@ -777,15 +784,12 @@ return {
 
         -- Exit the realm one last time (lands under the Brimhaven tower).
         t.exec("blowWhistleExit2", t.player.inv_op, "magic_whistle", 1)
-        t.exec("blowWhistleExit2-dialog", t.chat.play, {
-            "mesbox:You blow the whistle and are pulled back",
-        })
         t.ticks(2)
         local exit2_result, exit2_tile = t.world.tile()
         t.check("blowWhistleExit2.arrived", exit2_result == "ok" and exit2_tile.level == 0
-                and math.abs(exit2_tile.x - 2740) <= 1 and math.abs(exit2_tile.z - 3232) <= 1,
+                and exit2_tile.x == 2741 and exit2_tile.z == 3235,
             "t.world.tile() -> " .. tile_text(exit2_result, exit2_tile)
-                .. " (^grail_whistle_blow_coord 0_42_50_52_32 = 2740,3232,0)")
+                .. " (want 2741,3235,0: 4435 [3427])")
 
         -- ---------------------------------------------------------------
         -- Return to King Arthur: holding holy_grail + grail=given_whistle
@@ -807,6 +811,7 @@ return {
         t.ticks(3)
 
         t.quest.expect_complete()
+        t.expect("finishQuest.completed_msg", t.msg.expect("Congratulations, you've completed a quest: @q_mes@Holy Grail</col>"))
         t.check("reward.prayer", t.skill.expect_gain("prayer", 11000, snapshot))
         t.check("reward.defence", t.skill.expect_gain("defence", 15300, snapshot))
         t.check("finishQuest.grailHandedIn", t.inv.expect_absent("holy_grail"))
