@@ -55,6 +55,7 @@ return {
     },
 
     run = function(t)
+        t.ticklog.start()
         local bind_result, bind_detail = t.quest.bind({
             varp = "varp314_death_equiproom",
             constants = {
@@ -78,6 +79,13 @@ return {
         t.expect("quest.stage.not_started", t.quest.expect_stage("not_started"))
 
         local lr, lv, cr, cd, mr, mv, ur, ud
+        -- The path's progress (varp6442_death_map bits 0..3) is server-only:
+        -- ::deathmap says it (death_saba_eohric.rs2).
+        local function expect_map(name, want)
+            t.cheat("::deathmap", false)
+            t.ticks(1)
+            t.expect(name, t.msg.expect("DEATHMAP " .. want), "death_map " .. want)
+        end
 
         ------------------------------------------------------------ crossings (one place each)
         local function in_courtyard(tile) return tile.x >= 2893 and tile.x <= 2904 and tile.z >= 3559 and tile.z <= 3566 end
@@ -161,6 +169,7 @@ return {
         end
 
         ---------------------------------------------------------------- 0: Denulth
+        t.ticklog.mark("leg.start")
         -- Lumbridge -> Burthorpe: Falador Teleport, overland to the open ground east of the
         -- members' east gate (reach.py 2965,3378 -> 2938,3450 REACH closed-doors len 99), the gate
         -- by its press, then overland inside (reach.py 2934,3450 -> 2896,3531 REACH len 127).
@@ -181,12 +190,14 @@ return {
             "choose:Do you have any quests for me?",
         })
         t.exec("talkToDenulth1-story", t.chat.drain, { stop_at = "options" })
-        t.exec("talkToDenulth1-accept", t.chat.choose, "No but perhaps I could try and find one?")
+        -- RSProx index 4431 [521]: "Start the Death Plateau quest?" Yes. / No.
+        t.exec("talkToDenulth1-accept", t.chat.choose, "Yes.")
         t.exec("talkToDenulth1-tail", t.chat.drain, {})
         t.ticks(2)
         t.expect("quest.stage.started", t.quest.expect_stage("started"))
 
         ---------------------------------------------------------------- 10: Eohric
+        t.ticklog.mark("leg.eohric")
         castle_in("goToEohric1")
         castle_up("goToEohric1")
         t.exec("talkToEohric1", t.player.talk_to, "death_headservant", 1)
@@ -204,6 +215,7 @@ return {
         t.expect("quest.stage.spoken_headservant", t.quest.expect_stage("spoken_headservant"))
 
         ---------------------------------------------------------------- 20: Harold
+        t.ticklog.mark("leg.harold")
         castle_down("goToHaroldStairs1.castleStairsDown")
         castle_out("goToHaroldStairs1")
         inn_in("goToHaroldStairs1")
@@ -242,11 +254,24 @@ return {
         t.expect("quest.stage.spoken_headservant2", t.quest.expect_stage("spoken_headservant2"))
 
         ---------------------------------------------------------------- 40: the ale
+        t.ticklog.mark("leg.ale")
         castle_down("takeAsgarnianAle.castleStairsDown")
         castle_out("takeAsgarnianAle")
         inn_in("takeAsgarnianAle")
         cr, cd = t.player.click_obj("asgarnian_ale")
         t.exec("takeAsgarnianAle", t.inv.await, "asgarnian_ale", 1, 12)
+        -- A loaf on the inn's long table and back (RSProx index 4431 [758..759]:
+        -- human_pickuptable, put_down, the loaf on the table's tile;
+        -- general_use/scripts/tables.rs2). Tenzing still needs all ten.
+        local table_r, table_loc = t.world.loc_near("bigtable", 12)
+        t.expect("breadOnTable-loc", table_r, "bigtable near")
+        ur, ud = t.player.use_on("bread", table_loc, { at = { 2909, 3541 } })
+        t.ticks(3)
+        local bread_r, bread_n = t.inv.count("bread")
+        t.check("breadOnTable", bread_r == "ok" and tonumber(bread_n) == 9,
+            "bread on bigtable 2909,3541 -> " .. tostring(ur) .. " " .. tostring(ud) .. "; backpack " .. tostring(bread_n))
+        cr, cd = t.player.click_obj("bread")
+        t.exec("breadOnTable-takeBack", t.inv.await, "bread", 10, 12)
         inn_up("goToHaroldStairs2")
         harold_in("goToHaroldDoor2")
         t.ticks(4)
@@ -273,6 +298,7 @@ return {
         t.exec("talkToHarold2-aleGone", t.inv.expect_absent, "asgarnian_ale")
 
         ---------------------------------------------------------------- 50: Blurberry + dice
+        t.ticklog.mark("leg.dice")
         t.exec("giveHaroldBlurberry", t.player.talk_to, "death_guard_equiproom", 1)
         t.exec("giveHaroldBlurberry-dialog", t.chat.play, {
             "player:Hello there.",
@@ -303,12 +329,9 @@ return {
             "npc:giggle",
         })
         t.ticks(2)
-        -- the driver drops the FIRST key of a fresh count prompt, so the digits go in one tick apart
-        for digit in ("101"):gmatch(".") do
-            t.text(digit)
-            t.ticks(1)
-        end
-        t.key("enter")
+        -- The bet into Harold's "Enter amount:" prompt. 101 is one more than his
+        -- purse: drunk, he pays what he has and writes the IOU.
+        t.exec("gambleWithHarold-count", t.chat.count, 101)
         t.ticks(2)
         t.exec("gambleWithHarold-bet", t.chat.play, {
             "npc:Right...er...here goes",
@@ -323,7 +346,9 @@ return {
         local cont_r, cont_w = t.ui.widget("death_dice:death_gamble_continue_button")
         t.expect("gambleWithHarold-continueWidget", cont_r, tostring(cont_w))
         t.shot("gambleWithHarold-bothRolled")
-        local cont_press = t.ui.invoke(cont_w, 1)
+        -- a pause button (4431 [844]: resume_pausebutton death_dice:death_gamble_continue_button)
+        local cont_press = t.ui.press_pause("death_dice:death_gamble_continue_button", nil,
+            "death_dice:death_gamble_continue_button")
         t.step("gambleWithHarold-continue", tostring(cont_press) == "ok" and "PASS" or "FAIL", "Continue -> " .. tostring(cont_press))
         t.ticks(4)
         t.expect("gambleWithHarold-tableClosed", t.ui.await_close("death_dice", 10), "death_dice closed")
@@ -337,6 +362,7 @@ return {
             string.format("coins %s -> %s (Harold's whole 100 paid, IOU for the rest)", tostring(coins_before), tostring(coins_after)))
 
         ---------------------------------------------------------------- 55: read the IOU
+        t.ticklog.mark("leg.iou")
         t.exec("readIou", t.player.inv_op, "death_iou", 1)
         t.exec("readIou-dialog", t.chat.play, {
             "player:The IOU says that Harold owes me some money.",
@@ -355,6 +381,7 @@ return {
         t.expect("readIou-combinationClosed", t.ui.await_close("messagescroll_handwriting", 10), "scroll closed by escape")
 
         ---------------------------------------------------------------- 60: the five balls
+        t.ticklog.mark("leg.balls")
         -- Red is North of Blue, Yellow is South of Purple, Green is North of Purple,
         -- Blue is West of Yellow, Purple is East of Red  =>
         --   x=2894: red (z 3563) over blue (z 3562);  x=2895: green 3564, purple 3563, yellow 3562.
@@ -394,6 +421,7 @@ return {
         t.expect("quest.stage.unlocked_door", t.quest.expect_stage("unlocked_door"))
 
         ---------------------------------------------------------------- 70: Saba
+        t.ticklog.mark("leg.saba")
         castle_out("enterSabaCave")
         -- Saba's cave is a separate map area on the same level and frame: the Cave Entrance
         -- (2857,3578) p_teleports to 2269,4752,0 and the Cave Exit (2268,4750) to 2858,3577,0
@@ -412,13 +440,13 @@ return {
         })
         t.exec("talkToSaba-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToSaba-map", tonumber(mv) == 1, "death_map = " .. tostring(mv) .. " (want 1 spoken_saba)")
+        expect_map("talkToSaba-map", 1)
         t.exec("leaveSabaCave", t.player.climb, { loc = "death_hermitcave_exit", op = 1, op_name = "Exit",
             at = { 2268, 4750, 0 }, dest = { 2858, 3577, 0 },
             same_level = "death_locs.rs2:17 p_teleport(0_44_55_42_57)" })
 
         ---------------------------------------------------------------- 70: Tenzing
+        t.ticklog.mark("leg.tenzing")
         tenzing_in("talkToTenzing1", true)
         t.ticks(4)
         t.exec("talkToTenzing1", t.player.talk_to, "death_sherpa", 1)
@@ -431,22 +459,22 @@ return {
         t.exec("talkToTenzing1-accept", t.chat.choose, "OK, I'll get those for you.")
         t.exec("talkToTenzing1-tail", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToTenzing1-map", tonumber(mv) == 2, "death_map = " .. tostring(mv) .. " (want 2 spoken_tenzing)")
+        expect_map("talkToTenzing1-map", 2)
         t.exec("talkToTenzing1-boots", t.inv.expect_has, "death_climbingboots", 1)
         tenzing_out("talkToTenzing1")
 
         ---------------------------------------------------------------- 70: Dunstan, Denulth, Dunstan
+        t.ticklog.mark("leg.dunstan")
         dunstan_in("talkToDunstan1")
         t.exec("talkToDunstan1", t.player.talk_to, "death_smithy", 1)
         t.exec("talkToDunstan1-dialog", t.chat.play, {
+            "player:Hi!",
             "npc:Hi! How can I help?",
             "player:Tenzing has asked me to bring you his climbing boots",
         })
         t.exec("talkToDunstan1-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToDunstan1-map", tonumber(mv) == 3, "death_map = " .. tostring(mv) .. " (want 3 spoken_smithy)")
+        expect_map("talkToDunstan1-map", 3)
         dunstan_out("talkToDunstan1")
 
         t.exec("goto-talkToDenulthForDunstan", t.player.goto_tile, 2896, 3531, 0)
@@ -458,8 +486,7 @@ return {
         })
         t.exec("talkToDenulthForDunstan-story", t.chat.drain, {})
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToDenulthForDunstan-map", tonumber(mv) == 4, "death_map = " .. tostring(mv) .. " (want 4 got_entrancecert)")
+        expect_map("talkToDenulthForDunstan-map", 4)
         t.exec("talkToDenulthForDunstan-certificate", t.inv.expect_has, "death_entrancecert", 1)
 
         dunstan_in("talkToDunstan2")
@@ -467,17 +494,16 @@ return {
         t.exec("talkToDunstan2-dialog", t.chat.play, {
             "player:Hi!",
             "npc:Have you managed to get my son signed up",
-            "mesbox:You give Dunstan the certificate.",
+            "objbox:You give Dunstan the certificate.",
             "npc:Thank you!",
             "npc:Now to keep my end of the bargain.",
-            "mesbox:You give Dunstan an Iron bar and the climbing boots.",
-            "mesbox:Dunstan has given you the Spiked boots.",
+            "objbox:You give Dunstan an iron bar and the climbing boots.",
+            "objbox:Dunstan has given you the spiked boots.",
             "player:Thank you!",
             "npc:No problem.",
         })
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToDunstan2-map", tonumber(mv) == 5, "death_map = " .. tostring(mv) .. " (want 5 given_cert)")
+        expect_map("talkToDunstan2-map", 5)
         t.exec("talkToDunstan2-spikedBoots", t.inv.expect_has, "death_spikedboots", 1)
         dunstan_out("talkToDunstan2")
 
@@ -487,22 +513,33 @@ return {
         t.exec("talkToTenzing2-dialog", t.chat.play, {
             "player:Hello!",
             "npc:Have you brought me the items I asked for?",
-            "mesbox:You give Tenzing the Spiked boots.",
-            "mesbox:You give Tenzing the loaves of bread",
+            "objbox:You give Tenzing the Spiked boots.",
+            "objbox:You give Tenzing the loaves of bread",
             "npc:Thank you very much traveller.",
             "player:You said you would show me the secret way",
             "npc:Yes, of course! I drew up a map",
-            "mesbox:Tenzing has given you a map of the secret way!",
+            "objbox:Tenzing has given you a map of the secret way!",
             "npc:I don't think the Trolls have found",
             "player:OK thanks but I think I'd better check",
             "npc:You are wise for one so young.",
         })
         t.ticks(2)
-        mr, mv = t.var.server("varp6442_death_map")
-        t.check("talkToTenzing2-map", tonumber(mv) == 7, "death_map = " .. tostring(mv) .. " (want 7 got_map)")
+        expect_map("talkToTenzing2-map", 7)
         t.exec("talkToTenzing2-secretMap", t.inv.expect_has, "death_secretwaymap", 1)
 
+        -- The Death Plateau warning (cws_warning_24) opens on the step into
+        -- 2832..2839,3592..3599 (RSProx index 4431 [1696]); Close shuts it [1699].
+        local function plateau_warning(name)
+            local wr, wd = t.ui.await_open("cws_warning_24", 8)
+            t.check(name .. ".warning", wr == "ok", "cws_warning_24 " .. tostring(wr) .. " " .. tostring(wd))
+            local _, w = t.ui.widget("cws_warning_24:cws_close")
+            local pr = w and t.ui.invoke(w, 1) or "no_widget"
+            t.check(name .. ".warningClose", tostring(pr) == "ok", "Close -> " .. tostring(pr))
+            t.ticks(2)
+        end
+
         ---------------------------------------------------------------- 70: go north
+        t.ticklog.mark("leg.north")
         -- Out of Tenzing's house through the NORTH (back) door, over the stile, north past the
         -- Death Plateau warning and round to the east into the scouting zone ([zone,0_44_56_48_24]:
         -- 2864..2871,3608..3615, death_iou_scout.rs2:29). The waypoints are reach.py's closed-door path.
@@ -512,16 +549,25 @@ return {
             far_ok = function(tile) return tile.z >= 3564 end, far_desc = "north of the stile, z >= 3564" })
         t.exec("goNorth-walk", t.player.walk_route, {
             { 2817, 3564 }, { 2817, 3573 }, { 2817, 3582 }, { 2819, 3589 }, { 2825, 3592 }, { 2830, 3596 },
+        })
+        cr, cd = t.player.walk_to(2833, 3599, 20)
+        plateau_warning("goNorth")
+        t.exec("goNorth-walk2", t.player.walk_route, {
             { 2834, 3601 }, { 2840, 3604 }, { 2845, 3608 }, { 2853, 3609 }, { 2862, 3609 }, { 2866, 3609 },
         })
-        t.exec("goNorth-scouted", t.var.await_server, "varp6442_death_map", 8, 20)
+        t.ticks(2)
+        expect_map("goNorth-scouted", 8)
         t.exec("goNorth-farEnough", t.chat.drain, {})
         t.ticks(2)
 
         -- Back the way the secret path came: the climbing rocks (2880,3594) that join it to Burthorpe
         -- need worn climbing boots, and Tenzing's boots are not wearable before completion.
         t.exec("goBack-walk", t.player.walk_route, {
-            { 2866, 3609 }, { 2857, 3609 }, { 2848, 3609 }, { 2842, 3606 }, { 2836, 3603 }, { 2832, 3598 },
+            { 2866, 3609 }, { 2857, 3609 }, { 2848, 3609 }, { 2842, 3606 }, { 2836, 3603 },
+        })
+        cr, cd = t.player.walk_to(2832, 3598, 20)
+        plateau_warning("goBack")
+        t.exec("goBack-walk2", t.player.walk_route, {
             { 2828, 3593 }, { 2822, 3590 }, { 2817, 3586 }, { 2817, 3577 }, { 2817, 3568 }, { 2817, 3564 },
         })
         t.exec("goBack-stile", t.player.cross_gate, { loc = "death_fullstyle", at = { 2817, 3562, 0 }, near = { 2817, 3564 },
@@ -537,15 +583,26 @@ return {
         -- The press is graded by the cutscene row below: Read only moves the camera (no chat, no
         -- route from the adjacent tile), so click_loc's own settle answers timeout on a read that
         -- played. The cutscene await counts camera packets from the goto row's start, so it sees it.
+        cr, cd = t.player.goto_tile(2838, 3595, 0)
+        plateau_warning("readDangerSign")
         t.exec("goto-readDangerSign", t.player.goto_tile, 2838, 3595, 0)
+        local sign_since = t.cutscene.mark()
         cr, cd = t.player.click_loc("death_dangersign_trolls", 1)
-        t.exec("readDangerSign.cutscene", t.cutscene.await, "readDangerSign", { expect = {
-            { op = "moveto", coord = "0_44_56_29_12", height = 1500 },
-            { op = "lookat", coord = "0_44_56_35_14", height = 300 },
-            { op = "reset" },
-        } })
+        -- The camera is the client's: scriptrun keeps no camera state (no mark),
+        -- and there the row says so and fails, as arena.lua's does.
+        if sign_since == nil then
+            t.check("readDangerSign.cutscene", false, "no camera state on this lane (scriptrun); check on a live run")
+            t.ticks(12)
+        else
+            t.exec("readDangerSign.cutscene", t.cutscene.await, "readDangerSign", { since = sign_since, expect = {
+                { op = "moveto", coord = "0_44_56_29_12", height = 1500 },
+                { op = "lookat", coord = "0_44_56_35_14", height = 300 },
+                { op = "reset" },
+            } })
+        end
 
         ---------------------------------------------------------------- 70: hand-in
+        t.ticklog.mark("leg.handin")
         t.exec("goto-talkToDenulth3", t.player.goto_tile, 2896, 3531, 0)
         local reward_snapshot_result, reward_before = t.skill.snapshot()
         t.step("reward.snapshot", reward_snapshot_result == "ok" and "PASS" or "FAIL", "skill.snapshot before the hand-in -> " .. tostring(reward_snapshot_result))
@@ -553,7 +610,7 @@ return {
         t.exec("talkToDenulth3", t.player.talk_to, "death_ig_commander", 1)
         t.exec("talkToDenulth3-dialog", t.chat.play, {
             "player:Hello!",
-            "npc:Hello citizen, have you found another way up Death Plateau?",
+            "npc:Hello citizen, have you found the secret way up Death Plateau?",
         })
         t.exec("talkToDenulth3-handIn", t.chat.drain, {})
         t.ticks(3)

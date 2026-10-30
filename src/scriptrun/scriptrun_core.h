@@ -331,6 +331,12 @@ struct ScriptrunCore
     int skillmulti_max;
     int skillmulti_default;
     int skillmulti_valid;
+    /* A p_countdialog prompt the server opened and nobody has answered: the
+     * meslayer mode the client would be in (7, "Enter amount:" -- rev 239+
+     * sends it as RUNCLIENTSCRIPT `count_script`, 108), 0 when none is up.
+     * Answered by the runner's count_answer verb. count_script -1: not tracked. */
+    int count_script;
+    int count_prompt;
 
     int run_energy;
     int logged_out;

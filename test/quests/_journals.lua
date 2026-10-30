@@ -6,6 +6,8 @@
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
 --   Scorpion Catcher, stage 2 with the full cage: RSProx index 4421 [1730], exactly.
+--   Death Plateau, stages 20, 30, 40, 50, 55 and four states of 70: RSProx index
+--   4431, exactly.
 --   The Grand Tree, stages 20, 60, 80, 90, 100, 110, 120 and 150 (the rock held):
 --   RSProx index 4429, exactly (stage 90's trailing blank row dropped: a read
 --   ends at the last text row).
@@ -521,6 +523,163 @@ local FT_4424_6 = {
     "<col=000080>some <col=800000>Old Notes<col=000080> on some shelves which might be useful.",
 }
 
+-- RSProx index 4431 [665].
+local DP_4431_20 = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>. I also need to find the <col=800000>combination<col=000080> to the",
+    "<col=000080><col=800000>equipment room<col=000080> and <col=800000>unlock<col=000080> the door.",
+    "",
+    "<col=800000>Eohric<col=000080> said that the <col=800000>equipment room guard<col=000080> is staying at the",
+    "<col=000080>local inn, the <col=800000>Toad and Chicken",
+}
+-- RSProx index 4431 [726].
+local DP_4431_30 = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>. I also need to find the <col=800000>combination<col=000080> to the",
+    "<col=000080><col=800000>equipment room<col=000080> and <col=800000>unlock<col=000080> the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me!",
+}
+-- RSProx index 4431 [762].
+local DP_4431_40 = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>. I also need to find the <col=800000>combination<col=000080> to the",
+    "<col=000080><col=800000>equipment room<col=000080> and <col=800000>unlock<col=000080> the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me!",
+    "<col=800000>Eohric<col=000080> says to buy the <col=800000>guard<col=000080> a <col=800000>drink",
+}
+-- RSProx index 4431 [972].
+local DP_4431_50 = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>. I also need to find the <col=800000>combination<col=000080> to the",
+    "<col=000080><col=800000>equipment room<col=000080> and <col=800000>unlock<col=000080> the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful.",
+}
+-- RSProx index 4431 [1025].
+local DP_4431_55 = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>. I also need to find the <col=800000>combination<col=000080> to the",
+    "<col=000080><col=800000>equipment room<col=000080> and <col=800000>unlock<col=000080> the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful. I gambled with the guard",
+    "<str>until he ran out of money. He wrote me an IOU.",
+}
+-- RSProx index 4431 [1122].
+local DP_4431_70_DOOR = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>.",
+    "",
+    "<str>I have found the combination to the equipment room and",
+    "<str>unlocked the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful. I gambled with the guard",
+    "<str>until he ran out of money. He wrote me an IOU.",
+    "",
+    "<str>It turned out the IOU was written on the back of the",
+    "<str>combination! I put the stone balls in the right places on the",
+    "<str>stone mechanism and unlocked the door.",
+}
+-- RSProx index 4431 [1437].
+local DP_4431_70_DUNSTAN = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>.",
+    "",
+    "<str>I have found the combination to the equipment room and",
+    "<str>unlocked the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful. I gambled with the guard",
+    "<str>until he ran out of money. He wrote me an IOU.",
+    "",
+    "<str>It turned out the IOU was written on the back of the",
+    "<str>combination! I put the stone balls in the right places on the",
+    "<str>stone mechanism and unlocked the door.",
+    "",
+    "<str>I found the sherpa's house.",
+    "<col=800000>Tenzing<col=000080> will show me a <col=800000>secret way<col=000080> up Death Plateau if I get him",
+    "<col=000080>some items:",
+    "<col=800000>Ten loaves of bread.",
+    "<str>Ten cooked trout.",
+    "<col=800000>Spiked boots.",
+    "",
+    "<col=800000>Tenzing<col=000080> gave me his <col=800000>climbing boots<col=000080>, I need to take them to",
+    "<col=000080><col=800000>Dunstan<col=000080> in <col=800000>Burthorpe<col=000080> for the <col=800000>spikes",
+    "",
+    "<col=800000>Dunstan<col=000080> will help me if I get his <col=800000>son signed up<col=000080> for the <col=800000>Imperial",
+    "<col=800000>Guard<col=000080>. I will need an <col=800000>Iron bar<col=000080> for the boots",
+}
+-- RSProx index 4431 [1500].
+local DP_4431_70_CERT = {
+    "<col=000080>I have offered to help <col=800000>Denulth<col=000080> by finding <col=800000>another way<col=000080> up",
+    "<col=000080><col=800000>Death Plateau<col=000080>.",
+    "",
+    "<str>I have found the combination to the equipment room and",
+    "<str>unlocked the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful. I gambled with the guard",
+    "<str>until he ran out of money. He wrote me an IOU.",
+    "",
+    "<str>It turned out the IOU was written on the back of the",
+    "<str>combination! I put the stone balls in the right places on the",
+    "<str>stone mechanism and unlocked the door.",
+    "",
+    "<str>I found the sherpa's house.",
+    "<col=800000>Tenzing<col=000080> will show me a <col=800000>secret way<col=000080> up Death Plateau if I get him",
+    "<col=000080>some items:",
+    "<col=800000>Ten loaves of bread.",
+    "<str>Ten cooked trout.",
+    "<col=800000>Spiked boots.",
+    "",
+    "<col=800000>Tenzing<col=000080> gave me his <col=800000>climbing boots<col=000080>, I need to take them to",
+    "<col=000080><col=800000>Dunstan<col=000080> in <col=800000>Burthorpe<col=000080> for the <col=800000>spikes",
+    "",
+    "<col=800000>Dunstan<col=000080> will help me if I get his <col=800000>son signed up<col=000080> for the <col=800000>Imperial",
+    "<col=800000>Guard<col=000080>. I will need an <col=800000>Iron bar<col=000080> for the boots",
+    "",
+    "<col=800000>Denulth<col=000080> gave me a <col=800000>certificate<col=000080> to prove that Dunstan's son",
+    "<col=000080>has been signed up for the Imperial Guard.",
+}
+-- RSProx index 4431 [1762].
+local DP_4431_70_SCOUTED = {
+    "<str>I have found another way up Death Plateau for Denulth.",
+    "",
+    "<str>I have found the combination to the equipment room and",
+    "<str>unlocked the door.",
+    "",
+    "<str>The equipment room guard is staying at the local inn, the Toad",
+    "<str>and Chicken. The guard wouldn't talk to me! I bought the guard",
+    "<str>a drink and he seemed more helpful. I gambled with the guard",
+    "<str>until he ran out of money. He wrote me an IOU.",
+    "",
+    "<str>It turned out the IOU was written on the back of the",
+    "<str>combination! I put the stone balls in the right places on the",
+    "<str>stone mechanism and unlocked the door.",
+    "",
+    "<str>I found the sherpa's house. I gave Tenzing the ten loaves of",
+    "<str>bread, ten cooked trout and the Spiked boots. Tenzing has",
+    "<str>given me a map of the secret way. I checked the secret way",
+    "<str>and it is safe for the Imperial Guard to use.",
+    "",
+    "<str>I have given Dunstan the certificate to prove that his son has",
+    "<str>been signed up for the Imperial Guard. Dunstan made me the",
+    "<str>Spiked boots.",
+    "",
+    "<col=000080>I should go and tell <col=800000>Denulth<col=000080> I've completed my mission.",
+}
+
 -- Scorpion Catcher, RSProx index 4421 [1730]: stage 2 with the full cage held.
 local SC_4421_2 = {
     "<str>I've spoken to Thormac, he's lost his pet Kharid Scorpions and",
@@ -647,6 +806,28 @@ return {
         set("::give scorpioncagefull 1")
         set("::setvar varp76_scorpcatcher 2")
         exact("journal.scorpioncatcher.2", "Scorpion Catcher", SC_4421_2)
+
+        -- Death Plateau, RSProx index 4431: every state the recorder opened.
+        -- Stage 70's paragraphs follow the path's progress (varp6442_death_map
+        -- bits 0..3) and Tenzing's items what the backpack holds ([1437]: ten
+        -- trout, the bread short, no spiked boots).
+        set("::setvar varp6442_death_map 0")
+        for _, s2 in ipairs({ { 20, DP_4431_20 }, { 30, DP_4431_30 }, { 40, DP_4431_40 },
+                { 50, DP_4431_50 }, { 55, DP_4431_55 }, { 70, DP_4431_70_DOOR } }) do
+            set("::setvar varp314_death_equiproom " .. s2[1])
+            exact("journal.deathplateau." .. s2[1] .. (s2[1] == 70 and ".door" or ""), "Death Plateau", s2[2])
+        end
+        set("::clearinv")
+        set("::give trout 10")
+        set("::setvar varp6442_death_map 3")
+        exact("journal.deathplateau.70.dunstan", "Death Plateau", DP_4431_70_DUNSTAN)
+        set("::setvar varp6442_death_map 4")
+        exact("journal.deathplateau.70.cert", "Death Plateau", DP_4431_70_CERT)
+        set("::setvar varp6442_death_map 8")
+        exact("journal.deathplateau.70.scouted", "Death Plateau", DP_4431_70_SCOUTED)
+        set("::setvar varp6442_death_map 0")
+        set("::setvar varp314_death_equiproom 0")
+        set("::clearinv")
         set("::clearinv")
         local MM = {
             { 5, 1, "I agreed to sail to the island" },

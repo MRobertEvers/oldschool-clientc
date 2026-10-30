@@ -51,6 +51,7 @@ ScriptrunCore_New(struct GameProtoRevTable const* rev)
     assert(core);
     core->rev = rev;
     core->skillmulti_script = -1;
+    core->count_script = -1;
     core->menu_script = -1;
     core->world = World_New();
     assert(core->world);
@@ -2444,6 +2445,8 @@ core_packet(
                 }
                 core->last_script.serial = ++core->script_serial;
             }
+            if( rcs->script_id == core->count_script )
+                core->count_prompt = 7;
             if( rcs->script_id == core->skillmulti_script && rcs->argc > 20 )
             {
                 core->skillmulti_mode = rcs->intv[0];

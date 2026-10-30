@@ -534,6 +534,16 @@ function QD.chat.count(n)
         return "unsupported", "chat.count: not a quantity prompt (mode=" .. tostring(mode) .. ")"
     end
 
+    -- Scriptrun has no chatbox to type into: its count_answer sends the
+    -- RESUME_P_COUNTDIALOG the client's Enter would. The client has no such verb.
+    if api_drive.count_answer ~= nil then
+        local ans_res, ans_detail = api_drive.count_answer(n)
+        if ans_res ~= "ok" then
+            return ans_res, "chat.count: " .. tostring(ans_detail)
+        end
+        return "ok", "chat.count: entered " .. tostring(n)
+    end
+
     local text_res, text_detail = QD.text(tostring(n))
     if text_res ~= "ok" then
         return text_res, text_detail

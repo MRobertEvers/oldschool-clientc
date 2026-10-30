@@ -940,6 +940,7 @@ except the plain readers marked as returning a value.
 ---@field pause_pending fun(): string, integer The component a resume is outstanding on, or -1. Compared by id, never by presence.
 ---@field close_modal fun(): string, string Idempotent.
 ---@field meslayer_mode fun(): string, integer Which prompt the chat input is, if any. Typing blind would send a public message.
+---@field count_answer? fun(value: integer): string, string Scriptrun only: answer an open p_countdialog prompt (RESUME_P_COUNTDIALOG); "refused" when none is up. The client types into its chatbox instead.
 ---@field click_armed fun(component_id: integer): string, boolean Does this component's effective IF_SETEVENTS carry CLICK.
 ---@field options fun(): string, table { title, rows }: chatmenu's cc_create'd title and rows, no content symbol exists for either.
 ---@field option_row fun(row: integer): string, integer A live chatmenu row's component id, for arming resume; row is 1..5.

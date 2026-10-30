@@ -294,6 +294,16 @@ ToriRSServer_SplitInit(
             (work[point.output_end] == '|' || strncmp(work + point.output_end, "<br>", 4) == 0 ||
              strncmp(work + point.rest_start, colour, strlen(colour)) == 0) )
             colour[0] = '\0';
+        /* After a hard break nothing carries into a blank row (a paragraph
+         * break) or a struck row: Death Plateau's current step ends in
+         * <col=000080> and the blank row and the struck paragraph after it
+         * are bare, and Tenzing's "<str>Ten cooked trout." follows
+         * "<col=800000>Ten loaves of bread." bare (RSProx index 4431 [726],
+         * [1437]; every struck row of 4381 and 4431 opens "<str>"). */
+        if( (work[point.output_end] == '|' || strncmp(work + point.output_end, "<br>", 4) == 0) &&
+            (work[point.rest_start] == '|' || strncmp(work + point.rest_start, "<br>", 4) == 0 ||
+             strncmp(work + point.rest_start, "<str>", 5) == 0) )
+            colour[0] = '\0';
         rest_length = strlen(work + point.rest_start);
         prefix_length = strlen(colour);
         next = (char*)ToriMem_Alloc(ToriMem_ServerScripts(), prefix_length + rest_length + 1);

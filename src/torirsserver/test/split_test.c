@@ -245,6 +245,45 @@ test_wrap_restates_colour(struct SSVM_State* state)
         "the wrapped row restates the carried colour before its own");
 }
 
+static void
+test_blank_row_carries_nothing(struct SSVM_State* state)
+{
+    /* Death Plateau at stage 30 (RSProx index 4431 [726]): the current step,
+     * left in <col=000080>, then a blank row and a struck paragraph. Jagex
+     * sends the blank row and the struck row bare. */
+    static const char* const text =
+        "<col=000080>I have offered to help <col=800000>Denulth<col=000080> the door.||<str>The equipment room guard";
+
+    printf("\n-- a blank row between paragraphs --\n");
+    if( !ToriRSServer_SplitInit(state, text, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    {
+        printf("FAIL split_init: %s\n", state->err.message);
+        Failures++;
+        return;
+    }
+    dump(state);
+
+    check(state->split_line_count == 3, "three rows: the step, the blank row, the struck row");
+    if( state->split_line_count != 3 )
+        return;
+    check(strcmp(state->split_lines[1], "") == 0, "the blank row carries no colour");
+    check(strcmp(state->split_lines[2], "<str>The equipment room guard") == 0, "the struck row starts bare");
+
+    /* [1437]: a struck item after one still to get, one hard break apart. */
+    static const char* const items = "<col=800000>Ten loaves of bread.|<str>Ten cooked trout.";
+
+    printf("\n-- a struck row after a coloured one --\n");
+    if( !ToriRSServer_SplitInit(state, items, JOURNAL_WIDTH, JOURNAL_LINES, JOURNAL_FONT) )
+    {
+        printf("FAIL split_init: %s\n", state->err.message);
+        Failures++;
+        return;
+    }
+    dump(state);
+    check(state->split_line_count == 2 && strcmp(state->split_lines[1], "<str>Ten cooked trout.") == 0,
+        "a struck row after a hard break carries no colour");
+}
+
 int
 main(void)
 {
@@ -262,6 +301,7 @@ main(void)
     test_no_leak_without_close(state);
     test_own_colour_wins(state);
     test_wrap_restates_colour(state);
+    test_blank_row_carries_nothing(state);
 
     SSVM_StrPoolFree(&state->pool);
     free(state);

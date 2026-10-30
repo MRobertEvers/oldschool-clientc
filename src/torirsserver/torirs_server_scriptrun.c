@@ -3948,10 +3948,29 @@ d_pause_pending(lua_State* L)
 static int
 d_meslayer_mode(lua_State* L)
 {
-    (void)bot_of(L);
+    struct ScriptBot* bot = bot_of(L);
     lua_pushstring(L, "ok");
-    lua_pushinteger(L, 0);
+    lua_pushinteger(L, bot->core->count_prompt);
     return 2;
+}
+
+/* api_drive.count_answer(value) -> ok | refused: the number typed into an
+ * open p_countdialog prompt. The client sends RESUME_P_COUNTDIALOG(value) when
+ * its "Enter amount:" box is submitted; scriptrun has no chatbox to type in,
+ * so this sends the packet itself, and only while a prompt is up. */
+static int
+d_count_answer(lua_State* L)
+{
+    struct ScriptBot* bot = bot_of(L);
+    int value = (int)luaL_checkinteger(L, 1);
+    uint8_t payload[4];
+
+    if( bot->core->count_prompt == 0 )
+        return push_result(L, "refused", "no count prompt is open");
+    put4(payload, value);
+    handle(bot, PKTOUT_NAME_RESUME_P_COUNTDIALOG, payload, 4);
+    bot->core->count_prompt = 0;
+    return push_result(L, "ok", "resume_p_countdialog sent");
 }
 
 /* The continue seams are pause buttons of the mounted page: armed while the
@@ -4678,6 +4697,7 @@ push_drive_table(
     bind(L, bot, "tab_by_name", d_tab_by_name);
     bind(L, bot, "pause_pending", d_pause_pending);
     bind(L, bot, "meslayer_mode", d_meslayer_mode);
+    bind(L, bot, "count_answer", d_count_answer);
     bind(L, bot, "click_armed", d_click_armed);
     bind(L, bot, "widget_own_hidden", d_widget_own_hidden);
     bind(L, bot, "options", d_options);
@@ -5254,6 +5274,7 @@ relog_tick(
             ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
         bot->core->menu_script =
             ToriRSServer_ContentConstantInt("clientscript_chatbox_multi_init", -1);
+        bot->core->count_script = ToriRSServer_ContentConstantInt("clientscript_meslayer_mode7", -1);
         player = ToriRSServer_WorldAddPlayer(srv, NULL);
         assert(player);
         bot->player = player;
@@ -5692,6 +5713,7 @@ ToriRSServer_ScriptRun(
             ToriRSServer_ContentConstantInt("clientscript_skillmulti_init", -1);
         bot->core->menu_script =
             ToriRSServer_ContentConstantInt("clientscript_chatbox_multi_init", -1);
+        bot->core->count_script = ToriRSServer_ContentConstantInt("clientscript_meslayer_mode7", -1);
         run.count = i + 1;
         player = ToriRSServer_WorldAddPlayer(srv, NULL);
         assert(player);
