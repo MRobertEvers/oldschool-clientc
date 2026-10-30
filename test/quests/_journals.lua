@@ -6,6 +6,7 @@
 --   Children of the Sun, stages 2, 6 and 12: RSProx index 4408, exactly.
 --   Tale of the Righteous, stages 5, 6, 14 and 16: RSProx index 4425, exactly.
 --   Scorpion Catcher, stage 2 with the full cage: RSProx index 4421 [1730], exactly.
+--   Merlin's Crystal, stages 1..7 (stage 4 twice, by what is in hand): RSProx index 4433, exactly.
 --   Holy Grail, stages 2, 3, 4, 8 (and with the feather) and 9 (and with the
 --   Grail): RSProx index 4435, exactly.
 --   Death Plateau, stages 20, 30, 40, 50, 55 and four states of 70: RSProx index
@@ -799,6 +800,82 @@ local SC_4421_2 = {
     "<col=000080>I need to talk to the <col=800000>Seer<col=000080> again now I've caught the first",
     "<col=000080><col=800000>Kharid Scorpion.",
 }
+-- Merlin's Crystal, every stage: RSProx index 4433 ([517] 1, [720] 2, [824] 3,
+-- [1989] and [3517] 4 by what is in hand, [4603] 5, [4781] 6, [4814] 7).
+local MC_INTRO = {
+    "<str>I spoke to King Arthur and he said I would be worthy of",
+    "<str><str>becoming a Knight of the Round Table if I could free <str>Merlin",
+    "<str>from a giant crystal that he has been trapped in.",
+}
+local MC_GL = {
+    "<str>Gawain told me it was the work of Morgan Le Faye.",
+    "<str>I told Lancelot of Gawain's suspicions, and he told me <str>that",
+    "<str>Mordred's Fortress is not completely impenetratable.",
+}
+local MC_KEEP = {
+    "<str>I stowed away in a shipment of candles and reached the",
+    "<str><str>Stronghold of Sir Mordred, and bested him in combat.",
+    "<str>In return for sparing her son, Morgan Le Faye told me how I",
+    "<str>could break the spell that had imprisoned Merlin.",
+}
+local MC_SUMMONED = {
+    "<str>I summoned the Spirit Thrantax and forced him to aid me <str>in",
+    "<str>breaking Morgan Le Fayes curse upon Merlin. He used <str>his",
+    "<str>magic to weaken the crystal so that a blow from <str>Excalibur",
+    "<str>would be able to shatter it for good.",
+}
+local function mc_rows(...)
+    local out = {}
+    for _, part in ipairs({ ... }) do
+        for _, row in ipairs(part) do out[#out + 1] = row end
+    end
+    return out
+end
+local MC_STAGE4_HEAD = {
+    "<col=000080>I need to summon the spirit <col=800000>Thrantax<col=000080> at a <col=800000>magic symbol <col=000080>as",
+    "<col=000080>close to the Crystal as I can possibly find.",
+    "<col=000080>To bind <col=800000>Thrantax<col=000080> to my will I will need the following:",
+}
+local MC_4433 = {
+    [1] = mc_rows(MC_INTRO, { "",
+        "<col=000080>I should ask the <col=800000>other Knights<col=000080> if they have any <col=800000>advice <col=000080>for me",
+        "<col=000080>on how I should go about doing this." }),
+    [2] = mc_rows(MC_INTRO, {
+        "<col=800000>Gawain<col=000080> thinks this was the work of <col=800000>Morgan Le Faye<col=000080> who <col=000080>lives in",
+        "<col=000080>an <col=800000>impenetrable fortress<col=000080> south of here full of <col=800000>renegade",
+        "<col=800000>knights<col=000080> led by the evil <col=800000>Sir Mordred" }),
+    [3] = mc_rows(MC_INTRO, MC_GL, {
+        "<col=000080>There might be a way to enter with a <col=800000>delivery by sea<col=000080>..." }),
+    ["4a"] = mc_rows(MC_INTRO, MC_GL, MC_KEEP, MC_STAGE4_HEAD, {
+        "<col=000080>Some <col=800000>magic words<col=000080> from a <col=800000>Chaos Altar",
+        "<col=000080>A <col=800000>lit Black Candle",
+        "<col=000080>The <col=800000>Holy Sword Excalibur<col=000080> from the <col=800000>Lady of the Lake",
+        "<str>I have some bat bones with me" }),
+    ["4b"] = mc_rows(MC_INTRO, MC_GL, MC_KEEP, MC_STAGE4_HEAD, {
+        "<str>I have the magic words from the Chaos Altar memorised",
+        "<str>I have a lit black candle with me",
+        "<str>I have the Holy Sword Excalibur with me",
+        "<str>I have some bat bones with me" }),
+    [5] = mc_rows(MC_INTRO, MC_GL, MC_KEEP, {
+        "<str>I need to summon the spirit <str>Thrantax<str> at a <str>magic symbol <str>as",
+        "<str>close to the Crystal as I can possibly find." }, MC_SUMMONED, {
+        "<col=000080>I should free <col=800000>Merlin<col=000080> by using <col=800000>Excalibur<col=000080> on the <col=800000>crystal" }),
+    [6] = mc_rows(MC_INTRO, MC_GL, MC_KEEP, {
+        "<str>I need to summon the spirit <str>Thrantax<col=000080> at a <str>magic symbol <str>as",
+        "<str><col=000080>close to the Crystal as I can possibly find." }, MC_SUMMONED, {
+        "<str>I freed Merlin by shattering the Crystal that trapped him",
+        "<col=000080>Now that <col=800000>Merlin<col=000080> is freed I should speak to <col=800000>King Arthur<col=000080> to <col=000080>claim",
+        "<col=000080>my <col=800000>reward<col=000080> and become a <col=800000>Knight of the Round Table" }),
+    [7] = mc_rows(MC_INTRO, MC_GL, MC_KEEP, {
+        "<str>I need to summon the spirit <str>Thrantax<str> at a <str>magic symbol <str>as",
+        "<str>close to the Crystal as I can possibly find." }, MC_SUMMONED, {
+        "<str>I freed Merlin by shattering the Crystal that trapped him <str>and",
+        "<str>when I told King Arthur how I had singlehandedly <str>freed Merlin",
+        "<str>from his prison when his other Knights had <str>failed he",
+        "<str>immediately made me a Knight of the Round Table",
+        "",
+        "<col=ff0000>QUEST COMPLETE!" }),
+}
 return {
     id = "journals",
     fixture = "fresh_lumbridge.ini",
@@ -911,6 +988,22 @@ return {
         set("::give scorpioncagefull 1")
         set("::setvar varp76_scorpcatcher 2")
         exact("journal.scorpioncatcher.2", "Scorpion Catcher", SC_4421_2)
+        set("::clearinv")
+        for _, st in ipairs({ 1, 2, 3, 5, 6, 7 }) do
+            set("::setvar varp14_arthur " .. st)
+            exact("journal.merlinscrystal." .. st, "Merlin's Crystal", MC_4433[st])
+        end
+        set("::setvar varp14_arthur 4")
+        set("::setvar varp6436_excalibur_components_progress 0")
+        set("::give bat_bones 1")
+        exact("journal.merlinscrystal.4a", "Merlin's Crystal", MC_4433["4a"])
+        set("::setvar varp6436_excalibur_components_progress 1")
+        set("::give lit_black_candle 1")
+        set("::give excalibur 1")
+        exact("journal.merlinscrystal.4b", "Merlin's Crystal", MC_4433["4b"])
+        set("::clearinv")
+        set("::setvar varp6436_excalibur_components_progress 0")
+        set("::setvar varp14_arthur 0")
 
         -- Death Plateau, RSProx index 4431: every state the recorder opened.
         -- Stage 70's paragraphs follow the path's progress (varp6442_death_map
