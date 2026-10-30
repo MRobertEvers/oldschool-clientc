@@ -105,6 +105,7 @@
   <a href="#chrome">7. Chrome: baked assets and new widgets</a>
   <a href="#catalog">8. Asset catalog</a>
   <a href="#terrain">9. Terrain tools</a>
+  <a href="#squares">9b. Square picker and New square</a>
   <a href="#placement">10. Placement tools</a>
   <a href="#locbuilder">11. Loc interaction builder</a>
   <a href="#npcbuilder">12. NPC interaction and dialogue builder</a>
@@ -493,6 +494,23 @@ flowchart LR
 <tr><td>Square operations</td><td>whole square</td><td>copy square to coords, clear square, import from another revision's tree</td><td>SAVE_AS on a square document</td></tr>
 </tbody></table></div>
 <p>Edits at a square border still produce commands for both squares' documents; <code>Editor_CmdRebuildSpan</code> already names them, and the EDIT world's invalidation is tile-local so there is no seam crack.</p>
+
+<!-- ============================================================ -->
+<h2 id="squares"><span class="num">9b</span>Square picker and New square</h2>
+<p>Today the squares panel is a 512-row list of 2,933 coordinates. The replacement is a map. The content tree already says where every square belongs: <code>worldmap/areas/*.wma</code> lists the world-map areas (the surface, each dungeon map, the instance maps) and <code>*.wmc</code> their composite region lists, and every <code>maps/m&lt;x&gt;_&lt;z&gt;</code> that no area claims is still a square with coordinates.</p>
+<h3>The picker</h3>
+<ul>
+  <li><strong>Server side</strong> (catalog index): a square atlas. For each square: coordinates, which world-map area claims it (surface, a named dungeon, an instance map, or none), whether it has a <code>.jl2</code>, its spawn count, and a thumbnail colour (the average underlay/overlay colour of its level-0 tiles from the <code>.jm2</code>, so the picker reads like the game's map without loading the cache). Served as <code>FACT_CATALOG_SQUARES</code>, one row per square, refreshed when <code>maps/</code> changes.</li>
+  <li><strong>Client side:</strong> a <code>GRAPH</code>-style well with one tab per world-map area plus an <strong>Unmapped</strong> tab for squares no area claims (instance regions in the high coordinates). The surface tab draws the 64×64-tile squares as a grid of thumbnail cells with the map coordinates on the axes, zoomable with the wheel, hover names the square and its area, click opens it, shift-click adds it to the open set, right-click offers Open in new view, Copy to…, Delete. A search field accepts <code>m50_50</code>, <code>50 50</code>, an absolute tile <code>3222 3218</code>, or an area or region name.</li>
+  <li><strong>Open squares</strong> are outlined, dirty ones in the accent colour, and the view's current window is drawn as a frame; every open view publishes its window through <code>STATE_VIEW_SQUARE</code> so the picker shows where every window is looking.</li>
+</ul>
+<h3>New square</h3>
+<p>A <strong>New</strong> button in the picker asks two things before anything is written:</p>
+<ol>
+  <li><strong>Where it lives:</strong> the coordinates (picked by clicking an empty cell or typed), and the <em>storage</em>: the content tree's <code>maps/</code> (the default, which the cache pack reads), or a lane directory (<code>ported/&lt;lane&gt;/maps/</code>, for content that ships behind a lane descriptor). The dialog lists the lanes it finds and offers to create one. A square whose coordinates are already taken in that storage is refused with the owner shown.</li>
+  <li><strong>What it starts as:</strong> empty (all-default tiles, a square with no <code>.jm2</code> line), a copy of an existing square (the picker's current selection), or a flat fill at an authored height and underlay.</li>
+</ol>
+<p>Confirm sends <code>DOC_CREATE(SQUARE, "m&lt;x&gt;_&lt;z&gt;", storage, template)</code>; the server creates the document in the authority (and its <code>.filepack</code> line, since the tree indexes a square's files), broadcasts the commands that fill it, and the picker's atlas row appears in every window. Nothing is written to disk until Save, like every other document. The same dialog, with the storage question only, is what <strong>Copy to…</strong> and <strong>Save as new</strong> show for a square.</p>
 
 <!-- ============================================================ -->
 <h2 id="placement"><span class="num">10</span>Placement tools (R9)</h2>
