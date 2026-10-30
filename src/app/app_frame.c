@@ -772,6 +772,9 @@ App_RunOnce(
 
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
+    /* The developer chrome's clock: a hovered widget's tooltip shows after
+     * TORIRS_CHROME_TOOLTIP_DELAY_MS of it (ui/ owns no clock). */
+    ToriRSChrome_Tick(&app->dbg_ui, (int64_t)now_ms);
     app_debug_overlay_tick(app, input);
     /* Right after the developer overlay, because it shares that instance: the
      * tick above is what routed this frame's mouse into dbg_ui, and the

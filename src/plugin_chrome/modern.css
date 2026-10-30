@@ -796,3 +796,81 @@ button { font-weight: 700; }
   color: var(--tpc-accent);
   outline: 0;
 }
+
+/* ---- the map editor's widgets (docs/MAPED_DESIGN.html #chrome) ------------
+ * TREE, VLIST, CODE, ICONBUTTON, SLIDER, RADIO, GRAPH and the modal veil, at
+ * the authored 1x metrics of uitree_debug_overlay_widgets.u.c: 12px tree
+ * indent and a 16px expander, 20px list rows and 17px code lines, 32px icon
+ * buttons, the settings page's own radio and slider art. */
+.tpc-tree-row { cursor: default; }
+.tpc-tree-row.tpc-selected { background: rgba(0, 0, 0, 0.3); }
+.tpc-tree-row.tpc-selected .tpc-tree-caption { color: #ffff00; color: var(--tpc-accent); }
+.tpc-tree-row:hover .tpc-tree-caption { color: #ffff00; color: var(--tpc-accent); }
+.tpc-tree-exp {
+  -webkit-flex: 0 0 16px; flex: 0 0 16px; width: 16px; height: 16px; padding: 0;
+  border: 0; background: transparent no-repeat center; image-rendering: pixelated;
+}
+.tpc-row > .tpc-tree-exp + * { margin-left: 3px; }
+.tpc-vlist {
+  position: relative; display: block; overflow-x: hidden; overflow-y: auto;
+  border: 1px solid #0e0e0c; border-color: var(--tpc-deep);
+  outline: 1px solid #474745; outline-color: var(--tpc-inset); outline-offset: -2px;
+  background: #372e22;
+}
+.tpc-vlist-spacer { position: absolute; left: 0; top: 0; width: 1px; }
+.tpc-vlist-row, .tpc-code-line {
+  position: absolute; left: 0; right: 0; height: 20px; line-height: 20px;
+  padding: 0 4px; white-space: pre; overflow: hidden; text-overflow: ellipsis;
+}
+.tpc-vlist-row:hover { background: rgba(0, 0, 0, 0.06); }
+.tpc-vlist-row.tpc-selected { background: rgba(255, 255, 0, 0.35); color: #ffff00; color: var(--tpc-accent); }
+.tpc-code { font-weight: 700; }
+.tpc-code-line { height: 17px; line-height: 17px; padding: 0; }
+.tpc-code-gutter {
+  display: inline-block; width: 32px; padding-right: 4px; text-align: right;
+  color: #9f9f9f; background: #000; background: var(--tpc-field);
+}
+.tpc-code-text { padding-left: 4px; color: #fff; color: var(--tpc-text); }
+.tpc-code-edit {
+  width: calc(100% - 44px); height: 15px; margin: 0 0 0 4px; padding: 0;
+  border: 0; background: #000; color: #fff; font: inherit;
+}
+.tpc-icon-row { display: inline-block; margin: 0 2px 2px 0; }
+.tpc-icon-row > * + * { margin-left: 0; }
+.tpc-iconbutton {
+  position: relative; width: 32px; height: 32px; padding: 0;
+  border: 1px solid transparent; background: transparent;
+}
+.tpc-iconbutton:hover { border-color: #ffff00; border-color: var(--tpc-accent); }
+.tpc-iconbutton.tpc-pressed {
+  border-color: #0e0e0c; border-color: var(--tpc-deep);
+  background: rgba(0, 0, 0, 0.22);
+  box-shadow: inset 0 0 0 1px #474745;
+}
+.tpc-iconbutton[disabled] { opacity: 0.5; }
+.tpc-icon {
+  position: absolute; left: 0; top: 0; right: 0; bottom: 0;
+  background: transparent no-repeat center; image-rendering: pixelated;
+  line-height: 30px; text-align: center; color: #fff;
+}
+.tpc-slider { -webkit-flex: 1 1 auto; flex: 1 1 auto; min-width: 60px; height: 16px; margin: 0; }
+.tpc-slider-value { -webkit-flex: 0 0 36px; flex: 0 0 36px; text-align: right; }
+.tpc-radio {
+  -webkit-appearance: none; appearance: none; width: 17px; height: 17px; min-width: 17px;
+  margin: 0; border: 0; background: transparent url("skin/RadioOff.png") no-repeat center;
+  image-rendering: pixelated;
+}
+.tpc-radio:checked { background-image: url("skin/RadioOn.png"); }
+.tpc-row > .tpc-radio + * { margin-left: 6px; }
+.tpc-graph {
+  position: relative; display: block; overflow: hidden; min-height: 48px;
+  border: 1px solid #474745; border-color: var(--tpc-inset); background: #372e22;
+  touch-action: none; cursor: crosshair;
+}
+.tpc-graph-item { position: absolute; box-sizing: border-box; pointer-events: none; }
+.tpc-graph-text { white-space: pre; line-height: 16px; }
+#tpc-shell.tpc-modal #tpc-pane { z-index: 20; }
+#tpc-shell.tpc-modal::before {
+  content: ""; position: fixed; left: 0; top: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.5); z-index: 10;
+}

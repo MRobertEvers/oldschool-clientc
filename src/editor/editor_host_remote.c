@@ -32,6 +32,7 @@
 #include "mem/torirs_mem.h"
 
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_catalog.h"
 
 /*
  * TORIRS_MAPED_NO_EMBED: build the TCP half only.
@@ -98,13 +99,18 @@ struct maped_remote
     uint32_t client_id;
     /** FACT_HELLO v2's capability bits. */
     uint32_t capabilities;
+    /** The newest FACT_CATALOG_SQUARES_CHANGED payload DrainFacts saw, kept
+     *  until Editor_HostMapEdCatalogSquaresChanged takes it (only the newest
+     *  matters: each one is a whole atlas). NULL when none is pending. */
+    struct stashed_fact* atlas_changed;
 };
 
 static int
 is_broadcast(uint32_t type)
 {
     return type == TORIRSMAPED_FACT_CMD || type == TORIRSMAPED_FACT_STATE
-           || type == TORIRSMAPED_FACT_SAVED;
+           || type == TORIRSMAPED_FACT_SAVED
+           || type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED;
 }
 
 static int
@@ -685,6 +691,7 @@ remote_free(void* user_data)
         close(remote->fd);
 #endif
     free_stash(remote);
+    ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
     ToriRSMapEd_BufFree(&remote->in);
     ToriMem_Free(ToriMem_Editor(), remote);
 }
@@ -1349,6 +1356,438 @@ Editor_HostMapEdStateSync(struct EditorHost* host)
     return (int)count;
 }
 
+/* ------------------------------------------------------------------ */
+/* The catalog                                                         */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Each answer is decoded into ONE allocation: the arrays first (sized from
+ * bounds the payload length gives — a wire string costs at least four bytes,
+ * so no count can exceed length / its minimum encoding), then the strings,
+ * NUL-terminated (a string never grows: `u32 len, bytes` becomes
+ * `bytes, NUL`). A hostile count past those bounds is malformed, not an
+ * allocation request.
+ */
+
+struct catalog_arena
+{
+    char* at;
+    char* end;
+};
+
+static const char*
+arena_string(
+    struct ToriRSMapEdReader* reader,
+    struct catalog_arena* arena)
+{
+    uint32_t length;
+    const uint8_t* bytes = ToriRSMapEd_GetBytes(reader, &length);
+    char* text;
+    if( !bytes || (size_t)(arena->end - arena->at) < (size_t)length + 1 )
+    {
+        reader->bad = 1;
+        return "";
+    }
+    text = arena->at;
+    memcpy(text, bytes, length);
+    text[length] = '\0';
+    arena->at += length + 1;
+    return text;
+}
+
+/** Send `payload` as `request` and await `fact`; NULL when the link failed. */
+static const uint8_t*
+catalog_rpc(
+    struct maped_remote* remote,
+    uint32_t request,
+    struct ToriRSMapEdBuf* payload,
+    uint32_t fact,
+    uint32_t* out_length)
+{
+    uint32_t fact_type;
+    int sent = send_request(
+        remote,
+        request,
+        ToriRSMapEd_BufPeek(payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(payload));
+    ToriRSMapEd_BufFree(payload);
+    if( !sent )
+        return NULL;
+    return await_reply(remote, REMOTE_OP_TIMEOUT_MS, fact, 0, &fact_type, out_length);
+}
+
+enum EditorHost_Status
+Editor_HostMapEdCatalogQuery(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* filter,
+    uint32_t flags,
+    uint32_t page,
+    uint32_t page_size,
+    struct EditorHost_CatalogPage* out_page)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdReader reader;
+    struct catalog_arena arena;
+    const uint8_t* fact;
+    uint32_t length;
+    uint32_t rows;
+    size_t field_bound;
+    struct EditorHost_CatalogField* fields;
+    int field_at = 0;
+    enum EditorHost_Status status;
+    char* mem;
+
+    assert(filter);
+    assert(out_page);
+    memset(out_page, 0, sizeof(*out_page));
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return EDITOR_HOST_UNSUPPORTED;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, kind);
+    ToriRSMapEd_PutString(&payload, filter);
+    ToriRSMapEd_PutU32(&payload, flags);
+    ToriRSMapEd_PutU32(&payload, page);
+    ToriRSMapEd_PutU32(&payload, page_size);
+    fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_QUERY, &payload,
+        TORIRSMAPED_FACT_CATALOG_PAGE, &length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+
+    ToriRSMapEd_ReaderInit(&reader, fact, length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    out_page->total = ToriRSMapEd_GetU32(&reader);
+    out_page->page = ToriRSMapEd_GetU32(&reader);
+    out_page->page_size = ToriRSMapEd_GetU32(&reader);
+    rows = ToriRSMapEd_GetU32(&reader);
+    /* a row is at least 24 bytes, a field at least 8 */
+    if( reader.bad || rows > length / 24 )
+    {
+        frame_done(remote, length);
+        memset(out_page, 0, sizeof(*out_page));
+        return EDITOR_HOST_IO_ERROR;
+    }
+    field_bound = length / 8;
+    mem = ToriMem_Alloc(ToriMem_Editor(),
+        (size_t)rows * sizeof(*out_page->rows) + field_bound * sizeof(*fields) + length + 1);
+    assert(mem);
+    out_page->storage = mem;
+    out_page->rows = (struct EditorHost_CatalogRow*)mem;
+    fields = (struct EditorHost_CatalogField*)(mem + (size_t)rows * sizeof(*out_page->rows));
+    arena.at = (char*)(fields + field_bound);
+    arena.end = arena.at + length + 1;
+
+    for( uint32_t i = 0; i < rows && !reader.bad; i++ )
+    {
+        struct EditorHost_CatalogRow* row = &out_page->rows[i];
+        uint32_t count;
+        row->kind = ToriRSMapEd_GetU32(&reader);
+        row->id = (int32_t)ToriRSMapEd_GetU32(&reader);
+        row->name = arena_string(&reader, &arena);
+        row->display = arena_string(&reader, &arena);
+        row->provenance = ToriRSMapEd_GetU32(&reader);
+        count = ToriRSMapEd_GetU32(&reader);
+        if( reader.bad || count > field_bound - (size_t)field_at )
+        {
+            reader.bad = 1;
+            break;
+        }
+        row->fields = fields + field_at;
+        row->field_count = (int)count;
+        for( uint32_t f = 0; f < count; f++ )
+        {
+            fields[field_at].key = arena_string(&reader, &arena);
+            fields[field_at].value = arena_string(&reader, &arena);
+            field_at++;
+        }
+    }
+    out_page->row_count = (int)rows;
+    frame_done(remote, length);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        Editor_HostCatalogPageFree(out_page);
+        return EDITOR_HOST_IO_ERROR;
+    }
+    return status;
+}
+
+void
+Editor_HostCatalogPageFree(struct EditorHost_CatalogPage* page)
+{
+    if( !page )
+        return;
+    ToriMem_Free(ToriMem_Editor(), page->storage);
+    memset(page, 0, sizeof(*page));
+}
+
+enum EditorHost_Status
+Editor_HostMapEdCatalogRecord(
+    struct EditorHost* host,
+    uint32_t kind,
+    int32_t id,
+    const char* name,
+    struct EditorHost_CatalogRecord* out_record)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdReader reader;
+    struct catalog_arena arena;
+    const uint8_t* fact;
+    uint32_t length;
+    uint32_t count;
+    enum EditorHost_Status status;
+    char* mem;
+    size_t source_bound;
+    size_t field_bound;
+
+    assert(name);
+    assert(out_record);
+    memset(out_record, 0, sizeof(*out_record));
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return EDITOR_HOST_UNSUPPORTED;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, kind);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)id);
+    ToriRSMapEd_PutString(&payload, name);
+    fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_RECORD, &payload,
+        TORIRSMAPED_FACT_CATALOG_RECORD, &length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+
+    /* a source is at least 12 bytes, a field at least 20 */
+    source_bound = length / 12;
+    field_bound = length / 20;
+    mem = ToriMem_Alloc(ToriMem_Editor(), source_bound * sizeof(*out_record->sources)
+                                              + field_bound * sizeof(*out_record->fields) + length + 1);
+    assert(mem);
+    out_record->storage = mem;
+    out_record->sources = (struct EditorHost_CatalogSource*)mem;
+    out_record->fields =
+        (struct EditorHost_CatalogRecordField*)(mem + source_bound * sizeof(*out_record->sources));
+    arena.at = (char*)(out_record->fields + field_bound);
+    arena.end = arena.at + length + 1;
+
+    ToriRSMapEd_ReaderInit(&reader, fact, length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    out_record->kind = ToriRSMapEd_GetU32(&reader);
+    out_record->id = (int32_t)ToriRSMapEd_GetU32(&reader);
+    out_record->name = arena_string(&reader, &arena);
+    out_record->display = arena_string(&reader, &arena);
+    out_record->provenance = ToriRSMapEd_GetU32(&reader);
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > source_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        out_record->sources[i].path = arena_string(&reader, &arena);
+        out_record->sources[i].provenance = ToriRSMapEd_GetU32(&reader);
+        out_record->sources[i].line = ToriRSMapEd_GetU32(&reader);
+    }
+    out_record->source_count = reader.bad ? 0 : (int)count;
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > field_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        struct EditorHost_CatalogRecordField* field = &out_record->fields[i];
+        uint32_t source;
+        uint32_t old_source;
+        field->key = arena_string(&reader, &arena);
+        field->value = arena_string(&reader, &arena);
+        source = ToriRSMapEd_GetU32(&reader);
+        field->overridden_value = arena_string(&reader, &arena);
+        old_source = ToriRSMapEd_GetU32(&reader);
+        field->source = source < (uint32_t)out_record->source_count ? (int)source : -1;
+        field->overridden_source =
+            old_source < (uint32_t)out_record->source_count ? (int)old_source : -1;
+        if( field->overridden_source < 0 && !field->overridden_value[0] )
+            field->overridden_value = NULL;
+    }
+    out_record->field_count = reader.bad ? 0 : (int)count;
+    frame_done(remote, length);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        Editor_HostCatalogRecordFree(out_record);
+        return EDITOR_HOST_IO_ERROR;
+    }
+    return status;
+}
+
+void
+Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record)
+{
+    if( !record )
+        return;
+    ToriMem_Free(ToriMem_Editor(), record->storage);
+    memset(record, 0, sizeof(*record));
+}
+
+/** FACT_CATALOG_SQUARES / _CHANGED into `out`. Returns the fact's status,
+ *  or EDITOR_HOST_IO_ERROR (and `out` empty) when it is malformed. */
+static enum EditorHost_Status
+decode_catalog_squares(
+    const uint8_t* body,
+    uint32_t length,
+    struct EditorHost_CatalogSquares* out)
+{
+    struct ToriRSMapEdReader reader;
+    struct catalog_arena arena;
+    enum EditorHost_Status status;
+    uint32_t count;
+    char* mem;
+    const char** storages;
+    struct EditorHost_CatalogArea* areas;
+    struct EditorHost_CatalogSquare* squares;
+    int* area_ids;
+    int area_at = 0;
+    /* a storage is >= 4 bytes, an area >= 12, a square >= 32, an area id 4 */
+    size_t storage_bound = length / 4;
+    size_t area_bound = length / 12;
+    size_t square_bound = length / 32;
+    size_t id_bound = length / 4;
+
+    memset(out, 0, sizeof(*out));
+    mem = ToriMem_Alloc(ToriMem_Editor(), storage_bound * sizeof(*storages)
+                                              + area_bound * sizeof(*areas)
+                                              + square_bound * sizeof(*squares)
+                                              + id_bound * sizeof(*area_ids) + length + 1);
+    assert(mem);
+    storages = (const char**)mem;
+    areas = (struct EditorHost_CatalogArea*)(storages + storage_bound);
+    squares = (struct EditorHost_CatalogSquare*)(areas + area_bound);
+    area_ids = (int*)(squares + square_bound);
+    arena.at = (char*)(area_ids + id_bound);
+    arena.end = arena.at + length + 1;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > storage_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+        storages[i] = arena_string(&reader, &arena);
+    out->storage_count = (int)count;
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > area_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        areas[i].internal_name = arena_string(&reader, &arena);
+        areas[i].display_name = arena_string(&reader, &arena);
+        areas[i].is_main = (int)ToriRSMapEd_GetU32(&reader);
+    }
+    out->area_count = (int)count;
+    count = ToriRSMapEd_GetU32(&reader);
+    if( count > square_bound )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < count && !reader.bad; i++ )
+    {
+        struct EditorHost_CatalogSquare* sq = &squares[i];
+        uint32_t storage;
+        uint32_t primary;
+        uint32_t area_n;
+        sq->map_x = (int32_t)ToriRSMapEd_GetU32(&reader);
+        sq->map_z = (int32_t)ToriRSMapEd_GetU32(&reader);
+        storage = ToriRSMapEd_GetU32(&reader);
+        sq->flags = ToriRSMapEd_GetU32(&reader);
+        sq->spawn_count = (int)ToriRSMapEd_GetU32(&reader);
+        sq->rgb = ToriRSMapEd_GetU32(&reader);
+        primary = ToriRSMapEd_GetU32(&reader);
+        area_n = ToriRSMapEd_GetU32(&reader);
+        if( storage >= (uint32_t)out->storage_count || area_n > id_bound - (size_t)area_at
+            || (primary != TORIRSMAPED_CATALOG_NO_AREA && primary >= (uint32_t)out->area_count) )
+        {
+            reader.bad = 1;
+            break;
+        }
+        sq->storage = (int)storage;
+        sq->primary_area = primary == TORIRSMAPED_CATALOG_NO_AREA ? -1 : (int)primary;
+        sq->areas = area_ids + area_at;
+        sq->area_count = (int)area_n;
+        for( uint32_t a = 0; a < area_n; a++ )
+        {
+            uint32_t area = ToriRSMapEd_GetU32(&reader);
+            if( area >= (uint32_t)out->area_count )
+                reader.bad = 1;
+            area_ids[area_at++] = (int)area;
+        }
+    }
+    out->square_count = (int)count;
+    out->storages = storages;
+    out->areas = areas;
+    out->squares = squares;
+    out->storage_mem = mem;
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        Editor_HostCatalogSquaresFree(out);
+        return EDITOR_HOST_IO_ERROR;
+    }
+    return status;
+}
+
+enum EditorHost_Status
+Editor_HostMapEdCatalogSquares(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    const uint8_t* fact;
+    uint32_t length;
+    enum EditorHost_Status status;
+
+    assert(out_atlas);
+    memset(out_atlas, 0, sizeof(*out_atlas));
+    if( !(remote->capabilities & TORIRSMAPED_CAP_CATALOG) )
+        return EDITOR_HOST_UNSUPPORTED;
+
+    memset(&payload, 0, sizeof(payload));
+    fact = catalog_rpc(remote, TORIRSMAPED_REQ_CATALOG_SQUARES, &payload,
+        TORIRSMAPED_FACT_CATALOG_SQUARES, &length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+    status = decode_catalog_squares(fact, length, out_atlas);
+    frame_done(remote, length);
+    return status;
+}
+
+int
+Editor_HostMapEdCatalogSquaresChanged(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct stashed_fact* fact;
+    enum EditorHost_Status status;
+
+    assert(out_atlas);
+    memset(out_atlas, 0, sizeof(*out_atlas));
+    fact = remote->atlas_changed;
+    if( !fact )
+        return 0;
+    remote->atlas_changed = NULL;
+    status = decode_catalog_squares(fact->data, fact->length, out_atlas);
+    ToriMem_Free(ToriMem_Editor(), fact);
+    if( status == EDITOR_HOST_IO_ERROR )
+    {
+        TORIRS_LOG("editor: dropping a malformed FACT_CATALOG_SQUARES_CHANGED\n");
+        return 0;
+    }
+    return 1;
+}
+
+void
+Editor_HostCatalogSquaresFree(struct EditorHost_CatalogSquares* atlas)
+{
+    if( !atlas )
+        return;
+    ToriMem_Free(ToriMem_Editor(), atlas->storage_mem);
+    memset(atlas, 0, sizeof(*atlas));
+}
+
 static void
 deliver_fact(
     const struct EditorHostMapEdFacts* sink,
@@ -1453,6 +1892,15 @@ Editor_HostMapEdDrainFacts(
         remote->stash_head = fact->next;
         if( !remote->stash_head )
             remote->stash_tail = NULL;
+        if( fact->type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED )
+        {
+            /* Kept for the picker's poll rather than handed to the sink. */
+            fact->next = NULL;
+            ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
+            remote->atlas_changed = fact;
+            delivered++;
+            continue;
+        }
         deliver_fact(sink, fact->type, fact->data, fact->length);
         ToriMem_Free(ToriMem_Editor(), fact);
         delivered++;
@@ -1474,7 +1922,20 @@ Editor_HostMapEdDrainFacts(
         body = take_frame(remote, &type, &length);
         if( !body )
             break;
-        if( is_broadcast(type) )
+        if( type == TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED )
+        {
+            struct stashed_fact* fact =
+                ToriMem_Alloc(ToriMem_Editor(), sizeof(*fact) + length);
+            assert(fact);
+            fact->next = NULL;
+            fact->type = type;
+            fact->length = length;
+            memcpy(fact->data, body, length);
+            ToriMem_Free(ToriMem_Editor(), remote->atlas_changed);
+            remote->atlas_changed = fact;
+            delivered++;
+        }
+        else if( is_broadcast(type) )
         {
             deliver_fact(sink, type, body, length);
             delivered++;

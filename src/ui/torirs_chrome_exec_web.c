@@ -1005,12 +1005,15 @@ chrome_web_poll(void* user, struct ToriRSChromeIntent* out, int max)
          * document already fences these values, but a queued page-A event can
          * otherwise arrive after page B has recycled the same widget handle. */
         if( intent.kind < TORIRS_CHROME_INTENT_ACTIVATE ||
-            intent.kind > TORIRS_CHROME_INTENT_CUSTOM_ACTIVATE ||
+            intent.kind > TORIRS_CHROME_INTENT_KIND_MAX ||
             intent.selection_generation == 0 ||
             intent.selection_generation != s->page_generation ||
             intent.panel != s->active_panel )
             continue;
-        if( intent.kind == TORIRS_CHROME_INTENT_CLOSE )
+        /* Panel-level intents name no widget: the close box, and a docked
+         * panel's splitter. */
+        if( intent.kind == TORIRS_CHROME_INTENT_CLOSE ||
+            intent.kind == TORIRS_CHROME_INTENT_SPLIT )
         {
             if( intent.widget != -1 )
                 continue;

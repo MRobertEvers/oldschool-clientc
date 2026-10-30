@@ -487,6 +487,190 @@ Editor_HostMapEdStateSet(
 int
 Editor_HostMapEdStateSync(struct EditorHost* host);
 
+/* ---- the catalog (design #catalog, #squares) ------------------------------
+ *
+ * Read-only questions about the content tree, answered by the server's index
+ * (torirsmaped/torirs_maped_catalog.h has the kinds, flags and the wire).
+ * Each answer is one allocation the caller frees; every string in it is
+ * NUL-terminated and lives as long as the answer does.
+ */
+
+/** One `key=value` summary field. */
+struct EditorHost_CatalogField
+{
+    const char* key;
+    const char* value;
+};
+
+struct EditorHost_CatalogRow
+{
+    /** enum ToriRSMapEdCatalogKind. */
+    uint32_t kind;
+    /** -1 when the entity has no id (a server-only overlay, a trigger). */
+    int32_t id;
+    /** TORIRSMAPED_PROV_* bits: every source that said something. */
+    uint32_t provenance;
+    const char* name;
+    /** The `name=` field; "" when there is none. */
+    const char* display;
+    int field_count;
+    const struct EditorHost_CatalogField* fields;
+};
+
+struct EditorHost_CatalogPage
+{
+    /** Matches across every page. */
+    uint32_t total;
+    uint32_t page;
+    uint32_t page_size;
+    int row_count;
+    struct EditorHost_CatalogRow* rows;
+    void* storage;
+};
+
+/**
+ * CATALOG_QUERY: one page of the records of `kind` (TORIRSMAPED_CATALOG_ANY
+ * for every kind) matching `filter` — free terms against name, display name
+ * and id, plus `key=value` filters (`op=Open`, `multivar=varb4153`). `flags`
+ * TORIRSMAPED_CATALOG_EXACT makes the text one whole name. `page_size` 0 is
+ * the server's default. REFUSED for an unknown kind; UNSUPPORTED when the
+ * server has no catalog (capability bit clear).
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogQuery(
+    struct EditorHost* host,
+    uint32_t kind,
+    const char* filter,
+    uint32_t flags,
+    uint32_t page,
+    uint32_t page_size,
+    struct EditorHost_CatalogPage* out_page);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogPageFree(struct EditorHost_CatalogPage* page);
+
+struct EditorHost_CatalogSource
+{
+    /** Relative to the content root. */
+    const char* path;
+    /** The one TORIRSMAPED_PROV_* bit this source contributed as. */
+    uint32_t provenance;
+    /** 1-based line of the record in that file (its block header). */
+    uint32_t line;
+};
+
+struct EditorHost_CatalogRecordField
+{
+    const char* key;
+    const char* value;
+    /** Index into `sources`, or -1 for a field only the index derives
+     *  (`dialogue`, `users`, a square's `area`). */
+    int source;
+    /** When a later source (a server overlay) restated a field: the value
+     *  it replaced and where that came from; NULL / -1 otherwise. */
+    const char* overridden_value;
+    int overridden_source;
+};
+
+struct EditorHost_CatalogRecord
+{
+    uint32_t kind;
+    int32_t id;
+    uint32_t provenance;
+    const char* name;
+    const char* display;
+    int source_count;
+    struct EditorHost_CatalogSource* sources;
+    int field_count;
+    struct EditorHost_CatalogRecordField* fields;
+    void* storage;
+};
+
+/**
+ * CATALOG_RECORD: the merged record — the cache block, every server overlay
+ * over it, ids, membership — with the provenance of each field. Addressed
+ * by `name` when non-empty, else by `id`. ABSENT when there is no such
+ * record.
+ */
+enum EditorHost_Status
+Editor_HostMapEdCatalogRecord(
+    struct EditorHost* host,
+    uint32_t kind,
+    int32_t id,
+    const char* name,
+    struct EditorHost_CatalogRecord* out_record);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogRecordFree(struct EditorHost_CatalogRecord* record);
+
+/** A world-map area: the surface, a dungeon map, an instance map. */
+struct EditorHost_CatalogArea
+{
+    /** The `.wma` block name ("main", "ancient_cavern"). */
+    const char* internal_name;
+    /** What the world map calls it ("Gielinor Surface"). */
+    const char* display_name;
+    int is_main;
+};
+
+struct EditorHost_CatalogSquare
+{
+    int map_x;
+    int map_z;
+    /** Index into the atlas's `storages`. */
+    int storage;
+    /** TORIRSMAPED_SQUARE_* bits. */
+    uint32_t flags;
+    int spawn_count;
+    /** 0xRRGGBB averaged over the level-0 floors; 0 when it has none. */
+    uint32_t rgb;
+    /** Index into `areas` of the most specific claiming area, or -1 for an
+     *  unmapped square (the picker's Unmapped tab). */
+    int primary_area;
+    /** Every area that claims it, most specific first. */
+    int area_count;
+    const int* areas;
+};
+
+struct EditorHost_CatalogSquares
+{
+    /** "maps" first, then "ported/<lane>/maps" for every lane directory —
+     *  what the New dialog offers as storage. */
+    int storage_count;
+    const char* const* storages;
+    int area_count;
+    const struct EditorHost_CatalogArea* areas;
+    int square_count;
+    const struct EditorHost_CatalogSquare* squares;
+    void* storage_mem;
+};
+
+/** CATALOG_SQUARES: the square atlas the picker draws. */
+enum EditorHost_Status
+Editor_HostMapEdCatalogSquares(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas);
+
+/**
+ * The atlas changed under every window — a DOC_CREATE (the new square's row
+ * arrives flagged TORIRSMAPED_SQUARE_CREATED before anything is on disk), a
+ * save that wrote squares. The server broadcasts the whole atlas; DrainFacts
+ * keeps the newest one here instead of handing it to the fact sink (whose
+ * callers fill their sinks field by field). Returns 1 and fills `out_atlas`
+ * (free it) when one arrived since the last call, else 0. Poll it after
+ * Editor_HostMapEdDrainFacts.
+ */
+int
+Editor_HostMapEdCatalogSquaresChanged(
+    struct EditorHost* host,
+    struct EditorHost_CatalogSquares* out_atlas);
+
+/** NULL-tolerant. */
+void
+Editor_HostCatalogSquaresFree(struct EditorHost_CatalogSquares* atlas);
+
 /** Where broadcasts land. Any callback may be NULL to ignore that kind. */
 struct EditorHostMapEdFacts
 {

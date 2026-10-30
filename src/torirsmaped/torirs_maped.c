@@ -11,6 +11,7 @@
  */
 
 #include "torirs_maped.h"
+#include "torirs_maped_catalog.h"
 
 #include "editor/editor_jm2.h"
 #include "mem/torirs_mem.h"
@@ -50,6 +51,10 @@ ToriRSMapEd_Open(
     if( !maped->writable )
         TORIRS_LOG("torirsmaped: another server holds %s — serving read-only\n",
             content_dir);
+
+    /* The catalog reads nothing until its first query. */
+    maped->catalog = ToriRSMapEdCatalog_Create(content_dir);
+    maped->capabilities |= TORIRSMAPED_CAP_CATALOG;
 }
 
 void
@@ -64,6 +69,8 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         Editor_HostClose(&maped->files);
         Editor_DocFree(&maped->doc);
         Editor_UndoFree(&maped->undo);
+        ToriRSMapEdCatalog_Free(maped->catalog);
+        maped->catalog = NULL;
         maped->open = 0;
     }
 }
@@ -1347,6 +1354,75 @@ handle_doc_create(
     send_status_extra(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_OK, (uint32_t)filled);
 }
 
+/* ---- catalog dispatch (torirs_maped_catalog.c does the work) ---- */
+
+static void
+handle_catalog(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    uint32_t type,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdCatalog* catalog = maped->catalog;
+    struct ToriRSMapEdBuf out;
+    uint32_t fact;
+    int ok;
+
+    assert(catalog);
+    memset(&out, 0, sizeof(out));
+    if( type == TORIRSMAPED_REQ_CATALOG_QUERY )
+    {
+        ok = ToriRSMapEdCatalog_HandleQuery(catalog, body, length, &out);
+        fact = TORIRSMAPED_FACT_CATALOG_PAGE;
+    }
+    else if( type == TORIRSMAPED_REQ_CATALOG_RECORD )
+    {
+        ok = ToriRSMapEdCatalog_HandleRecord(catalog, body, length, &out);
+        fact = TORIRSMAPED_FACT_CATALOG_RECORD;
+    }
+    else
+    {
+        ok = ToriRSMapEdCatalog_HandleSquares(catalog, &maped->doc, body, length, &out);
+        fact = TORIRSMAPED_FACT_CATALOG_SQUARES;
+    }
+    if( ok )
+        send_buf(session, fact, &out);
+    else
+        session->alive = 0;
+    ToriRSMapEd_BufFree(&out);
+}
+
+/**
+ * The atlas changed under every window: a square was created in the
+ * authority (`disk_changed` 0), or a save may have written squares (1: re-stat
+ * maps/ and broadcast only if something there changed). Nothing to say until
+ * the catalog has been built — until then no connection holds an atlas.
+ */
+static void
+catalog_atlas_changed(
+    struct ToriRSMapEd* maped,
+    int disk_changed)
+{
+    struct ToriRSMapEdCatalog* catalog = maped->catalog;
+    struct ToriRSMapEdBuf payload;
+
+    assert(catalog);
+    if( !ToriRSMapEdCatalog_Built(catalog) )
+        return;
+    if( disk_changed && !ToriRSMapEdCatalog_RefreshMaps(catalog) )
+        return;
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEdCatalog_EncodeSquares(catalog, &maped->doc, &payload);
+    for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
+    {
+        struct ToriRSMapEdSession* session = maped->sessions[i];
+        if( session && session->alive && session->version >= TORIRSMAPED_PROTO_VERSION )
+            send_buf(session, TORIRSMAPED_FACT_CATALOG_SQUARES_CHANGED, &payload);
+    }
+    ToriRSMapEd_BufFree(&payload);
+}
+
 static void
 handle_frame(
     struct ToriRSMapEdSession* session,
@@ -1407,6 +1483,7 @@ handle_frame(
         return;
     case TORIRSMAPED_REQ_SQUARE_SAVE:
         handle_square_save(session, maped, body, length);
+        catalog_atlas_changed(maped, 1);
         return;
     case TORIRSMAPED_REQ_SPAWN_SAVE:
         handle_spawn_save(session, maped, body, length);
@@ -1438,6 +1515,7 @@ handle_frame(
         return;
     case TORIRSMAPED_REQ_SAVE_ALL:
         handle_save_all(session, maped);
+        catalog_atlas_changed(maped, 1);
         return;
     case TORIRSMAPED_REQ_STATE_SET:
     {
@@ -1543,6 +1621,7 @@ handle_frame(
     if( v2 && type == TORIRSMAPED_REQ_SAVE )
     {
         handle_save(session, maped, body, length);
+        catalog_atlas_changed(maped, 1);
         return;
     }
     if( v2 && type == TORIRSMAPED_REQ_SAVE_AS )
@@ -1554,7 +1633,17 @@ handle_frame(
     }
     if( v2 && type == TORIRSMAPED_REQ_DOC_CREATE )
     {
+        int squares_before = maped->doc.square_count;
         handle_doc_create(session, maped, body, length);
+        if( maped->doc.square_count != squares_before )
+            catalog_atlas_changed(maped, 0);
+        return;
+    }
+    if( v2
+        && (type == TORIRSMAPED_REQ_CATALOG_QUERY || type == TORIRSMAPED_REQ_CATALOG_RECORD
+            || type == TORIRSMAPED_REQ_CATALOG_SQUARES) )
+    {
+        handle_catalog(session, maped, type, body, length);
         return;
     }
 
@@ -1624,3 +1713,9 @@ ToriRSMapEd_SessionPump(struct ToriRSMapEdSession* session)
         session->alive = 0;
     return session->alive;
 }
+
+/* The catalog is compiled into this unit, not linked beside it: every link
+ * line that carries the server (the client with and without EMBED_SERVER,
+ * the embed test, the daemon) already names this file. See the note at the
+ * top of torirs_maped_catalog.c. */
+#include "torirs_maped_catalog.c"

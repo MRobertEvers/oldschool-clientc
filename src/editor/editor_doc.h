@@ -12,12 +12,14 @@
  *           into lines and rows by editor_spawn.c.
  *   CFG     one config record ("loc:newbie_door1"): the `[name]` block's text.
  *   IFACE   one interface ("if:bank"): the `.if` file's text.
- *   TEXT    a script (`rs2:<path under server/scripts>`, `cs2:<name>`).
+ *   TEXT    a script (`rs2:<path under server/scripts>`, `cs2:<name>`), or a
+ *           ledger / membership / member-index file an id allocation appends
+ *           to (`pack:<ns>.alloc|client|server|pack`, `compack:<type>`).
  *
- * CFG, IFACE and TEXT documents are held as TEXT. CFG_* and IF_* commands are
- * applied as plain splices on that text for now (Editor_CfgApply,
- * Editor_IfApply); the config and interface codecs replace those bodies, the
- * signatures stay.
+ * CFG, IFACE and TEXT documents are held as TEXT. CFG_* commands go through
+ * the config codec (editor_cfg.h, Editor_CfgApply); IF_* commands are still
+ * plain splices on that text (Editor_IfApply) until the interface codec
+ * replaces that body, the signature stays.
  *
  * The document is the source of truth while the editor runs. It is loaded
  * from the text in OSRS-Content rather than from the baked cache, and it is
@@ -157,7 +159,9 @@ Editor_SquareLocFind(
 /**
  * 1 when `key` can name a document of `kind`: a square key for SQUARE and
  * SPAWN, "<type>:<record>" for CFG, "if:<name>" for IFACE, "rs2:<path>" /
- * "cs2:<name>" for TEXT; printable, under EDITOR_DOC_KEY_MAX, no "..", no
+ * "cs2:<name>" / "pack:<ns>.{alloc,client,server,pack}" / "compack:<type>"
+ * for TEXT (the last two are what an id allocation appends to,
+ * editor_alloc.h); printable, under EDITOR_DOC_KEY_MAX, no "..", no
  * absolute or backslashed path. Keys arrive off the wire, so this is a
  * validity test, not an assertion.
  */
@@ -280,20 +284,31 @@ Editor_TextDocSplice(
     size_t insert_length);
 
 /**
- * Apply a CFG_FIELD / CFG_BLOCK / TEXT_SPLICE command to a CFG document — the
- * `[name]` block's text — as a plain text splice.
+ * Apply a CFG_FIELD / CFG_BLOCK command to a CFG document — the `[name]`
+ * block's text, header through the byte before the next header — through the
+ * config codec (editor_cfg.h). Only the edited line changes; every other byte
+ * of the block is kept, so an edit and its undo leave the text as it was.
  *
- *   CFG_FIELD   the block's `key=` line: before "" means it must be absent,
- *               after "" removes it; otherwise the value must equal `before`
- *               and becomes `after`. Added lines go after the block's last
- *               non-blank line.
- *   CFG_BLOCK   add: the empty document becomes "[name]\n"; remove: a block
- *               reduced to its header becomes empty again (remove its fields
- *               first, in the same stroke, so undo restores them); rename:
- *               the header line.
+ *   CFG_FIELD   `key` is a field spec, `key[#occurrence][@line]`
+ *               (Editor_CfgFieldSpecParse). before "" = must be absent: for
+ *               a plain "key" no occurrence may exist; with #N/@L the line is
+ *               inserted as that occurrence / at that line. after "" =
+ *               removed: the occurrence must hold `before` (and be on line L
+ *               when @L is given — a removal should carry it, so its undo
+ *               puts the line back where it was). Otherwise the value must
+ *               equal `before` and becomes `after`. A new line goes after the
+ *               key's last occurrence, else after the record's last field,
+ *               else after the header; never after a trailing comment, which
+ *               in all.<type> belongs to the next record.
+ *   CFG_BLOCK   add: a text with no header gets "[name]\n" at its top (an
+ *               empty document becomes "[name]\n"); remove: the header line
+ *               goes when no field is left (remove the fields first, in the
+ *               same stroke, so undo restores them; blank lines and comments
+ *               stay, so the add that undoes it is byte-exact); rename: the
+ *               header's name. The document key keeps the old name.
  *
  * Returns 1 when the text changed, 0 when the command does not match it.
- * Phase 2's config codec replaces this body; the signature is fixed.
+ * TEXT_SPLICE on a CFG document is the generic splice in editor_cmd.c.
  */
 int
 Editor_CfgApply(

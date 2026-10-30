@@ -246,7 +246,7 @@ assert.deepStrictEqual({
 const beforeOverflow = received.length;
 assert.strictEqual(global_.torirsChromeApply({ k: exported.CMD.SYNC_BEGIN }), true);
 let overflowRejected = false;
-for (let i = 0; i < 8193; i++) global_.torirsChromeApply({
+for (let i = 0; i < 49153; i++) global_.torirsChromeApply({
   k: exported.CMD.WIDGET_LABEL, p: 3, w: 5, label: `overflow ${i}`
 }) === false && (overflowRejected = true);
 assert.strictEqual(global_.torirsChromeApply({ k: exported.CMD.SYNC_END }), false);

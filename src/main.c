@@ -6602,6 +6602,7 @@ main_print_usage(char const* program)
         "[--js5|--no-js5] [--js5-host H] [--js5-port N] "
         "[--js5-fallback-port N] [--js5-revision N] [--uncapped] [--unlocked] "
         "[--replay <rsprox.bin[.gz]>] "
+        "[--world-layout static|edit] "
         "[--pacer gameshell|deadline] "
         "[--windowmode fixed|resizable] [--window WxH] "
         "[--opengl3|--opengl3-zbuffer|--webgl1|--webgl1-zbuffer|"
@@ -6749,6 +6750,17 @@ main_parse_argument_layer(
         if( strcmp(argv[argi], "--rev") == 0 && argi + 1 < argc )
         {
             cfg.rev_name = argv[++argi];
+            continue;
+        }
+        if( strcmp(argv[argi], "--world-layout") == 0 && argi + 1 < argc )
+        {
+            enum WorldBuilderLayout layout;
+            if( !WorldBuilder_LayoutParse(argv[++argi], &layout) )
+            {
+                TORIRS_ERR("torirs: --world-layout must be static|edit, got '%s'\n", argv[argi]);
+                return 0;
+            }
+            cfg.world_layout = (int)layout;
             continue;
         }
         if( strcmp(argv[argi], "--uncapped") == 0 )
@@ -7135,7 +7147,8 @@ main_argument_takes_value(char const* argument)
            strcmp(argument, "--js5-host") == 0 || strcmp(argument, "--js5-port") == 0 ||
            strcmp(argument, "--js5-fallback-port") == 0 ||
            strcmp(argument, "--js5-revision") == 0 || strcmp(argument, "--windowmode") == 0 ||
-           strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0;
+           strcmp(argument, "--window") == 0 || strcmp(argument, "--replay") == 0 ||
+           strcmp(argument, "--world-layout") == 0;
 }
 
 /*

@@ -4,16 +4,20 @@
 #include <stdint.h>
 #include <string.h>
 
-/* A full restatement emits one global style command, three commands per
- * panel, six fixed commands per widget, then one command per retained option.
- * Include BEGIN/END because WEB's atomic-array ceiling counts its markers too.
- * Keeping this proof beside the serializer makes a future model-cap increase
- * fail the build instead of creating a snapshot that can never recover. */
+/* A full restatement emits one global style command, four commands per panel
+ * (OPEN, RECT, TAB, MODE), nine fixed commands per widget (ADD, HIDDEN,
+ * CHECKED, FOCUS, SELECTED, the OPTIONS or GRAPH header, VALUE, TOOLTIP, and
+ * a spare for HEIGHT), then one command per retained option, visible row,
+ * span and graph item -- each bounded by its pool. Include BEGIN/END because
+ * WEB's atomic-array ceiling counts its markers too. Keeping this proof beside
+ * the serializer makes a future model-cap increase fail the build instead of
+ * creating a snapshot that can never recover. */
 _Static_assert(
-    2 + 1 + 3 * TORIRS_CHROME_MAX_PANELS +
-            6 * TORIRS_CHROME_MAX_WIDGETS +
+    2 + 1 + 4 * TORIRS_CHROME_MAX_PANELS +
+            9 * TORIRS_CHROME_MAX_WIDGETS +
             TORIRS_CHROME_LEGACY_OPTIONS_TOTAL_MAX +
-            TORIRS_CHROME_SELECT_OPTIONS_MAX <=
+            TORIRS_CHROME_SELECT_OPTIONS_MAX + TORIRS_CHROME_VROW_POOL +
+            TORIRS_CHROME_SPAN_POOL + TORIRS_CHROME_GRAPH_ITEMS_MAX <=
         TORIRS_CHROME_PROTOCOL_COMMAND_MAX,
     "chrome: a legal full model exceeds the atomic web transaction cap");
 
@@ -233,6 +237,208 @@ ToriRSChromeSync_Shutdown(struct ToriRSChromeSync* sync)
  * hide it, exactly as the chrome does -- but a free slot is not a widget, and
  * a widget on a panel that is closed is covered by the panel's own CLOSE.
  */
+
+/* ---- the map editor's widgets ------------------------------------------ */
+
+/** WIDGET_ADD's two shape fields for a widget. */
+static void
+sync_add_shape(
+    struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int* out_w, int* out_h)
+{
+    switch( w->kind )
+    {
+    case TORIRS_CHROME_W_LABEL:
+        *out_w = w->label_style;
+        *out_h = w->rows;
+        return;
+    case TORIRS_CHROME_W_CUSTOM:
+    case TORIRS_CHROME_W_GRAPH:
+        *out_w = 0;
+        *out_h = w->view_h / (ui->scale > 0 ? ui->scale : 1);
+        return;
+    case TORIRS_CHROME_W_TREE:
+    case TORIRS_CHROME_W_RADIO:
+        *out_w = w->iaux;
+        *out_h = w->rows;
+        return;
+    case TORIRS_CHROME_W_ICONBUTTON:
+        *out_w = w->ivalue;
+        *out_h = 0;
+        return;
+    default:
+        *out_w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
+                 (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
+        *out_h = w->rows;
+        return;
+    }
+}
+
+static int
+sync_is_editor_kind(int kind)
+{
+    return kind == TORIRS_CHROME_W_TREE || kind == TORIRS_CHROME_W_VLIST ||
+           kind == TORIRS_CHROME_W_ICONBUTTON || kind == TORIRS_CHROME_W_SLIDER ||
+           kind == TORIRS_CHROME_W_RADIO || kind == TORIRS_CHROME_W_CODE ||
+           kind == TORIRS_CHROME_W_GRAPH;
+}
+
+static uint64_t
+sync_ext_hash(struct ToriRSChromeWidget const* w)
+{
+    int const fields[6] = {
+        w->ivalue, w->imin, w->imax, w->istep,
+        w->kind == TORIRS_CHROME_W_CODE ? w->caret : w->iaux, w->kind
+    };
+    uint64_t hash = 1469598103934665603ull;
+    for( int i = 0; i < 6; i++ )
+    {
+        hash ^= (uint64_t)(uint32_t)fields[i];
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+/** The pool content of a VLIST/CODE/GRAPH: rows in the window with their
+ *  spans, or the graph's items, restated in full. */
+static void
+sync_emit_rows(
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* w,
+    int widget)
+{
+    struct ToriRSChromeCmd cmd;
+
+    if( w->kind == TORIRS_CHROME_W_GRAPH )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_GRAPH, w->panel, widget);
+        cmd.value = w->graph_count;
+        sync_emit(sync, &cmd);
+        for( int i = 0; i < w->graph_count; i++ )
+        {
+            struct ToriRSChromeGraphItem const* it = &ui->graph_items[w->graph_first + i];
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_GRAPH_ITEM, w->panel, widget);
+            cmd.tab = it->kind;
+            cmd.x = it->x;
+            cmd.y = it->y;
+            cmd.w = it->w;
+            cmd.h = it->h;
+            cmd.color = it->color;
+            cmd.value = it->key;
+            chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, it->text);
+            sync_emit(sync, &cmd);
+        }
+        return;
+    }
+    if( w->vrow_first < 0 || w->rows <= 0 )
+        return;
+    for( int r = w->imin; r < w->imin + w->rows && r < w->imax; r++ )
+    {
+        struct ToriRSChromeVRow const* slot = &ui->vrows[w->vrow_first + r % w->rows];
+        if( slot->index != r )
+            continue;
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_ROW, w->panel, widget);
+        cmd.value = r;
+        chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, slot->text);
+        sync_emit(sync, &cmd);
+        if( w->kind != TORIRS_CHROME_W_CODE )
+            continue;
+        for( int s = 0; s < ui->span_count; s++ )
+        {
+            struct ToriRSChromeSpan const* sp = &ui->spans[s];
+            if( sp->owner != widget || sp->line != r )
+                continue;
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SPAN, w->panel, widget);
+            cmd.value = r;
+            cmd.x = sp->start;
+            cmd.y = sp->len;
+            cmd.color = sp->color;
+            sync_emit(sync, &cmd);
+        }
+    }
+}
+
+/** VALUE, TOOLTIP and pool content for one widget, as far as `flags` says
+ *  anything moved. The shadow says what this executor was last told. */
+static void
+sync_emit_editor(
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* w,
+    int widget,
+    struct ToriRSChromeShadowWidget* sw,
+    uint32_t flags)
+{
+    struct ToriRSChromeCmd cmd;
+
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_TOOLTIP) &&
+        strcmp(sw->tooltip, w->tooltip) != 0 )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_TOOLTIP, w->panel, widget);
+        chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+        sync_emit(sync, &cmd);
+        chrome_copy(sw->tooltip, TORIRS_CHROME_LABEL_MAX, w->tooltip);
+    }
+    if( !sync_is_editor_kind(w->kind) )
+        return;
+    if( flags & (TORIRS_CHROME_CHANGE_WIDGET_VALUE | TORIRS_CHROME_CHANGE_WIDGET_ROWS) )
+    {
+        uint64_t const hash = sync_ext_hash(w);
+        if( !sw->ext_known || sw->ext_hash != hash )
+        {
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_VALUE, w->panel, widget);
+            cmd.value = w->ivalue;
+            cmd.x = w->imin;
+            cmd.y = w->imax;
+            cmd.w = w->istep;
+            cmd.h = w->kind == TORIRS_CHROME_W_CODE ? w->caret : w->iaux;
+            sync_emit(sync, &cmd);
+            sw->ext_known = 1;
+            sw->ext_hash = hash;
+        }
+    }
+    if( (flags & TORIRS_CHROME_CHANGE_WIDGET_ROWS) &&
+        (w->kind == TORIRS_CHROME_W_VLIST || w->kind == TORIRS_CHROME_W_CODE ||
+         w->kind == TORIRS_CHROME_W_GRAPH) &&
+        (!sw->rows_known || sw->rows_rev != w->rows_rev) )
+    {
+        sync_emit_rows(sync, ui, w, widget);
+        sw->rows_known = 1;
+        sw->rows_rev = w->rows_rev;
+    }
+}
+
+/** PANEL_MODE, when a panel's modal flag or dock differs from what was sent.
+ *  A panel in the default mode is never told it. */
+static void
+sync_emit_panel_mode(
+    struct ToriRSChromeSync* sync,
+    struct ToriRSChromePanel const* p,
+    int panel,
+    struct ToriRSChromeShadowPanel* sp)
+{
+    struct ToriRSChromeCmd cmd;
+    int const flags = p->modal ? TORIRS_CHROME_PANEL_MODE_MODAL : 0;
+    int const known = sp->mode_known ? 1 : 0;
+
+    if( known && sp->mode_flags == flags && sp->dock == p->dock && sp->dock_size == p->dock_size )
+        return;
+    if( !known && flags == 0 && p->dock == TORIRS_CHROME_DOCK_NONE )
+    {
+        sp->mode_known = 1;
+        return;
+    }
+    cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_MODE, panel, -1);
+    cmd.value = flags;
+    cmd.x = p->dock;
+    cmd.w = p->dock_size;
+    sync_emit(sync, &cmd);
+    sp->mode_known = 1;
+    sp->mode_flags = flags;
+    sp->dock = p->dock;
+    sp->dock_size = p->dock_size;
+}
+
 static int
 sync_widget_relevant(struct ToriRSChrome const* ui, int widget)
 {
@@ -399,6 +605,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
             sync_emit_value(sync, TORIRS_CHROME_CMD_PANEL_TAB, i, -1, p->active_tab);
             sp->active_tab = p->active_tab;
         }
+        sync_emit_panel_mode(sync, p, i, sp);
     }
 
     /* Removals before additions, for the same reason panel closes come first:
@@ -452,16 +659,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
              * LABEL carries the semantic component kind the DOM must create.
              * A shape change is a new widget with a new serial, never a
              * property patch. */
-            cmd.w = w->kind == TORIRS_CHROME_W_LABEL
-                        ? w->label_style
-                        : (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
-                              (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
-            /* ...and the kind-specific vertical shape. A CUSTOM region keeps
-             * its model height in scaled pixels, but foreign presenters lay
-             * out in logical chrome units and apply their own density. */
-            cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
-                        ? sync_custom_logical_h(ui, w)
-                        : w->rows;
+            sync_add_shape(ui, w, &cmd.w, &cmd.h);
             cmd.serial = w->intent_serial ? w->intent_serial : (uint32_t)w->serial;
             cmd.before_widget = sync_insert_before(sync, ui, i);
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
@@ -493,7 +691,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
         }
         else
         {
-            if( w->kind == TORIRS_CHROME_W_CUSTOM &&
+            if( (w->kind == TORIRS_CHROME_W_CUSTOM || w->kind == TORIRS_CHROME_W_GRAPH) &&
                 sw->view_h != sync_custom_logical_h(ui, w) )
             {
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_HEIGHT, w->panel, i);
@@ -584,6 +782,7 @@ sync_snapshot(struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui)
                 sw->selected = sel;
             }
         }
+        sync_emit_editor(sync, ui, w, i, sw, TORIRS_CHROME_CHANGE_WIDGET_ALL);
     }
     }
 
@@ -670,6 +869,8 @@ sync_refresh_panel(
         sync_emit_value(sync, TORIRS_CHROME_CMD_PANEL_TAB, panel, -1, p->active_tab);
         sp->active_tab = p->active_tab;
     }
+    if( flags & TORIRS_CHROME_CHANGE_PANEL_MODE )
+        sync_emit_panel_mode(sync, p, panel, sp);
 }
 
 static void
@@ -742,13 +943,7 @@ sync_refresh_widget(
         cmd.value = w->kind;
         cmd.tab = w->tab;
         cmd.color = w->color;
-        cmd.w = w->kind == TORIRS_CHROME_W_LABEL
-                    ? w->label_style
-                    : (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
-                          (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
-        cmd.h = w->kind == TORIRS_CHROME_W_CUSTOM
-                    ? sync_custom_logical_h(ui, w)
-                    : w->rows;
+        sync_add_shape(ui, w, &cmd.w, &cmd.h);
         cmd.serial = identity;
         /* The row that carried the REMOVE just above is coming back between
          * the same neighbours. Without this the executor appends and a
@@ -780,7 +975,7 @@ sync_refresh_widget(
     else
     {
         if( (flags & TORIRS_CHROME_CHANGE_WIDGET_HEIGHT) &&
-            w->kind == TORIRS_CHROME_W_CUSTOM &&
+            (w->kind == TORIRS_CHROME_W_CUSTOM || w->kind == TORIRS_CHROME_W_GRAPH) &&
             sw->view_h != sync_custom_logical_h(ui, w) )
         {
             cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_HEIGHT, w->panel, widget);
@@ -860,6 +1055,7 @@ sync_refresh_widget(
             sw->selected = selected;
         }
     }
+    sync_emit_editor(sync, ui, w, widget, sw, flags);
 }
 
 static void
@@ -1014,6 +1210,15 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
 
 /* ---- intents ------------------------------------------------------------- */
 
+/** The intent names a live widget of `kind`. */
+static int
+intent_widget_is(
+    struct ToriRSChrome const* ui, struct ToriRSChromeIntent const* intent, int kind)
+{
+    return intent->widget >= 0 && intent->widget < ui->widget_count &&
+           ui->widgets[intent->widget].kind == kind;
+}
+
 int
 ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent const* intent)
 {
@@ -1026,6 +1231,16 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         if( intent->widget < 0 || intent->widget >= ui->widget_count ||
             ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE )
             return 0;
+        /* A radio is chosen, never un-chosen: its group clears the rest. */
+        if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_RADIO )
+        {
+            if( !intent->value || ui->widgets[intent->widget].checked )
+                return 0;
+            ToriRSChrome_RadioSelect(ui, intent->widget);
+            ui->activated = intent->widget;
+            ui->activated_action = 0;
+            return 1;
+        }
         if( ui->widgets[intent->widget].checked == (intent->value ? 1 : 0) )
             return 0;
         ToriRSChrome_SetChecked(ui, intent->widget, intent->value);
@@ -1064,6 +1279,15 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
     case TORIRS_CHROME_INTENT_PICK:
         /* A colour's "index" is its packed HSL16 -- the same field, a different
          * palette. @see TORIRS_CHROME_W_COLORPICK. */
+        if( intent->widget >= 0 && intent->widget < ui->widget_count &&
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_VLIST )
+        {
+            if( intent->value < 0 || intent->value >= ui->widgets[intent->widget].imax )
+                return 0;
+            ToriRSChrome_VListSetSelected(ui, intent->widget, intent->value);
+            ui->activated = intent->widget;
+            return 1;
+        }
         if( intent->widget >= 0 && intent->widget < ui->widget_count &&
             ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
         {
@@ -1132,6 +1356,16 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
                     ui, intent->widget, !ToriRSChrome_ColorPickIsOpen(ui, intent->widget));
                 return 1;
             }
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_FREE )
+                return 0;
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TREE )
+            {
+                ToriRSChrome_TreeSelect(ui, intent->widget);
+                ui->activated_expand = 0;
+            }
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_ICONBUTTON &&
+                ui->widgets[intent->widget].disabled )
+                return 0;
             ui->activated = intent->widget;
             return 1;
         }
@@ -1197,6 +1431,90 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         ui->activated_selection_generation = intent->selection_generation;
         ui->activated_widget_serial = intent->widget_serial;
         return 1;
+
+    case TORIRS_CHROME_INTENT_EXPAND:
+        if( !intent_widget_is(ui, intent, TORIRS_CHROME_W_TREE) )
+            return 0;
+        ToriRSChrome_TreeSetExpander(ui, intent->widget, intent->value);
+        ui->activated = intent->widget;
+        ui->activated_expand = 1;
+        return 1;
+
+    case TORIRS_CHROME_INTENT_SCROLL:
+        if( !intent_widget_is(ui, intent, TORIRS_CHROME_W_VLIST) &&
+            !intent_widget_is(ui, intent, TORIRS_CHROME_W_CODE) )
+            return 0;
+        {
+            int const before = ui->widgets[intent->widget].imin;
+            ToriRSChrome_VListSetScroll(ui, intent->widget, intent->value);
+            return before != ui->widgets[intent->widget].imin;
+        }
+
+    case TORIRS_CHROME_INTENT_VALUE:
+        if( !intent_widget_is(ui, intent, TORIRS_CHROME_W_SLIDER) ||
+            ui->widgets[intent->widget].disabled )
+            return 0;
+        ToriRSChrome_SliderSet(ui, intent->widget, intent->value);
+        ui->activated = intent->widget;
+        return 1;
+
+    case TORIRS_CHROME_INTENT_SPLIT:
+        if( intent->panel < 0 || intent->panel >= ui->panel_count ||
+            ui->panels[intent->panel].dock == TORIRS_CHROME_DOCK_NONE )
+            return 0;
+        ToriRSChrome_PanelSetDockSize(ui, intent->panel, intent->value);
+        return 1;
+
+    case TORIRS_CHROME_INTENT_CODE_EDIT:
+    {
+        struct ToriRSChromeEvent ev;
+        if( !intent_widget_is(ui, intent, TORIRS_CHROME_W_CODE) ||
+            (intent->x != TORIRS_CHROME_EVENT_CODE_REPLACE &&
+             intent->x != TORIRS_CHROME_EVENT_CODE_SPLIT &&
+             intent->x != TORIRS_CHROME_EVENT_CODE_JOIN) )
+            return 0;
+        memset(&ev, 0, sizeof(ev));
+        ev.kind = intent->x;
+        ev.widget = intent->widget;
+        ev.serial = ui->widgets[intent->widget].serial;
+        ev.line = intent->value;
+        ev.col = intent->y;
+        chrome_copy(ev.text, TORIRS_CHROME_INPUT_MAX, intent->text);
+        if( !ToriRSChrome_PushEvent(ui, &ev) )
+            return 0;
+        /* The presentation already shows the edit; the model's visible line
+         * follows it so a later restatement compares against what is shown. */
+        if( ev.kind == TORIRS_CHROME_EVENT_CODE_REPLACE )
+            ToriRSChrome_CodeSetLine(ui, intent->widget, ev.line, ev.text);
+        return 1;
+    }
+
+    case TORIRS_CHROME_INTENT_GRAPH:
+    case TORIRS_CHROME_INTENT_GRAPH_WHEEL:
+    {
+        struct ToriRSChromeEvent ev;
+        if( !intent_widget_is(ui, intent, TORIRS_CHROME_W_GRAPH) )
+            return 0;
+        memset(&ev, 0, sizeof(ev));
+        if( intent->kind == TORIRS_CHROME_INTENT_GRAPH_WHEEL )
+        {
+            ev.kind = TORIRS_CHROME_EVENT_GRAPH_WHEEL;
+            ev.value = intent->value;
+        }
+        else
+        {
+            if( intent->value < TORIRS_CHROME_EVENT_GRAPH_PRESS ||
+                intent->value > TORIRS_CHROME_EVENT_GRAPH_HOVER )
+                return 0;
+            ev.kind = intent->value;
+        }
+        ev.widget = intent->widget;
+        ev.serial = ui->widgets[intent->widget].serial;
+        ev.x = intent->x;
+        ev.y = intent->y;
+        ev.key = ToriRSChrome_GraphKeyAt(ui, intent->widget, intent->x, intent->y);
+        return ToriRSChrome_PushEvent(ui, &ev);
+    }
 
     default:
         return 0;

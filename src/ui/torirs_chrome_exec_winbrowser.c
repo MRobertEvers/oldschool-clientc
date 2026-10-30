@@ -17,6 +17,11 @@
 
 #define WINBROWSER_COMMAND_MAX TORIRS_CHROME_PROTOCOL_COMMAND_MAX
 #define WINBROWSER_RAW_MAX (8 * 1024 * 1024)
+/* Outbound page envelopes. Separate from the inbound RAW buffer because only
+ * this one grows with the model: a full snapshot of the editor-sized chrome
+ * (TORIRS_CHROME_PROTOCOL_COMMAND_MAX commands) can pass 8 MiB of JSON, and
+ * it is allocated on demand rather than held in the static state. */
+#define WINBROWSER_JSON_MAX (48 * 1024 * 1024)
 #define WINBROWSER_RAIL_INTENT_MAX 32
 /* The attached browser is one application pane, not a collection of plugin
  * windows. Keep its page allocation stable while the user moves between
@@ -92,11 +97,11 @@ static int json_reserve(struct WinBrowserJson* json, size_t extra)
     capacity = json->capacity ? json->capacity : 1024;
     while( capacity < required )
     {
-        if( capacity > WINBROWSER_RAW_MAX / 2 )
-        { capacity = WINBROWSER_RAW_MAX; break; }
+        if( capacity > WINBROWSER_JSON_MAX / 2 )
+        { capacity = WINBROWSER_JSON_MAX; break; }
         capacity *= 2;
     }
-    if( capacity < required || capacity > WINBROWSER_RAW_MAX )
+    if( capacity < required || capacity > WINBROWSER_JSON_MAX )
     { json->failed = 1; return 0; }
     grown = (char*)ToriMem_Realloc(ToriMem_Ui(), json->data, capacity);
     json->data = grown;
@@ -840,10 +845,13 @@ static void drain_messages(struct WinBrowserExec* s)
             intent.selection_generation = json_u32(tail, "g", 0);
             intent.widget_serial = json_u32(tail, "s", 0);
             if( !s->open || intent.kind < TORIRS_CHROME_INTENT_ACTIVATE ||
-                intent.kind > TORIRS_CHROME_INTENT_CUSTOM_MENU ||
+                intent.kind > TORIRS_CHROME_INTENT_KIND_MAX ||
                 intent.selection_generation != effective_page_generation(s) )
                 continue;
-            if( intent.kind == TORIRS_CHROME_INTENT_CLOSE )
+            /* Panel-level intents name no widget: the close box, and a
+             * docked panel's splitter. */
+            if( intent.kind == TORIRS_CHROME_INTENT_CLOSE ||
+                intent.kind == TORIRS_CHROME_INTENT_SPLIT )
             {
                 if( intent.panel == s->panel && intent.widget == -1 )
                     ToriRSChromeMirror_PushIntent(&s->mirror, &intent);

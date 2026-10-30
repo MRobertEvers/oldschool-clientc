@@ -149,6 +149,50 @@ calculate_wall_decor_offset(
     position->z += offset * z_multiplier;
 }
 
+/*
+ * One wall-decor element pushed off the wall it hangs on: `wall_width` is the
+ * wall offset its tile ended the bake with. The body of the End-of-bake pass
+ * below, split out so the EDIT layout can place one re-added decor the way the
+ * bake places all of them.
+ */
+static void
+world_builder_decor_offset_apply(
+    struct WorldBuilder* builder,
+    int element_id,
+    int displacement_kind,
+    int orientation,
+    int wall_width)
+{
+    struct ToriDraw_SceneElement* scene_element =
+        ToriDraw_SceneElementGet(builder->scene, element_id);
+    if( !scene_element )
+        return;
+
+    bool diagonal = false;
+    int offset = 0;
+    switch( displacement_kind )
+    {
+    case DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET:
+        offset += wall_width;
+        break;
+    case DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET:
+        offset += (wall_width / 16) * 8 + 45;
+        diagonal = true;
+        break;
+    case DECOR_DISPLACEMENT_KIND_STRAIGHT:
+        offset += 0;
+        break;
+    case DECOR_DISPLACEMENT_KIND_DIAGONAL:
+        offset += 45;
+        diagonal = true;
+        break;
+    default:
+        break;
+    }
+
+    calculate_wall_decor_offset(&scene_element->world_position, orientation, offset, diagonal);
+}
+
 void
 world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
 {
@@ -170,40 +214,12 @@ world_builder_apply_wall_decor_offsets(struct WorldBuilder* builder)
                     decor_buildmap_get_elements(builder->decor_buildmap, sx, sz, level);
 
                 for( int i = 0; i < elements->count; i++ )
-                {
-                    int element_id = elements->element_id[i];
-                    int displacement_kind = elements->displacement_kind[i];
-                    int orientation = elements->orientation[i];
-                    struct ToriDraw_SceneElement* scene_element =
-                        ToriDraw_SceneElementGet(builder->scene, element_id);
-                    if( !scene_element )
-                        continue;
-
-                    bool diagonal = false;
-                    int offset = 0;
-                    switch( displacement_kind )
-                    {
-                    case DECOR_DISPLACEMENT_KIND_STRAIGHT_ONWALL_OFFSET:
-                        offset += wall_width;
-                        break;
-                    case DECOR_DISPLACEMENT_KIND_DIAGONAL_ONWALL_OFFSET:
-                        offset += (wall_width / 16) * 8 + 45;
-                        diagonal = true;
-                        break;
-                    case DECOR_DISPLACEMENT_KIND_STRAIGHT:
-                        offset += 0;
-                        break;
-                    case DECOR_DISPLACEMENT_KIND_DIAGONAL:
-                        offset += 45;
-                        diagonal = true;
-                        break;
-                    default:
-                        break;
-                    }
-
-                    calculate_wall_decor_offset(
-                        &scene_element->world_position, orientation, offset, diagonal);
-                }
+                    world_builder_decor_offset_apply(
+                        builder,
+                        elements->element_id[i],
+                        elements->displacement_kind[i],
+                        elements->orientation[i],
+                        wall_width);
             }
         }
     }
@@ -233,6 +249,10 @@ scenery_shade_wall(
     int orientation,
     int shade)
 {
+    /* EDIT remembers every shadow a placement casts, to replay the survivors
+     * over a tile when a loc on it goes (world_edit.u.c). */
+    if( builder->edit )
+        world_edit_capture_shade(builder, WORLD_EDIT_SHADE_WALL, sx, sz, slevel, orientation, 0, shade);
     if( !builder->shademap )
         return;
     shademap2_set_wall(builder->shademap, sx, sz, slevel, orientation, shade);
@@ -247,6 +267,9 @@ scenery_shade_wall_corner(
     int orientation,
     int shade)
 {
+    if( builder->edit )
+        world_edit_capture_shade(
+            builder, WORLD_EDIT_SHADE_WALL_CORNER, sx, sz, slevel, orientation, 0, shade);
     if( !builder->shademap )
         return;
     shademap2_set_wall_corner(builder->shademap, sx, sz, slevel, orientation, shade);
@@ -262,6 +285,9 @@ scenery_shade_sized(
     int size_z,
     int shade)
 {
+    if( builder->edit )
+        world_edit_capture_shade(
+            builder, WORLD_EDIT_SHADE_SIZED, sx, sz, slevel, size_x, size_z, shade);
     if( !builder->shademap )
         return;
     shademap2_set_sized(builder->shademap, sx, sz, slevel, size_x, size_z, shade);
@@ -283,6 +309,8 @@ scenery_decor_set_wall_offset(
     int level,
     int wall_offset)
 {
+    if( builder->edit )
+        world_edit_capture_wall_offset(builder, x, z, level, wall_offset);
     if( !builder->decor_buildmap )
         return;
     decor_buildmap_set_wall_offset(builder->decor_buildmap, x, z, level, wall_offset);
@@ -298,6 +326,9 @@ scenery_decor_add_element(
     int orientation,
     enum DecorDisplacementKind displacement_kind)
 {
+    if( builder->edit )
+        world_edit_capture_decor(
+            builder, x, z, level, element_id, orientation, (int)displacement_kind);
     if( !builder->decor_buildmap )
         return;
     decor_buildmap_add_element(
@@ -469,6 +500,26 @@ scenery_register_sharelight(
      * (scenery_load_model) — the End-batch defaultlight pass would only
      * recompute the identical colours. */
     if( scenery_loc_model_shareable(config_loc) )
+        return;
+
+    /* EDIT keeps what the End-batch lighting needs per placement, so it can
+     * relight a neighbourhood after a change without the whole window. */
+    if( builder->edit )
+        world_edit_capture_light(
+            builder,
+            config_loc->sharelight != 0,
+            scene_x,
+            scene_z,
+            level,
+            element_id,
+            size_x,
+            size_z,
+            config_loc->ambient,
+            config_loc->contrast);
+
+    /* EDIT re-placing a placement: lit by its local sharelight pass once the
+     * whole neighbourhood is placed, as the End batch lights a bake. */
+    if( builder->scenery_edit_rebake )
         return;
 
     /* Runtime loc spawn (zone LOC_ADD_CHANGE): the sharelight accumulator is
@@ -1359,6 +1410,10 @@ scenery_load_model(
             size_z,
             map_tile->chunk_pos_level);
     }
+
+    /* EDIT ties the element to the placement being captured. */
+    if( builder->edit )
+        world_edit_capture_element(builder, element_id);
 
     g_scenery_dbg_elements++;
     return element_id;

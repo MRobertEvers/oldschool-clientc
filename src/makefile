@@ -1048,9 +1048,11 @@ EMBED_SERVER_DUP_SRCS = features/features.c $(TORIMEM_SRCS) \
 	$(RSAREABUF_DIR)/rsareabuf.c \
 	$(INI_SRC)
 SRCS += $(filter-out $(EMBED_SERVER_DUP_SRCS),$(TORIRSSERVER_CORE_SRCS))
-SRCS += $(MAPED_CLIENT_SRCS)
 EMBED_SERVER_OBJS = $(OBJ_DIR)/rsareabuf.o
 endif
+# Fragment client sources (src/maped/*.mk) link into every client build, not
+# only the embedded-server one: editor_doc.c needs editor_cfg.c either way.
+SRCS += $(MAPED_CLIENT_SRCS)
 INI_SRC = $(REPO_ROOT)/3rd/ini/ini.c
 RSCACHE_UNITY_SRC = $(RSCACHE_DIR)/rscache_unity.c
 RSPROT_UNITY_SRC = $(RSPROT_DIR)/rsprot_unity.c

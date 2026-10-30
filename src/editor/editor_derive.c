@@ -108,6 +108,86 @@ Editor_SquareDeriveTerrain(
     return 1;
 }
 
+/*
+ * The fixup of RSCache_MapTerrainFixup, one column at a time. Spelled out
+ * rather than routed through the square fixup because that one rewrites 16,384
+ * tiles to answer for one; the two are held equal by edit_world_test, which
+ * derives every tile of its squares both ways after its random edits.
+ */
+void
+Editor_TileDeriveColumn(
+    const struct Editor_Square* square,
+    int x,
+    int z,
+    struct ToriRS_MapFloor* out_floors)
+{
+    int below = 0;
+
+    assert(square);
+    assert(out_floors);
+    assert(x >= 0);
+    assert(x < EDITOR_SQUARE_X);
+    assert(z >= 0);
+    assert(z < EDITOR_SQUARE_Z);
+
+    for( int level = 0; level < EDITOR_SQUARE_LEVELS; level++ )
+    {
+        const struct Editor_Tile* tile = &square->tiles[Editor_TileIndex(x, z, level)];
+        struct ToriRS_MapFloor* to = &out_floors[level];
+        /* The raw wire value the square derive hands the fixup: 0 where the
+         * file said nothing -- and, as there, an authored raw 0 reads as
+         * absent, a state the format cannot hold anyway. */
+        int raw = tile->has_height ? (int)tile->height : 0;
+        int height;
+
+        if( raw == 0 )
+        {
+            if( level == 0 )
+                height = RSCache_MapProceduralHeight(
+                    square->map_x * EDITOR_SQUARE_X + x, square->map_z * EDITOR_SQUARE_Z + z);
+            else
+                height = below - RSCACHE_MAP_UNITS_LEVEL_HEIGHT;
+        }
+        else
+        {
+            if( raw == 1 )
+                raw = 0;
+            height = (level == 0 ? 0 : below) - raw * RSCACHE_MAP_UNITS_TILE_HEIGHT_BASIS;
+        }
+
+        to->overlay_id = tile->overlay_id;
+        to->underlay_id = tile->underlay_id;
+        to->height = (int16_t)height;
+        to->settings = tile->settings;
+        to->shape = tile->shape;
+        to->rotation = tile->rotation;
+        to->has_authored_height = tile->has_height;
+        to->authored_height = tile->height;
+        /* The fixup reads the stored int16, so the next level stacks on the
+         * truncated value, exactly as the square derive's does. */
+        below = to->height;
+    }
+}
+
+void
+Editor_TileDerive(
+    const struct Editor_Square* square,
+    int x,
+    int z,
+    int level,
+    struct ToriRS_MapFloor* out_floor)
+{
+    struct ToriRS_MapFloor column[EDITOR_SQUARE_LEVELS];
+
+    assert(square);
+    assert(out_floor);
+    assert(level >= 0);
+    assert(level < EDITOR_SQUARE_LEVELS);
+
+    Editor_TileDeriveColumn(square, x, z, column);
+    *out_floor = column[level];
+}
+
 int
 Editor_SquareDeriveLocs(
     const struct Editor_Square* square,

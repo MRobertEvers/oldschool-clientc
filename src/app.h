@@ -426,6 +426,13 @@ struct AppConfig
      * this gets the panel it already had.
      */
     int editor_panel;
+    /**
+     * enum WorldBuilderLayout (engine/world_builder/world_builder.h): which
+     * world builder fills the scene -- `[world:boot] layout=` or
+     * `--world-layout`. 0 (static, the game's) is what a zeroed config gets;
+     * the map-editor manifests state edit.
+     */
+    int world_layout;
     int interface_id;
     enum AppCacheKind cache_kind;
     /** Cache identity from [cache:boot]. All four stated; used by

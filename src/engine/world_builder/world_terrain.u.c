@@ -27,6 +27,53 @@
 
 #define WORLD_TILE_SIZE 128
 
+/*
+ * One corner's light after the loc shadows around it are taken off: `light` is
+ * the corner's sunlight (lightmap_build), the answer what the mesh reads.
+ *
+ * Split out of world_apply_shade so the EDIT layout can relight one corner
+ * after a height or a shadow changed instead of the whole level -- the same
+ * arithmetic, so the two cannot disagree about a corner.
+ */
+static int
+world_terrain_shaded_light(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    int light)
+{
+    int shade_west = 0;
+    int shade_east = 0;
+    int shade_north = 0;
+    int shade_south = 0;
+    int shade = 0;
+
+    assert(builder->shademap);
+
+    if( shademap2_in_bounds(builder->shademap, x - 1, z, level) )
+        shade_west = shademap2_get(builder->shademap, x - 1, z, level);
+    if( shademap2_in_bounds(builder->shademap, x + 1, z, level) )
+        shade_east = shademap2_get(builder->shademap, x + 1, z, level);
+    if( shademap2_in_bounds(builder->shademap, x, z + 1, level) )
+        shade_north = shademap2_get(builder->shademap, x, z + 1, level);
+    if( shademap2_in_bounds(builder->shademap, x, z - 1, level) )
+        shade_south = shademap2_get(builder->shademap, x, z - 1, level);
+
+    int shade_center = shademap2_get(builder->shademap, x, z, level);
+
+    shade = shade_center >> 1;
+    shade += shade_west >> 2;
+    shade += shade_east >> 3;
+    shade += shade_north >> 3;
+    shade += shade_south >> 2;
+
+    int shaded = light - shade;
+    if( shaded < 0 )
+        shaded = 0;
+    return shaded;
+}
+
 static void
 world_apply_shade(
     struct WorldBuilder* builder,
@@ -51,44 +98,17 @@ world_apply_shade(
     assert(zboundmin <= zmin);
     assert(zboundmax >= zmax);
 
-    int shade_west;
-    int shade_east;
-    int shade_north;
-    int shade_south;
-
     for( int z = zmin; z < zmax; z++ )
     {
         for( int x = xmin; x < xmax; x++ )
         {
-            shade_west = 0;
-            shade_east = 0;
-            shade_north = 0;
-            shade_south = 0;
-
-            int shade = 0;
-            if( shademap2_in_bounds(builder->shademap, x - 1, z, level) )
-                shade_west = shademap2_get(builder->shademap, x - 1, z, level);
-            if( shademap2_in_bounds(builder->shademap, x + 1, z, level) )
-                shade_east = shademap2_get(builder->shademap, x + 1, z, level);
-            if( shademap2_in_bounds(builder->shademap, x, z + 1, level) )
-                shade_north = shademap2_get(builder->shademap, x, z + 1, level);
-            if( shademap2_in_bounds(builder->shademap, x, z - 1, level) )
-                shade_south = shademap2_get(builder->shademap, x, z - 1, level);
-
-            int shade_center = shademap2_get(builder->shademap, x, z, level);
-
-            shade = shade_center >> 1;
-            shade += shade_west >> 2;
-            shade += shade_east >> 3;
-            shade += shade_north >> 3;
-            shade += shade_south >> 2;
-
             int light = lightmap_get(builder->lightmap, x, z, level);
-
-            int shaded = light - shade;
-            if( shaded < 0 )
-                shaded = 0;
-            lightmap_set(builder->lightmap, x, z, level, (uint8_t)shaded);
+            lightmap_set(
+                builder->lightmap,
+                x,
+                z,
+                level,
+                (uint8_t)world_terrain_shaded_light(builder, x, z, level, light));
         }
     }
 }
@@ -201,10 +221,16 @@ map_terrain_dump(
  * `offset_z`, `dst_level`). The square path passes them equal-and-derived, so
  * nothing about it changes.
  */
+/*
+ * The body of world_terrain_apply_tile, given the floor record itself: what the
+ * EDIT layout's tile_set calls with one derived floor. `tile_x`/`tile_z`/
+ * `src_level` name where the record came from, for the TORIRS_TILEDATA print
+ * only.
+ */
 static void
-world_terrain_apply_tile(
+world_terrain_apply_floor(
     struct WorldBuilder* builder,
-    struct ToriRS_MapTerrain* map_terrain,
+    const struct ToriRS_MapFloor* tile,
     int tile_x,
     int tile_z,
     int src_level,
@@ -215,8 +241,6 @@ world_terrain_apply_tile(
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
-    int chunk_index = World_MapTileCoord(tile_x, tile_z, src_level);
-    struct ToriRS_MapFloor* tile = &map_terrain->tiles_xyz[chunk_index];
 
     {
         int level = dst_level;
@@ -381,6 +405,30 @@ world_terrain_apply_tile(
     }
 }
 
+static void
+world_terrain_apply_tile(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapTerrain* map_terrain,
+    int tile_x,
+    int tile_z,
+    int src_level,
+    int offset_x,
+    int offset_z,
+    int dst_level,
+    int zone_rotation)
+{
+    world_terrain_apply_floor(
+        builder,
+        &map_terrain->tiles_xyz[World_MapTileCoord(tile_x, tile_z, src_level)],
+        tile_x,
+        tile_z,
+        src_level,
+        offset_x,
+        offset_z,
+        dst_level,
+        zone_rotation);
+}
+
 void
 WorldBuilder_RebuildCenterzoneChunkTerrain(
     struct WorldBuilder* builder,
@@ -408,8 +456,19 @@ WorldBuilder_RebuildCenterzoneChunkTerrain(
             int offset_z = World_ToSceneZ(world, mapz, tile_z);
 
             for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
+            {
                 world_terrain_apply_tile(
                     builder, map_terrain, tile_x, tile_z, level, offset_x, offset_z, level, 0);
+                /* EDIT keeps the floor it baked, to compare the next tile_set
+                 * against; NULL under STATIC. */
+                if( builder->edit )
+                    world_edit_note_bake_floor(
+                        builder,
+                        &map_terrain->tiles_xyz[World_MapTileCoord(tile_x, tile_z, level)],
+                        offset_x,
+                        offset_z,
+                        level);
+            }
         }
     }
 }
@@ -532,6 +591,181 @@ WorldBuilder_RebuildInstanceZoneTerrain(
     }
 }
 
+/*
+ * One terrain tile's model, from the build maps: the body of the mesh loop in
+ * world_build_scene_terrain, which also stamps the tile's minimap colours and
+ * shape and its floor-occluder flatness on the way.
+ *
+ * Returns 0 for a tile with no terrain at all (its shape tile is inactive).
+ * Otherwise 1, with *out_model the decoded model -- NULL when the decode
+ * produced nothing. Shared by the bake's loop and the EDIT layout's remesh,
+ * so a remeshed tile is the tile the bake would have made.
+ */
+static int
+world_terrain_build_tile(
+    struct WorldBuilder* builder,
+    int x,
+    int z,
+    int level,
+    struct ToriDraw_Model** out_model)
+{
+    struct World* world = builder->world;
+
+    *out_model = NULL;
+    struct TerrainShapeMapTile* shape_tile =
+        terrain_shape_map_get_tile(builder->terrain_shapemap, x, z, level);
+    if( !shape_tile || !shape_tile->active )
+        return 0;
+
+    struct OverlaymapTile* overlay_tile =
+        overlaymap_get_tile(builder->overlaymap, x, z, level);
+
+    int height_sw = heightmap_get(world->heightmap, x, z, level);
+    int height_se = heightmap_get(world->heightmap, x + 1, z, level);
+    int height_ne = heightmap_get(world->heightmap, x + 1, z + 1, level);
+    int height_nw = heightmap_get(world->heightmap, x, z + 1, level);
+
+    /* Flatness half of the floor occluder condition. */
+    if( builder->occluder_buildmap )
+        occluder_buildmap_mark_flat_floor(
+            builder->occluder_buildmap,
+            x,
+            z,
+            level,
+            height_sw,
+            height_se,
+            height_ne,
+            height_nw);
+
+    int light_sw = lightmap_get(builder->lightmap, x, z, level);
+    int light_se = lightmap_get(builder->lightmap, x + 1, z, level);
+    int light_ne = lightmap_get(builder->lightmap, x + 1, z + 1, level);
+    int light_nw = lightmap_get(builder->lightmap, x, z + 1, level);
+
+    /*
+     * The blend supplies the underlay's COLOUR; the map supplies
+     * whether there is an underlay at all. Conflating the two paints
+     * a floor over holes the map left on purpose: the blend averages
+     * a +-5 neighbourhood, so a tile stating no underlay still comes
+     * back carrying its neighbours' colour.
+     *
+     * TzKal-Zuk's alcove is exactly that tile — no underlay, and an
+     * overlay whose colour is the 0xFF00FF "draw nothing" sentinel —
+     * and it rendered as a flat orange quad hanging in the wall where
+     * the official client shows a hole.
+     */
+    int32_t underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
+    if( shape_tile->has_underlay )
+    {
+        underlay_hsl = blendmap_get_blended_hsl16(builder->blendmap, x, z, level);
+        if( underlay_hsl == BLENDMAP_HSL16_NONE )
+            underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
+    }
+
+    int overlay_hsl = 0;
+    int texture_id = -1;
+    struct ToriRS_Texture* overlay_texture = NULL;
+    if( overlay_tile->texture_id != -1 )
+    {
+        texture_id = overlay_tile->texture_id;
+        overlay_texture = CacheProvider_TextureGet(builder->cache, texture_id);
+        if( overlay_texture )
+        {
+            overlay_hsl = TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY;
+        }
+        else
+        {
+            texture_id = -1;
+            overlay_hsl = terrain_adjust_lightness(
+                (int)overlay_tile->texture_avg_hsl16, 96);
+        }
+    }
+    else if( (overlay_tile->rgb_color & 0xFFFFFFu) == 0xFF00FFu )
+    {
+        overlay_hsl = TERRAIN_OVERLAY_HSL_TRANSPARENT;
+        texture_id = -1;
+    }
+    else
+    {
+        int from_rgb = overlay_tile->secondary_rgb_color != -1
+                           ? overlay_tile->secondary_rgb_color
+                           : (int)overlay_tile->rgb_color;
+        int hsl = palette_rgb_to_hsl16(from_rgb);
+        overlay_hsl = terrain_adjust_lightness(hsl, 96);
+        texture_id = -1;
+    }
+
+    int minimap_foreground_rgb = 0;
+    int minimap_background_rgb = 0;
+
+    if( overlay_tile->minimap_rgb_color != UINT32_MAX )
+    {
+        minimap_foreground_rgb = (int)(overlay_tile->minimap_rgb_color & 0x00FFFFFFu);
+    }
+    else if( overlay_hsl > 0 )
+    {
+        minimap_foreground_rgb = ToriDraw_Hsl16ToRgb((uint16_t)overlay_hsl);
+    }
+    else if( overlay_hsl == TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY )
+    {
+        /* Re-read the texture's average colour live rather than trusting
+         * texture_avg_hsl16, which may have been frozen at population time
+         * before the texture was resident (world_terrain_apply_tile runs
+         * ahead of the minimap bake). A texture-only overlay flo — piers,
+         * docks, bridges — has rgb_color == 0, so a stale/zero average bakes
+         * the tile solid black. Mirrors worldmap_overlay_rgb's fresh lookup. */
+        uint16_t avg_hsl = overlay_tile->texture_avg_hsl16;
+        if( overlay_texture && overlay_texture->average_hsl != 0 )
+            avg_hsl = (uint16_t)overlay_texture->average_hsl;
+        minimap_foreground_rgb = ToriDraw_Hsl16ToRgb(avg_hsl);
+    }
+    else if( overlay_hsl == TERRAIN_OVERLAY_HSL_TRANSPARENT )
+    {
+        minimap_foreground_rgb = 0;
+    }
+
+    /* Reference bakes the underlay's minimap colour at a FIXED
+     * lightness -- colourTable[getUCol(hsl, 96)] -- not the blend's
+     * own. The overlay branch above already scales by 96; the
+     * underlay was the one taking the raw blended hsl, which is
+     * 128/96 too bright. Same in the official deob (rl4.method10634,
+     * getUCol) as in Client-TS's ClientBuild.
+     * (The reference also jitters hue/lightness per build --
+     * t1RandColour -- which averages to this; not ported.) */
+    if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
+        minimap_background_rgb = ToriDraw_Hsl16ToRgb(
+            (uint16_t)terrain_adjust_lightness((int)underlay_hsl, 96));
+
+    /* Every level, not just 0: the bake picks the player's level
+     * and composites the VisBelow layer above it (reference
+     * minimapBuildBuffer takes minusedlevel). */
+    if( world->minimap )
+    {
+        minimap_set_tile_color(
+            world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
+        minimap_set_tile_color(
+            world->minimap, x, z, level, minimap_background_rgb, MINIMAP_BACKGROUND);
+        minimap_set_tile_shape(
+            world->minimap, x, z, level, shape_tile->shape, shape_tile->rotation);
+    }
+
+    *out_model = world_decode_tile(
+        shape_tile->shape,
+        shape_tile->rotation,
+        texture_id,
+        height_sw,
+        height_se,
+        height_ne,
+        height_nw,
+        light_sw,
+        light_se,
+        light_ne,
+        light_nw,
+        (int)underlay_hsl,
+        overlay_hsl);
+    return 1;
+}
+
 static void
 world_build_scene_terrain(struct WorldBuilder* builder)
 {
@@ -559,161 +793,13 @@ world_build_scene_terrain(struct WorldBuilder* builder)
         {
             for( int x = 1; x < scene_size - 1; x++ )
             {
-                struct TerrainShapeMapTile* shape_tile =
-                    terrain_shape_map_get_tile(builder->terrain_shapemap, x, z, level);
-                if( !shape_tile || !shape_tile->active )
+                struct ToriDraw_Model* td = NULL;
+                if( !world_terrain_build_tile(builder, x, z, level, &td) )
                 {
                     dbg_inactive++;
                     continue;
                 }
                 dbg_active++;
-
-                struct OverlaymapTile* overlay_tile =
-                    overlaymap_get_tile(builder->overlaymap, x, z, level);
-
-                int height_sw = heightmap_get(world->heightmap, x, z, level);
-                int height_se = heightmap_get(world->heightmap, x + 1, z, level);
-                int height_ne = heightmap_get(world->heightmap, x + 1, z + 1, level);
-                int height_nw = heightmap_get(world->heightmap, x, z + 1, level);
-
-                /* Flatness half of the floor occluder condition. */
-                if( builder->occluder_buildmap )
-                    occluder_buildmap_mark_flat_floor(
-                        builder->occluder_buildmap,
-                        x,
-                        z,
-                        level,
-                        height_sw,
-                        height_se,
-                        height_ne,
-                        height_nw);
-
-                int light_sw = lightmap_get(builder->lightmap, x, z, level);
-                int light_se = lightmap_get(builder->lightmap, x + 1, z, level);
-                int light_ne = lightmap_get(builder->lightmap, x + 1, z + 1, level);
-                int light_nw = lightmap_get(builder->lightmap, x, z + 1, level);
-
-                /*
-                 * The blend supplies the underlay's COLOUR; the map supplies
-                 * whether there is an underlay at all. Conflating the two paints
-                 * a floor over holes the map left on purpose: the blend averages
-                 * a +-5 neighbourhood, so a tile stating no underlay still comes
-                 * back carrying its neighbours' colour.
-                 *
-                 * TzKal-Zuk's alcove is exactly that tile — no underlay, and an
-                 * overlay whose colour is the 0xFF00FF "draw nothing" sentinel —
-                 * and it rendered as a flat orange quad hanging in the wall where
-                 * the official client shows a hole.
-                 */
-                int32_t underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
-                if( shape_tile->has_underlay )
-                {
-                    underlay_hsl = blendmap_get_blended_hsl16(builder->blendmap, x, z, level);
-                    if( underlay_hsl == BLENDMAP_HSL16_NONE )
-                        underlay_hsl = TERRAIN_UNDERLAY_HSL_NONE;
-                }
-
-                int overlay_hsl = 0;
-                int texture_id = -1;
-                struct ToriRS_Texture* overlay_texture = NULL;
-                if( overlay_tile->texture_id != -1 )
-                {
-                    texture_id = overlay_tile->texture_id;
-                    overlay_texture = CacheProvider_TextureGet(builder->cache, texture_id);
-                    if( overlay_texture )
-                    {
-                        overlay_hsl = TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY;
-                    }
-                    else
-                    {
-                        texture_id = -1;
-                        overlay_hsl = terrain_adjust_lightness(
-                            (int)overlay_tile->texture_avg_hsl16, 96);
-                    }
-                }
-                else if( (overlay_tile->rgb_color & 0xFFFFFFu) == 0xFF00FFu )
-                {
-                    overlay_hsl = TERRAIN_OVERLAY_HSL_TRANSPARENT;
-                    texture_id = -1;
-                }
-                else
-                {
-                    int from_rgb = overlay_tile->secondary_rgb_color != -1
-                                       ? overlay_tile->secondary_rgb_color
-                                       : (int)overlay_tile->rgb_color;
-                    int hsl = palette_rgb_to_hsl16(from_rgb);
-                    overlay_hsl = terrain_adjust_lightness(hsl, 96);
-                    texture_id = -1;
-                }
-
-                int minimap_foreground_rgb = 0;
-                int minimap_background_rgb = 0;
-
-                if( overlay_tile->minimap_rgb_color != UINT32_MAX )
-                {
-                    minimap_foreground_rgb = (int)(overlay_tile->minimap_rgb_color & 0x00FFFFFFu);
-                }
-                else if( overlay_hsl > 0 )
-                {
-                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb((uint16_t)overlay_hsl);
-                }
-                else if( overlay_hsl == TERRAIN_OVERLAY_HSL_LIGHTNESS_ONLY )
-                {
-                    /* Re-read the texture's average colour live rather than trusting
-                     * texture_avg_hsl16, which may have been frozen at population time
-                     * before the texture was resident (world_terrain_apply_tile runs
-                     * ahead of the minimap bake). A texture-only overlay flo — piers,
-                     * docks, bridges — has rgb_color == 0, so a stale/zero average bakes
-                     * the tile solid black. Mirrors worldmap_overlay_rgb's fresh lookup. */
-                    uint16_t avg_hsl = overlay_tile->texture_avg_hsl16;
-                    if( overlay_texture && overlay_texture->average_hsl != 0 )
-                        avg_hsl = (uint16_t)overlay_texture->average_hsl;
-                    minimap_foreground_rgb = ToriDraw_Hsl16ToRgb(avg_hsl);
-                }
-                else if( overlay_hsl == TERRAIN_OVERLAY_HSL_TRANSPARENT )
-                {
-                    minimap_foreground_rgb = 0;
-                }
-
-                /* Reference bakes the underlay's minimap colour at a FIXED
-                 * lightness -- colourTable[getUCol(hsl, 96)] -- not the blend's
-                 * own. The overlay branch above already scales by 96; the
-                 * underlay was the one taking the raw blended hsl, which is
-                 * 128/96 too bright. Same in the official deob (rl4.method10634,
-                 * getUCol) as in Client-TS's ClientBuild.
-                 * (The reference also jitters hue/lightness per build --
-                 * t1RandColour -- which averages to this; not ported.) */
-                if( underlay_hsl != TERRAIN_UNDERLAY_HSL_NONE )
-                    minimap_background_rgb = ToriDraw_Hsl16ToRgb(
-                        (uint16_t)terrain_adjust_lightness((int)underlay_hsl, 96));
-
-                /* Every level, not just 0: the bake picks the player's level
-                 * and composites the VisBelow layer above it (reference
-                 * minimapBuildBuffer takes minusedlevel). */
-                if( world->minimap )
-                {
-                    minimap_set_tile_color(
-                        world->minimap, x, z, level, minimap_foreground_rgb, MINIMAP_FOREGROUND);
-                    minimap_set_tile_color(
-                        world->minimap, x, z, level, minimap_background_rgb, MINIMAP_BACKGROUND);
-                    minimap_set_tile_shape(
-                        world->minimap, x, z, level, shape_tile->shape, shape_tile->rotation);
-                }
-
-                struct ToriDraw_Model* td = world_decode_tile(
-                    shape_tile->shape,
-                    shape_tile->rotation,
-                    texture_id,
-                    height_sw,
-                    height_se,
-                    height_ne,
-                    height_nw,
-                    light_sw,
-                    light_se,
-                    light_ne,
-                    light_nw,
-                    (int)underlay_hsl,
-                    overlay_hsl);
                 if( !td )
                 {
                     dbg_no_model++;

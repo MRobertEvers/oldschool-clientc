@@ -61,7 +61,7 @@ click(
 int
 main(void)
 {
-    struct ToriRSChrome ui;
+    static struct ToriRSChrome ui; /* ~5 MB: never on the stack */
     int panel;
     int dd;
     int box_x;

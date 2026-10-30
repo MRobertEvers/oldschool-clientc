@@ -47,6 +47,13 @@
  *                choosing the game server. Stating `content_dir` (or
  *                server=tcp) is what enables it; `repo_root` additionally
  *                allows baking, which only ever runs when the user asks for it.
+ *   [world:boot] layout=static|edit
+ *                Which world builder fills the scene (docs/MAPED_DESIGN.html
+ *                #world). `static` (the default, every game manifest) bakes a
+ *                window and rebuilds whole windows; `edit` (the map editor
+ *                manifests) keeps the build maps resident and applies a tile or
+ *                loc edit as a local invalidation. The client's
+ *                `--world-layout static|edit` overrides it.
  *
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
@@ -180,6 +187,14 @@ enum BootManifestEditorServer
     BOOTMANIFEST_EDITOR_SERVER_EMBED = 0,
     /** The torirsmaped daemon, reached over TCP (`host=`/`port=`). */
     BOOTMANIFEST_EDITOR_SERVER_TCP
+};
+
+/** Which world builder `[world:boot] layout=` names: enum WorldBuilderLayout's
+ *  values, spelled here so this parser links no world code. */
+enum BootManifestWorldLayout
+{
+    BOOTMANIFEST_WORLD_LAYOUT_STATIC = 0,
+    BOOTMANIFEST_WORLD_LAYOUT_EDIT = 1,
 };
 
 /** Where `[editor:boot] panel=` puts the command panel. */
@@ -371,6 +386,12 @@ struct BootManifest
     int chrome_executor_error;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
+
+    /** `[world:boot] layout=`: the world builder this boot uses. STATIC when
+     *  the key is absent. */
+    enum BootManifestWorldLayout world_layout;
+    /** Set when `layout=` named something unknown; the load fails on it. */
+    int world_layout_error;
 
     /* [content:lanes] — which gated content lanes `server_scripts` above was
      * compiled from, one `lane=` per line.

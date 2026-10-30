@@ -469,6 +469,9 @@ App_Init(
     World_SetScene(app->world, app->scene);
     app->world_builder = WorldBuilder_New(app->world, app->provider, app->scene, &app->varps);
     assert(app->world_builder);
+    /* [world:boot] layout / --world-layout: the map editor's EDIT builder, or
+     * the game's STATIC one (engine/world_builder/edit/world_edit.h). */
+    WorldBuilder_SetLayout(app->world_builder, (enum WorldBuilderLayout)app->cfg.world_layout);
     /* Multi-world substrate (SAILING_PLAN C0): the root view borrows the pair
      * above; boat views register owned pairs later. The cursor starts — and
      * after every SERVER_TICK_END returns — on the root. */

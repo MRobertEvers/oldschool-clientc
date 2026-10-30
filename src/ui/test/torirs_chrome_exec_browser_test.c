@@ -223,7 +223,7 @@ int main(void)
      * loss once so Sync can replace the retained page with one full snapshot. */
     cmd = command(TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
     exec.apply(exec.user, &cmd);
-    for( int i = 0; i < 8200; i++ )
+    for( int i = 0; i < TORIRS_CHROME_PROTOCOL_COMMAND_MAX + 8; i++ )
     {
         cmd = command(TORIRS_CHROME_CMD_WIDGET_LABEL, 2, 9);
         exec.apply(exec.user, &cmd);

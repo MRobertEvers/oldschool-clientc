@@ -338,6 +338,7 @@ enum bm_section
     BM_SECTION_RENDER,
     BM_SECTION_CONTENT,
     BM_SECTION_EDITOR,
+    BM_SECTION_WORLD,
     BM_SECTION_CHROME,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
      * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
@@ -377,6 +378,8 @@ bm_section_of(char const* header)
         return BM_SECTION_CONTENT;
     if( strncmp(header, "editor:", 7) == 0 )
         return BM_SECTION_EDITOR;
+    if( strncmp(header, "world:", 6) == 0 )
+        return BM_SECTION_WORLD;
     if( strncmp(header, "chrome", 6) == 0 )
         return BM_SECTION_CHROME;
     if( strncmp(header, "revconfig:", 10) == 0 )
@@ -513,6 +516,25 @@ bm_set_kv(
                 TORIRS_LOG("bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
                     value);
                 bm->editor_panel_error = 1;
+            }
+            return;
+        }
+        break;
+
+    case BM_SECTION_WORLD:
+        /* Which world builder fills the scene: the game's STATIC bake, or the
+         * map editor's EDIT layout with resident build maps. */
+        if( strcmp(key, "layout") == 0 )
+        {
+            if( strcmp(value, "static") == 0 )
+                bm->world_layout = BOOTMANIFEST_WORLD_LAYOUT_STATIC;
+            else if( strcmp(value, "edit") == 0 )
+                bm->world_layout = BOOTMANIFEST_WORLD_LAYOUT_EDIT;
+            else
+            {
+                TORIRS_LOG("bootmanifest: [world:boot] layout must be static|edit, got '%s'\n",
+                    value);
+                bm->world_layout_error = 1;
             }
             return;
         }
@@ -1512,6 +1534,8 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         return -1;
     if( bm->editor_server_error )
         return -1;
+    if( bm->world_layout_error )
+        return -1;
 
     /* server=embed serves `content_dir`, so leaving it out means there is no
      * tree to serve — a manifest mistake to report at load, not a blank
@@ -1598,6 +1622,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->editor_repo_root[0] )
         cfg->editor_repo_root = bm->editor_repo_root;
     cfg->editor_panel = (int)bm->editor_panel;
+    /* BOOTMANIFEST_WORLD_LAYOUT_* has the values of WORLD_BUILDER_LAYOUT_*. */
+    cfg->world_layout = (int)bm->world_layout;
     cfg->editor_server = (int)bm->editor_server;
     if( bm->editor_server_host[0] )
         cfg->editor_server_host = bm->editor_server_host;

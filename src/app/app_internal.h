@@ -1194,6 +1194,14 @@ app_editor_on_state(
 void
 app_map_editor_drain(struct App* app);
 
+/** EDIT layout: a square about to load gets its first shadow, and the
+ *  provider is seeded from the document (app_map_editor.c). No-op under STATIC. */
+void
+app_map_editor_shadow_seed(
+    struct App* app,
+    int map_x,
+    int map_z);
+
 void
 app_map_editor_world_click(
     struct App* app,

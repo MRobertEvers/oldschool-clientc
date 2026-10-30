@@ -524,6 +524,7 @@ struct ToriRSMapEdTransport
 #include "editor/editor_doc.h"
 
 struct ToriRSMapEdSession;
+struct ToriRSMapEdCatalog;
 
 /** Sessions one server can hold at once: a viewer, a couple of control
  *  clients, and slack. Bounds the broadcast fan-out, not the world. */
@@ -574,8 +575,11 @@ struct ToriRSMapEd
     uint32_t next_client_id;
 
     /** TORIRSMAPED_CAP_* for the bindings this server has; FACT_HELLO v2
-     *  reports it. None of build, live, catalog or spawn_view exists yet. */
+     *  reports it. The catalog is bound; build, live and spawn_view are not yet. */
     uint32_t capabilities;
+    /** The asset catalog and square atlas (torirs_maped_catalog.h); built on
+     *  its first query. */
+    struct ToriRSMapEdCatalog* catalog;
 };
 
 /**

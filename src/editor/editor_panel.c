@@ -1,6 +1,7 @@
 #include "editor_panel.h"
 
 #include "app.h"
+#include "engine/world_builder/world_builder.h"
 #include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_layout.h"
@@ -1595,6 +1596,30 @@ editor_loc_panel_refresh(
  * it immediately, and a document write so it survives a reload.
  */
 
+/**
+ * The scene half of a loc edit. Under the STATIC layout the document write
+ * never reaches the world, so the panel shows it through the same seam a zone
+ * LOC_ADD_CHANGE takes. Under EDIT the document diff already reaches the world
+ * through loc_place/loc_remove (app_map_editor_flush); a runtime change on top
+ * would place a second, default-lit copy.
+ */
+static void
+editor_scene_loc_change(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int angle)
+{
+    assert(app);
+    if( app->world_builder
+        && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT )
+        return;
+    App_WorldLocChange(app, scene_x, scene_z, level, loc_id, shape, angle);
+}
+
 uint8_t
 Editor_PanelVisLevelMask(
     struct Editor_Panel const* panel)
@@ -1806,10 +1831,10 @@ Editor_PanelReplaceSelectedLoc(
 
     /* Scene: the old placement out, the new one in -- a shape change moves the
      * loc between layers, which a single in-place change cannot express. */
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level, -1, panel->sel_shape,
         panel->sel_angle);
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, panel->sel_scene_x, panel->sel_scene_z, new_level, new_loc_id, new_shape,
         new_angle);
 
@@ -1879,7 +1904,7 @@ Editor_PanelPlaceLocAt(
         return 0;
 
     /* The live preview, through the same seam a zone LOC_ADD_CHANGE takes. */
-    App_WorldLocChange(app, scene_x, scene_z, level, panel->cat_picked_id, shape, angle);
+    editor_scene_loc_change(app, scene_x, scene_z, level, panel->cat_picked_id, shape, angle);
 
     /* What you place is what you have selected: the Loc panel fills with it,
      * rotate/reshape act on it, and Move carries it -- without a second trip
@@ -1928,7 +1953,7 @@ Editor_PanelDeleteLocAt(
         return 0;
 
     /* loc_id < 0 is the pure delete the zone packet uses. */
-    App_WorldLocChange(app, scene_x, scene_z, level, -1, scenery->shape, scenery->angle);
+    editor_scene_loc_change(app, scene_x, scene_z, level, -1, scenery->shape, scenery->angle);
     return 1;
 }
 
@@ -1955,10 +1980,10 @@ Editor_PanelMoveSelectedLocTo(
             panel->sel_angle) )
         return 0;
 
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level, -1, panel->sel_shape,
         panel->sel_angle);
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, scene_x, scene_z, panel->sel_level, panel->sel_loc_id, panel->sel_shape,
         panel->sel_angle);
 
@@ -2176,7 +2201,7 @@ Editor_PanelDeleteSelection(
             panel, app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level,
             panel->sel_loc_id, panel->sel_shape, panel->sel_angle, 0) )
         return 0;
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level, -1, panel->sel_shape,
         panel->sel_angle);
     Editor_PanelSelectTerrain(panel, app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level);
@@ -2211,7 +2236,7 @@ Editor_PanelDeleteLocByElement(
             panel, app, scenery->grid_position.x, scenery->grid_position.z,
             scenery->grid_position.level);
 
-    App_WorldLocChange(
+    editor_scene_loc_change(
         app, scenery->grid_position.x, scenery->grid_position.z, scenery->grid_position.level,
         -1, scenery->shape, scenery->angle);
     return 1;

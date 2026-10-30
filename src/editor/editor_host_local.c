@@ -475,8 +475,14 @@ Editor_HostDocPath(
             return 0;
         if( strncmp(key, "rs2:", 4) == 0 )
             written = snprintf(out, out_size, "server/scripts/%s", key + 4);
-        else
+        else if( strncmp(key, "cs2:", 4) == 0 )
             written = snprintf(out, out_size, "scripts/%s.cs2", key + 4);
+        else if( strncmp(key, "pack:", 5) == 0 )
+            written = snprintf(out, out_size, "pack/%s", key + 5);
+        else if( strncmp(key, "compack:", 8) == 0 )
+            written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
+        else
+            return 0;
         break;
     default:
         return 0;

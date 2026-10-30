@@ -10,6 +10,8 @@
 #include "mem/torirs_mem.h"
 #include "mem/torimem_toridraw.h"
 #include "app/app_internal.h"
+#include "editor/editor_derive.h"
+#include "engine/world_builder/edit/world_edit.h"
 
 /* Private to this unit, declared up front so definition order is free. */
 static void
@@ -103,6 +105,522 @@ app_editor_on_state(
     Editor_PanelApplySharedState(&app->editor_panel, app, key, values, count);
 }
 
+/* ---- the EDIT world's flush path ---------------------------------------- */
+
+/*
+ * What the EDIT world was last told about one open square: its authored tiles,
+ * its loc list, and the EDIT placement handle of every loc in that list.
+ *
+ * The mirror applies the authority's commands to the document; this is how the
+ * per-frame flush finds out which tiles and locs those commands touched, by
+ * comparing the document with what it last pushed. Comparing rather than
+ * listening keeps the path whole for every way a document changes -- a
+ * command, an undo, a resync that re-opens it -- and a square costs a 16k-tile
+ * compare, microseconds, only on a frame its square was queued.
+ *
+ * The invariant that makes it safe: for every square with a shadow, the
+ * provider's map records were derived from exactly the shadow, so a window
+ * bake (pan, bridge flag, first load) shows what EDIT shows. The seed below
+ * and the sync update the two together.
+ *
+ * One App per process, so the set is file-static rather than an App field.
+ * The core below takes what it touches as arguments (struct AppEditCtx) and
+ * not the App, so edit_world_test drives the same code through a real
+ * embedded ToriRSMapEd without a window.
+ */
+struct AppMapEditShadow
+{
+    int used;
+    int map_x;
+    int map_z;
+    struct Editor_Tile* tiles; /* EDITOR_SQUARE_TILES */
+    struct Editor_Loc* locs;
+    int* handles;
+    int loc_count;
+    int loc_cap;
+};
+
+static struct
+{
+    struct AppMapEditShadow squares[EDITOR_DOC_MAX_SQUARES];
+    /* The EDIT bake the handles belong to; another serial means rebind. */
+    uint32_t handle_serial;
+    int handles_bound;
+} g_app_edit_mirror;
+
+/* What the EDIT sync reads and writes. */
+struct AppEditCtx
+{
+    struct Editor* editor;
+    struct CacheProvider* provider;
+    struct WorldBuilder* builder;
+    struct World* world;
+    struct ToriDraw_Scene* scene;
+};
+
+static struct AppMapEditShadow*
+app_edit_shadow_find(
+    int map_x,
+    int map_z)
+{
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
+        if( sh->used && sh->map_x == map_x && sh->map_z == map_z )
+            return sh;
+    }
+    return NULL;
+}
+
+static void
+app_edit_shadow_reserve(
+    struct AppMapEditShadow* sh,
+    int loc_count)
+{
+    if( loc_count <= sh->loc_cap )
+        return;
+    sh->loc_cap = loc_count + 256;
+    sh->locs = ToriMem_Realloc(ToriMem_Editor(), sh->locs, (size_t)sh->loc_cap * sizeof(*sh->locs));
+    assert(sh->locs);
+    sh->handles =
+        ToriMem_Realloc(ToriMem_Editor(), sh->handles, (size_t)sh->loc_cap * sizeof(*sh->handles));
+    assert(sh->handles);
+}
+
+/* The provider's two records for a square, from the document -- what
+ * Editor_LoadSquare seeds, done here so the shadow and the provider are
+ * written together. */
+static void
+app_edit_seed_provider(
+    const struct AppEditCtx* ctx,
+    const struct Editor_Square* square)
+{
+    int map_id = CacheProvider_MapId(square->map_x, square->map_z);
+    struct ToriRS_MapTerrain* terrain = CacheProvider_MapTerrainGet(ctx->provider, map_id);
+    struct ToriRS_MapLocs* locs = CacheProvider_MapSceneryGet(ctx->provider, map_id);
+
+    if( !terrain )
+    {
+        terrain = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*terrain));
+        assert(terrain);
+        CacheProvider_MapTerrainAdd(ctx->provider, map_id, terrain);
+    }
+    Editor_SquareDeriveTerrain(square, ctx->editor->doc.profile, terrain);
+    if( !locs )
+    {
+        locs = ToriMem_Calloc(ToriMem_Assets(), 1, sizeof(*locs));
+        assert(locs);
+        CacheProvider_MapSceneryAdd(ctx->provider, map_id, locs);
+    }
+    ToriMem_Free(ToriMem_Assets(), locs->locs);
+    locs->locs = NULL;
+    Editor_SquareDeriveLocs(square, locs);
+}
+
+static void
+app_edit_shadow_take(
+    struct AppMapEditShadow* sh,
+    const struct Editor_Square* square)
+{
+    if( !sh->tiles )
+    {
+        sh->tiles = ToriMem_Alloc(ToriMem_Editor(), sizeof(*sh->tiles) * EDITOR_SQUARE_TILES);
+        assert(sh->tiles);
+    }
+    memcpy(sh->tiles, square->tiles, sizeof(*sh->tiles) * EDITOR_SQUARE_TILES);
+    app_edit_shadow_reserve(sh, square->loc_count);
+    if( square->loc_count > 0 )
+        memcpy(sh->locs, square->locs, sizeof(*sh->locs) * (size_t)square->loc_count);
+    for( int i = 0; i < square->loc_count; i++ )
+        sh->handles[i] = WORLD_BUILDER_HANDLE_NONE;
+    sh->loc_count = square->loc_count;
+}
+
+/*
+ * A square the world is about to load: give it a shadow, and the provider the
+ * records the shadow describes. A square that already has one keeps it -- the
+ * provider already holds what it says, edits included. No-op under STATIC.
+ *
+ * The App-free core of app_map_editor_shadow_seed; edit_world_test calls it.
+ */
+void
+app_map_editor_edit_seed(
+    struct Editor* editor,
+    struct CacheProvider* provider,
+    struct WorldBuilder* builder,
+    int map_x,
+    int map_z)
+{
+    struct AppEditCtx ctx = { editor, provider, builder, NULL, NULL };
+    struct Editor_Square* square;
+
+    assert(editor);
+    assert(provider);
+    assert(builder);
+    if( WorldBuilder_GetLayout(builder) != WORLD_BUILDER_LAYOUT_EDIT )
+        return;
+    square = Editor_DocFindSquare(&editor->doc, map_x, map_z);
+    if( !square || !square->loaded || app_edit_shadow_find(map_x, map_z) )
+        return;
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
+        if( sh->used )
+            continue;
+        sh->used = 1;
+        sh->map_x = map_x;
+        sh->map_z = map_z;
+        app_edit_seed_provider(&ctx, square);
+        app_edit_shadow_take(sh, square);
+        return;
+    }
+    /* The document holds at most EDITOR_DOC_MAX_SQUARES, and so does this. */
+    assert(0 && "app_map_editor: more shadowed squares than the document can hold");
+}
+
+/* app_world_load_begin, after Editor_LoadSquare: the square's first shadow,
+ * taken with the seed so the flush can tell what later commands changed. */
+void
+app_map_editor_shadow_seed(
+    struct App* app,
+    int map_x,
+    int map_z)
+{
+    assert(app);
+    assert(app->editor);
+    app_map_editor_edit_seed(app->editor, app->provider, app->world_builder, map_x, map_z);
+}
+
+static int
+app_edit_scene_of(
+    const struct AppEditCtx* ctx,
+    int map_x,
+    int map_z,
+    int local_x,
+    int local_z,
+    int* out_x,
+    int* out_z)
+{
+    struct World* world = ctx->world;
+    *out_x = World_ToSceneX(world, map_x, local_x);
+    *out_z = World_ToSceneZ(world, map_z, local_z);
+    return *out_x >= 0 && *out_z >= 0 && *out_x < world->_scene_size &&
+           *out_z < world->_scene_size;
+}
+
+/* After an EDIT bake, every shadowed square in the window learns its
+ * placement handles: the bake placed the provider's list, which is the
+ * shadow's, in order. */
+static void
+app_edit_bind_handles(const struct AppEditCtx* ctx)
+{
+    struct WorldBuilder* wb = ctx->builder;
+    uint32_t serial;
+
+    if( !WorldEdit_Ready(wb) )
+        return;
+    serial = WorldEdit_BakeSerial(wb);
+    if( g_app_edit_mirror.handles_bound && g_app_edit_mirror.handle_serial == serial )
+        return;
+    for( int i = 0; i < EDITOR_DOC_MAX_SQUARES; i++ )
+    {
+        struct AppMapEditShadow* sh = &g_app_edit_mirror.squares[i];
+        int in_window;
+        if( !sh->used )
+            continue;
+        in_window = WorldEdit_SquareInWindow(wb, sh->map_x, sh->map_z);
+        for( int k = 0; k < sh->loc_count; k++ )
+            sh->handles[k] = in_window ? WorldEdit_SquarePlacement(wb, sh->map_x, sh->map_z, k)
+                                       : WORLD_BUILDER_HANDLE_NONE;
+    }
+    g_app_edit_mirror.handle_serial = serial;
+    g_app_edit_mirror.handles_bound = 1;
+}
+
+/* A floor the EDIT world can apply now: what it names is resident. A config
+ * the provider lacks would mesh differently from the window bake, which loads
+ * it -- so that edit goes through a rebake instead. */
+static int
+app_edit_floor_ready(
+    const struct AppEditCtx* ctx,
+    const struct ToriRS_MapFloor* floor)
+{
+    struct CacheProvider* p = ctx->provider;
+
+    if( floor->underlay_id > 0 && !CacheProvider_UnderlayHas(p, floor->underlay_id - 1) )
+        return 0;
+    if( floor->overlay_id > 0 )
+    {
+        struct ToriRS_Flotype* flo;
+        if( !CacheProvider_FlotypeHas(p, floor->overlay_id - 1) )
+            return 0;
+        flo = CacheProvider_FlotypeGet(p, floor->overlay_id - 1);
+        if( flo && flo->texture >= 0 && !CacheProvider_TextureHas(p, flo->texture) )
+            return 0;
+    }
+    return 1;
+}
+
+/* A loc the EDIT world can place now: its config, every model it names, and
+ * its animation are resident, and it is no multiloc (whose rungs the window
+ * load resolves and fetches as a closure). */
+static int
+app_edit_loc_ready(
+    const struct AppEditCtx* ctx,
+    int loc_id)
+{
+    struct ToriRS_Location* cfg;
+
+    if( !CacheProvider_LocationHas(ctx->provider, loc_id) )
+        return 0;
+    cfg = CacheProvider_LocationGet(ctx->provider, loc_id);
+    if( !cfg )
+        return 0;
+    if( cfg->transform_count > 0 )
+        return 0;
+    for( int row = 0; row < cfg->shapes_and_model_count; row++ )
+        for( int k = 0; cfg->models && cfg->lengths && k < cfg->lengths[row]; k++ )
+            if( cfg->models[row][k] > 0 && !CacheProvider_ModelHas(ctx->provider, cfg->models[row][k]) )
+                return 0;
+    if( cfg->seq_id >= 0 && !ToriDraw_SceneAnimationGet(ctx->scene, cfg->seq_id) )
+        return 0;
+    return 1;
+}
+
+static int
+app_edit_tile_equal(
+    const struct Editor_Tile* a,
+    const struct Editor_Tile* b)
+{
+    return a->has_height == b->has_height && a->height == b->height &&
+           a->has_overlay == b->has_overlay && a->overlay_id == b->overlay_id &&
+           a->shape == b->shape && a->rotation == b->rotation && a->settings == b->settings &&
+           a->underlay_id == b->underlay_id;
+}
+
+static int
+app_edit_loc_equal(
+    const struct Editor_Loc* a,
+    const struct Editor_Loc* b)
+{
+    return a->loc_id == b->loc_id && a->shape == b->shape && a->rotation == b->rotation &&
+           a->level == b->level && a->x == b->x && a->z == b->z;
+}
+
+/*
+ * One queued square: the tiles and locs the document changed since the shadow
+ * go to the provider and, where the square is in the EDIT window, to the world
+ * as tile_set / loc_remove / loc_place. Returns 1 when the window has to be
+ * baked again instead (an asset the world does not hold yet).
+ */
+static int
+app_edit_sync_square(
+    const struct AppEditCtx* ctx,
+    const struct Editor_Square* square,
+    struct AppMapEditShadow* sh)
+{
+    static uint8_t columns[EDITOR_SQUARE_X * EDITOR_SQUARE_Z];
+    struct WorldBuilder* wb = ctx->builder;
+    int in_window = WorldEdit_SquareInWindow(wb, square->map_x, square->map_z);
+    int rebake = 0;
+    int map_id = CacheProvider_MapId(square->map_x, square->map_z);
+    struct ToriRS_MapTerrain* terrain = CacheProvider_MapTerrainGet(ctx->provider, map_id);
+    struct ToriRS_MapLocs* provider_locs = CacheProvider_MapSceneryGet(ctx->provider, map_id);
+    int* handles;
+
+    assert(terrain);
+    assert(provider_locs);
+
+    /* Tiles: every column with a changed level is derived whole -- a height
+     * on level 0 moves every floor stacked on it. */
+    memset(columns, 0, sizeof(columns));
+    for( int i = 0; i < EDITOR_SQUARE_TILES; i++ )
+        if( !app_edit_tile_equal(&square->tiles[i], &sh->tiles[i]) )
+            columns[i % (EDITOR_SQUARE_X * EDITOR_SQUARE_Z)] = 1;
+    for( int c = 0; c < EDITOR_SQUARE_X * EDITOR_SQUARE_Z; c++ )
+    {
+        struct ToriRS_MapFloor column[EDITOR_SQUARE_LEVELS];
+        int x = c % EDITOR_SQUARE_X;
+        int z = c / EDITOR_SQUARE_X;
+        int sx;
+        int sz;
+
+        if( !columns[c] )
+            continue;
+        Editor_TileDeriveColumn(square, x, z, column);
+        for( int l = 0; l < EDITOR_SQUARE_LEVELS; l++ )
+        {
+            terrain->tiles_xyz[Editor_TileIndex(x, z, l)] = column[l];
+            if( !app_edit_floor_ready(ctx, &column[l]) )
+                rebake = 1;
+        }
+        if( in_window && !rebake &&
+            app_edit_scene_of(ctx, square->map_x, square->map_z, x, z, &sx, &sz) )
+            for( int l = 0; l < EDITOR_SQUARE_LEVELS; l++ )
+                WorldBuilder_TileSet(wb, sx, sz, l, &column[l]);
+    }
+
+    /* Locs: the document only ever appends to a square's list and removes from
+     * it in place, so walking both lists in step names every removal and the
+     * appended tail. (A resync that reorders is still right: it reads as
+     * removals and additions.) */
+    handles = ToriMem_Alloc(ToriMem_Editor(), sizeof(int) * (size_t)(square->loc_count + 1));
+    assert(handles);
+    {
+        int i = 0;
+        int j = 0;
+        while( i < sh->loc_count )
+        {
+            if( j < square->loc_count && app_edit_loc_equal(&sh->locs[i], &square->locs[j]) )
+            {
+                handles[j++] = sh->handles[i++];
+                continue;
+            }
+            if( in_window && !rebake && sh->handles[i] != WORLD_BUILDER_HANDLE_NONE )
+                WorldBuilder_LocRemove(wb, sh->handles[i]);
+            i++;
+        }
+        for( ; j < square->loc_count; j++ )
+        {
+            const struct Editor_Loc* loc = &square->locs[j];
+            struct World_LocPlacement placement;
+
+            handles[j] = WORLD_BUILDER_HANDLE_NONE;
+            if( !in_window || rebake )
+                continue;
+            if( !app_edit_loc_ready(ctx, loc->loc_id) )
+            {
+                rebake = 1;
+                continue;
+            }
+            if( !app_edit_scene_of(
+                    ctx, square->map_x, square->map_z, loc->x, loc->z, &placement.scene_x,
+                    &placement.scene_z) )
+                continue;
+            placement.level = loc->level;
+            placement.loc_id = loc->loc_id;
+            placement.shape = loc->shape;
+            placement.angle = loc->rotation;
+            handles[j] = WorldBuilder_LocPlace(wb, &placement);
+        }
+    }
+    ToriMem_Free(ToriMem_Assets(), provider_locs->locs);
+    provider_locs->locs = NULL;
+    Editor_SquareDeriveLocs(square, provider_locs);
+
+    app_edit_shadow_take(sh, square);
+    memcpy(sh->handles, handles, sizeof(int) * (size_t)square->loc_count);
+    ToriMem_Free(ToriMem_Editor(), handles);
+    return rebake;
+}
+
+/*
+ * The EDIT layout's per-frame step, App-free: every square the mirror queued
+ * since the last step reaches the world as tile-local edits, then one
+ * WorldBuilder_Flush shows them. Call it after Editor_PumpFacts, with no world
+ * load in flight. Returns 1 when the window must be baked again from the
+ * provider (which already holds every edit) instead -- an asset the world
+ * lacks, a bridge flag, a square it never shadowed.
+ */
+int
+app_map_editor_edit_step(
+    struct Editor* editor,
+    struct CacheProvider* provider,
+    struct WorldBuilder* builder,
+    struct World* world,
+    struct ToriDraw_Scene* scene)
+{
+    struct AppEditCtx ctx = { editor, provider, builder, world, scene };
+    int rebake = 0;
+
+    assert(editor);
+    assert(provider);
+    assert(builder);
+    assert(world);
+    assert(scene);
+
+    app_edit_bind_handles(&ctx);
+    for( int i = 0; i < editor->rebuild_count; i++ )
+    {
+        int map_x = editor->rebuild_queue[i * 2];
+        int map_z = editor->rebuild_queue[i * 2 + 1];
+        struct Editor_Square* square = Editor_DocFindSquare(&editor->doc, map_x, map_z);
+        struct AppMapEditShadow* sh;
+
+        /* A neighbour across the seam the document never opened. */
+        if( !square || !square->loaded )
+            continue;
+        sh = app_edit_shadow_find(map_x, map_z);
+        if( !sh )
+        {
+            /* Never pushed: nothing to compare with, so the provider takes the
+             * whole square and, if the world shows it, the window rebakes. */
+            app_map_editor_edit_seed(editor, provider, builder, map_x, map_z);
+            if( WorldEdit_SquareInWindow(builder, map_x, map_z) )
+                rebake = 1;
+            continue;
+        }
+        rebake |= app_edit_sync_square(&ctx, square, sh);
+    }
+    editor->rebuild_count = 0;
+
+    if( !rebake && WorldBuilder_Flush(builder) == WORLD_BUILDER_FLUSH_REBUILD )
+        rebake = 1;
+    return rebake;
+}
+
+/* Bake the window the world shows again, from the provider. */
+static void
+app_edit_rebake_window(struct App* app)
+{
+    struct World* world = app->world;
+    int chunks[EDITOR_REBUILD_QUEUE_MAX * 2];
+    int count = 0;
+
+    for( int mx = world->_chunk_sw_x; mx <= world->_chunk_ne_x; mx++ )
+        for( int mz = world->_chunk_sw_z; mz <= world->_chunk_ne_z; mz++ )
+        {
+            if( count >= EDITOR_REBUILD_QUEUE_MAX )
+                break;
+            chunks[count * 2] = mx;
+            chunks[count * 2 + 1] = mz;
+            count++;
+        }
+    if( count == 0 )
+        return;
+    app->world_load_attempted = 0;
+    app_world_load_begin(app, chunks, count);
+    app->need_redraw = 1;
+}
+
+/*
+ * The EDIT layout's frame (design #world: Editor_DrainRebuilds becomes
+ * Editor_Flush). The document's changes since last frame reach the world as
+ * tile-local edits, and one WorldBuilder_Flush shows them all; a square is
+ * never remeshed whole.
+ */
+static void
+app_map_editor_flush(struct App* app)
+{
+    int had_work;
+
+    /* Other clients' edits land here, queued by square like ours. */
+    Editor_PumpFacts(app->editor);
+    if( app->world_load_inflight )
+        return; /* the load lands first; the queue waits for it */
+    if( !app->world || !app->world_active )
+        return;
+    had_work = app->editor->rebuild_count > 0;
+    if( app_map_editor_edit_step(
+            app->editor, app->provider, app->world_builder, app->world, app->scene) )
+    {
+        app_edit_rebake_window(app);
+        return;
+    }
+    if( had_work )
+        app->need_redraw = 1;
+}
+
 void
 app_map_editor_drain(struct App* app)
 {
@@ -111,7 +629,17 @@ app_map_editor_drain(struct App* app)
 
     assert(app);
 
-    if( !app->editor || app->editor->rebuild_count == 0 )
+    if( !app->editor )
+        return;
+    /* EDIT: tile-local edits and one flush per frame. STATIC (the fallback,
+     * and every game manifest): the queued squares rebuild through the load
+     * path, as before. */
+    if( app->world_builder && WorldBuilder_GetLayout(app->world_builder) == WORLD_BUILDER_LAYOUT_EDIT )
+    {
+        app_map_editor_flush(app);
+        return;
+    }
+    if( app->editor->rebuild_count == 0 )
         return;
     if( app->world_load_inflight )
         return; /* A load is already rewriting the scene; let it land first. */

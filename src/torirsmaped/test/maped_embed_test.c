@@ -399,8 +399,9 @@ test_v1_peer(char const* scratch)
     raw_send_frame(v2, TORIRSMAPED_REQ_HELLO, hello, 12);
     check(
         raw_take(v2, &type, &length, &body) && type == TORIRSMAPED_FACT_HELLO && length == 16
-            && ToriRSMapEd_ReadU32(body) == 2 && ToriRSMapEd_ReadU32(body + 12) == 0,
-        "a v2 HELLO gets FACT_HELLO v2 with capabilities (none bound yet)");
+            && ToriRSMapEd_ReadU32(body) == 2
+            && ToriRSMapEd_ReadU32(body + 12) == TORIRSMAPED_CAP_CATALOG,
+        "a v2 HELLO gets FACT_HELLO v2 with capabilities (the catalog)");
 
     {
         uint8_t coords[8];
@@ -593,7 +594,8 @@ main(
 
     /* ---- DOC_OPEN and the v1 alias answer the same document --------------- */
 
-    check(Editor_HostMapEdCapabilities(&a) == 0, "HELLO v2 reports no optional bindings yet");
+    check(Editor_HostMapEdCapabilities(&a) == TORIRSMAPED_CAP_CATALOG,
+        "HELLO v2 reports the catalog binding and nothing else yet");
     {
         struct EditorHost_Blob jm2 = { NULL, 0 };
         struct EditorHost_Blob jl2 = { NULL, 0 };

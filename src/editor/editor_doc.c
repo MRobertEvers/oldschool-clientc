@@ -1,4 +1,5 @@
 #include "editor_doc.h"
+#include "editor_cfg.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -136,6 +137,39 @@ name_valid(const char* name)
     return strcmp(name, "..") != 0 && strcmp(name, ".") != 0;
 }
 
+/** A config type or namespace: [a-z0-9_]+. */
+static int
+config_type_valid(
+    const char* type,
+    size_t length)
+{
+    if( length == 0 || length >= 32 )
+        return 0;
+    for( size_t i = 0; i < length; i++ )
+    {
+        if( !islower((unsigned char)type[i]) && !isdigit((unsigned char)type[i]) && type[i] != '_' )
+            return 0;
+    }
+    return 1;
+}
+
+/** "<ns>.alloc", "<ns>.client", "<ns>.server" or "<ns>.pack". */
+static int
+pack_file_valid(const char* file)
+{
+    static const char* const suffixes[] = { ".alloc", ".client", ".server", ".pack" };
+    size_t length = strlen(file);
+
+    for( size_t i = 0; i < sizeof(suffixes) / sizeof(suffixes[0]); i++ )
+    {
+        size_t suffix_length = strlen(suffixes[i]);
+
+        if( length > suffix_length && strcmp(file + length - suffix_length, suffixes[i]) == 0 )
+            return config_type_valid(file, length - suffix_length);
+    }
+    return 0;
+}
+
 int
 Editor_DocKeyValid(
     enum Editor_DocKind kind,
@@ -183,6 +217,13 @@ Editor_DocKeyValid(
             return relative_path_valid(key + 4);
         if( strncmp(key, "cs2:", 4) == 0 )
             return name_valid(key + 4);
+        /* The id ledgers and membership lists an allocation appends to
+         * (editor_alloc.h): pack/<ns>.{alloc,client,server,pack}. */
+        if( strncmp(key, "pack:", 5) == 0 )
+            return pack_file_valid(key + 5);
+        /* A config type's member index, configs/all.<type>.compack. */
+        if( strncmp(key, "compack:", 8) == 0 )
+            return config_type_valid(key + 8, strlen(key + 8));
         return 0;
     }
     return 0;
@@ -630,7 +671,7 @@ Editor_TextDocSplice(
     text->length = next_length;
 }
 
-/* ---- CFG and IFACE as text splices --------------------------------------- */
+/* ---- IFACE as text splices (phase 3 replaces), CFG through editor_cfg ---- */
 
 /** End of the line starting at `at` (the '\n' or `end`). */
 static size_t
@@ -802,20 +843,6 @@ block_end(
     return text->length;
 }
 
-static int
-header_is(
-    const struct Editor_TextDoc* text,
-    size_t header,
-    const char* name)
-{
-    size_t stop = content_end(text->text, header, line_end(text->text, header, text->length));
-    size_t name_length = strlen(name);
-
-    return stop - header == name_length + 2 && text->text[header] == '['
-           && memcmp(text->text + header + 1, name, name_length) == 0
-           && text->text[stop - 1] == ']';
-}
-
 static struct Editor_TextDoc*
 find_text(
     struct Editor_Doc* doc,
@@ -829,6 +856,116 @@ find_text(
     return handle.text;
 }
 
+/** A fixed-size string field off the wire: terminated inside its array. */
+static int
+field_terminated(
+    const char* field,
+    size_t size)
+{
+    return memchr(field, '\0', size) != NULL;
+}
+
+/** Make the document's text the block's, as one splice of the bytes that
+ *  differ: the edit touched one line, and the rest is not rewritten. */
+static void
+cfg_commit(
+    struct Editor_TextDoc* text,
+    const struct Editor_CfgBlock* block)
+{
+    size_t old_length = text->length;
+    size_t new_length = block->length;
+    size_t prefix = 0;
+    size_t suffix = 0;
+
+    while( prefix < old_length && prefix < new_length && text->text[prefix] == block->text[prefix] )
+        prefix++;
+    while( suffix < old_length - prefix && suffix < new_length - prefix
+           && text->text[old_length - 1 - suffix] == block->text[new_length - 1 - suffix] )
+        suffix++;
+    Editor_TextDocSplice(
+        text,
+        prefix,
+        old_length - prefix - suffix,
+        block->text + prefix,
+        new_length - prefix - suffix);
+    text->dirty = 1;
+}
+
+static int
+cfg_apply_field(
+    struct Editor_CfgBlock* block,
+    const struct Editor_Cmd* command,
+    int forward)
+{
+    char key[EDITOR_CMD_NAME_MAX];
+    int occurrence;
+    int line;
+    int positioned;
+    const char* expect;
+    const char* want;
+
+    if( !field_terminated(command->u.cfg_field.key, sizeof(command->u.cfg_field.key))
+        || !field_terminated(command->u.cfg_field.before, sizeof(command->u.cfg_field.before))
+        || !field_terminated(command->u.cfg_field.after, sizeof(command->u.cfg_field.after)) )
+        return 0;
+    if( !Editor_CfgFieldSpecParse(command->u.cfg_field.key, key, sizeof(key), &occurrence, &line) )
+        return 0;
+    if( Editor_CfgBlockHeader(block) < 0 )
+        return 0;
+    positioned = strchr(command->u.cfg_field.key, '#') || strchr(command->u.cfg_field.key, '@');
+    expect = forward ? command->u.cfg_field.before : command->u.cfg_field.after;
+    want = forward ? command->u.cfg_field.after : command->u.cfg_field.before;
+
+    if( !expect[0] && !want[0] )
+        return 0;
+    if( expect[0] )
+    {
+        if( !Editor_CfgBlockFieldIs(block, key, occurrence, expect) )
+            return 0;
+        if( line >= 0 && Editor_CfgBlockFieldFind(block, key, occurrence) != line )
+            return 0;
+        if( want[0] )
+            return Editor_CfgBlockFieldSet(block, key, occurrence, want);
+        return Editor_CfgBlockFieldRemove(block, key, occurrence, line);
+    }
+    /* A plain "key" must be absent outright; "key#N" / "key@L" name the
+     * occurrence or the line it becomes. */
+    if( !positioned && Editor_CfgBlockFieldCount(block, key) != 0 )
+        return 0;
+    return Editor_CfgBlockFieldInsert(block, key, occurrence, line, want);
+}
+
+static int
+cfg_apply_block(
+    struct Editor_CfgBlock* block,
+    const struct Editor_Cmd* command,
+    int forward)
+{
+    const char* name = command->u.cfg_block.name;
+    int adds = command->has_after && !command->has_before;
+    int removes = command->has_before && !command->has_after;
+
+    if( !field_terminated(command->u.cfg_block.name, sizeof(command->u.cfg_block.name))
+        || !field_terminated(command->u.cfg_block.new_name, sizeof(command->u.cfg_block.new_name)) )
+        return 0;
+
+    if( command->has_before && command->has_after )
+    {
+        const char* from = forward ? command->u.cfg_block.name : command->u.cfg_block.new_name;
+        const char* to = forward ? command->u.cfg_block.new_name : command->u.cfg_block.name;
+
+        if( !Editor_CfgBlockNameIs(block, from) )
+            return 0;
+        return Editor_CfgBlockRename(block, to);
+    }
+    if( !adds && !removes )
+        return 0;
+    /* add forward == remove inverse: no header -> "[name]\n" at the top. */
+    if( adds == forward )
+        return Editor_CfgBlockAddHeader(block, name);
+    return Editor_CfgBlockRemoveHeader(block, name);
+}
+
 int
 Editor_CfgApply(
     struct Editor_Doc* doc,
@@ -836,78 +973,29 @@ Editor_CfgApply(
     enum Editor_CmdDirection direction)
 {
     struct Editor_TextDoc* text;
+    struct Editor_CfgBlock block;
     int forward = direction == EDITOR_CMD_FORWARD;
+    int changed = 0;
 
     assert(doc);
     assert(command);
 
+    if( command->kind != EDITOR_CMD_CFG_FIELD && command->kind != EDITOR_CMD_CFG_BLOCK )
+        return 0;
     text = find_text(doc, command);
     if( !text )
         return 0;
 
+    Editor_CfgBlockInit(&block);
+    Editor_CfgBlockSet(&block, text->text, text->length);
     if( command->kind == EDITOR_CMD_CFG_FIELD )
-    {
-        size_t header = find_header(text, 0);
-        int changed;
-
-        if( header == (size_t)-1 )
-            return 0;
-        changed = apply_field(
-            text,
-            next_line(text->text, header, text->length),
-            block_end(text, header),
-            command->u.cfg_field.key,
-            forward ? command->u.cfg_field.before : command->u.cfg_field.after,
-            forward ? command->u.cfg_field.after : command->u.cfg_field.before);
-        if( changed )
-            text->dirty = 1;
-        return changed;
-    }
-
-    if( command->kind == EDITOR_CMD_CFG_BLOCK )
-    {
-        const char* name = command->u.cfg_block.name;
-        char header_text[EDITOR_CMD_NAME_MAX + 4];
-        int length = snprintf(header_text, sizeof(header_text), "[%s]\n", name);
-        int adds = command->has_after && !command->has_before;
-        int removes = command->has_before && !command->has_after;
-
-        if( command->has_before && command->has_after )
-        {
-            const char* from = forward ? command->u.cfg_block.name : command->u.cfg_block.new_name;
-            const char* to = forward ? command->u.cfg_block.new_name : command->u.cfg_block.name;
-            size_t header = find_header(text, 0);
-            size_t stop;
-
-            if( header == (size_t)-1 || !header_is(text, header, from) )
-                return 0;
-            stop = content_end(text->text, header, line_end(text->text, header, text->length));
-            length = snprintf(header_text, sizeof(header_text), "[%s]", to);
-            Editor_TextDocSplice(text, header, stop - header, header_text, (size_t)length);
-            text->dirty = 1;
-            return 1;
-        }
-        if( !adds && !removes )
-            return 0;
-
-        /* add forward == remove inverse: empty -> header-only block. */
-        if( adds == forward )
-        {
-            if( text->length != 0 )
-                return 0;
-            Editor_TextDocSplice(text, 0, 0, header_text, (size_t)length);
-        }
-        else
-        {
-            if( text->length != (size_t)length || memcmp(text->text, header_text, (size_t)length) != 0 )
-                return 0;
-            Editor_TextDocSplice(text, 0, text->length, NULL, 0);
-        }
-        text->dirty = 1;
-        return 1;
-    }
-
-    return 0;
+        changed = cfg_apply_field(&block, command, forward);
+    else
+        changed = cfg_apply_block(&block, command, forward);
+    if( changed )
+        cfg_commit(text, &block);
+    Editor_CfgBlockFree(&block);
+    return changed;
 }
 
 /** The canonical text IF_COMPONENT add inserts and remove takes back. */
