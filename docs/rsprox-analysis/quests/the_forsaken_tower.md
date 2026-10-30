@@ -112,6 +112,7 @@ player is the wiki's.
 | L+1: inviswall r3 on 1382,3817, lovaquest_tower_entry_door_open r0 on 1382,3816 for 2 ticks, synth 71, the step onto 1382,3817; stage 4 first time | same (tick log 115/117) | matched |
 | Inspect: L+2 objbox (hammer, zoom 400) "The display case is sealed..."; a tick after its continue, mainmodal_open + lovaquest_locks | same | matched |
 | Search at stage 8: L+2 stage 9, the hammer, synth `pick` 2581, objbox | same | matched |
+| Music: 624 "The Forsaken Tower" (and its unlock, musicmulti_19 2182 -> 3206) on the tick of the step onto 1382,3817 ([573] -> [574], [1187] -> [1188]), held on every floor ([918], [1196], [1203]); the square's 445 again outside | the same: a music area (`docs/audio/music_areas.tsv`, 1376..1388 x 3817..3829, levels 0..3) over square 21_59; tick log t115 624 on the door tile, held on floors 1 and 2, t600 445 on 1382,3816 | fixed |
 
 ### Furnace [604..785]
 
@@ -201,8 +202,3 @@ No ambience in the tower; the Assembly's `longbow` area sounds are someone else'
   search of any cupboard or crate, the door before stage 3 ("The door is locked."),
   leaving by the door (the leaf mirrored), the post-quest Vulcana/Unkar answers' moods.
 - The east stair top's Climb-down landing is the model reading (no recording).
-- The tower's music: Jagex starts 624 "The Forsaken Tower" (with its unlock line) on
-  the step through the entry door ([574], [1188]) and keeps it on every floor ([918]).
-  Ours plays square 21_59's 445 on the ground and upper floors and 624 only in the
-  basement's square (21_159): `docs/audio/music_regions.tsv` maps whole squares. Needs
-  the engine's sub-square music areas (the same OPEN item as Draynor's).

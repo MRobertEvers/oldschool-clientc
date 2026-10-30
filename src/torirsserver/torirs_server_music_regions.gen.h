@@ -1030,4 +1030,24 @@ static const struct ToriRSServerMusicRegion k_ToriRSServer_MusicRegions[] = {
 static const int k_ToriRSServer_MusicRegionCount =
     (int)(sizeof(k_ToriRSServer_MusicRegions) / sizeof(k_ToriRSServer_MusicRegions[0]));
 
+/* Music areas inside a square (docs/audio/music_areas.tsv): tiles x1..x2,
+ * z1..z2 on levels level_min..level_max play `track` over the square's. */
+struct ToriRSServerMusicArea
+{
+    int x1;
+    int z1;
+    int x2;
+    int z2;
+    int level_min;
+    int level_max;
+    struct ToriRSServerMusicRegion track;
+};
+
+static const struct ToriRSServerMusicArea k_ToriRSServer_MusicAreas[] = {
+    { 1376, 3817, 1388, 3829, 0, 3, {  5435,  624, 2065,  10, "Forsaken Tower, The" } },
+};
+
+static const int k_ToriRSServer_MusicAreaCount =
+    (int)(sizeof(k_ToriRSServer_MusicAreas) / sizeof(k_ToriRSServer_MusicAreas[0]));
+
 #endif

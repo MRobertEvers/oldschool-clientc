@@ -1,0 +1,12 @@
+# Music areas smaller than a map square: a rectangle of tiles (inclusive),
+# on levels level_min..level_max, that plays its own track over the square's
+# (docs/audio/music_regions.tsv). The engine re-picks the track when the player
+# crosses a rectangle's edge, not only a square's (ToriRSServer_WorldUpdateMap).
+# Every row cites the recording that shows the track starting and stopping.
+x1	z1	x2	z2	level_min	level_max	track_name	source
+# The Forsaken Tower (square 21_59 plays Rugged Terrain outside it): RSProx
+# index 4424 starts The Forsaken Tower (624) on the step from 1382,3816 onto the
+# door's tile 1382,3817 ([573] -> [574], [1187] -> [1188]) and keeps it on the
+# ground and upper floors ([918], [1196], [1203]). The walls: quest-helper's
+# tower zones (1376..1388, 3817..3829).
+1376	3817	1388	3829	0	3	The Forsaken Tower	RSProx 4424

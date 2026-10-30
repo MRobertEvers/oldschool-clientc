@@ -16845,6 +16845,7 @@ ToriRSServer_WorldPlayerInit(struct ToriRSServerPlayer* player)
     player->music_track = -1;
     player->music_hold_until = -1;
     player->music_region_pending = 0;
+    player->music_area_plus1 = 0;
     player->music_end_tick = -1;
     player->music_end_row = -1;
     player->music_replay_tick = -1;
@@ -19908,19 +19909,72 @@ ToriRSServer_RegionSquareFor(
     int* out_map_x,
     int* out_map_z)
 {
+    int x;
+    int z;
+
+    ToriRSServer_RegionTileFor(player, &x, &z);
+    *out_map_x = x >> 6;
+    *out_map_z = z >> 6;
+}
+
+void
+ToriRSServer_RegionTileFor(
+    struct ToriRSServerPlayer* player,
+    int* out_x,
+    int* out_z)
+{
     int handle = ToriRSServer_MapInstanceFind(player->x, player->z);
     int src_x;
     int src_z;
 
-    *out_map_x = player->x >> 6;
-    *out_map_z = player->z >> 6;
+    *out_x = player->x;
+    *out_z = player->z;
     if( handle == 0 )
         return;
     if( !ToriRSServer_MapInstanceSourceTile(handle, player->level, player->x, player->z, &src_x,
                                          &src_z) )
         return; /* inside the reservation but on a zone nothing was copied to */
-    *out_map_x = src_x >> 6;
-    *out_map_z = src_z >> 6;
+    *out_x = src_x;
+    *out_z = src_z;
+}
+
+/*
+ * Music areas smaller than a square. A square plays one track, but some
+ * places inside one play their own: the Forsaken Tower starts its track on the
+ * step through its door and keeps it on every floor while the square around it
+ * plays Rugged Terrain (RSProx index 4424 [573] -> [574]). The rectangles are
+ * docs/audio/music_areas.tsv, a handful, so a scan answers.
+ */
+int
+ToriRSServer_MusicAreaAt(
+    int x,
+    int z,
+    int level)
+{
+    int i;
+
+    for( i = 0; i < k_ToriRSServer_MusicAreaCount; i++ )
+    {
+        const struct ToriRSServerMusicArea* a = &k_ToriRSServer_MusicAreas[i];
+
+        if( x >= a->x1 && x <= a->x2 && z >= a->z1 && z <= a->z2 && level >= a->level_min &&
+            level <= a->level_max )
+            return i;
+    }
+    return -1;
+}
+
+const struct ToriRSServerMusicRegion*
+ToriRSServer_MusicForTile(
+    int x,
+    int z,
+    int level)
+{
+    int area = ToriRSServer_MusicAreaAt(x, z, level);
+
+    if( area >= 0 )
+        return &k_ToriRSServer_MusicAreas[area].track;
+    return ToriRSServer_MusicForRegion(((x >> 6) << 8) | (z >> 6));
 }
 
 /**
@@ -20327,14 +20381,34 @@ ToriRSServer_MusicJingleStarted(
     player->music_jingle_end_tick = srv->tick + length_ms / 600;
 }
 
+static void music_enter_track(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerMusicRegion* track);
+
 void
 ToriRSServer_MusicEnterRegion(
     struct ToriRSServerPlayer* player,
     int map_x,
     int map_z)
 {
-    const struct ToriRSServerMusicRegion* track =
-        ToriRSServer_MusicForRegion((map_x << 8) | map_z);
+    music_enter_track(player, ToriRSServer_MusicForRegion((map_x << 8) | map_z));
+}
+
+void
+ToriRSServer_MusicEnterTile(
+    struct ToriRSServerPlayer* player,
+    int x,
+    int z,
+    int level)
+{
+    music_enter_track(player, ToriRSServer_MusicForTile(x, z, level));
+}
+
+static void
+music_enter_track(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerMusicRegion* track)
+{
     int duration;
     int song;
     int area;
@@ -20444,6 +20518,29 @@ world_sync_multiway_indicator(
         ToriRSServer_VarbitSetOn(srv, player, id, multi);
 }
 
+/* The music area the player's (template) tile is in, or -1. */
+static int
+music_area_here(struct ToriRSServerPlayer* player)
+{
+    int x;
+    int z;
+
+    ToriRSServer_RegionTileFor(player, &x, &z);
+    return ToriRSServer_MusicAreaAt(x, z, player->level);
+}
+
+/* The region track for where the player stands: its music area's, else its
+ * (template) square's. */
+static void
+music_enter_here(struct ToriRSServerPlayer* player)
+{
+    int x;
+    int z;
+
+    ToriRSServer_RegionTileFor(player, &x, &z);
+    ToriRSServer_MusicEnterTile(player, x, z, player->level);
+}
+
 static void
 ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
 {
@@ -20461,8 +20558,9 @@ ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
         ToriRSServer_ScriptsQueueTriggerAt(srv, SS_TRIGGER_MAPZONE, 0, player->x, player->z);
         player->last_map_x = mx;
         player->last_map_z = mz;
-        /* The map square is exactly the granularity music is keyed at, which is
-         * why this hangs off the mapzone latch rather than the zone one.
+        /* The map square is the granularity music is keyed at (a music area
+         * inside one has its own latch below), which is why this hangs off the
+         * mapzone latch rather than the zone one.
          *
          * The latch is the *destination* square (mx, mz) and the lookup is not:
          * inside an instance the player's own square is out past the edge of
@@ -20474,6 +20572,7 @@ ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
             int music_z;
 
             ToriRSServer_RegionSquareFor(player, &music_x, &music_z);
+            player->music_area_plus1 = music_area_here(player) + 1;
             /* A square entered while a script holds the player in a delay
              * starts its track on the tick the delay ends: RSProx index 4427's
              * boat lands at C+3 and Gill Bill plays at C+5 ([1811] -> [1813],
@@ -20485,19 +20584,25 @@ ToriRSServer_WorldUpdateMap(struct ToriRSServerPlayer* player)
             if( player_delayed(srv, player) )
                 player->music_region_pending = 1;
             else
-                ToriRSServer_MusicEnterRegion(player, music_x, music_z);
+                music_enter_here(player);
             /* The bed is keyed at the same granularity, through the same
              * instance-aware square, for the same reason. */
             ToriRSServer_AmbientEnterRegion(player, music_x, music_z);
         }
     }
+    else if( player->music_area_plus1 != music_area_here(player) + 1 )
+    {
+        /* Into or out of a music area inside the square: the same latch, at
+         * the area's edge (the Forsaken Tower's door, RSProx index 4424 [574]). */
+        player->music_area_plus1 = music_area_here(player) + 1;
+        if( player_delayed(srv, player) )
+            player->music_region_pending = 1;
+        else
+            music_enter_here(player);
+    }
     else if( player->music_region_pending && !player_delayed(srv, player) )
     {
-        int music_x;
-        int music_z;
-
-        ToriRSServer_RegionSquareFor(player, &music_x, &music_z);
-        ToriRSServer_MusicEnterRegion(player, music_x, music_z);
+        music_enter_here(player);
     }
     if( !player_delayed(srv, player) )
         player->music_region_pending = 0;

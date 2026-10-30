@@ -14949,6 +14949,26 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a music area plays over its square\n");
+    {
+        /* RSProx index 4424: square 21_59 outside the Forsaken Tower's door
+         * (1382,3816) is the square's track; the door's tile (1382,3817) and
+         * the tower's upper floor play The Forsaken Tower (song 624), whose
+         * unlock is musicmulti_19 (varp 2065) bit 10 ([574]: 2182 -> 3206). */
+        const struct ToriRSServerMusicRegion* outside = ToriRSServer_MusicForTile(1382, 3816, 0);
+        const struct ToriRSServerMusicRegion* door = ToriRSServer_MusicForTile(1382, 3817, 0);
+        const struct ToriRSServerMusicRegion* top = ToriRSServer_MusicForTile(1382, 3826, 2);
+
+        SELFTEST_CHECK(door != NULL && door->song == 624 && door->varp == 2065 && door->bit == 10,
+                       "the tower door's tile should play song 624 (varp 2065 bit 10), got %d",
+                       door ? door->song : -1);
+        SELFTEST_CHECK(top != NULL && top->song == 624, "the tower's top floor should play 624, got %d",
+                       top ? top->song : -1);
+        SELFTEST_CHECK(outside != NULL && outside->song != 624 &&
+                           outside == ToriRSServer_MusicForRegion((21 << 8) | 59),
+                       "outside the door is the square's track, got %d", outside ? outside->song : -1);
+    }
+
     fprintf(stderr, "ToriRSServer selftest: instanced music resolves the source square\n");
     {
         /*

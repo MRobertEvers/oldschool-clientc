@@ -4601,6 +4601,10 @@ struct ToriRSServerPlayer
     /** A square crossed while the player was delayed: its region track waits
      *  for the first tick the delay is over (ToriRSServer_WorldUpdateMap). */
     int music_region_pending;
+    /** The music area (k_ToriRSServer_MusicAreas) the player stands in, + 1;
+     *  0 for none. Crossing an area's edge inside one square re-picks the
+     *  track the way crossing a square does (ToriRSServer_WorldUpdateMap). */
+    int music_area_plus1;
     /** The music clock (`ToriRSServer_MusicPlay`): the tick the running track
      *  runs out -- its music-table `duration` + 1 after the row moved to it --
      *  and that row; -1 with no clock. */
@@ -9681,6 +9685,17 @@ ToriRSServer_RegionSquareFor(
     struct ToriRSServerPlayer* player,
     int* out_map_x,
     int* out_map_z);
+
+/**
+ * The same, to the tile: inside an instance the template tile the player's
+ * tile was copied from, else the player's own. Music areas smaller than a
+ * square (k_ToriRSServer_MusicAreas) are matched against it.
+ */
+void
+ToriRSServer_RegionTileFor(
+    struct ToriRSServerPlayer* player,
+    int* out_x,
+    int* out_z);
 
 /**
  * The varp that holds a music row's unlock bit, from the row's music VARIABLE

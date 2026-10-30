@@ -7,7 +7,8 @@ The client cache says which music tracks exist, what they are called, where the
 game claims they unlock (as prose) and which varp bit records the unlock. It
 does **not** say which map square plays which track -- that mapping is server
 data, and there is no copy of it in any cache. So this table is a join of two
-sources, both checked in under docs/audio/:
+sources, both checked in under docs/audio/ (plus music_areas.tsv, the
+hand-authored rectangles smaller than a square, each citing its recording):
 
   music_regions.tsv          region id -> track name, extracted from Kronos's
                              MusicPlayer.java (OSRS 184 era, 440 entries over
@@ -48,6 +49,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 REGIONS = ROOT / "docs/audio/music_regions.tsv"
+# Rectangles inside a square that play their own track (hand-authored, each
+# row citing its recording).
+AREAS = ROOT / "docs/audio/music_areas.tsv"
 TRACKS = ROOT / "docs/audio/music_tracks_osrs239.tsv"
 # The content tree's own music table (cache 241's DBTable `music`): tracks
 # newer than the 239 dump, matched only by names the dump lacks.
@@ -134,14 +138,11 @@ def main():
             if key:
                 by_name.setdefault(key.strip().lower(), row)
 
-    rows = []
-    unmatched = []
-    for r in regions:
-        name = r["track_name"].strip()
+    def resolve(name):
+        """(song, varp, bit, display name) for a track name, or None."""
         hit = by_name.get(name.lower())
         if not hit:
-            unmatched.append(name)
-            continue
+            return None
         varp, bit = -1, -1
         pair = hit.get("unlock_varp,bit") or ""
         if "," in pair:
@@ -157,15 +158,44 @@ def main():
                 sys.exit("gen_music_regions: %s maps to varp %d, below musicmulti_1" % (name, varp))
         song = hit.get("song_archive_id")
         if not song:
+            return None
+        return int(song), varp, bit, hit["display_name"]
+
+    rows = []
+    unmatched = []
+    for r in regions:
+        name = r["track_name"].strip()
+        got = resolve(name)
+        if not got:
             unmatched.append(name)
             continue
+        song, varp, bit, display = got
         rows.append(
             {
                 "region": int(r["region_id"]),
-                "song": int(song),
+                "song": song,
                 "varp": varp,
                 "bit": bit,
-                "name": hit["display_name"],
+                "name": display,
+            }
+        )
+
+    areas = []
+    for a in load(AREAS):
+        name = a["track_name"].strip()
+        got = resolve(name)
+        if not got:
+            sys.exit("gen_music_regions: music_areas.tsv names %r, which no track table has" % name)
+        song, varp, bit, display = got
+        x1, z1, x2, z2 = (int(a[k]) for k in ("x1", "z1", "x2", "z2"))
+        if x1 > x2 or z1 > z2 or (x1 >> 6) != (x2 >> 6) or (z1 >> 6) != (z2 >> 6):
+            sys.exit("gen_music_regions: music area %s is not a rectangle inside one square" % name)
+        areas.append(
+            {
+                "x1": x1, "z1": z1, "x2": x2, "z2": z2,
+                "lmin": int(a["level_min"]), "lmax": int(a["level_max"]),
+                "region": ((x1 >> 6) << 8) | (z1 >> 6),
+                "song": song, "varp": varp, "bit": bit, "name": display,
             }
         )
 
@@ -214,11 +244,32 @@ def main():
         "static const int k_ToriRSServer_MusicRegionCount =\n"
         "    (int)(sizeof(k_ToriRSServer_MusicRegions) / sizeof(k_ToriRSServer_MusicRegions[0]));\n\n"
     )
+    out.write(
+        "/* Music areas inside a square (docs/audio/music_areas.tsv): tiles x1..x2,\n"
+        " * z1..z2 on levels level_min..level_max play `track` over the square's. */\n"
+    )
+    out.write("struct ToriRSServerMusicArea\n{\n")
+    out.write("    int x1;\n    int z1;\n    int x2;\n    int z2;\n")
+    out.write("    int level_min;\n    int level_max;\n")
+    out.write("    struct ToriRSServerMusicRegion track;\n};\n\n")
+    out.write("static const struct ToriRSServerMusicArea k_ToriRSServer_MusicAreas[] = {\n")
+    for a in areas:
+        name = a["name"].replace("\\", "\\\\").replace('"', '\\"')
+        out.write(
+            '    { %d, %d, %d, %d, %d, %d, { %5d, %4d, %3d, %3d, "%s" } },\n'
+            % (a["x1"], a["z1"], a["x2"], a["z2"], a["lmin"], a["lmax"],
+               a["region"], a["song"], a["varp"], a["bit"], name)
+        )
+    out.write("};\n\n")
+    out.write(
+        "static const int k_ToriRSServer_MusicAreaCount =\n"
+        "    (int)(sizeof(k_ToriRSServer_MusicAreas) / sizeof(k_ToriRSServer_MusicAreas[0]));\n\n"
+    )
     out.write("#endif\n")
 
     sys.stderr.write(
-        "gen_music_regions: %d squares, %d unmatched names, %d duplicate squares\n"
-        % (len(seen), len(set(unmatched)), len(dupes))
+        "gen_music_regions: %d squares, %d areas, %d unmatched names, %d duplicate squares\n"
+        % (len(seen), len(areas), len(set(unmatched)), len(dupes))
     )
     for name in sorted(set(unmatched)):
         sys.stderr.write("  unmatched: %s\n" % name)

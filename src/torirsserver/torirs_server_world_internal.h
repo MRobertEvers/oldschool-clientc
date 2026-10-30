@@ -202,6 +202,28 @@ ToriRSServer_MusicEnterRegion(
     int map_x,
     int map_z);
 
+/* The music area (index into k_ToriRSServer_MusicAreas) holding a tile, or -1. */
+int
+ToriRSServer_MusicAreaAt(
+    int x,
+    int z,
+    int level);
+
+/* The track a tile plays: its music area's, else its square's; NULL for none. */
+const struct ToriRSServerMusicRegion*
+ToriRSServer_MusicForTile(
+    int x,
+    int z,
+    int level);
+
+/* ToriRSServer_MusicEnterRegion for a tile: an area's track before the square's. */
+void
+ToriRSServer_MusicEnterTile(
+    struct ToriRSServerPlayer* player,
+    int x,
+    int z,
+    int level);
+
 /* Every song sent to a player: `envelope` the MIDI_SONG_V2 fades (fade-out
  * delay, fade-out speed, fade-in delay, fade-in speed), or NULL for a bare
  * MIDI_SONG; `source` a TORIRSSERVER_TICKLOG_MUSIC_* for the tick log. */
