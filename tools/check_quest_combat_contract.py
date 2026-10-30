@@ -1090,11 +1090,11 @@ def check_grand_tree() -> None:
         glough,
         (
             "[label,grandtree_glough_cutscene]",
-            "npc_add(movecoord(coord, 3, 0, 0), grandtree_glough, 500);",
+            "[label,grandtree_glough_fight]",
+            "npc_add(^grandtree_glough_watch, grandtree_glough_battle, 1000);",
             "npc_setowner;",
-            "def_coord $demon_spawn = 0_38_154_47_11;",
-            "npc_add($demon_spawn, grandtree_blackdemon, 1000);",
-            "if (npc_find($demon_spawn, grandtree_blackdemon, 20, 0) = false)",
+            "npc_add(^grandtree_demon_spawn, grandtree_blackdemon, 1000);",
+            "if (npc_find(^grandtree_demon_spawn, grandtree_blackdemon, 20, 0) = false)",
         ),
         "The Grand Tree Glough/demon spawn",
     )
@@ -1106,7 +1106,7 @@ def check_grand_tree() -> None:
         demon,
         (
             "[ai_queue3,grandtree_blackdemon]",
-            "if (p_finduid(uid) = true)",
+            "$hero = p_finduid(uid);",
             "[label,grandtree_defeat_black_demon]",
             "%varp150_grandtree = ^grandtree_defeated_black_demon;",
         ),
@@ -3791,19 +3791,20 @@ def check_ascent_of_arceuus() -> None:
     """The Ascent of Arceuus: the five Tormented Souls and the Trapped Soul are
     real fights (with no block they fought on npc_default.npc's 10 hp and died in
     a tick). Wiki Tormented_Soul oldid 15329160 (ids 8512/8513), Trapped_Soul
-    oldid 15215953 (id 8514)."""
+    oldid 15215953 (id 8514). They do not hunt (RSProx 4426): the locs script
+    sets opplayer2 on the player who woke them."""
     npc = config_text.read_text(ASCENT_NPC)
     for name, needles in (
         ("arcquest_ghost1", ("hitpoints=20", "attack=16", "strength=12", "defence=10",
-                             "huntmode=aggressive", "param=attackrate,4",
+                             "huntmode=none", "param=attackrate,4",
                              "param=damagetype,^crush_style", "param=strengthbonus,0",
                              "param=death_drop,null")),
         ("arcquest_ghost2", ("hitpoints=20", "attack=16", "strength=12", "defence=10",
-                             "huntmode=aggressive", "param=attackrate,4",
+                             "huntmode=none", "param=attackrate,4",
                              "param=damagetype,^crush_style", "param=strengthbonus,0",
                              "param=death_drop,null")),
         ("arcquest_soul", ("hitpoints=30", "attack=25", "strength=29", "defence=20",
-                           "huntmode=aggressive", "param=attackrate,4",
+                           "huntmode=none", "param=attackrate,4",
                            "param=damagetype,^crush_style", "param=strengthbonus,0",
                            "param=death_drop,bones")),
     ):
@@ -3813,10 +3814,10 @@ def check_ascent_of_arceuus() -> None:
     require_text(
         ASCENT_LOCS.read_text(),
         ("[opnpc2,arcquest_ghost1]", "[opnpc2,arcquest_ghost2]", "[opnpc2,arcquest_soul]",
-         "@player_combat_start;", "[ai_queue3,arcquest_ghost1]", "[ai_queue3,arcquest_ghost2]",
+         "@player_combat_start;", "npc_setmode(opplayer2);", "[ai_queue3,arcquest_ghost1]", "[ai_queue3,arcquest_ghost2]",
          "[ai_queue3,arcquest_soul]", "~aoa_ghost_died;", "npc_add(^aoa_soul_coord, arcquest_soul, 500);",
          "npc_setowner;", "~map_instance_from_square(^aoa_tower_template);",
-         "~aoa_spawn_tower_souls($handle);"),
+         "~aoa_spawn_tower_cast($handle);"),
         "Ascent of Arceuus fights",
     )
 
@@ -5310,33 +5311,44 @@ def check_test_fought_npc_blocks() -> None:
 
 def check_taleoftherighteous() -> None:
     """Tale of the Righteous' Corrupt Lizardman is a real fight (with no block it
-    fought on npc_default.npc's 10 hp). Wiki Corrupt_Lizardman oldid 15200061
-    (id 8000): combat 46, 50 hitpoints, 38/38/38, ranged 38, attack bonus 22,
-    strength bonus 20, ranged 22/20, defence stab -10 / slash 25, crush, attack
-    speed 4, max hit 6, aggressive, poisonous, Bones and 3 Xerician fabric always;
-    the cache record agrees (stat1..5 38/38/38/50/38). It is met in the player's
-    own copy of m18_155, and its death writes stage 10 from the npc's own queue."""
+    fought on npc_default.npc's 10 hp). Levels and bonuses are the cache record's
+    (id 8000: stat1..5 38/38/38/50/38, strengthbonus 20, rangeattack 22,
+    rangebonus_ammo 20, stab -10 / slash 25; no melee attack bonus, so the wiki's
+    "attack bonus 22" is the ranged one), max hit 6 both styles. RSProx 4425: no
+    huntmode until the entrance scene lets it go (~tor_boss_engage), poison 15,
+    Bones and 3 Xerician fabric always. It is met in the player's own copy of
+    m18_155, and its death writes the altar stage from the npc's own queue."""
     base = CONTENT / "quests/quest_taleoftherighteous"
     block = _npc_block(config_text.read_text(base / "configs/taleoftherighteous.npc"),
                        "shayzienquest_lizardman_boss")
     for line in ("hitpoints=50", "attack=38", "strength=38", "defence=38", "magic=1",
-                 "ranged=38", "huntmode=aggressive", "param=huntrange,5",
+                 "ranged=38", "param=huntrange,5",
                  "param=attackrate,4", "param=damagetype,^crush_style",
-                 "param=crushattack,22", "param=strengthbonus,20",
-                 "param=rangeattack,22", "param=rangebonus,20",
+                 "param=crushattack,0", "param=strengthbonus,20",
+                 "param=rangeattack,22", "param=rangebonus,0",
                  "param=stabdefence,-10", "param=slashdefence,25",
                  "param=crushdefence,0", "param=magicdefence,0", "param=rangedefence,0",
-                 "param=poison_severity,16", "param=death_drop,bones"):
+                 "param=poison_severity,15", "param=death_drop,bones"):
         require(line in block, f"Tale of the Righteous: [shayzienquest_lizardman_boss] lacks `{line}`")
+    require("huntmode=" not in block,
+            "Tale of the Righteous: the boss hunts before its entrance scene lets it go")
+    boss = (base / "scripts/tor_boss.rs2").read_text()
     require_text(
-        (base / "scripts/tor_cave.rs2").read_text(),
+        boss,
         ("[opnpc2,shayzienquest_lizardman_boss]\n@player_combat_start;",
          "[apnpc2,shayzienquest_lizardman_boss]\n@player_combat_start_ap;",
+         "[proc,tor_boss_engage]",
+         "npc_sethuntmode(1);",
          "[ai_queue3,shayzienquest_lizardman_boss]",
          "%varb6358_shayzienquest = ^tor_altar;",
-         "obj_add(npc_coord, xeric_fabric, 3, ^lootdrop_duration);",
-         "~npc_default_death;",
-         "npc_add(~tor_cave_tile($handle, 1172, 9949), shayzienquest_lizardman_boss, 3000);",
+         "~npc_default_death;"),
+        "Tale of the Righteous boss fight",
+    )
+    require(boss.count("obj_add(npc_coord, xeric_fabric, 1, ^lootdrop_duration);") == 3,
+            "Tale of the Righteous: the boss no longer drops 3 Xerician fabric")
+    require_text(
+        (base / "scripts/tor_cave.rs2").read_text(),
+        ("npc_add(~tor_cave_tile($handle, 1172, 9948), shayzienquest_lizardman_boss, 3000);",
          "~map_instance_from_square(^tor_cave_template)"),
         "Tale of the Righteous cave fight",
     )
