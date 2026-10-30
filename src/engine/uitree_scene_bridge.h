@@ -3,12 +3,23 @@
 
 #include "engine/static_sprites.h"
 
+#include <stdbool.h>
 #include <stdint.h>
 
 struct ToriDraw_Scene;
 struct CacheProvider;
 struct ToriRS_Location;
 struct HMap;
+
+/** A scene id handed out before its sprite was resident. @see UITreeSceneBridge_BindSprite. */
+struct UITreeSceneBridgePendingSprite
+{
+    int cache_id;
+    int scene_id;
+    /** When to ask the provider for it again, and the pause after that. */
+    uint64_t next_ask_ms;
+    uint32_t wait_ms;
+};
 
 /**
  * Uploads CacheProvider ToriRS assets into a ToriDraw_Scene and returns scene
@@ -29,6 +40,11 @@ struct UITreeSceneBridge
 
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
+    /** Bound scene ids whose sprite has not landed yet; filled by
+     *  UITreeSceneBridge_PumpSprites. Empty on every steady frame. */
+    struct UITreeSceneBridgePendingSprite* pending_sprites;
+    int pending_sprite_count;
+    int pending_sprite_cap;
     /** cache_model_id → scene_id (usually same as cache id) */
     struct HMap* model_map;
     /** (obj_id, count) → scene_id for rasterized inventory icons */
@@ -226,6 +242,45 @@ int
 UITreeSceneBridge_EnsureSprite(
     struct UITreeSceneBridge* bridge,
     int cache_graphic_id);
+
+/**
+ * A scene id for a sprite a tree node is being BOUND to -- a pack bake, an
+ * interface open, cc_setgraphic -- whether or not the sprite is resident.
+ *
+ * EnsureSprite answers -1 for a sprite that is not in the provider, and a node
+ * baked with -1 kept it for good: nodes hold scene ids, not cache ids, and
+ * nothing bakes a mounted interface twice. So one read that came back empty
+ * (a dropped JS5 socket, a browser storage error) blanked every slot, divider
+ * and icon of the skills tab for the rest of the session. Here such a sprite
+ * gets its scene id now, with nothing behind it yet -- every renderer draws an
+ * empty scene id as nothing -- and UITreeSceneBridge_PumpSprites fills it when
+ * the sprite lands, asking the provider again until it does.
+ *
+ * -1 for a negative id, for an id the sprites table is known not to list, and
+ * for a provider with no numeric sprite loader, where nothing would ever fill
+ * the reservation.
+ */
+int
+UITreeSceneBridge_BindSprite(
+    struct UITreeSceneBridge* bridge,
+    int cache_graphic_id);
+
+/** True when `cache_graphic_id` has a scene id -- drawn, or reserved by
+ *  BindSprite and filled by the pump when it lands. */
+bool
+UITreeSceneBridge_SpriteBound(
+    struct UITreeSceneBridge const* bridge,
+    int cache_graphic_id);
+
+/**
+ * Fill the scene ids BindSprite reserved whose sprites have landed, and re-ask
+ * for the rest with a growing pause. Once per frame; a steady frame has
+ * nothing pending and costs one compare.
+ */
+void
+UITreeSceneBridge_PumpSprites(
+    struct UITreeSceneBridge* bridge,
+    uint64_t now_ms);
 
 /** Reverse lookup: cache graphic id for a sprite scene_id, or -1 (debug dumps). */
 int

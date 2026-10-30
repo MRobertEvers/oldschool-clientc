@@ -111,7 +111,9 @@ open_resolve_sprite(
     assert(self && self->bridge);
     if( graphic_id < 0 )
         return -1;
-    scene_id = UITreeSceneBridge_EnsureSprite(self->bridge, graphic_id);
+    /* Bound, not ensured: a sprite whose read came back empty is filled when
+     * it lands (UITreeSceneBridge_BindSprite) instead of blank for good. */
+    scene_id = UITreeSceneBridge_BindSprite(self->bridge, graphic_id);
     if( scene_id < 0 )
         TORIRS_LOG("InterfaceOpen: RS sprite %d not in scene\n", graphic_id);
     return scene_id;

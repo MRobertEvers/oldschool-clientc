@@ -56,7 +56,10 @@ Task_StaticSpritesLoad_Run(
             continue;
 
         sprite_id = CacheProvider_SpriteIdByName(self->provider, name);
-        if( sprite_id < 0 || !CacheProvider_SpriteHas(self->provider, sprite_id) )
+        /* A name that resolved but whose sprite is not resident is bound all
+         * the same: its read failed, and the bridge fills the slot when it
+         * lands. Skipping it left the compass blank for the session. */
+        if( sprite_id < 0 )
         {
             /* Era-absent or undeclared: leave the slot unbound. */
             /* REPORT and not LOG: TORIRS_LOG compiles out under NDEBUG, so

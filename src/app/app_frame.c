@@ -818,6 +818,9 @@ App_RunOnce(
     app->host.client.now_ms = (int64_t)now_ms;
 
     App_PumpAsync(app, 1);
+    /* Sprites bound before they were resident: filled as they land, asked for
+     * again while they have not. */
+    UITreeSceneBridge_PumpSprites(&app->bridge, now_ms);
 
     /* Before the BOOTING test: the swap puts the session straight back into
      * BOOTING for the title bake, so the frame that saw the warm gameframe

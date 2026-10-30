@@ -43,6 +43,9 @@ struct CacheProvider
 
     struct HMap* model_cache;
     struct HMap* sprite_cache;
+    /** Sprite ids the sprites table does not list (CacheProvider_SpriteMarkAbsent).
+     *  Separate from sprite_cache so an answer never counts against its LRU. */
+    struct HMap* sprite_absent;
     struct HMap* font_cache;
     struct HMap* enum_cache;
     struct HMap* struct_cache;
@@ -440,6 +443,24 @@ CacheProvider_SpriteGet(
 
 bool
 CacheProvider_SpriteHas(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+/**
+ * Record that the sprites table has no archive `sprite_id` -- an answer, not a
+ * failed read. A loader marks it when its read came back empty for an id the
+ * table does not list; a read of a LISTED id that came back empty is a failure
+ * and is never marked, because the next attempt may well succeed. What reads
+ * it: the bridge's pending sprites (UITreeSceneBridge_BindSprite), which stop
+ * asking for an id that can never arrive.
+ */
+void
+CacheProvider_SpriteMarkAbsent(
+    struct CacheProvider* provider,
+    int sprite_id);
+
+bool
+CacheProvider_SpriteAbsent(
     struct CacheProvider* provider,
     int sprite_id);
 

@@ -107,7 +107,8 @@ app_worldmap_flash_marker_scene(struct App* app)
 }
 
 /* Loc mapfunction / worldmap icon: mapelement id → sprite scene id (dat2).
- * Queues MapElementLoad / SpriteLoad when cold; returns <= 0 until ready.
+ * Queues MapElementLoad when cold and binds the sprite through the bridge;
+ * returns <= 0 until the scene holds it.
  * Label-only elements (sprite_id < 0) return 0. If out_element is non-NULL and
  * the config is loaded, it is filled (even when the sprite is not ready). */
 int
@@ -117,7 +118,6 @@ app_mapfunction_scene_id(
     struct ToriRS_MapElement** out_element)
 {
     struct ToriRS_MapElement* element;
-    struct ToriRS_Sprite* sprite;
     int scene_id;
 
     assert(app);
@@ -140,17 +140,15 @@ app_mapfunction_scene_id(
     if( element->sprite_id < 0 )
         return 0;
 
-    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
-    if( !sprite || sprite->frame_count <= 0 )
-    {
-        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, element->sprite_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+    /* Bound, not loaded here: the bridge asks for a missing sprite once per
+     * pause until it lands (UITreeSceneBridge_BindSprite). Asking here was
+     * once per frame per icon, and a read that kept failing turned that into
+     * thousands of reads a second. Ready means the SCENE holds it -- the
+     * bridge's copy outlives the provider's LRU. */
+    scene_id = UITreeSceneBridge_BindSprite(&app->bridge, element->sprite_id);
+    if( scene_id <= 0 || !ToriDraw_SceneSpriteHas(app->scene, scene_id) )
         return 0;
-    }
-
-    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, element->sprite_id);
-    return scene_id > 0 ? scene_id : 0;
+    return scene_id;
 }
 /*
  * The WORLD MAP -- the full-screen map the cache's scripts open, as opposed to
@@ -190,7 +188,8 @@ app_worldmap_push_icon(
     int screen_y)
 {
     struct ToriRS_MapElement* element = NULL;
-    struct ToriRS_Sprite* sprite;
+    struct ToriDraw_Sprite** frames;
+    int frame_count = 0;
     struct UITreeWorldMapTile* tile;
     int scene_id;
 
@@ -226,8 +225,8 @@ app_worldmap_push_icon(
         return false; /* cold sprite, or label-only (sprite_id < 0) */
 
     assert(element);
-    sprite = CacheProvider_SpriteGet(app->provider, element->sprite_id);
-    assert(sprite && sprite->frame_count > 0);
+    frames = ToriDraw_SceneSpriteGet(app->scene, scene_id, &frame_count);
+    assert(frames && frame_count > 0 && frames[0]);
 
     /* Flash marker first, so it lands *behind* the icon (tiles draw in push
      * order). Reserve room for both, or the marker would be the last blit that
@@ -251,10 +250,8 @@ app_worldmap_push_icon(
     tile = RS_WorldMapTiles_Push(&app->worldmap.tiles);
     assert(tile);
     tile->scene_id = scene_id;
-    tile->w =
-        sprite->frames[0].crop_width > 0 ? sprite->frames[0].crop_width : sprite->frames[0].width;
-    tile->h = sprite->frames[0].crop_height > 0 ? sprite->frames[0].crop_height
-                                                : sprite->frames[0].height;
+    tile->w = frames[0]->crop_width > 0 ? frames[0]->crop_width : frames[0]->width;
+    tile->h = frames[0]->crop_height > 0 ? frames[0]->crop_height : frames[0]->height;
     /* Centred on its tile, like every map icon in the reference. */
     tile->x = screen_x - tile->w / 2;
     tile->y = screen_y - tile->h / 2;

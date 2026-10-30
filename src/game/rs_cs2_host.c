@@ -268,6 +268,11 @@ rs_cs2_sprite_ready(
     /* Negative or absurd ids are not cache sprites — treat as ready (no-op load). */
     if( graphic_id < 0 || graphic_id >= 1000000 )
         return true;
+    /* Bound is ready: the bridge fills the scene id when the sprite lands and
+     * asks again while it has not, so a script that sets the graphic every
+     * run need not yield a load every run (UITreeSceneBridge_BindSprite). */
+    if( host->bridge && UITreeSceneBridge_SpriteBound(host->bridge, graphic_id) )
+        return true;
     return provider && CacheProvider_SpriteHas(provider, graphic_id);
 }
 
@@ -5105,8 +5110,16 @@ exec_set_graphic(
         if( !rs_cs2_await_spent(thread, exact_request->kind, graphic_id, -1) )
             return rs_cs2_yield_load(
                 host, thread, exact_request, graphic_id, -1);
-        /* Sprite still missing after its load: clear the graphic. */
-        (void)UITree_ApplyGraphic(tree, component_id, -1, 0);
+        /* Still missing after its load. Bound rather than cleared, so a read
+         * that failed fills in when the sprite lands; an id the table does
+         * not list binds to -1, which clears it as before. */
+        (void)UITree_ApplyGraphic(
+            tree,
+            component_id,
+            host->bridge && graphic_id < 1000000
+                ? UITreeSceneBridge_BindSprite(host->bridge, graphic_id)
+                : -1,
+            0);
         return CS2VM_EXECNO_OK;
     }
 

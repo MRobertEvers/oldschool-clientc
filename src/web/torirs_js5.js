@@ -49,6 +49,11 @@
   const COMPRESSION_NONE = 0;
   const COMPRESSION_GZIP = 2;
 
+  /** The pause before re-dialling a server that has answered before, doubled
+   *  per failed attempt up to the ceiling. */
+  const RECONNECT_FIRST_MS = 250;
+  const RECONNECT_MAX_MS = 5000;
+
   /** The master index: archive 255 addresses the reference tables, and 255/255
    *  is the index OF those tables. */
   const MASTER_ARCHIVE = 255;
@@ -173,6 +178,12 @@
        * an idle title screen outlives any proxy's or server's idle timeout,
        * and a drop there is not an outage. */
       this.drops = 0;
+      /* Handshakes the server has accepted, and attempts that found it
+       * gone since. One accepted handshake is what makes a refused socket a
+       * restart to wait out rather than an outage -- see
+       * #connectUntilAnswered. */
+      this.handshakes = 0;
+      this.retries = 0;
       /* The master index, parsed into "which tables exist" — see
        * #tablesPresent. One request per session. */
       this.tablesPromise = null;
@@ -230,9 +241,43 @@
     /** Connected and past the handshake. Idempotent; every caller awaits the
      *  same attempt rather than opening a second socket. */
     ready() {
-      return this.readyPromise || (this.readyPromise = this.#connect());
+      return this.readyPromise || (this.readyPromise = this.#connectUntilAnswered());
     }
 
+    /*
+     * Connect, and keep connecting while the server is one that has answered.
+     *
+     * A server that has never completed a handshake this session is an
+     * outage or a wrong address, and failing is the right answer: the boot
+     * says so instead of sitting on its bar. A server that HAS answered and
+     * now refuses the socket is restarting, or the network blinked, and
+     * failing then was the bug: every waiter was rejected, every later
+     * request threw, and the session ran on for good with whatever the
+     * database already held -- an interface with half its sprites, a world
+     * map with grey regions -- although the server was back two seconds
+     * later. So the outstanding requests stay registered, and the attempt
+     * repeats with a growing pause until a handshake lands, when #connect
+     * re-sends all of them. A refused revision is permanent either way.
+     */
+    async #connectUntilAnswered() {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await this.#connect();
+        } catch (err) {
+          if (this.failed) { throw this.failed; }
+          if (this.handshakes === 0) { throw this.#fail(err.message); }
+          const waitMs = Math.min(RECONNECT_MAX_MS, RECONNECT_FIRST_MS << Math.min(attempt, 5));
+          this.retries++;
+          console.warn(`js5: ${err.message}; retrying in ${waitMs} ms ` +
+            `(${this.pending.size} outstanding)`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        }
+      }
+    }
+
+    /* One attempt. Rejects with a plain error on anything transient and
+     * leaves the verdict to #connectUntilAnswered; fails the client itself
+     * only for a refusal, which no retry can change. */
     async #connect() {
       const url = this.url || `ws://${this.host}:${this.port}/`;
       const socket = new WebSocket(url);
@@ -241,7 +286,7 @@
 
       await new Promise((resolve, reject) => {
         socket.onopen = resolve;
-        socket.onerror = () => reject(this.#fail(`cannot reach the JS5 server at ${url}`));
+        socket.onerror = () => reject(new Error(`cannot reach the JS5 server at ${url}`));
       });
 
       /*
@@ -252,15 +297,17 @@
        */
       const status = await new Promise((resolve, reject) => {
         socket.onmessage = ev => resolve(new Uint8Array(ev.data)[0]);
-        socket.onclose = () => reject(this.#fail('the JS5 server closed during the handshake'));
+        socket.onclose = () => reject(new Error('the JS5 server closed during the handshake'));
         socket.send(this.#handshake());
       });
 
       if (status !== 0) {
+        socket.close();
         throw this.#fail(
           `the JS5 server refused revision ${this.revision} (status ${status}). ` +
           'That is a configuration mismatch, not a transient failure.');
       }
+      this.handshakes++;
 
       socket.onmessage = ev => {
         try {
@@ -454,6 +501,7 @@
         wireBytesPerSec: this.lastByteAt > this.firstByteAt
           ? this.bytesReceived * 1000 / (this.lastByteAt - this.firstByteAt) : 0,
         drops: this.drops,
+        retries: this.retries,
         failed: this.failed ? this.failed.message : null,
       };
     }

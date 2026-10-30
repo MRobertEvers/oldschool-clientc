@@ -59,9 +59,9 @@
  * requests, which reads as the map freezing with tiles missing in plain sight.
  *
  * Two things keep the queue bounded. This cap, sized to what the runner can
- * actually retire, and worldmap_request_once below, which makes each asset be
- * asked for exactly once — an asset already in flight is not yet "has", so
- * without it every frame re-queued the same few hundred locs.
+ * actually retire, and worldmap_request_due below, which asks for each asset
+ * once per WORLDMAP_REQUEST_RETRY_FRAMES — an asset already in flight is not
+ * yet "has", so without it every frame re-queued the same few hundred locs.
  *
  * The caller asks for regions nearest the view centre first, so the allowance
  * goes to what is being looked at.
@@ -69,13 +69,21 @@
 #define WORLDMAP_LOADS_PER_FRAME 24
 
 /*
- * Ids already asked for, so nothing is queued twice: open addressing, keys are
- * (kind << 28) | id stored +1 so zero means empty. When it fills past three
- * quarters it is simply cleared — everything in it has either landed (in which
- * case the "has" checks skip it anyway) or was dropped by a failed load, which
- * is then retried once.
+ * Ids already asked for, and on which frame, so nothing is queued twice while
+ * it is in flight: open addressing on (kind, id), kind stored +1 so zero means
+ * empty. When it fills past three quarters it is simply cleared — everything
+ * in it has either landed (the "has" checks skip it anyway) or is asked again.
  */
 #define WORLDMAP_REQUESTED_SLOTS 8192
+
+/*
+ * How long an asked-for id is left to land before it is asked again. Asking
+ * exactly once was the rule, and a load whose read came back empty (a dropped
+ * JS5 socket, a browser storage error) then never landed: its region baked
+ * grey and stayed grey. Two seconds at 60 fps is many round trips on any lane
+ * that is working, so a re-ask only ever repeats a load that failed.
+ */
+#define WORLDMAP_REQUEST_RETRY_FRAMES 120
 
 enum WorldMapRequestKind
 {
@@ -83,6 +91,15 @@ enum WorldMapRequestKind
     WORLDMAP_REQUEST_UNDERLAY,
     WORLDMAP_REQUEST_FLOTYPE,
     WORLDMAP_REQUEST_TEXTURE,
+    /* A region's tiles, keyed by CacheProvider_WorldMapGeographyKey. */
+    WORLDMAP_REQUEST_GEOGRAPHY,
+};
+
+struct RS_WorldMapRequested
+{
+    int kind_plus1;
+    int id;
+    unsigned long asked_frame;
 };
 
 /* Icons per region. A dense region (a city) runs to a few dozen; the cap keeps
@@ -128,7 +145,9 @@ struct RS_WorldMapRender
     size_t baked_bytes;
     int bakes_this_frame;
     int loads_this_frame;
-    int requested[WORLDMAP_REQUESTED_SLOTS];
+    /* Frames begun (RS_WorldMapRender_BeginFrame): the request table's clock. */
+    unsigned long frame;
+    struct RS_WorldMapRequested requested[WORLDMAP_REQUESTED_SLOTS];
     int requested_count;
     int stat_bakes;
     int stat_no_source;
@@ -155,6 +174,7 @@ void
 RS_WorldMapRender_BeginFrame(struct RS_WorldMapRender* render)
 {
     assert(render);
+    render->frame++;
     render->bakes_this_frame = 0;
     render->loads_this_frame = 0;
     /* TORIRS_WORLDMAP_STATS=1: running totals of why regions did not draw.
@@ -901,17 +921,20 @@ worldmap_slot_claim(
  * a black region for as long as it stays in the pool. Queue whatever is missing
  * and report it; the caller retries next frame.
  */
-/** True the first time an id is asked for; false every time after. */
+/** True when an id has never been asked for, or was asked for at least
+ *  WORLDMAP_REQUEST_RETRY_FRAMES ago and still has not landed; false while a
+ *  request is young enough to be in flight. A true answer restamps it. */
 static bool
-worldmap_request_once(
+worldmap_request_due(
     struct RS_WorldMapRender* render,
     enum WorldMapRequestKind kind,
     int id)
 {
-    int key;
     uint32_t slot;
 
-    if( id < 0 )
+    /* A geography key carries the area id in its top byte, so area 128 and
+     * up read negative; every other kind's ids are non-negative. */
+    if( id < 0 && kind != WORLDMAP_REQUEST_GEOGRAPHY )
         return false;
 
     if( render->requested_count * 4 >= WORLDMAP_REQUESTED_SLOTS * 3 )
@@ -920,16 +943,24 @@ worldmap_request_once(
         render->requested_count = 0;
     }
 
-    key = (int)(((uint32_t)kind << 28) | ((uint32_t)id & 0x0FFFFFFFu)) + 1;
-    slot = ((uint32_t)key * 2654435761u) % WORLDMAP_REQUESTED_SLOTS;
+    slot = (((uint32_t)id * 2654435761u) ^ ((uint32_t)kind * 0x9E3779B9u)) %
+           WORLDMAP_REQUESTED_SLOTS;
     for( int probe = 0; probe < WORLDMAP_REQUESTED_SLOTS; probe++ )
     {
-        int* entry = &render->requested[(slot + (uint32_t)probe) % WORLDMAP_REQUESTED_SLOTS];
-        if( *entry == key )
-            return false;
-        if( *entry == 0 )
+        struct RS_WorldMapRequested* entry =
+            &render->requested[(slot + (uint32_t)probe) % WORLDMAP_REQUESTED_SLOTS];
+        if( entry->kind_plus1 == (int)kind + 1 && entry->id == id )
         {
-            *entry = key;
+            if( render->frame - entry->asked_frame < WORLDMAP_REQUEST_RETRY_FRAMES )
+                return false;
+            entry->asked_frame = render->frame;
+            return true;
+        }
+        if( entry->kind_plus1 == 0 )
+        {
+            entry->kind_plus1 = (int)kind + 1;
+            entry->id = id;
+            entry->asked_frame = render->frame;
             render->requested_count++;
             return true;
         }
@@ -962,7 +993,7 @@ worldmap_floors_ready(
                     continue;
                 ready = false;
                 if( render->loads_this_frame < WORLDMAP_LOADS_PER_FRAME &&
-                    worldmap_request_once(render, WORLDMAP_REQUEST_LOC, loc_id) )
+                    worldmap_request_due(render, WORLDMAP_REQUEST_LOC, loc_id) )
                 {
                     struct ToriRS_Task* task = CreateTask_LocLoad(provider, loc_id);
                     if( task && queue )
@@ -982,7 +1013,7 @@ worldmap_floors_ready(
             continue;
         ready = false;
         if( render->loads_this_frame < WORLDMAP_LOADS_PER_FRAME &&
-            worldmap_request_once(render, WORLDMAP_REQUEST_UNDERLAY, underlay_id) )
+            worldmap_request_due(render, WORLDMAP_REQUEST_UNDERLAY, underlay_id) )
         {
             struct ToriRS_Task* task = CreateTask_UnderlayLoad(provider, underlay_id);
             if( task && queue )
@@ -1005,7 +1036,7 @@ worldmap_floors_ready(
             {
                 ready = false;
                 if( render->loads_this_frame < WORLDMAP_LOADS_PER_FRAME &&
-                    worldmap_request_once(render, WORLDMAP_REQUEST_FLOTYPE, overlay_id) )
+                    worldmap_request_due(render, WORLDMAP_REQUEST_FLOTYPE, overlay_id) )
                 {
                     struct ToriRS_Task* task = CreateTask_FlotypeLoad(provider, overlay_id);
                     if( task && queue )
@@ -1024,7 +1055,7 @@ worldmap_floors_ready(
                 continue;
             ready = false;
             if( render->loads_this_frame < WORLDMAP_LOADS_PER_FRAME &&
-                worldmap_request_once(render, WORLDMAP_REQUEST_TEXTURE, overlay->texture) )
+                worldmap_request_due(render, WORLDMAP_REQUEST_TEXTURE, overlay->texture) )
             {
                 struct ToriRS_Task* task = CreateTask_TextureLoad(provider, overlay->texture);
                 if( task && queue )
@@ -1208,10 +1239,15 @@ RS_WorldMapRender_RegionSprite(
         geography = CacheProvider_WorldMapGeographyGet(provider, key);
         if( !geography )
         {
-            struct ToriRS_Task* task =
-                CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
-            if( task && queue )
-                ToriRS_TaskQueue_Add(queue, task);
+            /* Once per retry window: a load in flight is not yet "has", and a
+             * load whose read failed publishes nothing, so this asks again. */
+            if( worldmap_request_due(render, WORLDMAP_REQUEST_GEOGRAPHY, key) )
+            {
+                struct ToriRS_Task* task =
+                    CreateTask_WorldMapGeographyLoad(provider, key, sources, source_count);
+                if( task && queue )
+                    ToriRS_TaskQueue_Add(queue, task);
+            }
             render->stat_no_geography++;
             return -1;
         }

@@ -216,7 +216,8 @@ task_cs2_resolve_sprite(
     assert(bridge);
     if( graphic_id < 0 )
         return -1;
-    return UITreeSceneBridge_EnsureSprite(bridge, graphic_id);
+    /* A pack bake binds its nodes for good: see UITreeSceneBridge_BindSprite. */
+    return UITreeSceneBridge_BindSprite(bridge, graphic_id);
 }
 
 static int

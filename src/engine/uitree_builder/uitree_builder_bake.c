@@ -387,8 +387,9 @@ resolve_sprite_required(
     int id = UITreeBuilder_ResolveSpriteRef(builder, ref, &atlas);
     if( out_atlas )
         *out_atlas = atlas;
+    /* Bound, so a sprite whose read failed fills in when it lands. */
     if( builder->bridge && id >= 0 )
-        id = UITreeSceneBridge_EnsureSprite(builder->bridge, id);
+        id = UITreeSceneBridge_BindSprite(builder->bridge, id);
     return id;
 }
 
@@ -399,14 +400,15 @@ bake_resolve_sprite(void* ud, int graphic_id)
     assert(builder && builder->provider);
     if( graphic_id < 0 )
         return -1;
+    /* Pack-internal sprites are not always prefetched yet: bound now, filled
+     * when they land (UITreeSceneBridge_BindSprite). */
+    if( builder->bridge )
+        return UITreeSceneBridge_BindSprite(builder->bridge, graphic_id);
     if( !CacheProvider_SpriteHas(builder->provider, graphic_id) )
     {
-        /* Pack-internal sprites are not always prefetched yet — leave unbound. */
         TORIRS_LOG("uitree_builder_bake: RS sprite %d not loaded\n", graphic_id);
         return -1;
     }
-    if( builder->bridge )
-        return UITreeSceneBridge_EnsureSprite(builder->bridge, graphic_id);
     return graphic_id;
 }
 

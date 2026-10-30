@@ -21,6 +21,8 @@
  */
 #define CACHE_PROVIDER_MODEL_CAPACITY 4096
 #define CACHE_PROVIDER_SPRITE_CAPACITY 2048
+/* A session meets a handful of unlisted sprite ids; the map doubles past 75%. */
+#define CACHE_PROVIDER_SPRITE_ABSENT_CAPACITY 64
 /*
  * How much of each derived cache survives a trim (see
  * CacheProvider_TrimDerivedCaches). These are working-set sizes, not hard
@@ -123,6 +125,11 @@ struct MapEntry_ProviderSprite
     int id;
     struct ToriRS_Sprite* sprite;
     uint64_t last_used;
+};
+
+struct MapEntry_ProviderSpriteAbsent
+{
+    int id;
 };
 
 struct MapEntry_ProviderSpriteName
@@ -401,6 +408,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
     provider->sprite_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+    provider->sprite_absent = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderSpriteAbsent), CACHE_PROVIDER_SPRITE_ABSENT_CAPACITY);
     provider->font_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
     provider->enum_cache = cache_provider_hmap_new(
@@ -499,6 +508,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->model_cache = NULL;
     cache_provider_hmap_free(provider->sprite_cache);
     provider->sprite_cache = NULL;
+    cache_provider_hmap_free(provider->sprite_absent);
+    provider->sprite_absent = NULL;
     cache_provider_hmap_free(provider->font_cache);
     provider->font_cache = NULL;
     cache_provider_hmap_free(provider->enum_cache);
@@ -940,6 +951,32 @@ CacheProvider_SpriteHas(
     int sprite_id)
 {
     return CacheProvider_SpriteGet(provider, sprite_id) != NULL;
+}
+
+void
+CacheProvider_SpriteMarkAbsent(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    struct MapEntry_ProviderSpriteAbsent* entry;
+
+    assert(provider);
+    assert(provider->sprite_absent);
+    cache_provider_hmap_prepare_insert(&provider->sprite_absent);
+    entry = (struct MapEntry_ProviderSpriteAbsent*)hmap_search(
+        provider->sprite_absent, &sprite_id, HMAP_INSERT);
+    assert(entry && "Absent sprite id must be inserted into hmap");
+    entry->id = sprite_id;
+}
+
+bool
+CacheProvider_SpriteAbsent(
+    struct CacheProvider* provider,
+    int sprite_id)
+{
+    assert(provider);
+    assert(provider->sprite_absent);
+    return hmap_search(provider->sprite_absent, &sprite_id, HMAP_FIND) != NULL;
 }
 
 static int
