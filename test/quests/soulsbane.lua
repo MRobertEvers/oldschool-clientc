@@ -115,17 +115,35 @@ return {
         t.exec("takeWeapon.equip", t.player.equip, "soulbane_anger_swordq")
         t.ticks(2)
         local _, snap = t.skill.snapshot()
-        -- The bar fills with damage: unicorns until the rage is let out.
+        -- The bar fills with damage until the rage is let out. A death brings in
+        -- the other kind, never the same one back (4430: unicorn [1006] -> a bear,
+        -- bear [1068] -> a unicorn), so the weapon changes at the rack after
+        -- every kill, as the recorder's did.
         local rage = new_fight()
-        -- One unicorn at a time, a new one about a minute after each (4430 [1006] -> [1068]).
-        for i = 1, 80 do
+        local kinds = {
+            { npc = "soulbane_anger_unicorn", choice = "The Sword", obj = "soulbane_anger_swordq" },
+            { npc = "soulbane_anger_bear", choice = "The Spear", obj = "soulbane_anger_spearq" },
+        }
+        local turn, wielded = 1, 1
+        for i = 1, 30 do
             local _, st = t.var.server("varb2011_soulbane_prog")
             if st ~= 2 then break end
             local _, special = t.var.server("varb2042_soulbane_anger_donespecial")
             if special == 1 then break end
-            local ar = t.player.attack("soulbane_anger_unicorn", 2, 60)
+            local kind = kinds[turn]
+            if wielded ~= turn then
+                t.exec("rage.take" .. i, t.player.click_loc, "soulbane_rack_multi", 1)
+                t.exec("rage.take" .. i .. ".menu", t.chat.drain, { stop_at = "options" })
+                t.exec("rage.take" .. i .. ".choose", t.chat.choose, kind.choice)
+                t.exec("rage.take" .. i .. ".has", t.inv.await, kind.obj, 1, 10)
+                t.exec("rage.take" .. i .. ".equip", t.player.equip, kind.obj)
+                t.ticks(2)
+                wielded = turn
+            end
+            local ar = t.player.attack(kind.npc, 2, 60)
             if ar == "ok" then
-                kill_wait("rage.unicorn" .. i .. ".dead", rage, 120, 8, 30)
+                kill_wait("rage." .. kind.npc .. i .. ".dead", rage, 120, 8, 30)
+                turn = 3 - turn
             else
                 t.ticks(10)
             end
@@ -271,7 +289,19 @@ return {
         t.exec("heads.present", t.npc.await_present, "soulbane_final_tolna1", 30, 20)
         local head_bits = { "varb2022_soulbane_final_tol1dead", "varb2023_soulbane_final_tol2dead", "varb2024_soulbane_final_tol3dead" }
         local tolna = new_fight()
+        -- A head is fought until it dies, but auto-retaliate can turn the player on
+        -- another while they eat (the north head swings every tick), so one wait
+        -- may see more than one die: the loop ends when every dead bit is set.
+        local function heads_left()
+            local n = 0
+            for k = 1, 3 do
+                local _, dead = t.var.server(head_bits[k])
+                if dead ~= 1 then n = n + 1 end
+            end
+            return n
+        end
         for h = 1, 3 do
+            if heads_left() == 0 then break end
             local engaged, which, trail = "none", nil, ""
             for attempt = 1, 8 do
                 for k = 1, 3 do

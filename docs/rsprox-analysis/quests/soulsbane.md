@@ -104,7 +104,7 @@ tick; deleted the wiki's "Surely by now they'd both be dead?" branch (not a rev-
 | damage | matching anger weapon: 1..49 at a max of 4-5 (49, 12, 43, 31, 1, 48, 16 — never ×10 multiples) | `dealt*10 - random(10)`: a roll over ten times the max |
 | wrong weapon | rune scimitar on the bear: "I can't deal any damage..." + block 0 ([1034]) | same |
 | XP | none from the hits; 40 Attack at the end ([1406] attack exp 0→40) | same |
-| monsters | unicorn (3014,5228), bear (3025,5234), rat, goblin; wander; a new one ~60 ticks after a death ([1006]→[1068], [1068]→[1130]) | `npc_add` in the copy + `npc_setrespawn(60)` |
+| monsters | unicorn (3014,5228), bear (3025,5234), rat, goblin; wander; a death adds the OTHER kind on its own tick and nothing respawns (unicorn [1006]/[1208]/[1272] → bear at (3023,5244); bear [1068]/[1130]/[1346] → unicorn at (3014,5228)): the weapon has to change | `npc_add` in the copy; `~soulsbane_anger_death` adds the other kind (rat ↔ goblin unverified) (was `npc_setrespawn(60)`, the same kind back: the sword alone filled the bar) |
 | the special ([1392]) | say "Arrrgghhh!", spotanim `anger_special_spotanim`, seq `anger_special_play`, bar closed, synth `bane_summon_dragon`; [1401] nine `anger_special_projectile` (6 at floor tiles, 3 at monsters; endtime 125..200 step 5, heights 172/124 raw = 43/31); each monster takes its hitpoints in one splat as it lands; [1406] stage 3 + flame + XP; [1411] page chatshock2 | `[queue,soulsbane_anger_special]` |
 | memory ([1413]..[1436]) | Varrock copy, young Launa + boy, six pages each with the line overhead too (Tolna's overhead says "any longer", the page "any more"), boy walks off, "Tolna?", "TOLNA !!!", `watchedcutscene`=1, back in a new rage copy at (3028,5230) | `~sb_scene_memory` |
 
@@ -158,7 +158,16 @@ so hard…" (the wiki dropped the dots), the pages' overheads, the walk, the roo
 Heads launch `soulbane_tolna_travel` (640) from their centre (endtime = 95 + 5×tiles: 175/16,
 150/11, 145/10), launch spotanim 639 h210, impact 641 + block seq on endtime,
 `sound_area creeper_spit` at the head, `fireblast_hit` at the target; melee `neckattack`
-adjacent; poison. They never move (config now `defaultmode=none`). The last head plays
+adjacent; poison. They never move (config now `defaultmode=none`). Rates ([3354]..[3575], all
+three beside the player): the east head (tolna1) only spits, every 6 ticks, adjacent or not
+(17 spits); the south head (tolna2) swings every 8 (synth `bane_tolna_attack`); the north head
+(tolna3) swings EVERY tick, 140 in a row (`sound_area bane_tolna_spit` + synth `snail_spit`).
+Out of reach: tolna1 spat from 15 tiles at [3354], tolna3 once at [3358] and swung 5 ticks
+later. Poisoned at 5 on [3363], the first melee tick. Ours: `[ai_opplayer2]` per head in
+soulsbane_tolna.rs2 (spit when not orthogonally beside, the melee heads every 5 [unverified]),
+`moverestrict=nomove`, hunt/reach/leash 16, `poison_severity` 5 on tolna2/3 [fitted]; the
+scene's actor heads `npc_sethuntmode(-1)` (with hunt 16 they spat through the scene). Was: the
+cache rates 6/8/20, melee only, reach 1, walking to the player. The last head plays
 `neckdeathfade` + synth `bane_tolna_final_death`, stage 11 on its death; four ticks later
 Tolna (2984,5211) wakes (`wake_up`). His talk (moods: quiz1/neu1/quiz2/neu2, Brana's
 pages from afar) ends with stage 12, both pres varbits, "You've returned to the entrance.",
@@ -215,6 +224,7 @@ Wire audit, our tick log against `rsprox_tells.py 4430 --from 931 --to 3625` by 
   | hopeless creatures: magic projectile, every form | 90 shots; unprayed 15/46 hit, prayed 9/41, max 1; endtime 105 beside | `[ai_applayer2]` in soulsbane_hope.rs2: those rates, max 1, endtime 100 + 5 × tiles from the nearest edge (36/36 at 105) |
   | hopeless forms 2-3: `lessattack` + 492 beside the player | 60 swings, max 5, prayed 50/50 zero | half the time beside the player [fitted], default melee |
   | anger monsters, fear reapers | melee, max 5 | config melee (unchanged; matched) |
+  | hopeless form changes (monst3→2→1) | `[transformation]` a tick after the killing hit, no seq ([2635]→[2636]); `lessdeath` only at the 5 real deaths | `death_anim,null` + `death_delay=0` on monst3/monst2 (was: `lessdeath` at every change, its 20000-cycle last frame outliving the change: forms 2 and 1 drew sunk out of sight) |
 
 - **The boss (Tolna's heads)**: a separate Opus audit (owner rule: Opus for boss fights only)
   is running; its section goes below.
