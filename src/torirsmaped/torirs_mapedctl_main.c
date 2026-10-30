@@ -78,6 +78,10 @@ selection_kind_name(int32_t kind)
     }
 }
 
+static char const* const k_cmd_kind_names[] = {
+    "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice",
+};
+
 static void
 print_cmd(
     void* user_data,
@@ -85,25 +89,29 @@ print_cmd(
     int direction,
     const struct Editor_Cmd* command)
 {
+    char const* verb = direction == EDITOR_CMD_INVERSE ? "undone" : "applied";
+    char const* kind = (unsigned)command->kind < EDITOR_CMD_KIND_COUNT
+                           ? k_cmd_kind_names[command->kind]
+                           : "?";
+
     (void)user_data;
 
     if( command->kind == EDITOR_CMD_TILE )
         printf(
-            "cmd  #%u %-7s tile   m%d_%d level %d tile %d,%d\n",
+            "cmd  #%u %-7s tile   %s level %d tile %d,%d\n",
             seq,
-            direction == EDITOR_CMD_INVERSE ? "undone" : "applied",
-            command->map_x,
-            command->map_z,
-            command->level,
-            command->x,
-            command->z);
+            verb,
+            command->doc_key,
+            command->u.tile.level,
+            command->u.tile.x,
+            command->u.tile.z);
     else
         printf(
-            "cmd  #%u %-7s loc    m%d_%d %s%s\n",
+            "cmd  #%u %-7s %-6s %s %s%s\n",
             seq,
-            direction == EDITOR_CMD_INVERSE ? "undone" : "applied",
-            command->map_x,
-            command->map_z,
+            verb,
+            kind,
+            command->doc_key,
             command->has_before ? "-" : "",
             command->has_after ? "+" : "");
     fflush(stdout);
@@ -113,14 +121,25 @@ static void
 print_saved(
     void* user_data,
     int count,
-    const int* coords)
+    const struct Editor_DocRef* rows)
 {
     (void)user_data;
 
-    printf("save %d square(s):", count);
+    printf("save %d document(s):", count);
     for( int i = 0; i < count; i++ )
-        printf(" m%d_%d", coords[i * 2], coords[i * 2 + 1]);
+        printf(" %s", rows[i].key);
     printf("\n");
+    fflush(stdout);
+}
+
+static void
+print_resync(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    (void)user_data;
+    printf("resync kind %d %s (a command this build cannot read)\n", (int)kind, key);
     fflush(stdout);
 }
 
@@ -158,7 +177,7 @@ print_state(
 }
 
 static const struct EditorHostMapEdFacts k_printing_sink = {
-    NULL, print_cmd, print_saved, print_state
+    NULL, print_cmd, print_saved, print_state, print_resync
 };
 
 static void
@@ -230,6 +249,94 @@ cmd_open(
     return 0;
 }
 
+static int
+parse_kind(char const* name)
+{
+    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text" };
+    for( int i = 0; i < EDITOR_DOC_KIND_COUNT; i++ )
+    {
+        if( strcmp(name, names[i]) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+/** DOC_OPEN: the authority's current text of any document, sizes only. */
+static int
+cmd_doc(
+    struct EditorHost* host,
+    char const* kind_name,
+    char const* key)
+{
+    struct EditorHost_DocText text;
+    enum EditorHost_Status status;
+    int kind = parse_kind(kind_name);
+
+    if( kind < 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: kind is square|spawn|cfg|iface|text\n");
+        return 1;
+    }
+    status = Editor_HostMapEdDocOpen(host, (enum Editor_DocKind)kind, key, &text);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: cannot open %s (status %d)\n", key, (int)status);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    printf("%s open:%s%s", text.key, text.storage[0] ? " storage " : "", text.storage);
+    for( int i = 0; i < text.part_count; i++ )
+    {
+        if( text.parts[i].data )
+            printf(" part%d %zu bytes", i, text.parts[i].size);
+        else
+            printf(" part%d absent", i);
+    }
+    printf(", dirty %u\n", text.dirty);
+    Editor_HostDocTextFree(&text);
+    return 0;
+}
+
+/** DOC_CREATE: a new square, as the picker's New button sends it. */
+static int
+cmd_new(
+    struct EditorHost* host,
+    int map_x,
+    int map_z,
+    char const* storage,
+    char const* template_name,
+    char const* source)
+{
+    struct EditorHost_DocCreate request;
+    enum EditorHost_Status status;
+
+    memset(&request, 0, sizeof(request));
+    request.kind = EDITOR_DOC_SQUARE;
+    Editor_SquareKey(request.key, map_x, map_z);
+    snprintf(request.storage, sizeof(request.storage), "%s", storage ? storage : "");
+    request.template_kind = EDITOR_DOC_TEMPLATE_EMPTY;
+    if( template_name && strcmp(template_name, "flat") == 0 )
+    {
+        request.template_kind = EDITOR_DOC_TEMPLATE_FLAT;
+        request.fill_height = source ? atoi(source) : 0;
+        request.fill_underlay = 1;
+    }
+    else if( template_name && strcmp(template_name, "copy") == 0 && source )
+    {
+        request.template_kind = EDITOR_DOC_TEMPLATE_COPY;
+        snprintf(request.source_key, sizeof(request.source_key), "%s", source);
+    }
+    status = Editor_HostMapEdDocCreate(host, &request);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: create %s refused (status %d)\n", request.key,
+            (int)status);
+        return 1;
+    }
+    printf("created %s in %s\n", request.key, request.storage[0] ? request.storage : "maps");
+    return 0;
+}
+
 /**
  * Stream facts until the deadline or an interrupt.
  *
@@ -268,7 +375,7 @@ main(
     uint32_t join_group = 0;
     struct EditorHost host;
     char const* command = NULL;
-    char const* args[4] = { NULL, NULL, NULL, NULL };
+    char const* args[5] = { NULL, NULL, NULL, NULL, NULL };
     int arg_count = 0;
     int result = 0;
 
@@ -282,7 +389,7 @@ main(
             join_group = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if( !command )
             command = argv[i];
-        else if( arg_count < 4 )
+        else if( arg_count < 5 )
             args[arg_count++] = argv[i];
         else
         {
@@ -296,7 +403,9 @@ main(
             stderr,
             "usage: torirsmapedctl [--host h] [--port n] [--client <id>] <command>\n"
             "  watch [seconds] | status | squares [limit] | open <x> <z>\n"
-            "  select <x> <z> <level> | tool <n> | sync | undo | redo | save | bake\n");
+            "  select <x> <z> <level> | tool <n> | sync | undo | redo | save | bake\n"
+            "  doc <square|spawn|cfg|iface|text> <key>\n"
+            "  new <x> <z> [storage] [empty|flat <height>|copy <key>]\n");
         return 1;
     }
 
@@ -329,6 +438,10 @@ main(
         result = cmd_squares(&host, arg_count > 0 ? atoi(args[0]) : 20);
     else if( strcmp(command, "open") == 0 && arg_count >= 2 )
         result = cmd_open(&host, atoi(args[0]), atoi(args[1]));
+    else if( strcmp(command, "doc") == 0 && arg_count >= 2 )
+        result = cmd_doc(&host, args[0], args[1]);
+    else if( strcmp(command, "new") == 0 && arg_count >= 2 )
+        result = cmd_new(&host, atoi(args[0]), atoi(args[1]), args[2], args[3], args[4]);
     else if( strcmp(command, "select") == 0 && arg_count >= 3 )
     {
         /* Values per TORIRSMAPED_STATE_SELECTION: kind 1 is terrain, and the
@@ -376,7 +489,7 @@ main(
         }
         else
         {
-            printf("saved %d square(s)\n", saved);
+            printf("saved %d document(s)\n", saved);
             Editor_HostMapEdDrainFacts(&host, &k_printing_sink);
         }
     }

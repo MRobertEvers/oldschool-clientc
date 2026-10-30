@@ -1154,6 +1154,22 @@ static struct ToriRSServerMapObjSpawn* g_obj_spawns;
 static int g_obj_spawn_count;
 static int g_obj_spawn_capacity;
 
+/* `-name x z level` rows: spawns another file makes that the edited lane
+ * suppresses. Collected while the .spawn files merge, applied once after
+ * the last one (ToriRSServer_ContentLoadSpawns), then dropped. */
+struct SpawnSuppression
+{
+    int is_obj;
+    int id;
+    int x;
+    int z;
+    int level;
+    int matched;
+};
+static struct SpawnSuppression* g_spawn_suppressions;
+static int g_spawn_suppression_count;
+static int g_spawn_suppression_capacity;
+
 /** Engine defaults. OpenRune's NpcCombatDef.DEFAULT, with LostCity's animation
  *  names — the two agree on all of it. */
 static struct ToriRSServerNpcDef g_npc_default;
@@ -1766,6 +1782,13 @@ ToriRSServer_ContentStructParam(
  * the last place in this tree carrying a bare id, so it was the last place a
  * cache bump could silently repoint at a different creature — and it already
  * had (`sos_pest_giantspider1`, level 50, standing in the Lumbridge Swamp).
+ *
+ * A row whose name starts with `-` is a SUPPRESSION (docs/MAPED_DESIGN.html
+ * #placement): it names a spawn some other file makes — the generated
+ * `areas/world` file the map editor must not write into — and every spawn of
+ * that npc/obj on that tile and level is removed once all files are merged.
+ * The name resolves exactly like a spawn's, so the key is (kind, id, x, z,
+ * level); an obj suppression's count, if stated, is ignored.
  */
 enum SpawnSection
 {
@@ -1794,6 +1817,7 @@ load_spawn_config(const char* path)
         int count;
         int id;
         int fields;
+        int suppress;
 
         line_number++;
         if( !*line )
@@ -1835,6 +1859,14 @@ load_spawn_config(const char* path)
             CONTENT_ERROR("%s:%d: an npc spawn has no count\n", path, line_number);
             continue;
         }
+        suppress = name[0] == '-';
+        if( suppress )
+            memmove(name, name + 1, strlen(name));
+        if( !name[0] )
+        {
+            CONTENT_ERROR("%s:%d: a suppression row names nothing\n", path, line_number);
+            continue;
+        }
         if( level < 0 || level > 3 )
         {
             CONTENT_ERROR("%s:%d: level %d is not 0..3\n", path, line_number, level);
@@ -1873,7 +1905,19 @@ load_spawn_config(const char* path)
             }
         }
 
-        if( section == SPAWN_NPC )
+        if( suppress )
+        {
+            g_spawn_suppressions = grow(g_spawn_suppressions, &g_spawn_suppression_capacity,
+                                        g_spawn_suppression_count, sizeof(*g_spawn_suppressions));
+            g_spawn_suppressions[g_spawn_suppression_count].is_obj = section == SPAWN_OBJ;
+            g_spawn_suppressions[g_spawn_suppression_count].id = id;
+            g_spawn_suppressions[g_spawn_suppression_count].x = x;
+            g_spawn_suppressions[g_spawn_suppression_count].z = z;
+            g_spawn_suppressions[g_spawn_suppression_count].level = level;
+            g_spawn_suppressions[g_spawn_suppression_count].matched = 0;
+            g_spawn_suppression_count++;
+        }
+        else if( section == SPAWN_NPC )
         {
             g_npc_spawns = grow(g_npc_spawns, &g_npc_spawn_capacity, g_npc_spawn_count,
                                 sizeof(*g_npc_spawns));
@@ -1896,6 +1940,92 @@ load_spawn_config(const char* path)
         }
     }
     fclose(file);
+}
+
+/* Defined with the other directory walks below. */
+static void
+walk_configs(
+    const char* dir,
+    const char* suffix,
+    void (*load)(const char*));
+
+static int
+suppressed(
+    int is_obj,
+    int id,
+    int x,
+    int z,
+    int level)
+{
+    for( int i = 0; i < g_spawn_suppression_count; i++ )
+    {
+        struct SpawnSuppression* row = &g_spawn_suppressions[i];
+        if( row->is_obj == is_obj && row->id == id && row->x == x && row->z == z
+            && row->level == level )
+        {
+            row->matched = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int
+ToriRSServer_ContentLoadSpawns(const char* scripts_dir)
+{
+    int removed = 0;
+    int kept;
+
+    assert(scripts_dir);
+
+    walk_configs(scripts_dir, ".spawn", load_spawn_config);
+
+    /* One pass per table, compacting in place so the merge order of every
+     * surviving spawn is unchanged — and a tree with no `-` rows is
+     * untouched. */
+    if( g_spawn_suppression_count > 0 )
+    {
+        kept = 0;
+        for( int i = 0; i < g_npc_spawn_count; i++ )
+        {
+            const struct ToriRSServerMapNpcSpawn* spawn = &g_npc_spawns[i];
+            if( suppressed(0, spawn->npc_id, spawn->x, spawn->z, spawn->level) )
+                continue;
+            g_npc_spawns[kept++] = *spawn;
+        }
+        removed += g_npc_spawn_count - kept;
+        g_npc_spawn_count = kept;
+
+        kept = 0;
+        for( int i = 0; i < g_obj_spawn_count; i++ )
+        {
+            const struct ToriRSServerMapObjSpawn* spawn = &g_obj_spawns[i];
+            if( suppressed(1, spawn->obj_id, spawn->x, spawn->z, spawn->level) )
+                continue;
+            g_obj_spawns[kept++] = *spawn;
+        }
+        removed += g_obj_spawn_count - kept;
+        g_obj_spawn_count = kept;
+
+        /* A suppression that hides nothing is stale — the generated spawn it
+         * named moved or went away — which is worth a line, not an error:
+         * the world it asked for (no such spawn there) is the world loaded. */
+        for( int i = 0; i < g_spawn_suppression_count; i++ )
+        {
+            if( !g_spawn_suppressions[i].matched )
+                fprintf(stderr,
+                        "torirsserver: spawn suppression of %s %d at %d %d %d matched nothing\n",
+                        g_spawn_suppressions[i].is_obj ? "obj" : "npc", g_spawn_suppressions[i].id,
+                        g_spawn_suppressions[i].x, g_spawn_suppressions[i].z,
+                        g_spawn_suppressions[i].level);
+        }
+    }
+
+    ToriMem_Free(ToriMem_ServerContent(), g_spawn_suppressions);
+    g_spawn_suppressions = NULL;
+    g_spawn_suppression_count = 0;
+    g_spawn_suppression_capacity = 0;
+    return removed;
 }
 
 /* ------------------------------------------------------------------ */
@@ -2751,7 +2881,7 @@ ToriRSServer_ContentLoad(
     }
     /* After the configs: a spawn names an npc or an obj, and the name has to
      * resolve against the packs the loader has already read. */
-    walk_configs(path, ".spawn", load_spawn_config);
+    ToriRSServer_ContentLoadSpawns(path);
 
     snprintf(path, sizeof(path), "%s/maps/multiway.csv", dir);
     load_multiway(path);

@@ -63,6 +63,7 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped)
         maped->files.vtable->session(maped->files.user_data, 0);
         Editor_HostClose(&maped->files);
         Editor_DocFree(&maped->doc);
+        Editor_UndoFree(&maped->undo);
         maped->open = 0;
     }
 }
@@ -175,23 +176,6 @@ send_status(
     send_status_extra(session, request, status, 0);
 }
 
-/** A document fact to every attached session, the requester included —
- *  mirrors mutate on the broadcast, never on the request. */
-static void
-broadcast(
-    struct ToriRSMapEd* maped,
-    uint32_t type,
-    const uint8_t* payload,
-    uint32_t length)
-{
-    for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
-    {
-        struct ToriRSMapEdSession* session = maped->sessions[i];
-        if( session && session->alive )
-            send_frame(session, type, payload, length);
-    }
-}
-
 /** A state fact to one Client's connections only. Selection and tool are a
  *  session's own business; another Client editing the same world never
  *  hears them. */
@@ -212,18 +196,109 @@ broadcast_group(
 }
 
 static void
+send_buf(
+    struct ToriRSMapEdSession* session,
+    uint32_t type,
+    const struct ToriRSMapEdBuf* payload)
+{
+    send_frame(
+        session,
+        type,
+        ToriRSMapEd_BufPeek(payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(payload));
+}
+
+/**
+ * One document change to every session, each in the form it speaks: v2
+ * peers get the kind-tagged encoding, v1 peers the 144-byte square form —
+ * and nothing at all for a command v1 cannot express (a spawn row, a text
+ * splice), since a v1 mirror holds no such document.
+ */
+static void
 broadcast_cmd(
     struct ToriRSMapEd* maped,
     const struct Editor_Cmd* command,
     enum Editor_CmdDirection direction)
 {
-    uint8_t payload[8 + TORIRSMAPED_CMD_WIRE];
+    struct ToriRSMapEdBuf v2;
+    uint8_t v1[8 + TORIRSMAPED_CMD_WIRE_V1];
+    int has_v1;
 
     maped->seq++;
-    ToriRSMapEd_WriteU32(payload, maped->seq);
-    ToriRSMapEd_WriteU32(payload + 4, (uint32_t)direction);
-    ToriRSMapEd_CmdEncode(command, payload + 8);
-    broadcast(maped, TORIRSMAPED_FACT_CMD, payload, sizeof(payload));
+    memset(&v2, 0, sizeof(v2));
+    ToriRSMapEd_PutU32(&v2, maped->seq);
+    ToriRSMapEd_PutU32(&v2, (uint32_t)direction);
+    ToriRSMapEd_CmdEncode(command, &v2);
+
+    ToriRSMapEd_WriteU32(v1, maped->seq);
+    ToriRSMapEd_WriteU32(v1 + 4, (uint32_t)direction);
+    has_v1 = ToriRSMapEd_CmdEncodeV1(command, v1 + 8);
+
+    for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
+    {
+        struct ToriRSMapEdSession* session = maped->sessions[i];
+        if( !session || !session->alive )
+            continue;
+        if( session->version >= TORIRSMAPED_PROTO_VERSION )
+            send_buf(session, TORIRSMAPED_FACT_CMD, &v2);
+        else if( has_v1 )
+            send_frame(session, TORIRSMAPED_FACT_CMD, v1, sizeof(v1));
+    }
+    ToriRSMapEd_BufFree(&v2);
+}
+
+/**
+ * What landed on disk, to every session in its own form: v2 rows of
+ * (kind, key), or for v1 peers the squares among them as coordinates (and
+ * nothing when no square was saved — a v1 mirror holds only squares).
+ */
+static void
+broadcast_saved(
+    struct ToriRSMapEd* maped,
+    const struct Editor_DocRef* rows,
+    int count)
+{
+    struct ToriRSMapEdBuf v2;
+    struct ToriRSMapEdBuf v1;
+    uint32_t squares = 0;
+
+    if( count <= 0 )
+        return;
+
+    memset(&v2, 0, sizeof(v2));
+    memset(&v1, 0, sizeof(v1));
+    ToriRSMapEd_PutU32(&v2, (uint32_t)count);
+    for( int i = 0; i < count; i++ )
+    {
+        ToriRSMapEd_PutU32(&v2, (uint32_t)rows[i].kind);
+        ToriRSMapEd_PutString(&v2, rows[i].key);
+        if( rows[i].kind == EDITOR_DOC_SQUARE )
+            squares++;
+    }
+    ToriRSMapEd_PutU32(&v1, squares);
+    for( int i = 0; i < count; i++ )
+    {
+        int map_x;
+        int map_z;
+        if( rows[i].kind != EDITOR_DOC_SQUARE
+            || !Editor_SquareKeyParse(rows[i].key, &map_x, &map_z) )
+            continue;
+        ToriRSMapEd_PutU32(&v1, (uint32_t)map_x);
+        ToriRSMapEd_PutU32(&v1, (uint32_t)map_z);
+    }
+
+    for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
+    {
+        struct ToriRSMapEdSession* session = maped->sessions[i];
+        if( !session || !session->alive )
+            continue;
+        if( session->version >= TORIRSMAPED_PROTO_VERSION )
+            send_buf(session, TORIRSMAPED_FACT_SAVED, &v2);
+        else if( squares > 0 )
+            send_buf(session, TORIRSMAPED_FACT_SAVED, &v1);
+    }
+    ToriRSMapEd_BufFree(&v2);
+    ToriRSMapEd_BufFree(&v1);
 }
 
 static void
@@ -424,6 +499,124 @@ handle_bake(
 /* Document handlers                                                   */
 /* ------------------------------------------------------------------ */
 
+/** "m50_50" or "ported/<lane>/maps/m50_50": the key the file layer takes. */
+static void
+square_file_key(
+    char* out,
+    size_t out_size,
+    const char* storage,
+    const char* key)
+{
+    if( storage[0] )
+        snprintf(out, out_size, "%s/%s", storage, key);
+    else
+        snprintf(out, out_size, "%s", key);
+}
+
+/**
+ * Open a square in the AUTHORITY, reading it from `storage` when it is not
+ * open yet. `storage` NULL means "whatever is open, else maps/" — the v1
+ * alias, which has no storage to name.
+ *
+ * REFUSED when the square is open from a DIFFERENT storage: the document is
+ * keyed by coordinates (one world, one square per place), so a lane's copy
+ * and the tree's cannot both be open.
+ */
+static enum EditorHost_Status
+authority_open_square(
+    struct ToriRSMapEd* maped,
+    const char* storage,
+    int map_x,
+    int map_z,
+    struct Editor_Square** out_square)
+{
+    struct Editor_Square* square;
+    char key[EDITOR_DOC_KEY_MAX];
+    char file_key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+    struct EditorHost_Blob jm2 = { NULL, 0 };
+    struct EditorHost_Blob jl2 = { NULL, 0 };
+    enum EditorHost_Status status;
+
+    *out_square = NULL;
+    square = Editor_DocFindSquare(&maped->doc, map_x, map_z);
+    if( square && square->loaded )
+    {
+        if( storage && strcmp(Editor_DocSquareStorage(&maped->doc, square), storage) != 0 )
+            return EDITOR_HOST_REFUSED;
+        *out_square = square;
+        return EDITOR_HOST_OK;
+    }
+    if( !square )
+        square = Editor_DocOpenSquare(&maped->doc, map_x, map_z);
+    if( !square )
+        return EDITOR_HOST_IO_ERROR;
+    Editor_DocSquareSetStorage(&maped->doc, square, storage ? storage : "");
+    *out_square = square;
+
+    Editor_SquareKey(key, map_x, map_z);
+    square_file_key(
+        file_key, sizeof(file_key), Editor_DocSquareStorage(&maped->doc, square), key);
+    status = maped->files.vtable->doc_load(
+        maped->files.user_data, EDITOR_DOC_SQUARE, file_key, 0, &jm2);
+    if( status == EDITOR_HOST_OK )
+    {
+        struct Editor_ParseResult result;
+
+        /* A square with no scenery ships no `.jl2`; absent is data. */
+        maped->files.vtable->doc_load(
+            maped->files.user_data, EDITOR_DOC_SQUARE, file_key, 1, &jl2);
+        result = Editor_Jm2Parse(square, jm2.data, jm2.size);
+        if( result.status != EDITOR_PARSE_OK )
+        {
+            TORIRS_ERR("torirsmaped: %s.jm2 line %d: parse error %d\n",
+                file_key,
+                result.line,
+                (int)result.status);
+            status = EDITOR_HOST_IO_ERROR;
+        }
+        else if( jl2.data && jl2.size > 0 )
+        {
+            result = Editor_Jl2Parse(square, jl2.data, jl2.size);
+            if( result.status != EDITOR_PARSE_OK )
+            {
+                TORIRS_ERR("torirsmaped: %s.jl2 line %d: parse error %d\n",
+                    file_key,
+                    result.line,
+                    (int)result.status);
+                status = EDITOR_HOST_IO_ERROR;
+            }
+        }
+        if( status == EDITOR_HOST_OK )
+            square->loaded = 1;
+    }
+    Editor_HostBlobFree(&jm2);
+    Editor_HostBlobFree(&jl2);
+    return status;
+}
+
+/** The square's current text, both halves, NUL-terminated; free with
+ *  ToriMem_Free. The reply is the DOCUMENT's state, not the file's: a square
+ *  another client already edited answers with those edits in it, so a
+ *  late-joining mirror starts identical to the authority. Emit round-trips
+ *  byte-exact, so on first open this equals the file anyway. */
+static void
+emit_square(
+    const struct Editor_Square* square,
+    char** out_jm2,
+    size_t* out_jm2_size,
+    char** out_jl2,
+    size_t* out_jl2_size)
+{
+    *out_jm2_size = Editor_Jm2Emit(square, NULL, 0);
+    *out_jm2 = ToriMem_Alloc(ToriMem_Editor(), *out_jm2_size + 1);
+    Editor_Jm2Emit(square, *out_jm2, *out_jm2_size + 1);
+
+    *out_jl2_size = Editor_Jl2Emit(square, NULL, 0);
+    *out_jl2 = ToriMem_Alloc(ToriMem_Editor(), *out_jl2_size + 1);
+    Editor_Jl2Emit(square, *out_jl2, *out_jl2_size + 1);
+}
+
+/** The v1 alias of DOC_OPEN(SQUARE): same document, the v1 answer layout. */
 static void
 handle_square_open(
     struct ToriRSMapEdSession* session,
@@ -433,8 +626,8 @@ handle_square_open(
 {
     int map_x;
     int map_z;
-    struct Editor_Square* square;
-    enum EditorHost_Status status = EDITOR_HOST_OK;
+    struct Editor_Square* square = NULL;
+    enum EditorHost_Status status;
     char* jm2_text = NULL;
     char* jl2_text = NULL;
     size_t jm2_size = 0;
@@ -450,61 +643,9 @@ handle_square_open(
     map_x = (int)ToriRSMapEd_ReadU32(body);
     map_z = (int)ToriRSMapEd_ReadU32(body + 4);
 
-    square = Editor_DocOpenSquare(&maped->doc, map_x, map_z);
-    if( !square )
-        status = EDITOR_HOST_IO_ERROR;
-
-    if( square && !square->loaded )
-    {
-        struct EditorHost_Blob jm2 = { NULL, 0 };
-        struct EditorHost_Blob jl2 = { NULL, 0 };
-
-        status = maped->files.vtable->square_load(
-            maped->files.user_data, map_x, map_z, &jm2, &jl2);
-        if( status == EDITOR_HOST_OK )
-        {
-            struct Editor_ParseResult result = Editor_Jm2Parse(square, jm2.data, jm2.size);
-            if( result.status != EDITOR_PARSE_OK )
-            {
-                TORIRS_ERR("torirsmaped: m%d_%d.jm2 line %d: parse error %d\n",
-                    map_x,
-                    map_z,
-                    result.line,
-                    (int)result.status);
-                status = EDITOR_HOST_IO_ERROR;
-            }
-            else if( jl2.data && jl2.size > 0 )
-            {
-                result = Editor_Jl2Parse(square, jl2.data, jl2.size);
-                if( result.status != EDITOR_PARSE_OK )
-                {
-                    TORIRS_ERR("torirsmaped: m%d_%d.jl2 line %d: parse error %d\n",
-                        map_x,
-                        map_z,
-                        result.line,
-                        (int)result.status);
-                    status = EDITOR_HOST_IO_ERROR;
-                }
-            }
-        }
-        Editor_HostBlobFree(&jm2);
-        Editor_HostBlobFree(&jl2);
-    }
-
-    /* The reply is the DOCUMENT's state, not the file's: a square another
-     * client already edited answers with those edits in it, so a late-joining
-     * mirror starts identical to the authority. Emit round-trips byte-exact,
-     * so on first open this equals the file anyway. */
-    if( status == EDITOR_HOST_OK && square && square->loaded )
-    {
-        jm2_size = Editor_Jm2Emit(square, NULL, 0);
-        jm2_text = ToriMem_Alloc(ToriMem_Editor(), jm2_size + 1);
-        Editor_Jm2Emit(square, jm2_text, jm2_size + 1);
-
-        jl2_size = Editor_Jl2Emit(square, NULL, 0);
-        jl2_text = ToriMem_Alloc(ToriMem_Editor(), jl2_size + 1);
-        Editor_Jl2Emit(square, jl2_text, jl2_size + 1);
-    }
+    status = authority_open_square(maped, NULL, map_x, map_z, &square);
+    if( status == EDITOR_HOST_OK )
+        emit_square(square, &jm2_text, &jm2_size, &jl2_text, &jl2_size);
 
     total = (uint32_t)(28 + jm2_size + jl2_size);
     payload = ToriMem_Alloc(ToriMem_Editor(), total);
@@ -525,6 +666,213 @@ handle_square_open(
     ToriMem_Free(ToriMem_Editor(), jl2_text);
 }
 
+/** Read a SPAWN or text document's file into the authority, once. */
+static enum EditorHost_Status
+authority_load_doc(
+    struct ToriRSMapEd* maped,
+    struct Editor_DocHandle* handle,
+    const char* key)
+{
+    struct EditorHost_Blob blob = { NULL, 0 };
+    enum EditorHost_Status status;
+
+    if( Editor_DocHandleLoaded(handle) )
+        return EDITOR_HOST_OK;
+
+    status = maped->files.vtable->doc_load(
+        maped->files.user_data, handle->kind, key, 0, &blob);
+    /* No file yet is a document that is empty so far — an edited spawn file
+     * the square never had, a record or script about to be written. */
+    if( status == EDITOR_HOST_ABSENT )
+        status = EDITOR_HOST_OK;
+    if( status != EDITOR_HOST_OK )
+        return status;
+
+    if( handle->spawn )
+    {
+        struct Editor_SpawnParseResult result =
+            Editor_SpawnParse(&handle->spawn->file, blob.data, blob.size);
+        if( !result.ok )
+        {
+            TORIRS_ERR("torirsmaped: spawn %s line %d does not parse\n", key, result.line);
+            Editor_SpawnFree(&handle->spawn->file);
+            Editor_HostBlobFree(&blob);
+            return EDITOR_HOST_IO_ERROR;
+        }
+        handle->spawn->loaded = 1;
+    }
+    else
+    {
+        assert(handle->text);
+        Editor_TextDocSet(handle->text, blob.data, blob.size);
+    }
+    Editor_HostBlobFree(&blob);
+    return EDITOR_HOST_OK;
+}
+
+static void
+send_doc_text(
+    struct ToriRSMapEdSession* session,
+    enum EditorHost_Status status,
+    enum Editor_DocKind kind,
+    const char* key,
+    const char* storage,
+    uint32_t dirty,
+    int part_count,
+    const char* const* parts,
+    const size_t* sizes)
+{
+    struct ToriRSMapEdBuf payload;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)status);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)kind);
+    ToriRSMapEd_PutString(&payload, key);
+    ToriRSMapEd_PutString(&payload, storage);
+    ToriRSMapEd_PutU32(&payload, dirty);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)part_count);
+    for( int i = 0; i < part_count; i++ )
+    {
+        ToriRSMapEd_PutU32(&payload, parts[i] ? (uint32_t)sizes[i] + 1 : 0);
+        if( parts[i] && sizes[i] > 0 )
+            ToriRSMapEd_BufWrite(&payload, (const uint8_t*)parts[i], (int)sizes[i]);
+    }
+    send_buf(session, TORIRSMAPED_FACT_DOC_TEXT, &payload);
+    ToriRSMapEd_BufFree(&payload);
+}
+
+static void
+handle_doc_open(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t kind;
+    char key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, key, sizeof(key));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    if( kind >= EDITOR_DOC_KIND_COUNT )
+    {
+        send_doc_text(session, EDITOR_HOST_REFUSED, EDITOR_DOC_TEXT, "", "", 0, 0, NULL, NULL);
+        return;
+    }
+
+    if( kind == EDITOR_DOC_SQUARE )
+    {
+        char storage[EDITOR_DOC_STORAGE_MAX];
+        char bare[EDITOR_DOC_KEY_MAX];
+        int map_x = 0;
+        int map_z = 0;
+        struct Editor_Square* square = NULL;
+        enum EditorHost_Status status = EDITOR_HOST_REFUSED;
+        char* texts[2] = { NULL, NULL };
+        size_t sizes[2] = { 0, 0 };
+
+        if( Editor_DocSplitSquareKey(key, storage, bare) )
+        {
+            Editor_SquareKeyParse(bare, &map_x, &map_z);
+            status = authority_open_square(maped, storage, map_x, map_z, &square);
+        }
+        else
+            snprintf(bare, sizeof(bare), "%.*s", (int)sizeof(bare) - 1, key);
+        if( status == EDITOR_HOST_OK )
+            emit_square(square, &texts[0], &sizes[0], &texts[1], &sizes[1]);
+        send_doc_text(
+            session,
+            status,
+            EDITOR_DOC_SQUARE,
+            bare,
+            square ? Editor_DocSquareStorage(&maped->doc, square) : "",
+            square ? (uint32_t)((square->dirty_map ? 1 : 0) | (square->dirty_loc ? 2 : 0)) : 0,
+            status == EDITOR_HOST_OK ? 2 : 0,
+            (const char* const*)texts,
+            sizes);
+        ToriMem_Free(ToriMem_Editor(), texts[0]);
+        ToriMem_Free(ToriMem_Editor(), texts[1]);
+        return;
+    }
+
+    {
+        struct Editor_DocHandle handle;
+        enum EditorHost_Status status;
+        char* text = NULL;
+        size_t size = 0;
+        const char* part;
+
+        if( strlen(key) >= EDITOR_DOC_KEY_MAX
+            || !Editor_DocOpen(&maped->doc, (enum Editor_DocKind)kind, key, &handle) )
+        {
+            key[EDITOR_DOC_KEY_MAX - 1] = '\0';
+            send_doc_text(
+                session, EDITOR_HOST_REFUSED, (enum Editor_DocKind)kind, key, "", 0, 0, NULL, NULL);
+            return;
+        }
+        status = authority_load_doc(maped, &handle, key);
+        if( status == EDITOR_HOST_OK && handle.spawn )
+        {
+            size = Editor_SpawnEmit(&handle.spawn->file, NULL, 0);
+            text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+            Editor_SpawnEmit(&handle.spawn->file, text, size + 1);
+        }
+        part = handle.spawn ? text : (handle.text ? handle.text->text : NULL);
+        if( handle.text )
+            size = handle.text->length;
+        send_doc_text(
+            session,
+            status,
+            (enum Editor_DocKind)kind,
+            key,
+            "",
+            Editor_DocHandleDirty(&handle) ? 1u : 0u,
+            status == EDITOR_HOST_OK ? 1 : 0,
+            &part,
+            &size);
+        ToriMem_Free(ToriMem_Editor(), text);
+    }
+}
+
+static void
+handle_doc_close(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t kind;
+    char key[EDITOR_DOC_KEY_MAX];
+    struct Editor_DocHandle handle;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, key, sizeof(key));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    /* The authority keeps the document: its undo history may still name it
+     * and another connection may be looking at it. Unloading on the last
+     * close (plus a linger) is the design's; until then a close is a
+     * statement of interest only. */
+    send_status(
+        session,
+        TORIRSMAPED_REQ_DOC_CLOSE,
+        kind < EDITOR_DOC_KIND_COUNT
+                && Editor_DocFind(&maped->doc, (enum Editor_DocKind)kind, key, &handle)
+            ? EDITOR_HOST_OK
+            : EDITOR_HOST_ABSENT);
+}
+
 static void
 handle_cmd(
     struct ToriRSMapEdSession* session,
@@ -533,25 +881,46 @@ handle_cmd(
     uint32_t length)
 {
     struct Editor_Cmd command;
-    struct Editor_Square* square;
+    struct Editor_DocHandle handle;
+    int v1 = session->version < TORIRSMAPED_PROTO_VERSION;
 
-    if( !ToriRSMapEd_CmdDecode(body, length, &command) )
+    if( v1 )
     {
-        session->alive = 0;
-        return;
+        if( !ToriRSMapEd_CmdDecodeV1(body, length, &command) )
+        {
+            session->alive = 0;
+            return;
+        }
+    }
+    else
+    {
+        enum ToriRSMapEdCmdDecodeResult decoded =
+            ToriRSMapEd_CmdDecode(body, length, &command);
+        if( decoded == TORIRSMAPED_CMD_DECODE_MALFORMED )
+        {
+            session->alive = 0;
+            return;
+        }
+        /* Well-framed but from a newer build: nothing here can apply it. */
+        if( decoded == TORIRSMAPED_CMD_DECODE_UNKNOWN_KIND )
+        {
+            send_status(session, TORIRSMAPED_REQ_CMD, EDITOR_HOST_REFUSED);
+            return;
+        }
     }
 
-    /* An edit against a square the authority never opened is a client bug,
-     * but a REMOTE one — refuse it, don't die on it. */
-    square = Editor_DocFindSquare(&maped->doc, command.map_x, command.map_z);
-    if( !square || !square->loaded )
+    /* An edit against a document the authority never opened is a client
+     * bug, but a REMOTE one — refuse it, don't die on it. */
+    if( !Editor_DocFind(&maped->doc, command.doc_kind, command.doc_key, &handle)
+        || !Editor_DocHandleLoaded(&handle) )
     {
         send_status(session, TORIRSMAPED_REQ_CMD, EDITOR_HOST_ABSENT);
         return;
     }
     if( !Editor_CmdApply(&maped->doc, &command, EDITOR_CMD_FORWARD) )
     {
-        send_status(session, TORIRSMAPED_REQ_CMD, EDITOR_HOST_IO_ERROR);
+        send_status(
+            session, TORIRSMAPED_REQ_CMD, v1 ? EDITOR_HOST_IO_ERROR : EDITOR_HOST_REFUSED);
         return;
     }
     Editor_UndoPush(&maped->undo, &command);
@@ -600,13 +969,104 @@ handle_history(
     send_status_extra(session, request, EDITOR_HOST_OK, (uint32_t)count);
 }
 
+/**
+ * Write one dirty document through the file layer. Only the changed half of
+ * a square is emitted — rewriting an untouched `.jl2` would diff placements
+ * the user never edited — except for a square DOC_CREATE made, which writes
+ * both halves and its `.filepack` the first time.
+ */
+static enum EditorHost_Status
+save_doc(
+    struct ToriRSMapEd* maped,
+    struct Editor_DocHandle* handle,
+    struct Editor_DocRef* out_ref)
+{
+    const struct EditorHost_VTable* files = maped->files.vtable;
+    void* user = maped->files.user_data;
+    enum EditorHost_Status status = EDITOR_HOST_OK;
+
+    memset(out_ref, 0, sizeof(*out_ref));
+    out_ref->kind = handle->kind;
+
+    if( handle->square )
+    {
+        struct Editor_Square* square = handle->square;
+        int index = (int)(square - maped->doc.squares);
+        int created = maped->doc.square_created[index];
+        char key[EDITOR_DOC_KEY_MAX];
+        char file_key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+
+        Editor_SquareKey(key, square->map_x, square->map_z);
+        square_file_key(
+            file_key, sizeof(file_key), Editor_DocSquareStorage(&maped->doc, square), key);
+        snprintf(out_ref->key, sizeof(out_ref->key), "%s", key);
+
+        if( square->dirty_map || created )
+        {
+            size_t size = Editor_Jm2Emit(square, NULL, 0);
+            char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+            Editor_Jm2Emit(square, text, size + 1);
+            status = files->doc_save(user, EDITOR_DOC_SQUARE, file_key, 0, text, size);
+            ToriMem_Free(ToriMem_Editor(), text);
+        }
+        if( status == EDITOR_HOST_OK && (square->dirty_loc || created) )
+        {
+            size_t size = Editor_Jl2Emit(square, NULL, 0);
+            char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+            Editor_Jl2Emit(square, text, size + 1);
+            status = files->doc_save(user, EDITOR_DOC_SQUARE, file_key, 1, text, size);
+            ToriMem_Free(ToriMem_Editor(), text);
+        }
+        if( status == EDITOR_HOST_OK && created )
+        {
+            /* The tree indexes a square's files: without this line the cache
+             * pack never sees the new square. */
+            char filepack[2 * EDITOR_DOC_KEY_MAX + 16];
+            int size = snprintf(filepack, sizeof(filepack), "0=%s.jm2\n1=%s.jl2\n", key, key);
+            status = files->doc_save(
+                user, EDITOR_DOC_SQUARE, file_key, 2, filepack, (size_t)size);
+            if( status == EDITOR_HOST_OK )
+                maped->doc.square_created[index] = 0;
+        }
+    }
+    else if( handle->spawn )
+    {
+        size_t size = Editor_SpawnEmit(&handle->spawn->file, NULL, 0);
+        char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+
+        snprintf(out_ref->key, sizeof(out_ref->key), "%s", handle->spawn->key);
+        Editor_SpawnEmit(&handle->spawn->file, text, size + 1);
+        /* A file with nothing left in it goes away: absent == no edited
+         * spawns, the state the loader already treats it as. */
+        status = files->doc_save(
+            user, EDITOR_DOC_SPAWN, handle->spawn->key, 0, size > 0 ? text : NULL, size);
+        ToriMem_Free(ToriMem_Editor(), text);
+    }
+    else
+    {
+        assert(handle->text);
+        snprintf(out_ref->key, sizeof(out_ref->key), "%s", handle->text->key);
+        status = files->doc_save(
+            user, handle->kind, handle->text->key, 0, handle->text->text, handle->text->length);
+    }
+
+    if( status != EDITOR_HOST_OK )
+    {
+        TORIRS_ERR("torirsmaped: save failed for %s (status %d)\n", out_ref->key, (int)status);
+        return status;
+    }
+    Editor_DocHandleClearDirty(handle);
+    return EDITOR_HOST_OK;
+}
+
 static void
 handle_save_all(
     struct ToriRSMapEdSession* session,
     struct ToriRSMapEd* maped)
 {
+    struct Editor_DocRef* rows;
+    int capacity;
     int saved = 0;
-    int saved_coords[EDITOR_DOC_MAX_SQUARES * 2];
 
     if( !maped->writable )
     {
@@ -614,74 +1074,277 @@ handle_save_all(
         return;
     }
 
+    capacity = maped->doc.square_count + maped->doc.spawn_count + maped->doc.text_count + 1;
+    rows = ToriMem_Alloc(ToriMem_Editor(), (size_t)capacity * sizeof(*rows));
+    assert(rows);
+
     for( int i = 0; i < maped->doc.square_count; i++ )
     {
-        struct Editor_Square* square = &maped->doc.squares[i];
-        char* jm2_text = NULL;
-        char* jl2_text = NULL;
-        size_t jm2_length = 0;
-        size_t jl2_length = 0;
-        enum EditorHost_Status status;
-
-        if( !square->dirty_map && !square->dirty_loc )
+        struct Editor_DocHandle handle = { EDITOR_DOC_SQUARE, &maped->doc.squares[i], NULL, NULL };
+        if( !handle.square->loaded
+            || (!Editor_DocHandleDirty(&handle) && !maped->doc.square_created[i]) )
             continue;
+        if( save_doc(maped, &handle, &rows[saved]) == EDITOR_HOST_OK )
+            saved++;
+    }
+    for( int i = 0; i < maped->doc.spawn_count; i++ )
+    {
+        struct Editor_DocHandle handle = { EDITOR_DOC_SPAWN, NULL, maped->doc.spawns[i], NULL };
+        if( !handle.spawn->loaded || !handle.spawn->dirty )
+            continue;
+        if( save_doc(maped, &handle, &rows[saved]) == EDITOR_HOST_OK )
+            saved++;
+    }
+    for( int i = 0; i < maped->doc.text_count; i++ )
+    {
+        struct Editor_DocHandle handle = { maped->doc.texts[i]->kind, NULL, NULL,
+                                           maped->doc.texts[i] };
+        if( !handle.text->loaded || !handle.text->dirty )
+            continue;
+        if( save_doc(maped, &handle, &rows[saved]) == EDITOR_HOST_OK )
+            saved++;
+    }
 
-        /* Only the changed half is emitted; the other stays NULL and the file
-         * layer leaves that file alone. Rewriting an untouched `.jl2` would
-         * diff placements the user never edited. */
-        if( square->dirty_map )
+    broadcast_saved(maped, rows, saved);
+    ToriMem_Free(ToriMem_Editor(), rows);
+    send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, EDITOR_HOST_OK, (uint32_t)saved);
+}
+
+static void
+handle_save(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t kind;
+    char key[EDITOR_DOC_KEY_MAX];
+    struct Editor_DocHandle handle;
+    struct Editor_DocRef row;
+    enum EditorHost_Status status;
+    int created = 0;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, key, sizeof(key));
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+    if( !maped->writable )
+    {
+        send_status_extra(session, TORIRSMAPED_REQ_SAVE, EDITOR_HOST_LOCKED, 0);
+        return;
+    }
+    if( kind >= EDITOR_DOC_KIND_COUNT
+        || !Editor_DocFind(&maped->doc, (enum Editor_DocKind)kind, key, &handle)
+        || !Editor_DocHandleLoaded(&handle) )
+    {
+        send_status_extra(session, TORIRSMAPED_REQ_SAVE, EDITOR_HOST_ABSENT, 0);
+        return;
+    }
+    if( handle.square )
+        created = maped->doc.square_created[handle.square - maped->doc.squares];
+    if( !Editor_DocHandleDirty(&handle) && !created )
+    {
+        send_status_extra(session, TORIRSMAPED_REQ_SAVE, EDITOR_HOST_OK, 0);
+        return;
+    }
+
+    status = save_doc(maped, &handle, &row);
+    if( status == EDITOR_HOST_OK )
+        broadcast_saved(maped, &row, 1);
+    send_status_extra(session, TORIRSMAPED_REQ_SAVE, status, status == EDITOR_HOST_OK ? 1 : 0);
+}
+
+/** Apply, record and broadcast one command the SERVER authored. */
+static void
+server_command(
+    struct ToriRSMapEd* maped,
+    const struct Editor_Cmd* command)
+{
+    int applied = Editor_CmdApply(&maped->doc, command, EDITOR_CMD_FORWARD);
+
+    assert(applied);
+    (void)applied;
+    Editor_UndoPush(&maped->undo, command);
+    broadcast_cmd(maped, command, EDITOR_CMD_FORWARD);
+}
+
+/**
+ * DOC_CREATE(SQUARE, key, storage, template): a NEW square in the authority
+ * (design #squares). Nothing is written until Save; the fill reaches every
+ * mirror as ordinary FACT_CMDs grouped into one undo step, so undoing it
+ * leaves the new square empty, exactly like undoing any other edit.
+ */
+static void
+handle_doc_create(
+    struct ToriRSMapEdSession* session,
+    struct ToriRSMapEd* maped,
+    const uint8_t* body,
+    uint32_t length)
+{
+    struct ToriRSMapEdReader reader;
+    uint32_t kind;
+    char key[EDITOR_DOC_KEY_MAX];
+    char storage[EDITOR_DOC_STORAGE_MAX];
+    uint32_t template_kind;
+    char source_key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+    int fill_height;
+    int fill_underlay;
+    int map_x;
+    int map_z;
+    char file_key[EDITOR_DOC_KEY_MAX + EDITOR_DOC_STORAGE_MAX];
+    struct EditorHost_Blob existing = { NULL, 0 };
+    struct Editor_Square* source = NULL;
+    struct Editor_Square* square;
+    int index;
+    int was_in_stroke;
+    int filled = 0;
+
+    ToriRSMapEd_ReaderInit(&reader, body, length);
+    kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, key, sizeof(key));
+    ToriRSMapEd_GetString(&reader, storage, sizeof(storage));
+    template_kind = ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, source_key, sizeof(source_key));
+    fill_height = (int)ToriRSMapEd_GetU32(&reader);
+    fill_underlay = (int)ToriRSMapEd_GetU32(&reader);
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        session->alive = 0;
+        return;
+    }
+
+    if( kind != EDITOR_DOC_SQUARE )
+    {
+        send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_UNSUPPORTED);
+        return;
+    }
+    if( strcmp(storage, "maps") == 0 )
+        storage[0] = '\0';
+    if( !Editor_SquareKeyParse(key, &map_x, &map_z) || !Editor_DocStorageValid(storage)
+        || template_kind > EDITOR_DOC_TEMPLATE_FLAT
+        || (template_kind == EDITOR_DOC_TEMPLATE_FLAT
+            && (fill_height < 0 || fill_height > 255 || fill_underlay < 0
+                || fill_underlay > 255)) )
+    {
+        send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_REFUSED);
+        return;
+    }
+
+    /* Taken in that storage, or open at all (one square per place). */
+    square_file_key(file_key, sizeof(file_key), storage, key);
+    if( maped->files.vtable->doc_load(
+            maped->files.user_data, EDITOR_DOC_SQUARE, file_key, 0, &existing)
+            == EDITOR_HOST_OK
+        || Editor_DocFindSquare(&maped->doc, map_x, map_z) )
+    {
+        Editor_HostBlobFree(&existing);
+        TORIRS_LOG("torirsmaped: DOC_CREATE refused — %s already exists\n", file_key);
+        send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_REFUSED);
+        return;
+    }
+    Editor_HostBlobFree(&existing);
+
+    if( template_kind == EDITOR_DOC_TEMPLATE_COPY )
+    {
+        char source_storage[EDITOR_DOC_STORAGE_MAX];
+        char source_bare[EDITOR_DOC_KEY_MAX];
+        int source_x;
+        int source_z;
+        enum EditorHost_Status status = EDITOR_HOST_REFUSED;
+
+        if( Editor_DocSplitSquareKey(source_key, source_storage, source_bare) )
         {
-            jm2_length = Editor_Jm2Emit(square, NULL, 0);
-            jm2_text = ToriMem_Alloc(ToriMem_Editor(), jm2_length + 1);
-            Editor_Jm2Emit(square, jm2_text, jm2_length + 1);
+            Editor_SquareKeyParse(source_bare, &source_x, &source_z);
+            status = authority_open_square(maped, source_storage, source_x, source_z, &source);
         }
-        if( square->dirty_loc )
-        {
-            jl2_length = Editor_Jl2Emit(square, NULL, 0);
-            jl2_text = ToriMem_Alloc(ToriMem_Editor(), jl2_length + 1);
-            Editor_Jl2Emit(square, jl2_text, jl2_length + 1);
-        }
-
-        status = maped->files.vtable->square_save(
-            maped->files.user_data,
-            square->map_x,
-            square->map_z,
-            jm2_text,
-            jm2_length,
-            jl2_text,
-            jl2_length);
-        ToriMem_Free(ToriMem_Editor(), jm2_text);
-        ToriMem_Free(ToriMem_Editor(), jl2_text);
-
         if( status != EDITOR_HOST_OK )
         {
-            TORIRS_ERR("torirsmaped: save failed for %d,%d\n",
-                square->map_x,
-                square->map_z);
-            continue;
+            send_status(session, TORIRSMAPED_REQ_DOC_CREATE, status);
+            return;
         }
-        square->dirty_map = 0;
-        square->dirty_loc = 0;
-        saved_coords[saved * 2] = square->map_x;
-        saved_coords[saved * 2 + 1] = square->map_z;
-        saved++;
     }
 
-    if( saved > 0 )
+    square = Editor_DocOpenSquare(&maped->doc, map_x, map_z);
+    if( !square )
     {
-        uint32_t total = 4 + (uint32_t)saved * 8;
-        uint8_t* payload = ToriMem_Alloc(ToriMem_Editor(), total);
-        ToriRSMapEd_WriteU32(payload, (uint32_t)saved);
-        for( int i = 0; i < saved; i++ )
-        {
-            ToriRSMapEd_WriteU32(payload + 4 + (uint32_t)i * 8, (uint32_t)saved_coords[i * 2]);
-            ToriRSMapEd_WriteU32(
-                payload + 8 + (uint32_t)i * 8, (uint32_t)saved_coords[i * 2 + 1]);
-        }
-        broadcast(maped, TORIRSMAPED_FACT_SAVED, payload, total);
-        ToriMem_Free(ToriMem_Editor(), payload);
+        send_status(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_IO_ERROR);
+        return;
     }
-    send_status_extra(session, TORIRSMAPED_REQ_SAVE_ALL, EDITOR_HOST_OK, (uint32_t)saved);
+    index = (int)(square - maped->doc.squares);
+    Editor_DocSquareSetStorage(&maped->doc, square, storage);
+    maped->doc.square_created[index] = 1;
+    square->loaded = 1;
+    square->dirty_map = 1;
+    square->dirty_loc = 1;
+
+    /* The fill is its own undo step, whatever stroke a client has open. */
+    was_in_stroke = maped->undo.in_stroke;
+    Editor_UndoStrokeBegin(&maped->undo);
+    if( template_kind == EDITOR_DOC_TEMPLATE_FLAT )
+    {
+        for( int x = 0; x < EDITOR_SQUARE_X; x++ )
+        {
+            for( int z = 0; z < EDITOR_SQUARE_Z; z++ )
+            {
+                struct Editor_Cmd command;
+                Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, map_x, map_z);
+                command.u.tile.level = 0;
+                command.u.tile.x = x;
+                command.u.tile.z = z;
+                command.u.tile.after.has_height = 1;
+                command.u.tile.after.height = (uint8_t)fill_height;
+                command.u.tile.after.underlay_id = (uint8_t)fill_underlay;
+                server_command(maped, &command);
+                filled++;
+            }
+        }
+    }
+    else if( template_kind == EDITOR_DOC_TEMPLATE_COPY )
+    {
+        static const struct Editor_Tile empty;
+
+        for( int level = 0; level < EDITOR_SQUARE_LEVELS; level++ )
+        {
+            for( int z = 0; z < EDITOR_SQUARE_Z; z++ )
+            {
+                for( int x = 0; x < EDITOR_SQUARE_X; x++ )
+                {
+                    const struct Editor_Tile* tile = &source->tiles[Editor_TileIndex(x, z, level)];
+                    struct Editor_Cmd command;
+
+                    if( memcmp(tile, &empty, sizeof(empty)) == 0 )
+                        continue;
+                    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, map_x, map_z);
+                    command.u.tile.level = level;
+                    command.u.tile.x = x;
+                    command.u.tile.z = z;
+                    command.u.tile.after = *tile;
+                    server_command(maped, &command);
+                    filled++;
+                }
+            }
+        }
+        for( int i = 0; i < source->loc_count; i++ )
+        {
+            struct Editor_Cmd command;
+            Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, map_x, map_z);
+            command.has_after = 1;
+            command.u.loc.after = source->locs[i];
+            server_command(maped, &command);
+            filled++;
+        }
+    }
+    Editor_UndoStrokeEnd(&maped->undo);
+    if( was_in_stroke )
+        Editor_UndoStrokeBegin(&maped->undo);
+
+    TORIRS_LOG("torirsmaped: created %s (%d fill commands)\n", file_key, filled);
+    send_status_extra(session, TORIRSMAPED_REQ_DOC_CREATE, EDITOR_HOST_OK, (uint32_t)filled);
 }
 
 static void
@@ -692,6 +1355,8 @@ handle_frame(
     const uint8_t* body,
     uint32_t length)
 {
+    int v2 = session->version >= TORIRSMAPED_PROTO_VERSION;
+
     assert(session);
     assert(maped);
     assert(maped->open);
@@ -700,13 +1365,19 @@ handle_frame(
     {
     case TORIRSMAPED_REQ_HELLO:
     {
-        uint8_t payload[12];
+        uint8_t payload[16];
         uint32_t wanted_group;
+        uint32_t version;
         if( length != 12 )
         {
             session->alive = 0;
             return;
         }
+        /* A v1 peer keeps speaking v1 — every frame it gets back is one it
+         * knows. Anything newer than v1 is answered at our version. */
+        version = ToriRSMapEd_ReadU32(body);
+        session->version = version >= TORIRSMAPED_PROTO_VERSION ? TORIRSMAPED_PROTO_VERSION
+                                                                : TORIRSMAPED_PROTO_VERSION_V1;
         session->role = ToriRSMapEd_ReadU32(body + 4);
         /* Group membership: joining an existing Client is stated, a new one
          * granted. Ids only grow, so a departed Client's id never comes
@@ -717,12 +1388,15 @@ handle_frame(
         else if( wanted_group > maped->next_client_id )
             maped->next_client_id = wanted_group;
         session->client_id = wanted_group;
-        /* Version mismatch is the peer's to notice: the answer always carries
-         * the server's version, and a client that needs more hangs up. */
-        ToriRSMapEd_WriteU32(payload, TORIRSMAPED_PROTO_VERSION);
+        ToriRSMapEd_WriteU32(payload, session->version);
         ToriRSMapEd_WriteU32(payload + 4, (uint32_t)maped->writable);
         ToriRSMapEd_WriteU32(payload + 8, session->client_id);
-        send_frame(session, TORIRSMAPED_FACT_HELLO, payload, sizeof(payload));
+        ToriRSMapEd_WriteU32(payload + 12, maped->capabilities);
+        send_frame(
+            session,
+            TORIRSMAPED_FACT_HELLO,
+            payload,
+            session->version >= TORIRSMAPED_PROTO_VERSION ? 16 : 12);
         return;
     }
     case TORIRSMAPED_REQ_SQUARE_LIST:
@@ -851,10 +1525,41 @@ handle_frame(
         session->alive = 0;
         return;
     default:
-        TORIRS_ERR("torirsmaped: unknown frame type %u — closing\n", type);
-        session->alive = 0;
+        break;
+    }
+
+    /* The v2 frames. A v1 peer never sends them; one that does is speaking a
+     * protocol it did not declare, which is a framing error like any other. */
+    if( v2 && type == TORIRSMAPED_REQ_DOC_OPEN )
+    {
+        handle_doc_open(session, maped, body, length);
         return;
     }
+    if( v2 && type == TORIRSMAPED_REQ_DOC_CLOSE )
+    {
+        handle_doc_close(session, maped, body, length);
+        return;
+    }
+    if( v2 && type == TORIRSMAPED_REQ_SAVE )
+    {
+        handle_save(session, maped, body, length);
+        return;
+    }
+    if( v2 && type == TORIRSMAPED_REQ_SAVE_AS )
+    {
+        /* Reserved (design #save): the id allocation it needs is phase 2's.
+         * A square's "save as new" is DOC_CREATE with the copy template. */
+        send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
+        return;
+    }
+    if( v2 && type == TORIRSMAPED_REQ_DOC_CREATE )
+    {
+        handle_doc_create(session, maped, body, length);
+        return;
+    }
+
+    TORIRS_ERR("torirsmaped: unknown frame type %u — closing\n", type);
+    session->alive = 0;
 }
 
 int

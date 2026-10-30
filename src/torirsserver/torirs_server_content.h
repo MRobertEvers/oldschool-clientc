@@ -985,6 +985,18 @@ void
 ToriRSServer_ContentFree(void);
 
 /**
+ * Merge every `.spawn` under `scripts_dir` into the spawn tables, then apply
+ * the edited lane's `-name x z level` suppression rows
+ * (docs/MAPED_DESIGN.html #placement): every spawn of that npc/obj on that
+ * tile and level is removed, once, after the last file merged. A tree with no
+ * `-` rows loads exactly as before. ToriRSServer_ContentLoad calls this after
+ * the packs; a test may call it alone on a tree whose rows use the `#<id>`
+ * escape, which needs no pack. Returns the number of spawns suppressed.
+ */
+int
+ToriRSServer_ContentLoadSpawns(const char* scripts_dir);
+
+/**
  * Is this tile in a multi-combat zone? — `maps/multiway.csv`, the reference's
  * `GameMap.isMulti`.
  *

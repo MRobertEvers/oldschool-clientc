@@ -145,14 +145,12 @@ main(
         int const index = Editor_TileIndex(20, 20, 0);
 
         memset(&command, 0, sizeof(command));
-        command.kind = EDITOR_CMD_TILE;
-        command.map_x = 50;
-        command.map_z = 50;
-        command.x = 20;
-        command.z = 20;
-        command.tile_before = square->tiles[index];
-        command.tile_after = command.tile_before;
-        command.tile_after.underlay_id = 77;
+        Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, 50, 50);
+        command.u.tile.x = 20;
+        command.u.tile.z = 20;
+        command.u.tile.before = square->tiles[index];
+        command.u.tile.after = command.u.tile.before;
+        command.u.tile.after.underlay_id = 77;
         Editor_CmdApply(doc, &command, EDITOR_CMD_FORWARD);
     }
 
@@ -220,17 +218,14 @@ main(
         size_t length;
         char* text;
 
-        memset(&place, 0, sizeof(place));
-        place.kind = EDITOR_CMD_LOC;
-        place.map_x = 50;
-        place.map_z = 50;
+        Editor_CmdInitSquare(&place, EDITOR_CMD_LOC, 50, 50);
         place.has_after = 1;
-        place.loc_after.loc_id = 4321;
-        place.loc_after.shape = 10;
-        place.loc_after.rotation = 3;
-        place.loc_after.level = 0;
-        place.loc_after.x = 31;
-        place.loc_after.z = 29;
+        place.u.loc.after.loc_id = 4321;
+        place.u.loc.after.shape = 10;
+        place.u.loc.after.rotation = 3;
+        place.u.loc.after.level = 0;
+        place.u.loc.after.x = 31;
+        place.u.loc.after.z = 29;
         Editor_CmdApply(doc, &place, EDITOR_CMD_FORWARD);
         check(square->dirty_loc == 1, "placing a loc dirties the loc half");
 

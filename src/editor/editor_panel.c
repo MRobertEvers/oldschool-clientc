@@ -1230,15 +1230,12 @@ editor_apply_tool_field(
     if( !square || !square->loaded )
         return 0;
 
-    memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_TILE;
-    command.map_x = map_x;
-    command.map_z = map_z;
-    command.level = level;
-    command.x = tile_x;
-    command.z = tile_z;
-    command.tile_before = square->tiles[Editor_TileIndex(tile_x, tile_z, level)];
-    command.tile_after = command.tile_before;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_TILE, map_x, map_z);
+    command.u.tile.level = level;
+    command.u.tile.x = tile_x;
+    command.u.tile.z = tile_z;
+    command.u.tile.before = square->tiles[Editor_TileIndex(tile_x, tile_z, level)];
+    command.u.tile.after = command.u.tile.before;
 
     switch( field )
     {
@@ -1254,13 +1251,13 @@ editor_apply_tool_field(
          * routine is a separate act: clear the field to empty. */
         if( ToriRSChrome_Text(ui, panel->in_height)[0] == '\0' )
         {
-            command.tile_after.has_height = 0;
-            command.tile_after.height = 0;
+            command.u.tile.after.has_height = 0;
+            command.u.tile.after.height = 0;
         }
         else
         {
-            command.tile_after.has_height = 1;
-            command.tile_after.height = (uint8_t)value;
+            command.u.tile.after.has_height = 1;
+            command.u.tile.after.height = (uint8_t)value;
         }
         break;
     }
@@ -1270,7 +1267,7 @@ editor_apply_tool_field(
         int const choice = ToriRSChrome_DropdownSelected(ui, panel->dd_underlay);
         if( choice < 0 || choice >= panel->underlay_count )
             return 0;
-        command.tile_after.underlay_id = (uint8_t)panel->underlay_ids[choice];
+        command.u.tile.after.underlay_id = (uint8_t)panel->underlay_ids[choice];
         break;
     }
 
@@ -1284,23 +1281,23 @@ editor_apply_tool_field(
         if( panel->overlay_ids[choice] == 0 && shape <= 0 )
         {
             /* "none" with no shape clears the overlay outright. */
-            command.tile_after.has_overlay = 0;
-            command.tile_after.overlay_id = 0;
-            command.tile_after.shape = 0;
-            command.tile_after.rotation = 0;
+            command.u.tile.after.has_overlay = 0;
+            command.u.tile.after.overlay_id = 0;
+            command.u.tile.after.shape = 0;
+            command.u.tile.after.rotation = 0;
         }
         else
         {
-            command.tile_after.has_overlay = 1;
-            command.tile_after.overlay_id = (uint16_t)panel->overlay_ids[choice];
-            command.tile_after.shape = (uint8_t)(shape < 0 ? 0 : shape);
-            command.tile_after.rotation = (uint8_t)(rotation < 0 ? 0 : rotation);
+            command.u.tile.after.has_overlay = 1;
+            command.u.tile.after.overlay_id = (uint16_t)panel->overlay_ids[choice];
+            command.u.tile.after.shape = (uint8_t)(shape < 0 ? 0 : shape);
+            command.u.tile.after.rotation = (uint8_t)(rotation < 0 ? 0 : rotation);
         }
         break;
     }
 
     case EDITOR_TOOL_FLAGS:
-        command.tile_after.settings = (uint8_t)panel_flags_from_checkboxes(panel, ui);
+        command.u.tile.after.settings = (uint8_t)panel_flags_from_checkboxes(panel, ui);
         break;
 
     case EDITOR_TOOL_SELECT:
@@ -1313,7 +1310,7 @@ editor_apply_tool_field(
     }
 
     /* A command that changes nothing is not worth an undo step. */
-    if( memcmp(&command.tile_before, &command.tile_after, sizeof(command.tile_before)) == 0 )
+    if( memcmp(&command.u.tile.before, &command.u.tile.after, sizeof(command.u.tile.before)) == 0 )
         return 0;
 
     return Editor_Apply(editor, &command);
@@ -1367,24 +1364,21 @@ Editor_PanelRecordLocEdit(
     if( !Editor_DocFindSquare(&app->editor->doc, from_map_x, from_map_z) )
         return 0;
 
-    memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_LOC;
-    command.map_x = from_map_x;
-    command.map_z = from_map_z;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, from_map_x, from_map_z);
 
     command.has_before = 1;
-    command.loc_before.loc_id = loc_id;
-    command.loc_before.shape = shape;
-    command.loc_before.rotation = from_angle;
-    command.loc_before.level = level;
-    command.loc_before.x = from_tile_x;
-    command.loc_before.z = from_tile_z;
+    command.u.loc.before.loc_id = loc_id;
+    command.u.loc.before.shape = shape;
+    command.u.loc.before.rotation = from_angle;
+    command.u.loc.before.level = level;
+    command.u.loc.before.x = from_tile_x;
+    command.u.loc.before.z = from_tile_z;
 
     command.has_after = 1;
-    command.loc_after = command.loc_before;
-    command.loc_after.rotation = to_angle;
-    command.loc_after.x = to_tile_x;
-    command.loc_after.z = to_tile_z;
+    command.u.loc.after = command.u.loc.before;
+    command.u.loc.after.rotation = to_angle;
+    command.u.loc.after.x = to_tile_x;
+    command.u.loc.after.z = to_tile_z;
 
     return Editor_Apply(app->editor, &command);
 }
@@ -1663,29 +1657,26 @@ editor_loc_command(
         return 0;
     }
 
-    memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_LOC;
-    command.map_x = map_x;
-    command.map_z = map_z;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, map_x, map_z);
     if( adding )
     {
         command.has_after = 1;
-        command.loc_after.loc_id = loc_id;
-        command.loc_after.shape = shape;
-        command.loc_after.rotation = angle;
-        command.loc_after.level = level;
-        command.loc_after.x = tile_x;
-        command.loc_after.z = tile_z;
+        command.u.loc.after.loc_id = loc_id;
+        command.u.loc.after.shape = shape;
+        command.u.loc.after.rotation = angle;
+        command.u.loc.after.level = level;
+        command.u.loc.after.x = tile_x;
+        command.u.loc.after.z = tile_z;
     }
     else
     {
         command.has_before = 1;
-        command.loc_before.loc_id = loc_id;
-        command.loc_before.shape = shape;
-        command.loc_before.rotation = angle;
-        command.loc_before.level = level;
-        command.loc_before.x = tile_x;
-        command.loc_before.z = tile_z;
+        command.u.loc.before.loc_id = loc_id;
+        command.u.loc.before.shape = shape;
+        command.u.loc.before.rotation = angle;
+        command.u.loc.before.level = level;
+        command.u.loc.before.x = tile_x;
+        command.u.loc.before.z = tile_z;
     }
     return Editor_Apply(app->editor, &command);
 }
@@ -1796,23 +1787,20 @@ Editor_PanelReplaceSelectedLoc(
 
     /* One command, both halves: undo restores the old placement in one step
      * rather than as a delete you undo separately from an add. */
-    memset(&command, 0, sizeof(command));
-    command.kind = EDITOR_CMD_LOC;
-    command.map_x = map_x;
-    command.map_z = map_z;
+    Editor_CmdInitSquare(&command, EDITOR_CMD_LOC, map_x, map_z);
     command.has_before = 1;
-    command.loc_before.loc_id = panel->sel_loc_id;
-    command.loc_before.shape = panel->sel_shape;
-    command.loc_before.rotation = panel->sel_angle;
-    command.loc_before.level = panel->sel_level;
-    command.loc_before.x = tile_x;
-    command.loc_before.z = tile_z;
+    command.u.loc.before.loc_id = panel->sel_loc_id;
+    command.u.loc.before.shape = panel->sel_shape;
+    command.u.loc.before.rotation = panel->sel_angle;
+    command.u.loc.before.level = panel->sel_level;
+    command.u.loc.before.x = tile_x;
+    command.u.loc.before.z = tile_z;
     command.has_after = 1;
-    command.loc_after = command.loc_before;
-    command.loc_after.loc_id = new_loc_id;
-    command.loc_after.shape = new_shape;
-    command.loc_after.rotation = new_angle;
-    command.loc_after.level = new_level;
+    command.u.loc.after = command.u.loc.before;
+    command.u.loc.after.loc_id = new_loc_id;
+    command.u.loc.after.shape = new_shape;
+    command.u.loc.after.rotation = new_angle;
+    command.u.loc.after.level = new_level;
     if( !Editor_Apply(app->editor, &command) )
         return 0;
 

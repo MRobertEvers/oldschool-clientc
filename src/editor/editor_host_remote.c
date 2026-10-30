@@ -96,6 +96,8 @@ struct maped_remote
     /** FACT_HELLO's answer: the Client (session group) this connection
      *  belongs to. State facts relay only within it. */
     uint32_t client_id;
+    /** FACT_HELLO v2's capability bits. */
+    uint32_t capabilities;
 };
 
 static int
@@ -687,9 +689,74 @@ remote_free(void* user_data)
     ToriMem_Free(ToriMem_Editor(), remote);
 }
 
+static enum EditorHost_Status
+open_doc(
+    struct maped_remote* remote,
+    enum Editor_DocKind kind,
+    const char* key,
+    struct EditorHost_DocText* out_text);
+
+/** The AUTHORITY's text of one part — what the document says now, which is
+ *  what a client reading "the file" through the server should see. */
+static enum EditorHost_Status
+remote_doc_load(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    struct EditorHost_Blob* out_blob)
+{
+    struct maped_remote* remote = user_data;
+    struct EditorHost_DocText text;
+    enum EditorHost_Status status;
+
+    assert(remote);
+    assert(key);
+    assert(out_blob);
+
+    out_blob->data = NULL;
+    out_blob->size = 0;
+    status = open_doc(remote, kind, key, &text);
+    if( status == EDITOR_HOST_OK )
+    {
+        if( part < 0 || part >= text.part_count )
+            status = EDITOR_HOST_REFUSED;
+        else if( !text.parts[part].data )
+            status = EDITOR_HOST_ABSENT;
+        else
+        {
+            *out_blob = text.parts[part];
+            text.parts[part].data = NULL;
+            text.parts[part].size = 0;
+        }
+    }
+    Editor_HostDocTextFree(&text);
+    return status;
+}
+
+/** A client never writes files: the authority saves its own documents. */
+static enum EditorHost_Status
+remote_doc_save(
+    void* user_data,
+    enum Editor_DocKind kind,
+    const char* key,
+    int part,
+    const char* text,
+    size_t length)
+{
+    (void)user_data;
+    (void)kind;
+    (void)key;
+    (void)part;
+    (void)text;
+    (void)length;
+    return EDITOR_HOST_UNSUPPORTED;
+}
+
 static const struct EditorHost_VTable remote_vtable = {
     remote_square_list, remote_square_load, remote_square_save, remote_spawn_save,
-    remote_bake,        remote_session,     remote_free,
+    remote_bake,        remote_session,     remote_free,        remote_doc_load,
+    remote_doc_save,
 };
 
 /* ------------------------------------------------------------------ */
@@ -735,9 +802,11 @@ hello(
     if( !send_request(remote, TORIRSMAPED_REQ_HELLO, payload, sizeof(payload)) )
         return 0;
 
+    /* 16 bytes from a v2 server; a v1 server answers 12 and fails the
+     * version check below. */
     fact = await_reply(
         remote, REMOTE_OP_TIMEOUT_MS, TORIRSMAPED_FACT_HELLO, 0, &fact_type, &fact_length);
-    if( !fact || fact_length != 12 )
+    if( !fact || (fact_length != 12 && fact_length != 16) )
     {
         if( fact )
             frame_done(remote, fact_length);
@@ -746,6 +815,7 @@ hello(
     version = ToriRSMapEd_ReadU32(fact);
     remote->writable = (int)ToriRSMapEd_ReadU32(fact + 4);
     remote->client_id = ToriRSMapEd_ReadU32(fact + 8);
+    remote->capabilities = fact_length == 16 ? ToriRSMapEd_ReadU32(fact + 12) : 0;
     frame_done(remote, fact_length);
     if( version != TORIRSMAPED_PROTO_VERSION )
     {
@@ -926,6 +996,192 @@ Editor_HostMapEdClientId(const struct EditorHost* host)
     return as_remote(host)->client_id;
 }
 
+uint32_t
+Editor_HostMapEdCapabilities(const struct EditorHost* host)
+{
+    return as_remote(host)->capabilities;
+}
+
+void
+Editor_HostDocTextFree(struct EditorHost_DocText* text)
+{
+    if( !text )
+        return;
+
+    Editor_HostBlobFree(&text->parts[0]);
+    Editor_HostBlobFree(&text->parts[1]);
+    text->part_count = 0;
+}
+
+static enum EditorHost_Status
+open_doc(
+    struct maped_remote* remote,
+    enum Editor_DocKind kind,
+    const char* key,
+    struct EditorHost_DocText* out_text)
+{
+    struct ToriRSMapEdBuf payload;
+    struct ToriRSMapEdReader reader;
+    uint32_t fact_type;
+    uint32_t fact_length;
+    const uint8_t* fact;
+    enum EditorHost_Status status;
+    uint32_t part_count;
+    int sent;
+
+    memset(out_text, 0, sizeof(*out_text));
+    out_text->kind = kind;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)kind);
+    ToriRSMapEd_PutString(&payload, key);
+    sent = send_request(
+        remote,
+        TORIRSMAPED_REQ_DOC_OPEN,
+        ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload));
+    ToriRSMapEd_BufFree(&payload);
+    if( !sent )
+        return EDITOR_HOST_IO_ERROR;
+
+    fact = await_reply(
+        remote, REMOTE_OP_TIMEOUT_MS, TORIRSMAPED_FACT_DOC_TEXT, 0, &fact_type, &fact_length);
+    if( !fact )
+        return EDITOR_HOST_IO_ERROR;
+
+    ToriRSMapEd_ReaderInit(&reader, fact, fact_length);
+    status = (enum EditorHost_Status)ToriRSMapEd_GetU32(&reader);
+    out_text->kind = (enum Editor_DocKind)ToriRSMapEd_GetU32(&reader);
+    ToriRSMapEd_GetString(&reader, out_text->key, sizeof(out_text->key));
+    ToriRSMapEd_GetString(&reader, out_text->storage, sizeof(out_text->storage));
+    out_text->dirty = ToriRSMapEd_GetU32(&reader);
+    part_count = ToriRSMapEd_GetU32(&reader);
+    if( part_count > 2 )
+        reader.bad = 1;
+    for( uint32_t i = 0; i < part_count && !reader.bad; i++ )
+    {
+        uint32_t size_plus = ToriRSMapEd_GetU32(&reader);
+        uint32_t size = size_plus > 0 ? size_plus - 1 : 0;
+
+        if( reader.bad || reader.length - reader.at < size )
+        {
+            reader.bad = 1;
+            break;
+        }
+        /* Blob contract: NUL-terminated for the codec, `size` excluding it;
+         * absent (size_plus 0) stays NULL. */
+        if( size_plus > 0 )
+        {
+            out_text->parts[i].data = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+            memcpy(out_text->parts[i].data, fact + reader.at, size);
+            out_text->parts[i].data[size] = '\0';
+            out_text->parts[i].size = size;
+        }
+        reader.at += size;
+    }
+    out_text->part_count = (int)part_count;
+    if( !ToriRSMapEd_ReaderDone(&reader) )
+    {
+        Editor_HostDocTextFree(out_text);
+        status = EDITOR_HOST_IO_ERROR;
+    }
+    frame_done(remote, fact_length);
+    return status;
+}
+
+enum EditorHost_Status
+Editor_HostMapEdDocOpen(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key,
+    struct EditorHost_DocText* out_text)
+{
+    assert(key);
+    assert(out_text);
+    return open_doc(as_remote(host), kind, key, out_text);
+}
+
+/** Send `u32 kind, string key` as `request` and await its FACT_STATUS. */
+static enum EditorHost_Status
+rpc_doc_ref(
+    struct maped_remote* remote,
+    uint32_t request,
+    enum Editor_DocKind kind,
+    const char* key,
+    uint32_t* out_extra)
+{
+    struct ToriRSMapEdBuf payload;
+    enum EditorHost_Status status;
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)kind);
+    ToriRSMapEd_PutString(&payload, key);
+    status = rpc_status(
+        remote,
+        request,
+        ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload),
+        out_extra);
+    ToriRSMapEd_BufFree(&payload);
+    return status;
+}
+
+enum EditorHost_Status
+Editor_HostMapEdDocClose(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    assert(key);
+    return rpc_doc_ref(as_remote(host), TORIRSMAPED_REQ_DOC_CLOSE, kind, key, NULL);
+}
+
+int
+Editor_HostMapEdSave(
+    struct EditorHost* host,
+    enum Editor_DocKind kind,
+    const char* key)
+{
+    uint32_t count = 0;
+    enum EditorHost_Status status;
+
+    assert(key);
+
+    status = rpc_doc_ref(as_remote(host), TORIRSMAPED_REQ_SAVE, kind, key, &count);
+    if( status != EDITOR_HOST_OK )
+        return -1;
+    return (int)count;
+}
+
+enum EditorHost_Status
+Editor_HostMapEdDocCreate(
+    struct EditorHost* host,
+    const struct EditorHost_DocCreate* request)
+{
+    struct maped_remote* remote = as_remote(host);
+    struct ToriRSMapEdBuf payload;
+    enum EditorHost_Status status;
+
+    assert(request);
+
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->kind);
+    ToriRSMapEd_PutString(&payload, request->key);
+    ToriRSMapEd_PutString(&payload, request->storage);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->template_kind);
+    ToriRSMapEd_PutString(&payload, request->source_key);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_height);
+    ToriRSMapEd_PutU32(&payload, (uint32_t)request->fill_underlay);
+    status = rpc_status(
+        remote,
+        TORIRSMAPED_REQ_DOC_CREATE,
+        ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload),
+        NULL);
+    ToriRSMapEd_BufFree(&payload);
+    return status;
+}
+
 enum EditorHost_Status
 Editor_HostMapEdSquareOpen(
     struct EditorHost* host,
@@ -988,12 +1244,21 @@ Editor_HostMapEdCmd(
     const struct Editor_Cmd* command)
 {
     struct maped_remote* remote = as_remote(host);
-    uint8_t payload[TORIRSMAPED_CMD_WIRE];
+    struct ToriRSMapEdBuf payload;
+    enum EditorHost_Status status;
 
     assert(command);
 
-    ToriRSMapEd_CmdEncode(command, payload);
-    return rpc_status(remote, TORIRSMAPED_REQ_CMD, payload, sizeof(payload), NULL);
+    memset(&payload, 0, sizeof(payload));
+    ToriRSMapEd_CmdEncode(command, &payload);
+    status = rpc_status(
+        remote,
+        TORIRSMAPED_REQ_CMD,
+        ToriRSMapEd_BufPeek(&payload),
+        (uint32_t)ToriRSMapEd_BufAvailable(&payload),
+        NULL);
+    ToriRSMapEd_BufFree(&payload);
+    return status;
 }
 
 static int
@@ -1096,8 +1361,22 @@ deliver_fact(
     case TORIRSMAPED_FACT_CMD:
     {
         struct Editor_Cmd command;
-        if( length != 8 + TORIRSMAPED_CMD_WIRE
-            || !ToriRSMapEd_CmdDecode(body + 8, TORIRSMAPED_CMD_WIRE, &command) )
+        enum ToriRSMapEdCmdDecodeResult decoded;
+
+        if( length < 8 )
+        {
+            TORIRS_LOG("editor: dropping a malformed FACT_CMD\n");
+            return;
+        }
+        decoded = ToriRSMapEd_CmdDecode(body + 8, length - 8, &command);
+        if( decoded == TORIRSMAPED_CMD_DECODE_UNKNOWN_KIND )
+        {
+            /* A newer peer's edit: apply nothing, re-open to resync. */
+            if( sink->on_resync )
+                sink->on_resync(sink->user_data, command.doc_kind, command.doc_key);
+            return;
+        }
+        if( decoded != TORIRSMAPED_CMD_DECODE_OK )
         {
             TORIRS_LOG("editor: dropping a malformed FACT_CMD\n");
             return;
@@ -1112,20 +1391,28 @@ deliver_fact(
     }
     case TORIRSMAPED_FACT_SAVED:
     {
+        struct ToriRSMapEdReader reader;
+        struct Editor_DocRef* rows;
         uint32_t count;
-        int coords[EDITOR_DOC_MAX_SQUARES * 2];
-        if( length < 4 )
+
+        ToriRSMapEd_ReaderInit(&reader, body, length);
+        count = ToriRSMapEd_GetU32(&reader);
+        /* Each row is at least 8 bytes, which bounds a hostile count. */
+        if( reader.bad || count > length / 8 )
             return;
-        count = ToriRSMapEd_ReadU32(body);
-        if( length != 4 + count * 8 || count > EDITOR_DOC_MAX_SQUARES )
-            return;
+        rows = ToriMem_Alloc(ToriMem_Editor(), ((size_t)count + 1) * sizeof(*rows));
+        assert(rows);
         for( uint32_t i = 0; i < count; i++ )
         {
-            coords[i * 2] = (int)ToriRSMapEd_ReadU32(body + 4 + i * 8);
-            coords[i * 2 + 1] = (int)ToriRSMapEd_ReadU32(body + 8 + i * 8);
+            uint32_t kind = ToriRSMapEd_GetU32(&reader);
+            rows[i].kind = (enum Editor_DocKind)kind;
+            ToriRSMapEd_GetString(&reader, rows[i].key, sizeof(rows[i].key));
+            if( kind >= EDITOR_DOC_KIND_COUNT )
+                reader.bad = 1;
         }
-        if( sink->on_saved )
-            sink->on_saved(sink->user_data, (int)count, coords);
+        if( ToriRSMapEd_ReaderDone(&reader) && sink->on_saved )
+            sink->on_saved(sink->user_data, (int)count, rows);
+        ToriMem_Free(ToriMem_Editor(), rows);
         return;
     }
     case TORIRSMAPED_FACT_STATE:

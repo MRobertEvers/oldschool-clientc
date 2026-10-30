@@ -47,6 +47,10 @@ struct Editor
      *  editing is useful — it just cannot save. */
     int writable;
 
+    /** FACT_HELLO v2's TORIRSMAPED_CAP_* bits: which optional server
+     *  bindings (build, live, catalog, spawn_view) exist. */
+    uint32_t capabilities;
+
     /** Where shared-state facts land (the panel registers here). May be
      *  NULL; the session still mirrors nothing for state — semantics are
      *  the registrant's. */
@@ -133,6 +137,48 @@ Editor_LoadSquare(
     int map_z);
 
 /**
+ * Open any document in the mirror — a square (without seeding the provider;
+ * Editor_LoadSquare does that), a spawn file, a config record, an interface,
+ * a script — by asking the authority for its current text (DOC_OPEN).
+ * Re-opening a loaded document re-syncs it from the authority. A SQUARE key
+ * may carry its storage ("ported/<lane>/maps/m16_101").
+ *
+ * Returns 1 on success.
+ */
+int
+Editor_OpenDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** Tell the authority this session no longer looks at (kind, key). The
+ *  mirror keeps its copy. */
+void
+Editor_CloseDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/** Save one document on the authority. Returns 1 when written, 0 when it had
+ *  nothing unsaved, -1 when the server is read-only or the save failed. */
+int
+Editor_SaveDoc(
+    struct Editor* editor,
+    enum Editor_DocKind kind,
+    const char* key);
+
+/**
+ * New square (design #squares): DOC_CREATE on the authority with the storage
+ * and template the New dialog chose, then open the created square in this
+ * mirror. EDITOR_HOST_REFUSED when the key already exists in that storage.
+ * Nothing is written to disk until a save.
+ */
+enum EditorHost_Status
+Editor_CreateSquare(
+    struct Editor* editor,
+    const struct EditorHost_DocCreate* request);
+
+/**
  * Apply an edit: submit it to the authority, and on acceptance apply its
  * echo to the mirror, mark dirty, and queue the squares it invalidates —
  * the same three effects the local apply used to have, now guaranteed to
@@ -202,14 +248,14 @@ Editor_DrainRebuilds(
     int max);
 
 /**
- * Write every dirty square back to the content tree as text.
+ * Write every dirty document back to the content tree as text.
  *
  * Only the halves that changed are written — a terrain edit does not rewrite
  * the square's `.jl2` — and each file lands atomically. Saving does NOT bake:
  * the cache the game reads is updated only by Editor_Bake, which the user asks
  * for explicitly.
  *
- * Returns the number of squares saved, or -1 when the session is read-only.
+ * Returns the number of documents saved, or -1 when the session is read-only.
  */
 int
 Editor_SaveAll(struct Editor* editor);

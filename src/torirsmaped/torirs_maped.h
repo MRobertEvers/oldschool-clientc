@@ -121,6 +121,49 @@
  * jl2 text leaves that file alone, a load of a square with no `.jl2` answers
  * absent, and flattening either to "" would rewrite or invent files.
  *
+ * PROTOCOL v2 (docs/MAPED_IMPLEMENTATION.md sections 2 and 3). Every v1
+ * number above keeps its meaning; a v1 client (HELLO version 1) is answered
+ * with the 12-byte v1 FACT_HELLO and only ever sees v1 frames — FACT_CMD in
+ * the fixed 144-byte form (square TILE/LOC only), FACT_SAVED as square
+ * coordinates. A v2 client gets:
+ *
+ *     HELLO        u32 version=2, u32 role, -> FACT_HELLO   u32 version,
+ *                  u32 client_id                 u32 writable, u32 client_id,
+ *                                                u32 capabilities
+ *                                                (TORIRSMAPED_CAP_*)
+ *     DOC_OPEN     u32 kind, string key     -> FACT_DOC_TEXT
+ *                                                u32 status, u32 kind,
+ *                                                string key, string storage,
+ *                                                u32 dirty, u32 part_count,
+ *                                                part_count * (u32 size_plus,
+ *                                                bytes)
+ *                  (a square answers two parts, jm2 then jl2, dirty bit 0
+ *                   terrain and bit 1 locs, and its key may carry a storage
+ *                   prefix "ported/<lane>/maps/m16_101"; every other kind one
+ *                   part. SQUARE_OPEN stays as the v1 alias of the square
+ *                   form and answers the same text.)
+ *     DOC_CLOSE    u32 kind, string key     -> FACT_STATUS
+ *     CMD          the v2 command encoding  -> broadcast FACT_CMD u32 seq,
+ *                  (ToriRSMapEd_CmdEncode)       u32 direction, encoded cmd,
+ *                                              then FACT_STATUS (REFUSED when
+ *                                              the document does not take it)
+ *     SAVE         u32 kind, string key     -> broadcast FACT_SAVED, then
+ *                                              FACT_STATUS (extra = count)
+ *     SAVE_ALL     (empty)                  -> broadcast FACT_SAVED
+ *                                                u32 count, count *
+ *                                                (u32 kind, string key)
+ *                                              then FACT_STATUS (extra = count)
+ *     SAVE_AS      u32 kind, string key,    -> FACT_STATUS UNSUPPORTED
+ *                  string new_key              (reserved: design #save)
+ *     DOC_CREATE   u32 kind, string key,    -> FACT_CMD stream (the fill, one
+ *                  string storage,             undo step), then FACT_STATUS
+ *                  u32 template,               (REFUSED when the key exists
+ *                  string source_key,          in that storage)
+ *                  i32 fill_height,
+ *                  i32 fill_underlay
+ *
+ * Strings are `u32 length, bytes`, never NUL-terminated on the wire.
+ *
  * The tree lock is the SERVER's, taken at ToriRSMapEd_Open and held for its
  * lifetime: with the server as the only writer, "who may save" is a property
  * of the server, not of any client. FACT_HELLO's `writable` reports it, and
@@ -128,14 +171,20 @@
  * everything read-only — SAVE_ALL answers LOCKED.
  */
 
+#include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "editor/editor_cmd.h"
 #include "editor/editor_host.h"
+#include "torirs_maped_buf.h"
 
 enum
 {
-    TORIRSMAPED_PROTO_VERSION = 1,
+    /** What this build speaks. A HELLO naming TORIRSMAPED_PROTO_VERSION_V1
+     *  is still answered — in v1 frames only. */
+    TORIRSMAPED_PROTO_VERSION = 2,
+    TORIRSMAPED_PROTO_VERSION_V1 = 1,
     /** Frame header: u32 type + u32 payload length. */
     TORIRSMAPED_FRAME_HEADER = 8,
     /** Sanity bound on one payload. The largest legitimate frame is a square
@@ -164,6 +213,20 @@ enum ToriRSMapEdFrameType
     TORIRSMAPED_REQ_STATE_SET = 15,
     TORIRSMAPED_REQ_STATE_SYNC = 16,
 
+    /* v2. Request numbers are reserved by owner so parallel phases never
+     * collide (MAPED_IMPLEMENTATION.md section 3):
+     *   17..40  foundations (below; 22..40 free for this owner)
+     *   41..48  catalog      CATALOG_QUERY 41, CATALOG_RECORD 42,
+     *                        CATALOG_SQUARES 43
+     *   49..52  views        SPAWN_VIEW 49
+     *   53..64  live-editor  BUILD 53, RUN 54, LIVE_ATTACH 55, LIVE_DETACH 56,
+     *                        LIVE_CHEAT 57, LIVE_SUBSCRIBE 58 */
+    TORIRSMAPED_REQ_DOC_OPEN = 17,
+    TORIRSMAPED_REQ_DOC_CLOSE = 18,
+    TORIRSMAPED_REQ_SAVE = 19,
+    TORIRSMAPED_REQ_SAVE_AS = 20,
+    TORIRSMAPED_REQ_DOC_CREATE = 21,
+
     TORIRSMAPED_FACT_HELLO = 129,
     TORIRSMAPED_FACT_SQUARE_LIST = 130,
     TORIRSMAPED_FACT_SQUARE_LOAD = 131,
@@ -178,6 +241,26 @@ enum ToriRSMapEdFrameType
     /** Broadcast: one shared-state field changed. Mirrors store it and tell
      *  whoever registered for it. */
     TORIRSMAPED_FACT_STATE = 138,
+
+    /* v2 facts, reserved by owner:
+     *   139..160  foundations (below; 140..160 free for this owner)
+     *   161..168  catalog      FACT_CATALOG_PAGE 161, FACT_CATALOG_RECORD 162,
+     *                          FACT_CATALOG_SQUARES 163
+     *   169..172  views
+     *   173..190  live-editor  FACT_BUILD_LINE 173, FACT_BUILD_DONE 174,
+     *                          FACT_LIVE_STATUS 175, FACT_LIVE_LINE 176,
+     *                          FACT_LIVE_VARS 177 */
+    /** A document's current text: the answer to DOC_OPEN. */
+    TORIRSMAPED_FACT_DOC_TEXT = 139,
+};
+
+/** FACT_HELLO v2's capability bits: the optional bindings this server has. */
+enum ToriRSMapEdCapability
+{
+    TORIRSMAPED_CAP_BUILD = 1,
+    TORIRSMAPED_CAP_LIVE = 2,
+    TORIRSMAPED_CAP_CATALOG = 4,
+    TORIRSMAPED_CAP_SPAWN_VIEW = 8,
 };
 
 /** What a connection is for. Informational today (the server relays every
@@ -209,6 +292,13 @@ enum ToriRSMapEdStateKey
     TORIRSMAPED_STATE_CATALOG_PICK = 4,
     /** map_x, map_z — the square the session is looking at. */
     TORIRSMAPED_STATE_VIEW_SQUARE = 5,
+
+    /* v2 keys, reserved by owner (MAPED_IMPLEMENTATION.md section 3):
+     *   6..9    foundations
+     *   10..39  views        STATE_CAMERA_BASE 10 + connection index
+     *   40..47  live-editor  STATE_LIVE_FOCUS 40 */
+    /** The var values a preview resolves multilocs/multinpcs against. */
+    TORIRSMAPED_STATE_VAR_PREVIEW = 6,
 };
 
 enum
@@ -219,22 +309,53 @@ enum
     TORIRSMAPED_STATE_KEYS_MAX = 64,
 };
 
-/** One Editor_Cmd on the wire: every field as a u32/i32, both halves always
- *  present. Fixed-size on purpose — a variable encoding saves tens of bytes
- *  on a loopback wire and costs a second code path on both ends. */
+/** The v1 command form: a square TILE/LOC with every field as a u32/i32,
+ *  both halves always present, 144 bytes. Spoken only to v1 sessions. */
 enum
 {
-    TORIRSMAPED_CMD_WIRE = 144,
+    TORIRSMAPED_CMD_WIRE_V1 = 144,
 };
 
+/** Returns 0 when the command has no v1 form (anything but a square TILE or
+ *  LOC); a v1 session never hears those. */
+int
+ToriRSMapEd_CmdEncodeV1(
+    const struct Editor_Cmd* command,
+    uint8_t out[TORIRSMAPED_CMD_WIRE_V1]);
+
+/** Returns 1 on success; 0 means the bytes are not a v1 command. */
+int
+ToriRSMapEd_CmdDecodeV1(
+    const uint8_t* body,
+    uint32_t length,
+    struct Editor_Cmd* out_command);
+
+/**
+ * The v2 command form (MAPED_IMPLEMENTATION.md section 2):
+ *
+ *     u32 doc_kind, u32 key_len, key, u32 cmd_kind, u32 has_before,
+ *     u32 has_after, u32 payload_len, payload
+ *
+ * every int little-endian, every string `u32 len, bytes`. Appends to `out`.
+ */
 void
 ToriRSMapEd_CmdEncode(
     const struct Editor_Cmd* command,
-    uint8_t out[TORIRSMAPED_CMD_WIRE]);
+    struct ToriRSMapEdBuf* out);
 
-/** Returns 1 on success; 0 means the bytes are not a command (wrong size or
- *  an unknown kind), which on this wire is a framing-level error. */
-int
+enum ToriRSMapEdCmdDecodeResult
+{
+    TORIRSMAPED_CMD_DECODE_OK = 0,
+    /** The bytes are not a command: a framing-level error. */
+    TORIRSMAPED_CMD_DECODE_MALFORMED,
+    /** A well-framed command of a kind this build does not know. doc_kind
+     *  and doc_key are filled; nothing else is. A mirror applies nothing and
+     *  re-opens the document. */
+    TORIRSMAPED_CMD_DECODE_UNKNOWN_KIND,
+};
+
+/** Decode exactly `length` bytes. */
+enum ToriRSMapEdCmdDecodeResult
 ToriRSMapEd_CmdDecode(
     const uint8_t* body,
     uint32_t length,
@@ -256,6 +377,129 @@ ToriRSMapEd_WriteU32(
     dst[1] = (uint8_t)((value >> 8) & 0xff);
     dst[2] = (uint8_t)((value >> 16) & 0xff);
     dst[3] = (uint8_t)((value >> 24) & 0xff);
+}
+
+/* ---- variable-length payloads ----------------------------------------- */
+
+/** Append a u32 to a growable payload. */
+static inline void
+ToriRSMapEd_PutU32(
+    struct ToriRSMapEdBuf* out,
+    uint32_t value)
+{
+    uint8_t bytes[4];
+    ToriRSMapEd_WriteU32(bytes, value);
+    ToriRSMapEd_BufWrite(out, bytes, 4);
+}
+
+/** Append `u32 length, bytes`. */
+static inline void
+ToriRSMapEd_PutBytes(
+    struct ToriRSMapEdBuf* out,
+    const void* data,
+    uint32_t length)
+{
+    ToriRSMapEd_PutU32(out, length);
+    if( length > 0 )
+        ToriRSMapEd_BufWrite(out, (const uint8_t*)data, (int)length);
+}
+
+static inline void
+ToriRSMapEd_PutString(
+    struct ToriRSMapEdBuf* out,
+    const char* text)
+{
+    ToriRSMapEd_PutBytes(out, text, (uint32_t)strlen(text));
+}
+
+/**
+ * A bounds-checked cursor over one payload. Every Get on an exhausted or
+ * malformed payload sets `bad` and returns zero/empty, so a handler reads
+ * every field and checks once — a short frame from a remote peer is data,
+ * never a crash.
+ */
+struct ToriRSMapEdReader
+{
+    const uint8_t* data;
+    uint32_t length;
+    uint32_t at;
+    int bad;
+};
+
+static inline void
+ToriRSMapEd_ReaderInit(
+    struct ToriRSMapEdReader* reader,
+    const uint8_t* data,
+    uint32_t length)
+{
+    reader->data = data;
+    reader->length = length;
+    reader->at = 0;
+    reader->bad = 0;
+}
+
+static inline uint32_t
+ToriRSMapEd_GetU32(struct ToriRSMapEdReader* reader)
+{
+    uint32_t value;
+    if( reader->bad || reader->length - reader->at < 4 )
+    {
+        reader->bad = 1;
+        return 0;
+    }
+    value = ToriRSMapEd_ReadU32(reader->data + reader->at);
+    reader->at += 4;
+    return value;
+}
+
+/** `u32 length, bytes` as a pointer into the payload; NULL (and `bad`) when
+ *  it overruns. */
+static inline const uint8_t*
+ToriRSMapEd_GetBytes(
+    struct ToriRSMapEdReader* reader,
+    uint32_t* out_length)
+{
+    uint32_t length = ToriRSMapEd_GetU32(reader);
+    const uint8_t* bytes;
+    *out_length = 0;
+    if( reader->bad || reader->length - reader->at < length )
+    {
+        reader->bad = 1;
+        return NULL;
+    }
+    bytes = reader->data + reader->at;
+    reader->at += length;
+    *out_length = length;
+    return bytes;
+}
+
+/** A string into `out` (NUL-terminated). Too long for `out`, or carrying a
+ *  NUL, is malformed. */
+static inline void
+ToriRSMapEd_GetString(
+    struct ToriRSMapEdReader* reader,
+    char* out,
+    size_t out_size)
+{
+    uint32_t length;
+    const uint8_t* bytes = ToriRSMapEd_GetBytes(reader, &length);
+    out[0] = '\0';
+    if( !bytes )
+        return;
+    if( length >= out_size || memchr(bytes, '\0', length) )
+    {
+        reader->bad = 1;
+        return;
+    }
+    memcpy(out, bytes, length);
+    out[length] = '\0';
+}
+
+/** 1 when every byte was read and nothing overran. */
+static inline int
+ToriRSMapEd_ReaderDone(const struct ToriRSMapEdReader* reader)
+{
+    return !reader->bad && reader->at == reader->length;
 }
 
 /*
@@ -291,8 +535,7 @@ enum
 /**
  * One content tree being served, and the authoritative editing state over it.
  *
- * NEVER a stack local: the document is ~8 MB of squares and the undo stack
- * larger. Hosts hold one on the heap (the embed does) or in static storage
+ * NEVER a stack local: the document is ~8 MB of squares. Hosts hold one on the heap (the embed does) or in static storage
  * (the daemon does).
  *
  * The file layer is the same EditorHost local binding a desktop session used
@@ -329,6 +572,10 @@ struct ToriRSMapEd
 
     /** Group ids granted to HELLOs that asked for a new one. */
     uint32_t next_client_id;
+
+    /** TORIRSMAPED_CAP_* for the bindings this server has; FACT_HELLO v2
+     *  reports it. None of build, live, catalog or spawn_view exists yet. */
+    uint32_t capabilities;
 };
 
 /**
@@ -355,8 +602,6 @@ ToriRSMapEd_Close(struct ToriRSMapEd* maped);
 /* One connection                                                      */
 /* ------------------------------------------------------------------ */
 
-#include "torirs_maped_buf.h"
-
 struct ToriRSMapEdSession
 {
     struct ToriRSMapEdTransport transport;
@@ -370,6 +615,9 @@ struct ToriRSMapEdSession
     /** The Client (session group) this connection belongs to, from HELLO.
      *  0 until the handshake; state facts relay only within a group. */
     uint32_t client_id;
+    /** The protocol this peer speaks: TORIRSMAPED_PROTO_VERSION_V1 or
+     *  TORIRSMAPED_PROTO_VERSION, from HELLO. Facts are encoded per peer. */
+    uint32_t version;
 };
 
 /**
