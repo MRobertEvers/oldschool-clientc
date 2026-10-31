@@ -6590,12 +6590,22 @@ dbg_build_menubar(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         w->y = p->y;
         w->w = tw + DBG_PAD_X;
         w->h = p->h;
+        /* A bar item can be a toggle (the map editor's Level row): checked is
+         * a pressed box -- the body brown under accent ink, ruled in accent --
+         * and disabled is the dim ink, never accent on hover. */
+        if( w->checked && w->kind == TORIRS_CHROME_W_MENUITEM )
+        {
+            dbg_push_rect(ui, w->x, w->y + DBG_PX(1), w->w, w->h - DBG_PX(2), th->menu_body, 1, clip);
+            dbg_push_rect(ui, w->x, w->y + DBG_PX(1), w->w, w->h - DBG_PX(2), th->accent, 0, clip);
+        }
         dbg_push_text(
             ui,
             pen_x,
             p->y + DBG_PX(2) + ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_MENU, ui->scale),
             w->text,
-            hovered ? th->accent : th->panel_title_text,
+            w->disabled                ? th->text_dim
+            : hovered || (w->checked && w->kind == TORIRS_CHROME_W_MENUITEM) ? th->accent
+                                                                          : th->panel_title_text,
             TORIRS_CHROME_FONT_MENU,
             1,
             clip);

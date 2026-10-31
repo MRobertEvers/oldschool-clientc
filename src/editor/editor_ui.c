@@ -222,6 +222,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
      * opens it; it talks to the editor server's live link. */
     Editor_Live_Register(ui);
     Editor_History_Register(ui);
+    /* Named areas and square collections (the AREAS document). */
+    Editor_Areas_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
     ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
 }
@@ -357,7 +359,7 @@ _Static_assert(EDITOR_UI_LAYOUT_PANELS_MAX >= TORIRS_CHROME_MAX_PANELS,
  *  is open at a layout it takes its place here, else it opens beside the
  *  column. */
 static const char* const k_dock_order[] = {
-    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "catalog", "history",
+    "terrain", "palette", "locs", "spawns", "rect", "inspector", "squares", "areas", "catalog", "history",
 };
 #define UI_DOCK_COUNT ((int)(sizeof(k_dock_order) / sizeof(k_dock_order[0])))
 

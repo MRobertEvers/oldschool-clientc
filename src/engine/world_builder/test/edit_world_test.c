@@ -1221,6 +1221,92 @@ mirror_phase(
             "mirror: edits after the rebake flush locally");
         world_drain(&m);
     }
+    /* An empty upper floor (the Level row pinned on 2 or 3 over open ground):
+     * a 3x3 of level-2 tiles the file states nothing for takes an underlay
+     * and a height, a level-3 tile a height, and a loc lands on level 2 --
+     * all through the local flush, no rebake; the STATIC rebuild below must
+     * agree with what the flush built. */
+    {
+        int cx = -1;
+        int cz = -1;
+        for( int z = 20; z < 108 && cx < 0; z++ )
+            for( int x = 20; x < 108 && cx < 0; x++ )
+            {
+                int empty = 1;
+                for( int dz = -1; dz <= 1; dz++ )
+                    for( int dx = -1; dx <= 1; dx++ )
+                    {
+                        struct Editor_Square* sq = mirror_square(ed, x + dx, z + dz);
+                        const struct Editor_Tile* t;
+                        if( !sq )
+                        {
+                            empty = 0;
+                            continue;
+                        }
+                        t = &sq->tiles[Editor_TileIndex((x + dx) % 64, (z + dz) % 64, 2)];
+                        if( t->has_height || t->has_overlay || t->underlay_id || t->settings )
+                            empty = 0;
+                        t = &sq->tiles[Editor_TileIndex((x + dx) % 64, (z + dz) % 64, 3)];
+                        if( t->has_height || t->has_overlay || t->underlay_id || t->settings )
+                            empty = 0;
+                    }
+                if( empty && (x % 64) > 0 && (x % 64) < 63 && (z % 64) > 0 && (z % 64) < 63 )
+                {
+                    cx = x;
+                    cz = z;
+                }
+            }
+        CHECK(cx >= 0, "mirror: an empty 3x3 of levels 2 and 3 to edit");
+        if( cx >= 0 )
+        {
+            struct Editor_Square* sq = mirror_square(ed, cx, cz);
+            int loc_found = 0;
+            Editor_StrokeBegin(ed);
+            for( int dz = -1; dz <= 1; dz++ )
+                for( int dx = -1; dx <= 1; dx++ )
+                {
+                    mirror_tile(ed, cx + dx, cz + dz, 2, 1, pools.underlays[0], 0, 0);
+                    mirror_tile(ed, cx + dx, cz + dz, 2, 0, 20, 0, 0);
+                }
+            mirror_tile(ed, cx, cz, 3, 0, 30, 0, 0);
+            Editor_StrokeEnd(ed);
+            {
+                const struct Editor_Tile* t = &sq->tiles[Editor_TileIndex(cx % 64, cz % 64, 2)];
+                CHECK(t->underlay_id == pools.underlays[0] && t->has_height,
+                    "mirror: the empty level-2 tile took the underlay and the height");
+            }
+            Editor_PumpFacts(ed);
+            CHECK(!app_map_editor_edit_step(ed, h->provider, m.builder, m.world, m.scene),
+                "mirror: tiles painted on an empty upper floor flush locally (no rebake)");
+            world_drain(&m);
+            Editor_StrokeBegin(ed);
+            {
+                struct Editor_Cmd cmd;
+                struct Editor_Loc loc = pools.locs[0];
+                loc.x = cx % 64;
+                loc.z = cz % 64;
+                loc.level = 2;
+                loc.rotation = 0;
+                Editor_CmdInitSquare(&cmd, EDITOR_CMD_LOC, sq->map_x, sq->map_z);
+                cmd.has_after = 1;
+                cmd.u.loc.after = loc;
+                applied += Editor_Apply(ed, &cmd);
+            }
+            Editor_StrokeEnd(ed);
+            for( int i = 0; i < sq->loc_count; i++ )
+                if( sq->locs[i].level == 2 && sq->locs[i].x == cx % 64 && sq->locs[i].z == cz % 64 )
+                    loc_found = 1;
+            CHECK(loc_found, "mirror: the loc document holds the loc at level 2");
+            /* A loc the world lacks assets for rebakes, as anywhere. */
+            Editor_PumpFacts(ed);
+            if( app_map_editor_edit_step(ed, h->provider, m.builder, m.world, m.scene) )
+            {
+                world_load(h, &m);
+                rebakes++;
+            }
+            world_drain(&m);
+        }
+    }
     printf("mirror: %d strokes, %d commands applied, %d undone strokes, %d rebakes\n", strokes,
         applied, undos, rebakes);
 

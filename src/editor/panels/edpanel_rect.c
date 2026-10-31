@@ -2,7 +2,8 @@
  * The rectangle select's panel (design #terrain "Select rectangle"): what is
  * latched, and copy / paste / fill / clear on it. The rectangle itself is
  * dragged in the world with EDITOR_TOOL_RECT_SELECT (app_map_editor.c writes
- * tools.rect); the panel opens itself when that tool is armed.
+ * tools.rect); the panel opens itself when that tool is armed. "Mark area from
+ * rect" names it as an area (edpanel_areas.c).
  */
 
 #include "edpanel_common.h"
@@ -22,6 +23,7 @@ struct RectPanel
     int button_paste;
     int button_fill;
     int button_clear;
+    int button_mark_area;
     struct Editor_TileRect shown;
     int shown_clip_w;
     int shown_clip_h;
@@ -88,6 +90,12 @@ rect_activate(
         (void)edp_rect_fill(ui);
     else if( widget == self->button_clear )
         (void)edp_rect_clear(ui);
+    else if( widget == self->button_mark_area )
+    {
+        /* Named in the Areas panel, where it is then selected for Rename. */
+        if( Editor_Areas_NewFromRect(ui, NULL) )
+            Editor_Areas_Show(ui);
+    }
     else
         return 0;
     return 1;
@@ -140,6 +148,8 @@ Editor_RectSelect_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(ui->chrome, self->button_paste,
         "Paste at the SW corner; authored heights follow the new ground");
     ToriRSChrome_SetTooltip(ui->chrome, self->button_clear, "Every tile back to no tokens");
+    self->button_mark_area = ToriRSChrome_Button(ui->chrome, self->panel, "Mark area from rect");
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_mark_area, "Name this rectangle as an area (Areas panel)");
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

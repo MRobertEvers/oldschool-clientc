@@ -42,6 +42,7 @@ struct TerrainPanel
     /** What the readout and the radios were last set from. */
     enum Editor_Tool shown_tool;
     int shown_level;
+    int shown_vis;
 };
 
 /* ---- the footprint --------------------------------------------------------- */
@@ -116,11 +117,17 @@ terrain_tick(
 
     if( self->shown_tool != ui->tools.tool )
         terrain_readout(ui, self);
-    /* The level follows STATE_EDIT_LEVEL from other windows too. */
+    /* The level follows STATE_EDIT_LEVEL from other windows and the menu
+     * bar's Level row; the view cap follows the level (edp_level_set). */
     if( self->shown_level != ui->tools.edit_level )
     {
         ToriRSChrome_RadioSelect(ui->chrome, self->radio_level[ui->tools.edit_level + 1]);
         self->shown_level = ui->tools.edit_level;
+    }
+    if( self->shown_vis != ui->tools.vis_level )
+    {
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_vis[ui->tools.vis_level + 1]);
+        self->shown_vis = ui->tools.vis_level;
     }
 }
 
@@ -157,15 +164,14 @@ terrain_activate(
         {
             if( widget == self->radio_level[i] )
             {
-                int32_t value = i - 1;
-                tools->edit_level = i - 1;
+                edp_level_set(ui, i - 1);
                 self->shown_level = tools->edit_level;
-                (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_EDIT_LEVEL, &value, 1);
                 return 1;
             }
             if( widget == self->radio_vis[i] )
             {
                 tools->vis_level = i - 1;
+                self->shown_vis = tools->vis_level;
                 return 1;
             }
         }
@@ -207,6 +213,7 @@ Editor_Terrain_Register(struct EditorUi* ui)
     assert(self);
     self->shown_tool = EDITOR_TOOL_COUNT;
     self->shown_level = -2;
+    self->shown_vis = -2;
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X), edp_px(ui, EDP_TOP_Y),

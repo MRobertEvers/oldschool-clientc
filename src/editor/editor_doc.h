@@ -15,6 +15,9 @@
  *   TEXT    a script (`rs2:<path under server/scripts>`, `cs2:<name>`), or a
  *           ledger / membership / member-index file an id allocation appends
  *           to (`pack:<ns>.alloc|client|server|pack`, `compack:<type>`).
+ *   AREAS   the named areas and square collections ("areas",
+ *           `editor/areas.txt`), held as text; AREA_* / COLLECTION_*
+ *           commands go through the codec in editor_areas.h.
  *
  * CFG, IFACE and TEXT documents are held as TEXT. CFG_* commands go through
  * the config codec (editor_cfg.h, Editor_CfgApply); IF_* commands go through
@@ -36,6 +39,7 @@
 #include "editor_types.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct RSCache;
 
@@ -67,6 +71,9 @@ struct Editor_TextDoc
     size_t capacity;
     int loaded;
     int dirty;
+    /** Bumps on every change to `text` (set or splice): what a reader that
+     *  caches a parse of it (the Areas panel, the world overlay) keys on. */
+    uint32_t revision;
 };
 
 /** One open document, whichever kind. Exactly one pointer is non-NULL. */

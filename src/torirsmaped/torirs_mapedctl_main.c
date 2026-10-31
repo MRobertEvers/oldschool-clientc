@@ -60,6 +60,23 @@
  *                          configs/all.<type>, or with @<overlay> (a path
  *                          under server/scripts ending .<type>) of that
  *                          server overlay. `-` removes the field.
+ *   areas                  the named areas and square collections
+ *                          (editor/areas.txt), one record per line
+ *   area-set <name> <level|all> <x0> <z0> <x1> <z1> [<x0> <z0> <x1> <z1>]...
+ *            [colour <0..7|->] [note <text|->] [rename <new name>]
+ *                          AREA_SET: mark (or replace) the named area --
+ *                          ABSOLUTE tiles, inclusive corners, up to 16
+ *                          rectangles; an existing area keeps its colour
+ *                          and note unless given (`-` clears); `rename`
+ *                          gives it a new name in the same step. Quote a
+ *                          name with spaces. Unsaved until save.
+ *   area-remove <name>     AREA_REMOVE
+ *   collection-set <name> [<square key>...] [note <text|->] [rename <new>]
+ *                          COLLECTION_SET: the named collection of squares
+ *                          ("m50_50", "ported/<lane>/maps/m16_101"); keys
+ *                          replace the list, none keeps it
+ *   collection-remove <name>
+ *                          COLLECTION_REMOVE
  *   live-attach launch|<host:port> [ticket]
  *                          attach the editor server's live link (launch
  *                          starts the lane's servers) and wait for the answer
@@ -74,12 +91,14 @@
  * Exit status is 0 when the command did what it said, 1 otherwise.
  */
 
+#include "editor/editor_areas.h"
 #include "editor/editor_host.h"
 #include "mem/torirs_mem.h"
 #include "torirs_maped.h"
 #include "torirs_maped_build.h"
 #include "torirs_maped_live.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -123,6 +142,7 @@ selection_kind_name(int32_t kind)
 
 static char const* const k_cmd_kind_names[] = {
     "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice", "spawnedit",
+    "areaset", "arearm", "collset", "collrm",
 };
 _Static_assert(sizeof(k_cmd_kind_names) / sizeof(k_cmd_kind_names[0]) == EDITOR_CMD_KIND_COUNT,
     "a name per command kind");
@@ -297,7 +317,8 @@ cmd_open(
 static int
 parse_kind(char const* name)
 {
-    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text" };
+    static char const* const names[] = { "square", "spawn", "cfg", "iface", "text", "areas" };
+    _Static_assert(sizeof(names) / sizeof(names[0]) == EDITOR_DOC_KIND_COUNT, "a name per document kind");
     for( int i = 0; i < EDITOR_DOC_KIND_COUNT; i++ )
     {
         if( strcmp(name, names[i]) == 0 )
@@ -319,7 +340,7 @@ cmd_doc(
 
     if( kind < 0 )
     {
-        fprintf(stderr, "torirsmapedctl: kind is square|spawn|cfg|iface|text\n");
+        fprintf(stderr, "torirsmapedctl: kind is square|spawn|cfg|iface|text|areas\n");
         return 1;
     }
     status = Editor_HostMapEdDocOpen(host, (enum Editor_DocKind)kind, key, &text);
@@ -951,6 +972,279 @@ cmd_spawn_edit(
 }
 
 /** cfg-set: one CFG_FIELD on a record block (all.<type> or an overlay). */
+/* ---- the named areas and square collections (editor_areas.h) ------------- */
+
+/** DOC_OPEN the AREAS document and parse it. 0 (said why) when it cannot. */
+static int
+ctl_areas_load(
+    struct EditorHost* host,
+    struct Editor_AreasFile* out)
+{
+    struct EditorHost_DocText text;
+    struct Editor_AreasParseResult parsed;
+
+    Editor_AreasInit(out);
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_AREAS, EDITOR_AREAS_DOC_KEY, &text) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the server has no areas document\n");
+        Editor_HostDocTextFree(&text);
+        return 0;
+    }
+    parsed = Editor_AreasParse(out, text.part_count > 0 ? (char const*)text.parts[0].data : NULL,
+        text.part_count > 0 && text.parts[0].data ? text.parts[0].size : 0);
+    Editor_HostDocTextFree(&text);
+    if( !parsed.ok )
+    {
+        fprintf(stderr, "torirsmapedctl: %s line %d does not parse\n", EDITOR_AREAS_FILE_PATH, parsed.line);
+        Editor_AreasFree(out);
+        return 0;
+    }
+    return 1;
+}
+
+static int
+ctl_areas_send(
+    struct EditorHost* host,
+    struct Editor_Cmd const* command)
+{
+    char label[128];
+    enum EditorHost_Status status = Editor_HostMapEdCmd(host, command);
+
+    Editor_AreasCmdLabel(command, label, sizeof(label));
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: %s was refused (status %d)\n", label, (int)status);
+        return 1;
+    }
+    printf("%s (unsaved until save)\n", label);
+    return 0;
+}
+
+static int
+cmd_areas(struct EditorHost* host)
+{
+    struct Editor_AreasFile file;
+
+    if( !ctl_areas_load(host, &file) )
+        return 1;
+    printf("%d area(s), %d collection(s)\n", Editor_AreasAreaCount(&file), Editor_AreasCollectionCount(&file));
+    for( int i = 0; i < file.line_count; i++ )
+        if( file.lines[i].kind != EDITOR_AREAS_LINE_TEXT )
+            printf("%s\n", file.lines[i].text);
+    Editor_AreasFree(&file);
+    return 0;
+}
+
+/** The trailing `colour`, `note`, `rename` options of a set verb, from
+ *  args[at]. Returns the index past them, or -1 when one is malformed. */
+static int
+ctl_areas_options(
+    char const* const* args,
+    int at,
+    int count,
+    int* colour,
+    char* note,
+    char* rename)
+{
+    while( at < count )
+    {
+        if( at + 1 >= count )
+            return -1;
+        if( strcmp(args[at], "colour") == 0 || strcmp(args[at], "color") == 0 )
+            *colour = strcmp(args[at + 1], "-") == 0 ? -1 : atoi(args[at + 1]);
+        else if( strcmp(args[at], "note") == 0 )
+            snprintf(note, EDITOR_AREA_NOTE_MAX, "%s", strcmp(args[at + 1], "-") == 0 ? "" : args[at + 1]);
+        else if( strcmp(args[at], "rename") == 0 )
+            snprintf(rename, EDITOR_AREA_NAME_MAX, "%s", args[at + 1]);
+        else
+            return -1;
+        at += 2;
+    }
+    return at;
+}
+
+static int
+ctl_is_number(char const* text)
+{
+    if( !*text )
+        return 0;
+    for( ; *text; text++ )
+        if( *text < '0' || *text > '9' )
+            return 0;
+    return 1;
+}
+
+static int
+cmd_area_set(
+    struct EditorHost* host,
+    char const* const* args,
+    int count)
+{
+    struct Editor_AreasFile file;
+    struct Editor_Area area;
+    struct Editor_Cmd command;
+    char note[EDITOR_AREA_NOTE_MAX] = { 0 };
+    char rename[EDITOR_AREA_NAME_MAX] = { 0 };
+    int colour = -2;
+    int existing;
+    int at = 2;
+    int result;
+
+    if( count < 6 )
+    {
+        fprintf(stderr, "torirsmapedctl: area-set <name> <level|all> <x0> <z0> <x1> <z1> ...\n");
+        return 1;
+    }
+    memset(&area, 0, sizeof(area));
+    snprintf(area.name, sizeof(area.name), "%s", args[0]);
+    if( strcmp(args[1], "all") == 0 )
+        area.level = -1;
+    else if( ctl_is_number(args[1]) && atoi(args[1]) <= 3 )
+        area.level = atoi(args[1]);
+    else
+    {
+        fprintf(stderr, "torirsmapedctl: level is 0..3 or all\n");
+        return 1;
+    }
+    while( at + 3 < count && ctl_is_number(args[at]) )
+    {
+        if( !ctl_is_number(args[at + 1]) || !ctl_is_number(args[at + 2]) || !ctl_is_number(args[at + 3])
+            || !Editor_AreaAddRect(&area, atoi(args[at]), atoi(args[at + 1]), atoi(args[at + 2]), atoi(args[at + 3])) )
+        {
+            fprintf(stderr, "torirsmapedctl: a rectangle is four tile numbers (at most %d rectangles)\n",
+                EDITOR_AREA_RECTS_MAX);
+            return 1;
+        }
+        at += 4;
+    }
+    note[0] = '\x01';
+    if( ctl_areas_options(args, at, count, &colour, note, rename) < 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: options are colour <n|->, note <text|->, rename <name>\n");
+        return 1;
+    }
+    if( !ctl_areas_load(host, &file) )
+        return 1;
+    existing = Editor_AreasFindArea(&file, area.name);
+    /* Unstated options keep what the area had. */
+    area.colour = colour != -2 ? colour : existing >= 0 ? file.lines[existing].area->colour : -1;
+    if( note[0] == '\x01' )
+        snprintf(area.note, sizeof(area.note), "%s", existing >= 0 ? file.lines[existing].area->note : "");
+    else
+        snprintf(area.note, sizeof(area.note), "%s", note);
+    if( rename[0] )
+        snprintf(area.name, sizeof(area.name), "%s", rename);
+    if( !Editor_AreaSetCommand(&command, &file, existing >= 0 ? args[0] : NULL, &area) )
+    {
+        fprintf(stderr, "torirsmapedctl: area '%s' is not one the file can hold, the name is taken, or nothing "
+                        "changes\n", area.name);
+        Editor_AreasFree(&file);
+        return 1;
+    }
+    Editor_AreasFree(&file);
+    result = ctl_areas_send(host, &command);
+    return result;
+}
+
+static int
+cmd_collection_set(
+    struct EditorHost* host,
+    char const* const* args,
+    int count)
+{
+    struct Editor_AreasFile file;
+    struct Editor_Collection* collection;
+    struct Editor_Cmd command;
+    char note[EDITOR_AREA_NOTE_MAX] = { '\x01', 0 };
+    char rename[EDITOR_AREA_NAME_MAX] = { 0 };
+    int colour = -2;
+    int existing;
+    int keys = 0;
+    int at = 1;
+    int result;
+
+    if( count < 1 )
+    {
+        fprintf(stderr, "torirsmapedctl: collection-set <name> [<square key>...]\n");
+        return 1;
+    }
+    collection = calloc(1, sizeof(*collection));
+    assert(collection);
+    snprintf(collection->name, sizeof(collection->name), "%s", args[0]);
+    for( ; at < count && strcmp(args[at], "note") != 0 && strcmp(args[at], "rename") != 0; at++ )
+    {
+        if( !Editor_CollectionAdd(collection, args[at]) )
+        {
+            fprintf(stderr, "torirsmapedctl: '%s' is not a square key, is listed twice, or the collection is "
+                            "full\n", args[at]);
+            free(collection);
+            return 1;
+        }
+        keys++;
+    }
+    if( ctl_areas_options(args, at, count, &colour, note, rename) < 0 || colour != -2 )
+    {
+        fprintf(stderr, "torirsmapedctl: options are note <text|->, rename <name>\n");
+        free(collection);
+        return 1;
+    }
+    if( !ctl_areas_load(host, &file) )
+    {
+        free(collection);
+        return 1;
+    }
+    existing = Editor_AreasFindCollection(&file, collection->name);
+    if( existing >= 0 && keys == 0 )
+    {
+        struct Editor_Collection const* old = file.lines[existing].collection;
+        collection->square_count = old->square_count;
+        memcpy(collection->squares, old->squares, sizeof(collection->squares));
+    }
+    if( note[0] == '\x01' )
+        snprintf(collection->note, sizeof(collection->note), "%s",
+            existing >= 0 ? file.lines[existing].collection->note : "");
+    else
+        snprintf(collection->note, sizeof(collection->note), "%s", note);
+    if( rename[0] )
+        snprintf(collection->name, sizeof(collection->name), "%s", rename);
+    if( !Editor_CollectionSetCommand(&command, &file, existing >= 0 ? args[0] : NULL, collection) )
+    {
+        fprintf(stderr, "torirsmapedctl: collection '%s' is not one the file can hold, the name is taken, or "
+                        "nothing changes\n", collection->name);
+        Editor_AreasFree(&file);
+        free(collection);
+        return 1;
+    }
+    Editor_AreasFree(&file);
+    free(collection);
+    result = ctl_areas_send(host, &command);
+    return result;
+}
+
+static int
+cmd_areas_remove(
+    struct EditorHost* host,
+    int is_area,
+    char const* name)
+{
+    struct Editor_AreasFile file;
+    struct Editor_Cmd command;
+    int made;
+
+    if( !ctl_areas_load(host, &file) )
+        return 1;
+    made = is_area ? Editor_AreaRemoveCommand(&command, &file, name)
+                   : Editor_CollectionRemoveCommand(&command, &file, name);
+    Editor_AreasFree(&file);
+    if( !made )
+    {
+        fprintf(stderr, "torirsmapedctl: there is no %s named '%s'\n", is_area ? "area" : "collection", name);
+        return 1;
+    }
+    return ctl_areas_send(host, &command);
+}
+
 static int
 cmd_cfg_set(
     struct EditorHost* host,
@@ -1209,7 +1503,7 @@ main(
     uint32_t join_group = 0;
     struct EditorHost host;
     char const* command = NULL;
-    char const* args[16] = { NULL };
+    char const* args[80] = { NULL };
     int arg_count = 0;
     int result = 0;
 
@@ -1246,6 +1540,9 @@ main(
             "  spawn-move [gen:]<kind> <name> <x> <z> <level> [count] to <x> <z> [level]\n"
             "    (kind npc|obj|-npc|-obj; name a pack symbol or #<id>; absolute tiles)\n"
             "  cfg-set <type>:<name>[@<overlay under server/scripts>] <key[#n][@line]> <value|->\n"
+            "  areas | area-remove <name> | collection-remove <name>\n"
+            "  area-set <name> <level|all> <x0> <z0> <x1> <z1> [...] [colour <n|->] [note <text|->] [rename <new>]\n"
+            "  collection-set <name> [<square key>...] [note <text|->] [rename <new>]\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  build packs|client [seconds] | run [seconds]\n");
         return 1;
@@ -1346,6 +1643,16 @@ main(
         result = cmd_spawn_edit(&host, strcmp(command, "spawn-move") == 0, args, arg_count);
     else if( strcmp(command, "cfg-set") == 0 && arg_count >= 3 )
         result = cmd_cfg_set(&host, args[0], args[1], args[2]);
+    else if( strcmp(command, "areas") == 0 )
+        result = cmd_areas(&host);
+    else if( strcmp(command, "area-set") == 0 )
+        result = cmd_area_set(&host, args, arg_count);
+    else if( strcmp(command, "collection-set") == 0 )
+        result = cmd_collection_set(&host, args, arg_count);
+    else if( strcmp(command, "area-remove") == 0 && arg_count >= 1 )
+        result = cmd_areas_remove(&host, 1, args[0]);
+    else if( strcmp(command, "collection-remove") == 0 && arg_count >= 1 )
+        result = cmd_areas_remove(&host, 0, args[0]);
     else if( strcmp(command, "live-attach") == 0 && arg_count >= 1 )
     {
         struct ToriRSMapEdBuf payload = { 0 };

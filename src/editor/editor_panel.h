@@ -96,6 +96,18 @@ struct Editor_Panel
     int stroke_last_x;
     int stroke_last_z;
     int rect_dragging;
+
+    /** With a level pinned, the tile under the pointer ON THAT PLANE (scene
+     *  tiles): the pick meets the first surface drawn, which over an empty
+     *  upper floor is the ground below, a tile or more away from where the
+     *  pinned plane passes under the pointer at a slant. The App re-picks
+     *  each frame (app_map_editor_pin_hover) and every editor consumer reads
+     *  it through Editor_PanelHoverTile. `pin_hover_level` is the level it
+     *  was computed for; -1 = not computed. */
+    int pin_hover_level;
+    int pin_hover_valid;
+    int pin_hover_x;
+    int pin_hover_z;
 };
 
 /** Construct the registry and every tools-panels module over `ui`. Call
@@ -179,6 +191,16 @@ int
 Editor_PanelEditLevel(
     struct Editor_Panel const* panel,
     struct App const* app);
+
+/** The scene tile the editor's tools act on under the pointer: the pick's
+ *  on Auto, the pinned plane's (pin_hover_*) with a level pinned. 0 when
+ *  there is none (no hit, or the pointer is off the pinned plane). */
+int
+Editor_PanelHoverTile(
+    struct Editor_Panel const* panel,
+    struct App const* app,
+    int* out_scene_x,
+    int* out_scene_z);
 
 /** The painter level mask the view cap asks for; 0 = no opinion. */
 uint8_t

@@ -1115,13 +1115,16 @@ save_doc(
         assert(handle->text);
         snprintf(out_ref->key, sizeof(out_ref->key), "%s", handle->text->key);
         /* An emptied TEXT document (a detached builder's .interaction) goes
-         * away, like an emptied spawn file; a CFG or IFACE save always names
-         * its text. */
+         * away, like an emptied spawn file, and so does an AREAS document
+         * whose last record was removed (the codec takes its header back);
+         * a CFG or IFACE save always names its text. */
         status = files->doc_save(user,
             handle->kind,
             handle->text->key,
             0,
-            handle->kind == EDITOR_DOC_TEXT && handle->text->length == 0 ? NULL : handle->text->text,
+            (handle->kind == EDITOR_DOC_TEXT || handle->kind == EDITOR_DOC_AREAS) && handle->text->length == 0
+                ? NULL
+                : handle->text->text,
             handle->text->length);
     }
 

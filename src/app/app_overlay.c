@@ -1749,6 +1749,168 @@ app_overlay_build_editor_ghosts(struct App* app)
     }
 }
 
+/* Named areas (Editor_Areas_Overlay): a wash this translucent over the
+ * ground, the selected area's stronger and its outline thicker. */
+#define APP_EDITOR_AREA_FILL_TRANS 214
+#define APP_EDITOR_AREA_FILL_TRANS_SELECTED 176
+/* Samples per rectangle edge at most: the outline follows the ground between
+ * them without spending the overlay budget on a big area. */
+#define APP_EDITOR_AREA_EDGE_SAMPLES 8
+#define APP_EDITOR_AREAS_MAX 96
+
+/** One edge of an area's rectangle from fine (fx0, fz0) to (fx1, fz1), at the
+ *  ground's height on `level`, in up to APP_EDITOR_AREA_EDGE_SAMPLES
+ *  segments. */
+static void
+app_overlay_area_edge(
+    struct App* app,
+    int fx0,
+    int fz0,
+    int fx1,
+    int fz1,
+    int level,
+    uint32_t color,
+    int line_width)
+{
+    int const tiles = (abs(fx1 - fx0) + abs(fz1 - fz0)) / 128;
+    int const steps = tiles < 1 ? 1 : tiles < APP_EDITOR_AREA_EDGE_SAMPLES ? tiles : APP_EDITOR_AREA_EDGE_SAMPLES;
+    int px = 0;
+    int py = 0;
+    int have = 0;
+
+    for( int i = 0; i <= steps; i++ )
+    {
+        int const fx = fx0 + (fx1 - fx0) * i / steps;
+        int const fz = fz0 + (fz1 - fz0) * i / steps;
+        int sx;
+        int sy;
+        if( !app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &sx, &sy) )
+        {
+            have = 0;
+            continue;
+        }
+        if( have )
+            app_overlay_push_segment(app, px, py, sx, sy, color, line_width);
+        px = sx;
+        py = sy;
+        have = 1;
+    }
+}
+
+/** A rectangle of scene tiles [x0..x1] x [z0..z1] washed at `trans`: the
+ *  hull of its four outer corners, each at its own ground height. */
+static void
+app_overlay_area_fill(
+    struct App* app,
+    int x0,
+    int z0,
+    int x1,
+    int z1,
+    int level,
+    uint32_t color,
+    int trans)
+{
+    int const fx[4] = { x0 * 128, (x1 + 1) * 128, (x1 + 1) * 128, x0 * 128 };
+    int const fz[4] = { z0 * 128, z0 * 128, (z1 + 1) * 128, (z1 + 1) * 128 };
+    int px[4];
+    int py[4];
+    int hx[4];
+    int hy[4];
+    int n = 0;
+    int hull;
+
+    for( int c = 0; c < 4; c++ )
+        if( app_world_project_at(app, fx[c], fz[c], app_world_height(app, fx[c], fz[c], level), &px[n], &py[n]) )
+            n++;
+    if( n < 3 )
+        return;
+    hull = ToriDraw_ConvexHull(px, py, n, hx, hy);
+    app_overlay_push_polygon_filled(app, hx, hy, hull, color, trans);
+}
+
+/**
+ * Every named area the Areas panel shows (Editor_Areas_Overlay): each
+ * rectangle washed in its colour on its level and outlined along the ground,
+ * the area's name at the top-left (north-west) corner of its first
+ * rectangle; the selected area brighter. Absolute tiles from the panel,
+ * clipped to the loaded scene and projected through app->world_emit_desc
+ * like the ghosts, so it follows the World panel. An area on every level
+ * (-1) is drawn on the edit level (0 when it follows the pick).
+ */
+static void
+app_overlay_build_editor_areas(struct App* app)
+{
+    struct Editor_Panel const* panel = &app->editor_panel;
+    static struct Editor_AreaOverlay areas[APP_EDITOR_AREAS_MAX];
+    int font_id;
+    int n;
+    int extent;
+    int bx;
+    int bz;
+
+    if( !app->world || !panel->ui )
+        return;
+    n = Editor_Areas_Overlay(panel->ui, areas, APP_EDITOR_AREAS_MAX);
+    if( n <= 0 )
+        return;
+    bx = app->world->_base_tile_x;
+    bz = app->world->_base_tile_z;
+    extent = app->world->_scene_size;
+    font_id = app_minimenu_font_scene_id(app);
+    for( int i = 0; i < n; i++ )
+    {
+        const struct Editor_AreaOverlay* a = &areas[i];
+        int const level = a->level >= 0 ? a->level
+                          : panel->ui->tools.edit_level >= 0 ? panel->ui->tools.edit_level : 0;
+        int const x0 = a->x0 - bx < 0 ? 0 : a->x0 - bx;
+        int const z0 = a->z0 - bz < 0 ? 0 : a->z0 - bz;
+        int const x1 = a->x1 - bx >= extent ? extent - 1 : a->x1 - bx;
+        int const z1 = a->z1 - bz >= extent ? extent - 1 : a->z1 - bz;
+        uint32_t const color = 0xFF000000u | (a->selected ? a->rgb : ((a->rgb >> 1) & 0x7F7F7Fu) + 0x404040u);
+        int const width = a->selected ? APP_OVERLAY_SEGMENT_WIDTH + 1 : APP_OVERLAY_SEGMENT_WIDTH;
+
+        if( x1 < x0 || z1 < z0 )
+            continue;
+        /* The wash: the rectangle's hull at its corners' heights. */
+        app_overlay_area_fill(app, x0, z0, x1, z1, level, color,
+            a->selected ? APP_EDITOR_AREA_FILL_TRANS_SELECTED : APP_EDITOR_AREA_FILL_TRANS);
+        /* The outline, along the ground. */
+        app_overlay_area_edge(app, x0 * 128, z0 * 128, (x1 + 1) * 128, z0 * 128, level, color, width);
+        app_overlay_area_edge(app, (x1 + 1) * 128, z0 * 128, (x1 + 1) * 128, (z1 + 1) * 128, level, color, width);
+        app_overlay_area_edge(app, (x1 + 1) * 128, (z1 + 1) * 128, x0 * 128, (z1 + 1) * 128, level, color, width);
+        app_overlay_area_edge(app, x0 * 128, (z1 + 1) * 128, x0 * 128, z0 * 128, level, color, width);
+        /* The name at the north-west corner, when that corner is loaded. */
+        if( a->first && a->label[0] && font_id >= 0 && a->x0 - bx >= 0 && a->z1 - bz < extent )
+        {
+            int const fx = x0 * 128;
+            int const fz = (z1 + 1) * 128;
+            int sx;
+            int sy;
+            if( app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &sx, &sy) )
+            {
+                int text_w = app_measure_text_cb(app, font_id, a->label);
+                struct UITreeEntityOverlay text = {
+                    .kind = UITREE_ENTITY_OVERLAY_TEXT,
+                    .font_id = font_id,
+                };
+                if( text_w <= 0 )
+                    text_w = (int)strlen(a->label) * 7;
+                /* The overlay centres text on x: put its left edge just
+                 * inside the corner, above it. */
+                text.x = sx + 4 + text_w / 2 + 1;
+                text.y = sy - 4 + 1;
+                text.color = 0xFF000000u;
+                snprintf(text.text, sizeof(text.text), "%s", a->label);
+                app_overlay_push(app, &text);
+                text.x -= 1;
+                text.y -= 1;
+                text.color = 0xFF000000u | a->rgb;
+                app_overlay_push(app, &text);
+            }
+        }
+    }
+}
+
 /**
  * The map editor SELECT tool's latch (editor_panel.sel_kind) -- distinct from
  * the hover footprint above: hover follows the mouse every frame, this stays
@@ -1772,6 +1934,8 @@ app_overlay_build_editor_selection(struct App* app)
      * move destinations. */
     app_overlay_build_brush_footprint(app);
     app_overlay_build_editor_ghosts(app);
+    /* The named areas (Areas panel). */
+    app_overlay_build_editor_areas(app);
 
     /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
      * looks like, this says which tiles it will own -- the question that

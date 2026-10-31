@@ -1,5 +1,6 @@
 #include "editor_cmd.h"
 
+#include "editor_areas.h"
 #include "editor_doc.h"
 #include "editor_if.h"
 #include "editor_spawn.h"
@@ -239,6 +240,43 @@ apply_text_splice(
     return 1;
 }
 
+/**
+ * AREA_* / COLLECTION_* on the AREAS document. The document is held as text
+ * (it travels and saves like any text document); the codec parses it, applies
+ * the record edit and the text is replaced by the emit -- which is the same
+ * bytes everywhere but the edited row, the codec being line-preserving.
+ */
+static int
+apply_areas(
+    struct Editor_Doc* doc,
+    const struct Editor_Cmd* command,
+    enum Editor_CmdDirection direction)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_AreasFile file;
+    struct Editor_AreasParseResult parsed;
+    int changed;
+
+    if( !Editor_DocFind(doc, command->doc_kind, command->doc_key, &handle) || !handle.text
+        || !handle.text->loaded )
+        return 0;
+    Editor_AreasInit(&file);
+    parsed = Editor_AreasParse(&file, handle.text->text, handle.text->length);
+    changed = parsed.ok && Editor_AreasApply(&file, command, direction == EDITOR_CMD_INVERSE);
+    if( changed )
+    {
+        size_t const size = Editor_AreasEmit(&file, NULL, 0);
+        char* text = ToriMem_Alloc(ToriMem_Editor(), size + 1);
+        assert(text);
+        Editor_AreasEmit(&file, text, size + 1);
+        Editor_TextDocSet(handle.text, text, size);
+        handle.text->dirty = 1;
+        ToriMem_Free(ToriMem_Editor(), text);
+    }
+    Editor_AreasFree(&file);
+    return changed;
+}
+
 int
 Editor_CmdApply(
     struct Editor_Doc* doc,
@@ -272,6 +310,11 @@ Editor_CmdApply(
         return Editor_IfDocApply(doc, command, direction);
     case EDITOR_CMD_TEXT_SPLICE:
         return apply_text_splice(doc, command, direction);
+    case EDITOR_CMD_AREA_SET:
+    case EDITOR_CMD_AREA_REMOVE:
+    case EDITOR_CMD_COLLECTION_SET:
+    case EDITOR_CMD_COLLECTION_REMOVE:
+        return apply_areas(doc, command, direction);
     }
     return 0;
 }
@@ -737,6 +780,18 @@ history_tally(
         break;
     case EDITOR_CMD_TEXT_SPLICE:
         break;
+    case EDITOR_CMD_AREA_SET:
+    case EDITOR_CMD_AREA_REMOVE:
+    case EDITOR_CMD_COLLECTION_SET:
+    case EDITOR_CMD_COLLECTION_REMOVE:
+        /* The row says what the step was ("Mark area Lumbridge castle");
+         * the first record edit of a group names it unless the window did. */
+        if( group->label[0] == '\0' && group->verb[0] == '\0'
+            && group->kinds[EDITOR_CMD_AREA_SET] + group->kinds[EDITOR_CMD_AREA_REMOVE]
+                       + group->kinds[EDITOR_CMD_COLLECTION_SET] + group->kinds[EDITOR_CMD_COLLECTION_REMOVE]
+                   == 1 )
+            Editor_AreasCmdLabel(command, group->label, sizeof(group->label));
+        break;
     }
 }
 
@@ -1194,6 +1249,14 @@ Editor_HistoryGroupName(
         snprintf(verb, sizeof(verb), "Iface %s",
             group->block_renames ? "move" : group->block_adds ? "add" : "remove");
         snprintf(what, sizeof(what), "component %d %s", group->component, doc);
+        break;
+    case EDITOR_CMD_AREA_SET:
+    case EDITOR_CMD_AREA_REMOVE:
+    case EDITOR_CMD_COLLECTION_SET:
+    case EDITOR_CMD_COLLECTION_REMOVE:
+        /* Named by the label at tally time; a window's own verb lands here. */
+        snprintf(verb, sizeof(verb), "Edit");
+        snprintf(what, sizeof(what), "%d record%s %s", group->cmd_count, group->cmd_count == 1 ? "" : "s", doc);
         break;
     case EDITOR_CMD_TEXT_SPLICE:
         snprintf(verb, sizeof(verb), "Edit text");

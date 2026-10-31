@@ -164,6 +164,65 @@ struct Editor_Picker;
 const struct Editor_Picker*
 edp_squares_picker(struct EditorUi* ui);
 
+/* ---- the active level (edpanel_common.c) -----------------------------------
+ *
+ * The plane every world tool edits. `tools.edit_level` -1 (Auto) follows the
+ * plane under the pointer, as the editor always has; 0..3 PINS a plane: the
+ * click, the hover, the brush footprint, the ghosts, the rectangle and the
+ * inspector all take that plane, and the view's level cap (`tools.vis_level`)
+ * follows it, so the planes above are not drawn (roofs off) and the pinned
+ * one is what the pointer meets. "Above" keeps the pin but draws every level
+ * (vis cap -1) for context. The control is the menu bar's Level row
+ * (edpanel_menubar.c); the keys are the App's (PageUp / PageDown step,
+ * Ctrl+0..3 pin, src/app/app_map_editor.c). The level is shared Client state
+ * (STATE_EDIT_LEVEL): another window's change lands in `edit_level` through
+ * Editor_UiApplyState, and the menu bar's tick makes the cap follow it.
+ */
+#define EDP_LEVEL_AUTO (-1)
+
+/** The view cap a change of the edit level from `old_edit` (with cap
+ *  `old_vis`) to `new_edit` leaves: Auto draws every level (-1); a pin caps
+ *  the view at itself, unless the old pin was already showing everything
+ *  ("Above"), which a step keeps. */
+int
+edp_level_follow_vis(
+    int old_edit,
+    int old_vis,
+    int new_edit);
+
+/** Pin `level` (0..3) or EDP_LEVEL_AUTO: the edit level, the cap that
+ *  follows it, and STATE_EDIT_LEVEL published to the Client's other windows. */
+void
+edp_level_set(
+    struct EditorUi* ui,
+    int level);
+
+/** Step the pinned level by `delta`, clamped to 0..3. From Auto the step
+ *  starts at `auto_level`, the plane under the pointer. Returns the level. */
+int
+edp_level_step(
+    struct EditorUi* ui,
+    int delta,
+    int auto_level);
+
+/** Pinned: 1 draws every level above the pin too (cap -1), 0 caps the view at
+ *  the pin again. Under Auto it does nothing and returns 0. */
+int
+edp_level_show_above(
+    struct EditorUi* ui,
+    int on);
+
+/** 1 while a level is pinned and every level is drawn. */
+int
+edp_level_showing_above(const struct EditorUi* ui);
+
+/** The plane a world click or the hover edits: the pinned level, else the
+ *  plane under the pointer (`hover_level`), clamped to 0..3. */
+int
+edp_level_click(
+    const struct EditorUi* ui,
+    int hover_level);
+
 /** Release the scratch and the clipboard (Editor_UiFree). */
 void
 edp_scratch_free(void);

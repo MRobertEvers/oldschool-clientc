@@ -135,6 +135,7 @@ struct Watch
     uint32_t watch_key;
     int watch_hits;
     int watch_last_count;
+    int watch_last_value0;
 };
 
 static void
@@ -150,6 +151,7 @@ on_state(
     {
         watch->watch_hits++;
         watch->watch_last_count = count;
+        watch->watch_last_value0 = count > 0 ? values[0] : 0;
     }
     EditorView_OnState(watch->view, key, values, count);
 }
@@ -457,6 +459,29 @@ test_three_connections(
                 && adopted.yaw == cam[1].yaw && adopted.zoom == cam[1].zoom,
             "follow selection frames the selected tile, keeping the view's angles");
         check(!EditorView_TakeCamera(&g_views[2], &adopted), "a view not following selection stays put");
+
+        /* The active level (the menu bar's Level row, PageUp/PageDown) is
+         * Client state: A pins level 2, B and C hear it; Auto too. */
+        {
+            int32_t level = 2;
+            for( int i = 1; i < 3; i++ )
+            {
+                g_watch[i].watch_key = TORIRSMAPED_STATE_EDIT_LEVEL;
+                g_watch[i].watch_hits = 0;
+            }
+            Editor_StateSet(&g_ed[0], TORIRSMAPED_STATE_EDIT_LEVEL, &level, 1);
+            pump_all(3);
+            check(g_watch[1].watch_hits >= 1 && g_watch[1].watch_last_value0 == 2 && g_watch[2].watch_hits >= 1
+                      && g_watch[2].watch_last_value0 == 2,
+                "STATE_EDIT_LEVEL: a level pinned in A reaches B and C");
+            level = -1;
+            Editor_StateSet(&g_ed[0], TORIRSMAPED_STATE_EDIT_LEVEL, &level, 1);
+            pump_all(3);
+            check(g_watch[1].watch_last_value0 == -1 && g_watch[2].watch_last_value0 == -1,
+                "STATE_EDIT_LEVEL: and so does Auto");
+            for( int i = 1; i < 3; i++ )
+                g_watch[i].watch_key = 0;
+        }
     }
 
     /* ---- the thin toolbar on the real chrome model ------------------------- */

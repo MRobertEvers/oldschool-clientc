@@ -137,6 +137,16 @@ struct Editor_Picker
     /** What the last draw spent, and whether it ran out of budget. */
     int items_drawn;
     int truncated;
+    /** The collection filter (Editor_PickerSetFilter): when on, only the
+     *  squares whose keys are listed are shown -- on every Area page, the
+     *  collection being the page -- and Fit frames them. `filter_mask` is
+     *  one byte per square, rebuilt from the keys when the atlas changes. */
+    int filter_on;
+    char (*filter_keys)[EDITOR_DOC_KEY_MAX];
+    int filter_key_count;
+    unsigned char* filter_mask;
+    /** Squares the filter shows. */
+    int filter_shown;
 };
 
 void
@@ -266,6 +276,16 @@ Editor_PickerSquareKey(
     const struct Editor_Picker* picker,
     int index,
     char out[EDITOR_DOC_KEY_MAX]);
+
+/** Show only the squares whose full keys ("m50_50",
+ *  "ported/<lane>/maps/m16_101") are in `keys` (`count` of them); a count
+ *  below 0 turns the filter off. A key the atlas does not hold is kept and
+ *  shown once a refresh brings it. Returns the squares shown. */
+int
+Editor_PickerSetFilter(
+    struct Editor_Picker* picker,
+    const char* const* keys,
+    int count);
 
 /** Fold this window's mirror into the flags: OPEN_HERE, DIRTY_HERE. */
 void

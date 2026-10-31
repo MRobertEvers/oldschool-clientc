@@ -20,6 +20,7 @@
  * Writes only inside the scratch directory it is given.
  */
 
+#include "editor/editor_areas.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
@@ -1198,6 +1199,111 @@ main(
         drain(&a, &ma);
         drain(&a2, &ma2);
         drain(&c, &mc);
+    }
+
+    /* ---- the AREAS document: open, edit, mirror, save, reopen ------------ */
+
+    {
+        struct Editor_AreasFile file;
+        struct Editor_Area area;
+        struct Editor_Collection* coll = calloc(1, sizeof(*coll));
+        struct Editor_Cmd* cmds = calloc(4, sizeof(*cmds));
+        struct Editor_DocHandle ha;
+        struct Editor_DocHandle hb;
+        struct EditorHost_DocText text;
+        char areas_path[1300];
+
+        if( !coll || !cmds )
+        {
+            fprintf(stderr, "out of memory for the areas checks\n");
+            return 2;
+        }
+        snprintf(areas_path, sizeof(areas_path), "%s/editor/areas.txt", scratch);
+        check(open_doc_into(&a, ma.doc, EDITOR_DOC_AREAS, "areas") == 1, "areas: Client 1 opens the AREAS document");
+        check(open_doc_into(&b, mb.doc, EDITOR_DOC_AREAS, "areas") == 1, "areas: Client 2 opens it too");
+        check(Editor_DocFind(ma.doc, EDITOR_DOC_AREAS, "areas", &ha) && ha.text->length == 0,
+            "areas: no file yet = an empty document");
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&a, EDITOR_DOC_AREAS, "nope", &text) == EDITOR_HOST_REFUSED,
+            "areas: any other key is refused");
+        Editor_HostDocTextFree(&text);
+
+        Editor_AreasInit(&file);
+        Editor_AreasParse(&file, ha.text->text, ha.text->length);
+        memset(&area, 0, sizeof(area));
+        snprintf(area.name, sizeof(area.name), "Lumbridge castle");
+        area.level = 0;
+        area.colour = -1;
+        Editor_AreaAddRect(&area, 3205, 3208, 3225, 3226);
+        check(Editor_AreaSetCommand(&cmds[0], &file, NULL, &area), "areas: AREA_SET built");
+        check(Editor_HostMapEdCmd(&a, &cmds[0]) == EDITOR_HOST_OK, "areas: AREA_SET is accepted");
+        check(Editor_HostMapEdCmd(&a, &cmds[0]) == EDITOR_HOST_REFUSED, "areas: the same add again is refused");
+        drain(&a, &ma);
+        drain(&b, &mb);
+        check(Editor_DocFind(mb.doc, EDITOR_DOC_AREAS, "areas", &hb)
+                  && strstr(hb.text->text, "\narea Lumbridge castle | level 0 | rects 3205 3208 3225 3226\n") != NULL
+                  && hb.text->dirty,
+            "areas: the other Client's mirror has the row, unsaved");
+        snprintf(coll->name, sizeof(coll->name), "Lumbridge");
+        Editor_CollectionAdd(coll, "m50_50");
+        Editor_CollectionAdd(coll, "m50_51");
+        Editor_AreasParse(&file, ha.text->text, ha.text->length);
+        check(Editor_CollectionSetCommand(&cmds[1], &file, NULL, coll), "areas: COLLECTION_SET built");
+        check(Editor_HostMapEdCmd(&b, &cmds[1]) == EDITOR_HOST_OK, "areas: COLLECTION_SET from Client 2 is accepted");
+        drain(&a, &ma);
+        drain(&b, &mb);
+        check(strcmp(ha.text->text, hb.text->text) == 0, "areas: both mirrors agree byte for byte");
+
+        check(Editor_HostMapEdSave(&a, EDITOR_DOC_AREAS, "areas") == 1, "areas: SAVE writes editor/areas.txt");
+        drain(&a, &ma);
+        drain(&b, &mb);
+        disk = slurp(areas_path, &disk_size);
+        check(disk && disk_size == ha.text->length && memcmp(disk, ha.text->text, disk_size) == 0,
+            "areas: the file is the document's bytes");
+        free(disk);
+        check(!hb.text->dirty, "areas: FACT_SAVED cleared the other mirror's dirty flag");
+
+        /* A connection that opens it now gets the saved text. */
+        memset(&text, 0, sizeof(text));
+        check(Editor_HostMapEdDocOpen(&c, EDITOR_DOC_AREAS, "areas", &text) == EDITOR_HOST_OK && text.part_count == 1
+                  && text.parts[0].size == ha.text->length
+                  && memcmp(text.parts[0].data, ha.text->text, ha.text->length) == 0,
+            "areas: a late joiner reads the same text");
+        Editor_HostDocTextFree(&text);
+
+        /* Remove and undo: the row comes back where it stood. */
+        Editor_AreasParse(&file, ha.text->text, ha.text->length);
+        check(Editor_AreaRemoveCommand(&cmds[2], &file, "Lumbridge castle"), "areas: AREA_REMOVE built");
+        check(Editor_HostMapEdCmd(&a, &cmds[2]) == EDITOR_HOST_OK, "areas: AREA_REMOVE is accepted");
+        drain(&a, &ma);
+        check(strstr(ha.text->text, "area Lumbridge castle") == NULL, "areas: removed");
+        check(Editor_HostMapEdUndo(&a) == 1, "areas: undo is one step");
+        drain(&a, &ma);
+        disk = slurp(areas_path, &disk_size);
+        check(disk && disk_size == ha.text->length && memcmp(disk, ha.text->text, disk_size) == 0,
+            "areas: the undo restored the saved bytes exactly");
+        free(disk);
+
+        /* Every record removed: the header goes with them and the save
+         * removes the file (absent == no areas). */
+        Editor_AreasParse(&file, ha.text->text, ha.text->length);
+        Editor_AreaRemoveCommand(&cmds[2], &file, "Lumbridge castle");
+        Editor_CollectionRemoveCommand(&cmds[3], &file, "Lumbridge");
+        check(Editor_HostMapEdCmd(&a, &cmds[2]) == EDITOR_HOST_OK && Editor_HostMapEdCmd(&a, &cmds[3]) == EDITOR_HOST_OK,
+            "areas: both removes are accepted");
+        drain(&a, &ma);
+        check(ha.text->length == 0, "areas: the document is empty again");
+        check(Editor_HostMapEdSave(&a, EDITOR_DOC_AREAS, "areas") == 1, "areas: saved empty");
+        disk = slurp(areas_path, &disk_size);
+        check(disk == NULL, "areas: the empty document removed the file");
+        free(disk);
+        drain(&a, &ma);
+        drain(&b, &mb);
+        drain(&a2, &ma2);
+        drain(&c, &mc);
+        Editor_AreasFree(&file);
+        free(coll);
+        free(cmds);
     }
 
     /* ---- a v1 peer on the same protocol ------------------------------------ */

@@ -26,8 +26,9 @@
  * DOCUMENTS (docs/MAPED_DESIGN.html #documents). A command names the
  * document it edits by (doc_kind, doc_key): a map square ("m50_50"), a
  * square's edited spawn file ("m50_50"), one config record
- * ("loc:newbie_door1"), an interface ("if:bank") or a script text
- * ("rs2:edited/doors/my_door.rs2", "cs2:<name>"). The layout below is fixed
+ * ("loc:newbie_door1"), an interface ("if:bank"), a script text
+ * ("rs2:edited/doors/my_door.rs2", "cs2:<name>") or the named areas
+ * ("areas", editor_areas.h). The layout below is fixed
  * by docs/MAPED_IMPLEMENTATION.md section 2 and shared by every owner.
  */
 
@@ -47,9 +48,12 @@ enum Editor_DocKind
     EDITOR_DOC_CFG,
     EDITOR_DOC_IFACE,
     EDITOR_DOC_TEXT,
+    /** The named areas and square collections (editor_areas.h), one
+     *  document per content tree, key "areas", held as text. */
+    EDITOR_DOC_AREAS,
 };
 
-#define EDITOR_DOC_KIND_COUNT 5
+#define EDITOR_DOC_KIND_COUNT 6
 /** Bytes in a document key, the terminator included. */
 #define EDITOR_DOC_KEY_MAX 128
 /** Bytes in a square's storage name ("" = the content tree's maps/,
@@ -103,9 +107,20 @@ enum Editor_CmdKind
      * comment is kept either way. has_before and has_after are both 1.
      */
     EDITOR_CMD_SPAWN_EDIT,
+    /**
+     * AREAS documents (editor_areas.h). One record line, by name: SET upserts
+     * (has_after; has_before too when it replaces a record, whose exact line
+     * it carries -- a rename is a SET whose names differ), REMOVE takes one
+     * out (has_before only) and remembers the line index it stood at, so the
+     * inverse puts it back there. `u.area` holds both lines.
+     */
+    EDITOR_CMD_AREA_SET,
+    EDITOR_CMD_AREA_REMOVE,
+    EDITOR_CMD_COLLECTION_SET,
+    EDITOR_CMD_COLLECTION_REMOVE,
 };
 
-#define EDITOR_CMD_KIND_COUNT 10
+#define EDITOR_CMD_KIND_COUNT 14
 
 /** Bytes a TEXT_SPLICE carries, before and after together. A regeneration
  *  larger than this is several splices in one stroke. */
@@ -204,6 +219,17 @@ struct Editor_Cmd
             uint32_t after_len;
             char text[EDITOR_CMD_SPLICE_MAX];
         } text_splice;
+        /** AREA_* / COLLECTION_*: the record line before then after, back to
+         *  back in `text` (each at most EDITOR_AREAS_LINE_MAX bytes), and the
+         *  line index `before` stood at (-1: unknown, an undone remove
+         *  appends). */
+        struct
+        {
+            int line;
+            uint32_t before_len;
+            uint32_t after_len;
+            char text[EDITOR_CMD_SPLICE_MAX];
+        } area;
     } u;
 };
 
@@ -223,7 +249,8 @@ struct Editor_Cmd
  *                         `kind`: TILE/LOC squares, SPAWN* (SPAWN,
  *                         SPAWN_SUPPRESS, SPAWN_EDIT) spawn files,
  *                         CFG_* records, IF_* interfaces, TEXT_SPLICE any
- *                         text-backed document (CFG, IFACE, TEXT).
+ *                         text-backed document (CFG, IFACE, TEXT), AREA_*
+ *                         and COLLECTION_* the AREAS document.
  */
 
 static inline void
@@ -329,6 +356,9 @@ Editor_CmdKindFits(
                || kind == EDITOR_CMD_TEXT_SPLICE;
     case EDITOR_DOC_TEXT:
         return kind == EDITOR_CMD_TEXT_SPLICE;
+    case EDITOR_DOC_AREAS:
+        return kind == EDITOR_CMD_AREA_SET || kind == EDITOR_CMD_AREA_REMOVE
+               || kind == EDITOR_CMD_COLLECTION_SET || kind == EDITOR_CMD_COLLECTION_REMOVE;
     }
     return 0;
 }

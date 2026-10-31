@@ -28,6 +28,13 @@
 #      byte, a row the file does not hold is refused; cfg-set edits a record
 #      block of configs/all.<type> and of a server overlay
 #      ("<type>:<name>@<overlay>") and save writes exactly that.
+#   9. The named areas (editor/areas.txt): area-set marks an area (rectangles,
+#      level, quoted name with a space), a second area-set of the same name
+#      replaces it keeping its colour and note, `rename` renames it, a taken
+#      name is refused, collection-set lists squares (a bad key is refused),
+#      `areas` prints the records, area-remove + undo restores the row, save
+#      writes the file with its header, and removing everything then saving
+#      removes the file.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -248,6 +255,51 @@ if "$CTL" --port "$PORT" cfg-set 'npc:guard@../t.npc' wanderrange 1 > "$SCRATCH/
 else
     check 1 "an overlay key with .. is refused"
 fi
+
+# 9. The named areas and square collections.
+AREAS_FILE="$SCRATCH/editor/areas.txt"
+"$CTL" --port "$PORT" area-set "Lumbridge castle" 0 3205 3208 3225 3226 colour 2 note "the castle" > "$SCRATCH/aset.log" 2>&1 || true
+contains "$SCRATCH/aset.log" "Mark area Lumbridge castle" "area-set marks a named area"
+"$CTL" --port "$PORT" area-set "Lumbridge castle" 0 3205 3208 3225 3226 3226 3210 3230 3214 > "$SCRATCH/aset2.log" 2>&1 || true
+contains "$SCRATCH/aset2.log" "Add rect to area Lumbridge castle" "a second area-set replaces it (one more rect)"
+"$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 > "$SCRATCH/aset3.log" 2>&1 || true
+contains "$SCRATCH/aset3.log" "Mark area Courtyard" "an area on every level"
+if "$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 rename "Lumbridge castle" > "$SCRATCH/ataken.log" 2>&1; then
+    check 0 "renaming onto a taken name fails"
+else
+    check 1 "renaming onto a taken name fails"
+fi
+"$CTL" --port "$PORT" area-set Courtyard all 3210 3215 3220 3222 rename Yard > "$SCRATCH/arename.log" 2>&1 || true
+contains "$SCRATCH/arename.log" "Rename area Courtyard to Yard" "rename gives the area a new name"
+"$CTL" --port "$PORT" collection-set Lumbridge m50_50 m50_51 > "$SCRATCH/cset.log" 2>&1 || true
+contains "$SCRATCH/cset.log" "New collection Lumbridge" "collection-set names a collection of squares"
+if "$CTL" --port "$PORT" collection-set Bad 50_50 > "$SCRATCH/cbad.log" 2>&1; then
+    check 0 "a key that is not a square is refused"
+else
+    check 1 "a key that is not a square is refused"
+fi
+"$CTL" --port "$PORT" areas > "$SCRATCH/areas.log" 2>&1 || true
+contains "$SCRATCH/areas.log" "2 area(s), 1 collection(s)" "areas counts the records"
+contains "$SCRATCH/areas.log" "area Lumbridge castle | level 0 | rects 3205 3208 3225 3226, 3226 3210 3230 3214 | colour 2 | note the castle" \
+    "the replaced area kept its colour and note"
+contains "$SCRATCH/areas.log" "collection Lumbridge | squares m50_50 m50_51" "areas lists the collection"
+"$CTL" --port "$PORT" area-remove Yard > "$SCRATCH/arm.log" 2>&1 || true
+contains "$SCRATCH/arm.log" "Delete area Yard" "area-remove deletes it"
+"$CTL" --port "$PORT" undo > "$SCRATCH/aundo.log" 2>&1 || true
+contains "$SCRATCH/aundo.log" "undo 1 command(s)" "undo takes the delete back"
+"$CTL" --port "$PORT" save > "$SCRATCH/asave.log" 2>&1 || true
+contains "$SCRATCH/asave.log" "areas" "save names the areas document"
+check "$( [ "$(head -n 1 "$AREAS_FILE")" = "# ToriRSMapEd named areas and square collections (editor/areas.txt)." ] && echo 1 )" \
+    "editor/areas.txt starts with its header"
+check "$( [ "$(grep -cE '^(area|collection) ' "$AREAS_FILE")" = 3 ] && echo 1 )" \
+    "editor/areas.txt holds the three records"
+contains "$AREAS_FILE" "area Yard | level all | rects 3210 3215 3220 3222" "the undone delete is saved in place"
+"$CTL" --port "$PORT" area-remove "Lumbridge castle" > /dev/null 2>&1 || true
+"$CTL" --port "$PORT" area-remove Yard > /dev/null 2>&1 || true
+"$CTL" --port "$PORT" collection-remove Lumbridge > "$SCRATCH/crm.log" 2>&1 || true
+contains "$SCRATCH/crm.log" "Delete collection Lumbridge" "collection-remove deletes it"
+"$CTL" --port "$PORT" save > /dev/null 2>&1 || true
+check "$( [ ! -e "$AREAS_FILE" ] && echo 1 )" "removing every record and saving removes the file"
 
 # 6. The browser's route in: the same daemon, upgraded, framed. Skipped
 # rather than failed when python3 is absent — the probe needs a WebSocket

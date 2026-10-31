@@ -11,6 +11,7 @@
  */
 
 #include "editor/editor.h"
+#include "editor/editor_areas.h"
 #include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
@@ -1903,7 +1904,12 @@ test_layout(void)
             int const want_x = r.x + r.w + 5;
             int const want_y = r.y + 3;
             drag(p.x + 30, p.y + 6, want_x + 30, want_y + 6);
-            CHECK(g_chrome.panels[palette].x == r.x + r.w && g_chrome.panels[palette].y == r.y,
+            /* Aligned with Terrain's top, or with its bottom when that edge
+             * is the nearer one (the two heights come from the layout's
+             * share of the column, which every docked panel moves). */
+            CHECK(g_chrome.panels[palette].x == r.x + r.w
+                      && (g_chrome.panels[palette].y == r.y
+                          || g_chrome.panels[palette].y + p.h == r.y + r.h),
                 "Palette dropped at %d,%d snapped to Terrain's edge (%d,%d), at %d,%d", want_x, want_y,
                 r.x + r.w, r.y, g_chrome.panels[palette].x, g_chrome.panels[palette].y);
         }
@@ -3382,6 +3388,302 @@ test_record_editor(void)
     Editor_UiFree(&g_cat_ui);
 }
 
+/* ---- named areas and square collections (edpanel_areas.c) ---------------------- */
+
+static int
+areas_count(void)
+{
+    const struct Editor_AreasFile* file = Editor_Areas_File(&g_ui, NULL);
+    return file ? Editor_AreasAreaCount(file) : -1;
+}
+
+static const struct Editor_Area*
+areas_find(const char* name)
+{
+    const struct Editor_AreasFile* file = Editor_Areas_File(&g_ui, NULL);
+    int const line = file ? Editor_AreasFindArea(file, name) : -1;
+    return line >= 0 ? file->lines[line].area : NULL;
+}
+
+static const struct Editor_Collection*
+areas_find_coll(const char* name)
+{
+    const struct Editor_AreasFile* file = Editor_Areas_File(&g_ui, NULL);
+    int const line = file ? Editor_AreasFindCollection(file, name) : -1;
+    return line >= 0 ? file->lines[line].collection : NULL;
+}
+
+static int
+areas_console_has(const char* needle)
+{
+    for( int i = 0; i < 8; i++ )
+    {
+        const char* line = Editor_UiConsoleLine(&g_ui, i);
+        if( line && strstr(line, needle) )
+            return 1;
+    }
+    return 0;
+}
+
+/** The `nth` (0-based) widget of `kind` captioned `caption` on `panel`. */
+static int
+areas_widget(
+    int panel,
+    int kind,
+    const char* caption,
+    int nth)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel != panel || w->kind != kind )
+            continue;
+        if( strcmp(w->label, caption) != 0 && strcmp(w->text, caption) != 0 )
+            continue;
+        if( nth-- == 0 )
+            return i;
+    }
+    return -1;
+}
+
+static void
+test_areas(void)
+{
+    struct Editor_DocHandle handle;
+    struct Editor_AreaOverlay overlay[8];
+    struct Editor_Picker* picker;
+    int areas_panel;
+    int squares_panel;
+    int w_new;
+    int w_name;
+    int w_rename;
+    int w_level;
+    int w_set_level;
+    int w_add_rect;
+    int w_status = -1;
+    int w_outlines;
+    int w_hide;
+    int w_coll_name;
+    int w_from_picker;
+    int w_add_current;
+    int w_remove_current;
+    int w_delete_coll;
+    int w_coll_dropdown;
+    int n;
+
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_AREAS, "areas", &handle) && handle.text && handle.text->loaded,
+        "areas: the session opened the AREAS document with the editor");
+    CHECK(handle.text && handle.text->length == 0, "areas: absent on disk = empty");
+
+    layout_boot(1920, 1080, 1);
+    CHECK(Editor_UiFindPanel(&g_ui, "areas") != NULL, "areas: the panel registered");
+    areas_panel = find_panel("Areas");
+    squares_panel = find_panel("Squares");
+    CHECK(areas_panel >= 0 && squares_panel >= 0, "areas: its chrome panel exists");
+    if( areas_panel < 0 || squares_panel < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    Editor_Areas_Show(&g_ui);
+    frame();
+    CHECK(g_chrome.panels[areas_panel].visible, "areas: shown");
+    w_new = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "New from rect", 0);
+    w_name = areas_widget(areas_panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 0);
+    w_coll_name = areas_widget(areas_panel, TORIRS_CHROME_W_TEXTINPUT, "Name", 1);
+    w_rename = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Rename", 0);
+    w_level = areas_widget(areas_panel, TORIRS_CHROME_W_DROPDOWN, "Level", 0);
+    w_set_level = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Set level", 0);
+    w_add_rect = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Add rect", 0);
+    w_outlines = areas_widget(areas_panel, TORIRS_CHROME_W_CHECKBOX, "Show outlines", 0);
+    w_hide = areas_widget(areas_panel, TORIRS_CHROME_W_CHECKBOX, "Hide others", 0);
+    w_from_picker = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "From picker", 0);
+    w_add_current = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Add current", 0);
+    w_remove_current = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Remove current", 0);
+    w_delete_coll = areas_widget(areas_panel, TORIRS_CHROME_W_BUTTON, "Delete", 1);
+    w_coll_dropdown = areas_widget(squares_panel, TORIRS_CHROME_W_DROPDOWN, "Collection", 0);
+    CHECK(w_new >= 0 && w_name >= 0 && w_coll_name >= 0 && w_rename >= 0 && w_level >= 0 && w_set_level >= 0
+              && w_add_rect >= 0 && w_outlines >= 0 && w_hide >= 0 && w_from_picker >= 0 && w_add_current >= 0
+              && w_remove_current >= 0 && w_delete_coll >= 0 && w_coll_dropdown >= 0,
+        "areas: every control is there (and the picker's Collection dropdown)");
+    if( w_new < 0 || w_name < 0 || w_coll_name < 0 || w_rename < 0 || w_level < 0 || w_set_level < 0
+        || w_add_rect < 0 || w_outlines < 0 || w_hide < 0 || w_from_picker < 0 || w_add_current < 0
+        || w_remove_current < 0 || w_delete_coll < 0 || w_coll_dropdown < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* New from rect with no rectangle: the panel says so, nothing is sent. */
+    memset(&g_ui.tools.rect, 0, sizeof(g_ui.tools.rect));
+    activate(w_new);
+    CHECK(areas_count() == 0, "areas: no rectangle, no area");
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].panel == areas_panel && strstr(g_chrome.widgets[i].text, "no rectangle") )
+            w_status = i;
+    CHECK(w_status >= 0, "areas: the panel says there is no rectangle");
+
+    /* New from rect -> AREA_SET -> named history row -> undo removes it. */
+    g_ui.tools.rect.valid = 1;
+    g_ui.tools.rect.x0 = SQ_X0 + 25;
+    g_ui.tools.rect.z0 = SQ_Z0 + 26;
+    g_ui.tools.rect.x1 = SQ_X0 + 5;
+    g_ui.tools.rect.z1 = SQ_Z0 + 8;
+    g_ui.tools.rect.level = 0;
+    ToriRSChrome_SetText(&g_chrome, w_name, "Lumbridge castle");
+    activate(w_new);
+    CHECK(areas_count() == 1, "areas: New from rect marked one area");
+    {
+        const struct Editor_Area* a = areas_find("Lumbridge castle");
+        CHECK(a && a->level == 0 && a->rect_count == 1 && a->rects[0].x0 == SQ_X0 + 5 && a->rects[0].z1 == SQ_Z0 + 26,
+            "areas: named, level 0, the rectangle normalised");
+    }
+    CHECK(strcmp(Editor_Areas_Selected(&g_ui), "Lumbridge castle") == 0, "areas: the new area is the selection");
+    CHECK(newest_group_named("Mark area Lumbridge castle"), "areas: history row 'Mark area Lumbridge castle'");
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_AREAS, "areas", &handle) && handle.text->dirty,
+        "areas: the document is unsaved");
+    CHECK(Editor_Undo(&g_editor) == 1, "areas: undo is one step");
+    frame();
+    CHECK(areas_count() == 0, "areas: undo removed the area");
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_AREAS, "areas", &handle) && handle.text->length == 0,
+        "areas: and the header it brought (the document is empty again)");
+    CHECK(Editor_Redo(&g_editor) == 1 && areas_count() == 1, "areas: redo brings it back");
+    frame();
+    CHECK(Editor_Areas_Select(&g_ui, "Lumbridge castle"), "areas: select it again");
+
+    /* Rename, Set level, Add rect: each one named step. */
+    ToriRSChrome_SetText(&g_chrome, w_name, "Castle");
+    activate(w_rename);
+    CHECK(areas_find("Castle") && !areas_find("Lumbridge castle"), "areas: renamed");
+    CHECK(newest_group_named("Rename area Lumbridge castle to Castle"), "areas: history row for the rename");
+    CHECK(strcmp(Editor_Areas_Selected(&g_ui), "Castle") == 0, "areas: the selection follows the rename");
+    ToriRSChrome_DropdownSetSelected(&g_chrome, w_level, 2);
+    activate(w_set_level);
+    CHECK(areas_find("Castle") && areas_find("Castle")->level == 1, "areas: Set level 1");
+    CHECK(newest_group_named("Set level of area Castle to 1"), "areas: history row for the level");
+    g_ui.tools.rect.x0 = SQ_X0 + 30;
+    g_ui.tools.rect.z0 = SQ_Z0 + 30;
+    g_ui.tools.rect.x1 = SQ_X0 + 33;
+    g_ui.tools.rect.z1 = SQ_Z0 + 31;
+    activate(w_add_rect);
+    CHECK(areas_find("Castle") && areas_find("Castle")->rect_count == 2, "areas: a second rectangle");
+    CHECK(newest_group_named("Add rect to area Castle"), "areas: history row for the rect");
+    ToriRSChrome_SetText(&g_chrome, w_name, "Castle");
+    activate(w_new);
+    CHECK(areas_count() == 1 && areas_console_has("already exists"), "areas: a taken name is refused");
+
+    /* The overlay: every rect, the name on the first, the selection marked;
+     * Hide others and Show outlines. */
+    n = Editor_Areas_Overlay(&g_ui, overlay, 8);
+    CHECK(n == 2 && overlay[0].first && strcmp(overlay[0].label, "Castle") == 0 && !overlay[1].first
+              && overlay[0].selected && overlay[0].level == 1 && overlay[1].x0 == SQ_X0 + 30,
+        "areas: the overlay has both rects, labelled once, selected (%d)", n);
+    ToriRSChrome_SetText(&g_chrome, w_name, "Second");
+    g_ui.tools.rect.x0 = SQ_X0 + 40;
+    g_ui.tools.rect.x1 = SQ_X0 + 41;
+    activate(w_new);
+    CHECK(areas_count() == 2 && strcmp(Editor_Areas_Selected(&g_ui), "Second") == 0, "areas: a second area");
+    CHECK(Editor_Areas_Overlay(&g_ui, overlay, 8) == 3, "areas: three rects in the overlay");
+    ToriRSChrome_SetChecked(&g_chrome, w_hide, 1);
+    n = Editor_Areas_Overlay(&g_ui, overlay, 8);
+    CHECK(n == 1 && strcmp(overlay[0].label, "Second") == 0, "areas: Hide others leaves the selection (%d)", n);
+    ToriRSChrome_SetChecked(&g_chrome, w_hide, 0);
+    ToriRSChrome_SetChecked(&g_chrome, w_outlines, 0);
+    CHECK(Editor_Areas_Overlay(&g_ui, overlay, 8) == 0, "areas: Show outlines off draws nothing");
+    ToriRSChrome_SetChecked(&g_chrome, w_outlines, 1);
+    CHECK(!Editor_Areas_GoTo(&g_ui) && areas_console_has("needs a world"), "areas: Go to without a world says so");
+
+    /* Collections: New from picker selection, the picker filter, add /
+     * remove the current square, Open all, delete. */
+    picker = (struct Editor_Picker*)edp_squares_picker(&g_ui);
+    CHECK(picker != NULL, "areas: the picker has its atlas");
+    if( picker )
+    {
+        int const a = Editor_PickerFind(picker, 50, 50, -1);
+        int const b = Editor_PickerFind(picker, 50, 51, -1);
+        int const c = Editor_PickerFind(picker, 51, 50, -1);
+        CHECK(a >= 0 && b >= 0 && c >= 0, "areas: m50_50, m50_51, m51_50 are in the atlas");
+        if( a >= 0 && b >= 0 && c >= 0 )
+        {
+            Editor_PickerSelect(picker, a, 0);
+            Editor_PickerSelect(picker, b, 1);
+            ToriRSChrome_SetText(&g_chrome, w_coll_name, "Lumbridge");
+            activate(w_from_picker);
+            CHECK(areas_find_coll("Lumbridge") && areas_find_coll("Lumbridge")->square_count == 2
+                      && Editor_CollectionFind(areas_find_coll("Lumbridge"), "m50_50") >= 0
+                      && Editor_CollectionFind(areas_find_coll("Lumbridge"), "m50_51") >= 0,
+                "areas: a collection of the two picker squares, m50_50 and m50_51");
+            CHECK(newest_group_named("New collection Lumbridge"), "areas: history row for the collection");
+            CHECK(strcmp(Editor_Areas_SelectedCollection(&g_ui), "Lumbridge") == 0, "areas: it is the selection");
+
+            /* The picker filter: only the collection's squares, on any page. */
+            frame();
+            CHECK(g_chrome.widgets[w_coll_dropdown].option_count == 2,
+                "areas: the Collection dropdown lists all + one (%d)", g_chrome.widgets[w_coll_dropdown].option_count);
+            ToriRSChrome_DropdownSetSelected(&g_chrome, w_coll_dropdown, 1);
+            activate(w_coll_dropdown);
+            CHECK(picker->filter_on && picker->filter_shown == 2, "areas: the picker is filtered to 2 squares");
+            CHECK(strcmp(Editor_SquarePicker_Collection(&g_ui), "Lumbridge") == 0, "areas: filtered to Lumbridge");
+            CHECK(picker->filter_mask && picker->filter_mask[a] && picker->filter_mask[b] && !picker->filter_mask[c],
+                "areas: m51_50 is filtered out");
+
+            /* Add the current square (the picker's focus) -- the filter follows. */
+            Editor_PickerSelect(picker, c, 0);
+            activate(w_add_current);
+            CHECK(areas_find_coll("Lumbridge") && areas_find_coll("Lumbridge")->square_count == 3,
+                "areas: Add current square");
+            CHECK(newest_group_named("Add 1 square to collection Lumbridge"), "areas: history row for the add");
+            frame();
+            CHECK(picker->filter_shown == 3, "areas: the filter took the new square (%d)", picker->filter_shown);
+            activate(w_remove_current);
+            CHECK(areas_find_coll("Lumbridge") && areas_find_coll("Lumbridge")->square_count == 2,
+                "areas: Remove current square");
+
+            /* Open all: each as a document, and to the window. */
+            g_window.open_calls = 0;
+            CHECK(Editor_Areas_OpenAll(&g_ui, 0) == 2, "areas: Open all opened both as documents");
+            frame();
+            CHECK(g_window.open_calls == 2 && g_window.open_add == 1, "areas: and asked the window for both (%d)",
+                g_window.open_calls);
+
+            /* Deleting the collection turns the filter off. */
+            activate(w_delete_coll);
+            frame();
+            CHECK(!areas_find_coll("Lumbridge"), "areas: collection deleted");
+            CHECK(!picker->filter_on && Editor_SquarePicker_Collection(&g_ui)[0] == '\0',
+                "areas: the picker shows every square again");
+            CHECK(Editor_Undo(&g_editor) == 1 && areas_find_coll("Lumbridge"), "areas: undo the delete");
+            Editor_PickerSelect(picker, -1, 0);
+        }
+    }
+
+    /* Save: the document lands at editor/areas.txt, header first. */
+    CHECK(Editor_SaveDoc(&g_editor, EDITOR_DOC_AREAS, "areas") == 1, "areas: saved");
+    {
+        char path[1200];
+        FILE* f;
+        char text[4096];
+        size_t got = 0;
+        snprintf(path, sizeof(path), "%s/editor/areas.txt", g_tmp_root);
+        f = fopen(path, "rb");
+        CHECK(f != NULL, "areas: %s written", path);
+        if( f )
+        {
+            got = fread(text, 1, sizeof(text) - 1, f);
+            fclose(f);
+        }
+        text[got] = '\0';
+        CHECK(strncmp(text, "# ToriRSMapEd named areas", 25) == 0, "areas: the header first");
+        CHECK(strstr(text, "\narea Castle | level 1 | rects ") != NULL, "areas: the Castle row");
+        CHECK(strstr(text, "\ncollection Lumbridge | squares ") != NULL && strstr(text, " m50_50") != NULL
+                  && strstr(text, " m50_51") != NULL,
+            "areas: the collection row in '%s'", text);
+    }
+    CHECK(Editor_DocFind(&g_editor.doc, EDITOR_DOC_AREAS, "areas", &handle) && !handle.text->dirty,
+        "areas: the document is saved");
+    Editor_UiFree(&g_ui);
+}
+
 static void
 test_editing_feedback(void)
 {
@@ -3389,6 +3691,298 @@ test_editing_feedback(void)
     fb_test_spawn_ghost();
     fb_test_history_model();
     fb_test_history_panel();
+}
+
+/* ---- the active level ------------------------------------------------------ */
+
+static int
+menubar_item(const char* text)
+{
+    struct EditorUiPanel* bar = Editor_UiFindPanel(&g_ui, "menubar");
+    if( !bar )
+        return -1;
+    return find_widget(bar->chrome_panel, TORIRS_CHROME_W_MENUITEM, text);
+}
+
+/** A real click: pointer down and up on the widget's box, then a frame. */
+static void
+click_widget(int widget)
+{
+    const struct ToriRSChromeWidget* w = &g_chrome.widgets[widget];
+    int const x = w->x + w->w / 2;
+    int const y = w->y + w->h / 2;
+    ToriRSChrome_MouseMove(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseDown(&g_chrome, x, y);
+    (void)ToriRSChrome_MouseUp(&g_chrome, x, y);
+    frame();
+}
+
+/** The terrain panel's radio `caption` of the group whose first row is
+ *  `first_caption` ("auto" for the edit level, "all" for the view cap). */
+static int
+terrain_radio_checked(
+    const char* group_first,
+    const char* caption)
+{
+    int const panel = find_panel("Terrain");
+    int in_group = 0;
+    if( panel < 0 )
+        return -1;
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel != panel || w->kind != TORIRS_CHROME_W_RADIO )
+            continue;
+        if( strcmp(w->label, group_first) == 0 || strcmp(w->text, group_first) == 0 )
+            in_group = 1;
+        else if( strcmp(w->label, "auto") == 0 || strcmp(w->label, "all") == 0 || strcmp(w->text, "auto") == 0
+                 || strcmp(w->text, "all") == 0 )
+            in_group = 0;
+        if( in_group && (strcmp(w->label, caption) == 0 || strcmp(w->text, caption) == 0) )
+            return w->checked;
+    }
+    return -1;
+}
+
+static const char*
+world_title(void)
+{
+    struct EditorUiPanel* world = Editor_UiFindPanel(&g_ui, "world");
+    return world && world->chrome_panel >= 0 ? g_chrome.panels[world->chrome_panel].title : "";
+}
+
+/** The first tile of m50_50 at `level` the file states nothing for. */
+static int
+empty_tile_at(
+    int level,
+    int* out_x,
+    int* out_z)
+{
+    for( int z = 8; z < 56; z++ )
+        for( int x = 8; x < 56; x++ )
+        {
+            const struct Editor_Tile* t = tile_at(SQ_X0 + x, SQ_Z0 + z, level);
+            if( t && !t->has_height && !t->has_overlay && !t->underlay_id && !t->settings )
+            {
+                *out_x = SQ_X0 + x;
+                *out_z = SQ_Z0 + z;
+                return 1;
+            }
+        }
+    return 0;
+}
+
+static void
+test_active_level(void)
+{
+    static const char* const k_levels[5] = { "Auto", "0", "1", "2", "3" };
+    struct EditorUiPanel* bar;
+    struct EditorUiRect world;
+    int buttons[5];
+    int above;
+    int view;
+
+    layout_boot(1530, 1006, 1);
+    bar = Editor_UiFindPanel(&g_ui, "menubar");
+    CHECK(bar != NULL, "level: the menu bar is registered");
+    if( !bar )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    world = Editor_UiWorldRect(&g_ui);
+    view = view_menu();
+    for( int i = 0; i < 5; i++ )
+    {
+        const struct ToriRSChromeWidget* w;
+        buttons[i] = menubar_item(k_levels[i]);
+        CHECK(buttons[i] >= 0, "level: the menu bar's Level row has '%s'", k_levels[i]);
+        if( buttons[i] < 0 )
+        {
+            Editor_UiFree(&g_ui);
+            return;
+        }
+        w = &g_chrome.widgets[buttons[i]];
+        CHECK(w->w > 0 && w->h > 0 && w->y + w->h <= world.y && view >= 0 && w->x > g_chrome.widgets[view].x,
+            "level: '%s' is on screen in the bar, right of View, above the world (%d,%d %dx%d, world y %d)",
+            k_levels[i], w->x, w->y, w->w, w->h, world.y);
+    }
+    above = menubar_item("Above");
+    CHECK(above >= 0, "level: the row has Above");
+    if( above < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+
+    /* Auto by default: nothing pinned, every level drawn, Above unavailable. */
+    CHECK(g_ui.tools.edit_level == -1 && g_ui.tools.vis_level == -1, "level: Auto by default");
+    CHECK(g_chrome.widgets[buttons[0]].checked && !g_chrome.widgets[buttons[2]].checked,
+        "level: Auto is the pressed button at boot");
+    CHECK(g_chrome.widgets[above].disabled, "level: Above is unavailable under Auto");
+    CHECK(strcmp(world_title(), "World") == 0, "level: the World title is plain under Auto (%s)", world_title());
+
+    /* A real click on "1" pins level 1 and caps the view there. */
+    click_widget(buttons[2]);
+    CHECK(g_ui.tools.edit_level == 1, "level: clicking 1 pins level 1 (%d)", g_ui.tools.edit_level);
+    CHECK(g_ui.tools.vis_level == 1 && !g_ui.tools.vis_solo, "level: the view cap follows to 1 (levels above hidden)");
+    CHECK(g_chrome.widgets[buttons[2]].checked && !g_chrome.widgets[buttons[0]].checked,
+        "level: 1 is pressed, Auto is not");
+    CHECK(!g_chrome.widgets[above].disabled && !g_chrome.widgets[above].checked, "level: Above offered, off");
+    CHECK(strcmp(world_title(), "World - level 1") == 0, "level: the World title names it (%s)", world_title());
+    CHECK(terrain_radio_checked("auto", "1") == 1 && terrain_radio_checked("all", "1") == 1,
+        "level: the terrain panel's level and view radios follow the row");
+
+    /* Above: every level drawn, the pin kept; a step keeps showing them. */
+    click_widget(above);
+    CHECK(g_ui.tools.edit_level == 1 && g_ui.tools.vis_level == -1 && g_chrome.widgets[above].checked,
+        "level: Above draws every level and keeps the pin");
+    CHECK(strstr(world_title(), "level 1") && strstr(world_title(), "above"), "level: the title says so (%s)",
+        world_title());
+    click_widget(buttons[3]);
+    CHECK(g_ui.tools.edit_level == 2 && g_ui.tools.vis_level == -1, "level: a new pin keeps Above");
+    click_widget(above);
+    CHECK(g_ui.tools.vis_level == 2 && !g_chrome.widgets[above].checked, "level: Above off caps at the pin again");
+
+    /* Auto restores the unpinned view exactly. */
+    click_widget(buttons[0]);
+    CHECK(g_ui.tools.edit_level == -1 && g_ui.tools.vis_level == -1 && g_chrome.widgets[above].disabled,
+        "level: Auto unpins and draws every level");
+    CHECK(strcmp(world_title(), "World") == 0, "level: the title is plain again");
+
+    /* The keys' step (PageUp / PageDown): from Auto at the hovered plane,
+     * clamped at 0 and 3. */
+    CHECK(edp_level_step(&g_ui, 1, 0) == 1 && g_ui.tools.vis_level == 1, "level: PageUp from Auto on 0 pins 1");
+    CHECK(edp_level_step(&g_ui, 1, 0) == 2, "level: PageUp steps to 2");
+    CHECK(edp_level_step(&g_ui, 1, 0) == 3, "level: PageUp steps to 3");
+    CHECK(edp_level_step(&g_ui, 1, 0) == 3 && g_ui.tools.edit_level == 3, "level: PageUp clamps at 3");
+    for( int i = 0; i < 5; i++ )
+        (void)edp_level_step(&g_ui, -1, 0);
+    CHECK(g_ui.tools.edit_level == 0 && g_ui.tools.vis_level == 0, "level: PageDown clamps at 0");
+    frame();
+    CHECK(g_chrome.widgets[buttons[1]].checked && strcmp(world_title(), "World - level 0") == 0,
+        "level: a key's pin presses the row's button on the next frame");
+    edp_level_set(&g_ui, EDP_LEVEL_AUTO);
+    CHECK(edp_level_step(&g_ui, -1, 2) == 1, "level: PageDown from Auto on level 2 pins 1");
+    edp_level_set(&g_ui, EDP_LEVEL_AUTO);
+    frame();
+
+    /* Another window's pin (STATE_EDIT_LEVEL lands in edit_level alone): the
+     * cap, the row and the terrain radios follow on the next frame. */
+    {
+        int32_t value = 3;
+        Editor_UiApplyState(&g_ui, TORIRSMAPED_STATE_EDIT_LEVEL, &value, 1);
+        frame();
+        CHECK(g_ui.tools.edit_level == 3 && g_ui.tools.vis_level == 3, "level: a relayed pin caps the view too");
+        CHECK(g_chrome.widgets[buttons[4]].checked && terrain_radio_checked("auto", "3") == 1,
+            "level: a relayed pin presses the row and the terrain radio");
+        value = -1;
+        Editor_UiApplyState(&g_ui, TORIRSMAPED_STATE_EDIT_LEVEL, &value, 1);
+        frame();
+        CHECK(g_ui.tools.edit_level == -1 && g_ui.tools.vis_level == -1 && g_chrome.widgets[buttons[0]].checked,
+            "level: a relayed Auto draws every level again");
+    }
+
+    /* Every tool edits the pinned plane, whatever the pointer's pick says. */
+    {
+        int bad = 0;
+        edp_level_set(&g_ui, 2);
+        for( int t = 0; t < EDITOR_TOOL_COUNT; t++ )
+        {
+            Editor_UiSetTool(&g_ui, (enum Editor_Tool)t);
+            for( int hover = 0; hover < 4; hover++ )
+                bad += edp_level_click(&g_ui, hover) != 2;
+        }
+        CHECK(bad == 0, "level: the click level is the pinned 2 at every tool and every picked plane (%d off)", bad);
+        edp_level_set(&g_ui, EDP_LEVEL_AUTO);
+        bad = 0;
+        for( int hover = 0; hover < 4; hover++ )
+            bad += edp_level_click(&g_ui, hover) != hover;
+        CHECK(bad == 0 && edp_level_click(&g_ui, -1) == 0 && edp_level_click(&g_ui, 7) == 3,
+            "level: Auto clicks the picked plane, clamped");
+        Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+    }
+
+    /* An empty upper floor takes edits: paint and height create its tiles, a
+     * loc and a spawn land on that level. */
+    {
+        struct Editor_BrushOp op;
+        int x2 = 0;
+        int z2 = 0;
+        int x3 = 0;
+        int z3 = 0;
+        int count;
+        int undo = 0;
+        const struct Editor_Tile* t;
+        struct Editor_Square* sq = square_of(50, 50);
+
+        CHECK(empty_tile_at(2, &x2, &z2) && empty_tile_at(3, &x3, &z3), "level: m50_50 has empty level-2/3 tiles");
+        edp_level_set(&g_ui, 2);
+        memset(&op, 0, sizeof(op));
+        op.tool = EDITOR_TOOL_PAINT_UNDERLAY;
+        op.world_x = x2;
+        op.world_z = z2;
+        op.level = edp_level_click(&g_ui, 0);
+        op.underlay_id = 7;
+        op.brush.radius = 0;
+        op.brush.step = 1;
+        count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+        CHECK(count == 1 && edp_apply(&g_ui, g_cmds, count, "paint") == 1, "level: paint on empty level 2 applies");
+        undo++;
+        t = tile_at(x2, z2, 2);
+        CHECK(op.level == 2 && t && t->underlay_id == 7, "level: the empty level-2 tile now has the underlay");
+
+        op.tool = EDITOR_TOOL_RAISE;
+        op.world_x = x3;
+        op.world_z = z3;
+        op.level = 3;
+        op.brush.step = 4;
+        count = Editor_BrushCommands(&g_editor.doc, &op, g_cmds, EDITOR_RECT_TILES_MAX);
+        CHECK(count == 1 && edp_apply(&g_ui, g_cmds, count, "raise") == 1, "level: raise on empty level 3 applies");
+        undo++;
+        t = tile_at(x3, z3, 3);
+        CHECK(t && t->has_height, "level: the empty level-3 tile now states a height");
+
+        {
+            int locs_before = sq ? sq->loc_count : 0;
+            int found = 0;
+            CHECK(edp_locs_place(&g_ui, 1530, 10, 0, x2, z2, edp_level_click(&g_ui, 0)) == 1,
+                "level: a loc places on pinned level 2");
+            undo++;
+            for( int i = 0; sq && i < sq->loc_count; i++ )
+                if( sq->locs[i].loc_id == 1530 && sq->locs[i].x == x2 % 64 && sq->locs[i].z == z2 % 64
+                    && sq->locs[i].level == 2 )
+                    found = 1;
+            CHECK(found && sq->loc_count == locs_before + 1, "level: the loc document holds it at level 2");
+        }
+        {
+            struct Editor_DocHandle handle;
+            char key[EDITOR_DOC_KEY_MAX];
+            int found = 0;
+            g_ui.tools.pick_kind = 1;
+            g_ui.tools.pick_id = 0;
+            CHECK(Editor_Locs_PlaceSpawn(&g_ui, x2, z2, edp_level_click(&g_ui, 0)) == 1,
+                "level: a spawn places on pinned level 2");
+            undo++;
+            Editor_SpawnDocKeyAt(key, x2, z2);
+            if( Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, key, &handle) && handle.spawn->loaded )
+                for( int i = 0; i < handle.spawn->file.line_count; i++ )
+                    if( handle.spawn->file.lines[i].kind == EDITOR_SPAWN_LINE_ROW
+                        && handle.spawn->file.lines[i].row.abs_x == x2 && handle.spawn->file.lines[i].row.abs_z == z2
+                        && handle.spawn->file.lines[i].row.level == 2 )
+                        found = 1;
+            CHECK(found, "level: the spawn row's level is 2");
+            g_ui.tools.pick_kind = -1;
+            g_ui.tools.pick_id = -1;
+        }
+        for( int i = 0; i < undo; i++ )
+            (void)Editor_Undo(&g_editor);
+        t = tile_at(x2, z2, 2);
+        CHECK(t && t->underlay_id == 0, "level: undo empties the level-2 tile again");
+        edp_level_set(&g_ui, EDP_LEVEL_AUTO);
+    }
+    frame();
+    Editor_UiFree(&g_ui);
 }
 
 int
@@ -3444,6 +4038,8 @@ main(
     test_spawn_edit();
     test_record_editor();
     test_editing_feedback();
+    test_areas();
+    test_active_level();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);
     printf("editor_panels_test: %d checks, %d failed\n", g_checks, g_failed);

@@ -2,6 +2,7 @@
 
 #include "edpanel_ops.h"
 #include "mem/torirs_mem.h"
+#include "torirsmaped/torirs_maped.h"
 
 #include <assert.h>
 
@@ -79,4 +80,92 @@ edp_ensure_doc(
     if( Editor_DocFind(&ui->editor->doc, kind, key, &handle) && Editor_DocHandleLoaded(&handle) )
         return 1;
     return Editor_OpenDoc(ui->editor, kind, key);
+}
+
+/* ---- the active level ------------------------------------------------------ */
+
+int
+edp_level_follow_vis(
+    int old_edit,
+    int old_vis,
+    int new_edit)
+{
+    assert(old_edit >= EDP_LEVEL_AUTO);
+    assert(old_edit < EDITOR_SQUARE_LEVELS);
+    assert(new_edit >= EDP_LEVEL_AUTO);
+    assert(new_edit < EDITOR_SQUARE_LEVELS);
+    if( new_edit == EDP_LEVEL_AUTO )
+        return -1;
+    if( old_edit != EDP_LEVEL_AUTO && old_vis < 0 )
+        return -1;
+    return new_edit;
+}
+
+void
+edp_level_set(
+    struct EditorUi* ui,
+    int level)
+{
+    int32_t value = level;
+
+    assert(ui);
+    assert(level >= EDP_LEVEL_AUTO);
+    assert(level < EDITOR_SQUARE_LEVELS);
+    ui->tools.vis_level = edp_level_follow_vis(ui->tools.edit_level, ui->tools.vis_level, level);
+    ui->tools.edit_level = level;
+    (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_EDIT_LEVEL, &value, 1);
+}
+
+int
+edp_level_step(
+    struct EditorUi* ui,
+    int delta,
+    int auto_level)
+{
+    int level;
+
+    assert(ui);
+    level = ui->tools.edit_level >= 0 ? ui->tools.edit_level : auto_level;
+    level += delta;
+    if( level < 0 )
+        level = 0;
+    if( level > EDITOR_SQUARE_LEVELS - 1 )
+        level = EDITOR_SQUARE_LEVELS - 1;
+    edp_level_set(ui, level);
+    return level;
+}
+
+int
+edp_level_show_above(
+    struct EditorUi* ui,
+    int on)
+{
+    assert(ui);
+    if( ui->tools.edit_level < 0 )
+        return 0;
+    ui->tools.vis_level = on ? -1 : ui->tools.edit_level;
+    return 1;
+}
+
+int
+edp_level_showing_above(const struct EditorUi* ui)
+{
+    assert(ui);
+    return ui->tools.edit_level >= 0 && ui->tools.vis_level < 0;
+}
+
+int
+edp_level_click(
+    const struct EditorUi* ui,
+    int hover_level)
+{
+    int level;
+
+    assert(ui);
+    level = ui->tools.edit_level >= 0 ? ui->tools.edit_level : hover_level;
+    if( level < 0 )
+        level = 0;
+    if( level > EDITOR_SQUARE_LEVELS - 1 )
+        level = EDITOR_SQUARE_LEVELS - 1;
+    return level;
 }

@@ -237,6 +237,9 @@ Editor_DocKeyValid(
     }
     case EDITOR_DOC_IFACE:
         return strncmp(key, "if:", 3) == 0 && name_valid(key + 3);
+    case EDITOR_DOC_AREAS:
+        /* One per content tree. */
+        return strcmp(key, "areas") == 0;
     case EDITOR_DOC_TEXT:
         if( strncmp(key, "rs2:", 4) == 0 )
             return relative_path_valid(key + 4);
@@ -676,6 +679,7 @@ Editor_TextDocSet(
     text->length = length;
     text->loaded = 1;
     text->dirty = 0;
+    text->revision++;
 }
 
 void
@@ -702,6 +706,7 @@ Editor_TextDocSplice(
     if( insert_length > 0 )
         memcpy(text->text + offset, insert, insert_length);
     text->length = next_length;
+    text->revision++;
 }
 
 /* ---- CFG through editor_cfg; IFACE through editor_if ---- */

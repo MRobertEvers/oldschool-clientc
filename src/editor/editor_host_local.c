@@ -478,6 +478,13 @@ Editor_HostDocPath(
             return 0;
         written = snprintf(out, out_size, "interfaces/%s.if", key + 3);
         break;
+    case EDITOR_DOC_AREAS:
+        /* The named areas and square collections: in the content tree so
+         * the team shares them, outside every pack input (editor_areas.h). */
+        if( part != 0 || !Editor_DocKeyValid(kind, key) )
+            return 0;
+        written = snprintf(out, out_size, "editor/areas.txt");
+        break;
     case EDITOR_DOC_TEXT:
         if( part != 0 || !Editor_DocKeyValid(kind, key) )
             return 0;

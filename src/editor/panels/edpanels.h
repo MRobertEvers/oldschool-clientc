@@ -362,4 +362,140 @@ struct Editor_CfgRecord;
 const struct Editor_CfgRecord*
 Editor_Record_Current(struct EditorUi* ui);
 
+/* ---- named areas and square collections (edpanel_areas.c) -----------------
+ *
+ * The Areas panel over the AREAS document (editor/editor_areas.h) every
+ * window mirrors: named areas of the world (rectangles on a level) and named
+ * collections of squares. "areas" */
+
+struct Editor_AreasFile;
+
+void
+Editor_Areas_Register(struct EditorUi* ui);
+
+/** The parse of this mirror's AREAS document, current with its text (parsed
+ *  again only when the text's revision moves); NULL without the document or
+ *  when it does not parse. `out_serial` (may be NULL) bumps on every
+ *  re-parse: what a reader that derives from it (the picker's collection
+ *  dropdown) rebuilds on. */
+const struct Editor_AreasFile*
+Editor_Areas_File(
+    struct EditorUi* ui,
+    uint32_t* out_serial);
+
+/** New from rect: the Rect tool's rectangle becomes an area named `name`
+ *  ("" or NULL: "Area <n>") on the rectangle's level, one undo step ("Mark
+ *  area <name>"), and the selection. 0 (and the panel says so) when the
+ *  Rect tool has no rectangle, the name is taken or not a name. */
+int
+Editor_Areas_NewFromRect(
+    struct EditorUi* ui,
+    const char* name);
+
+/** The selected area: add the Rect tool's rectangle to it, rename it, set
+ *  its level (-1 all), move the camera to its centre (opening its square
+ *  when it is not loaded). Each edit is one undo step. */
+int
+Editor_Areas_AddRect(struct EditorUi* ui);
+
+int
+Editor_Areas_Rename(
+    struct EditorUi* ui,
+    const char* new_name);
+
+int
+Editor_Areas_SetLevel(
+    struct EditorUi* ui,
+    int level);
+
+int
+Editor_Areas_GoTo(struct EditorUi* ui);
+
+/** Select an area / a collection by name (0 when there is none). */
+int
+Editor_Areas_Select(
+    struct EditorUi* ui,
+    const char* name);
+
+const char*
+Editor_Areas_Selected(struct EditorUi* ui);
+
+int
+Editor_Areas_SelectCollection(
+    struct EditorUi* ui,
+    const char* name);
+
+const char*
+Editor_Areas_SelectedCollection(struct EditorUi* ui);
+
+/** A new collection of the squares open in this mirror / selected in the
+ *  picker (shift-click), named `name` (NULL: the Name field, else
+ *  "Collection <n>"). One undo step; it becomes the selection. */
+int
+Editor_Areas_CollectionFromOpen(
+    struct EditorUi* ui,
+    const char* name);
+
+int
+Editor_Areas_CollectionFromPicker(
+    struct EditorUi* ui,
+    const char* name);
+
+/** Add (`add` 1) or remove the current square -- the picker's focus, else
+ *  the latched tile's square -- to / from the selected collection. */
+int
+Editor_Areas_CollectionAddCurrent(
+    struct EditorUi* ui,
+    int add);
+
+/** Open every square of the selected collection: as documents now, into the
+ *  world one load at a time. Past 16 squares it asks first (returns -1 and
+ *  shows the confirm) unless `confirmed`. Returns the documents opened. */
+int
+Editor_Areas_OpenAll(
+    struct EditorUi* ui,
+    int confirmed);
+
+/** Show the Areas panel. */
+void
+Editor_Areas_Show(struct EditorUi* ui);
+
+/** One rectangle the world overlay draws: ABSOLUTE tiles, inclusive. */
+struct Editor_AreaOverlay
+{
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    /** 0..3, -1 every level. */
+    int level;
+    uint32_t rgb;
+    /** The selected area: drawn brighter. */
+    int selected;
+    /** The area's first rectangle: carries the label at its top-left. */
+    int first;
+    char label[64];
+};
+
+/** What the world overlay draws this frame: every area's rectangles (only
+ *  the selected area's under Hide others), none while Show outlines is off.
+ *  Returns the count (at most `max`). app_overlay.c draws them. */
+int
+Editor_Areas_Overlay(
+    struct EditorUi* ui,
+    struct Editor_AreaOverlay* out,
+    int max);
+
+/** The picker shows only the squares of collection `name` ("" or NULL:
+ *  every square, the Area dropdown's page). Returns 1 when the filter is
+ *  on. edpanel_squares.c */
+int
+Editor_SquarePicker_SetCollection(
+    struct EditorUi* ui,
+    const char* name);
+
+/** The collection the picker is filtered to ("" when none). */
+const char*
+Editor_SquarePicker_Collection(struct EditorUi* ui);
+
 #endif

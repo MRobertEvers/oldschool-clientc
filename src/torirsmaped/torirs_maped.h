@@ -173,6 +173,22 @@
  *
  * Strings are `u32 length, bytes`, never NUL-terminated on the wire.
  *
+ * THE AREAS DOCUMENT (kind 5, EDITOR_DOC_AREAS, key "areas" -- the content
+ * tree's `editor/areas.txt`, editor/editor_areas.h). Opened with DOC_OPEN like
+ * any text document (one part, the file's text; absent = no areas yet) and
+ * saved by SAVE / SAVE_ALL. Every client session opens it at
+ * Editor_OpenHost, so every window mirrors it. Its commands (cmd kinds
+ * 10..13: AREA_SET, AREA_REMOVE, COLLECTION_SET, COLLECTION_REMOVE) carry
+ * the payload
+ *
+ *     i32 line, string before, string after
+ *
+ * -- one record line before and after (each <= 511 bytes, "" when the
+ * command has none) and, for a remove, the line index it stood at. A SET
+ * with has_before replaces the record named in `before` (a rename when the
+ * names differ); without it adds one. REFUSED when the bytes do not match
+ * the document's line or a name is taken.
+ *
  * The tree lock is the SERVER's, taken at ToriRSMapEd_Open and held for its
  * lifetime: with the server as the only writer, "who may save" is a property
  * of the server, not of any client. FACT_HELLO's `writable` reports it, and

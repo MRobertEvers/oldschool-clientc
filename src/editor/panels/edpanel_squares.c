@@ -18,6 +18,9 @@
  *   outlines       open squares white, unsaved ones in the accent, the
  *                  selection yellow, created-not-saved green, and every
  *                  view's window framed (STATE_VIEW_SQUARE)
+ *   collection     the Collection dropdown shows only one named collection's
+ *                  squares (the AREAS document, edpanel_areas.c), whatever
+ *                  their area page; "all" is every square again
  *
  * The atlas is the catalog's (CATALOG_SQUARES), fetched the first time the
  * panel is shown and replaced whenever the server broadcasts a change (a
@@ -28,6 +31,7 @@
 #include "edpanel_common.h"
 #include "edpanel_picker.h"
 #include "edpanels.h"
+#include "editor/editor_areas.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -42,6 +46,8 @@
 #define SQUARES_WELL_MIN_H 120
 #define SQUARES_DRAG_SLOP 3
 #define SQUARES_STORAGE_ROWS 32
+/* "all" plus this many collections in the Collection dropdown. */
+#define SQUARES_COLLECTION_ROWS 32
 
 enum
 {
@@ -85,6 +91,16 @@ struct SquaresPanel
     int confirm_yes;
     int confirm_no;
     int confirm_square;
+
+    int dropdown_collection;
+    char collection_labels[SQUARES_COLLECTION_ROWS + 1][TORIRS_CHROME_LABEL_MAX];
+    const char* collection_rows[SQUARES_COLLECTION_ROWS + 1];
+    int collection_row_count;
+    /** The AREAS parse the dropdown was built from (Editor_Areas_File). */
+    uint32_t collection_serial;
+    int collection_built;
+    /** The collection the picker is filtered to ("" none). */
+    char collection[EDITOR_AREA_NAME_MAX];
 
     char storage_labels[SQUARES_STORAGE_ROWS][TORIRS_CHROME_LABEL_MAX];
     const char* storage_rows[SQUARES_STORAGE_ROWS];
@@ -355,12 +371,80 @@ squares_readout(
         snprintf(line, sizeof(line), " ");
     ToriRSChrome_SetText(ui->chrome, self->row_hover, line);
 
-    if( picker->tab_count > 0 )
+    if( picker->filter_on )
+        snprintf(line, sizeof(line), "collection %s: %d squares%s", self->collection, picker->filter_shown,
+            picker->truncated ? "  (zoom in: not all drawn)" : "");
+    else if( picker->tab_count > 0 )
         snprintf(line, sizeof(line), "%s: %d squares%s", picker->tabs[picker->active_tab].title,
             picker->tabs[picker->active_tab].count, picker->truncated ? "  (zoom in: not all drawn)" : "");
     else
         snprintf(line, sizeof(line), "no squares");
     ToriRSChrome_SetText(ui->chrome, self->row_status, line);
+}
+
+/** Point the picker at collection `self->collection` as the document now
+ *  says it is (its squares may have changed); off when it is gone. */
+static void
+squares_apply_collection(
+    struct EditorUi* ui,
+    struct SquaresPanel* self,
+    const struct Editor_AreasFile* file)
+{
+    const char* keys[EDITOR_COLLECTION_SQUARES_MAX];
+    int line = -1;
+
+    if( self->collection[0] && file )
+        line = Editor_AreasFindCollection(file, self->collection);
+    if( line < 0 )
+    {
+        if( self->collection[0] )
+            Editor_UiLog(ui, "editor: collection '%s' is gone; the picker shows every square", self->collection);
+        self->collection[0] = '\0';
+        if( self->picker.filter_on )
+            Editor_PickerSetFilter(&self->picker, NULL, -1);
+    }
+    else
+    {
+        const struct Editor_Collection* coll = file->lines[line].collection;
+        for( int i = 0; i < coll->square_count; i++ )
+            keys[i] = coll->squares[i];
+        Editor_PickerSetFilter(&self->picker, keys, coll->square_count);
+    }
+    self->dirty = 1;
+}
+
+/** The Collection dropdown's rows from the AREAS document: rebuilt when its
+ *  parse moved, the chosen collection kept by name. */
+static void
+squares_collection_rows(
+    struct EditorUi* ui,
+    struct SquaresPanel* self)
+{
+    uint32_t serial = 0;
+    const struct Editor_AreasFile* file = Editor_Areas_File(ui, &serial);
+    int selected = 0;
+    int n = 0;
+
+    if( self->collection_built && serial == self->collection_serial )
+        return;
+    snprintf(self->collection_labels[n], TORIRS_CHROME_LABEL_MAX, "all");
+    self->collection_rows[n] = self->collection_labels[n];
+    n++;
+    for( int c = 0; file && c < Editor_AreasCollectionCount(file) && n <= SQUARES_COLLECTION_ROWS; c++ )
+    {
+        const struct Editor_Collection* coll = file->lines[Editor_AreasNthCollection(file, c)].collection;
+        snprintf(self->collection_labels[n], TORIRS_CHROME_LABEL_MAX, "%s", coll->name);
+        self->collection_rows[n] = self->collection_labels[n];
+        if( strcmp(coll->name, self->collection) == 0 )
+            selected = n;
+        n++;
+    }
+    self->collection_row_count = n;
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->dropdown_collection, self->collection_rows, n, selected);
+    self->collection_serial = serial;
+    self->collection_built = 1;
+    if( self->collection[0] || self->picker.filter_on )
+        squares_apply_collection(ui, self, file);
 }
 
 static void
@@ -387,6 +471,7 @@ squares_tick(
     }
     if( !self->fetched )
         return;
+    squares_collection_rows(ui, self);
 
     squares_size_well(ui, self);
     /* Fitted until the user moves the view: the first frame the well has a
@@ -694,6 +779,13 @@ squares_activate(
         }
         return 1;
     }
+    if( widget == self->dropdown_collection )
+    {
+        int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
+        (void)Editor_SquarePicker_SetCollection(
+            ui, row > 0 && row < self->collection_row_count ? self->collection_labels[row] : "");
+        return 1;
+    }
     if( widget == self->dropdown_storage )
     {
         int const row = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -807,6 +899,42 @@ Editor_SquarePicker_EmptyCell(
     return 1;
 }
 
+int
+Editor_SquarePicker_SetCollection(
+    struct EditorUi* ui,
+    const char* name)
+{
+    struct SquaresPanel* self;
+
+    assert(ui);
+    self = squares_self(ui);
+    assert(self);
+    snprintf(self->collection, sizeof(self->collection), "%s", name ? name : "");
+    self->user_view = 0;
+    if( !self->fetched )
+        squares_fetch(ui, self);
+    squares_apply_collection(ui, self, Editor_Areas_File(ui, NULL));
+    self->collection_built = 0;
+    squares_collection_rows(ui, self);
+    if( self->fetched && ui->chrome->widgets[self->graph].w > 0 )
+        Editor_PickerFit(&self->picker, squares_well_w(ui, self), squares_well_h(ui, self));
+    if( self->collection[0] )
+        Editor_UiLog(ui, "editor: the picker shows collection %s (%d squares)", self->collection,
+            self->picker.filter_shown);
+    return self->picker.filter_on;
+}
+
+const char*
+Editor_SquarePicker_Collection(struct EditorUi* ui)
+{
+    struct SquaresPanel* self;
+
+    assert(ui);
+    self = squares_self(ui);
+    assert(self);
+    return self->collection;
+}
+
 void
 Editor_SquarePicker_Refresh(struct EditorUi* ui)
 {
@@ -861,6 +989,8 @@ Editor_SquarePicker_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->input_search, "m50_50, 50 50, 3222 3218, or an area name; Enter");
     self->dropdown_area = ToriRSChrome_Dropdown(chrome, self->panel, "Area", k_loading_titles, 1, 0);
     self->dropdown_storage = ToriRSChrome_Dropdown(chrome, self->panel, "Storage", NULL, 0, -1);
+    self->dropdown_collection = ToriRSChrome_Dropdown(chrome, self->panel, "Collection", NULL, 0, -1);
+    ToriRSChrome_SetTooltip(chrome, self->dropdown_collection, "Only the squares of one named collection (Areas)");
     self->graph = ToriRSChrome_Graph(chrome, self->panel, "", edp_px(ui, SQUARES_WELL_H));
     self->row_hover = ToriRSChrome_Label(chrome, self->panel, " ");
     self->row_status = ToriRSChrome_Label(chrome, self->panel, "");

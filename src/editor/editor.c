@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "editor_areas.h"
 #include "log/torirs_log.h"
 
 int
@@ -40,6 +41,13 @@ Editor_OpenHost(
     if( !editor->writable )
         TORIRS_LOG("editor: another server holds %s — opening read-only\n",
             label);
+
+    /* The named areas and square collections (editor_areas.h): one small
+     * document every window of every Client mirrors from the start, so the
+     * world overlay and the Areas panel never wait on an open. A server that
+     * predates the kind refuses it; the session runs without areas. */
+    if( !Editor_OpenDoc(editor, EDITOR_DOC_AREAS, EDITOR_AREAS_DOC_KEY) )
+        TORIRS_LOG("editor: %s serves no areas document; named areas are off\n", label);
 
     return 1;
 }

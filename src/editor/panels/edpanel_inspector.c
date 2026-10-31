@@ -141,11 +141,14 @@ inspector_tick(
         world_z = ui->tools.tile_z;
         level = ui->tools.tile_level;
     }
-    else if( app->world && app->frame_view->world_hover_tile_x >= 0 )
+    else if( Editor_PanelHoverTile(&app->editor_panel, app, &world_x, &world_z) )
     {
-        world_x = app->world->_base_tile_x + app->frame_view->world_hover_tile_x;
-        world_z = app->world->_base_tile_z + app->frame_view->world_hover_tile_z;
-        level = ui->tools.edit_level >= 0 ? ui->tools.edit_level : app->frame_view->world_hover_tile_level;
+        /* With a level pinned, the pinned plane's tile under the pointer and
+         * that level (Editor_PanelHoverTile), not the first surface the pick
+         * met. */
+        world_x += app->world->_base_tile_x;
+        world_z += app->world->_base_tile_z;
+        level = Editor_PanelEditLevel(&app->editor_panel, app);
     }
     else
     {

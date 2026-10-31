@@ -42,6 +42,9 @@ other panel.
   off), `TORIRS_PRESENT_BMP` + `TORIRS_PRESENT_BMP_FRAME` (write one frame as a
   BMP: the photograph recipe, never a desktop screenshot),
   `TORIRS_EDITOR_HOVER` (park the hover, src/app/app_map_editor.c),
+  `TORIRS_EDITOR_LEVEL=<level>[,<x>,<z>[,<yaw>,<pitch>,<zoom>]]` (pin a
+  level once at boot, optionally with the free camera on absolute tile x,z of
+  that level; same file),
   `TORIRSMAPED_LIVE_DIR` (the live lane, below).
 
 **The saved layout.** Every panel's box, whether it is open, whether the user
@@ -86,6 +89,25 @@ SPAWN_EDIT in place; anything else a delete and an add; one undo step either
 way. `gen:` edits a row of the GENERATED file (areas/world): it is suppressed
 and the new row added to the edited file. `cfg-set` is one CFG_FIELD on a
 record block (`-` removes the field).
+
+The named areas and square collections (the AREAS document,
+`<content_dir>/editor/areas.txt`):
+
+    torirsmapedctl areas
+    torirsmapedctl area-set <name> <level|all> <x0> <z0> <x1> <z1> [<x0> <z0> <x1> <z1>]... [colour <0..7|->] [note <text|->] [rename <new name>]
+    torirsmapedctl area-remove <name>
+    torirsmapedctl collection-set <name> [<square key>...] [note <text|->] [rename <new name>]
+    torirsmapedctl collection-remove <name>
+
+`area-set` upserts by name (ABSOLUTE tiles, inclusive, up to 16
+rectangles; quote a name with a space); an existing area keeps its colour and
+note unless given, `rename` renames it in the same step. `collection-set`
+keys are the picker's (`m50_50`, `ported/<lane>/maps/m16_101`); keys replace
+the list, none keeps it. Each verb is one undo step, unsaved until `save`.
+`areas` prints the records. `TORIRS_EDITOR_AREAS=dock,select=<area>,goto`
+(and `tall`, `tab=collections`, `collection=<name>`) docks the Areas panel, selects,
+moves the camera and filters the picker for a photograph
+(src/editor/panels/edpanel_areas.c).
 
 CFG keys: `<type>:<name>` is the `[name]` block of `configs/all.<type>`;
 `<type>:<name>@<overlay>` is that block in a SERVER OVERLAY, `<overlay>` a
@@ -140,13 +162,14 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 |---|---|---|---|
 | 1 | What exists, and the verdict | ToriRSMapEd kept as the authority; documents generalised | — |
 | 2 | Architecture | authority + mirrors + facts + group state; EditorHost, BuildRunner and LiveLink vtables; embed, tcp and ws transports | browser host binding for the content tree (IndexedDB / io_server `/boot/`) |
-| 3 | Documents and commands | kind-keyed documents (square, spawn, cfg incl. server-overlay blocks `<type>:<name>@<overlay>`, iface, text incl. `fields:<type>.ini`); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE, and SPAWN_EDIT (kind 9: one row rewritten in place, wire `before row, after row, string before_text`, a row being `u32 is_obj, u32 suppress, string name, u32 x, u32 z, u32 level, u32 count`); v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
+| 3 | Documents and commands | kind-keyed documents (square, spawn, cfg incl. server-overlay blocks `<type>:<name>@<overlay>`, iface, text incl. `fields:<type>.ini`, and AREAS: kind 5, key `areas`, `editor/areas.txt`, below); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE, and SPAWN_EDIT (kind 9: one row rewritten in place, wire `before row, after row, string before_text`, a row being `u32 is_obj, u32 suppress, string name, u32 x, u32 z, u32 level, u32 count`); v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
 | 4 | The editing World | WorldBuilderOps with STATIC (pure refactor) and EDIT (resident build maps, placement handles, tile-local flush); `[world:boot] layout=`; per-tile derive | local flush gaps (occluders, minimap icons, LINK_BELOW rebakes); ghost under EDIT still uses runtime loc changes |
 | 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab | layer toggles not read by the painter; embedded editor cannot spawn views; viewer not yet exercised against a daemon in an open window |
 | 6 | Server state and protocol | protocol v2, HELLO capabilities, frame/state-key reservations, group state relay | — |
 | 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering; hollow panels (`ToriRSChrome_PanelSetHollow`: title bar, rails and grip drawn and hit, the body neither painted nor hit, `ToriRSChrome_PanelBodyRect`); the dock layout persisted per device in `editor_layout.ini` (`TORIRS_EDITOR_LAYOUT`; codec src/editor/editor_layout.c, IO tasks src/editor/task_editor_layout_io.c, debounce `app_map_editor_layout_tick`; desktop file / web IndexedDB through host.readClientFile/writeClientFile) | DOM multi-panel dock layout; a drag still in progress at quit is not saved |
 | 7b | World panel | the 3D view is the registry module "world" (editor_ui.c `ui_world_register`, first chrome panel so it draws under the rest): titled, resizable, hollow; in the View menu; the default layout docks it over exactly the region the old world rect was; `Editor_UiWorldRect` is its body; the App cuts the world widget to it through the reference letterbox (`App_MapEditorWorldLetterbox` answers UITREE_HOST_GET_WORLD_LETTERBOX: the 3D pass draws in the body, the rest of the widget box is the black band) and restates `world_emit_desc` (`App_MapEditorWorldView`), so the paint, picks, hover, brush footprint, ghosts and selection marks all follow it; hidden World = no world drawn or picked; part of the saved layout; viewer windows (panels hidden) keep the whole frame | the box origin of the world widget is taken from last frame's desc (the letterbox request carries only its size); the panel has no maximise / dock-to-edge gesture |
 | 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
+| 9a | Active level | menu bar Level row after View: `Auto 0 1 2 3 Above`, the pressed button is `tools.edit_level`, Above (pinned only) draws every level; keys PageUp/PageDown step and clamp 0..3 (from Auto, from the plane under the pointer), Ctrl+0..3 pin, the same chord again = Auto; World panel title "World - level N"; a pin caps the view at itself (`vis_level` follows, levels above and roofs not drawn), Auto draws every level as before; `edp_level_*` in src/editor/panels/edpanel_common.c; synced as STATE_EDIT_LEVEL (another window's pin moves the cap too, menu bar tick); with a level pinned the hover, every tool's click (select included), the brush footprint, ghosts, rectangle and inspector use the PINNED plane's tile under the pointer (`app_map_editor_pin_hover` re-picks against that level's height field when the pick met another plane; `Editor_PanelHoverTile`); the free camera's eye shifts by the height between planes on a pin; an empty upper level takes paint, heights, locs and spawns (flushed locally) | see open issues (World, views) |
 | 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
 | 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE | picker Delete only clears the square (no DOC_DELETE); tab strip unreadable with ~50 areas; a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet |
 | 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate [D]; translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination; **spawn edit form** (Spawns > Edit tab: kind, name -- pack symbol, `#<id>`, or a display name the catalog resolves, refused when unknown -- abs X/Z, level, count, Suppressed; Apply = one undo step "edit spawn"/"move spawn" via `Editor_SpawnEditPlan`: SPAWN_EDIT in place, delete+add across a square or kind, suppress+add for a generated row; a multi-selection takes each changed field, X/Z/Level as an offset); **spawn move** typed or "Move: click a tile" (the next world click, `editor_panel.c`), the destination footprint and wander square previewed under the pointer; **wander preview** ("Show wander range", default on: each selected npc's wanderrange square filled and maxrange leash outlined on its level, also around the npc spawn ghost; values from the Record panel when it holds the npc, else the catalog's merged record, else 5/7; `MapEditorWander_Rects`, drawn in `app_overlay.c`); orphan `-name` rows listed and editable; ctl `spawn-edit`/`spawn-move` | arrow nudges commit per press (no preview); the move preview is footprint + wander square, not a translucent npc model; a delete+add edit's undo re-adds the row at its section's end |
@@ -157,8 +180,9 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
 | 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` | client cache eviction beyond interface packs; player list and position in the control protocol; Restart offer; stale list (always 0) |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
+| 3c | Areas and Collections | **AREAS document** (kind 5, key `areas`, `<content_dir>/editor/areas.txt`: in the content tree so the team shares and reviews it, outside every pack input so naming an area never changes a build; header comment in src/editor/editor_areas.h): one record per line, `area <name> \| level <0..3\|all> \| rects <x0> <z0> <x1> <z1>[, ...] [\| colour <0..7>] [\| note <text>]` and `collection <name> \| squares <key> ... [\| note <text>]`, names unique per kind; line-preserving codec (src/editor/editor_areas.c: comments, blank lines, CRLF, no final newline byte-identical; the first record brings a 3-line header comment, the last removed takes it back, an emptied document's save removes the file); opened by every session at `Editor_OpenHost`, so every window mirrors it; held as text, applied by parse -> edit -> emit; **commands** AREA_SET 10, AREA_REMOVE 11, COLLECTION_SET 12, COLLECTION_REMOVE 13 (`u.area`: `int line`, the record line before and after, each <= 511 bytes; wire `i32 line, string before, string after`; a SET with a before replaces by name, a rename when the names differ; a REMOVE's undo re-inserts at its old line; refused when the bytes do not match or a name is taken), History rows from the codec ("Mark area Lumbridge castle", "Rename area A to B", "Set level of area A to 1", "Add rect to area A", "New collection C", "Add 1 square to collection C", "Delete area A"); **Areas panel** (module "areas", View menu, dock order after "squares", admitted when the column has room): Areas tab (list name/level/rects, rect status, Name, New from rect -- the Rect tool's rectangle on its level, "no rectangle" said in the panel --, Add rect (to the selected), Rename, Level + Set level, Delete, Go to -- the free camera to the area's centre, opening its square first when it is not loaded --, Show outlines (on), Hide others) and Collections tab (list name/squares, current square = the picker's focus else the latched tile's square, From open (squares), From picker (the shift-click set), Add / Remove current, Rename, Delete, Open all -- each as a document, into the world one load at a time, a confirm past 16); the Rect panel's "Mark area from rect"; the Squares picker's **Collection** dropdown (`all` + every collection: only its squares, on any Area page, Fit frames them; follows edits; off when the collection goes); **world overlay** (app_overlay.c `app_overlay_build_editor_areas` from `Editor_Areas_Overlay`: each rect washed in its colour on its level, outlined along the ground, the name in the overlay's TEXT at the NW corner of the first rect, the selected area brighter; through `world_emit_desc`, so it follows the World panel); ctl `areas`, `area-set`, `area-remove`, `collection-set`, `collection-remove`; tests editor_areas_test, editor_panels_test `test_areas`, maped_embed_test, maped_daemon_test.sh (9) | see open issues (Areas and collections) |
 | 3b | History panel | `Editor_History` (editor_cmd.c) rebuilt from the FACT_CMD stream + own undo/redo; rows newest first with names ("Raise 21 tiles m50_50 L0", "New square m1_1 (copy of m50_50)"), undone prefix, current marker, filter by key, click-to-jump; rebuilds only on serial change | a late-joining window lists only steps since it connected; another window's long drag may show as several rows until an undo re-cuts them |
-| 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height, the World panel docked over what is left; a saved layout (`editor_layout.ini`) applied before the first pass; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
+| 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, areas, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height, the World panel docked over what is left; a saved layout (`editor_layout.ini`) applied before the first pass; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
 | 18–19 | Build order, risks | phases 0–5 done in order | see open issues |
 
 ## The live lane end to end (phase 4)
@@ -250,7 +274,48 @@ Every issue the phase reports left open, by area, with where to start.
   the protocol or a panel: src/editor/editor_alloc.c, src/editor/editor_vars.c.
 - 3 non-positional compacks are not locked in the mirror: src/editor/editor_if.c.
 
+### Areas and collections
+
+- A record line holds 511 bytes at most (two ride in one command,
+  EDITOR_CMD_SPLICE_MAX): about 16 rectangles or ~60 plain square keys per
+  record; the panel and ctl refuse what does not fit. A hand-written longer
+  row parses and shows but cannot be edited or removed by a command:
+  src/editor/editor_areas.h EDITOR_AREAS_LINE_MAX.
+- A document that does not parse (a hand edit gone wrong) is read only: the
+  panel says which line, every command is refused until the file is fixed
+  and re-opened: src/editor/panels/edpanel_areas.c `areas_refresh`.
+- An area on every level (`level all`) is drawn on the edit level (0 when it
+  follows the pick); rectangles are hulls of their four corners for the wash
+  and 8 ground samples per edge for the outline, so a rect over steep ground
+  can float or sink between samples: src/app/app_overlay.c
+  `app_overlay_build_editor_areas`.
+- Go to keeps the current yaw and pitch and puts the eye 2600 units from the
+  centre; a square it has to open first is ADDED to the window's set (one
+  world load), and the move waits up to 600 frames for it.
+- Open all squares opens every key as a document at once but hands the
+  window one square per world load (the window holds one pending open), so a
+  big collection takes several loads; the world shows 16 at once.
+- The picker's collection filter matches full keys: a collection key without
+  a storage ("m50_50") does not match the same square in a lane.
+- No ctl verb sets an area's colour without restating its rectangles
+  (area-set replaces the rectangles); the panel has no colour picker yet (the
+  colour comes from the file or the area's place in it).
+- The Areas panel joins the default dock column after Squares; on a short
+  surface it is hidden (View > Areas opens it beside the column).
+
 ### World, views, chrome, panels
+
+- Active level: the Move tool keeps each selected loc's own level (the
+  destination TILE is picked on the pinned plane, the level is not
+  rewritten): `Editor_LocOpsMoveTo`. The minimenu's "Select terrain/wall"
+  rows still latch the picked element's own level (src/app/app_minimenu.c).
+  Viewer windows keep their own Levels cap (editor_view.c), they do not
+  follow STATE_EDIT_LEVEL. The checked state of the Level row is drawn by the
+  native chrome only; the DOM executor draws the row as plain menu items.
+  The pinned re-pick searches 16 tiles around the pick; with nothing drawn
+  under the pointer (sky, past the scene) there is no hover. The camera's
+  level shift uses the heights under the eye's column, not the look-at point.
+  "Above" is forgotten when the level goes back to Auto.
 
 - EDIT local flush gaps: occluders, minimap icons, LINK_BELOW rebakes:
   src/engine/world_builder/edit/.

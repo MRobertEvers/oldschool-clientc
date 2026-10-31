@@ -1130,18 +1130,218 @@ app_map_editor_loc_keys(
     }
 }
 
-/** The world tile under the cursor, absolute. */
+/** The world tile under the cursor, absolute: on the pinned plane when a
+ *  level is pinned (Editor_PanelHoverTile). */
 static int
 app_map_editor_hover_world(
     struct App* app,
     int* out_x,
     int* out_z)
 {
-    if( !app->world || app->frame_view->world_hover_tile_x < 0 )
+    int scene_x;
+    int scene_z;
+
+    if( !Editor_PanelHoverTile(&app->editor_panel, app, &scene_x, &scene_z) )
         return 0;
-    *out_x = app->world->_base_tile_x + app->frame_view->world_hover_tile_x;
-    *out_z = app->world->_base_tile_z + app->frame_view->world_hover_tile_z;
+    *out_x = app->world->_base_tile_x + scene_x;
+    *out_z = app->world->_base_tile_z + scene_z;
     return 1;
+}
+
+/* ---- the active level: the pinned plane under the pointer, keys, camera --- */
+
+/** How far (tiles, Chebyshev) from the pick's tile the pinned plane is
+ *  searched. Level 3 sits 720 units over the ground; at the flattest free-
+ *  camera pitch that is ~14 tiles of slant. */
+#define APP_PIN_HOVER_REACH 16
+
+/** (px, py) inside or on triangle a b c (either winding); 0 for a
+ *  degenerate one, which would otherwise contain every point. */
+static int
+app_pin_in_tri(
+    int px,
+    int py,
+    int ax,
+    int ay,
+    int bx,
+    int by,
+    int cx,
+    int cy)
+{
+    long long const area = (long long)(bx - ax) * (cy - ay) - (long long)(by - ay) * (cx - ax);
+    long long const d1 = (long long)(bx - ax) * (py - ay) - (long long)(by - ay) * (px - ax);
+    long long const d2 = (long long)(cx - bx) * (py - by) - (long long)(cy - by) * (px - bx);
+    long long const d3 = (long long)(ax - cx) * (py - cy) - (long long)(ay - cy) * (px - cx);
+
+    if( area == 0 )
+        return 0;
+    if( area > 0 )
+        return d1 >= 0 && d2 >= 0 && d3 >= 0;
+    return d1 <= 0 && d2 <= 0 && d3 <= 0;
+}
+
+/** Does scene tile (tx, tz) of `level`'s height field cover screen point
+ *  (mx, my)? Its four corners projected at that level's heights, as the
+ *  terrain is drawn. */
+static int
+app_pin_tile_covers(
+    struct App* app,
+    int tx,
+    int tz,
+    int level,
+    int mx,
+    int my)
+{
+    static const int k_corner[4][2] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+    int sx[4];
+    int sy[4];
+
+    for( int k = 0; k < 4; k++ )
+    {
+        int const fx = (tx + k_corner[k][0]) << 7;
+        int const fz = (tz + k_corner[k][1]) << 7;
+        if( !app_world_project_at(app, fx, fz, app_world_height(app, fx, fz, level), &sx[k], &sy[k]) )
+            return 0;
+    }
+    return app_pin_in_tri(mx, my, sx[0], sy[0], sx[1], sy[1], sx[2], sy[2])
+           || app_pin_in_tri(mx, my, sx[0], sy[0], sx[2], sy[2], sx[3], sy[3]);
+}
+
+/**
+ * With a level pinned, the tile of THAT plane under the pointer, into
+ * panel->pin_hover_*. The pick reports the first surface drawn: the pinned
+ * plane where it has floor, but over an empty upper floor (a flat roof to
+ * be, a new storey) the ground beneath, which at a slant is tiles away from
+ * where the pinned plane passes under the pointer. A pick on the pinned
+ * level is taken as it is; otherwise the tiles around it are tested ring by
+ * ring against the pinned level's height field (what an empty level
+ * derives to: the plane below, raised). Once per frame, before anything
+ * reads the hover.
+ */
+static void
+app_map_editor_pin_hover(
+    struct App* app,
+    struct Editor_Panel* panel)
+{
+    int const level = panel->ui ? panel->ui->tools.edit_level : -1;
+    int const cx = app->frame_view->world_hover_tile_x;
+    int const cz = app->frame_view->world_hover_tile_z;
+    int const mx = app->frame_view->world_mouse_x;
+    int const my = app->frame_view->world_mouse_y;
+    int size;
+
+    panel->pin_hover_valid = 0;
+    panel->pin_hover_level = level;
+    if( level < 0 || !app->world || !app->world_view_valid || cx < 0 || cz < 0 )
+        return;
+    if( app->frame_view->world_hover_tile_level == level )
+    {
+        panel->pin_hover_valid = 1;
+        panel->pin_hover_x = cx;
+        panel->pin_hover_z = cz;
+        return;
+    }
+    size = app->world->_scene_size;
+    for( int r = 0; r <= APP_PIN_HOVER_REACH; r++ )
+        for( int dz = -r; dz <= r; dz++ )
+            for( int dx = -r; dx <= r; dx++ )
+            {
+                int const tx = cx + dx;
+                int const tz = cz + dz;
+                if( (dx != -r && dx != r && dz != -r && dz != r) || tx < 1 || tz < 1 || tx >= size - 1
+                    || tz >= size - 1 )
+                    continue;
+                if( !app_pin_tile_covers(app, tx, tz, level, mx, my) )
+                    continue;
+                panel->pin_hover_valid = 1;
+                panel->pin_hover_x = tx;
+                panel->pin_hover_z = tz;
+                return;
+            }
+}
+
+/**
+ * The level keys, with the editor open and no text field focused:
+ * PageUp / PageDown step the pinned level (from Auto, starting at the plane
+ * under the pointer) and clamp at 0 and 3; Ctrl+0..3 pin that level, and
+ * the same chord again goes back to Auto. Neither key flies the camera or
+ * reaches a tool (app_camera.c binds W/A/S/D/R/F, the loc keys arrows,
+ * R/S/D/Delete; the manifest's debug keys 8/9 without Ctrl).
+ */
+static void
+app_map_editor_level_keys(
+    struct App* app,
+    struct LibToriRS_Input* input)
+{
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct EditorUi* ui = panel->ui;
+    int const before = ui ? ui->tools.edit_level : -1;
+    int level = -2;
+
+    if( !ui || app_text_input_focused(app) || app_modelview_focused(app) )
+        return;
+    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_PAGE_UP) )
+        level = edp_level_step(ui, 1, Editor_PanelEditLevel(panel, app));
+    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_PAGE_DOWN) )
+        level = edp_level_step(ui, -1, Editor_PanelEditLevel(panel, app));
+    else if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) )
+        for( int d = 0; d < EDITOR_SQUARE_LEVELS; d++ )
+            if( LibToriRS_Input_IsKeyDown(input, (enum LibToriRS_KeyCode)(TORIRSK_0 + d)) )
+            {
+                level = before == d ? EDP_LEVEL_AUTO : d;
+                edp_level_set(ui, level);
+                break;
+            }
+    if( level == -2 )
+        return;
+    if( level != before )
+    {
+        if( level < 0 )
+            Editor_UiLog(ui, "editor: level Auto (the plane under the pointer)");
+        else
+            Editor_UiLog(ui, "editor: level %d pinned (PageUp/PageDown step, Ctrl+%d again: Auto)", level, level);
+    }
+    app->need_redraw = 1;
+}
+
+/*
+ * The camera keeps the pinned plane where it was on screen: pinning level 2
+ * from level 0 lifts the eye by the height between the two planes under it,
+ * so the floor the tools now edit sits where the ground did and the tile
+ * picked is the one under the pointer. Auto leaves the eye alone (and
+ * remembers the plane it was framed for); a pinned level owns the height
+ * until the next pin. The free camera's eye is absolute
+ * (frame_view->world_camera_pos), so this is a shift of its y.
+ */
+static struct
+{
+    int framed;
+} g_app_level_camera;
+
+static void
+app_map_editor_level_camera(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    int const level = ui->tools.edit_level;
+    int extent;
+    int ex;
+    int ez;
+
+    if( level < 0 || level == g_app_level_camera.framed )
+        return;
+    if( app->world && app->frame_view )
+    {
+        extent = app->world->_scene_size * 128;
+        ex = app->frame_view->world_camera_pos.x;
+        ez = app->frame_view->world_camera_pos.z;
+        ex = ex < 128 ? 128 : ex > extent - 129 ? extent - 129 : ex;
+        ez = ez < 128 ? 128 : ez > extent - 129 ? extent - 129 : ez;
+        app->frame_view->world_camera_pos.y +=
+            app_world_height(app, ex, ez, level) - app_world_height(app, ex, ez, g_app_level_camera.framed);
+        app->need_redraw = 1;
+    }
+    g_app_level_camera.framed = level;
 }
 
 /** An open drag -- a brush stroke or a rectangle -- runs to the button's
@@ -1160,8 +1360,10 @@ app_map_editor_drag(
 
     if( panel->stroke_active )
     {
-        int const hx = app->frame_view->world_hover_tile_x;
-        int const hz = app->frame_view->world_hover_tile_z;
+        int hx = -1;
+        int hz = -1;
+        if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
+            hx = -1;
         if( hx >= 0 && (hx != panel->stroke_last_x || hz != panel->stroke_last_z) )
         {
             Editor_PanelApplyToolAt(panel, app, hx, hz, Editor_PanelEditLevel(panel, app));
@@ -1215,7 +1417,9 @@ app_map_editor_drag(
  * terrain).
  *
  * The tile is the one under the cursor this frame; the level is the one the
- * terrain panel pins (Editor_PanelEditLevel), not the hover's.
+ * Level row pins (Editor_PanelEditLevel), not the hover's -- for EVERY tool,
+ * select included -- and with a level pinned the tile is that plane's under
+ * the pointer (app_map_editor_pin_hover), not the first surface the pick met.
  */
 void
 app_map_editor_world_click(
@@ -1237,6 +1441,10 @@ app_map_editor_world_click(
         return;
     ui = panel->ui;
     ui->shift_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT) ? 1 : 0;
+    /* First: every reader below (and the previews after) takes the pinned
+     * plane's tile from here. */
+    app_map_editor_level_camera(app, ui);
+    app_map_editor_pin_hover(app, panel);
 
     if( panel->stroke_active || panel->rect_dragging )
     {
@@ -1258,6 +1466,7 @@ app_map_editor_world_click(
     }
     if( !panel->visible )
         return;
+    app_map_editor_level_keys(app, input);
     if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
         return;
     if( app->input_frame_consumed )
@@ -1268,9 +1477,7 @@ app_map_editor_world_click(
         return;
 
     tool = ui->tools.tool;
-    hx = app->frame_view->world_hover_tile_x;
-    hz = app->frame_view->world_hover_tile_z;
-    if( hx < 0 )
+    if( !Editor_PanelHoverTile(panel, app, &hx, &hz) )
         return;
     level = Editor_PanelEditLevel(panel, app);
 
@@ -1345,9 +1552,9 @@ app_map_editor_world_click(
          * those exactly). Shift-click adds the loc under it to the
          * multi-selection instead. */
         if( ui->shift_held )
-            (void)app_map_editor_toggle_loc_at(app, hx, hz, app->frame_view->world_hover_tile_level);
+            (void)app_map_editor_toggle_loc_at(app, hx, hz, level);
         else
-            Editor_PanelSelectTerrain(panel, app, hx, hz, app->frame_view->world_hover_tile_level);
+            Editor_PanelSelectTerrain(panel, app, hx, hz, level);
         app->need_redraw = 1;
         return;
     }
@@ -1364,7 +1571,7 @@ app_map_editor_world_click(
         int world_z;
         app_map_editor_spawn_ghost_remove(app);
         if( app_map_editor_hover_world(app, &world_x, &world_z) )
-            (void)Editor_Locs_PlaceSpawn(ui, world_x, world_z, level < 0 ? 0 : level > 3 ? 3 : level);
+            (void)Editor_Locs_PlaceSpawn(ui, world_x, world_z, level);
         app->need_redraw = 1;
         return;
     }
@@ -1624,6 +1831,88 @@ app_map_editor_hover_env_arm(struct EditorUi* ui)
     }
 }
 
+/*
+ * TORIRS_EDITOR_LEVEL=<level>[,<x>,<z>[,<yaw>,<pitch>,<zoom>]] -- a headless
+ * photograph of a pinned level: once, at the first frame with panels, pins
+ * <level> (-1 = Auto) as the Level row would; with a tile, also puts the free
+ * camera on ABSOLUTE tile (x, z) of that level (defaults yaw 0, pitch 400,
+ * zoom 1800 fine units) once the scene holds it. Read once per process.
+ */
+static struct
+{
+    int resolved;
+    int on;
+    int level;
+    int has_camera;
+    struct EditorViewCamera camera;
+    int level_done;
+    int camera_done;
+} g_app_editor_level_env;
+
+static void
+app_map_editor_level_env(
+    struct App* app,
+    struct EditorUi* ui)
+{
+    if( !g_app_editor_level_env.resolved )
+    {
+        const char* value = getenv("TORIRS_EDITOR_LEVEL");
+        int x = 0;
+        int z = 0;
+        int yaw = 0;
+        int pitch = 400;
+        int zoom = 1800;
+        int n;
+
+        g_app_editor_level_env.resolved = 1;
+        if( value && value[0] )
+        {
+            n = sscanf(value, "%d,%d,%d,%d,%d,%d", &g_app_editor_level_env.level, &x, &z, &yaw, &pitch, &zoom);
+            g_app_editor_level_env.on = n >= 1 && g_app_editor_level_env.level >= EDP_LEVEL_AUTO
+                                        && g_app_editor_level_env.level < EDITOR_SQUARE_LEVELS;
+            g_app_editor_level_env.has_camera = n >= 3;
+            g_app_editor_level_env.camera.x = x * 128 + 64;
+            g_app_editor_level_env.camera.z = z * 128 + 64;
+            g_app_editor_level_env.camera.level = g_app_editor_level_env.level < 0 ? 0 : g_app_editor_level_env.level;
+            g_app_editor_level_env.camera.yaw = yaw & 0x7ff;
+            g_app_editor_level_env.camera.pitch = pitch;
+            g_app_editor_level_env.camera.zoom = zoom;
+        }
+    }
+    if( !g_app_editor_level_env.on )
+        return;
+    if( !g_app_editor_level_env.level_done )
+    {
+        g_app_editor_level_env.level_done = 1;
+        edp_level_set(ui, g_app_editor_level_env.level);
+        TORIRS_REPORT("editor: TORIRS_EDITOR_LEVEL pins level %d\n", g_app_editor_level_env.level);
+    }
+    if( g_app_editor_level_env.has_camera && !g_app_editor_level_env.camera_done && app->world && app->frame_view )
+    {
+        struct EditorViewCamera pose = g_app_editor_level_env.camera;
+        int const base_x = app->world->_base_tile_x * 128;
+        int const base_z = app->world->_base_tile_z * 128;
+        int const sx = pose.x - base_x;
+        int const sz = pose.z - base_z;
+        int const extent = app->world->_scene_size * 128;
+
+        if( sx < 128 || sz < 128 || sx >= extent - 128 || sz >= extent - 128 )
+            return;
+        pose.pitch = app_world_clamp_pitch(app, pose.pitch);
+        EditorView_PoseEye(
+            &pose, base_x, base_z, app_world_height(app, sx, sz, pose.level), &app->frame_view->world_camera_pos);
+        app->frame_view->world_camera.pitch = pose.pitch;
+        app->frame_view->world_camera.yaw = pose.yaw;
+        app->frame_view->camera_unlocked = 1;
+        /* Framed for that level: the level camera has nothing to add. */
+        g_app_level_camera.framed = pose.level;
+        g_app_editor_level_env.camera_done = 1;
+        app->need_redraw = 1;
+        TORIRS_REPORT("editor: TORIRS_EDITOR_LEVEL camera at %d,%d level %d\n", pose.x / 128, pose.z / 128,
+            pose.level);
+    }
+}
+
 /** This frame's pointer for the previews: the hover tile (or the env's), the
  *  level the next edit writes. Not valid over a panel or the minimenu. */
 static void
@@ -1654,9 +1943,8 @@ app_map_editor_hover_update(
     }
     else
     {
-        hover->scene_x = app->frame_view->world_hover_tile_x;
-        hover->scene_z = app->frame_view->world_hover_tile_z;
-        hover->valid = hover->scene_x >= 0 && !app->frame_view->minimenu->visible && !app->input_frame_consumed;
+        hover->valid = Editor_PanelHoverTile(panel, app, &hover->scene_x, &hover->scene_z)
+                       && !app->frame_view->minimenu->visible && !app->input_frame_consumed;
     }
     hover->level = Editor_PanelEditLevel(panel, app);
 }
@@ -1854,6 +2142,7 @@ app_map_editor_ghost_update(struct App* app)
     ui = panel->ui;
     app_map_editor_hover_update(app, panel);
     app_map_editor_hover_env_arm(ui);
+    app_map_editor_level_env(app, ui);
     app_map_editor_spawn_ghost_update(app, ui);
 
     /* Place previews the CATALOG pick; Move previews the first selected loc

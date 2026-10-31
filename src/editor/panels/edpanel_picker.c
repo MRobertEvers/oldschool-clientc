@@ -47,11 +47,72 @@ picker_free_atlas(struct Editor_Picker* picker)
     picker->storage_count = 0;
 }
 
+/** Rebuild the filter's per-square mask from its keys (the atlas changed,
+ *  or the keys did). */
+static void
+picker_build_filter(struct Editor_Picker* picker)
+{
+    ToriMem_Free(ToriMem_Editor(), picker->filter_mask);
+    picker->filter_mask = NULL;
+    picker->filter_shown = 0;
+    if( !picker->filter_on )
+        return;
+    picker->filter_mask = ToriMem_Calloc(ToriMem_Editor(), (size_t)picker->square_count + 1, 1);
+    assert(picker->filter_mask);
+    for( int i = 0; i < picker->square_count; i++ )
+    {
+        char key[EDITOR_DOC_KEY_MAX];
+        Editor_PickerSquareKey(picker, i, key);
+        for( int k = 0; k < picker->filter_key_count; k++ )
+            if( strcmp(key, picker->filter_keys[k]) == 0 )
+            {
+                picker->filter_mask[i] = 1;
+                picker->filter_shown++;
+                break;
+            }
+    }
+}
+
+int
+Editor_PickerSetFilter(
+    struct Editor_Picker* picker,
+    const char* const* keys,
+    int count)
+{
+    assert(picker);
+    ToriMem_Free(ToriMem_Editor(), picker->filter_keys);
+    picker->filter_keys = NULL;
+    picker->filter_key_count = 0;
+    picker->filter_on = count >= 0;
+    if( count > 0 )
+    {
+        assert(keys);
+        picker->filter_keys = ToriMem_Calloc(ToriMem_Editor(), (size_t)count, sizeof(*picker->filter_keys));
+        assert(picker->filter_keys);
+        for( int k = 0; k < count; k++ )
+        {
+            assert(keys[k]);
+            snprintf(picker->filter_keys[k], sizeof(picker->filter_keys[k]), "%s", keys[k]);
+        }
+        picker->filter_key_count = count;
+    }
+    picker->hover = -1;
+    picker_build_filter(picker);
+    return picker->filter_shown;
+}
+
 void
 Editor_PickerFree(struct Editor_Picker* picker)
 {
     if( !picker )
         return;
+    ToriMem_Free(ToriMem_Editor(), picker->filter_keys);
+    ToriMem_Free(ToriMem_Editor(), picker->filter_mask);
+    picker->filter_keys = NULL;
+    picker->filter_mask = NULL;
+    picker->filter_key_count = 0;
+    picker->filter_on = 0;
+    picker->filter_shown = 0;
     picker_free_atlas(picker);
     ToriMem_Free(ToriMem_Editor(), picker->tabs);
     ToriMem_Free(ToriMem_Editor(), picker->tab_titles);
@@ -379,6 +440,7 @@ Editor_PickerSetAtlas(
     picker->hover = -1;
     if( picker->storage_filter >= picker->storage_count )
         picker->storage_filter = -1;
+    picker_build_filter(picker);
     return picker_rebuild_tabs(picker);
 }
 
@@ -528,6 +590,7 @@ Editor_PickerFit(
     int well_h)
 {
     const struct Editor_PickerTab* tab;
+    struct Editor_PickerTab bounds;
     int span_x;
     int span_z;
     int fit;
@@ -540,6 +603,24 @@ Editor_PickerFit(
     if( picker->tab_count == 0 )
         return;
     tab = &picker->tabs[picker->active_tab];
+    if( picker->filter_on && picker->filter_shown > 0 )
+    {
+        /* Frame the collection's squares, not the page's. */
+        memset(&bounds, 0, sizeof(bounds));
+        bounds.min_x = bounds.min_z = 1 << 30;
+        bounds.max_x = bounds.max_z = -(1 << 30);
+        for( int i = 0; i < picker->square_count; i++ )
+        {
+            const struct Editor_PickerSquare* square = &picker->squares[i];
+            if( !picker->filter_mask[i] )
+                continue;
+            bounds.min_x = square->map_x < bounds.min_x ? square->map_x : bounds.min_x;
+            bounds.max_x = square->map_x > bounds.max_x ? square->map_x : bounds.max_x;
+            bounds.min_z = square->map_z < bounds.min_z ? square->map_z : bounds.min_z;
+            bounds.max_z = square->map_z > bounds.max_z ? square->map_z : bounds.max_z;
+        }
+        tab = &bounds;
+    }
     span_x = tab->max_x - tab->min_x + 1;
     span_z = tab->max_z - tab->min_z + 1;
     fit = picker_avail_w(picker) / span_x;
@@ -650,6 +731,9 @@ picker_visible(
         return 0;
     if( picker->storage_filter >= 0 && picker->squares[index].storage != picker->storage_filter )
         return 0;
+    /* A collection is its own page: its squares show whatever their area. */
+    if( picker->filter_on )
+        return picker->filter_mask && picker->filter_mask[index];
     return Editor_PickerSquareOnTab(picker, index, picker->active_tab);
 }
 

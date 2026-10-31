@@ -305,6 +305,7 @@ Editor_PanelInit(
     memset(panel, 0, sizeof(*panel));
     panel->sel_element_id = -1;
     panel->sel_loc_id = -1;
+    panel->pin_hover_level = -1;
 
     panel->ui = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*panel->ui));
     assert(panel->ui);
@@ -541,11 +542,42 @@ Editor_PanelEditLevel(
     struct Editor_Panel const* panel,
     struct App const* app)
 {
+    int hover_level;
+
     assert(panel);
     assert(app);
+    hover_level = app->world ? app->frame_view->world_hover_tile_level : 0;
+    if( !panel->ui )
+        return hover_level;
+    return edp_level_click(panel->ui, hover_level);
+}
+
+int
+Editor_PanelHoverTile(
+    struct Editor_Panel const* panel,
+    struct App const* app,
+    int* out_scene_x,
+    int* out_scene_z)
+{
+    assert(panel);
+    assert(app);
+    assert(out_scene_x);
+    assert(out_scene_z);
+    if( !app->world )
+        return 0;
     if( panel->ui && panel->ui->tools.edit_level >= 0 )
-        return panel->ui->tools.edit_level;
-    return app->world ? app->frame_view->world_hover_tile_level : 0;
+    {
+        if( !panel->pin_hover_valid || panel->pin_hover_level != panel->ui->tools.edit_level )
+            return 0;
+        *out_scene_x = panel->pin_hover_x;
+        *out_scene_z = panel->pin_hover_z;
+        return 1;
+    }
+    if( app->frame_view->world_hover_tile_x < 0 || app->frame_view->world_hover_tile_z < 0 )
+        return 0;
+    *out_scene_x = app->frame_view->world_hover_tile_x;
+    *out_scene_z = app->frame_view->world_hover_tile_z;
+    return 1;
 }
 
 uint8_t

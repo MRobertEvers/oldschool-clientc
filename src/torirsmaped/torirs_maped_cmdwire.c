@@ -267,6 +267,19 @@ encode_payload(
             (const uint8_t*)command->u.text_splice.text,
             (int)(command->u.text_splice.before_len + command->u.text_splice.after_len));
         return;
+    case EDITOR_CMD_AREA_SET:
+    case EDITOR_CMD_AREA_REMOVE:
+    case EDITOR_CMD_COLLECTION_SET:
+    case EDITOR_CMD_COLLECTION_REMOVE:
+        /* i32 line, string before ("" = none), string after ("" = none):
+         * the record's line before and after, editor_areas.h. */
+        assert(command->u.area.before_len <= EDITOR_CMD_SPLICE_MAX / 2);
+        assert(command->u.area.after_len <= EDITOR_CMD_SPLICE_MAX / 2);
+        ToriRSMapEd_PutU32(out, (uint32_t)command->u.area.line);
+        ToriRSMapEd_PutBytes(out, command->u.area.text, command->u.area.before_len);
+        ToriRSMapEd_PutBytes(
+            out, command->u.area.text + command->u.area.before_len, command->u.area.after_len);
+        return;
     }
     assert(0 && "Editor_Cmd kind with no wire form");
 }
@@ -380,6 +393,29 @@ decode_payload(
         command->u.text_splice.after_len = after_len;
         memcpy(command->u.text_splice.text, body + reader.at, before_len + after_len);
         return 1;
+    }
+    case EDITOR_CMD_AREA_SET:
+    case EDITOR_CMD_AREA_REMOVE:
+    case EDITOR_CMD_COLLECTION_SET:
+    case EDITOR_CMD_COLLECTION_REMOVE:
+    {
+        const uint8_t* before;
+        const uint8_t* after;
+        uint32_t before_len = 0;
+        uint32_t after_len = 0;
+
+        command->u.area.line = (int)ToriRSMapEd_GetU32(&reader);
+        before = ToriRSMapEd_GetBytes(&reader, &before_len);
+        after = ToriRSMapEd_GetBytes(&reader, &after_len);
+        if( reader.bad || before_len > EDITOR_CMD_SPLICE_MAX / 2 || after_len > EDITOR_CMD_SPLICE_MAX / 2 )
+            return 0;
+        command->u.area.before_len = before_len;
+        command->u.area.after_len = after_len;
+        if( before_len > 0 )
+            memcpy(command->u.area.text, before, before_len);
+        if( after_len > 0 )
+            memcpy(command->u.area.text + before_len, after, after_len);
+        break;
     }
     }
     return ToriRSMapEd_ReaderDone(&reader);
