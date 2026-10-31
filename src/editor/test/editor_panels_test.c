@@ -11,6 +11,7 @@
  */
 
 #include "editor/editor.h"
+#include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
 #include "editor/editor_host.h"
@@ -22,6 +23,8 @@
 #include "editor/panels/edpanel_picker.h"
 #include "editor/panels/edpanel_shapes.h"
 #include "editor/panels/edpanels.h"
+#include "editor/editor_spawn.h"
+#include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
@@ -744,6 +747,48 @@ write_text(
     fclose(f);
 }
 
+/* The npc field register: the content tree's own fields/npc.ini, so the
+ * record test walks every key the tree declares. */
+static int g_register_real;
+
+static void
+write_field_register(const char* root)
+{
+    static const char* const candidates[] = {
+        "../OSRS-Content/osrs-content/fields/npc.ini",
+        "OSRS-Content/osrs-content/fields/npc.ini",
+    };
+    char path[2048];
+    FILE* in = NULL;
+
+    snprintf(path, sizeof(path), "%s/fields", root);
+    mkdir(path, 0755);
+    for( size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]) && !in; i++ )
+        in = fopen(candidates[i], "rb");
+    if( in )
+    {
+        FILE* out;
+        char buffer[4096];
+        size_t got;
+        snprintf(path, sizeof(path), "%s/fields/npc.ini", root);
+        out = fopen(path, "wb");
+        if( !out )
+        {
+            printf("FAIL: cannot write %s\n", path);
+            exit(1);
+        }
+        while( (got = fread(buffer, 1, sizeof(buffer), in)) > 0 )
+            fwrite(buffer, 1, got, out);
+        fclose(out);
+        fclose(in);
+        g_register_real = 1;
+        return;
+    }
+    write_text(root, "fields/npc.ini",
+        "[npc.wanderrange]\nscope = server\n\n[npc.maxrange]\nscope = server\n\n[npc.huntrange]\ntext = param\n\n"
+        "[npc.patrol]\ntext = indexed\n\n[npc.desc]\nscope = client\n");
+}
+
 static void
 write_catalog_fixture(const char* root)
 {
@@ -759,6 +804,23 @@ write_catalog_fixture(const char* root)
     write_text(root, "configs/all.obj", "[test_knife]\nname=Knife\n");
     write_text(root, "configs/all.obj.compack", "0=test_knife\n");
     write_text(root, "pack/loc.client", "// loc client half\n");
+
+    /* test_guard's server half: a generated layer and an authored overlay
+     * over it (the merge order the Record panel resolves). */
+    snprintf(path, sizeof(path), "%s/server/scripts/_explicit", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof(path), "%s/server/scripts/_explicit/configs", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/test", root);
+    mkdir(path, 0755);
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/test/configs", root);
+    mkdir(path, 0755);
+    write_text(root, "server/scripts/_explicit/configs/server_fields.generated.npc",
+        "// generated\n\n[test_guard]\nwanderrange=9\nmaxrange=12\nrespawnrate=30 // "
+        "wiki\nparam=death_drop,bones\n\n// trailing note\n");
+    write_text(root, "server/scripts/areas/test/configs/test.npc",
+        "// authored\n[test_guard]\nwanderrange=2\nparam=huntrange,4\n");
+    write_field_register(root);
 }
 
 /** The model over the embedded server: a query per change, none per frame. */
@@ -1679,13 +1741,14 @@ rects_overlap(
     return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-/** A panel that is part of the layout: visible, built, not a popup menu. */
+/** A panel that is part of the layout: visible, built, not a popup menu, and
+ *  not the World panel (it IS the world; layout_check checks it apart). */
 static int
 layout_panel(int i)
 {
     const struct ToriRSChromePanel* p = &g_chrome.panels[i];
     return p->visible && p->last_rect.w > 0 && p->last_rect.h > 0 && p->style != TORIRS_CHROME_PANEL_MENU
-           && !p->modal;
+           && !p->modal && i != g_ui.world_panel;
 }
 
 static void
@@ -1744,6 +1807,25 @@ layout_check(const char* what)
                     what, g_chrome.panels[i].title, g_chrome.panels[j].title);
     }
     CHECK(shown >= 4, "%s: the menu bar, the rail and at least two panels show (%d)", what, shown);
+    /* The World panel docks over exactly the region the others leave, and
+     * the world rect is its body: inside it, below its title bar. */
+    {
+        int const wp = find_panel("World");
+        CHECK(wp >= 0 && wp == g_ui.world_panel && g_chrome.panels[wp].visible, "%s: the World panel shows", what);
+        if( wp >= 0 )
+        {
+            struct ToriRSChromeRect const r = g_chrome.panels[wp].last_rect;
+            struct ToriRSChromeRect const body = ToriRSChrome_PanelBodyRect(&g_chrome, wp);
+            CHECK(r.x == g_ui.world.x && r.y == g_ui.world.y && r.w == g_ui.world.w && r.h == g_ui.world.h,
+                "%s: World %d,%d %dx%d docks over the region %d,%d %dx%d", what, r.x, r.y, r.w, r.h, g_ui.world.x,
+                g_ui.world.y, g_ui.world.w, g_ui.world.h);
+            CHECK(world.x == body.x && world.y == body.y && world.w == body.w && world.h == body.h,
+                "%s: the world rect is the World panel's body", what);
+            CHECK(world.y > r.y && world.x >= r.x && world.x + world.w <= r.x + r.w && world.y + world.h <= r.y + r.h,
+                "%s: the body sits under the title bar, inside the panel", what);
+            CHECK(g_chrome.panels[wp].hollow, "%s: World is hollow", what);
+        }
+    }
     printf("layout %s: world %d,%d %dx%d, column x %d w %d:", what, world.x, world.y, world.w, world.h,
         g_ui.dock_x, g_ui.dock_w);
     for( int i = 0; i < g_chrome.panel_count; i++ )
@@ -1908,6 +1990,441 @@ test_layout(void)
         frame();
     }
     Editor_UiFree(&g_ui);
+}
+
+/* ---- the World panel and the saved layout ------------------------------------------- */
+
+#include "editor/editor_layout.h"
+#include "editor/task_editor_layout_io.h"
+#include "platform/platform_x_io.h"
+
+static const char* g_tmp_root;
+
+/** The View menu's dropdown, and the row whose label is `label` (-1). */
+static int
+view_menu(void)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
+            && strcmp(g_chrome.widgets[i].text, "View") == 0 )
+            return i;
+    return -1;
+}
+
+static void
+view_toggle(const char* label)
+{
+    int const view = view_menu();
+    int row = -1;
+    CHECK(view >= 0, "the View menu exists");
+    if( view < 0 )
+        return;
+    for( int r = 0; r < g_chrome.widgets[view].option_count; r++ )
+        if( g_chrome.widgets[view].options && strcmp(g_chrome.widgets[view].options[r], label) == 0 )
+            row = r;
+    CHECK(row >= 0, "View lists '%s'", label);
+    if( row < 0 )
+        return;
+    ToriRSChrome_DropdownSetSelected(&g_chrome, view, row);
+    activate(view);
+    frame();
+}
+
+static int
+rect_eq(
+    struct EditorUiRect a,
+    struct EditorUiRect b)
+{
+    return a.x == b.x && a.y == b.y && a.w == b.w && a.h == b.h;
+}
+
+static void
+test_world_panel(void)
+{
+    int wp;
+    struct ToriRSChromeRect r;
+    struct EditorUiRect world;
+    struct EditorUiRect moved;
+
+    layout_boot(1530, 1006, 1);
+    wp = find_panel("World");
+    CHECK(wp >= 0 && Editor_UiWorldShown(&g_ui), "the World panel is a panel and shows");
+    if( wp < 0 )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    world = Editor_UiWorldRect(&g_ui);
+    r = g_chrome.panels[wp].last_rect;
+
+    /* The body passes the pointer through to the world; the title bar and the
+     * grip are the panel's. */
+    CHECK(!ToriRSChrome_WantsPointer(&g_chrome, world.x + world.w / 2, world.y + world.h / 2),
+        "the World body does not take the pointer (the world gets it)");
+    CHECK(ToriRSChrome_WantsPointer(&g_chrome, r.x + 40, r.y + 4), "the World title bar takes the pointer");
+    CHECK(ToriRSChrome_WantsPointer(&g_chrome, r.x + r.w - 4, r.y + r.h - 4), "the World grip takes the pointer");
+
+    /* A drag that starts in the body is the world's: the panel stays. */
+    drag(world.x + world.w / 2, world.y + world.h / 2, world.x + world.w / 2 + 90, world.y + world.h / 2 + 50);
+    CHECK(!g_chrome.panels[wp].user_placed && rect_eq(Editor_UiWorldRect(&g_ui), world),
+        "a drag in the World body (camera orbit) does not move the panel");
+
+    /* View > World hides it: no world rect, nothing to draw or pick. */
+    view_toggle("World");
+    CHECK(!g_chrome.panels[wp].visible && !Editor_UiWorldShown(&g_ui), "View > World hides the World panel");
+    moved = Editor_UiWorldRect(&g_ui);
+    CHECK(moved.w == 0 && moved.h == 0, "with World hidden the world rect is empty (%dx%d)", moved.w, moved.h);
+    /* A relayout (a resize) leaves it shut. */
+    ToriRSChrome_SetSurface(&g_chrome, 1600, 1000);
+    frame();
+    frame();
+    CHECK(!g_chrome.panels[wp].visible, "a hidden World stays hidden through a relayout");
+    ToriRSChrome_SetSurface(&g_chrome, 1530, 1006);
+    frame();
+    frame();
+    view_toggle("World");
+    CHECK(g_chrome.panels[wp].visible && rect_eq(Editor_UiWorldRect(&g_ui), world),
+        "View > World shows it again where it was");
+
+    /* Moving it by its title bar moves the world with it, on the grid. */
+    drag(r.x + 60, r.y + 6, r.x + 60 + 120, r.y + 6 + 80);
+    moved = Editor_UiWorldRect(&g_ui);
+    CHECK(g_chrome.panels[wp].user_placed, "the World drag marked it as placed");
+    CHECK(moved.x - world.x == g_chrome.panels[wp].x - r.x && moved.y - world.y == g_chrome.panels[wp].y - r.y
+              && moved.w == world.w && moved.h == world.h && moved.x != world.x,
+        "moving World moves the world rect with it (%d,%d -> %d,%d)", world.x, world.y, moved.x, moved.y);
+    CHECK(g_chrome.panels[wp].x % EDP_GRID == 0 && g_chrome.panels[wp].y % EDP_GRID == 0,
+        "the dropped World snapped to the grid (%d,%d)", g_chrome.panels[wp].x, g_chrome.panels[wp].y);
+
+    /* Resizing it resizes the world. */
+    r = g_chrome.panels[wp].last_rect;
+    drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - 200, r.y + r.h - 4 - 120);
+    moved = Editor_UiWorldRect(&g_ui);
+    CHECK(moved.w < world.w && moved.h < world.h
+              && moved.w == ToriRSChrome_PanelBodyRect(&g_chrome, wp).w
+              && g_chrome.panels[wp].fixed_w % EDP_GRID == 0,
+        "resizing World resizes the world rect (%dx%d -> %dx%d)", world.w, world.h, moved.w, moved.h);
+
+    /* Reset layout docks it back over the region. */
+    Editor_UiResetLayout(&g_ui);
+    frame();
+    frame();
+    CHECK(!g_chrome.panels[wp].user_placed && rect_eq(Editor_UiWorldRect(&g_ui), world),
+        "Reset layout docks World back over the region");
+    layout_check("World after Reset layout");
+    Editor_UiFree(&g_ui);
+}
+
+/** Every saved field of two files agrees. */
+static int
+layout_files_equal(
+    const struct EditorLayoutFile* a,
+    const struct EditorLayoutFile* b)
+{
+    return memcmp(a, b, sizeof(*a)) == 0;
+}
+
+static void
+test_layout_codec(void)
+{
+    struct EditorLayoutFile a;
+    struct EditorLayoutFile b;
+    struct EditorLayoutPanel* p;
+    const struct EditorLayoutPanel* q;
+    char* text = NULL;
+    int size = 0;
+
+    /* encode -> decode is the identity. */
+    EditorLayout_Clear(&a);
+    a.version = EDITOR_LAYOUT_VERSION;
+    a.surface_w = 1530;
+    a.surface_h = 1006;
+    a.scale = 2;
+    a.has_snap = 1;
+    a.snap = 0;
+    p = EditorLayout_Add(&a, "world");
+    p->has_visible = p->has_user_placed = p->has_x = p->has_y = p->has_w = p->has_h = 1;
+    p->visible = 1;
+    p->user_placed = 1;
+    p->x = 40;
+    p->y = 24;
+    p->w = 600;
+    p->h = 400;
+    p = EditorLayout_Add(&a, "terrain");
+    p->has_visible = 1;
+    p->visible = 0;
+    p = EditorLayout_Add(&a, "history");
+    p->has_x = p->has_y = 1;
+    p->x = -3;
+    p->y = 0;
+    EditorLayout_Encode(&a, &text, &size);
+    CHECK(text && size > 0 && (int)strlen(text) == size, "the layout encodes (%d bytes)", size);
+    CHECK(EditorLayout_Decode(&b, text, size), "the encoded layout decodes as a layout");
+    CHECK(layout_files_equal(&a, &b), "encode -> decode is the identity");
+    ToriMem_Free(ToriMem_Process(), text);
+
+    /* A partial file: what it states, nothing else. */
+    {
+        const char* partial = "[layout]\nsnap = 0\n\n[panel terrain]\nvisible = 0\n";
+        CHECK(EditorLayout_Decode(&b, partial, (int)strlen(partial)), "a partial file is a layout");
+        q = EditorLayout_Find(&b, "terrain");
+        CHECK(b.has_snap && !b.snap && b.surface_w == 0 && b.panel_count == 1, "partial: snap only in [layout]");
+        CHECK(q && q->has_visible && !q->visible && !q->has_x && !q->has_user_placed && !q->has_w,
+            "partial: terrain states only visible");
+    }
+    /* Unknown sections and keys are ignored; malformed values skipped. */
+    {
+        const char* odd = "; a comment\n[layout]\nfoo = 1\nsurface_w = 800\nscale = 0\n[colours]\nx = 5\n"
+                          "[panel world]\nbogus = 3\nx = 12 ; moved by hand\nw = abc\nh = -4\n"
+                          "[panelists]\nx = 9\n";
+        CHECK(EditorLayout_Decode(&b, odd, (int)strlen(odd)), "a file with unknown parts still decodes");
+        q = EditorLayout_Find(&b, "world");
+        CHECK(b.surface_w == 800 && b.scale == 0 && b.panel_count == 1, "unknown keys and sections are ignored");
+        CHECK(q && q->has_x && q->x == 12 && !q->has_w && !q->has_h && !q->has_y,
+            "a trailing comment is allowed; non-numeric and negative sizes are skipped");
+    }
+    /* Not a layout file at all, and an empty one. */
+    {
+        const char* prefs = "[preferences]\nversion=1\n";
+        CHECK(!EditorLayout_Decode(&b, prefs, (int)strlen(prefs)) && b.panel_count == 0,
+            "a file with no [layout] is not a layout");
+        CHECK(!EditorLayout_Decode(&b, "", 0), "an empty file is not a layout");
+    }
+    /* TORIRS_EDITOR_LAYOUT: unset = default, empty = off, else the path. */
+    {
+        const char* was = getenv("TORIRS_EDITOR_LAYOUT");
+        char saved[1024];
+        snprintf(saved, sizeof(saved), "%s", was ? was : "");
+        unsetenv("TORIRS_EDITOR_LAYOUT");
+        CHECK(strcmp(EditorLayout_Path(), EDITOR_LAYOUT_DEFAULT_PATH) == 0, "unset: the default name");
+        setenv("TORIRS_EDITOR_LAYOUT", "", 1);
+        CHECK(EditorLayout_Path() == NULL, "empty: persistence off");
+        setenv("TORIRS_EDITOR_LAYOUT", "/x/y.ini", 1);
+        CHECK(strcmp(EditorLayout_Path(), "/x/y.ini") == 0, "set: that path");
+        if( was )
+            setenv("TORIRS_EDITOR_LAYOUT", saved, 1);
+        else
+            unsetenv("TORIRS_EDITOR_LAYOUT");
+    }
+}
+
+/** A boot whose saved layout is read while the panels come up: the default
+ *  layout is held until the file lands, then the file is applied first. */
+static void
+layout_boot_saved(
+    int w,
+    int h,
+    int scale,
+    const struct EditorLayoutFile* file)
+{
+    ToriRSChrome_Init(&g_chrome);
+    ToriRSChrome_SetScale(&g_chrome, scale);
+    ToriRSChrome_SetSurface(&g_chrome, w, h);
+    Editor_UiInit(&g_ui, &g_chrome, &g_editor);
+    g_ui.hooks.open_square = fake_open_square;
+    g_ui.hooks.open_in_new_view = fake_open_in_new_view;
+    g_ui.hooks.floor_rgb = fake_floor_rgb;
+    g_ui.hooks.view_window = fake_view_window;
+    g_ui.hooks.selection_changed = fake_selection_changed;
+    Editor_UiRegisterToolsPanels(&g_ui);
+    Editor_UiLayoutHold(&g_ui);
+    Editor_UiSetVisible(&g_ui, 1);
+    frame();
+    frame();
+    CHECK(!g_ui.laid_out && Editor_UiLayoutBusy(&g_ui), "the default layout waits while the saved one is read");
+    Editor_UiLayoutLoaded(&g_ui, file);
+    for( int i = 0; i < 4; i++ )
+        frame();
+}
+
+static void
+test_saved_layout(void)
+{
+    struct EditorLayoutFile saved;
+    struct EditorLayoutFile reread;
+    struct ToriRSChromeRect before[TORIRS_CHROME_MAX_PANELS];
+    int visible_before[TORIRS_CHROME_MAX_PANELS];
+    int panel_count;
+    int wp;
+    int squares;
+    int terrain;
+    char* text = NULL;
+    int size = 0;
+    uint32_t fingerprint;
+
+    /* A session: World dragged and resized, Squares closed, snap off. */
+    layout_boot(1530, 1006, 1);
+    wp = find_panel("World");
+    squares = find_panel("Squares");
+    terrain = find_panel("Terrain");
+    {
+        struct ToriRSChromeRect r = g_chrome.panels[wp].last_rect;
+        drag(r.x + 60, r.y + 6, r.x + 60 + 64, r.y + 6 + 48);
+        r = g_chrome.panels[wp].last_rect;
+        drag(r.x + r.w - 4, r.y + r.h - 4, r.x + r.w - 4 - 300, r.y + r.h - 4 - 200);
+    }
+    if( squares >= 0 && g_chrome.panels[squares].visible )
+        view_toggle("Squares");
+    Editor_UiSetSnap(&g_ui, 0);
+    frame();
+    frame();
+    panel_count = g_chrome.panel_count;
+    for( int i = 0; i < panel_count; i++ )
+    {
+        before[i] = g_chrome.panels[i].last_rect;
+        visible_before[i] = g_chrome.panels[i].visible;
+    }
+    Editor_UiLayoutCapture(&g_ui, &saved);
+    CHECK(saved.surface_w == 1530 && saved.surface_h == 1006 && saved.scale == 1 && saved.has_snap && !saved.snap,
+        "the capture states the surface, the scale and snap");
+    CHECK(EditorLayout_Find(&saved, "world") && EditorLayout_Find(&saved, "world")->user_placed,
+        "the capture holds the placed World panel");
+    CHECK(EditorLayout_Find(&saved, "menubar") == NULL, "the titleless menu bar is not part of the file");
+    EditorLayout_Encode(&saved, &text, &size);
+    CHECK(EditorLayout_Decode(&reread, text, size) && layout_files_equal(&saved, &reread),
+        "the captured layout survives encode -> decode");
+    printf("saved layout (%d bytes):\n%.*s", size, size > 420 ? 420 : size, text);
+    printf("...\n");
+    ToriMem_Free(ToriMem_Process(), text);
+    Editor_UiFree(&g_ui);
+
+    /* Boot with it on the same surface: every panel where it was. */
+    layout_boot_saved(1530, 1006, 1, &reread);
+    {
+        int same = 1;
+        for( int i = 0; i < panel_count && i < g_chrome.panel_count; i++ )
+        {
+            struct ToriRSChromeRect const r = g_chrome.panels[i].last_rect;
+            if( g_chrome.panels[i].visible != visible_before[i]
+                || (visible_before[i]
+                    && (r.x != before[i].x || r.y != before[i].y || r.w != before[i].w || r.h != before[i].h)) )
+            {
+                same = 0;
+                printf("  differs: '%s' %d,%d %dx%d v%d (was %d,%d %dx%d v%d)\n", g_chrome.panels[i].title, r.x, r.y,
+                    r.w, r.h, g_chrome.panels[i].visible, before[i].x, before[i].y, before[i].w, before[i].h,
+                    visible_before[i]);
+            }
+        }
+        CHECK(same, "a boot with the saved layout puts every panel back where it was");
+    }
+    CHECK(!g_ui.snap && g_chrome.snap_grid == 0, "the saved Snap to grid comes back");
+    CHECK(g_chrome.panels[wp].user_placed, "the World panel is still the user's");
+    CHECK(squares < 0 || !g_chrome.panels[squares].visible, "the closed Squares panel stays closed");
+    fingerprint = Editor_UiLayoutFingerprint(&g_ui);
+
+    /* Reset layout still means the DEFAULT, not the file -- and it changes
+     * the fingerprint, so the host writes the default back. */
+    Editor_UiResetLayout(&g_ui);
+    frame();
+    frame();
+    CHECK(!g_chrome.panels[wp].user_placed && (squares < 0 || g_chrome.panels[squares].visible),
+        "Reset layout after a saved layout returns to the default set");
+    layout_check("reset after a saved layout");
+    CHECK(Editor_UiLayoutFingerprint(&g_ui) != fingerprint, "the reset is a change the host saves");
+    {
+        struct EditorLayoutFile after;
+        int placed = 0;
+        Editor_UiLayoutCapture(&g_ui, &after);
+        for( int i = 0; i < after.panel_count; i++ )
+            placed += after.panels[i].user_placed;
+        CHECK(placed == 0, "the saved reset has no placed panels (%d)", placed);
+    }
+    Editor_UiFree(&g_ui);
+
+    /* A stale surface (another monitor): the placed World keeps its saved
+     * box, the column is laid out for the new surface. */
+    layout_boot_saved(1920, 1080, 1, &reread);
+    {
+        struct EditorLayoutPanel const* sw = EditorLayout_Find(&reread, "world");
+        CHECK(g_chrome.panels[wp].user_placed && g_chrome.panels[wp].x == sw->x && g_chrome.panels[wp].y == sw->y
+                  && g_chrome.panels[wp].fixed_w == sw->w,
+            "stale surface: the placed World keeps its saved box");
+        CHECK(terrain >= 0 && g_chrome.panels[terrain].x == g_ui.dock_x && g_ui.dock_x + g_ui.dock_w == 1920,
+            "stale surface: the column is laid out for 1920 (Terrain at %d)", g_chrome.panels[terrain].x);
+    }
+    Editor_UiFree(&g_ui);
+
+    /* Saved at 1x, opened at 2x: the placed geometry scales. */
+    layout_boot_saved(2560, 1440, 2, &reread);
+    {
+        struct EditorLayoutPanel const* sw = EditorLayout_Find(&reread, "world");
+        CHECK(g_chrome.panels[wp].x == sw->x * 2 && g_chrome.panels[wp].fixed_w == sw->w * 2,
+            "a 1x layout opened at 2x scales the placed World (%d -> %d)", sw->w, g_chrome.panels[wp].fixed_w);
+    }
+    Editor_UiFree(&g_ui);
+
+    /* A placed panel off a smaller surface is pulled back onto it. */
+    {
+        struct EditorLayoutFile off = reread;
+        struct EditorLayoutPanel* sw = EditorLayout_Add(&off, "world");
+        sw->x = 3000;
+        sw->y = 2000;
+        layout_boot_saved(1280, 800, 1, &off);
+        CHECK(g_chrome.panels[wp].x + g_chrome.panels[wp].fixed_w <= 1280
+                  && g_chrome.panels[wp].y + g_chrome.panels[wp].fixed_h <= 800,
+            "a placed panel saved off a smaller surface is pulled back onto it (%d,%d)", g_chrome.panels[wp].x,
+            g_chrome.panels[wp].y);
+        Editor_UiFree(&g_ui);
+    }
+
+    /* No file: the default layout, released by the empty answer. */
+    layout_boot_saved(1530, 1006, 1, NULL);
+    CHECK(g_ui.laid_out && !g_chrome.panels[wp].user_placed, "no saved layout: the default");
+    layout_check("boot with no saved layout");
+    Editor_UiFree(&g_ui);
+
+    /* Through the real IO queue and the desktop executor, the way the App
+     * writes and reads it: the file the next launch reads is the one the
+     * platform wrote. */
+    {
+        char path[1024];
+        struct PlatformX_IO* px = PlatformX_IO_New();
+        struct ToriRS_IOBatch* io = ToriRS_IOBatch_New();
+        struct ToriRS_Task* task;
+        static struct EditorLayoutLoad load;
+        FILE* f;
+        char head[64] = { 0 };
+
+        snprintf(path, sizeof(path), "%s.layout.ini", g_tmp_root);
+        remove(path);
+        task = CreateTask_EditorLayoutLoad(&load, path);
+        io->task = task;
+        while( task_run(task, io) == PT_YIELDED )
+            PlatformX_IO_Process(px, io);
+        task_free(task);
+        CHECK(load.done && !load.found, "a missing layout file is a first launch (done, not found)");
+
+        task = CreateTask_EditorLayoutSave(&saved, path);
+        io->task = task;
+        while( task_run(task, io) == PT_YIELDED )
+            PlatformX_IO_Process(px, io);
+        task_free(task);
+        f = fopen(path, "rb");
+        CHECK(f != NULL, "the IO queue wrote %s", path);
+        if( f )
+        {
+            (void)!fread(head, 1, sizeof(head) - 1, f);
+            fclose(f);
+        }
+        CHECK(strstr(head, "ToriRSEd dock layout") != NULL, "the file is the layout text");
+
+        task = CreateTask_EditorLayoutLoad(&load, path);
+        io->task = task;
+        while( task_run(task, io) == PT_YIELDED )
+            PlatformX_IO_Process(px, io);
+        task_free(task);
+        CHECK(load.done && load.found && layout_files_equal(&load.file, &saved),
+            "the IO queue reads back exactly the layout it wrote");
+        ToriRS_IOBatch_Free(io);
+        PlatformX_IO_Free(px);
+
+        /* And a boot from what the queue read. */
+        layout_boot_saved(1530, 1006, 1, &load.file);
+        CHECK(g_chrome.panels[wp].user_placed && g_chrome.panels[wp].last_rect.x == before[wp].x
+                  && g_chrome.panels[wp].last_rect.w == before[wp].w,
+            "a boot from the file the queue read applies it");
+        Editor_UiFree(&g_ui);
+    }
 }
 
 /* ---- editing feedback: brush footprint, spawn ghosts, the History panel ------------ */
@@ -2326,6 +2843,545 @@ fb_test_history_panel(void)
     Editor_UiFree(&g_fb_ui);
 }
 
+
+/* ---- spawn edit form, move, wander preview ------------------------------------ */
+
+static const struct Editor_HistoryGroup*
+newest_group(void)
+{
+    const struct Editor_History* history = Editor_GetHistory(&g_editor);
+    return history->groups && history->applied > 0 ? &history->groups[history->applied - 1] : NULL;
+}
+
+static int
+newest_group_named(const char* needle)
+{
+    char name[EDITOR_HISTORY_LABEL_MAX + 64];
+    const struct Editor_HistoryGroup* group = newest_group();
+    if( !group )
+        return 0;
+    Editor_HistoryGroupName(group, name, sizeof(name));
+    return strstr(name, needle) != NULL;
+}
+
+static struct Editor_SpawnFile*
+edited_file(int world_x, int world_z)
+{
+    struct Editor_DocHandle handle;
+    char key[EDITOR_DOC_KEY_MAX];
+    static struct Editor_SpawnFile empty;
+    Editor_SpawnDocKeyAt(key, world_x, world_z);
+    /* Opened once; the mirror follows it from then on. */
+    if( (!Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, key, &handle) || !handle.spawn->loaded)
+        && !Editor_OpenDoc(&g_editor, EDITOR_DOC_SPAWN, key) )
+    {
+        printf("FAIL: cannot open the spawn document %s\n", key);
+        g_failed++;
+        return &empty;
+    }
+    if( !Editor_DocFind(&g_editor.doc, EDITOR_DOC_SPAWN, key, &handle) || !handle.spawn->loaded )
+    {
+        printf("FAIL: the spawn document %s is not loaded\n", key);
+        g_failed++;
+        return &empty;
+    }
+    return &handle.spawn->file;
+}
+
+/** Editor_SpawnFind in the edited file of (x, z); -2 when it is not open. */
+static int
+find_in(
+    int world_x,
+    int world_z,
+    const struct Editor_SpawnRow* row)
+{
+    return Editor_SpawnFind(edited_file(world_x, world_z), row);
+}
+
+static char*
+emit_file(const struct Editor_SpawnFile* file)
+{
+    size_t size = Editor_SpawnEmit(file, NULL, 0);
+    char* text = malloc(size + 1);
+    assert(text);
+    Editor_SpawnEmit(file, text, size + 1);
+    return text;
+}
+
+static struct Editor_SpawnRow
+spawn_row(const char* name, int is_obj, int x, int z, int level, int count)
+{
+    struct Editor_SpawnRow row;
+    memset(&row, 0, sizeof(row));
+    row.is_obj = is_obj;
+    snprintf(row.name, sizeof(row.name), "%s", name);
+    row.abs_x = x;
+    row.abs_z = z;
+    row.level = level;
+    row.count = count;
+    return row;
+}
+
+/** A fresh registry for the edit tests (test_spawn_duplicate freed the last):
+ *  the Catalog (which brings the Record panel) and Spawns, headless. */
+static void
+cat_ui_open(void)
+{
+    ToriRSChrome_Init(&g_cat_chrome);
+    ToriRSChrome_SetSurface(&g_cat_chrome, 1280, 800);
+    Editor_UiInit(&g_cat_ui, &g_cat_chrome, &g_editor);
+    Editor_Catalog_Register(&g_cat_ui);
+    Editor_Spawns_Register(&g_cat_ui);
+    Editor_UiSetVisible(&g_cat_ui, 1);
+    cat_frame();
+}
+
+static void
+test_spawn_edit(void)
+{
+    struct Editor_Cmd command;
+    struct Editor_SpawnFile* file;
+    struct Editor_SpawnRow a = spawn_row("test_guard", 0, SQ_X0 + 5, SQ_Z0 + 5, 0, 1);
+    struct Editor_SpawnRow b = spawn_row("test_guard", 0, SQ_X0 + 8, SQ_Z0 + 9, 0, 1);
+    struct Editor_SpawnRow sel[4];
+    struct MapEditorWanderRect rects[MAP_EDITOR_WANDER_RECTS_MAX];
+    char* before;
+    char* after;
+    int spawns;
+    int line_before;
+    int n;
+
+    cat_ui_open();
+    spawns = cat_panel("Spawns");
+    CHECK(spawns >= 0, "edit: the Spawns panel is there");
+    if( spawns < 0 )
+        return;
+    ToriRSChrome_PanelSetVisible(&g_cat_chrome, spawns, 1);
+    g_cat_ui.tools.tile_valid = 1;
+    g_cat_ui.tools.tile_x = SQ_X0 + 5;
+    g_cat_ui.tools.tile_z = SQ_Z0 + 5;
+    g_cat_ui.tools.tile_level = 0;
+    /* Two edited rows, a comment line between them that must survive. */
+    Editor_SpawnCommand(&command, &a, 1);
+    CHECK(apply_all(&command, 1) == 1, "edit: place guard a");
+    Editor_SpawnCommand(&command, &b, 1);
+    CHECK(apply_all(&command, 1) == 1, "edit: place guard b");
+    cat_frame();
+    file = edited_file(a.abs_x, a.abs_z);
+    CHECK(file != NULL, "edit: the edited file is open");
+    if( !file )
+        return;
+    line_before = Editor_SpawnFind(file, &a);
+    before = emit_file(file);
+
+    /* The form: a move is one SPAWN_EDIT in place, named "move spawn". */
+    sel[0] = a;
+    Editor_Spawns_Select(&g_cat_ui, sel, 1);
+    cat_frame();
+    {
+        int name = cat_widget(spawns, TORIRS_CHROME_W_TEXTINPUT, "Spawn name");
+        int x = cat_widget(spawns, TORIRS_CHROME_W_TEXTINPUT, "X");
+        CHECK(name >= 0 && x >= 0 && strcmp(ToriRSChrome_Text(&g_cat_chrome, name), "test_guard") == 0
+                  && atoi(ToriRSChrome_Text(&g_cat_chrome, x)) == a.abs_x,
+            "edit: the form shows the selected row");
+    }
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "test_guard", 0, a.abs_x + 2, a.abs_z + 1, 0, 1, 0);
+    {
+        struct Editor_SpawnRow moved = a;
+        moved.abs_x += 2;
+        moved.abs_z += 1;
+        file = edited_file(a.abs_x, a.abs_z);
+        CHECK(n == 1 && Editor_SpawnFind(file, &moved) == line_before && Editor_SpawnFind(file, &a) < 0,
+            "edit: the row is rewritten on its own line (%d -> %d)", line_before, Editor_SpawnFind(file, &moved));
+        CHECK(newest_group_named("move spawn") && newest_group() && newest_group()->kinds[EDITOR_CMD_SPAWN_EDIT] == 1,
+            "edit: one undo step named move spawn, one SPAWN_EDIT");
+        after = emit_file(file);
+        {
+            /* Every other line byte-identical. */
+            int diff_lines = 0;
+            const char* p = before;
+            const char* q = after;
+            while( *p || *q )
+            {
+                const char* pe = strchr(p, '\n');
+                const char* qe = strchr(q, '\n');
+                size_t pl = pe ? (size_t)(pe - p) : strlen(p);
+                size_t ql = qe ? (size_t)(qe - q) : strlen(q);
+                diff_lines += pl != ql || memcmp(p, q, pl) != 0;
+                p = pe ? pe + 1 : p + pl;
+                q = qe ? qe + 1 : q + ql;
+            }
+            CHECK(diff_lines == 1, "edit: exactly one line of the file changed (%d)", diff_lines);
+        }
+        free(after);
+        CHECK(Editor_Spawns_Selection(&g_cat_ui, sel, 4) == 1 && Editor_SpawnRowsEqual(&sel[0], &moved),
+            "edit: the selection follows the edited row");
+    }
+    CHECK(Editor_Undo(&g_editor) == 1, "edit: one undo");
+    file = edited_file(a.abs_x, a.abs_z);
+    after = emit_file(file);
+    CHECK(strcmp(before, after) == 0, "edit: the undo restores the file byte for byte");
+    free(after);
+
+    /* The `#<id>` escape, then a display name resolved to its symbol. */
+    sel[0] = a;
+    Editor_Spawns_Select(&g_cat_ui, sel, 1);
+    cat_frame();
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "#0", 0, a.abs_x, a.abs_z, 0, 1, 0);
+    {
+        struct Editor_SpawnRow escaped = a;
+        snprintf(escaped.name, sizeof(escaped.name), "#0");
+        CHECK(n == 1 && find_in(a.abs_x, a.abs_z, &escaped) == line_before
+                  && newest_group_named("edit spawn"),
+            "edit: #0 is accepted (the catalog has npc 0) and named edit spawn");
+        Editor_Spawns_Select(&g_cat_ui, &escaped, 1);
+        cat_frame();
+    }
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "Guard", 0, a.abs_x, a.abs_z, 0, 1, 0);
+    CHECK(n == 1 && find_in(a.abs_x, a.abs_z, &a) == line_before,
+        "edit: the display name 'Guard' resolves to test_guard");
+    CHECK(Editor_Undo(&g_editor) == 1 && Editor_Undo(&g_editor) == 1, "edit: two undos");
+    Editor_Spawns_Select(&g_cat_ui, &a, 1);
+    cat_frame();
+    CHECK(Editor_Spawns_SetEditForm(&g_cat_ui, "no_such_npc", 0, a.abs_x, a.abs_z, 0, 1, 0) == 0
+              && find_in(a.abs_x, a.abs_z, &a) == line_before,
+        "edit: a name the catalog does not know is refused, nothing written");
+    CHECK(Editor_Spawns_SetEditForm(&g_cat_ui, "test_guard", 0, a.abs_x, a.abs_z, 4, 1, 0) == 0,
+        "edit: level 4 is refused");
+
+    /* Kind npc -> obj: a delete and an add (another section), one step. */
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "#0", 1, a.abs_x, a.abs_z, 0, 3, 0);
+    {
+        struct Editor_SpawnRow as_obj = spawn_row("#0", 1, a.abs_x, a.abs_z, 0, 3);
+        file = edited_file(a.abs_x, a.abs_z);
+        CHECK(n == 2 && Editor_SpawnFind(file, &as_obj) >= 0 && Editor_SpawnFind(file, &a) < 0,
+            "edit: npc -> obj moves the row to the OBJ section with its count");
+        CHECK(Editor_Undo(&g_editor) == 2, "edit: and one undo takes both commands back");
+    }
+
+    /* Suppressed on an edited row: it becomes a `-name` row, in place. (The
+     * kind change's undo re-added the row at its section's end: a SPAWN
+     * delete's inverse is an insert, so find it again.) */
+    line_before = find_in(a.abs_x, a.abs_z, &a);
+    CHECK(line_before >= 0, "edit: guard a is back after the undo");
+    Editor_Spawns_Select(&g_cat_ui, &a, 1);
+    cat_frame();
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "test_guard", 0, a.abs_x, a.abs_z, 0, 1, 1);
+    {
+        struct Editor_SpawnRow mark = a;
+        mark.suppress = 1;
+        file = edited_file(a.abs_x, a.abs_z);
+        CHECK(n == 1 && Editor_SpawnFind(file, &mark) == line_before && file->lines[line_before].text[0] == '-',
+            "edit: Suppressed writes the row as a suppression row on its line");
+        CHECK(Editor_Undo(&g_editor) == 1, "edit: undo");
+    }
+
+    /* Multi-select: a shared offset moves both, one undo step. */
+    sel[0] = a;
+    sel[1] = b;
+    Editor_Spawns_Select(&g_cat_ui, sel, 2);
+    cat_frame();
+    n = Editor_Spawns_SetEditForm(&g_cat_ui, "test_guard", 0, a.abs_x, a.abs_z + 3, 1, 1, 0);
+    {
+        struct Editor_SpawnRow a2 = a;
+        struct Editor_SpawnRow b2 = b;
+        a2.abs_z += 3;
+        a2.level = 1;
+        b2.abs_z += 3;
+        b2.level = 1;
+        file = edited_file(a.abs_x, a.abs_z);
+        CHECK(n == 2 && Editor_SpawnFind(file, &a2) >= 0 && Editor_SpawnFind(file, &b2) >= 0,
+            "edit: a multi-selection moves by the anchor's offset (z+3, level+1)");
+        CHECK(Editor_Undo(&g_editor) == 2, "edit: one undo for the group");
+    }
+
+    /* The world-click move: arm, then the click lands. */
+    Editor_Spawns_Select(&g_cat_ui, &a, 1);
+    cat_frame();
+    {
+        int move = cat_widget(spawns, TORIRS_CHROME_W_BUTTON, "Move: click a tile");
+        CHECK(move >= 0, "move: the button is there");
+        if( move >= 0 )
+            cat_activate(move);
+        CHECK(Editor_Spawns_MoveArmed(&g_cat_ui), "move: armed");
+        n = Editor_Spawns_WanderRects(&g_cat_ui, 1, SQ_X0 + 20, SQ_Z0 + 20, 0, -1, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+        {
+            int footprint = 0;
+            for( int i = 0; i < n; i++ )
+                footprint += rects[i].kind == MAP_EDITOR_WANDER_FOOTPRINT && rects[i].x0 == SQ_X0 + 20
+                             && rects[i].z0 == SQ_Z0 + 20;
+            CHECK(footprint == 1, "move: the pending destination is previewed under the pointer");
+        }
+        n = Editor_Spawns_MoveTo(&g_cat_ui, SQ_X0 + 20, SQ_Z0 + 20, 0);
+        {
+            struct Editor_SpawnRow there = spawn_row("test_guard", 0, SQ_X0 + 20, SQ_Z0 + 20, 0, 1);
+            CHECK(n == 1 && find_in(a.abs_x, a.abs_z, &there) == line_before
+                      && newest_group_named("move spawn") && !Editor_Spawns_MoveArmed(&g_cat_ui),
+                "move: the click re-tiles the spawn in place, one step, disarmed");
+        }
+        CHECK(Editor_Undo(&g_editor) == 1, "move: undo");
+    }
+
+    /* A GENERATED row: suppressed, and an edited row with the new fields. */
+    {
+        struct Editor_SpawnFile generated;
+        struct Editor_DocHandle handle;
+        char key[EDITOR_DOC_KEY_MAX];
+        struct Editor_SpawnRow g;
+        int found = 0;
+
+        Editor_SpawnGeneratedKey(key, 50, 50);
+        Editor_SpawnInit(&generated);
+        if( Editor_DocFind(&g_editor.doc, EDITOR_DOC_TEXT, key, &handle) && handle.text )
+            (void)Editor_SpawnParse(&generated, handle.text->text, handle.text->length);
+        for( int i = 0; i < generated.line_count && !found; i++ )
+            if( generated.lines[i].kind == EDITOR_SPAWN_LINE_ROW && !generated.lines[i].row.is_obj
+                && !Editor_SpawnIsSuppressed(edited_file(SQ_X0, SQ_Z0), &generated.lines[i].row) )
+            {
+                g = generated.lines[i].row;
+                found = 1;
+            }
+        CHECK(found, "edit: m50_50's generated file has an npc row");
+        if( found )
+        {
+            struct Editor_SpawnRow moved = g;
+            struct Editor_SpawnRow mark = g;
+            moved.abs_x = g.abs_x + 1 < SQ_X0 + 64 ? g.abs_x + 1 : g.abs_x - 1;
+            mark.suppress = 1;
+            Editor_Spawns_Select(&g_cat_ui, &g, 1);
+            cat_frame();
+            n = Editor_Spawns_SetEditForm(&g_cat_ui, g.name, 0, moved.abs_x, moved.abs_z, moved.level, 1, 0);
+            file = edited_file(SQ_X0, SQ_Z0);
+            CHECK(n == 2 && Editor_SpawnFind(file, &mark) >= 0 && Editor_SpawnFind(file, &moved) >= 0,
+                "edit: a generated row is suppressed and the edited row added (%d)", n);
+            CHECK(Editor_Undo(&g_editor) == 2 && find_in(SQ_X0, SQ_Z0, &mark) < 0,
+                "edit: one undo restores the generated spawn");
+        }
+        Editor_SpawnFree(&generated);
+    }
+
+    /* The wander preview: test_guard's record (generated 9/12, authored
+     * wanderrange 2) through the catalog, then without a pending move. */
+    Editor_Spawns_Select(&g_cat_ui, &a, 1);
+    cat_frame();
+    n = Editor_Spawns_WanderRects(&g_cat_ui, 0, 0, 0, 0, -1, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+    CHECK(n == 2 && rects[0].kind == MAP_EDITOR_WANDER_AREA && MapEditorWander_RectTiles(&rects[0]) == 5 * 5
+              && rects[0].x0 == a.abs_x - 2 && rects[1].kind == MAP_EDITOR_WANDER_LEASH
+              && MapEditorWander_RectTiles(&rects[1]) == 25 * 25,
+        "wander: the selected guard's square is wanderrange 2 (5x5) and its leash maxrange 12 (25x25): %d rects", n);
+    n = Editor_Spawns_WanderRects(&g_cat_ui, 1, SQ_X0 + 30, SQ_Z0 + 30, 0, 0, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+    CHECK(n == 4 && rects[0].x0 == SQ_X0 + 28 && rects[0].x1 == SQ_X0 + 32,
+        "wander: the spawn ghost of npc 0 under the pointer gets the same squares there");
+    {
+        int toggle = cat_widget(spawns, TORIRS_CHROME_W_CHECKBOX, "Show wander range");
+        CHECK(toggle >= 0, "wander: the toggle is there");
+        if( toggle >= 0 )
+        {
+            ToriRSChrome_SetChecked(&g_cat_chrome, toggle, 0);
+            CHECK(Editor_Spawns_WanderRects(&g_cat_ui, 1, SQ_X0, SQ_Z0, 0, 0, rects, MAP_EDITOR_WANDER_RECTS_MAX) == 0,
+                "wander: off draws nothing");
+            ToriRSChrome_SetChecked(&g_cat_chrome, toggle, 1);
+        }
+    }
+    free(before);
+}
+
+/* ---- the Record panel: every field of every layer ------------------------------- */
+
+static void
+test_record_editor(void)
+{
+    const struct Editor_CfgRecord* record;
+    int row;
+    int n;
+
+    CHECK(Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:test_guard@areas/test/configs/test.npc"), "keys: an overlay key");
+    CHECK(Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:test_guard"), "keys: a plain key keeps its meaning");
+    CHECK(!Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:test_guard@../configs/all.npc"), "keys: no .. in an overlay");
+    CHECK(!Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:test_guard@areas/test/configs/test.loc"),
+        "keys: the overlay's extension is the type");
+    CHECK(!Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:test_guard@"), "keys: an empty overlay");
+    CHECK(!Editor_DocKeyValid(EDITOR_DOC_CFG, "npc:@areas/x.npc"), "keys: an empty name");
+
+    CHECK(Editor_Record_Open(&g_cat_ui, TORIRSMAPED_CATALOG_NPC, "test_guard") == 1, "record: opens test_guard");
+    cat_frame();
+    record = Editor_Record_Current(&g_cat_ui);
+    CHECK(record && record->layer_count == 3 && record->layers[0].rank == 0 && record->layers[1].rank == 1
+              && record->layers[2].rank == 2 && record->layers[1].present && record->layers[2].present,
+        "record: three layers in merge order: all.npc, the generated overlay, the authored one");
+    if( !record || record->layer_count != 3 )
+        return;
+    row = Editor_CfgRecordFindRow(record, "wanderrange", "", 0);
+    CHECK(row >= 0 && record->rows[row].layer == 2 && strcmp(record->rows[row].value, "2") == 0
+              && record->rows[row].shadowed == 1,
+        "record: wanderrange is the authored 2, over the generated 9");
+    row = Editor_CfgRecordFindRow(record, "respawnrate", "", 0);
+    CHECK(row >= 0 && record->rows[row].layer == 1 && strcmp(record->rows[row].value, "30") == 0,
+        "record: respawnrate is the generated 30 (its // comment is not the value)");
+    row = Editor_CfgRecordFindRow(record, "param", "huntrange", 0);
+    CHECK(row >= 0 && record->rows[row].layer == 2 && strcmp(record->rows[row].value, "4") == 0,
+        "record: param huntrange is its own field");
+    row = Editor_CfgRecordFindRow(record, "op1", "", 0);
+    CHECK(row >= 0 && record->rows[row].layer == 0 && strcmp(record->rows[row].value, "Talk-to") == 0,
+        "record: op1 comes from all.npc");
+    {
+        int wander = -1;
+        int leash = -1;
+        CHECK(Editor_Record_WanderValues(&g_cat_ui, "npc", "test_guard", &wander, &leash) && wander == 2 && leash == 12,
+            "record: the wander preview reads 2 / 12 from it");
+    }
+
+    /* Edit where stated: the authored overlay's line, one undo step. */
+    n = Editor_Record_SetField(&g_cat_ui, "wanderrange", "", "6", -1);
+    record = Editor_Record_Current(&g_cat_ui);
+    row = Editor_CfgRecordFindRow(record, "wanderrange", "", 0);
+    CHECK(n == 1 && record->rows[row].layer == 2 && strcmp(record->rows[row].value, "6") == 0
+              && newest_group_named("edit record"),
+        "record: wanderrange set to 6 in the authored overlay, named edit record");
+    CHECK(Editor_Undo(&g_editor) == 1, "record: undo");
+    record = Editor_Record_Current(&g_cat_ui);
+    row = Editor_CfgRecordFindRow(record, "wanderrange", "", 0);
+    CHECK(strcmp(record->rows[row].value, "2") == 0, "record: the undo brings back 2");
+
+    /* A generated value keeps its trailing comment. */
+    n = Editor_Record_SetField(&g_cat_ui, "respawnrate", "", "50", -1);
+    {
+        struct Editor_DocHandle handle;
+        CHECK(n == 1
+                  && Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG,
+                      "npc:test_guard@_explicit/configs/server_fields.generated.npc", &handle)
+                  && handle.text && strstr(handle.text->text, "respawnrate=50 // wiki"),
+            "record: respawnrate 50 written into the generated block, comment kept");
+    }
+    CHECK(Editor_Undo(&g_editor) == 1, "record: undo");
+
+    /* Override: respawnrate into the authored overlay, then removed again. */
+    n = Editor_Record_SetField(&g_cat_ui, "respawnrate", "", "45", 2);
+    record = Editor_Record_Current(&g_cat_ui);
+    row = Editor_CfgRecordFindRow(record, "respawnrate", "", 0);
+    CHECK(n == 1 && record->rows[row].layer == 2 && strcmp(record->rows[row].value, "45") == 0
+              && record->rows[row].shadowed == 1,
+        "record: override in the authored overlay wins over the generated 30");
+    n = Editor_Record_SetField(&g_cat_ui, "respawnrate", "", "", -1);
+    record = Editor_Record_Current(&g_cat_ui);
+    row = Editor_CfgRecordFindRow(record, "respawnrate", "", 0);
+    CHECK(n == 1 && record->rows[row].layer == 1 && strcmp(record->rows[row].value, "30") == 0,
+        "record: removing the override shows the generated 30 again");
+    CHECK(Editor_Undo(&g_editor) == 1 && Editor_Undo(&g_editor) == 1, "record: two undos");
+
+    /* Every key of the field register can be set through the commands. */
+    {
+        struct Editor_DocHandle handle;
+        struct Editor_CfgRegisterField fields[EDITOR_CFG_REGISTER_MAX];
+        int field_count = 0;
+        int set_ok = 0;
+        int undo_ok = 0;
+        if( Editor_DocFind(&g_editor.doc, EDITOR_DOC_TEXT, "fields:npc.ini", &handle) && handle.text )
+            field_count = Editor_CfgRegisterParse("npc", handle.text->text, handle.text->length, fields,
+                EDITOR_CFG_REGISTER_MAX);
+        CHECK(field_count >= 5 && (!g_register_real || field_count >= 60),
+            "register: fields/npc.ini read as a document (%d keys%s)", field_count,
+            g_register_real ? ", the tree's own" : ", a stand-in");
+        for( int f = 0; f < field_count; f++ )
+        {
+            char key[EDITOR_CMD_NAME_MAX];
+            const char* sub = fields[f].text_param ? fields[f].key : "";
+            char value[32];
+            const char* k = fields[f].text_param ? "param" : fields[f].key;
+            int r;
+            if( fields[f].text_indexed )
+            {
+                snprintf(key, sizeof(key), "%s1", fields[f].key);
+                k = key;
+            }
+            snprintf(value, sizeof(value), "%d", 7000 + f);
+            n = Editor_Record_SetField(&g_cat_ui, k, sub, value, -1);
+            record = Editor_Record_Current(&g_cat_ui);
+            r = Editor_CfgRecordFindRow(record, k, sub, 0);
+            if( n >= 1 && r >= 0 && strcmp(record->rows[r].value, value) == 0 && record->rows[r].layer >= 0 )
+                set_ok++;
+            else
+                printf("  register: %s%s%s did not set (n=%d)\n", k, sub[0] ? ":" : "", sub, n);
+            if( n >= 1 && Editor_Undo(&g_editor) == n )
+                undo_ok++;
+        }
+        CHECK(field_count > 0 && set_ok == field_count && undo_ok == field_count,
+            "register: all %d keys set and undone through CFG commands (%d set, %d undone)", field_count, set_ok,
+            undo_ok);
+    }
+
+    /* A layer with no block yet: CFG_BLOCK add, then the field. */
+    {
+        struct Editor_CfgRecord fresh;
+        struct Editor_Cmd commands[2];
+        struct Editor_DocHandle handle;
+        const char* key = "npc:test_guard@areas/test/configs/more.npc";
+        Editor_CfgRecordInit(&fresh, "npc", "test_guard");
+        CHECK(Editor_OpenDoc(&g_editor, EDITOR_DOC_CFG, key), "record: a new overlay's block opens empty");
+        Editor_CfgRecordAddLayer(&fresh, "areas/test/configs/more.npc", "", 0);
+        Editor_CfgRecordResolve(&fresh, NULL, 0);
+        n = Editor_CfgRecordFieldCommands(&fresh, "wanderrange", "", 0, "3", 0, commands, 2);
+        CHECK(n == 2 && commands[0].kind == EDITOR_CMD_CFG_BLOCK && commands[1].kind == EDITOR_CMD_CFG_FIELD,
+            "record: overriding into a file without the block opens it first");
+        CHECK(apply_all(commands, n) == 2 && Editor_DocFind(&g_editor.doc, EDITOR_DOC_CFG, key, &handle)
+                  && handle.text && handle.text->length == strlen("[test_guard]\nwanderrange=3\n")
+                  && memcmp(handle.text->text, "[test_guard]\nwanderrange=3\n", handle.text->length) == 0,
+            "record: the new block reads [test_guard] wanderrange=3");
+        Editor_CfgRecordFree(&fresh);
+    }
+
+    /* Save writes the overlay block back over itself, nothing else. */
+    n = Editor_Record_SetField(&g_cat_ui, "wanderrange", "", "4", -1);
+    CHECK(n == 1, "record: wanderrange 4");
+    CHECK(Editor_SaveDoc(&g_editor, EDITOR_DOC_CFG, "npc:test_guard@areas/test/configs/test.npc"),
+        "record: save the authored overlay");
+    CHECK(Editor_SaveDoc(&g_editor, EDITOR_DOC_CFG, "npc:test_guard@_explicit/configs/server_fields.generated.npc")
+              || 1,
+        "record: saving an unchanged block is harmless");
+    {
+        char path[2048];
+        FILE* f;
+        char text[512] = "";
+        size_t got;
+        snprintf(path, sizeof(path), "%s/server/scripts/areas/test/configs/test.npc", g_tmp_root);
+        f = fopen(path, "rb");
+        got = f ? fread(text, 1, sizeof(text) - 1, f) : 0;
+        if( f )
+            fclose(f);
+        text[got] = '\0';
+        CHECK(strcmp(text, "// authored\n[test_guard]\nwanderrange=4\nparam=huntrange,4\n") == 0,
+            "record: the overlay file holds exactly the edit (%s)", text);
+        snprintf(path, sizeof(path), "%s/server/scripts/_explicit/configs/server_fields.generated.npc", g_tmp_root);
+        f = fopen(path, "rb");
+        got = f ? fread(text, 1, sizeof(text) - 1, f) : 0;
+        if( f )
+            fclose(f);
+        text[got] = '\0';
+        CHECK(strcmp(text, "// generated\n\n[test_guard]\nwanderrange=9\nmaxrange=12\nrespawnrate=30 // wiki\n"
+                           "param=death_drop,bones\n\n// trailing note\n")
+                  == 0,
+            "record: the generated file is byte for byte as it was (%s)", text);
+    }
+
+    /* The catalog's record view follows the merge order too. */
+    {
+        struct EditorHost_CatalogRecord cat;
+        memset(&cat, 0, sizeof(cat));
+        if( Editor_HostMapEdCatalogRecord(&g_editor.host, TORIRSMAPED_CATALOG_NPC, -1, "test_guard", &cat)
+            == EDITOR_HOST_OK )
+        {
+            int found = 0;
+            for( int i = 0; i < cat.field_count; i++ )
+                found |= strcmp(cat.fields[i].key, "wanderrange") == 0 && strcmp(cat.fields[i].value, "4") == 0;
+            CHECK(found, "record: the catalog's merged record reads the authored wanderrange (saved: 4)");
+        }
+        else
+            CHECK(0, "record: the catalog answers test_guard");
+        Editor_HostCatalogRecordFree(&cat);
+    }
+    Editor_UiFree(&g_cat_ui);
+}
+
 static void
 test_editing_feedback(void)
 {
@@ -2349,6 +3405,8 @@ main(
         return 2;
     }
     root = argv[1];
+    /* A crash must not eat the FAIL lines before it. */
+    setvbuf(stdout, NULL, _IONBF, 0);
     ToriMem_Init();
     if( !RSCache_ProfileByName("osrs241", &g_profile) )
     {
@@ -2376,9 +3434,15 @@ main(
     test_newform();
     test_chrome();
     test_layout();
+    g_tmp_root = root;
+    test_world_panel();
+    test_layout_codec();
+    test_saved_layout();
 
     test_catalog_panel();
     test_spawn_duplicate();
+    test_spawn_edit();
+    test_record_editor();
     test_editing_feedback();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);

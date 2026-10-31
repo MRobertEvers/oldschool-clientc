@@ -15,6 +15,7 @@
 #include "editor/panels/edpanel_common.h"
 #include "editor/panels/edpanel_ops.h"
 #include "editor/panels/edpanels.h"
+#include "editor/task_editor_layout_io.h"
 #include "engine/world_builder/edit/world_edit.h"
 
 /* Private to this unit, declared up front so definition order is free. */
@@ -706,6 +707,291 @@ app_map_editor_flush(struct App* app)
         app->need_redraw = 1;
 }
 
+/* ---- the World panel and the saved layout --------------------------------- */
+
+/**
+ * The world's screen rect follows the editor's World panel.
+ *
+ * Called by app_update_world_viewport (app_viewport.c) right after it latched
+ * the UI tree's WORLD emit into `world_emit_desc`, and before the projection
+ * scale is derived from it. Every consumer of the world rect reads that one
+ * desc -- the 3D paint and the renderers' viewport, app_world_mouse_gate and
+ * the hover pick, the overlays (app_overlay.c: brush footprint, editor ghosts,
+ * selection marks project through app_world_project.c on the same desc), the
+ * minimenu -- so rewriting it here is what makes all of them follow the
+ * panel. While the editor's panels show and the World panel is hidden, the
+ * world is not drawn and not picked (world_view_valid = 0).
+ *
+ * Untouched while the panels are hidden (a viewer window, panel=tab, the
+ * editor closed) and before the first layout: the world keeps the game's own
+ * rect, the whole frame.
+ */
+/** The editor owns the world rect now: its panels show, and laid out. */
+static struct EditorUi const*
+app_map_editor_world_owner(struct App const* app)
+{
+    if( !app->editor || !app->editor_panel.built || !app->editor_panel.visible || !app->editor_panel.ui )
+        return NULL;
+    if( app->editor_panel.ui->layout_surface_w <= 0 )
+        return NULL;
+    return app->editor_panel.ui;
+}
+
+/** The World body cut to the widget box (surface pixels); 0 when nothing of
+ *  it is left (the panel hidden, or dragged off the box). */
+static int
+app_map_editor_world_cut(
+    struct App const* app,
+    struct EditorUi const* ui,
+    int box_x,
+    int box_y,
+    int box_w,
+    int box_h,
+    struct EditorUiRect* out)
+{
+    struct EditorUiRect const r = Editor_UiWorldRect(ui);
+    int const x0 = r.x > box_x ? r.x : box_x;
+    int const y0 = r.y > box_y ? r.y : box_y;
+    int const x1 = r.x + r.w < box_x + box_w ? r.x + r.w : box_x + box_w;
+    int const y1 = r.y + r.h < box_y + box_h ? r.y + r.h : box_y + box_h;
+
+    (void)app;
+    if( r.w <= 0 || r.h <= 0 || x1 <= x0 || y1 <= y0 )
+        return 0;
+    out->x = x0;
+    out->y = y0;
+    out->w = x1 - x0;
+    out->h = y1 - y0;
+    return 1;
+}
+
+/**
+ * The world widget's letterbox while the editor owns the world
+ * (UITREE_HOST_GET_WORLD_LETTERBOX, answered from app_host_request.c): the
+ * reference's own mechanism for drawing the world into PART of its widget
+ * (VIEWPORT_CLAMPFOV, class159.method5357) -- the emit desc becomes the cut
+ * rectangle, the rest of the widget's box is painted black by the frame
+ * (torirs_frame.c frame_world_letterbox_fill), and every reader of the world
+ * rect sees the cut. The cut here is the World panel's body. Hidden World:
+ * a 1x1 cut just past the box, so the frame paints only the band (black) and
+ * the 3D pass's clip is empty; App_MapEditorWorldView also drops the world
+ * (no paint, no pick). The box's origin is last frame's (the request carries
+ * only its size); the editor's world widget is the whole canvas.
+ *
+ * Returns 0 when the editor does not own the world (the reference's answer
+ * stands).
+ */
+int
+App_MapEditorWorldLetterbox(
+    struct App const* app,
+    int box_w,
+    int box_h,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct EditorUi const* ui;
+    struct EditorUiRect cut;
+    int box_x;
+    int box_y;
+
+    assert(app);
+    assert(out_x);
+    assert(out_y);
+    assert(out_w);
+    assert(out_h);
+    ui = app_map_editor_world_owner(app);
+    if( !ui )
+        return 0;
+    box_x = app->world_emit_desc.world_box_w > 0 ? app->world_emit_desc.world_box_x : 0;
+    box_y = app->world_emit_desc.world_box_h > 0 ? app->world_emit_desc.world_box_y : 0;
+    if( !app_map_editor_world_cut(app, ui, box_x, box_y, box_w, box_h, &cut) )
+    {
+        *out_x = box_w;
+        *out_y = 0;
+        *out_w = 1;
+        *out_h = 1;
+        return 1;
+    }
+    *out_x = cut.x - box_x;
+    *out_y = cut.y - box_y;
+    *out_w = cut.w;
+    *out_h = cut.h;
+    return 1;
+}
+
+/** What the letterbox above depends on, for the emit retain gate's camera
+ *  signature (app_ui_host.c): a moved or resized World re-walks the emit. */
+int
+App_MapEditorWorldSignature(struct App const* app)
+{
+    struct EditorUi const* ui;
+    struct EditorUiRect r;
+
+    assert(app);
+    ui = app_map_editor_world_owner(app);
+    if( !ui )
+        return 0;
+    r = Editor_UiWorldRect(ui);
+    return 1 + (int)(((uint32_t)r.x * 2654435761u) ^ ((uint32_t)r.y * 40503u) ^ ((uint32_t)r.w << 16)
+                     ^ (uint32_t)r.h);
+}
+
+void
+App_MapEditorWorldView(struct App* app)
+{
+    struct EditorUi const* ui;
+    struct UITreeEmitDesc* desc;
+    struct EditorUiRect cut;
+
+    assert(app);
+    ui = app_map_editor_world_owner(app);
+    if( !ui || !app->world_view_valid )
+        return;
+    desc = &app->world_emit_desc;
+    if( !app_map_editor_world_cut(app, ui, desc->world_box_w > 0 ? desc->world_box_x : desc->x,
+            desc->world_box_h > 0 ? desc->world_box_y : desc->y, desc->world_box_w > 0 ? desc->world_box_w : desc->w,
+            desc->world_box_h > 0 ? desc->world_box_h : desc->h, &cut) )
+    {
+        app->world_view_valid = 0;
+        return;
+    }
+    /* The emit walk later this frame cuts the same rectangle (the letterbox
+     * above); this desc is last frame's walk, so restate it now and the
+     * picks, the overlays and the paint agree with what is drawn. */
+    desc->x = cut.x;
+    desc->y = cut.y;
+    desc->w = cut.w;
+    desc->h = cut.h;
+}
+
+/* Frames the layout must hold still before it is written: one drag is one
+ * write, and a burst of View toggles is one too. */
+#define APP_EDITOR_LAYOUT_SETTLE_FRAMES 6
+
+/* The saved layout's state for this process (one editor window per process).
+ * File-static, never freed: a load task in flight at shutdown still has
+ * somewhere to land. */
+static struct
+{
+    /* 0 not started, 1 reading, 2 loaded (saving on change), 3 off. */
+    int state;
+    const char* path;
+    struct EditorLayoutLoad load;
+    /* What was last queued for writing, and the last frame's digest. */
+    int saved_valid;
+    uint32_t saved;
+    uint32_t last;
+    int still_frames;
+} g_app_editor_layout;
+
+/**
+ * Once per frame: read the layout file at boot (holding the default layout
+ * until it lands), then write it whenever the layout settles in a new shape
+ * -- a drag or resize released, a View toggle, Reset layout, Snap to grid, a
+ * surface resize -- and once after boot so the file states this surface.
+ * Both trips go through the App's task queue and the platform IO queue
+ * (task_editor_layout_io.h), so the desktop writes a file and the web an
+ * IndexedDB record through the same code.
+ */
+static void
+app_map_editor_layout_tick(struct App* app)
+{
+    struct EditorUi* ui = app->editor_panel.ui;
+
+    if( !app->editor_panel.built || !ui || g_app_editor_layout.state == 3 )
+        return;
+    if( g_app_editor_layout.state == 0 )
+    {
+        g_app_editor_layout.path = EditorLayout_Path();
+        if( !g_app_editor_layout.path || !app->runner.queue )
+        {
+            g_app_editor_layout.state = 3;
+            return;
+        }
+        Editor_UiLayoutHold(ui);
+        ToriRS_TaskQueue_Add(
+            app->runner.queue, CreateTask_EditorLayoutLoad(&g_app_editor_layout.load, g_app_editor_layout.path));
+        g_app_editor_layout.state = 1;
+        return;
+    }
+    if( g_app_editor_layout.state == 1 )
+    {
+        if( !g_app_editor_layout.load.done )
+            return;
+        Editor_UiLayoutLoaded(ui, g_app_editor_layout.load.found ? &g_app_editor_layout.load.file : NULL);
+        if( g_app_editor_layout.load.found )
+            TORIRS_LOG("editor: layout from %s (saved at %dx%d, scale %d)\n", g_app_editor_layout.path,
+                g_app_editor_layout.load.file.surface_w, g_app_editor_layout.load.file.surface_h,
+                g_app_editor_layout.load.file.scale);
+        g_app_editor_layout.state = 2;
+        return;
+    }
+    if( Editor_UiLayoutBusy(ui) )
+    {
+        g_app_editor_layout.still_frames = 0;
+        return;
+    }
+    {
+        uint32_t const now = Editor_UiLayoutFingerprint(ui);
+        if( now != g_app_editor_layout.last )
+        {
+            g_app_editor_layout.last = now;
+            g_app_editor_layout.still_frames = 0;
+            return;
+        }
+        if( ++g_app_editor_layout.still_frames < APP_EDITOR_LAYOUT_SETTLE_FRAMES )
+            return;
+        if( g_app_editor_layout.saved_valid && now == g_app_editor_layout.saved )
+            return;
+        {
+            struct EditorLayoutFile file;
+            Editor_UiLayoutCapture(ui, &file);
+            ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_EditorLayoutSave(&file, g_app_editor_layout.path));
+        }
+        g_app_editor_layout.saved = now;
+        g_app_editor_layout.saved_valid = 1;
+    }
+}
+
+/**
+ * At shutdown: write the layout one last time. The tick above waits for the
+ * layout to hold still for APP_EDITOR_LAYOUT_SETTLE_FRAMES before it writes,
+ * so a drag released just before quitting would otherwise be lost; and a save
+ * the tick queued in the last frame may still sit in the task queue, which is
+ * about to be freed, not stepped. So this does not trust the digest: it runs
+ * a save by hand on its own IO batch, the way app_prefs_flush does. One small
+ * file per quit is the cost. A drag still in progress is not written -- the
+ * panel is not where the user left it yet.
+ */
+void
+app_map_editor_layout_flush(struct App* app)
+{
+    struct EditorUi* ui;
+    struct EditorLayoutFile file;
+    struct ToriRS_IOBatch* io;
+    struct ToriRS_Task* task;
+    int guard = 0;
+
+    assert(app);
+    ui = app->editor_panel.ui;
+    if( g_app_editor_layout.state != 2 || !ui )
+        return;
+    if( Editor_UiLayoutBusy(ui) )
+        return;
+    Editor_UiLayoutCapture(ui, &file);
+    io = ToriRS_IOBatch_New();
+    task = CreateTask_EditorLayoutSave(&file, g_app_editor_layout.path);
+    io->task = task;
+    while( task_run(task, io) == PT_YIELDED && guard++ < 8 )
+        Platform_IO_Process(app->runner.px, io);
+    task_free(task);
+    ToriRS_IOBatch_Free(io);
+    g_app_editor_layout.saved = Editor_UiLayoutFingerprint(ui);
+    g_app_editor_layout.saved_valid = 1;
+}
+
 void
 app_map_editor_drain(struct App* app)
 {
@@ -716,6 +1002,7 @@ app_map_editor_drain(struct App* app)
 
     if( !app->editor )
         return;
+    app_map_editor_layout_tick(app);
     /* EDIT: tile-local edits and one flush per frame. STATIC (the fallback,
      * and every game manifest): the queued squares rebuild through the load
      * path, as before. */

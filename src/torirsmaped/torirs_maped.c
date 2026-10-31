@@ -1503,7 +1503,8 @@ handle_save_as(
         session->alive = 0;
         return;
     }
-    if( kind != EDITOR_DOC_CFG )
+    /* An overlay block ("npc:x@<overlay>") is not a definition to copy. */
+    if( kind != EDITOR_DOC_CFG || Editor_CfgKeyOverlay(key) || Editor_CfgKeyOverlay(new_key) )
     {
         send_status(session, TORIRSMAPED_REQ_SAVE_AS, EDITOR_HOST_UNSUPPORTED);
         return;

@@ -1421,6 +1421,10 @@ app_overlay_build_hover_footprint(struct App* app)
  * footprint red), the spawn ghost's and the move destinations'. */
 #define APP_EDITOR_BRUSH_COLOR 0xFF3CC8FFu
 #define APP_EDITOR_GHOST_COLOR 0xFFFFC040u
+/* The wander preview (Editor_Spawns_WanderRects): an npc's wanderrange square
+ * filled and outlined, its maxrange leash a fainter outline only. */
+#define APP_EDITOR_WANDER_COLOR 0xFF50E070u
+#define APP_EDITOR_LEASH_COLOR 0xFF2C8C46u
 /* Brushes up to this many tiles draw every tile (radius 5); larger ones
  * draw nested washes, so a radius-16 brush stays inside the overlay budget
  * (OVERLAY_STAGE_WORLD_MAX). Up to the smaller count each tile is outlined
@@ -1677,6 +1681,48 @@ app_overlay_build_editor_ghosts(struct App* app)
         }
         app_overlay_editor_block(app, spawn->spec.scene_x, spawn->spec.scene_z, spawn->size, spawn->size,
             spawn->spec.level, APP_EDITOR_GHOST_COLOR, APP_OUTLINE_FILL_TRANS);
+    }
+    /* The wander preview: every selected npc spawn's wanderrange square and
+     * maxrange leash, the spawn ghost's, a pending spawn move's destination.
+     * Absolute tiles from the Spawns panel, drawn in scene tiles; a rectangle's
+     * hull is its first and last rows' corners, so only those rows are set. */
+    if( panel->ui )
+    {
+        static struct MapEditorWanderRect rects[MAP_EDITOR_WANDER_RECTS_MAX];
+        static int row_x0[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        static int row_x1[2 * MAP_EDITOR_WANDER_RANGE_MAX + 2];
+        int const bx = app->world->_base_tile_x;
+        int const bz = app->world->_base_tile_z;
+        int const ghost_npc = spawn->active && spawn->spec.kind == MAP_EDITOR_SPAWN_NPC ? spawn->spec.id : -1;
+        int const n = Editor_Spawns_WanderRects(panel->ui, hover->valid, hover->scene_x + bx, hover->scene_z + bz,
+            hover->level, ghost_npc, rects, MAP_EDITOR_WANDER_RECTS_MAX);
+
+        for( int i = 0; i < n; i++ )
+        {
+            const struct MapEditorWanderRect* r = &rects[i];
+            int const x0 = r->x0 - bx < 0 ? 0 : r->x0 - bx;
+            int const z0 = r->z0 - bz < 0 ? 0 : r->z0 - bz;
+            int const x1 = r->x1 - bx;
+            int rows = r->z1 - bz - z0 + 1;
+
+            if( x1 < x0 || rows <= 0 )
+                continue;
+            if( rows > (int)(sizeof(row_x0) / sizeof(row_x0[0])) )
+                rows = (int)(sizeof(row_x0) / sizeof(row_x0[0]));
+            for( int k = 0; k < rows; k++ )
+                row_x0[k] = row_x1[k] = -1;
+            row_x0[0] = row_x0[rows - 1] = x0;
+            row_x1[0] = row_x1[rows - 1] = x1;
+            if( r->kind == MAP_EDITOR_WANDER_FOOTPRINT )
+                app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_GHOST_COLOR,
+                    APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
+            else if( r->kind == MAP_EDITOR_WANDER_LEASH )
+                app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_LEASH_COLOR, -1,
+                    APP_OVERLAY_SEGMENT_WIDTH);
+            else
+                app_overlay_editor_rows_hull(app, z0, rows, row_x0, row_x1, r->level, APP_EDITOR_WANDER_COLOR,
+                    APP_OUTLINE_FILL_TRANS, APP_OVERLAY_SEGMENT_WIDTH);
+        }
     }
     if( panel->ui && hover->valid && panel->ui->tools.tool == EDITOR_TOOL_LOC_MOVE
         && panel->sel_kind == EDITOR_SELECTION_LOC && panel->ui->tools.loc_count > 1 )

@@ -144,6 +144,18 @@ Editor_SpawnRemoveAt(
     struct Editor_SpawnFile* file,
     int index);
 
+/**
+ * Remove ROW line `index` the way a SPAWN delete does: the row, and -- when
+ * it was the only row of the file's LAST section, standing right after that
+ * section's banner, which a blank separator precedes -- the banner and the
+ * separator too, which is exactly what Editor_SpawnInsert opened for it. So
+ * an add's undo (a delete) takes back the bytes the add wrote.
+ */
+void
+Editor_SpawnRemoveRow(
+    struct Editor_SpawnFile* file,
+    int index);
+
 /** Rows (spawns and suppressions) in the file. */
 int
 Editor_SpawnRowCount(const struct Editor_SpawnFile* file);
@@ -154,5 +166,118 @@ Editor_SpawnFormatRow(
     const struct Editor_SpawnRow* row,
     char* out,
     size_t out_capacity);
+
+/* ---- editing a row in place (EDITOR_CMD_SPAWN_EDIT) ------------------------
+ *
+ * The edit form and a move rewrite ONE line where it stands, so a save shows a
+ * one-line diff and an undo puts the row back where it was. Every other line
+ * keeps its bytes.
+ */
+
+/**
+ * Rewrite ROW line `index` as `row`. `text` (may be NULL) is the exact bytes
+ * to write, which must parse to `row` in the line's section (the inverse of
+ * an edit restoring a hand-formatted line); NULL formats the row
+ * (Editor_SpawnFormatRow) and keeps the old line's trailing `//` comment.
+ * Returns 1, or 0 (nothing changed) when the line is not a row, `row` names
+ * the other section, or `text` does not parse to `row`.
+ */
+int
+Editor_SpawnReplaceAt(
+    struct Editor_SpawnFile* file,
+    int index,
+    const struct Editor_SpawnRow* row,
+    const char* text);
+
+void
+Editor_SpawnRowToCmd(
+    const struct Editor_SpawnRow* row,
+    struct Editor_CmdSpawnRow* out);
+
+void
+Editor_SpawnRowFromCmd(
+    const struct Editor_CmdSpawnRow* row,
+    struct Editor_SpawnRow* out);
+
+/** 1 when `a` and `b` are the same row (Editor_SpawnFind's equality). */
+int
+Editor_SpawnRowsEqual(
+    const struct Editor_SpawnRow* a,
+    const struct Editor_SpawnRow* b);
+
+/** The SPAWN document key ("m<x>_<z>") of the square holding the row. */
+void
+Editor_SpawnRowDocKey(
+    const struct Editor_SpawnRow* row,
+    char out[EDITOR_DOC_KEY_MAX]);
+
+/**
+ * A SPAWN_EDIT command on `doc_key`: `before` becomes `after` in place.
+ * `file` (may be NULL: a controller with no document) supplies the old
+ * line's exact bytes for a byte-exact undo.
+ */
+void
+Editor_SpawnEditCommand(
+    struct Editor_Cmd* out,
+    const char* doc_key,
+    const struct Editor_SpawnRow* before,
+    const struct Editor_SpawnRow* after,
+    const struct Editor_SpawnFile* file);
+
+/** Apply a SPAWN_EDIT to `file`, forward or (`inverse`) backward. Returns 1
+ *  when the file changed, 0 when the row to rewrite is not there or the
+ *  rows do not fit one section. */
+int
+Editor_SpawnApplyEdit(
+    struct Editor_SpawnFile* file,
+    const struct Editor_Cmd* command,
+    int inverse);
+
+/** A spawn as the Spawns panel lists it: a row and which file holds it. */
+struct Editor_SpawnEditSource
+{
+    struct Editor_SpawnRow row;
+    /** 1 the square's EDITED file holds the row (it may itself be a `-name`
+     *  suppression row); 0 the GENERATED file does (never written). */
+    int edited;
+    /** A generated row: the edited file suppresses it. */
+    int suppressed;
+};
+
+/**
+ * The commands that turn the listed spawn `source` into `want` (whose
+ * `suppress` is the form's Suppressed box), as one undo step:
+ *
+ *   edited row, same square and kind    one SPAWN_EDIT, in place
+ *   edited row, other square or kind    a delete of the old row and an add
+ *                                       of the new one (SPAWN /
+ *                                       SPAWN_SUPPRESS by each row's mark)
+ *   generated row, fields unchanged     the Suppressed box toggles the
+ *                                       suppression row (or nothing)
+ *   generated row, fields changed       the generated spawn is suppressed
+ *                                       (unless it already is) and an edited
+ *                                       row with the new fields is added,
+ *                                       live: a generated row cannot be
+ *                                       rewritten, its file is regenerated
+ *
+ * `edited` is the old row's edited document (NULL when it is not open; then
+ * an in-place edit carries no `before_text`). Returns the commands written
+ * (0 when nothing changes), or -1 when `want` is not a row the loader takes
+ * (empty or spaced name, negative tile, level outside 0..3, count < 1) or
+ * `max` is too small.
+ */
+int
+Editor_SpawnEditPlan(
+    const struct Editor_SpawnFile* edited,
+    const struct Editor_SpawnEditSource* source,
+    const struct Editor_SpawnRow* want,
+    struct Editor_Cmd* out,
+    int max);
+
+/** 1 when `row` is one the server's loader takes: a name with no spaces
+ *  (a pack symbol, or the `#<id>` escape with digits), tile >= 0, level
+ *  0..3, an obj count >= 1. */
+int
+Editor_SpawnRowValid(const struct Editor_SpawnRow* row);
 
 #endif

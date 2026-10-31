@@ -53,6 +53,8 @@
  * CFG_FIELD's key through Editor_CfgFieldSpecParse.
  */
 
+#include "editor_cmd.h"
+
 #include <stddef.h>
 
 enum Editor_CfgLineKind
@@ -362,5 +364,202 @@ Editor_CfgKeySplit(
     size_t type_size,
     char* out_name,
     size_t name_size);
+
+/**
+ * OVERLAY KEYS. "<type>:<name>@<overlay>" addresses the record's `[name]`
+ * block in a SERVER OVERLAY file -- `<overlay>` is a path under
+ * server/scripts ending in `.<type>` ("npc:giantspider1@areas/lumbridge/
+ * configs/lumbridge.npc", "npc:giantspider1@_explicit/configs/
+ * server_fields.generated.npc") -- instead of in configs/all.<type>. The
+ * document is still just that block (a 10 MB generated overlay is never
+ * loaded whole), saved back over it with every other byte kept. A key with
+ * no '@' means configs/all.<type>, exactly as before.
+ *
+ * Editor_CfgKeyOverlay: the overlay path of a key, or NULL for an all.<type>
+ * key. Editor_CfgOverlayKey: the key for (type, name, overlay or NULL/"");
+ * 0 when it does not fit EDITOR_DOC_KEY_MAX (128).
+ */
+const char*
+Editor_CfgKeyOverlay(const char* key);
+
+int
+Editor_CfgOverlayKey(
+    char out[128],
+    const char* type,
+    const char* name,
+    const char* overlay);
+
+/* ---- a record across its layers (the record editor) ------------------------
+ *
+ * An npc's (loc's, obj's) fields are not one block. The pack the server reads
+ * is merged by cachepack (3rd/rscache/tools/cachepack/cp_merge.c
+ * cp_merge_rank_for; the server reads only that pack -- torirs_server_content.c
+ * walk_configs is the old text loader's sorted walk, kept for spawns):
+ *
+ *   rank 0   configs/all.<type>                    the cache half, every key
+ *   rank 1   a server/scripts file whose basename holds `.generated.`
+ *            (and an included lane's ported/<lane>/configs): generated
+ *   rank 2   every other `.<type>` file under server/scripts: authored
+ *
+ * A higher rank wins; within a rank the later file in sorted path order
+ * (cp_walk.c sorts the walk) wins. `param=<name>,<value>` lines merge PER
+ * PARAM NAME (cp_merge.c slot_for), so each param is its own field here.
+ *
+ * Editor_CfgRecord holds one block per layer (each a CFG document: the
+ * all.<type> key, or an overlay key "<type>:<name>@<overlay>"), resolves
+ * every field to the layer that WINS it, adds the field register's keys
+ * (fields/<type>.ini) the record states nowhere, and turns an edit into the
+ * CFG_BLOCK / CFG_FIELD commands that make it -- in the file that actually
+ * holds the value, or ("override in <layer>") in another layer.
+ */
+
+#define EDITOR_CFG_RECORD_LAYERS_MAX 16
+#define EDITOR_CFG_REGISTER_MAX 256
+
+/** One field of the register (fields/<type>.ini, every `[<type>.<key>]`
+ *  section merged). */
+struct Editor_CfgRegisterField
+{
+    char key[EDITOR_CMD_NAME_MAX];
+    /** "server" (the default) or "client". */
+    char scope[16];
+    /** `text = param`: spelled `param=<key>,<value>`. */
+    int text_param;
+    /** `text = indexed`: spelled `<key>1..N=` (patrol1, patrol2, ...). */
+    int text_indexed;
+    /** `values = a:0, b:1`, verbatim ("" when none). */
+    char values[EDITOR_CMD_VALUE_MAX];
+};
+
+/** Parse a field register for `type` ("npc"): every `[<type>.<key>]`
+ *  section, merged by key in first-seen order. Returns the field count
+ *  (at most `max`). */
+int
+Editor_CfgRegisterParse(
+    const char* type,
+    const char* text,
+    size_t length,
+    struct Editor_CfgRegisterField* out,
+    int max);
+
+struct Editor_CfgRecordLayer
+{
+    /** The CFG document key: "npc:x" or "npc:x@<overlay>". */
+    char doc_key[EDITOR_DOC_KEY_MAX];
+    /** "configs/all.npc" or the overlay path under server/scripts. */
+    char label[EDITOR_DOC_KEY_MAX];
+    /** 0, 1 or 2 (above). */
+    int rank;
+    /** The layer holds a `[name]` block. */
+    int present;
+    struct Editor_CfgBlock block;
+};
+
+struct Editor_CfgRecordRow
+{
+    /** The line key ("respawnrate", "param", "patrol2"). */
+    char key[EDITOR_CMD_NAME_MAX];
+    /** A param's name ("huntrange"), else "". */
+    char sub[EDITOR_CMD_NAME_MAX];
+    /** Which statement of a key a layer repeats (a list key), 0 mostly. */
+    int occurrence;
+    /** The winning value, without a param's "<name>," and without a
+     *  trailing `// comment`. */
+    char value[EDITOR_CMD_VALUE_MAX];
+    /** The layer that wins it, -1 when no layer states it. */
+    int layer;
+    /** Other layers stating it (beneath the winner). */
+    int shadowed;
+    /** From the register: its scope ("" when the register has no row). */
+    char scope[16];
+};
+
+struct Editor_CfgRecord
+{
+    char type[32];
+    char name[EDITOR_CMD_NAME_MAX];
+    struct Editor_CfgRecordLayer layers[EDITOR_CFG_RECORD_LAYERS_MAX];
+    int layer_count;
+    /** Owned. */
+    struct Editor_CfgRecordRow* rows;
+    int row_count;
+    int row_capacity;
+};
+
+void
+Editor_CfgRecordInit(
+    struct Editor_CfgRecord* record,
+    const char* type,
+    const char* name);
+
+/** NULL-tolerant. */
+void
+Editor_CfgRecordFree(struct Editor_CfgRecord* record);
+
+/** The rank of a layer: NULL / "" (configs/all.<type>) 0, a `.generated.`
+ *  basename or a ported lane 1, else 2. */
+int
+Editor_CfgLayerRank(const char* overlay);
+
+/**
+ * Add a layer: `overlay` NULL for configs/all.<type>, else the path under
+ * server/scripts; `text` its CFG document's text (the block, or empty when
+ * the file has no block for the record yet). Layers are kept in merge order
+ * (rank, then path), so an index can move when a layer is added; find one
+ * again by doc_key. Returns 1, 0 when full or the key does not fit.
+ */
+int
+Editor_CfgRecordAddLayer(
+    struct Editor_CfgRecord* record,
+    const char* overlay,
+    const char* text,
+    size_t length);
+
+/** Index of the layer with `doc_key`, or -1. */
+int
+Editor_CfgRecordFindLayer(
+    const struct Editor_CfgRecord* record,
+    const char* doc_key);
+
+/** Rebuild the rows from the layers, plus every register field the record
+ *  states nowhere (`fields` may be NULL with count 0). */
+void
+Editor_CfgRecordResolve(
+    struct Editor_CfgRecord* record,
+    const struct Editor_CfgRegisterField* fields,
+    int field_count);
+
+/** The row for (key, sub, occurrence), or -1. */
+int
+Editor_CfgRecordFindRow(
+    const struct Editor_CfgRecord* record,
+    const char* key,
+    const char* sub,
+    int occurrence);
+
+/** Where a field nobody states is added: the highest-precedence layer that
+ *  holds the record's block (the one whose statement would win), else 0. */
+int
+Editor_CfgRecordAddLayerFor(const struct Editor_CfgRecord* record);
+
+/**
+ * The commands that set field (key, sub, occurrence) to `value` ("" removes
+ * it) in layer `layer` (-1: the layer that wins it now, or for a field no
+ * layer states, Editor_CfgRecordAddLayerFor). A layer with no block for the
+ * record gets a CFG_BLOCK add first. A value keeps the old line's trailing
+ * `// comment`. Returns the commands written, 0 when nothing changes, -1 when
+ * the edit cannot be expressed (a key or value the codec refuses, a layer
+ * out of range, `max` too small).
+ */
+int
+Editor_CfgRecordFieldCommands(
+    const struct Editor_CfgRecord* record,
+    const char* key,
+    const char* sub,
+    int occurrence,
+    const char* value,
+    int layer,
+    struct Editor_Cmd* out,
+    int max);
 
 #endif

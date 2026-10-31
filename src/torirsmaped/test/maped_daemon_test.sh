@@ -22,6 +22,12 @@
 #      on save; a second copy takes the next id; undo takes the whole copy
 #      back as one step; a taken name, a missing source and a non-config
 #      type are refused.
+#   8. spawn-edit / spawn-move / cfg-set through the daemon: a move rewrites
+#      one line of a hand-written .spawn in place (its comment kept), a kind
+#      change is a delete + add, undo + save puts the file back byte for
+#      byte, a row the file does not hold is refused; cfg-set edits a record
+#      block of configs/all.<type> and of a server overlay
+#      ("<type>:<name>@<overlay>") and save writes exactly that.
 #
 # Document facts (FACT_CMD/FACT_SAVED) are proven in test-torirsmaped-embed,
 # which has real mirror documents to apply them to; this script covers what
@@ -77,6 +83,15 @@ LONG_VALUE=$(printf 'x%.0s' $(seq 1 240))
     printf '[other_loc]\nname=Other\n'
 } > "$SCRATCH/configs/all.loc"
 printf '0=src_loc\n1=other_loc\n' > "$SCRATCH/configs/all.loc.compack"
+
+# A hand-written edited spawn file, an npc record and a server overlay for 8.
+mkdir -p "$SCRATCH/server/scripts/areas/edited/configs" "$SCRATCH/server/scripts/areas/t/configs"
+printf '// hand-written\n==== NPC ====\ngoblin   3205  3210 0   // keep me\nrat                                           3206  3211 0\n' \
+    > "$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn"
+cp "$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn" "$SCRATCH/m50_50.spawn.before"
+printf '[guard]\nname=Guard\n' > "$SCRATCH/configs/all.npc"
+printf '0=guard\n' > "$SCRATCH/configs/all.npc.compack"
+printf '// authored\n[guard]\nwanderrange=2\n\n[other]\nwanderrange=1\n' > "$SCRATCH/server/scripts/areas/t/configs/t.npc"
 printf '// Which loc entities have a client half.\n' > "$SCRATCH/pack/loc.client"
 
 # --repo-root '' disables baking: a test must never shell out to a cache build.
@@ -184,6 +199,55 @@ contains "$SCRATCH/copy_taken.log" "was refused" "copying onto a taken name is r
 contains "$SCRATCH/copy_absent.log" "was refused" "copying a record that is not there is refused"
 "$CTL" --port "$PORT" cfg-copy enum some_enum copy_enum > "$SCRATCH/copy_enum.log" 2>&1 || true
 contains "$SCRATCH/copy_enum.log" "was refused" "a non-loc/npc/obj type is refused"
+
+# 8. spawn-edit / spawn-move / cfg-set.
+SPAWN="$SCRATCH/server/scripts/areas/edited/configs/m50_50.spawn"
+"$CTL" --port "$PORT" spawn-move npc goblin 3205 3210 0 to 3207 3212 > "$SCRATCH/smove.log" 2>&1 || true
+contains "$SCRATCH/smove.log" "moved npc goblin 3205 3210 0 -> goblin 3207 3212 0 (1 command, one undo step)" \
+    "spawn-move is one SPAWN_EDIT"
+"$CTL" --port "$PORT" save > "$SCRATCH/smove_save.log" 2>&1 || true
+printf '// hand-written\n==== NPC ====\ngoblin                                        3207  3212 0   // keep me\nrat                                           3206  3211 0\n' \
+    > "$SCRATCH/m50_50.spawn.moved"
+if cmp -s "$SCRATCH/m50_50.spawn.moved" "$SPAWN"; then
+    check 1 "the save rewrites exactly the moved line, its comment kept"
+else
+    check 0 "the save rewrites exactly the moved line, its comment kept"
+    diff "$SCRATCH/m50_50.spawn.moved" "$SPAWN" | head -10
+fi
+"$CTL" --port "$PORT" spawn-edit npc rat 3206 3211 0 to obj rat 3206 3211 0 5 > "$SCRATCH/skind.log" 2>&1 || true
+contains "$SCRATCH/skind.log" "(2 commands, one undo step)" "npc -> obj is a delete and an add"
+"$CTL" --port "$PORT" undo > "$SCRATCH/skind_undo.log" 2>&1 || true
+contains "$SCRATCH/skind_undo.log" "undo 2 command(s)" "one undo takes both back"
+"$CTL" --port "$PORT" undo > "$SCRATCH/smove_undo.log" 2>&1 || true
+contains "$SCRATCH/smove_undo.log" "undo 1 command(s)" "undo the move"
+"$CTL" --port "$PORT" save > "$SCRATCH/smove_save2.log" 2>&1 || true
+if cmp -s "$SCRATCH/m50_50.spawn.before" "$SPAWN"; then
+    check 1 "after undo + save the hand-spaced spawn file is byte-identical"
+else
+    check 0 "after undo + save the hand-spaced spawn file is byte-identical"
+    diff "$SCRATCH/m50_50.spawn.before" "$SPAWN" | head -10
+fi
+if "$CTL" --port "$PORT" spawn-move npc nobody 3205 3210 0 to 3200 3200 > "$SCRATCH/snone.log" 2>&1; then
+    check 0 "moving a row the file does not hold fails"
+else
+    check 1 "moving a row the file does not hold fails"
+fi
+contains "$SCRATCH/snone.log" "was refused" "and says the authority refused it"
+"$CTL" --port "$PORT" cfg-set npc:guard@areas/t/configs/t.npc wanderrange 6 > "$SCRATCH/cfgset.log" 2>&1 || true
+contains "$SCRATCH/cfgset.log" "wanderrange: '2' -> '6'" "cfg-set edits the overlay block"
+"$CTL" --port "$PORT" cfg-set npc:guard op1 Talk-to > "$SCRATCH/cfgset2.log" 2>&1 || true
+contains "$SCRATCH/cfgset2.log" "op1: '' -> 'Talk-to'" "cfg-set adds a field to the all.npc block"
+"$CTL" --port "$PORT" save > "$SCRATCH/cfgset_save.log" 2>&1 || true
+contains "$SCRATCH/cfgset_save.log" "npc:guard@areas/t/configs/t.npc" "save names the overlay key"
+check "$( [ "$(cat "$SCRATCH/server/scripts/areas/t/configs/t.npc")" = "$(printf '// authored\n[guard]\nwanderrange=6\n\n[other]\nwanderrange=1')" ] && echo 1 )" \
+    "the overlay file changes in [guard] only"
+check "$( [ "$(cat "$SCRATCH/configs/all.npc")" = "$(printf '[guard]\nname=Guard\nop1=Talk-to')" ] && echo 1 )" \
+    "configs/all.npc gains op1"
+if "$CTL" --port "$PORT" cfg-set 'npc:guard@../t.npc' wanderrange 1 > "$SCRATCH/cfgbad.log" 2>&1; then
+    check 0 "an overlay key with .. is refused"
+else
+    check 1 "an overlay key with .. is refused"
+fi
 
 # 6. The browser's route in: the same daemon, upgraded, framed. Skipped
 # rather than failed when python3 is absent — the probe needs a WebSocket

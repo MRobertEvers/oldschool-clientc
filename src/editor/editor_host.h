@@ -186,8 +186,9 @@ struct EditorHost_VTable
      *           its storage ("ported/<lane>/maps/m16_101").
      *   SPAWN   part 0, the edited `.spawn`.
      *   CFG     part 0, the `[name]` block's text out of `configs/all.<type>`
-     *           (from its header to the next header; ABSENT when the record
-     *           does not exist).
+     *           -- or, for an overlay key "<type>:<name>@<overlay>", out of
+     *           `server/scripts/<overlay>` (editor_cfg.h) -- from its header
+     *           to the next header; ABSENT when the record does not exist.
      *   IFACE   part 0, `interfaces/<name>.if`.
      *   TEXT    part 0, the script.
      *
@@ -205,7 +206,8 @@ struct EditorHost_VTable
      * Write one part of a document, atomically, creating directories the
      * path needs. NULL text deletes the file (a CFG record: removes the
      * block). A CFG save replaces the record's block in `configs/all.<type>`
-     * (appends it when new) and leaves every other byte alone. Local binding
+     * (or the overlay file an "@<overlay>" key names; appends it when new)
+     * and leaves every other byte alone. Local binding
      * only: the remote one answers UNSUPPORTED, because a client never writes
      * — the authority saves its own documents (Editor_HostMapEdSave).
      */

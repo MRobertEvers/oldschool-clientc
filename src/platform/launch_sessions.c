@@ -687,6 +687,7 @@ static char const* const g_stripped_keys[] = {
     "TORIRS_CONTENT_TEST",
     "TORIRS_PLUGIN_PREFS",
     "TORIRS_PREFS",
+    "TORIRS_EDITOR_LAYOUT",
     "TORIRSSERVER_SAVES",
     "SDL_VIDEODRIVER",
     "SDL_AUDIODRIVER",
@@ -858,6 +859,7 @@ member_environment(
     ToriMem_Free(ToriMem_Net(), prefs.data);
     /* Never the owner's preferences.ini: empty is "do not touch the file". */
     environment_set(environment, "TORIRS_PREFS", "");
+    environment_set(environment, "TORIRS_EDITOR_LAYOUT", "");
     environment_set(environment, "TORIRS_STDERR_UNBUFFERED", "1");
     environment_set(environment, "TORIRS_DRIVE_ON_DEMAND", "1");
     if( request->autoplay )
@@ -1512,8 +1514,10 @@ view_environment(struct LaunchSessions const* table, struct LaunchEnvironment* e
     for( int i = 0; base && base[i]; i++ )
         if( strchr(base[i], '=') && !key_is_stripped(base[i]) )
             environment_put(environment, base[i]);
-    /* Never the owner's preferences.ini from a second process at once. */
+    /* Never the owner's preferences.ini (nor the editor's layout) from a
+     * second process at once. */
     environment_set(environment, "TORIRS_PREFS", "");
+    environment_set(environment, "TORIRS_EDITOR_LAYOUT", "");
     environment_set(environment, "TORIRS_STDERR_UNBUFFERED", "1");
 }
 

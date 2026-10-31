@@ -28,7 +28,39 @@ The manifest's `[editor:boot] server=embed` runs ToriRSMapEd inside the
 process over `content_dir`. The panel set (menu bar, tool rail, terrain,
 palettes, square picker, New, locs, spawns, inspector, catalog, console,
 builders, interface and CS2 tools, Live) is in the same window; the View menu
-opens the hidden ones.
+opens the hidden ones. The 3D view is itself a panel, **World**: View > World
+hides or shows it, its title bar moves it and its grip resizes it like any
+other panel.
+
+**Environment the editor client reads** (beside the manifest):
+
+- `TORIRS_EDITOR_LAYOUT` -- where the dock layout is saved (below). Unset:
+  `editor_layout.ini` in the working directory (IndexedDB on the web);
+  empty: no layout is read or written (what every headless harness sets);
+  else that path. Same rule as `TORIRS_PREFS` for `preferences.ini`.
+- `TORIRS_PREFS`, `TORIRS_PLUGINS=0` (photographs and checks run with plugins
+  off), `TORIRS_PRESENT_BMP` + `TORIRS_PRESENT_BMP_FRAME` (write one frame as a
+  BMP: the photograph recipe, never a desktop screenshot),
+  `TORIRS_EDITOR_HOVER` (park the hover, src/app/app_map_editor.c),
+  `TORIRSMAPED_LIVE_DIR` (the live lane, below).
+
+**The saved layout.** Every panel's box, whether it is open, whether the user
+placed it, and View > Snap to grid persist across launches in
+`editor_layout.ini` (format and policy: src/editor/editor_layout.h). It is
+read at boot through the App's task queue (the default layout waits for it,
+so nothing flashes at its default place first) and written a few frames
+after any change settles -- a drag or resize released, a View toggle, Reset
+layout, Snap to grid, a window resize -- and once after boot. Both trips are
+`ToriRS_IO_QueueFileRead`/`QueueFileWrite` items (src/editor/
+task_editor_layout_io.c): on the desktop platform_x_io.c reads/writes the
+file; on the web platform_web_io.js hands the same items to
+`host.readClientFile`/`host.writeClientFile` (src/web/torirs_hostio.js),
+which keep it in IndexedDB. A file made for the same surface and scale puts
+every panel back exactly; on another surface only the panels the user placed
+keep their boxes (pulled back onto the surface if it shrank) and the rest are
+laid out for the new surface. View > Reset layout returns to the default (not
+to the file) and saves that. To move a panel by hand, set `user_placed = 1`
+and its `x/y/w/h` (chrome pixels at scale 1) in the file.
 
 **Native, against the daemon** (several windows on one tree):
 
@@ -41,7 +73,28 @@ then boot the client with `server=tcp` in `[editor:boot]` (host/port default
 localhost:43610). `torirsmapedctl` drives the same daemon headless: `status`,
 `squares`, `open`, `doc`, `new`, `select`, `undo`/`redo`, `save`, and since
 phase 4 `text-replace`, `tile-height`, `live-attach`, `live-detach`,
-`live-cheat`, `build packs|client`, `run`.
+`live-cheat`, `build packs|client`, `run`, and for spawns and records:
+
+    torirsmapedctl spawn-edit [gen:]<kind> <name> <x> <z> <level> [count] to <kind> <name> <x> <z> <level> [count]
+    torirsmapedctl spawn-move [gen:]<kind> <name> <x> <z> <level> [count] to <x> <z> [level]
+    torirsmapedctl cfg-set <type>:<name>[@<overlay>] <key[#n][@line]> <value|->
+
+A spawn row is `<kind> <name> <x> <z> <level> [count]`: kind `npc`/`obj`
+(`-npc`/`-obj` for a suppression row), the name a pack symbol or `#<id>`,
+ABSOLUTE tiles, a count for an obj only. Same square and kind is one
+SPAWN_EDIT in place; anything else a delete and an add; one undo step either
+way. `gen:` edits a row of the GENERATED file (areas/world): it is suppressed
+and the new row added to the edited file. `cfg-set` is one CFG_FIELD on a
+record block (`-` removes the field).
+
+CFG keys: `<type>:<name>` is the `[name]` block of `configs/all.<type>`;
+`<type>:<name>@<overlay>` is that block in a SERVER OVERLAY, `<overlay>` a
+path under `server/scripts` ending `.<type>`
+(`npc:giantspider1@areas/lumbridge/configs/lumbridge.npc`,
+`npc:giantspider1@_explicit/configs/server_fields.generated.npc`). Either is
+block-scoped (the 10 MB generated overlay is never loaded whole) and saved
+back over its block with every other byte kept. `fields:<type>.ini` is the
+read-only TEXT document of a type's field register.
 
 **Viewer window** (a second camera on the same session):
 
@@ -87,24 +140,25 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 |---|---|---|---|
 | 1 | What exists, and the verdict | ToriRSMapEd kept as the authority; documents generalised | — |
 | 2 | Architecture | authority + mirrors + facts + group state; EditorHost, BuildRunner and LiveLink vtables; embed, tcp and ws transports | browser host binding for the content tree (IndexedDB / io_server `/boot/`) |
-| 3 | Documents and commands | kind-keyed documents (square, spawn, cfg, iface, text); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE; v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
+| 3 | Documents and commands | kind-keyed documents (square, spawn, cfg incl. server-overlay blocks `<type>:<name>@<overlay>`, iface, text incl. `fields:<type>.ini`); Editor_Cmd per brief §2 with TILE, LOC, SPAWN, SPAWN_SUPPRESS, CFG_FIELD, CFG_BLOCK, IF_FIELD, IF_COMPONENT, TEXT_SPLICE, and SPAWN_EDIT (kind 9: one row rewritten in place, wire `before row, after row, string before_text`, a row being `u32 is_obj, u32 suppress, string name, u32 x, u32 z, u32 level, u32 count`); v2 wire encoding; undo stack grows on demand | DOC_DELETE; DOC_CLOSE unloading; SAVE_AS (reserved, UNSUPPORTED) |
 | 4 | The editing World | WorldBuilderOps with STATIC (pure refactor) and EDIT (resident build maps, placement handles, tile-local flush); `[world:boot] layout=`; per-tile derive | local flush gaps (occluders, minimap icons, LINK_BELOW rebakes); ghost under EDIT still uses runtime loc changes |
 | 5 | Windows, views, cameras | viewer windows as processes (`--editor-view`), STATE_CAMERA publish/follow, SPAWN_VIEW, web viewer tab | layer toggles not read by the painter; embedded editor cannot spawn views; viewer not yet exercised against a daemon in an open window |
 | 6 | Server state and protocol | protocol v2, HELLO capabilities, frame/state-key reservations, group state relay | — |
-| 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering | DOM multi-panel dock layout; layout not persisted between runs (no editor prefs store) |
-| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD; mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
+| 7 | Chrome | TREE, VLIST, TOOLBAR, SLIDER (settings-bar track 2852/2855/2857, gem knob 2858, label column <= 30%), RADIO, MODAL, TOOLTIP, CODE, GRAPH, splitter docking; grid snap on drag/resize release (`ToriRSChrome_SetSnap`, 8 px at 1x, 16 at 2x, edge snap within one cell); 28 baked skin slots; DOM rendering; hollow panels (`ToriRSChrome_PanelSetHollow`: title bar, rails and grip drawn and hit, the body neither painted nor hit, `ToriRSChrome_PanelBodyRect`); the dock layout persisted per device in `editor_layout.ini` (`TORIRS_EDITOR_LAYOUT`; codec src/editor/editor_layout.c, IO tasks src/editor/task_editor_layout_io.c, debounce `app_map_editor_layout_tick`; desktop file / web IndexedDB through host.readClientFile/writeClientFile) | DOM multi-panel dock layout; a drag still in progress at quit is not saved |
+| 7b | World panel | the 3D view is the registry module "world" (editor_ui.c `ui_world_register`, first chrome panel so it draws under the rest): titled, resizable, hollow; in the View menu; the default layout docks it over exactly the region the old world rect was; `Editor_UiWorldRect` is its body; the App cuts the world widget to it through the reference letterbox (`App_MapEditorWorldLetterbox` answers UITREE_HOST_GET_WORLD_LETTERBOX: the 3D pass draws in the body, the rest of the widget box is the black band) and restates `world_emit_desc` (`App_MapEditorWorldView`), so the paint, picks, hover, brush footprint, ghosts and selection marks all follow it; hidden World = no world drawn or picked; part of the saved layout; viewer windows (panels hidden) keep the whole frame | the box origin of the world widget is taken from last frame's desc (the letterbox request carries only its size); the panel has no maximise / dock-to-edge gesture |
+| 8 | Asset catalog | server-side index of packs, allocs, compacks, config blocks, overlays, interfaces, cs2/rs2 headers, spawns, maps; CATALOG_QUERY/RECORD (a record's fields in the pack's merge order: all.<type>, `.generated.` overlays, authored overlays, path order within a rank); mtime refresh; the Catalog panel queries it (every kind, settled find, paged list, record view, Edit record..., Copy to new; edpanel_catalog_model.c) | first build blocks the server pump (~1 s warm, ~6 s cold) |
 | 9 | Terrain tools | brushes with radius/falloff/step, palettes with shape thumbnails, flags, level radio, rectangle select/copy/paste/fill/clear; brush footprint under the pointer (`Editor_Terrain_BrushFootprint`, same weights as the stroke, falloff shown as wash intensity, follows a drag; >121 tiles as nested washes) | — |
 | 9b | Square picker and New square | atlas (storages, world-map areas incl. Unmapped instance regions, colour, spawns, flags), picker GRAPH with area tabs, zoom, hover, search, open/shift-open/right-click; New modal (coordinates, storage maps/ or a lane with lane creation, template empty/copy/flat) -> DOC_CREATE | picker Delete only clears the square (no DOC_DELETE); tab strip unreadable with ~50 areas; a NEW square has no `pack/5_maps.pack` line, so BUILD client cache cannot import it yet |
-| 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate [D]; translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination | spawn move has no command to preview; arrow nudges commit per press (no preview) |
+| 10 | Placement tools | loc multi-select, nudge (cross-border as one undo), rotate, reshape, duplicate; spawn place/delete/suppress, spawn multi-select and Duplicate [D]; translucent npc/obj placement ghost with footprint (`map_editor_ghost.c` spawn ghost, Place click writes the spawn row via `Editor_Locs_PlaceSpawn`); Move tool outlines every selected loc's destination; **spawn edit form** (Spawns > Edit tab: kind, name -- pack symbol, `#<id>`, or a display name the catalog resolves, refused when unknown -- abs X/Z, level, count, Suppressed; Apply = one undo step "edit spawn"/"move spawn" via `Editor_SpawnEditPlan`: SPAWN_EDIT in place, delete+add across a square or kind, suppress+add for a generated row; a multi-selection takes each changed field, X/Z/Level as an offset); **spawn move** typed or "Move: click a tile" (the next world click, `editor_panel.c`), the destination footprint and wander square previewed under the pointer; **wander preview** ("Show wander range", default on: each selected npc's wanderrange square filled and maxrange leash outlined on its level, also around the npc spawn ghost; values from the Record panel when it holds the npc, else the catalog's merged record, else 5/7; `MapEditorWander_Rects`, drawn in `app_overlay.c`); orphan `-name` rows listed and editable; ctl `spawn-edit`/`spawn-move` | arrow nudges commit per press (no preview); the move preview is footprint + wander square, not a translucent npc model; a delete+add edit's undo re-adds the row at its section's end |
 | 11 | Loc interaction builder | `.interaction` model, loc emitter (oploc/oplocu/aploc), step templates, sscompile Check | Check runs synchronously on the UI thread |
-| 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
+| 12 | NPC interaction and dialogue builder | npc emitter, dialogue graph to nested if/else, multiloc/multinpc shell editor; **Record panel** (Catalog > Edit record..., Spawns > Edit npc record...): one loc/npc/obj record over every file that states it -- `configs/all.<type>` and each server overlay the catalog lists, as block-scoped CFG documents -- every field resolved to the layer that wins it (rank 0/1/2, path order, `param=<name>,..` per name), plus every key of `fields/<type>.ini` the record states nowhere; Set field writes where the field is stated or "override in <layer>" (opening the block there with CFG_BLOCK if needed), Remove field shows the layer beneath; one undo step "edit record"; `editor_cfg.h` Editor_CfgRecord; ctl `cfg-set` | STATE_VAR_PREVIEW not honoured by the world's multiloc resolve |
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
 | 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` | client cache eviction beyond interface packs; player list and position in the control protocol; Restart offer; stale list (always 0) |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
 | 3b | History panel | `Editor_History` (editor_cmd.c) rebuilt from the FACT_CMD stream + own undo/redo; rows newest first with names ("Raise 21 tiles m50_50 L0", "New square m1_1 (copy of m50_50)"), undone prefix, current marker, filter by key, click-to-jump; rebuilds only on serial change | a late-joining window lists only steps since it connected; another window's long drag may show as several rows until an undo re-cuts them |
-| 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
+| 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height, the World panel docked over what is left; a saved layout (`editor_layout.ini`) applied before the first pass; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
 | 18–19 | Build order, risks | phases 0–5 done in order | see open issues |
 
 ## The live lane end to end (phase 4)
@@ -167,6 +221,16 @@ Every issue the phase reports left open, by area, with where to start.
   src/torirsmaped/torirs_maped.c:909 `handle_doc_close`.
 - No DOC_DELETE; the picker's Delete clears the square instead:
   src/editor/panels/edpanel_squares.c:845.
+- npc_stats/*.stats, npc_combat/*.combat and npc_movement/*.move are not
+  record layers in the Record panel (the catalog lists the first two as
+  sources; the panel edits `configs/all.<type>` and `server/scripts` overlays
+  only): src/editor/panels/edpanel_catalog.c `Editor_Record_Open`.
+- The Record panel finds overlays through the catalog (the record's
+  sources); without a catalog only `configs/all.<type>` is edited, and an
+  overlay that does not state the record yet is not offered (override goes
+  into the layers listed).
+- The wander preview's catalog values are the SAVED files'; an unsaved edit
+  shows only while the Record panel holds that npc.
 - SAVE_AS copies only loc / npc / obj records, and only their cache block
   (configs/all.<type>): server overlay fields are not copied, and the copy
   is written into configs/all.<type>, not a server overlay file. Other kinds
@@ -201,6 +265,20 @@ Every issue the phase reports left open, by area, with where to start.
 - The viewer window and Open in new view have not been run against a daemon
   in an open window (only in tests and headless boots).
 - The DOM chrome has no multi-panel dock layout: src/plugin_chrome/runtime-source.js.
+- The saved layout is written a few frames after a change settles and once
+  more at shutdown (`app_map_editor_layout_flush`, run by hand on its own IO
+  batch from App_Shutdown before Editor_PanelFree, like app_prefs_flush); a
+  drag still in progress at quit is not written. Viewer windows the daemon
+  spawns go through the launch service's `view_environment`, which sets
+  `TORIRS_EDITOR_LAYOUT=` like the party seats, so they never read or write
+  the device's layout file.
+- World overlays: everything that marks the world (brush footprint, spawn and
+  loc ghosts, selection, hover; src/app/app_overlay.c and
+  src/editor/map_editor_ghost.c) projects through `app->world_emit_desc`
+  (src/app/app_world_project.c), which `App_MapEditorWorldView` sets to the
+  World panel's body each frame -- a new overlay that projects the same way
+  follows the panel with no extra code; one that draws in screen space must
+  clip to `Editor_UiWorldRect`.
 - (closed in phase 5) the picker's tab strip is gone (the Area dropdown picks
   the area) and the default layout no longer overlaps; the atlas re-fits to the
   panel until the user zooms or pans. Still open: the viewer window's toolbar

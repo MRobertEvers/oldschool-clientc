@@ -162,6 +162,36 @@ ToriRSMapEd_CmdDecodeV1(
 /* v2: kind-tagged, variable                                           */
 /* ------------------------------------------------------------------ */
 
+/* A SPAWN_EDIT row: u32 is_obj, u32 suppress, string name, u32 abs_x,
+ * u32 abs_z, u32 level, u32 count. */
+static void
+encode_spawn_row(
+    struct ToriRSMapEdBuf* out,
+    const struct Editor_CmdSpawnRow* row)
+{
+    ToriRSMapEd_PutU32(out, (uint32_t)row->is_obj);
+    ToriRSMapEd_PutU32(out, (uint32_t)row->suppress);
+    ToriRSMapEd_PutString(out, row->name);
+    ToriRSMapEd_PutU32(out, (uint32_t)row->abs_x);
+    ToriRSMapEd_PutU32(out, (uint32_t)row->abs_z);
+    ToriRSMapEd_PutU32(out, (uint32_t)row->level);
+    ToriRSMapEd_PutU32(out, (uint32_t)row->count);
+}
+
+static void
+decode_spawn_row(
+    struct ToriRSMapEdReader* reader,
+    struct Editor_CmdSpawnRow* row)
+{
+    row->is_obj = ToriRSMapEd_GetU32(reader) ? 1 : 0;
+    row->suppress = ToriRSMapEd_GetU32(reader) ? 1 : 0;
+    ToriRSMapEd_GetString(reader, row->name, sizeof(row->name));
+    row->abs_x = (int)ToriRSMapEd_GetU32(reader);
+    row->abs_z = (int)ToriRSMapEd_GetU32(reader);
+    row->level = (int)ToriRSMapEd_GetU32(reader);
+    row->count = (int)ToriRSMapEd_GetU32(reader);
+}
+
 static void
 encode_payload(
     const struct Editor_Cmd* command,
@@ -196,6 +226,12 @@ encode_payload(
         ToriRSMapEd_PutU32(out, (uint32_t)command->u.spawn.abs_z);
         ToriRSMapEd_PutU32(out, (uint32_t)command->u.spawn.level);
         ToriRSMapEd_PutU32(out, (uint32_t)command->u.spawn.count);
+        return;
+    case EDITOR_CMD_SPAWN_EDIT:
+        /* before row, after row, string before_text ("" = none) */
+        encode_spawn_row(out, &command->u.spawn_edit.before);
+        encode_spawn_row(out, &command->u.spawn_edit.after);
+        ToriRSMapEd_PutString(out, command->u.spawn_edit.before_text);
         return;
     case EDITOR_CMD_CFG_FIELD:
         ToriRSMapEd_PutString(out, command->u.cfg_field.key);
@@ -293,6 +329,12 @@ decode_payload(
         command->u.spawn.abs_z = (int)ToriRSMapEd_GetU32(&reader);
         command->u.spawn.level = (int)ToriRSMapEd_GetU32(&reader);
         command->u.spawn.count = (int)ToriRSMapEd_GetU32(&reader);
+        break;
+    case EDITOR_CMD_SPAWN_EDIT:
+        decode_spawn_row(&reader, &command->u.spawn_edit.before);
+        decode_spawn_row(&reader, &command->u.spawn_edit.after);
+        ToriRSMapEd_GetString(
+            &reader, command->u.spawn_edit.before_text, sizeof(command->u.spawn_edit.before_text));
         break;
     case EDITOR_CMD_CFG_FIELD:
         ToriRSMapEd_GetString(&reader, command->u.cfg_field.key, sizeof(command->u.cfg_field.key));

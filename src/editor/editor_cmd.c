@@ -160,8 +160,30 @@ apply_spawn(
         int index = Editor_SpawnFind(&handle.spawn->file, &row);
         if( index < 0 )
             return 0;
-        Editor_SpawnRemoveAt(&handle.spawn->file, index);
+        Editor_SpawnRemoveRow(&handle.spawn->file, index);
     }
+    handle.spawn->dirty = 1;
+    return 1;
+}
+
+/** SPAWN_EDIT: one row rewritten where it stands (editor_spawn.h). */
+static int
+apply_spawn_edit(
+    struct Editor_Doc* doc,
+    const struct Editor_Cmd* command,
+    enum Editor_CmdDirection direction)
+{
+    struct Editor_DocHandle handle;
+
+    assert(doc);
+    assert(command);
+
+    if( !command->has_before || !command->has_after )
+        return 0;
+    if( !Editor_DocFind(doc, EDITOR_DOC_SPAWN, command->doc_key, &handle) || !handle.spawn->loaded )
+        return 0;
+    if( !Editor_SpawnApplyEdit(&handle.spawn->file, command, direction == EDITOR_CMD_INVERSE) )
+        return 0;
     handle.spawn->dirty = 1;
     return 1;
 }
@@ -238,6 +260,8 @@ Editor_CmdApply(
     case EDITOR_CMD_SPAWN:
     case EDITOR_CMD_SPAWN_SUPPRESS:
         return apply_spawn(doc, command, direction);
+    case EDITOR_CMD_SPAWN_EDIT:
+        return apply_spawn_edit(doc, command, direction);
     case EDITOR_CMD_CFG_FIELD:
     case EDITOR_CMD_CFG_BLOCK:
         return Editor_CfgApply(doc, command, direction);
@@ -660,6 +684,22 @@ history_tally(
             *(is_suppress ? &group->suppress_removes : &group->spawn_removes) += 1;
         break;
     }
+    case EDITOR_CMD_SPAWN_EDIT:
+    {
+        const struct Editor_CmdSpawnRow* b = &command->u.spawn_edit.before;
+        const struct Editor_CmdSpawnRow* a = &command->u.spawn_edit.after;
+        if( group->name[0] == '\0' )
+        {
+            snprintf(group->name, sizeof(group->name), "%s", a->name);
+            group->spawn_is_obj = a->is_obj;
+            group->tile_x0 = a->abs_x;
+            group->tile_z0 = a->abs_z;
+        }
+        group->spawn_edits++;
+        if( b->abs_x != a->abs_x || b->abs_z != a->abs_z || b->level != a->level )
+            group->spawn_moves++;
+        break;
+    }
     case EDITOR_CMD_CFG_FIELD:
         if( group->field[0] == '\0' )
             snprintf(group->field, sizeof(group->field), "%s", command->u.cfg_field.key);
@@ -803,6 +843,8 @@ history_merge(
         into->loc_turns += g->loc_turns;
         into->spawn_adds += g->spawn_adds;
         into->spawn_removes += g->spawn_removes;
+        into->spawn_edits += g->spawn_edits;
+        into->spawn_moves += g->spawn_moves;
         into->suppress_adds += g->suppress_adds;
         into->suppress_removes += g->suppress_removes;
         into->block_adds += g->block_adds;
@@ -1115,6 +1157,18 @@ Editor_HistoryGroupName(
             snprintf(verb, sizeof(verb), "Edit spawns");
         if( n > 2 || group->suppress_adds + group->suppress_removes > 1 )
             snprintf(what, sizeof(what), "%d rows %s", n + group->suppress_adds + group->suppress_removes, doc);
+        else
+            snprintf(what, sizeof(what), "%s %s %d,%d", group->spawn_is_obj ? "obj" : "npc", group->name,
+                group->tile_x0, group->tile_z0);
+        break;
+    }
+    case EDITOR_CMD_SPAWN_EDIT:
+    {
+        int const n = group->spawn_edits;
+        snprintf(verb, sizeof(verb), "%s",
+            group->spawn_moves == n ? (n == 1 ? "Move spawn" : "Move spawns") : n == 1 ? "Edit spawn" : "Edit spawns");
+        if( n > 1 )
+            snprintf(what, sizeof(what), "%d rows %s", n, doc);
         else
             snprintf(what, sizeof(what), "%s %s %d,%d", group->spawn_is_obj ? "obj" : "npc", group->name,
                 group->tile_x0, group->tile_z0);

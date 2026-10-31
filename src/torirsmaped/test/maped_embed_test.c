@@ -839,6 +839,101 @@ main(
             "the mirror lost the suppression row");
         check(Editor_HostMapEdRedo(&a) == 1, "redo restores it");
         drain(&a, &ma);
+
+        /* SPAWN_EDIT: the row rewritten in place, relayed, undone exactly. */
+        {
+            struct Editor_Cmd edit;
+            struct Editor_Cmd decoded;
+            struct ToriRSMapEdBuf wire;
+            struct Editor_SpawnRow before;
+            struct Editor_SpawnRow after;
+            char emitted[512];
+
+            memset(&before, 0, sizeof(before));
+            snprintf(before.name, sizeof(before.name), "giantspider1");
+            before.abs_x = 3200;
+            before.abs_z = 3238;
+            before.count = 1;
+            after = before;
+            after.abs_x = 3201;
+            after.level = 1;
+            check(Editor_DocFind(ma.doc, EDITOR_DOC_SPAWN, "m50_50", &handle), "a's mirror holds the spawn doc");
+            Editor_SpawnEditCommand(&edit, "m50_50", &before, &after, &handle.spawn->file);
+            memset(&wire, 0, sizeof(wire));
+            ToriRSMapEd_CmdEncode(&edit, &wire);
+            check(ToriRSMapEd_CmdDecode(ToriRSMapEd_BufPeek(&wire), (uint32_t)ToriRSMapEd_BufAvailable(&wire), &decoded)
+                          == TORIRSMAPED_CMD_DECODE_OK
+                      && memcmp(&decoded.u.spawn_edit, &edit.u.spawn_edit, sizeof(edit.u.spawn_edit)) == 0
+                      && decoded.kind == EDITOR_CMD_SPAWN_EDIT && Editor_CmdHash(&decoded) == Editor_CmdHash(&edit),
+                "SPAWN_EDIT round-trips the wire (rows and the old line's bytes)");
+            ToriRSMapEd_BufFree(&wire);
+            check(Editor_HostMapEdCmd(&a, &edit) == EDITOR_HOST_OK, "SPAWN_EDIT is accepted");
+            check(Editor_HostMapEdCmd(&a, &edit) == EDITOR_HOST_REFUSED, "a second one finds no old row: refused");
+            drain(&a, &ma);
+            drain(&b, &mb);
+            check(Editor_DocFind(mb.doc, EDITOR_DOC_SPAWN, "m50_50", &handle)
+                      && Editor_SpawnFind(&handle.spawn->file, &after) == 1,
+                "the other Client's mirror has the row rewritten on its own line");
+            Editor_SpawnEmit(&handle.spawn->file, emitted, sizeof(emitted));
+            check(strcmp(emitted,
+                      "==== NPC ====\n"
+                      "giantspider1                                  3201  3238 1\n"
+                      "-goblin_unarmed_melee_4                       3202  3253 0\n")
+                      == 0,
+                "only that line changed");
+            check(Editor_HostMapEdUndo(&a) == 1, "undo takes the edit back");
+            drain(&a, &ma);
+            drain(&b, &mb);
+            Editor_DocFind(mb.doc, EDITOR_DOC_SPAWN, "m50_50", &handle);
+            Editor_SpawnEmit(&handle.spawn->file, emitted, sizeof(emitted));
+            check(strcmp(emitted, expect) == 0, "and the mirror emits the file as it was");
+        }
+    }
+
+    /* ---- an overlay record block: "<type>:<name>@<overlay>" ------------------ */
+
+    {
+        struct Editor_Cmd field;
+        struct Editor_DocHandle handle;
+        char const* overlay = "[a]\nx=1\n\n[b]\ny=2 // note\n\n[c]\nz=3\n";
+        FILE* f;
+
+        snprintf(path, sizeof(path), "%s/server/scripts/areas/t", scratch);
+        mkdir_p_or_die(path);
+        snprintf(path, sizeof(path), "%s/server/scripts/areas/t/configs", scratch);
+        mkdir_p_or_die(path);
+        snprintf(path, sizeof(path), "%s/server/scripts/areas/t/configs/t.npc", scratch);
+        f = fopen(path, "wb");
+        check(f != NULL, "write the overlay fixture");
+        if( f )
+        {
+            fputs(overlay, f);
+            fclose(f);
+        }
+        check(open_doc_into(&a, ma.doc, EDITOR_DOC_CFG, "npc:b@areas/t/configs/t.npc") == 1
+                  && Editor_DocFind(ma.doc, EDITOR_DOC_CFG, "npc:b@areas/t/configs/t.npc", &handle)
+                  && handle.text->length == strlen("[b]\ny=2 // note\n\n")
+                  && memcmp(handle.text->text, "[b]\ny=2 // note\n\n", handle.text->length) == 0,
+            "an overlay key opens just that block of the overlay file");
+        Editor_CmdInit(&field, EDITOR_DOC_CFG, "npc:b@areas/t/configs/t.npc", EDITOR_CMD_CFG_FIELD);
+        field.has_before = 1;
+        field.has_after = 1;
+        snprintf(field.u.cfg_field.key, sizeof(field.u.cfg_field.key), "y");
+        snprintf(field.u.cfg_field.before, sizeof(field.u.cfg_field.before), "2 // note");
+        snprintf(field.u.cfg_field.after, sizeof(field.u.cfg_field.after), "5 // note");
+        check(Editor_HostMapEdCmd(&a, &field) == EDITOR_HOST_OK, "a CFG_FIELD on the overlay block is accepted");
+        check(Editor_HostMapEdSave(&a, EDITOR_DOC_CFG, "npc:b@areas/t/configs/t.npc") == 1, "SAVE writes it");
+        drain(&a, &ma);
+        disk = slurp(path, &disk_size);
+        check(disk && strcmp(disk, "[a]\nx=1\n\n[b]\ny=5 // note\n\n[c]\nz=3\n") == 0,
+            "the overlay file changed in that block only");
+        free(disk);
+        check(open_doc_into(&a, ma.doc, EDITOR_DOC_CFG, "npc:b@../t.npc") == 0, "an overlay path with .. is refused");
+        check(Editor_HostMapEdSaveAs(&a, EDITOR_DOC_CFG, "npc:b@areas/t/configs/t.npc", "npc:b2", NULL)
+                  == EDITOR_HOST_UNSUPPORTED,
+            "SAVE_AS of an overlay block is unsupported");
+        check(Editor_HostMapEdUndo(&a) == 1, "undo the overlay edit");
+        drain(&a, &ma);
     }
 
     /* ---- a script document: TEXT_SPLICE ----------------------------------- */

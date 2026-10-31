@@ -392,3 +392,324 @@ Editor_SpawnRowCount(const struct Editor_SpawnFile* file)
     }
     return count;
 }
+
+/* ---- editing a row in place -------------------------------------------------- */
+
+int
+Editor_SpawnRowsEqual(
+    const struct Editor_SpawnRow* a,
+    const struct Editor_SpawnRow* b)
+{
+    assert(a);
+    assert(b);
+    return rows_equal(a, b);
+}
+
+void
+Editor_SpawnRowToCmd(
+    const struct Editor_SpawnRow* row,
+    struct Editor_CmdSpawnRow* out)
+{
+    assert(row);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->is_obj = row->is_obj ? 1 : 0;
+    out->suppress = row->suppress ? 1 : 0;
+    snprintf(out->name, sizeof(out->name), "%s", row->name);
+    out->abs_x = row->abs_x;
+    out->abs_z = row->abs_z;
+    out->level = row->level;
+    out->count = row->is_obj ? (row->count < 1 ? 1 : row->count) : 1;
+}
+
+void
+Editor_SpawnRowFromCmd(
+    const struct Editor_CmdSpawnRow* row,
+    struct Editor_SpawnRow* out)
+{
+    assert(row);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->is_obj = row->is_obj ? 1 : 0;
+    out->suppress = row->suppress ? 1 : 0;
+    snprintf(out->name, sizeof(out->name), "%s", row->name);
+    out->abs_x = row->abs_x;
+    out->abs_z = row->abs_z;
+    out->level = row->level;
+    out->count = row->count < 1 ? 1 : row->count;
+}
+
+void
+Editor_SpawnRowDocKey(
+    const struct Editor_SpawnRow* row,
+    char out[EDITOR_DOC_KEY_MAX])
+{
+    assert(row);
+    assert(out);
+    assert(row->abs_x >= 0);
+    assert(row->abs_z >= 0);
+    Editor_SquareKey(out, row->abs_x / EDITOR_SQUARE_X, row->abs_z / EDITOR_SQUARE_Z);
+}
+
+int
+Editor_SpawnRowValid(const struct Editor_SpawnRow* row)
+{
+    assert(row);
+
+    if( row->name[0] == '\0' || strlen(row->name) >= sizeof(row->name) )
+        return 0;
+    for( const char* c = row->name; *c; c++ )
+        if( (unsigned char)*c <= ' ' || *c == '/' )
+            return 0;
+    if( row->name[0] == '-' )
+        return 0;
+    if( row->name[0] == '#' )
+    {
+        if( row->name[1] == '\0' )
+            return 0;
+        for( const char* c = row->name + 1; *c; c++ )
+            if( *c < '0' || *c > '9' )
+                return 0;
+    }
+    if( row->abs_x < 0 || row->abs_z < 0 || row->level < 0 || row->level > 3 )
+        return 0;
+    if( row->is_obj && row->count < 1 )
+        return 0;
+    return 1;
+}
+
+/** The trailing `//` comment of a line, with the whitespace before it, or "". */
+static const char*
+line_comment(const char* text)
+{
+    const char* comment = strstr(text, "//");
+    if( !comment )
+        return "";
+    while( comment > text && (comment[-1] == ' ' || comment[-1] == '\t') )
+        comment--;
+    return comment;
+}
+
+int
+Editor_SpawnReplaceAt(
+    struct Editor_SpawnFile* file,
+    int index,
+    const struct Editor_SpawnRow* row,
+    const char* text)
+{
+    struct Editor_SpawnLine* line;
+    struct Editor_SpawnLine probe;
+    enum Editor_SpawnSection section;
+    char formatted[EDITOR_CMD_VALUE_MAX + 160];
+
+    assert(file);
+    assert(row);
+    assert(index >= 0);
+    assert(index < file->line_count);
+
+    line = &file->lines[index];
+    if( line->kind != EDITOR_SPAWN_LINE_ROW )
+        return 0;
+    if( (row->is_obj ? EDITOR_SPAWN_SECTION_OBJ : EDITOR_SPAWN_SECTION_NPC) != line->section )
+        return 0;
+
+    if( text )
+        snprintf(formatted, sizeof(formatted), "%s", text);
+    else
+    {
+        int length = Editor_SpawnFormatRow(row, formatted, sizeof(formatted));
+        if( length < 0 || (size_t)length >= sizeof(formatted) )
+            return 0;
+        snprintf(formatted + length, sizeof(formatted) - (size_t)length, "%s", line_comment(line->text));
+    }
+
+    /* What gets written must read back as the row the command names. */
+    memset(&probe, 0, sizeof(probe));
+    section = line->section;
+    if( !classify_line(&probe, formatted, &section) || probe.kind != EDITOR_SPAWN_LINE_ROW
+        || !rows_equal(&probe.row, row) )
+        return 0;
+
+    ToriMem_Free(ToriMem_Editor(), line->text);
+    line->text = copy_text(formatted, strlen(formatted));
+    line->row = probe.row;
+    return 1;
+}
+
+void
+Editor_SpawnEditCommand(
+    struct Editor_Cmd* out,
+    const char* doc_key,
+    const struct Editor_SpawnRow* before,
+    const struct Editor_SpawnRow* after,
+    const struct Editor_SpawnFile* file)
+{
+    assert(out);
+    assert(doc_key);
+    assert(before);
+    assert(after);
+
+    Editor_CmdInit(out, EDITOR_DOC_SPAWN, doc_key, EDITOR_CMD_SPAWN_EDIT);
+    out->has_before = 1;
+    out->has_after = 1;
+    Editor_SpawnRowToCmd(before, &out->u.spawn_edit.before);
+    Editor_SpawnRowToCmd(after, &out->u.spawn_edit.after);
+    if( file )
+    {
+        int const index = Editor_SpawnFind(file, before);
+        if( index >= 0 && strlen(file->lines[index].text) < sizeof(out->u.spawn_edit.before_text) )
+            snprintf(out->u.spawn_edit.before_text, sizeof(out->u.spawn_edit.before_text), "%s",
+                file->lines[index].text);
+    }
+}
+
+int
+Editor_SpawnApplyEdit(
+    struct Editor_SpawnFile* file,
+    const struct Editor_Cmd* command,
+    int inverse)
+{
+    struct Editor_SpawnRow before;
+    struct Editor_SpawnRow after;
+    const struct Editor_SpawnRow* from;
+    const struct Editor_SpawnRow* to;
+    const char* text = NULL;
+    int index;
+
+    assert(file);
+    assert(command);
+    assert(command->kind == EDITOR_CMD_SPAWN_EDIT);
+
+    Editor_SpawnRowFromCmd(&command->u.spawn_edit.before, &before);
+    Editor_SpawnRowFromCmd(&command->u.spawn_edit.after, &after);
+    if( before.is_obj != after.is_obj || before.name[0] == '\0' || after.name[0] == '\0'
+        || before.level < 0 || before.level > 3 || after.level < 0 || after.level > 3 )
+        return 0;
+    from = inverse ? &after : &before;
+    to = inverse ? &before : &after;
+    index = Editor_SpawnFind(file, from);
+    if( index < 0 )
+        return 0;
+    if( inverse && command->u.spawn_edit.before_text[0] )
+    {
+        /* The old line's own bytes -- when they still read as the row. */
+        text = command->u.spawn_edit.before_text;
+        if( Editor_SpawnReplaceAt(file, index, to, text) )
+            return 1;
+    }
+    return Editor_SpawnReplaceAt(file, index, to, NULL);
+}
+
+static void
+plan_row_command(
+    struct Editor_Cmd* out,
+    const struct Editor_SpawnRow* row,
+    int adding)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+
+    Editor_SpawnRowDocKey(row, key);
+    Editor_CmdInit(out, EDITOR_DOC_SPAWN, key, row->suppress ? EDITOR_CMD_SPAWN_SUPPRESS : EDITOR_CMD_SPAWN);
+    out->has_before = adding ? 0 : 1;
+    out->has_after = adding ? 1 : 0;
+    out->u.spawn.is_obj = row->is_obj ? 1 : 0;
+    snprintf(out->u.spawn.name, sizeof(out->u.spawn.name), "%s", row->name);
+    out->u.spawn.abs_x = row->abs_x;
+    out->u.spawn.abs_z = row->abs_z;
+    out->u.spawn.level = row->level;
+    out->u.spawn.count = row->count < 1 ? 1 : row->count;
+}
+
+int
+Editor_SpawnEditPlan(
+    const struct Editor_SpawnFile* edited,
+    const struct Editor_SpawnEditSource* source,
+    const struct Editor_SpawnRow* want,
+    struct Editor_Cmd* out,
+    int max)
+{
+    struct Editor_SpawnRow target;
+    struct Editor_SpawnRow old;
+    char old_key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    int count = 0;
+
+    assert(source);
+    assert(want);
+    assert(out || max == 0);
+
+    target = *want;
+    if( !target.is_obj )
+        target.count = 1;
+    if( !Editor_SpawnRowValid(&target) )
+        return -1;
+    old = source->row;
+    Editor_SpawnRowDocKey(&old, old_key);
+    Editor_SpawnRowDocKey(&target, new_key);
+
+    if( source->edited )
+    {
+        if( rows_equal(&old, &target) )
+            return 0;
+        if( old.is_obj == target.is_obj && strcmp(old_key, new_key) == 0 )
+        {
+            if( max < 1 )
+                return -1;
+            Editor_SpawnEditCommand(&out[0], old_key, &old, &target, edited);
+            return 1;
+        }
+        if( max < 2 )
+            return -1;
+        plan_row_command(&out[count++], &old, 0);
+        plan_row_command(&out[count++], &target, 1);
+        return count;
+    }
+
+    /* A generated row: its file is never written. */
+    old.suppress = 0;
+    {
+        struct Editor_SpawnRow fields = target;
+        fields.suppress = 0;
+        if( rows_equal(&old, &fields) )
+        {
+            struct Editor_SpawnRow mark = old;
+            if( target.suppress == source->suppressed )
+                return 0;
+            if( max < 1 )
+                return -1;
+            mark.suppress = 1;
+            plan_row_command(&out[0], &mark, target.suppress);
+            return 1;
+        }
+        if( max < (source->suppressed ? 1 : 2) )
+            return -1;
+        if( !source->suppressed )
+        {
+            struct Editor_SpawnRow mark = old;
+            mark.suppress = 1;
+            plan_row_command(&out[count++], &mark, 1);
+        }
+        plan_row_command(&out[count++], &fields, 1);
+        return count;
+    }
+}
+
+void
+Editor_SpawnRemoveRow(
+    struct Editor_SpawnFile* file,
+    int index)
+{
+    assert(file);
+    assert(index >= 0);
+    assert(index < file->line_count);
+    assert(file->lines[index].kind == EDITOR_SPAWN_LINE_ROW);
+
+    Editor_SpawnRemoveAt(file, index);
+    /* The trailing section Insert opened: "", banner, row -- now "", banner. */
+    if( index == file->line_count && index >= 2 && file->lines[index - 1].kind == EDITOR_SPAWN_LINE_HEADER
+        && file->lines[index - 2].kind == EDITOR_SPAWN_LINE_TEXT && file->lines[index - 2].text[0] == '\0' )
+    {
+        Editor_SpawnRemoveAt(file, index - 1);
+        Editor_SpawnRemoveAt(file, index - 2);
+    }
+}

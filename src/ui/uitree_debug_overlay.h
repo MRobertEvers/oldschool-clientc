@@ -1438,6 +1438,15 @@ struct ToriRSChromePanel
      * and clears it when it takes the layout back (the editor's Reset layout).
      */
     int user_placed;
+    /**
+     * The panel is a FRAME around something the host draws under it: the
+     * title bar, the border rails and the grip are drawn and take the
+     * pointer, the body is neither painted nor hit -- a press, a wheel or a
+     * hover there falls through to whatever is below (the next panel down,
+     * or the host's own view). The map editor's World panel is one: its body
+     * is the 3D view. @see ToriRSChrome_PanelSetHollow, ToriRSChrome_PanelBodyRect.
+     */
+    int hollow;
 };
 
 /** Internal retained-model event kinds consumed by ToriRSChromeSync_Run. */
@@ -1927,6 +1936,21 @@ ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible);
  */
 void
 ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable);
+
+/** A hollow panel: frame and title bar only, the body drawn by and handed
+ *  through to whatever is under it. @see ToriRSChromePanel::hollow */
+void
+ToriRSChrome_PanelSetHollow(struct ToriRSChrome* ui, int panel, int hollow);
+
+/**
+ * The panel's body: its box minus the title bar (with the rule under it), the
+ * border rails or frame, and the bottom rule -- the part a hollow panel hands
+ * through. Computed from the panel's LIVE position and size (its fixed size
+ * when set, else the last Build's), so it is right the moment a host has
+ * moved or sized the panel, before the next Build.
+ */
+struct ToriRSChromeRect
+ToriRSChrome_PanelBodyRect(struct ToriRSChrome const* ui, int panel);
 
 /**
  * Give a panel the interfaces' nine-slice border.

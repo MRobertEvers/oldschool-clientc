@@ -209,7 +209,31 @@ Editor_DocKeyValid(
                 && type[i] != '_' )
                 return 0;
         }
-        return name_valid(colon + 1);
+        /* "<type>:<name>@<overlay>": the record's block in a SERVER OVERLAY,
+         * a path under server/scripts whose extension is the type
+         * ("npc:goblin@areas/lumbridge/configs/lumbridge.npc"). Without the
+         * suffix the key means the block of configs/all.<type>, as before. */
+        {
+            const char* at = strchr(colon + 1, '@');
+            char name[EDITOR_DOC_KEY_MAX];
+            const char* overlay;
+            size_t overlay_length;
+
+            if( !at )
+                return name_valid(colon + 1);
+            if( (size_t)(at - (colon + 1)) >= sizeof(name) )
+                return 0;
+            memcpy(name, colon + 1, (size_t)(at - (colon + 1)));
+            name[at - (colon + 1)] = '\0';
+            overlay = at + 1;
+            overlay_length = strlen(overlay);
+            if( !name_valid(name) || !relative_path_valid(overlay) )
+                return 0;
+            if( overlay_length < type_length + 2 || overlay[overlay_length - type_length - 1] != '.'
+                || memcmp(overlay + overlay_length - type_length, type, type_length) != 0 )
+                return 0;
+            return 1;
+        }
     }
     case EDITOR_DOC_IFACE:
         return strncmp(key, "if:", 3) == 0 && name_valid(key + 3);
@@ -225,6 +249,14 @@ Editor_DocKeyValid(
         /* A config type's member index, configs/all.<type>.compack. */
         if( strncmp(key, "compack:", 8) == 0 )
             return config_type_valid(key + 8, strlen(key + 8));
+        /* A type's field register, fields/<type>.ini (what the record
+         * editor offers to add); read, never edited. */
+        if( strncmp(key, "fields:", 7) == 0 )
+        {
+            size_t const length = strlen(key + 7);
+            return length > 4 && strcmp(key + 7 + length - 4, ".ini") == 0
+                   && config_type_valid(key + 7, length - 4);
+        }
         return 0;
     }
     return 0;

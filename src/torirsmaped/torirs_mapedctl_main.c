@@ -42,6 +42,24 @@
  *   tile-height <mx> <mz> <level> <lx> <lz> <height>
  *                          one TILE command on square m<mx>_<mz>: the tile
  *                          keeps every field but its raw height byte
+ *   spawn-edit <row> to <row>
+ *                          edit one spawn row of a square's EDITED .spawn as
+ *                          one undo step ("edit spawn"). A <row> is
+ *                          `<kind> <name> <x> <z> <level> [count]`: kind npc
+ *                          or obj, `-npc`/`-obj` for a suppression row, the
+ *                          name a pack symbol or `#<id>`, ABSOLUTE tiles, the
+ *                          count for an obj only. Same square and kind: one
+ *                          SPAWN_EDIT in place; else a delete and an add.
+ *                          `gen:` before the first kind edits a GENERATED row
+ *                          (areas/world): it is suppressed and the new row is
+ *                          added to the edited file.
+ *   spawn-move <row> to <x> <z> [level]
+ *                          the same, changing only the tile ("move spawn")
+ *   cfg-set <type>:<name>[@<overlay>] <key[#n][@line]> <value|->
+ *                          one CFG_FIELD on a record block: of
+ *                          configs/all.<type>, or with @<overlay> (a path
+ *                          under server/scripts ending .<type>) of that
+ *                          server overlay. `-` removes the field.
  *   live-attach launch|<host:port> [ticket]
  *                          attach the editor server's live link (launch
  *                          starts the lane's servers) and wait for the answer
@@ -104,8 +122,10 @@ selection_kind_name(int32_t kind)
 }
 
 static char const* const k_cmd_kind_names[] = {
-    "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice",
+    "tile", "loc", "spawn", "suppress", "cfgfield", "cfgblock", "iffield", "ifcomp", "splice", "spawnedit",
 };
+_Static_assert(sizeof(k_cmd_kind_names) / sizeof(k_cmd_kind_names[0]) == EDITOR_CMD_KIND_COUNT,
+    "a name per command kind");
 
 static void
 print_cmd(
@@ -613,6 +633,418 @@ cmd_tile_height(
     return 0;
 }
 
+/* ---- spawn rows ------------------------------------------------------------ */
+
+struct ctl_spawn_row
+{
+    int is_obj;
+    int suppress;
+    char name[EDITOR_CMD_NAME_MAX];
+    int x;
+    int z;
+    int level;
+    int count;
+};
+
+/** `<kind> <name> <x> <z> <level> [count]` from args[*at]. Returns 1 and
+ *  advances *at, 0 with a message. */
+static int
+ctl_parse_spawn_row(
+    char const* const* args,
+    int arg_count,
+    int* at,
+    struct ctl_spawn_row* out)
+{
+    char const* kind;
+    int i = *at;
+
+    memset(out, 0, sizeof(*out));
+    if( arg_count - i < 5 )
+    {
+        fprintf(stderr, "torirsmapedctl: a spawn row is <kind> <name> <x> <z> <level> [count]\n");
+        return 0;
+    }
+    kind = args[i++];
+    out->suppress = kind[0] == '-';
+    if( out->suppress )
+        kind++;
+    if( strcmp(kind, "npc") == 0 )
+        out->is_obj = 0;
+    else if( strcmp(kind, "obj") == 0 )
+        out->is_obj = 1;
+    else
+    {
+        fprintf(stderr, "torirsmapedctl: spawn kind '%s' is not npc, obj, -npc or -obj\n", args[i - 1]);
+        return 0;
+    }
+    if( strlen(args[i]) >= sizeof(out->name) || !args[i][0] || strchr(args[i], ' ') )
+    {
+        fprintf(stderr, "torirsmapedctl: '%s' is not a spawn name\n", args[i]);
+        return 0;
+    }
+    snprintf(out->name, sizeof(out->name), "%s", args[i++]);
+    out->x = atoi(args[i++]);
+    out->z = atoi(args[i++]);
+    out->level = atoi(args[i++]);
+    out->count = 1;
+    if( out->is_obj && i < arg_count && strcmp(args[i], "to") != 0 )
+        out->count = atoi(args[i++]);
+    if( out->x < 0 || out->z < 0 || out->level < 0 || out->level > 3 || out->count < 1 )
+    {
+        fprintf(stderr, "torirsmapedctl: a spawn row wants tiles >= 0, level 0..3, count >= 1\n");
+        return 0;
+    }
+    *at = i;
+    return 1;
+}
+
+static void
+ctl_spawn_key(
+    const struct ctl_spawn_row* row,
+    char out[EDITOR_DOC_KEY_MAX])
+{
+    Editor_SquareKey(out, row->x / EDITOR_SQUARE_X, row->z / EDITOR_SQUARE_Z);
+}
+
+static void
+ctl_spawn_cmd_row(
+    const struct ctl_spawn_row* row,
+    struct Editor_CmdSpawnRow* out)
+{
+    memset(out, 0, sizeof(*out));
+    out->is_obj = row->is_obj;
+    out->suppress = row->suppress;
+    snprintf(out->name, sizeof(out->name), "%s", row->name);
+    out->abs_x = row->x;
+    out->abs_z = row->z;
+    out->level = row->level;
+    out->count = row->is_obj ? row->count : 1;
+}
+
+/** A SPAWN / SPAWN_SUPPRESS add (adding) or delete of `row`. */
+static void
+ctl_spawn_add_delete(
+    struct Editor_Cmd* out,
+    const struct ctl_spawn_row* row,
+    int adding)
+{
+    char key[EDITOR_DOC_KEY_MAX];
+
+    ctl_spawn_key(row, key);
+    Editor_CmdInit(out, EDITOR_DOC_SPAWN, key, row->suppress ? EDITOR_CMD_SPAWN_SUPPRESS : EDITOR_CMD_SPAWN);
+    out->has_before = !adding;
+    out->has_after = adding;
+    out->u.spawn.is_obj = row->is_obj;
+    snprintf(out->u.spawn.name, sizeof(out->u.spawn.name), "%s", row->name);
+    out->u.spawn.abs_x = row->x;
+    out->u.spawn.abs_z = row->z;
+    out->u.spawn.level = row->level;
+    out->u.spawn.count = row->is_obj ? row->count : 1;
+}
+
+/** The edited document's line for `row`, for SPAWN_EDIT's byte-exact undo:
+ *  the first line whose tokens are the row's. "" when there is none. */
+static void
+ctl_spawn_line_text(
+    char const* body,
+    const struct ctl_spawn_row* row,
+    char* out,
+    size_t out_size)
+{
+    int in_obj = -1;
+
+    out[0] = '\0';
+    for( char const* p = body; p && *p; )
+    {
+        char const* end = strchr(p, '\n');
+        size_t length = end ? (size_t)(end - p) : strlen(p);
+        char line[512];
+        char name[EDITOR_CMD_NAME_MAX + 2];
+        int x;
+        int z;
+        int level;
+        int count = 1;
+        int fields;
+
+        snprintf(line, sizeof(line), "%.*s", (int)(length < sizeof(line) ? length : sizeof(line) - 1), p);
+        if( strncmp(line, "====", 4) == 0 )
+            in_obj = strstr(line, "OBJ") != NULL;
+        else if( in_obj == row->is_obj )
+        {
+            char* comment = strstr(line, "//");
+            if( comment )
+                *comment = '\0';
+            fields = sscanf(line, "%65s %d %d %d %d", name, &x, &z, &level, &count);
+            if( fields >= 4 && (name[0] == '-') == row->suppress
+                && strcmp(name + (row->suppress ? 1 : 0), row->name) == 0 && x == row->x && z == row->z
+                && level == row->level && (!row->is_obj || count == row->count) && length < out_size )
+            {
+                snprintf(out, out_size, "%.*s", (int)length, p);
+                return;
+            }
+        }
+        p = end ? end + 1 : NULL;
+    }
+}
+
+static int
+ctl_spawn_rows_equal(
+    const struct ctl_spawn_row* a,
+    const struct ctl_spawn_row* b)
+{
+    return a->is_obj == b->is_obj && a->suppress == b->suppress && strcmp(a->name, b->name) == 0
+           && a->x == b->x && a->z == b->z && a->level == b->level && (!a->is_obj || a->count == b->count);
+}
+
+/**
+ * spawn-edit / spawn-move: the commands the Spawns panel's edit form makes
+ * (Editor_SpawnEditPlan, editor_spawn.h), built here without the codec --
+ * this binary links no document.
+ */
+static int
+cmd_spawn_edit(
+    struct EditorHost* host,
+    int move_only,
+    char const* const* args,
+    int arg_count)
+{
+    struct ctl_spawn_row old_row;
+    struct ctl_spawn_row new_row;
+    struct Editor_Cmd commands[2];
+    struct EditorHost_DocText text;
+    char old_key[EDITOR_DOC_KEY_MAX];
+    char new_key[EDITOR_DOC_KEY_MAX];
+    char kind_arg[16];
+    char const* local_args[16];
+    int generated = 0;
+    int count = 0;
+    int at = 0;
+    int failed = 0;
+
+    if( arg_count < 1 )
+    {
+        fprintf(stderr, "torirsmapedctl: %s <row> to ...\n", move_only ? "spawn-move" : "spawn-edit");
+        return 1;
+    }
+    for( int i = 0; i < arg_count; i++ )
+        local_args[i] = args[i];
+    if( strncmp(args[0], "gen:", 4) == 0 )
+    {
+        generated = 1;
+        snprintf(kind_arg, sizeof(kind_arg), "%s", args[0] + 4);
+        local_args[0] = kind_arg;
+    }
+    if( !ctl_parse_spawn_row(local_args, arg_count, &at, &old_row) )
+        return 1;
+    if( at >= arg_count || strcmp(local_args[at], "to") != 0 )
+    {
+        fprintf(stderr, "torirsmapedctl: expected `to` after the old row\n");
+        return 1;
+    }
+    at++;
+    if( move_only )
+    {
+        if( arg_count - at < 2 )
+        {
+            fprintf(stderr, "torirsmapedctl: spawn-move <row> to <x> <z> [level]\n");
+            return 1;
+        }
+        new_row = old_row;
+        new_row.x = atoi(local_args[at]);
+        new_row.z = atoi(local_args[at + 1]);
+        if( arg_count - at >= 3 )
+            new_row.level = atoi(local_args[at + 2]);
+        if( new_row.x < 0 || new_row.z < 0 || new_row.level < 0 || new_row.level > 3 )
+        {
+            fprintf(stderr, "torirsmapedctl: spawn-move wants tiles >= 0 and level 0..3\n");
+            return 1;
+        }
+    }
+    else if( !ctl_parse_spawn_row(local_args, arg_count, &at, &new_row) )
+        return 1;
+    if( generated && old_row.suppress )
+    {
+        fprintf(stderr, "torirsmapedctl: a generated row is never a suppression row\n");
+        return 1;
+    }
+    if( ctl_spawn_rows_equal(&old_row, &new_row) )
+    {
+        printf("nothing to change\n");
+        return 0;
+    }
+
+    ctl_spawn_key(&old_row, old_key);
+    ctl_spawn_key(&new_row, new_key);
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_SPAWN, old_key, &text) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: cannot open the spawn document %s\n", old_key);
+        return 1;
+    }
+    if( strcmp(old_key, new_key) != 0 )
+    {
+        struct EditorHost_DocText other;
+        memset(&other, 0, sizeof(other));
+        if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_SPAWN, new_key, &other) != EDITOR_HOST_OK )
+        {
+            fprintf(stderr, "torirsmapedctl: cannot open the spawn document %s\n", new_key);
+            Editor_HostDocTextFree(&text);
+            return 1;
+        }
+        Editor_HostDocTextFree(&other);
+    }
+
+    if( generated )
+    {
+        /* The generated file is never written: suppress, then add. */
+        struct ctl_spawn_row mark = old_row;
+        mark.suppress = 1;
+        ctl_spawn_add_delete(&commands[count++], &mark, 1);
+        new_row.suppress = 0;
+        ctl_spawn_add_delete(&commands[count++], &new_row, 1);
+    }
+    else if( old_row.is_obj == new_row.is_obj && strcmp(old_key, new_key) == 0 )
+    {
+        Editor_CmdInit(&commands[0], EDITOR_DOC_SPAWN, old_key, EDITOR_CMD_SPAWN_EDIT);
+        commands[0].has_before = 1;
+        commands[0].has_after = 1;
+        ctl_spawn_cmd_row(&old_row, &commands[0].u.spawn_edit.before);
+        ctl_spawn_cmd_row(&new_row, &commands[0].u.spawn_edit.after);
+        ctl_spawn_line_text(text.parts[0].data ? (char const*)text.parts[0].data : "", &old_row,
+            commands[0].u.spawn_edit.before_text, sizeof(commands[0].u.spawn_edit.before_text));
+        count = 1;
+    }
+    else
+    {
+        ctl_spawn_add_delete(&commands[count++], &old_row, 0);
+        ctl_spawn_add_delete(&commands[count++], &new_row, 1);
+    }
+    Editor_HostDocTextFree(&text);
+
+    if( Editor_HostMapEdStroke(host, 1) != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the authority refused a stroke\n");
+        return 1;
+    }
+    for( int i = 0; i < count && !failed; i++ )
+    {
+        enum EditorHost_Status status = Editor_HostMapEdCmd(host, &commands[i]);
+        if( status != EDITOR_HOST_OK )
+        {
+            fprintf(stderr, "torirsmapedctl: the spawn edit was refused (status %d): is the old row in "
+                            "%s's edited file?\n", (int)status, old_key);
+            failed = 1;
+        }
+    }
+    (void)Editor_HostMapEdStroke(host, 0);
+    if( failed )
+    {
+        /* A half-applied step is worse than none. */
+        if( count > 1 )
+            (void)Editor_HostMapEdUndo(host);
+        return 1;
+    }
+    printf("%s %s %s %d %d %d -> %s %d %d %d (%d command%s, one undo step)\n",
+        move_only ? "moved" : "edited", old_row.is_obj ? "obj" : "npc", old_row.name, old_row.x, old_row.z,
+        old_row.level, new_row.name, new_row.x, new_row.z, new_row.level, count, count == 1 ? "" : "s");
+    return 0;
+}
+
+/** cfg-set: one CFG_FIELD on a record block (all.<type> or an overlay). */
+static int
+cmd_cfg_set(
+    struct EditorHost* host,
+    char const* key,
+    char const* spec,
+    char const* value)
+{
+    struct EditorHost_DocText text;
+    struct Editor_Cmd command;
+    char field[EDITOR_CMD_NAME_MAX];
+    char before[EDITOR_CMD_VALUE_MAX];
+    char const* body;
+    enum EditorHost_Status status;
+    int occurrence = 0;
+    int seen = 0;
+    char const* hash;
+    char const* at_sign;
+    size_t field_length;
+
+    if( strlen(spec) >= sizeof(field) || strlen(value) >= EDITOR_CMD_VALUE_MAX || strchr(value, '\n') )
+    {
+        fprintf(stderr, "torirsmapedctl: the field spec or value is too long\n");
+        return 1;
+    }
+    /* The key part of `key[#n][@line]`, and its occurrence. */
+    hash = strchr(spec, '#');
+    at_sign = strchr(spec, '@');
+    field_length = hash ? (size_t)(hash - spec) : at_sign ? (size_t)(at_sign - spec) : strlen(spec);
+    snprintf(field, sizeof(field), "%.*s", (int)field_length, spec);
+    if( hash )
+        occurrence = atoi(hash + 1);
+
+    memset(&text, 0, sizeof(text));
+    if( Editor_HostMapEdDocOpen(host, EDITOR_DOC_CFG, key, &text) != EDITOR_HOST_OK || !text.parts[0].data )
+    {
+        fprintf(stderr, "torirsmapedctl: cannot open the record %s\n", key);
+        Editor_HostDocTextFree(&text);
+        return 1;
+    }
+    /* The current value of that occurrence ("" = absent). */
+    before[0] = '\0';
+    body = (char const*)text.parts[0].data;
+    {
+    int line_index = 0;
+    int found_line = -1;
+    for( char const* p = body; p && *p; line_index++ )
+    {
+        char const* end = strchr(p, '\n');
+        size_t length = end ? (size_t)(end - p) : strlen(p);
+        if( length > 0 && p[length - 1] == '\r' )
+            length--;
+        if( length > field_length && memcmp(p, field, field_length) == 0 && p[field_length] == '=' )
+        {
+            if( seen++ == occurrence )
+            {
+                size_t v = length - field_length - 1;
+                if( v >= sizeof(before) )
+                    v = sizeof(before) - 1;
+                memcpy(before, p + field_length + 1, v);
+                before[v] = '\0';
+                found_line = line_index;
+                break;
+            }
+        }
+        p = end ? end + 1 : NULL;
+    }
+    /* A removal names its line, so the undo puts it back there. */
+    if( strcmp(value, "-") == 0 && found_line >= 0 && !at_sign )
+    {
+        char positioned[EDITOR_CMD_NAME_MAX];
+        if( snprintf(positioned, sizeof(positioned), "%s#%d@%d", field, occurrence, found_line)
+            < (int)sizeof(positioned) )
+            snprintf(field, sizeof(field), "%s", positioned);
+        spec = field;
+    }
+    }
+    Editor_HostDocTextFree(&text);
+
+    Editor_CmdInit(&command, EDITOR_DOC_CFG, key, EDITOR_CMD_CFG_FIELD);
+    command.has_before = 1;
+    command.has_after = 1;
+    snprintf(command.u.cfg_field.key, sizeof(command.u.cfg_field.key), "%s", spec);
+    snprintf(command.u.cfg_field.before, sizeof(command.u.cfg_field.before), "%s", before);
+    snprintf(command.u.cfg_field.after, sizeof(command.u.cfg_field.after), "%s", strcmp(value, "-") == 0 ? "" : value);
+    status = Editor_HostMapEdCmd(host, &command);
+    if( status != EDITOR_HOST_OK )
+    {
+        fprintf(stderr, "torirsmapedctl: the field edit was refused (status %d)\n", (int)status);
+        return 1;
+    }
+    printf("%s %s: '%s' -> '%s'\n", key, spec, before, command.u.cfg_field.after);
+    return 0;
+}
+
 /* ---- builds, RUN and the live link ----------------------------------------- */
 
 static const struct EditorHostMapEdFacts k_quiet_sink = { 0 };
@@ -777,7 +1209,7 @@ main(
     uint32_t join_group = 0;
     struct EditorHost host;
     char const* command = NULL;
-    char const* args[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
+    char const* args[16] = { NULL };
     int arg_count = 0;
     int result = 0;
 
@@ -791,7 +1223,7 @@ main(
             join_group = (uint32_t)strtoul(argv[++i], NULL, 10);
         else if( !command )
             command = argv[i];
-        else if( arg_count < 6 )
+        else if( arg_count < (int)(sizeof(args) / sizeof(args[0])) )
             args[arg_count++] = argv[i];
         else
         {
@@ -810,6 +1242,10 @@ main(
             "  new <x> <z> [storage] [empty|flat <height>|copy <key>]\n"
             "  text-replace <key> <find> <replace> | cfg-copy <type> <name> <new_name>\n"
             "  tile-height <mx> <mz> <level> <lx> <lz> <height>\n"
+            "  spawn-edit [gen:]<kind> <name> <x> <z> <level> [count] to <kind> <name> <x> <z> <level> [count]\n"
+            "  spawn-move [gen:]<kind> <name> <x> <z> <level> [count] to <x> <z> [level]\n"
+            "    (kind npc|obj|-npc|-obj; name a pack symbol or #<id>; absolute tiles)\n"
+            "  cfg-set <type>:<name>[@<overlay under server/scripts>] <key[#n][@line]> <value|->\n"
             "  live-attach launch|<host:port> [ticket] | live-detach | live-cheat <player> <line>\n"
             "  build packs|client [seconds] | run [seconds]\n");
         return 1;
@@ -906,6 +1342,10 @@ main(
     else if( strcmp(command, "tile-height") == 0 && arg_count >= 6 )
         result = cmd_tile_height(&host, atoi(args[0]), atoi(args[1]), atoi(args[2]),
             atoi(args[3]), atoi(args[4]), atoi(args[5]));
+    else if( strcmp(command, "spawn-edit") == 0 || strcmp(command, "spawn-move") == 0 )
+        result = cmd_spawn_edit(&host, strcmp(command, "spawn-move") == 0, args, arg_count);
+    else if( strcmp(command, "cfg-set") == 0 && arg_count >= 3 )
+        result = cmd_cfg_set(&host, args[0], args[1], args[2]);
     else if( strcmp(command, "live-attach") == 0 && arg_count >= 1 )
     {
         struct ToriRSMapEdBuf payload = { 0 };

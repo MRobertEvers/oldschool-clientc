@@ -7,6 +7,7 @@
  */
 
 #include "editor_host.h"
+#include "editor_cfg.h"
 #include "editor_doc.h"
 #include "editor_if.h"
 #include "mem/torirs_mem.h"
@@ -461,9 +462,15 @@ Editor_HostDocPath(
     case EDITOR_DOC_CFG:
     {
         const char* colon = strchr(key, ':');
+        const char* overlay;
         if( part != 0 || !Editor_DocKeyValid(kind, key) || !colon )
             return 0;
-        written = snprintf(out, out_size, "configs/all.%.*s", (int)(colon - key), key);
+        /* "<type>:<name>@<overlay>": the block lives in that server overlay. */
+        overlay = Editor_CfgKeyOverlay(key);
+        if( overlay )
+            written = snprintf(out, out_size, "server/scripts/%s", overlay);
+        else
+            written = snprintf(out, out_size, "configs/all.%.*s", (int)(colon - key), key);
         break;
     }
     case EDITOR_DOC_IFACE:
@@ -482,6 +489,8 @@ Editor_HostDocPath(
             written = snprintf(out, out_size, "pack/%s", key + 5);
         else if( strncmp(key, "compack:", 8) == 0 )
             written = snprintf(out, out_size, "configs/all.%s.compack", key + 8);
+        else if( strncmp(key, "fields:", 7) == 0 )
+            written = snprintf(out, out_size, "fields/%s", key + 7);
         else
             return 0;
         break;
@@ -502,7 +511,8 @@ cfg_block_extent(
     size_t* out_end)
 {
     const char* name = strchr(key, ':') + 1;
-    size_t name_length = strlen(name);
+    /* An overlay key's record name stops at its '@'. */
+    size_t name_length = strchr(name, '@') ? (size_t)(strchr(name, '@') - name) : strlen(name);
     size_t at = 0;
 
     while( at < length )

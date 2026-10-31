@@ -218,4 +218,71 @@ MapEditorSpawnGhost_Remove(
     struct MapEditorSpawnSpec* out_spec,
     int* out_entity);
 
+/* ---- the wander preview ----------------------------------------------------
+ *
+ * How far an npc roams from where it spawns, drawn on the ground: the
+ * WANDER square (every tile within `wanderrange` of the spawn, the npc's own
+ * footprint grown by that much on each side -- the server's roam picks a
+ * destination within wanderrange of the spawn coord on both axes) and the
+ * LEASH square (`maxrange`, how far it follows before it gives up and walks
+ * home) as a fainter outline. Values are the record's server fields; a
+ * record that states none gets the engine's built-in 5 and 7
+ * (torirs_server_content.c npc_def_builtin).
+ *
+ * Shown for the spawn ghost under the pointer, for every selected npc spawn
+ * in the Spawns panel, and at a pending Move's destination. The rectangles
+ * are ABSOLUTE world tiles, inclusive; the App turns them into scene tiles
+ * and draws them (app_overlay.c).
+ */
+
+#define MAP_EDITOR_WANDER_DEFAULT 5
+#define MAP_EDITOR_LEASH_DEFAULT 7
+/** A range past this is clamped for drawing (a square is 2r+1 tiles). */
+#define MAP_EDITOR_WANDER_RANGE_MAX 64
+/** Rectangles one frame draws at most: 64 selected spawns, each with its
+ *  wander and leash squares, plus a move destination's and a ghost's. */
+#define MAP_EDITOR_WANDER_RECTS_MAX 200
+
+enum MapEditorWanderKind
+{
+    /** The tiles the npc roams over: translucent fill and an outline. */
+    MAP_EDITOR_WANDER_AREA = 0,
+    /** The leash: an outline only, fainter. */
+    MAP_EDITOR_WANDER_LEASH = 1,
+    /** Where a pending move puts the spawn itself (its footprint). */
+    MAP_EDITOR_WANDER_FOOTPRINT = 2,
+};
+
+struct MapEditorWanderRect
+{
+    enum MapEditorWanderKind kind;
+    int x0;
+    int z0;
+    int x1;
+    int z1;
+    int level;
+};
+
+/**
+ * The squares of one npc standing at (x, z, level) with a `size` footprint:
+ * its wander area (`wanderrange` < 0 means the default 5; 0 draws no area,
+ * the npc does not roam) and its leash (`maxrange` < 0: the default 7; a
+ * leash no larger than the wander area is not drawn). Writes at most `max`
+ * and returns the count.
+ */
+int
+MapEditorWander_Rects(
+    int x,
+    int z,
+    int level,
+    int size,
+    int wanderrange,
+    int maxrange,
+    struct MapEditorWanderRect* out,
+    int max);
+
+/** Tiles inside a rectangle (what a test counts). */
+int
+MapEditorWander_RectTiles(struct MapEditorWanderRect const* rect);
+
 #endif /* SRC_EDITOR_MAP_EDITOR_GHOST_H */

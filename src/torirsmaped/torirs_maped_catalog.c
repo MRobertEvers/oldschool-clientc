@@ -3712,6 +3712,27 @@ cat_record_fresh(
     return 1;
 }
 
+/** A source's merge rank for a record view (see HandleRecord). */
+static int
+cat_merge_rank(const struct cat_source* src)
+{
+    const char* base;
+    switch( src->type )
+    {
+    case CAT_SRC_CONFIG:
+        return 0;
+    case CAT_SRC_NPC_STATS:
+    case CAT_SRC_NPC_COMBAT:
+        return 1;
+    case CAT_SRC_OVERLAY:
+        base = strrchr(src->path, '/');
+        base = base ? base + 1 : src->path;
+        return strstr(src->path, "ported/") || strstr(base, ".generated.") ? 1 : 2;
+    default:
+        return -1;
+    }
+}
+
 static int
 cat_record_lookup(
     const struct ToriRSMapEdCatalog* catalog,
@@ -3787,8 +3808,37 @@ ToriRSMapEdCatalog_HandleRecord(
 
     memset(&build, 0, sizeof(build));
     rec = &catalog->records[record];
-    for( int32_t r = rec->first_ref; r >= 0; r = catalog->refs[r].next )
+    /* The contributions in the pack's MERGE order, so the field a record
+     * view shows is the one the server reads: cachepack's ranks
+     * (cp_merge.c cp_merge_rank_for) -- configs/all.<type> 0, a
+     * `.generated.` overlay 1, an authored overlay 2 -- then path order
+     * within a rank (the walk is sorted); later contributions win in
+     * cat_rec_put. Index files and stats sources come first (rank -1 / 1). */
     {
+        int32_t order[256];
+        int order_count = 0;
+        for( int32_t r = rec->first_ref; r >= 0 && order_count < 256; r = catalog->refs[r].next )
+            order[order_count++] = r;
+        for( int i = 1; i < order_count; i++ )
+        {
+            int32_t moving = order[i];
+            int const rank = cat_merge_rank(&catalog->sources[catalog->refs[moving].source]);
+            const char* path = catalog->sources[catalog->refs[moving].source].path;
+            int j = i;
+            while( j > 0 )
+            {
+                const struct cat_source* prev = &catalog->sources[catalog->refs[order[j - 1]].source];
+                int const prev_rank = cat_merge_rank(prev);
+                if( prev_rank < rank || (prev_rank == rank && strcmp(prev->path, path) <= 0) )
+                    break;
+                order[j] = order[j - 1];
+                j--;
+            }
+            order[j] = moving;
+        }
+    for( int oi = 0; oi < order_count; oi++ )
+    {
+        int32_t const r = order[oi];
         const struct cat_source* src = &catalog->sources[catalog->refs[r].source];
         const struct cat_contrib* c = &src->contribs[catalog->refs[r].contrib];
         uint32_t source = TORIRSMAPED_CATALOG_NO_SOURCE;
@@ -3835,6 +3885,7 @@ ToriRSMapEdCatalog_HandleRecord(
                 k = v + strlen(v) + 1;
             }
         }
+    }
     }
     /* What only the merge knows: derived, sourced from nothing. */
     cat_collect(catalog, record, &derived);

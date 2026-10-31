@@ -178,3 +178,61 @@ MapEditorSpawnGhost_Remove(
     ghost->entity = -1;
     return true;
 }
+
+/* ---- the wander preview ------------------------------------------------------ */
+
+int
+MapEditorWander_Rects(
+    int x,
+    int z,
+    int level,
+    int size,
+    int wanderrange,
+    int maxrange,
+    struct MapEditorWanderRect* out,
+    int max)
+{
+    int count = 0;
+
+    assert(out || max == 0);
+
+    if( size < 1 )
+        size = 1;
+    if( wanderrange < 0 )
+        wanderrange = MAP_EDITOR_WANDER_DEFAULT;
+    if( maxrange < 0 )
+        maxrange = MAP_EDITOR_LEASH_DEFAULT;
+    if( wanderrange > MAP_EDITOR_WANDER_RANGE_MAX )
+        wanderrange = MAP_EDITOR_WANDER_RANGE_MAX;
+    if( maxrange > MAP_EDITOR_WANDER_RANGE_MAX )
+        maxrange = MAP_EDITOR_WANDER_RANGE_MAX;
+
+    if( wanderrange > 0 && count < max )
+    {
+        out[count].kind = MAP_EDITOR_WANDER_AREA;
+        out[count].x0 = x - wanderrange;
+        out[count].z0 = z - wanderrange;
+        out[count].x1 = x + size - 1 + wanderrange;
+        out[count].z1 = z + size - 1 + wanderrange;
+        out[count].level = level;
+        count++;
+    }
+    if( maxrange > wanderrange && count < max )
+    {
+        out[count].kind = MAP_EDITOR_WANDER_LEASH;
+        out[count].x0 = x - maxrange;
+        out[count].z0 = z - maxrange;
+        out[count].x1 = x + size - 1 + maxrange;
+        out[count].z1 = z + size - 1 + maxrange;
+        out[count].level = level;
+        count++;
+    }
+    return count;
+}
+
+int
+MapEditorWander_RectTiles(struct MapEditorWanderRect const* rect)
+{
+    assert(rect);
+    return (rect->x1 - rect->x0 + 1) * (rect->z1 - rect->z0 + 1);
+}

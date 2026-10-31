@@ -417,6 +417,15 @@ Editor_PanelSelectTerrain(
     assert(panel);
     assert(app);
 
+    /* An armed spawn move takes this window's own click (not a relayed
+     * selection): the Spawns panel re-tiles its selection there. */
+    if( !panel->applying_shared_state && panel->ui && Editor_Spawns_MoveArmed(panel->ui)
+        && panel_scene_to_world(app, scene_x, scene_z, &world_x, &world_z) )
+    {
+        (void)Editor_Spawns_MoveTo(panel->ui, world_x, world_z, level);
+        return;
+    }
+
     panel->sel_kind = EDITOR_SELECTION_TERRAIN;
     panel->sel_scene_x = scene_x;
     panel->sel_scene_z = scene_z;
@@ -810,6 +819,10 @@ Editor_PanelApplyToolAt(
             Editor_UiLog(ui, "editor: m%d_%d is not open in the editor", world_x / 64, world_z / 64);
         return edp_apply(ui, commands, count, Editor_ToolName(ui->tools.tool));
     }
+
+    /* An armed spawn move takes the click whatever tool is up. */
+    if( Editor_Spawns_MoveArmed(ui) )
+        return Editor_Spawns_MoveTo(ui, world_x, world_z, level);
 
     switch( ui->tools.tool )
     {

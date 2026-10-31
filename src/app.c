@@ -1358,6 +1358,7 @@ App_Shutdown(struct App* app)
          * would put edits on disk that were abandoned on purpose. */
         if( Editor_DocHasUnsaved(&app->editor->doc) )
             TORIRS_LOG("app: map editor closing with unsaved edits\n");
+        app_map_editor_layout_flush(app);
         Editor_PanelFree(&app->editor_panel);
         app_map_editor_free(app);
         Editor_Close(app->editor);

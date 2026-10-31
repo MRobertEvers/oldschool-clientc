@@ -2098,6 +2098,64 @@ ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable
 }
 
 void
+ToriRSChrome_PanelSetHollow(struct ToriRSChrome* ui, int panel, int hollow)
+{
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    hollow = hollow ? 1 : 0;
+    if( ui->panels[panel].hollow == hollow )
+        return;
+    ui->panels[panel].hollow = hollow;
+    /* The body fill comes or goes: a repaint of the panel's whole box. */
+    dbg_change_panel(ui, panel, TORIRS_CHROME_CHANGE_PANEL_MODE);
+    dbg_dirty_panel(ui, panel);
+}
+
+/** The body box of `p` at (x, y, w, h): the same insets dbg_build_window lays
+ *  the content column and the rails out with. */
+static struct ToriRSChromeRect
+dbg_panel_body_of(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromePanel const* p,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    struct DbgMenuLayout const l =
+        dbg_menu_layout(ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale), ui->scale);
+    int const framed = dbg_panel_is_framed(ui, p);
+    int const edge = framed ? DBG_FRAME : DBG_RULE;
+    /* Unframed: the rail is drawn a pixel in from the edge (dbg_build_window),
+     * so the body starts past it; the bottom rule likewise. */
+    int const side = framed ? edge : 2 * DBG_RULE;
+    int const head = p->title[0] ? (edge - DBG_RULE) + l.separator_y + DBG_RULE : edge;
+    struct ToriRSChromeRect r;
+
+    r.x = x + side;
+    r.y = y + head;
+    r.w = w - 2 * side;
+    r.h = h - head - side;
+    if( r.w < 0 )
+        r.w = 0;
+    if( r.h < 0 )
+        r.h = 0;
+    return r;
+}
+
+struct ToriRSChromeRect
+ToriRSChrome_PanelBodyRect(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromePanel const* p;
+
+    assert(ui);
+    assert(dbg_valid_panel(ui, panel));
+    p = &ui->panels[panel];
+    return dbg_panel_body_of(
+        ui, p, p->x, p->y, p->fixed_w > 0 ? p->fixed_w : p->w, p->fixed_h > 0 ? p->fixed_h : p->h);
+}
+
+void
 ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
 {
     assert(ui);
@@ -5131,11 +5189,26 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
     /* Flat fill first either way: the parchment carries transparent pixels at
      * its edges, and tiling it straight onto whatever was behind the panel
      * would show the world through them. */
-    dbg_push_rect(ui, p->x, p->y, p->w, p->h, th->panel_body, 1, clip);
-    if( th->skin_panel_body && dbg_skin_has(ui, TORIRS_CHROME_SKIN_PANEL_BODY) )
-        dbg_fill_tiled(
-            ui, p->x, p->y, p->w, p->h, TORIRS_CHROME_SKIN_PANEL_BODY, ui->skin_tile_w,
-            ui->skin_tile_h, clip);
+    if( !p->hollow )
+    {
+        dbg_push_rect(ui, p->x, p->y, p->w, p->h, th->panel_body, 1, clip);
+        if( th->skin_panel_body && dbg_skin_has(ui, TORIRS_CHROME_SKIN_PANEL_BODY) )
+            dbg_fill_tiled(
+                ui, p->x, p->y, p->w, p->h, TORIRS_CHROME_SKIN_PANEL_BODY, ui->skin_tile_w,
+                ui->skin_tile_h, clip);
+    }
+    else
+    {
+        /* Hollow: only the band above the body and the rims around it get the
+         * panel's ground; the body is the host's view, painted under us. */
+        struct ToriRSChromeRect const body = dbg_panel_body_of(ui, p, p->x, p->y, p->w, p->h);
+        dbg_push_rect(ui, p->x, p->y, p->w, body.y - p->y, th->panel_body, 1, clip);
+        dbg_push_rect(ui, p->x, body.y, body.x - p->x, body.h, th->panel_body, 1, clip);
+        dbg_push_rect(
+            ui, body.x + body.w, body.y, p->x + p->w - body.x - body.w, body.h, th->panel_body, 1, clip);
+        dbg_push_rect(
+            ui, p->x, body.y + body.h, p->w, p->y + p->h - body.y - body.h, th->panel_body, 1, clip);
+    }
     /* The frame goes on directly over the body, so the title bar and the rows
      * that follow all land INSIDE it -- and so the rounded corners have the
      * parchment behind them rather than the world. */
@@ -7317,8 +7390,20 @@ dbg_panel_at(struct ToriRSChrome const* ui, int x, int y)
         struct ToriRSChromePanel const* p = &ui->panels[i];
         if( !p->visible || p->last_rect.w <= 0 )
             continue;
-        if( dbg_point_in(x, y, p->last_rect.x, p->last_rect.y, p->last_rect.w, p->last_rect.h) )
-            return i;
+        if( !dbg_point_in(x, y, p->last_rect.x, p->last_rect.y, p->last_rect.w, p->last_rect.h) )
+            continue;
+        /* A hollow panel's body is the host's: the point falls through to
+         * whatever is under it. Its grip is still its own. */
+        if( p->hollow )
+        {
+            struct ToriRSChromeRect const body = dbg_panel_body_of(
+                ui, p, p->last_rect.x, p->last_rect.y, p->last_rect.w, p->last_rect.h);
+            int const on_grip =
+                dbg_panel_has_grip(p) && dbg_point_in_rect(x, y, dbg_grip_rect(ui, p->last_rect));
+            if( dbg_point_in_rect(x, y, body) && !on_grip )
+                continue;
+        }
+        return i;
     }
     return -1;
 }

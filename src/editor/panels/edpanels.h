@@ -247,4 +247,119 @@ Editor_History_RowText(
 int
 Editor_History_Rebuilds(struct EditorUi* ui);
 
+/* The Spawns panel's edit form, move and wander preview (edpanel_spawns.c). */
+
+struct MapEditorWanderRect;
+
+/** A "Move: click a tile" is armed with a selection to move. */
+int
+Editor_Spawns_MoveArmed(struct EditorUi* ui);
+
+/** The armed move lands: the selection re-tiled so its first row stands on
+ *  (world_x, world_z, level), the rest at their offsets, as one undo step
+ *  ("move spawn"). Disarms. Returns the commands the authority took. */
+int
+Editor_Spawns_MoveTo(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level);
+
+/** Fill the edit form and Apply it, as the widgets would (tests, scripts). */
+int
+Editor_Spawns_SetEditForm(
+    struct EditorUi* ui,
+    const char* name,
+    int is_obj,
+    int x,
+    int z,
+    int level,
+    int count,
+    int suppressed);
+
+/** Replace the selection (rows as the list shows them). */
+int
+Editor_Spawns_Select(
+    struct EditorUi* ui,
+    const struct Editor_SpawnRow* rows,
+    int count);
+
+/**
+ * The wander preview's rectangles this frame, ABSOLUTE world tiles
+ * (map_editor_ghost.h): the spawn ghost's (`ghost_npc_id` >= 0, at the
+ * hover), every selected npc spawn's, and a pending move's destination.
+ * Empty when "Show wander range" is off. The App draws them
+ * (app_overlay.c app_overlay_build_editor_ghosts).
+ */
+int
+Editor_Spawns_WanderRects(
+    struct EditorUi* ui,
+    int hover_valid,
+    int hover_x,
+    int hover_z,
+    int hover_level,
+    int ghost_npc_id,
+    struct MapEditorWanderRect* out,
+    int max);
+
+/* The Record panel (edpanel_catalog.c): one config record across every file
+ * that states it -- configs/all.<type> and each server overlay -- every field
+ * editable with undo. "record" */
+
+void
+Editor_Record_Register(struct EditorUi* ui);
+
+/** Open `name` of catalog kind `kind` (loc / npc / obj) in the Record panel
+ *  and show it. Returns 1 when its documents opened. */
+int
+Editor_Record_Open(
+    struct EditorUi* ui,
+    uint32_t kind,
+    const char* name);
+
+/** The Record panel's resolved wanderrange / maxrange when it holds
+ *  `type`:`name` (unsaved edits included); 0 otherwise. A value no layer
+ *  states is the engine default (5 / 7). */
+int
+Editor_Record_WanderValues(
+    struct EditorUi* ui,
+    const char* type,
+    const char* name,
+    int* out_wander,
+    int* out_leash);
+
+/** Set field (`key`, `sub`) of the open record to `value` ("" removes) in
+ *  layer `layer` (-1 where it is stated), as one undo step ("edit record").
+ *  Returns the commands the authority took, -1 when it cannot be said. */
+int
+Editor_Record_SetField(
+    struct EditorUi* ui,
+    const char* key,
+    const char* sub,
+    const char* value,
+    int layer);
+
+/** Put the Record panel at (x, y), w x h, and show it (a photograph's layout). */
+void
+Editor_Record_Place(
+    struct EditorUi* ui,
+    int x,
+    int y,
+    int w,
+    int h);
+
+/** Select field (`key`, `sub`) of the open record in the list, scrolled to
+ *  it, its value in the form. Returns the row, -1 when absent. */
+int
+Editor_Record_SelectField(
+    struct EditorUi* ui,
+    const char* key,
+    const char* sub);
+
+struct Editor_CfgRecord;
+
+/** The open record (tests, the inspector); NULL when none. */
+const struct Editor_CfgRecord*
+Editor_Record_Current(struct EditorUi* ui);
+
 #endif

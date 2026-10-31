@@ -35,6 +35,7 @@
 
 #include "editor/editor_cmd.h"
 #include "editor/editor_host.h"
+#include "editor/editor_layout.h"
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -374,8 +375,10 @@ struct EditorUi
     /** View > Snap to grid (default on): dropped and resized panels snap to
      *  the EDP_GRID cell and to their neighbours' edges. */
     int snap;
-    /** What the default layout left the world view, and the dock column on
-     *  the right edge (x, width) and the band it runs in (top, bottom). */
+    /** The region the default layout left for the world -- where it docks
+     *  the World panel (the world rect itself is that panel's body,
+     *  Editor_UiWorldRect) -- and the dock column on the right edge (x,
+     *  width) and the band it runs in (top, bottom). */
     struct EditorUiRect world;
     int dock_x;
     int dock_w;
@@ -396,6 +399,25 @@ struct EditorUi
     unsigned char closed[EDITOR_UI_LAYOUT_PANELS_MAX];
     unsigned char flown[EDITOR_UI_LAYOUT_PANELS_MAX];
     int booted_layout;
+
+    /** The World panel's chrome panel (module "world"), -1 before it is
+     *  registered. Its body is the 3D view: Editor_UiWorldRect. */
+    int world_panel;
+
+    /**
+     * The saved layout (editor_layout.h). `layout_hold` is set by the host
+     * while the file's read is in flight: the default layout waits for it,
+     * so the panels do not flash at their default places first.
+     * `layout_pending` holds the file the read returned until the next
+     * Editor_UiTick applies it, just before the first (or next) layout.
+     */
+    int layout_hold;
+    int layout_pending;
+    /** The applied file was made for this very surface and scale: after the
+     *  next default layout has placed the column, every panel takes the
+     *  file's box (Editor_UiLayoutApply). */
+    int layout_restore;
+    struct EditorLayoutFile layout_saved;
 };
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
@@ -458,8 +480,9 @@ Editor_UiTick(struct EditorUi* ui);
  * to the right edge (Terrain, Palette, Locs, Spawns, Rectangle, Inspector,
  * Squares, Catalog, in that order, each given at least a few rows and the
  * rest of the column shared top-down), the output console as a strip along
- * the bottom of the world when it is short enough, and the world view the
- * rectangle that is left -- the largest on the surface. Panels of the default
+ * the bottom of the world when it is short enough, and the World panel
+ * docked over the rectangle that is left -- the largest on the surface (its
+ * body is Editor_UiWorldRect). Panels of the default
  * set that do not fit the column are hidden (the View menu opens them, beside
  * the column). Panels the user dragged or resized keep their place.
  * Editor_UiTick runs it on the first frame and whenever the surface or the
@@ -479,9 +502,65 @@ Editor_UiSetSnap(
     struct EditorUi* ui,
     int on);
 
-/** What the last layout left the world view (all zero before the first). */
+/**
+ * The world view: the World panel's BODY (its box minus title bar and
+ * borders) in surface pixels. Everything that draws or picks in the world --
+ * the 3D viewport, the hover pick, the brush footprint, the ghosts, the
+ * selection marks -- reads it through the App's world rect
+ * (App_MapEditorWorldView, app_map_editor.c), so all of them follow the panel
+ * as it moves and resizes. All zero before the first layout, and while the
+ * World panel is hidden (View > World): then nothing is drawn or picked.
+ * A registry without a World panel (a test) answers the region the default
+ * layout left for it.
+ */
 struct EditorUiRect
 Editor_UiWorldRect(const struct EditorUi* ui);
+
+/** The World panel is open (and the layout has run). */
+int
+Editor_UiWorldShown(const struct EditorUi* ui);
+
+/* ---- the saved layout (editor_layout.h has the file and the policy) ------- */
+
+/** The live layout as a file: the surface, the scale, snap, and every
+ *  View-menu panel's visibility, placement flag and geometry (at scale 1). */
+void
+Editor_UiLayoutCapture(
+    const struct EditorUi* ui,
+    struct EditorLayoutFile* out);
+
+/**
+ * Apply a saved layout now (the policy in editor_layout.h): snap and
+ * visibility always, geometry for the panels the user placed, the rest left
+ * to the default layout, which runs again on the next tick. Remembers the
+ * modules' own default set first, so View > Reset layout still returns to
+ * the default and not to the file.
+ */
+void
+Editor_UiLayoutApply(
+    struct EditorUi* ui,
+    const struct EditorLayoutFile* file);
+
+/** The host has started reading the layout file: hold the default layout. */
+void
+Editor_UiLayoutHold(struct EditorUi* ui);
+
+/** The read finished: `file` (NULL when there was none) is applied by the
+ *  next Editor_UiTick, before its layout pass. Releases the hold. */
+void
+Editor_UiLayoutLoaded(
+    struct EditorUi* ui,
+    const struct EditorLayoutFile* file);
+
+/** A cheap digest of everything Capture writes (the registry's panels, not
+ *  the UI tree): the host saves when it moves. */
+uint32_t
+Editor_UiLayoutFingerprint(const struct EditorUi* ui);
+
+/** Not a moment to save: a drag, resize or splitter gesture is open, the
+ *  layout has not run, or the saved one is still being read. */
+int
+Editor_UiLayoutBusy(const struct EditorUi* ui);
 
 /**
  * A window whose panels are hidden (a viewer, or the main window with its

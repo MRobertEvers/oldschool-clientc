@@ -80,6 +80,7 @@ Editor_UiInit(
     }
     ui->view_published[0] = -1;
     ui->snap = 1;
+    ui->world_panel = -1;
 }
 
 void
@@ -137,11 +138,57 @@ Editor_UiPanelSelf(
     return panel ? panel->self : NULL;
 }
 
+/* ---- the World panel --------------------------------------------------------
+ *
+ * The world view as a panel like the others: a titled, resizable, HOLLOW
+ * chrome window (ToriRSChromePanel::hollow) -- the chrome draws its title bar,
+ * rails and grip and takes the pointer there, while the body is neither
+ * painted nor hit, so the 3D view the App draws under it shows through and
+ * every press, drag, wheel and hover in it reaches the world (camera, picks,
+ * tools) exactly as before. The default layout docks it over the region the
+ * other panels leave; View > World hides it (and with it the world). It has
+ * no widgets and no per-frame work: the module is its geometry.
+ */
+static void
+ui_world_destroy(
+    struct EditorUi* ui,
+    void* self)
+{
+    (void)ui;
+    (void)self;
+}
+
+static void
+ui_world_register(struct EditorUi* ui)
+{
+    struct EditorUiPanel desc;
+    int panel;
+
+    panel = ToriRSChrome_PanelAdd(
+        ui->chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_RAIL_W), edp_px(ui, 24), edp_px(ui, 640), "World");
+    assert(panel >= 0);
+    ToriRSChrome_PanelSetFixedHeight(ui->chrome, panel, edp_px(ui, 480));
+    ToriRSChrome_PanelSetResizable(ui->chrome, panel, 1);
+    ToriRSChrome_PanelSetHollow(ui->chrome, panel, 1);
+
+    memset(&desc, 0, sizeof(desc));
+    desc.name = "world";
+    desc.title = "World";
+    desc.chrome_panel = panel;
+    desc.destroy = ui_world_destroy;
+    Editor_UiAddPanel(ui, &desc);
+    ui->world_panel = panel;
+}
+
 void
 Editor_UiRegisterToolsPanels(struct EditorUi* ui)
 {
     assert(ui);
     ui->panel_first = ui->chrome->panel_count;
+
+    /* The World panel first: the lowest chrome panel draws under every other
+     * one, so a panel dragged over the world sits on top of it. */
+    ui_world_register(ui);
 
     /* Order is the View menu's order and the dispatch order. The console goes
      * first so every later Register can already log into it; the modal pair
@@ -293,8 +340,8 @@ Editor_UiPublishView(struct EditorUi* ui)
 
 /* ---- the default layout --------------------------------------------------
  *
- * The world view is whatever the panels leave, so the layout is a statement
- * about where they do NOT go: one column against the right edge, the tool
+ * The World panel (module "world", the 3D view) takes whatever the other
+ * panels leave, so the layout is a statement about where they do NOT go: one column against the right edge, the tool
  * rail against the left, the menu bar across the top, the console along the
  * bottom of the world when it is short enough. Nothing is placed over the
  * world, and the column never grows past what keeps the world the largest
@@ -404,6 +451,34 @@ ui_dock_measure(
     }
 }
 
+/** The modules' own default set, as they showed it with the editor: what the
+ *  first layout docks and what Reset layout returns to. Taken once, before
+ *  the first layout or before a saved layout changes any visibility. */
+static void
+ui_capture_boot(struct EditorUi* ui)
+{
+    struct ToriRSChrome const* chrome = ui->chrome;
+    static const char* const k_strips[] = { "console", "world" };
+
+    if( ui->booted_layout )
+        return;
+    for( int d = 0; d < UI_DOCK_COUNT; d++ )
+    {
+        int const panel = ui_chrome_panel(ui, k_dock_order[d]);
+        if( panel >= 0 )
+            ui->member[panel - ui->panel_first] = ui->boot_member[panel - ui->panel_first] =
+                (unsigned char)(chrome->panels[panel].visible ? 1 : 0);
+    }
+    for( int s = 0; s < 2; s++ )
+    {
+        int const panel = ui_chrome_panel(ui, k_strips[s]);
+        if( panel >= 0 )
+            ui->member[panel - ui->panel_first] = ui->boot_member[panel - ui->panel_first] =
+                (unsigned char)(chrome->panels[panel].visible ? 1 : 0);
+    }
+    ui->booted_layout = 1;
+}
+
 void
 Editor_UiLayout(struct EditorUi* ui)
 {
@@ -421,6 +496,7 @@ Editor_UiLayout(struct EditorUi* ui)
     int menubar;
     int rail;
     int console;
+    int world;
     int avail;
     int used;
 
@@ -434,6 +510,8 @@ Editor_UiLayout(struct EditorUi* ui)
     menubar = ui_chrome_panel(ui, "menubar");
     rail = ui_chrome_panel(ui, "toolrail");
     console = ui_chrome_panel(ui, "console");
+    world = ui_chrome_panel(ui, "world");
+    ui_capture_boot(ui);
 
     /* Who is in the column: the default set (and anything open now), minus
      * what the user closed or dragged out. The first layout fixes the
@@ -447,8 +525,6 @@ Editor_UiLayout(struct EditorUi* ui)
         if( panel < 0 )
             continue;
         at = panel - ui->panel_first;
-        if( !ui->booted_layout )
-            ui->member[at] = ui->boot_member[at] = (unsigned char)(chrome->panels[panel].visible ? 1 : 0);
         ui->docked[at] = 0;
         if( chrome->panels[panel].user_placed )
             continue;
@@ -459,10 +535,6 @@ Editor_UiLayout(struct EditorUi* ui)
         slots[slot_count].module = module;
         slot_count++;
     }
-    if( console >= 0 && !ui->booted_layout )
-        ui->member[console - ui->panel_first] = ui->boot_member[console - ui->panel_first] =
-            (unsigned char)(chrome->panels[console].visible ? 1 : 0);
-    ui->booted_layout = 1;
 
     /* The menu bar spans the top; everything else starts below it. */
     if( menubar >= 0 && chrome->panels[menubar].visible )
@@ -613,6 +685,26 @@ Editor_UiLayout(struct EditorUi* ui)
     ui->world.y = top;
     ui->world.w = dock_x - left;
     ui->world.h = world_bottom - top;
+    /* The World panel fills the region the others left -- the largest on the
+     * surface -- unless the user placed it, or closed it. */
+    if( world >= 0 && !chrome->panels[world].user_placed )
+    {
+        int const at = world - ui->panel_first;
+        int const wanted = chrome->panels[world].visible || (ui->member[at] && !ui->closed[at]);
+
+        ui->docked[at] = 0;
+        if( wanted && ui->world.w > 0 && ui->world.h > 0 )
+        {
+            ToriRSChrome_PanelSetFixedWidth(chrome, world, ui->world.w);
+            ToriRSChrome_PanelSetFixedHeight(chrome, world, ui->world.h);
+            ToriRSChrome_PanelMove(chrome, world, ui->world.x, ui->world.y);
+            ToriRSChrome_PanelSetVisible(chrome, world, 1);
+            ui->docked[at] = 1;
+            ui->member[at] = 1;
+            ui->closed[at] = 0;
+            ui->flown[at] = 0;
+        }
+    }
     ui->dock_x = dock_x;
     ui->dock_w = dock_w;
     ui->dock_top = top;
@@ -718,8 +810,287 @@ Editor_UiSetSnap(
 struct EditorUiRect
 Editor_UiWorldRect(const struct EditorUi* ui)
 {
+    struct EditorUiRect r = { 0, 0, 0, 0 };
+    struct ToriRSChromeRect body;
+
     assert(ui);
-    return ui->world;
+    if( ui->world_panel < 0 )
+        return ui->world;
+    /* Before the first layout the panel sits at its registration box, which
+     * is nobody's answer. */
+    if( ui->layout_surface_w <= 0 || !Editor_UiWorldShown(ui) )
+        return r;
+    body = ToriRSChrome_PanelBodyRect(ui->chrome, ui->world_panel);
+    r.x = body.x;
+    r.y = body.y;
+    r.w = body.w;
+    r.h = body.h;
+    return r;
+}
+
+int
+Editor_UiWorldShown(const struct EditorUi* ui)
+{
+    assert(ui);
+    return ui->world_panel >= 0 && ui->visible && ui->chrome->panels[ui->world_panel].visible;
+}
+
+/* ---- the saved layout ---------------------------------------------------- */
+
+_Static_assert(EDITOR_LAYOUT_PANELS_MAX >= EDITOR_UI_PANELS_MAX, "a layout file holds every registry panel");
+
+/** Registry panel `i` takes part in the saved layout: a View-menu window of
+ *  this registry. The menu bar, the modal pair and other titleless parts are
+ *  the modules' own business. */
+static int
+ui_layout_saves(
+    const struct EditorUi* ui,
+    int i)
+{
+    struct EditorUiPanel const* panel = &ui->panels[i];
+    return panel->title && panel->chrome_panel >= ui->panel_first && panel->chrome_panel < ui->panel_end
+           && panel->chrome_panel < ui->chrome->panel_count && !ui->chrome->panels[panel->chrome_panel].modal;
+}
+
+void
+Editor_UiLayoutCapture(
+    const struct EditorUi* ui,
+    struct EditorLayoutFile* out)
+{
+    int const scale = ToriRSChrome_Scale(ui->chrome) > 0 ? ToriRSChrome_Scale(ui->chrome) : 1;
+
+    assert(ui);
+    assert(out);
+    EditorLayout_Clear(out);
+    out->version = EDITOR_LAYOUT_VERSION;
+    out->surface_w = ui->chrome->surface_w;
+    out->surface_h = ui->chrome->surface_h;
+    out->scale = scale;
+    out->has_snap = 1;
+    out->snap = ui->snap;
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct ToriRSChromePanel const* cp;
+        struct EditorLayoutPanel* p;
+        if( !ui_layout_saves(ui, i) )
+            continue;
+        cp = &ui->chrome->panels[ui->panels[i].chrome_panel];
+        p = EditorLayout_Add(out, ui->panels[i].name);
+        p->has_visible = 1;
+        p->visible = cp->visible ? 1 : 0;
+        p->has_user_placed = 1;
+        p->user_placed = cp->user_placed ? 1 : 0;
+        p->has_x = p->has_y = p->has_w = p->has_h = 1;
+        p->x = cp->x / scale;
+        p->y = cp->y / scale;
+        p->w = cp->fixed_w / scale;
+        p->h = cp->fixed_h / scale;
+    }
+}
+
+/** Pull a saved box back onto the surface: at least a title bar's worth of
+ *  it stays reachable, and it is never larger than the surface. */
+static void
+ui_layout_clamp(
+    const struct EditorUi* ui,
+    int* x,
+    int* y,
+    int* w,
+    int* h)
+{
+    int const sw = ui->chrome->surface_w;
+    int const sh = ui->chrome->surface_h;
+    int const keep = edp_px(ui, 64);
+
+    if( sw <= 0 || sh <= 0 )
+        return;
+    if( *w > sw )
+        *w = sw;
+    if( *h > sh )
+        *h = sh;
+    if( *x > sw - keep )
+        *x = sw - keep;
+    if( *y > sh - keep )
+        *y = sh - keep;
+    if( *w > 0 && *x + *w > sw )
+        *x = sw - *w;
+    if( *h > 0 && *y + *h > sh )
+        *y = sh - *h;
+    if( *x < 0 )
+        *x = 0;
+    if( *y < 0 )
+        *y = 0;
+}
+
+void
+Editor_UiLayoutApply(
+    struct EditorUi* ui,
+    const struct EditorLayoutFile* file)
+{
+    struct ToriRSChrome* chrome;
+    int scale;
+
+    assert(ui);
+    assert(file);
+    chrome = ui->chrome;
+    scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+
+    /* The default set first, from what the modules showed: Reset layout must
+     * return to the default, not to this file. */
+    ui_capture_boot(ui);
+    if( file->has_snap )
+        Editor_UiSetSnap(ui, file->snap);
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct EditorLayoutPanel const* sp;
+        int panel;
+        int at;
+
+        if( !ui_layout_saves(ui, i) )
+            continue;
+        sp = EditorLayout_Find(file, ui->panels[i].name);
+        if( !sp )
+            continue;
+        panel = ui->panels[i].chrome_panel;
+        at = panel - ui->panel_first;
+
+        if( sp->has_user_placed && sp->user_placed && sp->has_x && sp->has_y )
+        {
+            struct ToriRSChromePanel* cp = &chrome->panels[panel];
+            int x = sp->x * scale;
+            int y = sp->y * scale;
+            int w = sp->has_w ? sp->w * scale : cp->fixed_w;
+            int h = sp->has_h ? sp->h * scale : cp->fixed_h;
+
+            ui_layout_clamp(ui, &x, &y, &w, &h);
+            ToriRSChrome_PanelSetFixedWidth(chrome, panel, w);
+            ToriRSChrome_PanelSetFixedHeight(chrome, panel, h);
+            /* A hand-set height drops rows past the bottom unless it scrolls,
+             * as the dock column's panels do. */
+            if( h > 0 )
+                ToriRSChrome_PanelSetScrollable(chrome, panel, 1);
+            ToriRSChrome_PanelMove(chrome, panel, x, y);
+            cp->user_placed = 1;
+            ui->docked[at] = 0;
+            ui->flown[at] = 0;
+        }
+        if( sp->has_visible )
+        {
+            ToriRSChrome_PanelSetVisible(chrome, panel, sp->visible);
+            /* A default panel the user closed stays shut through the layout
+             * (the `closed` mark); one opened is admitted where it belongs. */
+            ui->closed[at] = (unsigned char)(!sp->visible && ui->member[at] ? 1 : 0);
+        }
+    }
+    /* Made for this very surface and scale: once the default layout has
+     * placed the column (and set who is docked), the panels it placed take
+     * the file's boxes too -- the column as the user left it, heights and
+     * all, not as a fresh layout would share it out. */
+    ui->layout_restore = file->surface_w == chrome->surface_w && file->surface_h == chrome->surface_h
+                         && file->scale == scale;
+    if( ui->layout_restore && file != &ui->layout_saved )
+        ui->layout_saved = *file;
+    ui->laid_out = 0;
+}
+
+/** The second half of a same-surface restore: the boxes of the panels the
+ *  default layout just placed, from the file. */
+static void
+ui_layout_restore_boxes(struct EditorUi* ui)
+{
+    struct ToriRSChrome* chrome = ui->chrome;
+    int const scale = ToriRSChrome_Scale(chrome) > 0 ? ToriRSChrome_Scale(chrome) : 1;
+
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct EditorLayoutPanel const* sp;
+        int panel;
+        if( !ui_layout_saves(ui, i) )
+            continue;
+        panel = ui->panels[i].chrome_panel;
+        sp = EditorLayout_Find(&ui->layout_saved, ui->panels[i].name);
+        if( !sp || chrome->panels[panel].user_placed || !chrome->panels[panel].visible || !sp->has_x || !sp->has_y )
+            continue;
+        if( sp->has_visible && !sp->visible )
+            continue;
+        if( sp->has_w )
+            ToriRSChrome_PanelSetFixedWidth(chrome, panel, sp->w * scale);
+        if( sp->has_h )
+            ToriRSChrome_PanelSetFixedHeight(chrome, panel, sp->h * scale);
+        ToriRSChrome_PanelMove(chrome, panel, sp->x * scale, sp->y * scale);
+    }
+}
+
+void
+Editor_UiLayoutHold(struct EditorUi* ui)
+{
+    assert(ui);
+    ui->layout_hold = 1;
+}
+
+void
+Editor_UiLayoutLoaded(
+    struct EditorUi* ui,
+    const struct EditorLayoutFile* file)
+{
+    assert(ui);
+    ui->layout_hold = 0;
+    if( file )
+    {
+        ui->layout_saved = *file;
+        ui->layout_pending = 1;
+    }
+}
+
+static uint32_t
+ui_fnv(
+    uint32_t h,
+    int v)
+{
+    for( int b = 0; b < 4; b++ )
+    {
+        h ^= (uint32_t)((unsigned)v >> (8 * b)) & 0xffu;
+        h *= 16777619u;
+    }
+    return h;
+}
+
+uint32_t
+Editor_UiLayoutFingerprint(const struct EditorUi* ui)
+{
+    uint32_t h = 2166136261u;
+
+    assert(ui);
+    h = ui_fnv(h, ui->chrome->surface_w);
+    h = ui_fnv(h, ui->chrome->surface_h);
+    h = ui_fnv(h, ToriRSChrome_Scale(ui->chrome));
+    h = ui_fnv(h, ui->snap);
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct ToriRSChromePanel const* cp;
+        if( !ui_layout_saves(ui, i) )
+            continue;
+        cp = &ui->chrome->panels[ui->panels[i].chrome_panel];
+        h = ui_fnv(h, i);
+        h = ui_fnv(h, cp->visible);
+        h = ui_fnv(h, cp->user_placed);
+        h = ui_fnv(h, cp->x);
+        h = ui_fnv(h, cp->y);
+        h = ui_fnv(h, cp->fixed_w);
+        h = ui_fnv(h, cp->fixed_h);
+    }
+    return h;
+}
+
+int
+Editor_UiLayoutBusy(const struct EditorUi* ui)
+{
+    struct ToriRSChrome const* chrome;
+
+    assert(ui);
+    chrome = ui->chrome;
+    return !ui->visible || !ui->laid_out || ui->layout_hold || ui->layout_pending || chrome->drag_panel >= 0
+           || chrome->resize_panel >= 0 || chrome->split_panel >= 0;
 }
 
 static void
@@ -727,12 +1098,26 @@ ui_default_layout(struct EditorUi* ui)
 {
     int const menubar = ui_chrome_panel(ui, "menubar");
 
+    /* The saved layout is still being read: wait for it rather than lay out
+     * the default and move everything a frame later. */
+    if( ui->layout_hold )
+        return;
+    if( ui->layout_pending )
+    {
+        ui->layout_pending = 0;
+        Editor_UiLayoutApply(ui, &ui->layout_saved);
+    }
     if( ui->laid_out || ui->chrome->surface_w <= 0 || ui->chrome->surface_h <= 0 )
         return;
     /* Not built yet (no heights to stack): next frame. */
     if( menubar >= 0 && ToriRSChrome_PanelRect(ui->chrome, menubar).h <= 0 )
         return;
     Editor_UiLayout(ui);
+    if( ui->layout_restore )
+    {
+        ui->layout_restore = 0;
+        ui_layout_restore_boxes(ui);
+    }
 }
 
 /* ---- the frame ------------------------------------------------------------- */

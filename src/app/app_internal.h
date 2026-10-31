@@ -1194,6 +1194,26 @@ app_editor_on_state(
 void
 app_map_editor_drain(struct App* app);
 
+/** Write the dock layout before the editor is torn down (App_Shutdown). */
+void
+app_map_editor_layout_flush(struct App* app);
+
+/* The editor's World panel owns the world rect while the editor's panels
+ * show (app_map_editor.c, docs/MAPED_STATUS.md). */
+void
+App_MapEditorWorldView(struct App* app);
+int
+App_MapEditorWorldLetterbox(
+    struct App const* app,
+    int box_w,
+    int box_h,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h);
+int
+App_MapEditorWorldSignature(struct App const* app);
+
 /** Release the EDIT flush's per-square shadows (app_map_editor.c), at the
  *  editor's close. Safe when none were taken. */
 void

@@ -313,6 +313,166 @@ test_edits(void)
     }
 }
 
+
+/* SPAWN_EDIT: a row rewritten where it stands; every other line untouched,
+ * the inverse byte-exact, and the edit plans for each kind of listed row. */
+static void
+test_edit_in_place(void)
+{
+    const char* source = "// header\n"
+                         "==== NPC ====\n"
+                         "giantspider1    3200  3238 0   // hand-spaced\n"
+                         "rat                                           3205  3203 0\n"
+                         "\n"
+                         "==== OBJ ====\n"
+                         "knife                                         3205  3212 0 3\n";
+    struct Editor_SpawnFile file;
+    struct Editor_SpawnRow spider;
+    struct Editor_SpawnRow moved;
+    struct Editor_Cmd command;
+    struct Editor_Cmd plan[4];
+    char* text;
+    int n;
+
+    Editor_SpawnInit(&file);
+    check(Editor_SpawnParse(&file, source, strlen(source)).ok, "edit: the fixture parses");
+    spider = file.lines[2].row;
+    moved = spider;
+    moved.abs_x = 3201;
+    moved.level = 1;
+
+    Editor_SpawnEditCommand(&command, "m50_50", &spider, &moved, &file);
+    check(command.kind == EDITOR_CMD_SPAWN_EDIT && strcmp(command.u.spawn_edit.before_text, file.lines[2].text) == 0,
+        "edit: the command carries the old line's bytes");
+    check(Editor_SpawnApplyEdit(&file, &command, 0) == 1, "edit: applies");
+    text = emit(&file);
+    check(strcmp(text,
+              "// header\n"
+              "==== NPC ====\n"
+              "giantspider1                                  3201  3238 1   // hand-spaced\n"
+              "rat                                           3205  3203 0\n"
+              "\n"
+              "==== OBJ ====\n"
+              "knife                                         3205  3212 0 3\n")
+              == 0,
+        "edit: only that line changed, formatted like the generator's, its comment kept");
+    free(text);
+    check(Editor_SpawnApplyEdit(&file, &command, 0) == 0, "edit: a second forward apply finds no old row");
+    check(Editor_SpawnApplyEdit(&file, &command, 1) == 1, "edit: the inverse applies");
+    text = emit(&file);
+    check(strcmp(text, source) == 0, "edit: and restores the hand-spaced line byte for byte");
+    free(text);
+
+    /* Without before_text (a controller): the row still comes back. */
+    command.u.spawn_edit.before_text[0] = '\0';
+    check(Editor_SpawnApplyEdit(&file, &command, 0) == 1 && Editor_SpawnApplyEdit(&file, &command, 1) == 1
+              && Editor_SpawnFind(&file, &spider) == 2,
+        "edit: with no before_text the inverse reformats the row on its line");
+
+    /* A suppression mark is a field like the others. */
+    {
+        struct Editor_SpawnRow rat = file.lines[3].row;
+        struct Editor_SpawnRow mark = rat;
+        mark.suppress = 1;
+        Editor_SpawnEditCommand(&command, "m50_50", &rat, &mark, &file);
+        check(Editor_SpawnApplyEdit(&file, &command, 0) == 1 && file.lines[3].text[0] == '-'
+                  && file.lines[3].row.suppress,
+            "edit: Suppressed rewrites the row as -rat on its line");
+        check(Editor_SpawnApplyEdit(&file, &command, 1) == 1 && strcmp(file.lines[3].text, "rat                                           3205  3203 0") == 0,
+            "edit: and back");
+    }
+    /* A kind change does not fit one section. */
+    {
+        struct Editor_SpawnRow knife = file.lines[6].row;
+        struct Editor_SpawnRow as_npc = knife;
+        as_npc.is_obj = 0;
+        Editor_SpawnEditCommand(&command, "m50_50", &knife, &as_npc, &file);
+        check(Editor_SpawnApplyEdit(&file, &command, 0) == 0, "edit: SPAWN_EDIT refuses npc <-> obj");
+    }
+
+    /* An add that opened a section: its delete takes the banner back too. */
+    {
+        const char* npc_only = "==== NPC ====\nrat 3205 3203 0\n";
+        struct Editor_SpawnFile small;
+        struct Editor_SpawnRow knife;
+        char* out;
+        int at;
+        Editor_SpawnInit(&small);
+        (void)Editor_SpawnParse(&small, npc_only, strlen(npc_only));
+        memset(&knife, 0, sizeof(knife));
+        knife.is_obj = 1;
+        snprintf(knife.name, sizeof(knife.name), "knife");
+        knife.abs_x = 3205;
+        knife.abs_z = 3203;
+        knife.count = 1;
+        at = Editor_SpawnInsert(&small, &knife);
+        Editor_SpawnRemoveRow(&small, at);
+        out = emit(&small);
+        check(strcmp(out, npc_only) == 0, "remove: an add's delete takes back the OBJ banner it opened");
+        free(out);
+        Editor_SpawnFree(&small);
+    }
+
+    /* The plans. */
+    {
+        struct Editor_SpawnEditSource source_row;
+        struct Editor_SpawnRow want;
+
+        memset(&source_row, 0, sizeof(source_row));
+        source_row.row = spider;
+        source_row.edited = 1;
+        want = moved;
+        n = Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4);
+        check(n == 1 && plan[0].kind == EDITOR_CMD_SPAWN_EDIT && strcmp(plan[0].doc_key, "m50_50") == 0,
+            "plan: an edited row in its own square is one SPAWN_EDIT");
+        want.abs_x = 3200 + 64;
+        n = Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4);
+        check(n == 2 && plan[0].kind == EDITOR_CMD_SPAWN && plan[0].has_before && strcmp(plan[0].doc_key, "m50_50") == 0
+                  && plan[1].kind == EDITOR_CMD_SPAWN && plan[1].has_after && strcmp(plan[1].doc_key, "m51_50") == 0,
+            "plan: across a square border it is a delete and an add");
+        want = spider;
+        want.is_obj = 1;
+        want.count = 2;
+        n = Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4);
+        check(n == 2, "plan: npc -> obj is a delete and an add");
+        want = spider;
+        check(Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4) == 0, "plan: no change, no command");
+        want.level = 4;
+        check(Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4) == -1, "plan: level 4 is refused");
+        want = spider;
+        snprintf(want.name, sizeof(want.name), "two words");
+        check(Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4) == -1, "plan: a spaced name is refused");
+        snprintf(want.name, sizeof(want.name), "#12x");
+        check(Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4) == -1, "plan: #12x is not an id");
+        snprintf(want.name, sizeof(want.name), "#12");
+        check(Editor_SpawnEditPlan(&file, &source_row, &want, plan, 4) == 1, "plan: #12 is the id escape");
+
+        /* A generated row. */
+        source_row.edited = 0;
+        source_row.suppressed = 0;
+        want = spider;
+        want.suppress = 1;
+        n = Editor_SpawnEditPlan(NULL, &source_row, &want, plan, 4);
+        check(n == 1 && plan[0].kind == EDITOR_CMD_SPAWN_SUPPRESS && plan[0].has_after,
+            "plan: Suppressed on a generated row adds its suppression row");
+        source_row.suppressed = 1;
+        want.suppress = 0;
+        n = Editor_SpawnEditPlan(NULL, &source_row, &want, plan, 4);
+        check(n == 1 && plan[0].kind == EDITOR_CMD_SPAWN_SUPPRESS && plan[0].has_before,
+            "plan: clearing it restores the generated spawn");
+        source_row.suppressed = 0;
+        want = moved;
+        n = Editor_SpawnEditPlan(NULL, &source_row, &want, plan, 4);
+        check(n == 2 && plan[0].kind == EDITOR_CMD_SPAWN_SUPPRESS && plan[0].has_after
+                  && plan[1].kind == EDITOR_CMD_SPAWN && plan[1].has_after && plan[1].u.spawn.abs_x == 3201,
+            "plan: a changed generated row is suppressed and the edited row added");
+        source_row.suppressed = 1;
+        n = Editor_SpawnEditPlan(NULL, &source_row, &want, plan, 4);
+        check(n == 1 && plan[0].kind == EDITOR_CMD_SPAWN, "plan: already suppressed, only the add");
+    }
+    Editor_SpawnFree(&file);
+}
+
 int
 main(
     int argc,
@@ -329,6 +489,7 @@ main(
     }
 
     test_edits();
+    test_edit_in_place();
 
     round_trip_dir(argv[1], &files, &failed, &rows);
     check(files > 0, "the generated directory holds spawn files");

@@ -91,15 +91,41 @@ enum Editor_CmdKind
     EDITOR_CMD_IF_COMPONENT,
     /** Replace `before` with `after` at `offset` in a text document. */
     EDITOR_CMD_TEXT_SPLICE,
+    /**
+     * One spawn row of a SPAWN document rewritten IN PLACE: `before` becomes
+     * `after` on the same line (the edit form, a move), so a save touches
+     * exactly that line and an undo puts it back where it was. Both rows sit
+     * in the same document and the same section (npc/obj); an edit that
+     * changes the kind or the square is a SPAWN delete + add instead. The
+     * suppression mark may change (an edited row can become a `-name` row and
+     * back). `before_text` (may be "") is the line's exact bytes, so the
+     * inverse restores a hand-formatted row byte for byte; a trailing `//`
+     * comment is kept either way. has_before and has_after are both 1.
+     */
+    EDITOR_CMD_SPAWN_EDIT,
 };
 
-#define EDITOR_CMD_KIND_COUNT 9
+#define EDITOR_CMD_KIND_COUNT 10
 
 /** Bytes a TEXT_SPLICE carries, before and after together. A regeneration
  *  larger than this is several splices in one stroke. */
 #define EDITOR_CMD_SPLICE_MAX 1024
 #define EDITOR_CMD_NAME_MAX 64
 #define EDITOR_CMD_VALUE_MAX 192
+
+/** One spawn row as SPAWN_EDIT carries it (editor_spawn.h's Editor_SpawnRow,
+ *  which this header cannot include). */
+struct Editor_CmdSpawnRow
+{
+    int is_obj;
+    int suppress;
+    char name[EDITOR_CMD_NAME_MAX];
+    int abs_x;
+    int abs_z;
+    int level;
+    /** The obj stack size; 1 for an npc. */
+    int count;
+};
 
 struct Editor_Cmd
 {
@@ -135,6 +161,13 @@ struct Editor_Cmd
             int level;
             int count;
         } spawn;
+        /** SPAWN_EDIT: the row before and after, and the line's old bytes. */
+        struct
+        {
+            struct Editor_CmdSpawnRow before;
+            struct Editor_CmdSpawnRow after;
+            char before_text[EDITOR_CMD_VALUE_MAX];
+        } spawn_edit;
         /** "" = absent. */
         struct
         {
@@ -187,7 +220,8 @@ struct Editor_Cmd
  *   Editor_SquareKeyParse 0 when `key` is not a square key — keys arrive off
  *                         the wire, so a bad one is data, not a violation.
  *   Editor_CmdKindFits    whether documents of `doc_kind` take edits of
- *                         `kind`: TILE/LOC squares, SPAWN* spawn files,
+ *                         `kind`: TILE/LOC squares, SPAWN* (SPAWN,
+ *                         SPAWN_SUPPRESS, SPAWN_EDIT) spawn files,
  *                         CFG_* records, IF_* interfaces, TEXT_SPLICE any
  *                         text-backed document (CFG, IFACE, TEXT).
  */
@@ -285,7 +319,8 @@ Editor_CmdKindFits(
     case EDITOR_DOC_SQUARE:
         return kind == EDITOR_CMD_TILE || kind == EDITOR_CMD_LOC;
     case EDITOR_DOC_SPAWN:
-        return kind == EDITOR_CMD_SPAWN || kind == EDITOR_CMD_SPAWN_SUPPRESS;
+        return kind == EDITOR_CMD_SPAWN || kind == EDITOR_CMD_SPAWN_SUPPRESS
+               || kind == EDITOR_CMD_SPAWN_EDIT;
     case EDITOR_DOC_CFG:
         return kind == EDITOR_CMD_CFG_FIELD || kind == EDITOR_CMD_CFG_BLOCK
                || kind == EDITOR_CMD_TEXT_SPLICE;
@@ -502,9 +537,12 @@ struct Editor_HistoryGroup
     int loc_turns;
     int loc_id;
 
-    /* SPAWN / SPAWN_SUPPRESS */
+    /* SPAWN / SPAWN_SUPPRESS / SPAWN_EDIT */
     int spawn_adds;
     int spawn_removes;
+    /** SPAWN_EDIT rows rewritten in place, and how many of them moved. */
+    int spawn_edits;
+    int spawn_moves;
     int spawn_is_obj;
     int suppress_adds;
     int suppress_removes;

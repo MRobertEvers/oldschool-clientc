@@ -961,12 +961,586 @@ Editor_CfgKeySplit(
     if( !colon )
         return 0;
     type_length = (size_t)(colon - key);
-    name_length = strlen(colon + 1);
+    /* An overlay key's name stops at its '@' (Editor_CfgKeyOverlay). */
+    name_length = strchr(colon + 1, '@') ? (size_t)(strchr(colon + 1, '@') - (colon + 1)) : strlen(colon + 1);
     if( type_length == 0 || type_length + 1 > type_size || name_length == 0
         || name_length + 1 > name_size )
         return 0;
     memcpy(out_type, key, type_length);
     out_type[type_length] = '\0';
-    memcpy(out_name, colon + 1, name_length + 1);
+    memcpy(out_name, colon + 1, name_length);
+    out_name[name_length] = '\0';
     return 1;
+}
+
+const char*
+Editor_CfgKeyOverlay(const char* key)
+{
+    const char* colon;
+    const char* at;
+
+    assert(key);
+    colon = strchr(key, ':');
+    if( !colon )
+        return NULL;
+    at = strchr(colon + 1, '@');
+    return at ? at + 1 : NULL;
+}
+
+int
+Editor_CfgOverlayKey(
+    char out[128],
+    const char* type,
+    const char* name,
+    const char* overlay)
+{
+    int written;
+
+    assert(out);
+    assert(type);
+    assert(name);
+    if( !overlay || !overlay[0] )
+        written = snprintf(out, 128, "%s:%s", type, name);
+    else
+        written = snprintf(out, 128, "%s:%s@%s", type, name, overlay);
+    return written > 0 && written < 128;
+}
+
+/* ---- a record across its layers ------------------------------------------- */
+
+static void
+trim_span(
+    const char** begin,
+    const char** end)
+{
+    while( *begin < *end && (**begin == ' ' || **begin == '\t') )
+        (*begin)++;
+    while( *end > *begin && ((*end)[-1] == ' ' || (*end)[-1] == '\t' || (*end)[-1] == '\r') )
+        (*end)--;
+}
+
+int
+Editor_CfgRegisterParse(
+    const char* type,
+    const char* text,
+    size_t length,
+    struct Editor_CfgRegisterField* out,
+    int max)
+{
+    const char* p = text;
+    const char* end = text + length;
+    size_t type_length;
+    int count = 0;
+    int current = -1;
+
+    assert(type);
+    assert(text || length == 0);
+    assert(out || max == 0);
+
+    type_length = strlen(type);
+    while( p < end )
+    {
+        const char* nl = memchr(p, '\n', (size_t)(end - p));
+        const char* le = nl ? nl : end;
+        const char* b = p;
+        const char* e = le;
+
+        trim_span(&b, &e);
+        if( b < e && *b == '[' )
+        {
+            const char* close = memchr(b, ']', (size_t)(e - b));
+            current = -1;
+            if( close && (size_t)(close - b - 1) > type_length + 1 && memcmp(b + 1, type, type_length) == 0
+                && b[1 + type_length] == '.' )
+            {
+                const char* k = b + 2 + type_length;
+                size_t klen = (size_t)(close - k);
+                if( klen > 0 && klen < EDITOR_CMD_NAME_MAX )
+                {
+                    for( int i = 0; i < count; i++ )
+                        if( strlen(out[i].key) == klen && memcmp(out[i].key, k, klen) == 0 )
+                            current = i;
+                    if( current < 0 && count < max )
+                    {
+                        current = count++;
+                        memset(&out[current], 0, sizeof(out[current]));
+                        memcpy(out[current].key, k, klen);
+                        out[current].key[klen] = '\0';
+                        snprintf(out[current].scope, sizeof(out[current].scope), "server");
+                    }
+                }
+            }
+        }
+        else if( current >= 0 && b < e && *b != ';' && *b != '#' )
+        {
+            const char* eq = memchr(b, '=', (size_t)(e - b));
+            if( eq )
+            {
+                const char* kb = b;
+                const char* ke = eq;
+                const char* vb = eq + 1;
+                const char* ve = e;
+                const char* semi;
+                trim_span(&kb, &ke);
+                semi = memchr(vb, ';', (size_t)(ve - vb));
+                if( semi )
+                    ve = semi;
+                trim_span(&vb, &ve);
+                if( (size_t)(ke - kb) == 5 && memcmp(kb, "scope", 5) == 0 && (size_t)(ve - vb) < sizeof(out[0].scope) )
+                    snprintf(out[current].scope, sizeof(out[current].scope), "%.*s", (int)(ve - vb), vb);
+                else if( (size_t)(ke - kb) == 4 && memcmp(kb, "text", 4) == 0 )
+                {
+                    out[current].text_param = (size_t)(ve - vb) == 5 && memcmp(vb, "param", 5) == 0;
+                    out[current].text_indexed = (size_t)(ve - vb) == 7 && memcmp(vb, "indexed", 7) == 0;
+                }
+                else if( (size_t)(ke - kb) == 6 && memcmp(kb, "values", 6) == 0
+                         && (size_t)(ve - vb) < sizeof(out[0].values) )
+                    snprintf(out[current].values, sizeof(out[current].values), "%.*s", (int)(ve - vb), vb);
+            }
+        }
+        p = nl ? nl + 1 : end;
+    }
+    return count;
+}
+
+void
+Editor_CfgRecordInit(
+    struct Editor_CfgRecord* record,
+    const char* type,
+    const char* name)
+{
+    assert(record);
+    assert(type);
+    assert(name);
+    memset(record, 0, sizeof(*record));
+    snprintf(record->type, sizeof(record->type), "%s", type);
+    snprintf(record->name, sizeof(record->name), "%s", name);
+}
+
+void
+Editor_CfgRecordFree(struct Editor_CfgRecord* record)
+{
+    if( !record )
+        return;
+    for( int i = 0; i < record->layer_count; i++ )
+        Editor_CfgBlockFree(&record->layers[i].block);
+    ToriMem_Free(ToriMem_Editor(), record->rows);
+    memset(record, 0, sizeof(*record));
+}
+
+int
+Editor_CfgLayerRank(const char* overlay)
+{
+    const char* base;
+
+    if( !overlay || !overlay[0] )
+        return 0;
+    base = strrchr(overlay, '/');
+    base = base ? base + 1 : overlay;
+    if( strstr(overlay, "ported/") || strstr(base, ".generated.") )
+        return 1;
+    return 2;
+}
+
+int
+Editor_CfgRecordAddLayer(
+    struct Editor_CfgRecord* record,
+    const char* overlay,
+    const char* text,
+    size_t length)
+{
+    struct Editor_CfgRecordLayer layer;
+    int at;
+
+    assert(record);
+    assert(text || length == 0);
+
+    if( record->layer_count >= EDITOR_CFG_RECORD_LAYERS_MAX )
+        return 0;
+    memset(&layer, 0, sizeof(layer));
+    if( !Editor_CfgOverlayKey(layer.doc_key, record->type, record->name, overlay) )
+        return 0;
+    if( overlay && overlay[0] )
+        snprintf(layer.label, sizeof(layer.label), "%s", overlay);
+    else
+        snprintf(layer.label, sizeof(layer.label), "configs/all.%s", record->type);
+    layer.rank = Editor_CfgLayerRank(overlay);
+    Editor_CfgBlockInit(&layer.block);
+    Editor_CfgBlockSet(&layer.block, text ? text : "", length);
+    layer.present = Editor_CfgBlockNameIs(&layer.block, record->name);
+
+    /* Merge order: rank, then path (the walk is sorted). */
+    at = record->layer_count;
+    while( at > 0 )
+    {
+        const struct Editor_CfgRecordLayer* prev = &record->layers[at - 1];
+        if( prev->rank < layer.rank || (prev->rank == layer.rank && strcmp(prev->label, layer.label) <= 0) )
+            break;
+        at--;
+    }
+    memmove(&record->layers[at + 1], &record->layers[at],
+        (size_t)(record->layer_count - at) * sizeof(record->layers[0]));
+    record->layers[at] = layer;
+    record->layer_count++;
+    return 1;
+}
+
+int
+Editor_CfgRecordFindLayer(
+    const struct Editor_CfgRecord* record,
+    const char* doc_key)
+{
+    assert(record);
+    assert(doc_key);
+    for( int i = 0; i < record->layer_count; i++ )
+        if( strcmp(record->layers[i].doc_key, doc_key) == 0 )
+            return i;
+    return -1;
+}
+
+/** A FIELD line's key, value core (no trailing comment) and param name. */
+static void
+record_line_parts(
+    const struct Editor_CfgBlock* block,
+    int line,
+    char* key,
+    char* sub,
+    char* value)
+{
+    const struct Editor_CfgLine* l = &block->lines[line];
+    const char* text = block->text + l->start;
+    size_t value_length = 0;
+    const char* v = Editor_CfgBlockValue(block, line, &value_length);
+    const char* ve = v + value_length;
+    const char* vb = v;
+    size_t klen = l->part < EDITOR_CMD_NAME_MAX ? l->part : EDITOR_CMD_NAME_MAX - 1;
+
+    memcpy(key, text, klen);
+    key[klen] = '\0';
+    for( const char* c = vb; c + 1 < ve; c++ )
+        if( c[0] == '/' && c[1] == '/' && (c == vb || c[-1] == ' ' || c[-1] == '\t') )
+        {
+            ve = c;
+            break;
+        }
+    trim_span(&vb, &ve);
+    sub[0] = '\0';
+    if( strcmp(key, "param") == 0 )
+    {
+        const char* comma = memchr(vb, ',', (size_t)(ve - vb));
+        if( comma && (size_t)(comma - vb) < EDITOR_CMD_NAME_MAX )
+        {
+            memcpy(sub, vb, (size_t)(comma - vb));
+            sub[comma - vb] = '\0';
+            vb = comma + 1;
+        }
+    }
+    snprintf(value, EDITOR_CMD_VALUE_MAX, "%.*s", (int)(ve - vb), vb);
+}
+
+int
+Editor_CfgRecordFindRow(
+    const struct Editor_CfgRecord* record,
+    const char* key,
+    const char* sub,
+    int occurrence)
+{
+    assert(record);
+    assert(key);
+    assert(sub);
+    for( int i = 0; i < record->row_count; i++ )
+    {
+        const struct Editor_CfgRecordRow* row = &record->rows[i];
+        if( row->occurrence == occurrence && strcmp(row->key, key) == 0 && strcmp(row->sub, sub) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+static struct Editor_CfgRecordRow*
+record_row_add(struct Editor_CfgRecord* record)
+{
+    if( record->row_count == record->row_capacity )
+    {
+        int next = record->row_capacity ? record->row_capacity * 2 : 128;
+        record->rows = ToriMem_Realloc(ToriMem_Editor(), record->rows, (size_t)next * sizeof(*record->rows));
+        assert(record->rows);
+        record->row_capacity = next;
+    }
+    memset(&record->rows[record->row_count], 0, sizeof(record->rows[0]));
+    return &record->rows[record->row_count++];
+}
+
+/** Statement `line` of a layer is which occurrence of its (key, sub)? */
+static int
+record_occurrence(
+    const struct Editor_CfgBlock* block,
+    int line,
+    const char* key,
+    const char* sub)
+{
+    int n = 0;
+    char k[EDITOR_CMD_NAME_MAX];
+    char s[EDITOR_CMD_NAME_MAX];
+    char v[EDITOR_CMD_VALUE_MAX];
+
+    for( int i = 0; i < line; i++ )
+    {
+        if( block->lines[i].kind != EDITOR_CFG_LINE_FIELD )
+            continue;
+        record_line_parts(block, i, k, s, v);
+        n += strcmp(k, key) == 0 && strcmp(s, sub) == 0;
+    }
+    return n;
+}
+
+void
+Editor_CfgRecordResolve(
+    struct Editor_CfgRecord* record,
+    const struct Editor_CfgRegisterField* fields,
+    int field_count)
+{
+    assert(record);
+    assert(fields || field_count == 0);
+
+    record->row_count = 0;
+    for( int l = 0; l < record->layer_count; l++ )
+    {
+        const struct Editor_CfgBlock* block = &record->layers[l].block;
+        if( !record->layers[l].present )
+            continue;
+        for( int i = 0; i < block->line_count; i++ )
+        {
+            char key[EDITOR_CMD_NAME_MAX];
+            char sub[EDITOR_CMD_NAME_MAX];
+            char value[EDITOR_CMD_VALUE_MAX];
+            int occurrence;
+            int at;
+
+            if( block->lines[i].kind != EDITOR_CFG_LINE_FIELD )
+                continue;
+            record_line_parts(block, i, key, sub, value);
+            occurrence = record_occurrence(block, i, key, sub);
+            at = Editor_CfgRecordFindRow(record, key, sub, occurrence);
+            if( at < 0 )
+            {
+                struct Editor_CfgRecordRow* row = record_row_add(record);
+                snprintf(row->key, sizeof(row->key), "%s", key);
+                snprintf(row->sub, sizeof(row->sub), "%s", sub);
+                row->occurrence = occurrence;
+                snprintf(row->value, sizeof(row->value), "%s", value);
+                row->layer = l;
+            }
+            else
+            {
+                /* Layers run in merge order: a later statement wins. */
+                struct Editor_CfgRecordRow* row = &record->rows[at];
+                snprintf(row->value, sizeof(row->value), "%s", value);
+                if( row->layer != l )
+                    row->shadowed++;
+                row->layer = l;
+            }
+        }
+    }
+    for( int f = 0; f < field_count; f++ )
+    {
+        const struct Editor_CfgRegisterField* field = &fields[f];
+        const char* key = field->text_param ? "param" : field->key;
+        const char* sub = field->text_param ? field->key : "";
+        int at = Editor_CfgRecordFindRow(record, key, sub, 0);
+        if( field->text_indexed )
+        {
+            /* patrol1..N: the record's own statements are rows already; the
+             * register's row is the first one, to add from. */
+            char first[EDITOR_CMD_NAME_MAX];
+            snprintf(first, sizeof(first), "%s1", field->key);
+            if( Editor_CfgRecordFindRow(record, first, "", 0) < 0 && at < 0 )
+                at = -2;
+            if( at == -2 )
+            {
+                struct Editor_CfgRecordRow* row = record_row_add(record);
+                snprintf(row->key, sizeof(row->key), "%s", first);
+                row->layer = -1;
+                snprintf(row->scope, sizeof(row->scope), "%s", field->scope);
+                continue;
+            }
+        }
+        if( at < 0 )
+        {
+            struct Editor_CfgRecordRow* row = record_row_add(record);
+            snprintf(row->key, sizeof(row->key), "%s", key);
+            snprintf(row->sub, sizeof(row->sub), "%s", sub);
+            row->layer = -1;
+            at = record->row_count - 1;
+        }
+        snprintf(record->rows[at].scope, sizeof(record->rows[at].scope), "%s", field->scope);
+    }
+}
+
+int
+Editor_CfgRecordAddLayerFor(const struct Editor_CfgRecord* record)
+{
+    assert(record);
+    for( int l = record->layer_count - 1; l >= 0; l-- )
+        if( record->layers[l].present )
+            return l;
+    return 0;
+}
+
+/** The line of (key, sub, occurrence) in a block, its index among the
+ *  block's `key` lines, and its raw value; -1 when absent. */
+static int
+record_find_line(
+    const struct Editor_CfgBlock* block,
+    const char* key,
+    const char* sub,
+    int occurrence,
+    int* out_key_index,
+    char* out_raw,
+    size_t raw_size)
+{
+    int key_index = 0;
+    int seen = 0;
+
+    for( int i = 0; i < block->line_count; i++ )
+    {
+        char k[EDITOR_CMD_NAME_MAX];
+        char s[EDITOR_CMD_NAME_MAX];
+        char v[EDITOR_CMD_VALUE_MAX];
+        if( block->lines[i].kind != EDITOR_CFG_LINE_FIELD )
+            continue;
+        record_line_parts(block, i, k, s, v);
+        if( strcmp(k, key) != 0 )
+            continue;
+        if( strcmp(s, sub) == 0 && seen++ == occurrence )
+        {
+            size_t length = 0;
+            const char* raw = Editor_CfgBlockValue(block, i, &length);
+            if( length >= raw_size )
+                return -2;
+            memcpy(out_raw, raw, length);
+            out_raw[length] = '\0';
+            *out_key_index = key_index;
+            return i;
+        }
+        key_index++;
+    }
+    *out_key_index = key_index;
+    return -1;
+}
+
+int
+Editor_CfgRecordFieldCommands(
+    const struct Editor_CfgRecord* record,
+    const char* key,
+    const char* sub,
+    int occurrence,
+    const char* value,
+    int layer,
+    struct Editor_Cmd* out,
+    int max)
+{
+    const struct Editor_CfgRecordLayer* target;
+    char raw[EDITOR_CMD_VALUE_MAX];
+    char want[EDITOR_CMD_VALUE_MAX];
+    char spec[EDITOR_CMD_NAME_MAX];
+    int key_index = 0;
+    int line;
+    int count = 0;
+    int written;
+
+    assert(record);
+    assert(key);
+    assert(sub);
+    assert(value);
+    assert(out || max == 0);
+
+    if( layer < 0 )
+    {
+        int row = Editor_CfgRecordFindRow(record, key, sub, occurrence);
+        layer = row >= 0 && record->rows[row].layer >= 0 ? record->rows[row].layer
+                                                         : Editor_CfgRecordAddLayerFor(record);
+    }
+    if( layer >= record->layer_count || !key[0] || strchr(value, '\n') || strchr(value, '\r') )
+        return -1;
+    if( strcmp(key, "param") == 0 && !sub[0] )
+        return -1;
+    target = &record->layers[layer];
+
+    line = target->present ? record_find_line(&target->block, key, sub, occurrence, &key_index, raw, sizeof(raw))
+                           : -1;
+    if( line == -2 )
+        return -1;
+
+    /* The new raw value: a param keeps its name, a line keeps its comment. */
+    if( value[0] )
+    {
+        const char* comment = "";
+        if( line >= 0 )
+        {
+            const char* c = strstr(raw, "//");
+            while( c && c > raw && c[-1] != ' ' && c[-1] != '\t' )
+                c = strstr(c + 2, "//");
+            if( c )
+            {
+                while( c > raw && (c[-1] == ' ' || c[-1] == '\t') )
+                    c--;
+                comment = c;
+            }
+        }
+        written = sub[0] ? snprintf(want, sizeof(want), "%s,%s%s", sub, value, comment)
+                         : snprintf(want, sizeof(want), "%s%s", value, comment);
+        if( written < 0 || (size_t)written >= sizeof(want) )
+            return -1;
+    }
+    else
+        want[0] = '\0';
+
+    if( line >= 0 )
+    {
+        if( strcmp(raw, want) == 0 )
+            return 0;
+        if( max < 1 )
+            return -1;
+        /* A removal names its line, so the undo puts it back there. */
+        if( want[0] )
+            written = key_index ? snprintf(spec, sizeof(spec), "%s#%d", key, key_index)
+                                : snprintf(spec, sizeof(spec), "%s", key);
+        else
+            written = snprintf(spec, sizeof(spec), "%s#%d@%d", key, key_index, line);
+        if( written < 0 || (size_t)written >= sizeof(spec) )
+            return -1;
+        Editor_CmdInit(&out[0], EDITOR_DOC_CFG, target->doc_key, EDITOR_CMD_CFG_FIELD);
+        out[0].has_before = 1;
+        out[0].has_after = want[0] != '\0';
+        snprintf(out[0].u.cfg_field.key, sizeof(out[0].u.cfg_field.key), "%s", spec);
+        snprintf(out[0].u.cfg_field.before, sizeof(out[0].u.cfg_field.before), "%s", raw);
+        snprintf(out[0].u.cfg_field.after, sizeof(out[0].u.cfg_field.after), "%s", want);
+        return 1;
+    }
+
+    if( !want[0] )
+        return 0;
+    if( max < (target->present ? 1 : 2) )
+        return -1;
+    if( !target->present )
+    {
+        /* "Override in <layer>": the record's block opens there first. */
+        Editor_CmdInit(&out[count], EDITOR_DOC_CFG, target->doc_key, EDITOR_CMD_CFG_BLOCK);
+        out[count].has_after = 1;
+        snprintf(out[count].u.cfg_block.name, sizeof(out[count].u.cfg_block.name), "%s", record->name);
+        count++;
+        key_index = 0;
+    }
+    /* Appended as the key's next statement. */
+    written = key_index ? snprintf(spec, sizeof(spec), "%s#%d", key, key_index)
+                        : snprintf(spec, sizeof(spec), "%s", key);
+    if( written < 0 || (size_t)written >= sizeof(spec) )
+        return -1;
+    Editor_CmdInit(&out[count], EDITOR_DOC_CFG, target->doc_key, EDITOR_CMD_CFG_FIELD);
+    out[count].has_after = 1;
+    snprintf(out[count].u.cfg_field.key, sizeof(out[count].u.cfg_field.key), "%s", spec);
+    snprintf(out[count].u.cfg_field.after, sizeof(out[count].u.cfg_field.after), "%s", want);
+    count++;
+    return count;
 }

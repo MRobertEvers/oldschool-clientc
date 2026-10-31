@@ -49,7 +49,7 @@ run_arm()
     # shellcheck disable=SC2086
     (cd "$REPO" && env SDL_VIDEODRIVER=dummy TORIRS_TRANSPORT=embed \
         TORIRS_MAX_FRAMES="$FRAMES" TORIRS_SCAN_METER_STRICT=1 \
-        TORIRS_PREFS="$dir/preferences.ini" TORIRS_PLUGIN_PREFS="$dir/plugin_prefs.ini" \
+        TORIRS_PREFS="$dir/preferences.ini" TORIRS_EDITOR_LAYOUT="$dir/editor_layout.ini" TORIRS_PLUGIN_PREFS="$dir/plugin_prefs.ini" \
         TORIRSSERVER_SAVES="$dir/saves" TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 \
         TORIRS_SIM_RESIZE="40,1600x1000" $extra \
         "$BIN" --manifest "$OUT/osrs239.ini" --user "scangate$arm" --pass test \

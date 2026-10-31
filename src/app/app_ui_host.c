@@ -182,6 +182,9 @@ app_ui_host_publish_inputs(struct App* app)
             signature[UITREE_HOST_INPUT_CAMERA] = UITree_InputSignatureInt(
                 signature[UITREE_HOST_INPUT_CAMERA], viewport_inputs[i]);
     }
+    /* And the map editor's World panel, which cuts the same letterbox. */
+    signature[UITREE_HOST_INPUT_CAMERA] =
+        UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], App_MapEditorWorldSignature(app));
     local = app_local_player(app);
     signature[UITREE_HOST_INPUT_CAMERA] =
         UITree_InputSignatureInt(signature[UITREE_HOST_INPUT_CAMERA], local != NULL);

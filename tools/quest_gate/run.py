@@ -876,6 +876,7 @@ def client_env(directory, saves, script, max_frames=int(DEFAULT_MAX_FRAMES), ext
         "TORIRS_PLUGIN_MANIFEST": "plugins/quest_driver.ini",
         "TORIRS_PLUGIN_PREFS": os.path.join(directory, "plugin_prefs.ini"),
         "TORIRS_PREFS": "",
+        "TORIRS_EDITOR_LAYOUT": "",
         "TORIRSSERVER_SAVES": saves,
         "TORIRSSERVER_STAFF_LEVEL": "2",
         "TORIRSSERVER_HOME": "3222,3218",
