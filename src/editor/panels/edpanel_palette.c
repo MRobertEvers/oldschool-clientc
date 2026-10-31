@@ -62,7 +62,23 @@ struct PalettePanel
     /** The open-square set the lists were built for. */
     int built_signature;
     int dirty_draw;
+    /** The picks the well was drawn for: the eyedropper (I) writes them
+     *  behind the panel's back, and the well and the readout follow. */
+    int shown_picks[5];
 };
+
+static int
+palette_picks_changed(
+    const struct EditorUi* ui,
+    struct PalettePanel* self)
+{
+    int const now[5] = { ui->tools.underlay_id, ui->tools.overlay_id, ui->tools.overlay_none,
+                         ui->tools.overlay_shape, ui->tools.overlay_rotation };
+    if( memcmp(now, self->shown_picks, sizeof(now)) == 0 )
+        return 0;
+    memcpy(self->shown_picks, now, sizeof(now));
+    return 1;
+}
 
 static void
 palette_list_add(
@@ -284,6 +300,11 @@ palette_tick(
 
     if( !ui->chrome->panels[self->panel].visible )
         return;
+    if( palette_picks_changed(ui, self) )
+    {
+        palette_rebuild(ui, self);
+        ToriRSChrome_RadioSelect(ui->chrome, self->radio_rotation[ui->tools.overlay_rotation & 3]);
+    }
     if( self->built_signature != palette_signature(ui) || self->underlays.count == 0 )
         palette_rebuild(ui, self);
     if( !self->dirty_draw )

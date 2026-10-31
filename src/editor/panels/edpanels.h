@@ -13,6 +13,8 @@
  * inspector.
  */
 
+#include "editor/editor_hotkeys.h"
+
 #include <stdint.h>
 
 struct EditorUi;
@@ -59,7 +61,13 @@ struct Editor_SpawnRow;
 int
 Editor_Spawns_SelectionCount(struct EditorUi* ui);
 
-/** Duplicate [D]: the selected spawns copied one tile east, or to the
+/** Delete / suppress the spawn row selected in the list (the panel's
+ *  Delete button; Edit > Delete selection with no loc selected). Returns 1
+ *  when a command was applied. */
+int
+Editor_Spawns_DeleteSelected(struct EditorUi* ui);
+
+/** Duplicate (Ctrl+D): the selected spawns copied one tile east, or to the
  *  latched tile, as one undo step; the copies become the selection.
  *  Returns the commands the authority accepted. */
 int
@@ -411,6 +419,16 @@ Editor_Areas_SetLevel(
 int
 Editor_Areas_GoTo(struct EditorUi* ui);
 
+/** The free camera to absolute tile (x, z) on `level`, the way Go to moves
+ *  it (keeps yaw and pitch, eye 2600 units out). 0 when the tile is not in
+ *  the loaded scene or the window has no world. Needs `ui->app`. */
+int
+Editor_Areas_CameraTo(
+    struct EditorUi* ui,
+    int tile_x,
+    int tile_z,
+    int level);
+
 /** Select an area / a collection by name (0 when there is none). */
 int
 Editor_Areas_Select(
@@ -497,5 +515,46 @@ Editor_SquarePicker_SetCollection(
 /** The collection the picker is filtered to ("" when none). */
 const char*
 Editor_SquarePicker_Collection(struct EditorUi* ui);
+
+/* ---- hotkeys (edpanel_hotkeys.c, docs/MAPED_HOTKEYS.md) -------------------- */
+
+/** The Hotkeys panel: every action's group, name, context and chord, a
+ *  search box, click a chord to rebind it, clashes in red, Reset to
+ *  defaults. Hidden until View > Hotkeys panel (F1). "hotkeys" */
+void
+Editor_Hotkeys_Register(struct EditorUi* ui);
+
+/**
+ * Run `action` the way its menu row or button does: the ONE entry point the
+ * menu bar and the App's hotkey dispatcher share. The App-bound actions (the
+ * camera, the eyedroppers, Select the square's locs, Apply to selection, the
+ * click accelerators) answer 0: the App runs those itself. Returns 1 when
+ * the action was run here.
+ */
+int
+Editor_HotkeyRun(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action);
+
+/** The action the Hotkeys panel is capturing a chord for, or -1. */
+int
+Editor_Hotkeys_Capturing(struct EditorUi* ui);
+
+/** Start capturing a chord for `action` (a click on its row). */
+void
+Editor_Hotkeys_BeginCapture(
+    struct EditorUi* ui,
+    enum Editor_HotkeyAction action);
+
+/**
+ * While capturing: this frame's keys go to the capture, not the table. Esc
+ * cancels, Backspace unbinds, any other chord (a modifier alone only for Fly
+ * faster) binds and the capture ends. Returns 1 while capturing (the frame's
+ * keys are the panel's), 0 when not capturing.
+ */
+int
+Editor_Hotkeys_Feed(
+    struct EditorUi* ui,
+    const struct Editor_HotkeyInput* input);
 
 #endif

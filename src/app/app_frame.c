@@ -772,6 +772,12 @@ App_RunOnce(
 
     app_cs2_flush_settings_mirrors(app);
 
+    /* The map editor's hotkeys before every other key reader: a chord its
+     * table claims (Ctrl+S) must be withheld from the manifest's debug
+     * hotkeys the overlay, the loc editor and the camera read below, and its
+     * keys are marked consumed for the world hotkeys (app_editor_hotkeys.c). */
+    app_editor_hotkeys_frame(app, input);
+
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     /* The developer chrome's clock: a hovered widget's tooltip shows after

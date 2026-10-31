@@ -25,44 +25,27 @@
 #include <stdio.h>
 #include <string.h>
 
-enum
-{
-    FILE_NEW = 0,
-    FILE_SAVE_ALL,
-    FILE_SAVE_AS,
-    FILE_BAKE,
-    FILE_CLOSE,
-    FILE_COUNT
+/* The File and Edit rows, in order: each row IS a hotkey action, so a row
+ * and its chord run the same Editor_HotkeyRun (edpanel_hotkeys.c), and the
+ * row's label is regenerated from the table (the chord right-aligned after a
+ * tab) whenever a binding changes. */
+static const enum Editor_HotkeyAction k_file_actions[] = {
+    EDITOR_HK_FILE_NEW, EDITOR_HK_FILE_SAVE_ALL, EDITOR_HK_FILE_SAVE_AS, EDITOR_HK_FILE_BAKE, EDITOR_HK_FILE_CLOSE,
 };
-static const char* const k_file_rows[FILE_COUNT] = {
-    "New square...", "Save all", "Save square as new...", "Bake cache (slow)", "Close editor",
-};
+#define FILE_COUNT ((int)(sizeof(k_file_actions) / sizeof(k_file_actions[0])))
 
-enum
-{
-    EDIT_UNDO = 0,
-    EDIT_REDO,
-    EDIT_DESELECT,
-    EDIT_DELETE,
-    EDIT_DUPLICATE,
-    EDIT_ROTATE,
-    EDIT_RESHAPE,
-    EDIT_COPY,
-    EDIT_PASTE,
-    EDIT_FILL,
-    EDIT_CLEAR,
-    EDIT_COUNT
+static const enum Editor_HotkeyAction k_edit_actions[] = {
+    EDITOR_HK_EDIT_UNDO,     EDITOR_HK_EDIT_REDO,   EDITOR_HK_EDIT_DESELECT, EDITOR_HK_EDIT_DELETE,
+    EDITOR_HK_EDIT_DUPLICATE, EDITOR_HK_EDIT_ROTATE, EDITOR_HK_EDIT_RESHAPE, EDITOR_HK_EDIT_COPY,
+    EDITOR_HK_EDIT_PASTE,    EDITOR_HK_EDIT_FILL,   EDITOR_HK_EDIT_CLEAR,    EDITOR_HK_EDIT_MARK_AREA,
 };
-static const char* const k_edit_rows[EDIT_COUNT] = {
-    "Undo",           "Redo",           "Deselect",       "Delete selection  [Del]",
-    "Duplicate  [D]", "Rotate  [R]",    "Reshape  [S]",   "Copy tiles",
-    "Paste tiles",    "Fill tiles",     "Clear tiles",
-};
+#define EDIT_COUNT ((int)(sizeof(k_edit_actions) / sizeof(k_edit_actions[0])))
 
 /* After the panel rows: the layout's own two. */
 enum
 {
-    VIEW_RESET_LAYOUT = 0,
+    VIEW_HIDE = 0,
+    VIEW_RESET_LAYOUT,
     VIEW_SNAP,
     VIEW_LAYOUT_COUNT
 };
@@ -73,11 +56,14 @@ enum
 #define MENUBAR_LEVEL_BUTTONS (EDITOR_SQUARE_LEVELS + 1)
 static const char* const k_level_buttons[MENUBAR_LEVEL_BUTTONS] = { "Auto", "0", "1", "2", "3" };
 static const char* const k_level_tips[MENUBAR_LEVEL_BUTTONS] = {
-    "Auto: edit the level under the pointer  [Ctrl+n again]",
-    "Pin level 0, hide the levels above  [Ctrl+0]",
-    "Pin level 1, hide the levels above  [Ctrl+1, PgUp/PgDn]",
-    "Pin level 2, hide the levels above  [Ctrl+2, PgUp/PgDn]",
-    "Pin level 3  [Ctrl+3, PgUp/PgDn]",
+    "Auto: edit the level under the pointer",
+    "Pin level 0, hide the levels above",
+    "Pin level 1, hide the levels above",
+    "Pin level 2, hide the levels above",
+    "Pin level 3",
+};
+static const enum Editor_HotkeyAction k_level_actions[MENUBAR_LEVEL_BUTTONS] = {
+    EDITOR_HK_LEVEL_AUTO, EDITOR_HK_LEVEL_PIN0, EDITOR_HK_LEVEL_PIN1, EDITOR_HK_LEVEL_PIN2, EDITOR_HK_LEVEL_PIN3,
 };
 
 struct MenuBarPanel
@@ -95,6 +81,13 @@ struct MenuBarPanel
     int view_panel_count;
     int view_built_for;
     int view_built_snap;
+    /** The File and Edit rows' labels (the dropdowns borrow them). */
+    char file_labels[FILE_COUNT][TORIRS_CHROME_LABEL_MAX];
+    const char* file_rows[FILE_COUNT];
+    char edit_labels[EDIT_COUNT][TORIRS_CHROME_LABEL_MAX];
+    const char* edit_rows[EDIT_COUNT];
+    /** ui->hotkeys.serial every label and tip was made from. */
+    uint32_t hint_serial;
     /** The Level row (menubar_level_show). */
     int label_level;
     int level_buttons[MENUBAR_LEVEL_BUTTONS];
@@ -103,37 +96,6 @@ struct MenuBarPanel
     int shown_level;
     int shown_vis;
 };
-
-/** The square File > Save as new copies: the picker's selection, else the
- *  first square open in the mirror. */
-static int
-menubar_current_square(
-    struct EditorUi* ui,
-    char* out,
-    int out_size)
-{
-    if( Editor_SquarePicker_SelectionKey(ui, out, out_size) )
-        return 1;
-    if( ui->editor )
-    {
-        struct Editor_Doc* doc = &ui->editor->doc;
-        for( int i = 0; i < doc->square_count; i++ )
-        {
-            const char* storage;
-            if( !doc->squares[i].loaded )
-                continue;
-            storage = Editor_DocSquareStorage(doc, &doc->squares[i]);
-            if( storage && storage[0] )
-                snprintf(out, (size_t)out_size, "%s/m%d_%d", storage, doc->squares[i].map_x,
-                    doc->squares[i].map_z);
-            else
-                snprintf(out, (size_t)out_size, "m%d_%d", doc->squares[i].map_x,
-                    doc->squares[i].map_z);
-            return 1;
-        }
-    }
-    return 0;
-}
 
 static void
 menubar_build_view(
@@ -144,24 +106,71 @@ menubar_build_view(
     for( int i = 0; i < ui->panel_count && self->view_count < MENUBAR_VIEW_MAX - VIEW_LAYOUT_COUNT; i++ )
     {
         const struct EditorUiPanel* panel = &ui->panels[i];
+        int action;
         if( !panel->title || panel->chrome_panel < 0 )
             continue;
-        snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "%s", panel->title);
+        action = panel->name ? Editor_HotkeyForPanel(panel->name) : -1;
+        if( action >= 0 )
+            edp_hotkey_row(ui, action, panel->title, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+        else
+            snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "%s", panel->title);
         self->view_rows[self->view_count] = self->view_labels[self->view_count];
         self->view_targets[self->view_count] = i;
         self->view_count++;
     }
     self->view_panel_count = self->view_count;
-    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Reset layout");
+    edp_hotkey_row(ui, EDITOR_HK_VIEW_HIDE_PANELS, "Hide / show panels", self->view_labels[self->view_count],
+        TORIRS_CHROME_LABEL_MAX);
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
     self->view_targets[self->view_count++] = -1;
-    snprintf(self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX, "Snap to grid: %s",
-        ui->snap ? "on" : "off");
+    edp_hotkey_row(
+        ui, EDITOR_HK_VIEW_RESET_LAYOUT, "Reset layout", self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+    self->view_rows[self->view_count] = self->view_labels[self->view_count];
+    self->view_targets[self->view_count++] = -1;
+    {
+        char snap[32];
+        snprintf(snap, sizeof(snap), "Snap to grid: %s", ui->snap ? "on" : "off");
+        edp_hotkey_row(ui, EDITOR_HK_VIEW_SNAP, snap, self->view_labels[self->view_count], TORIRS_CHROME_LABEL_MAX);
+    }
     self->view_rows[self->view_count] = self->view_labels[self->view_count];
     self->view_targets[self->view_count++] = -1;
     ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_view, self->view_rows, self->view_count, -1);
     self->view_built_for = ui->panel_count;
     self->view_built_snap = ui->snap;
+}
+
+/** The File and Edit rows and the Level tips, from the hotkey table. */
+static void
+menubar_hints(
+    struct EditorUi* ui,
+    struct MenuBarPanel* self)
+{
+    for( int i = 0; i < FILE_COUNT; i++ )
+    {
+        edp_hotkey_row(ui, k_file_actions[i], Editor_HotkeyInfo(k_file_actions[i])->name, self->file_labels[i],
+            TORIRS_CHROME_LABEL_MAX);
+        self->file_rows[i] = self->file_labels[i];
+    }
+    for( int i = 0; i < EDIT_COUNT; i++ )
+    {
+        edp_hotkey_row(ui, k_edit_actions[i], Editor_HotkeyInfo(k_edit_actions[i])->name, self->edit_labels[i],
+            TORIRS_CHROME_LABEL_MAX);
+        self->edit_rows[i] = self->edit_labels[i];
+    }
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_file, self->file_rows, FILE_COUNT, -1);
+    ToriRSChrome_DropdownSetOptions(ui->chrome, self->menu_edit, self->edit_rows, EDIT_COUNT, -1);
+    for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        edp_hotkey_tip(ui, k_level_actions[i], k_level_tips[i], tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, self->level_buttons[i], tip);
+    }
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        edp_hotkey_tip(ui, EDITOR_HK_LEVEL_ABOVE, "Pinned: also draw the levels above", tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, self->button_above, tip);
+    }
+    self->hint_serial = ui->hotkeys.serial;
 }
 
 /** Press the row's button for the edit level, light Above, and name the
@@ -202,6 +211,11 @@ menubar_tick(
 
     int const width = ui->chrome->surface_w > 0 ? ui->chrome->surface_w : UITREE_LAYOUT_ROOT_W;
 
+    if( self->hint_serial != ui->hotkeys.serial )
+    {
+        menubar_hints(ui, self);
+        menubar_build_view(ui, self);
+    }
     if( self->view_built_for != ui->panel_count || self->view_built_snap != ui->snap )
         menubar_build_view(ui, self);
     /* A level changed behind the row's back -- another window
@@ -216,93 +230,6 @@ menubar_tick(
     /* The bar spans whatever the screen is now. */
     if( ui->chrome->panels[self->panel].fixed_w != width )
         ToriRSChrome_PanelSetFixedWidth(ui->chrome, self->panel, width);
-}
-
-static void
-menubar_file(
-    struct EditorUi* ui,
-    int row)
-{
-    char key[EDITOR_DOC_KEY_MAX];
-
-    if( row == FILE_NEW )
-    {
-        int map_x = -1;
-        int map_z = -1;
-        (void)Editor_SquarePicker_EmptyCell(ui, &map_x, &map_z);
-        Editor_NewSquare_Open(
-            ui, EDITOR_NEW_SQUARE_NEW,
-            Editor_SquarePicker_SelectionKey(ui, key, (int)sizeof(key)) ? key : NULL, map_x, map_z);
-    }
-    else if( row == FILE_SAVE_ALL )
-    {
-        int const saved = ui->editor ? Editor_SaveAll(ui->editor) : -1;
-        if( saved < 0 )
-            Editor_UiLog(ui, "editor: read-only session, nothing saved");
-        else
-            Editor_UiLog(ui, "editor: saved %d document(s) as text", saved);
-    }
-    else if( row == FILE_SAVE_AS )
-    {
-        if( menubar_current_square(ui, key, (int)sizeof(key)) )
-            Editor_NewSquare_Open(ui, EDITOR_NEW_SQUARE_SAVE_AS, key, -1, -1);
-        else
-            Editor_UiLog(ui, "editor: open or select a square first");
-    }
-    else if( row == FILE_BAKE )
-    {
-        if( ui->hooks.bake )
-            ui->hooks.bake(ui->hooks_user);
-        else
-            Editor_UiLog(ui, "editor: this window cannot bake");
-    }
-    else if( row == FILE_CLOSE )
-    {
-        struct EditorUiGuard guard;
-        memset(&guard, 0, sizeof(guard));
-        guard.action = EDITOR_UI_GUARD_CLOSE;
-        (void)Editor_UiGuarded(ui, &guard);
-    }
-}
-
-static void
-menubar_edit(
-    struct EditorUi* ui,
-    int row)
-{
-    if( row == EDIT_UNDO )
-        Editor_UiLog(ui, "editor: undo reverted %d edit(s)", ui->editor ? Editor_Undo(ui->editor) : 0);
-    else if( row == EDIT_REDO )
-        Editor_UiLog(ui, "editor: redo reapplied %d edit(s)", ui->editor ? Editor_Redo(ui->editor) : 0);
-    else if( row == EDIT_DESELECT )
-    {
-        ui->tools.loc_count = 0;
-        ui->tools.rect.valid = 0;
-        if( ui->hooks.selection_changed )
-            ui->hooks.selection_changed(ui->hooks_user);
-    }
-    else if( row == EDIT_DELETE )
-        (void)edp_locs_delete(ui);
-    else if( row == EDIT_DUPLICATE )
-    {
-        /* Duplicate what is selected: the spawn selection when no loc is. */
-        if( ui->tools.loc_count == 0 && Editor_Spawns_SelectionCount(ui) > 0 )
-            (void)Editor_Spawns_Duplicate(ui);
-        else
-            (void)edp_locs_duplicate(ui);
-    }
-    else if( row == EDIT_ROTATE )
-        (void)edp_locs_rotate(ui);
-    else if( row == EDIT_RESHAPE )
-        (void)edp_locs_reshape(ui);
-    else if( row == EDIT_COPY )
-        (void)edp_rect_copy(ui);
-    else if( row == EDIT_PASTE )
-        (void)edp_rect_paste(ui, ui->tools.rect.x0, ui->tools.rect.z0, ui->tools.rect.level);
-    else if( row == EDIT_FILL )
-        (void)edp_rect_fill(ui);
-    else if( row == EDIT_CLEAR )
-        (void)edp_rect_clear(ui);
 }
 
 static int
@@ -333,17 +260,16 @@ menubar_activate(
     if( row < 0 )
         return 1;
     if( widget == self->menu_file && row < FILE_COUNT )
-        menubar_file(ui, row);
+        (void)Editor_HotkeyRun(ui, k_file_actions[row]);
     else if( widget == self->menu_edit && row < EDIT_COUNT )
-        menubar_edit(ui, row);
+        (void)Editor_HotkeyRun(ui, k_edit_actions[row]);
+    else if( widget == self->menu_view && row == self->view_panel_count + VIEW_HIDE )
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_HIDE_PANELS);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_RESET_LAYOUT )
-    {
-        Editor_UiResetLayout(ui);
-        Editor_UiLog(ui, "editor: layout reset for %dx%d", ui->chrome->surface_w, ui->chrome->surface_h);
-    }
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_RESET_LAYOUT);
     else if( widget == self->menu_view && row == self->view_panel_count + VIEW_SNAP )
     {
-        Editor_UiSetSnap(ui, !ui->snap);
+        (void)Editor_HotkeyRun(ui, EDITOR_HK_VIEW_SNAP);
         menubar_build_view(ui, self);
     }
     else if( widget == self->menu_view && row < self->view_panel_count )
@@ -388,18 +314,14 @@ Editor_MenuBar_Register(struct EditorUi* ui)
     self->panel =
         ToriRSChrome_PanelAdd(ui->chrome, TORIRS_CHROME_PANEL_MENUBAR, 0, 0, UITREE_LAYOUT_ROOT_W, "");
     assert(self->panel >= 0);
-    self->menu_file = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "File", k_file_rows, FILE_COUNT);
-    self->menu_edit = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "Edit", k_edit_rows, EDIT_COUNT);
+    self->menu_file = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "File", NULL, 0);
+    self->menu_edit = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "Edit", NULL, 0);
     self->menu_view = ToriRSChrome_MenuDrop(ui->chrome, self->panel, "View", NULL, 0);
     self->label_level = ToriRSChrome_Label(ui->chrome, self->panel, "   Level");
     for( int i = 0; i < MENUBAR_LEVEL_BUTTONS; i++ )
-    {
         self->level_buttons[i] = ToriRSChrome_MenuItem(ui->chrome, self->panel, k_level_buttons[i]);
-        ToriRSChrome_SetTooltip(ui->chrome, self->level_buttons[i], k_level_tips[i]);
-    }
     self->button_above = ToriRSChrome_MenuItem(ui->chrome, self->panel, "Above");
-    ToriRSChrome_SetTooltip(
-        ui->chrome, self->button_above, "Pinned: also draw the levels above (roofs back on)");
+    menubar_hints(ui, self);
     self->shown_level = -2;
     self->shown_vis = -2;
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);

@@ -3002,6 +3002,343 @@ main_shutdown(struct App* a)
     ToriMem_Shutdown();
 }
 
+/*
+ * TORIRS_SIM_HOTKEY: one press of a chord at a main-loop frame.
+ *
+ *   TORIRS_SIM_HOTKEY="<frame>,<chord>[,hold=<frames>][;<frame>,<chord>...]"
+ *   chord = [ctrl+][shift+][alt+]<name>
+ *
+ * <name> is LibToriRS_KeyCodeName's spelling ("z", "f1", "lbracket",
+ * "pageup", "escape" ...; "enter", "page_up", "page_down" too), any case; the
+ * modifiers may come in any order. The key goes down at <frame> and up
+ * <hold> frames later (default 2): IsKeyDown sees the press on its frame
+ * only, IsKeyHeld from that frame until the release. The chord's modifiers are
+ * held over the same span. Each entry is independent, so presses may overlap
+ * (a modifier two entries hold stays down until the last lets go) and need
+ * not be in frame order.
+ *
+ * Both key spaces are written, as a real press writes them: the
+ * platform-neutral arrays (enum LibToriRS_KeyCode, which the editor's hotkeys,
+ * the manifest's [debug:hotkeys] and the camera read) and, for every key the
+ * cache's keymap maps, the OSRS arrays (revconfig hotkeys, CS2 KEYPRESSED).
+ *
+ * A malformed entry stops the run: a typo that pressed nothing would make a
+ * photograph prove the wrong thing.
+ */
+enum
+{
+    SIM_HOTKEY_MOD_CTRL = 1u << 0,
+    SIM_HOTKEY_MOD_SHIFT = 1u << 1,
+    SIM_HOTKEY_MOD_ALT = 1u << 2,
+};
+
+struct SimHotkey
+{
+    long frame;
+    long hold;
+    enum LibToriRS_KeyCode key;
+    /** OSRS code for key, or -1 when the cache's keymap has none. */
+    int osrs;
+    unsigned mods;
+    /** 0 waiting, 1 down, 2 released. */
+    int state;
+    long pressed_at;
+    char chord[48];
+};
+
+static struct
+{
+    unsigned bit;
+    enum LibToriRS_KeyCode key;
+    int vk;
+} const sim_hotkey_mods[] = {
+    { SIM_HOTKEY_MOD_CTRL, TORIRSK_CTRL, TORIRS_VK_CTRL },
+    { SIM_HOTKEY_MOD_SHIFT, TORIRSK_SHIFT, TORIRS_VK_SHIFT },
+    { SIM_HOTKEY_MOD_ALT, TORIRSK_ALT, TORIRS_VK_ALT },
+};
+
+static void
+sim_hotkey_die(
+    char const* entry,
+    char const* why)
+{
+    TORIRS_ERR("sim_hotkey: bad entry '%s': %s\n", entry, why);
+    TORIRS_ERR(
+        "sim_hotkey: grammar is <frame>,[ctrl+][shift+][alt+]<key>[,hold=<frames>][;...]\n");
+    exit(2);
+}
+
+/* One "<frame>,<chord>[,hold=<n>]" entry (no ';'), into *out. */
+static void
+sim_hotkey_parse_entry(
+    char const* entry,
+    struct SimHotkey* out)
+{
+    char* end = NULL;
+    char const* chord;
+    size_t chord_len = 0;
+    char token[32];
+
+    assert(entry);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    out->hold = 2;
+    out->osrs = -1;
+
+    out->frame = strtol(entry, &end, 0);
+    if( end == entry || *end != ',' || out->frame < 0 )
+        sim_hotkey_die(entry, "expected a frame number and a comma");
+    chord = end + 1;
+    while( chord[chord_len] && chord[chord_len] != ',' )
+        chord_len++;
+    if( chord_len == 0 || chord_len >= sizeof(out->chord) )
+        sim_hotkey_die(entry, "missing or overlong chord");
+    memcpy(out->chord, chord, chord_len);
+    out->chord[chord_len] = '\0';
+
+    if( chord[chord_len] == ',' )
+    {
+        char const* opt = chord + chord_len + 1;
+        if( strncmp(opt, "hold=", 5) != 0 )
+            sim_hotkey_die(entry, "the only option is hold=<frames>");
+        out->hold = strtol(opt + 5, &end, 0);
+        if( end == opt + 5 || *end != '\0' || out->hold < 1 )
+            sim_hotkey_die(entry, "hold must be a whole number of frames, at least 1");
+    }
+
+    /* Split the chord on '+': every token but the last is a modifier. */
+    for( char const* t = out->chord;; )
+    {
+        char const* plus = strchr(t, '+');
+        size_t len = plus ? (size_t)(plus - t) : strlen(t);
+        enum LibToriRS_KeyCode code;
+        if( len == 0 || len >= sizeof(token) )
+            sim_hotkey_die(entry, "empty or overlong key name in the chord");
+        memcpy(token, t, len);
+        token[len] = '\0';
+        code = LibToriRS_KeyCodeFromName(token);
+        if( code == TORIRSK_UNKNOWN )
+            sim_hotkey_die(entry, "unknown key name (see LibToriRS_KeyCodeName)");
+        if( !plus )
+        {
+            out->key = code;
+            break;
+        }
+        {
+            unsigned bit = 0;
+            for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+                if( sim_hotkey_mods[m].key == code )
+                    bit = sim_hotkey_mods[m].bit;
+            if( !bit )
+                sim_hotkey_die(entry, "only ctrl, shift and alt may precede '+'");
+            out->mods |= bit;
+        }
+        t = plus + 1;
+    }
+
+    /* The OSRS side through the cache keymap's own name lookup; -1 for the
+     * keys it leaves unmapped (brackets, slash, grave, insert ...). */
+    out->osrs = LibToriRS_OsrsKeyFromName(LibToriRS_KeyCodeName(out->key));
+}
+
+/* The whole variable, into a calloc'd array the process keeps. */
+static struct SimHotkey*
+sim_hotkey_parse(
+    char const* text,
+    int* out_count)
+{
+    int capacity = 1;
+    int count = 0;
+    struct SimHotkey* entries;
+    char entry[128];
+
+    assert(text);
+    assert(out_count);
+    for( char const* c = text; *c; c++ )
+        if( *c == ';' )
+            capacity++;
+    entries = calloc((size_t)capacity, sizeof(*entries));
+    assert(entries);
+
+    for( char const* t = text; *t; )
+    {
+        char const* semi = strchr(t, ';');
+        size_t len = semi ? (size_t)(semi - t) : strlen(t);
+        if( len >= sizeof(entry) )
+            sim_hotkey_die(t, "entry too long");
+        memcpy(entry, t, len);
+        entry[len] = '\0';
+        if( len > 0 )
+            sim_hotkey_parse_entry(entry, &entries[count++]);
+        if( !semi )
+            break;
+        t = semi + 1;
+    }
+    *out_count = count;
+    return entries;
+}
+
+/* The modifier names of a mask, "ctrl+shift" style, for the log line. */
+static void
+sim_hotkey_mods_text(
+    unsigned mods,
+    char* out,
+    size_t out_size)
+{
+    size_t used = 0;
+    assert(out);
+    assert(out_size > 0);
+    out[0] = '\0';
+    for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+        if( mods & sim_hotkey_mods[m].bit )
+            used += (size_t)snprintf(
+                out + used,
+                used < out_size ? out_size - used : 0,
+                "%s%s",
+                used ? "+" : "",
+                LibToriRS_KeyCodeName(sim_hotkey_mods[m].key));
+    if( used >= out_size )
+        out[out_size - 1] = '\0';
+    if( used == 0 )
+        snprintf(out, out_size, "none");
+}
+
+/* One frame of TORIRS_SIM_HOTKEY: releases due, then the modifier set the
+ * live presses want, then the presses due. */
+static void
+sim_hotkey_step(
+    struct ToriRS_CmdBus* bus,
+    struct SimHotkey* entries,
+    int count,
+    unsigned* mods_held,
+    long frame)
+{
+    unsigned want = 0;
+
+    assert(bus);
+    assert(mods_held);
+    if( count == 0 )
+        return;
+    assert(entries);
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey* e = &entries[i];
+        if( e->state == 1 && frame >= e->pressed_at + e->hold )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)e->key);
+            if( e->osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)e->osrs, 0, 0);
+            e->state = 2;
+        }
+    }
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey const* e = &entries[i];
+        if( e->state == 1 || (e->state == 0 && frame >= e->frame) )
+            want |= e->mods;
+    }
+    for( size_t m = 0; m < sizeof(sim_hotkey_mods) / sizeof(sim_hotkey_mods[0]); m++ )
+    {
+        unsigned bit = sim_hotkey_mods[m].bit;
+        int osrs = LibToriRS_OsrsKeyFromVk(sim_hotkey_mods[m].vk);
+        if( (want & bit) && !(*mods_held & bit) )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)sim_hotkey_mods[m].key);
+            if( osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)osrs, 1, 1);
+        }
+        else if( !(want & bit) && (*mods_held & bit) )
+        {
+            CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)sim_hotkey_mods[m].key);
+            if( osrs >= 0 )
+                CmdBus_PushOsrsKey(bus, (int16_t)osrs, 0, 0);
+        }
+    }
+    *mods_held = want;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct SimHotkey* e = &entries[i];
+        char mods_text[32];
+        if( e->state != 0 || frame < e->frame )
+            continue;
+        CmdBus_PushKey(bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)e->key);
+        if( e->osrs >= 0 )
+            CmdBus_PushOsrsKey(bus, (int16_t)e->osrs, 1, 1);
+        e->state = 1;
+        e->pressed_at = frame;
+        sim_hotkey_mods_text(e->mods, mods_text, sizeof(mods_text));
+        /* TORIRS_REPORT, not TORIRS_LOG: the receipt for a lever someone set,
+         * and OPT builds (every photograph) compile TORIRS_LOG away. */
+        TORIRS_REPORT(
+            "sim_hotkey: '%s' -> key=%s mods=%s osrs_key=%d at frame %ld, release at %ld\n",
+            e->chord,
+            LibToriRS_KeyCodeName(e->key),
+            mods_text,
+            e->osrs,
+            frame,
+            frame + e->hold);
+    }
+}
+
+/*
+ * TORIRS_HOTKEY_DEBUG=1: one `hotkey_edges:` line per frame on which any
+ * platform-neutral key went down or up, listing the frame's down and up edges
+ * and every key held after LibToriRS_Input_End -- what the editor's hotkey
+ * table and the manifest's [debug:hotkeys] will see. Silent otherwise.
+ */
+static void
+main_hotkey_debug_edges(
+    struct LibToriRS_Input const* input,
+    long frame)
+{
+    static int enabled = -1;
+    char line[512];
+    size_t used = 0;
+    int any_edge = 0;
+
+    assert(input);
+    if( enabled < 0 )
+    {
+        char const* env = getenv("TORIRS_HOTKEY_DEBUG");
+        enabled = (env && *env && strcmp(env, "0") != 0) ? 1 : 0;
+    }
+    if( !enabled )
+        return;
+    for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        if( input->curr.key_down[k] || input->curr.key_up[k] )
+            any_edge = 1;
+    if( !any_edge )
+        return;
+
+    line[0] = '\0';
+    for( int pass = 0; pass < 3; pass++ )
+    {
+        static char const* const label[3] = { "down", "up", "held" };
+        used += (size_t)snprintf(
+            line + used, used < sizeof(line) ? sizeof(line) - used : 0, " %s=", label[pass]);
+        for( int k = TORIRSK_UNKNOWN + 1; k < TORIRSK_COUNT; k++ )
+        {
+            int on = pass == 0   ? input->curr.key_down[k]
+                     : pass == 1 ? input->curr.key_up[k]
+                                 : input->key_held[k];
+            if( on )
+                used += (size_t)snprintf(
+                    line + used,
+                    used < sizeof(line) ? sizeof(line) - used : 0,
+                    "%s,",
+                    LibToriRS_KeyCodeName((enum LibToriRS_KeyCode)k));
+            if( used >= sizeof(line) )
+                used = sizeof(line) - 1;
+        }
+        if( used >= sizeof(line) )
+            used = sizeof(line) - 1;
+    }
+    TORIRS_REPORT("hotkey_edges: frame %ld%s\n", frame, line);
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -4213,81 +4550,30 @@ frame_loop_step(void)
                 }
             }
 
-            /* TORIRS_SIM_HOTKEY="frame,<key>[;frame,<key>...]": press a named key
-             * at that main-loop frame and release it two frames later. Key names
-             * are the revconfig [hotkey:…] spelling (f1, 3, escape — see
-             * LibToriRS_OsrsKeyFromName).
+            /* TORIRS_SIM_HOTKEY: a chord at a main-loop frame -- grammar and
+             * semantics on struct SimHotkey above.
              *
              * Separate from the pre-loop TORIRS_SIM_KEYS block because that one
              * runs before the frame loop and behind App_BootWait; a binding is only
-             * live once the tree is baked and App_Interact is running. Drives the
-             * OSRS-coded key arrays, which is what both revconfig hotkeys and CS2
-             * KEYPRESSED read. */
+             * live once the tree is baked and App_Interact is running. Pushed on
+             * the bus before this iteration's drain, so the press lands in this
+             * frame's LibToriRS_Input edges, and the state machine keys on
+             * frame_count (not loop iterations), so a frame the SIM_READY clock
+             * holds still does not press twice. */
             {
-                static char const* hk_cursor = NULL;
+                static struct SimHotkey* hk_entries = NULL;
+                static int hk_count = 0;
                 static int hk_init = 0;
-                static long hk_frame = -1;
-                static int hk_key = -1;
-                /* Platform-neutral code for the same key when it has one (letters
-                 * and digits). A real press fills both arrays, and the debug world
-                 * hotkeys read this one — pressing only the OSRS side would make a
-                 * hotkey/spawn-key collision untestable. */
-                static enum LibToriRS_KeyCode hk_plain = TORIRSK_UNKNOWN;
+                static unsigned hk_mods_held = 0;
                 if( !hk_init )
                 {
+                    char const* env = getenv("TORIRS_SIM_HOTKEY");
                     hk_init = 1;
-                    hk_cursor = getenv("TORIRS_SIM_HOTKEY");
+                    if( env && *env )
+                        hk_entries = sim_hotkey_parse(env, &hk_count);
                 }
-                if( hk_frame < 0 && hk_cursor && *hk_cursor )
-                {
-                    char* end = NULL;
-                    char name[64] = { 0 };
-                    long at = strtol(hk_cursor, &end, 0);
-                    if( end && *end == ',' )
-                    {
-                        char const* start = end + 1;
-                        size_t len = 0;
-                        while( start[len] && start[len] != ';' && len < sizeof(name) - 1 )
-                            len++;
-                        memcpy(name, start, len);
-                        hk_cursor = start[len] == ';' ? start + len + 1 : NULL;
-                        hk_frame = at;
-                        hk_key = LibToriRS_OsrsKeyFromName(name);
-                        hk_plain = TORIRSK_UNKNOWN;
-                        if( name[0] && !name[1] )
-                        {
-                            if( name[0] >= 'a' && name[0] <= 'z' )
-                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_A + (name[0] - 'a'));
-                            else if( name[0] >= '0' && name[0] <= '9' )
-                                hk_plain = (enum LibToriRS_KeyCode)(TORIRSK_0 + (name[0] - '0'));
-                        }
-                        TORIRS_LOG(
-                            "sim_hotkey: '%s' -> osrs_key=%d at frame %ld\n",
-                            name,
-                            hk_key,
-                            hk_frame);
-                    }
-                    else
-                        hk_cursor = NULL;
-                }
-                if( hk_frame >= 0 && hk_key >= 0 && frame_count >= hk_frame )
-                {
-                    if( frame_count == hk_frame )
-                    {
-                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 1, 1);
-                        if( hk_plain != TORIRSK_UNKNOWN )
-                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)hk_plain);
-                    }
-                    else if( frame_count >= hk_frame + 2 )
-                    {
-                        CmdBus_PushOsrsKey(&bus, (int16_t)hk_key, 0, 0);
-                        if( hk_plain != TORIRSK_UNKNOWN )
-                            CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_UP, (uint8_t)hk_plain);
-                        hk_frame = -1;
-                        hk_key = -1;
-                        hk_plain = TORIRSK_UNKNOWN;
-                    }
-                }
+                if( hk_count > 0 )
+                    sim_hotkey_step(&bus, hk_entries, hk_count, &hk_mods_held, frame_count);
             }
 
             /* TORIRS_SIM_CMD="frame,text[;frame,text...]": send a `::` command at
@@ -4879,6 +5165,7 @@ frame_loop_step(void)
             LibToriRS_Input_Begin(input, now);
         App_DrainCommands(&app, &bus, input);
         LibToriRS_Input_End(input);
+        main_hotkey_debug_edges(input, frame_count);
     }
 
     /* Reconcile the presentation surfaces with the canvas the drain just

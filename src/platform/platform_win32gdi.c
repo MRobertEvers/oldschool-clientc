@@ -786,6 +786,8 @@ vk_to_torirs(int vk)
         return (enum LibToriRS_KeyCode)(TORIRSK_A + (vk - 'A'));
     if( vk >= '0' && vk <= '9' )
         return (enum LibToriRS_KeyCode)(TORIRSK_0 + (vk - '0'));
+    if( vk >= VK_F1 && vk <= VK_F12 )
+        return (enum LibToriRS_KeyCode)(TORIRSK_F1 + (vk - VK_F1));
     switch( vk )
     {
     case VK_ESCAPE:
@@ -806,6 +808,12 @@ vk_to_torirs(int vk)
     case VK_LCONTROL:
     case VK_RCONTROL:
         return TORIRSK_CTRL;
+    /* Alt (and F10) arrive as WM_SYSKEYDOWN, which the window procedure
+     * routes here with WM_KEYDOWN. */
+    case VK_MENU:
+    case VK_LMENU:
+    case VK_RMENU:
+        return TORIRSK_ALT;
     case VK_TAB:
         return TORIRSK_TAB;
     case VK_SPACE:
@@ -822,8 +830,32 @@ vk_to_torirs(int vk)
         return TORIRSK_PAGE_UP;
     case VK_NEXT:
         return TORIRSK_PAGE_DOWN;
+    case VK_HOME:
+        return TORIRSK_HOME;
+    case VK_END:
+        return TORIRSK_END;
     case VK_OEM_COMMA:
         return TORIRSK_COMMA;
+    case VK_OEM_PERIOD:
+        return TORIRSK_PERIOD;
+    case VK_OEM_MINUS:
+        return TORIRSK_MINUS;
+    case VK_OEM_PLUS: /* the =/+ key */
+        return TORIRSK_EQUALS;
+    case VK_OEM_4: /* [ { on a US layout */
+        return TORIRSK_LBRACKET;
+    case VK_OEM_6: /* ] } */
+        return TORIRSK_RBRACKET;
+    case VK_OEM_1: /* ; : */
+        return TORIRSK_SEMICOLON;
+    case VK_OEM_7: /* ' " */
+        return TORIRSK_APOSTROPHE;
+    case VK_OEM_3: /* ` ~ */
+        return TORIRSK_GRAVE;
+    case VK_OEM_2: /* / ? */
+        return TORIRSK_SLASH;
+    case VK_OEM_5: /* \ | */
+        return TORIRSK_BACKSLASH;
     default:
         return TORIRSK_UNKNOWN;
     }

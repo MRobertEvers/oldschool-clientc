@@ -1129,8 +1129,8 @@ test_spawn_duplicate(void)
 
     spawns = cat_panel("Spawns");
     list = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_VLIST, NULL) : -1;
-    duplicate = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_BUTTON, "Duplicate  [D]") : -1;
-    CHECK(list >= 0 && duplicate >= 0, "spawns: the panel has Duplicate [D]");
+    duplicate = spawns >= 0 ? cat_widget(spawns, TORIRS_CHROME_W_BUTTON, "Duplicate") : -1;
+    CHECK(list >= 0 && duplicate >= 0, "spawns: the panel has Duplicate");
     if( list < 0 || duplicate < 0 )
         return;
     ToriRSChrome_PanelSetVisible(&g_cat_chrome, spawns, 1);
@@ -2006,6 +2006,16 @@ test_layout(void)
 
 static const char* g_tmp_root;
 
+/** A menu row "label\tchord" names `label` (the chord is the hotkey's). */
+static int
+menu_row_is(
+    const char* row,
+    const char* label)
+{
+    size_t const n = strlen(label);
+    return strncmp(row, label, n) == 0 && (row[n] == '\0' || row[n] == '\t');
+}
+
 /** The View menu's dropdown, and the row whose label is `label` (-1). */
 static int
 view_menu(void)
@@ -2026,7 +2036,7 @@ view_toggle(const char* label)
     if( view < 0 )
         return;
     for( int r = 0; r < g_chrome.widgets[view].option_count; r++ )
-        if( g_chrome.widgets[view].options && strcmp(g_chrome.widgets[view].options[r], label) == 0 )
+        if( g_chrome.widgets[view].options && menu_row_is(g_chrome.widgets[view].options[r], label) )
             row = r;
     CHECK(row >= 0, "View lists '%s'", label);
     if( row < 0 )
@@ -3985,6 +3995,255 @@ test_active_level(void)
     Editor_UiFree(&g_ui);
 }
 
+
+/* ---- hotkeys (docs/MAPED_HOTKEYS.md) ------------------------------------------- */
+
+/** The menu bar's drop titled `title` ("File", "Edit", "View"). */
+static int
+menu_drop(const char* title)
+{
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+        if( g_chrome.widgets[i].kind == TORIRS_CHROME_W_DROPDOWN && g_chrome.widgets[i].menu_mode
+            && strcmp(g_chrome.widgets[i].text, title) == 0 )
+            return i;
+    return -1;
+}
+
+/** The row of drop `drop` whose label part is `label`, or NULL. */
+static const char*
+menu_row(
+    int drop,
+    const char* label)
+{
+    if( drop < 0 || !g_chrome.widgets[drop].options )
+        return NULL;
+    for( int r = 0; r < g_chrome.widgets[drop].option_count; r++ )
+        if( menu_row_is(g_chrome.widgets[drop].options[r], label) )
+            return g_chrome.widgets[drop].options[r];
+    return NULL;
+}
+
+/** The Hotkeys panel's TREE row for `action`: its label starts with the
+ *  action's name and " (". */
+static int
+hotkeys_row(
+    int panel,
+    int action)
+{
+    const char* name = Editor_HotkeyInfo(action)->name;
+    size_t const n = strlen(name);
+    for( int i = 0; i < g_chrome.widget_count; i++ )
+    {
+        const struct ToriRSChromeWidget* w = &g_chrome.widgets[i];
+        if( w->panel == panel && w->kind == TORIRS_CHROME_W_TREE && strncmp(w->label, name, n) == 0
+            && strncmp(w->label + n, " (", 2) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+/** Feed the Hotkeys panel one frame with `chord_text` pressed (NULL: only
+ *  the keys already set in `in`). */
+static int
+hotkeys_feed(const char* chord_text)
+{
+    struct Editor_HotkeyInput in;
+    struct Editor_Chord chord;
+
+    memset(&in, 0, sizeof(in));
+    if( chord_text )
+    {
+        int const ok = Editor_ChordParse(chord_text, &chord);
+        assert(ok);
+        (void)ok;
+        if( chord.mods & EDITOR_HK_MOD_CTRL )
+            in.held[TORIRSK_CTRL] = 1;
+        if( chord.mods & EDITOR_HK_MOD_SHIFT )
+            in.held[TORIRSK_SHIFT] = 1;
+        in.down[chord.key] = 1;
+        in.held[chord.key] = 1;
+    }
+    return Editor_Hotkeys_Feed(&g_ui, &in);
+}
+
+static void
+test_hotkeys(void)
+{
+    struct EditorUiPanel* module;
+    int panel;
+    int rows = 0;
+    int search;
+    char expect[64];
+    char chord[32];
+    struct Editor_Chord parsed;
+
+    layout_boot(1530, 1006, 1);
+    module = Editor_UiFindPanel(&g_ui, "hotkeys");
+    CHECK(module && module->chrome_panel >= 0, "hotkeys: the panel is registered");
+    if( !module )
+    {
+        Editor_UiFree(&g_ui);
+        return;
+    }
+    panel = module->chrome_panel;
+    CHECK(!g_chrome.panels[panel].visible, "hotkeys: hidden until asked for");
+    {
+        const char* row = menu_row(view_menu(), "Hotkeys");
+        CHECK(row && strstr(row, "\tF1"), "hotkeys: View lists it with F1 (%s)", row ? row : "-");
+    }
+    CHECK(Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_HOTKEYS) == 1, "hotkeys: F1's action runs");
+    frame();
+    frame();
+    CHECK(g_chrome.panels[panel].visible, "hotkeys: F1 opens the panel");
+
+    /* One row per action, every action. */
+    for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+    {
+        int const w = hotkeys_row(panel, a);
+        CHECK(w >= 0, "hotkeys: a row for %s", Editor_HotkeyInfo(a)->id);
+        if( w >= 0 )
+            rows++;
+    }
+    CHECK(rows == EDITOR_HK_COUNT, "hotkeys: %d rows for %d actions", rows, EDITOR_HK_COUNT);
+    {
+        int const undo = hotkeys_row(panel, EDITOR_HK_EDIT_UNDO);
+        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_EDIT_UNDO, chord, (int)sizeof(chord));
+        snprintf(expect, sizeof(expect), "Undo (G)\t%s", chord);
+        CHECK(undo >= 0 && strcmp(g_chrome.widgets[undo].label, expect) == 0, "hotkeys: Undo's row reads '%s' (%s)",
+            expect, undo >= 0 ? g_chrome.widgets[undo].label : "-");
+    }
+
+    /* Search filters by any column. */
+    search = find_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Search");
+    CHECK(search >= 0, "hotkeys: a search box");
+    if( search >= 0 )
+    {
+        ToriRSChrome_SetText(&g_chrome, search, "redo");
+        frame();
+        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden
+                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden
+                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].hidden,
+            "hotkeys: 'redo' leaves Redo and hides Undo and Raise");
+        ToriRSChrome_SetText(&g_chrome, search, "F12");
+        frame();
+        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_VIEW_WORLD)].hidden
+                  && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].hidden,
+            "hotkeys: a chord finds its action (F12 -> World)");
+        ToriRSChrome_SetText(&g_chrome, search, "");
+        frame();
+        CHECK(!g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].hidden, "hotkeys: an empty search shows all");
+    }
+
+    /* Click Bake's chord, press Ctrl+Z: Bake is bound, the File row says so,
+     * and Bake and Undo clash in red on both rows. */
+    activate(hotkeys_row(panel, EDITOR_HK_FILE_BAKE));
+    CHECK(Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE, "hotkeys: a click on a row captures for it");
+    CHECK(hotkeys_feed("shift") == 1 && Editor_Hotkeys_Capturing(&g_ui) == EDITOR_HK_FILE_BAKE,
+        "hotkeys: a modifier alone never binds");
+    CHECK(hotkeys_feed("ctrl+z") == 1 && Editor_Hotkeys_Capturing(&g_ui) < 0, "hotkeys: Ctrl+Z ends the capture");
+    frame();
+    (void)Editor_ChordParse("ctrl+z", &parsed);
+    Editor_ChordDisplay(parsed, chord, (int)sizeof(chord));
+    {
+        const char* row = menu_row(menu_drop("File"), "Bake cache (slow)");
+        snprintf(expect, sizeof(expect), "Bake cache (slow)\t%s", chord);
+        CHECK(row && strcmp(row, expect) == 0, "hotkeys: the File row re-labels at once (%s)", row ? row : "-");
+    }
+    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0xFF5555u
+              && g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_UNDO)].color == 0xFF5555u,
+        "hotkeys: the clash is red on both rows");
+    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_EDIT_REDO)].color == 0, "hotkeys: Redo is not");
+
+    /* Rebind Undo away: the clash clears; the Edit row follows. */
+    activate(hotkeys_row(panel, EDITOR_HK_EDIT_UNDO));
+    (void)hotkeys_feed("ctrl+u");
+    frame();
+    (void)Editor_ChordParse("ctrl+u", &parsed);
+    Editor_ChordDisplay(parsed, chord, (int)sizeof(chord));
+    {
+        const char* row = menu_row(menu_drop("Edit"), "Undo");
+        snprintf(expect, sizeof(expect), "Undo\t%s", chord);
+        CHECK(row && strcmp(row, expect) == 0, "hotkeys: Edit > Undo shows the new chord (%s)", row ? row : "-");
+    }
+    CHECK(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_FILE_BAKE)].color == 0, "hotkeys: no clash left");
+
+    /* Esc cancels; Backspace unbinds. */
+    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    (void)hotkeys_feed("escape");
+    CHECK(Editor_Hotkeys_Capturing(&g_ui) < 0 && Editor_HotkeysIsDefault(&g_ui.hotkeys, EDITOR_HK_TOOL_RAISE),
+        "hotkeys: Esc cancels and keeps the chord");
+    activate(hotkeys_row(panel, EDITOR_HK_TOOL_RAISE));
+    (void)hotkeys_feed("backspace");
+    frame();
+    CHECK(g_ui.hotkeys.bind[EDITOR_HK_TOOL_RAISE].chord[0].key == TORIRSK_UNKNOWN, "hotkeys: Backspace unbinds");
+    CHECK(strstr(g_chrome.widgets[hotkeys_row(panel, EDITOR_HK_TOOL_RAISE)].label, "\tunbound") != NULL,
+        "hotkeys: the row says unbound");
+    {
+        struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
+        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)") == 0,
+            "hotkeys: the rail tip drops the chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+    }
+
+    /* Reset to defaults. */
+    activate(find_widget(panel, TORIRS_CHROME_W_BUTTON, "Reset to defaults"));
+    frame();
+    {
+        int all = 1;
+        for( int a = 0; a < EDITOR_HK_COUNT; a++ )
+            all &= Editor_HotkeysIsDefault(&g_ui.hotkeys, a);
+        CHECK(all, "hotkeys: Reset to defaults restores the table");
+    }
+    {
+        struct EditorUiPanel* rail = Editor_UiFindPanel(&g_ui, "toolrail");
+        int const raise = rail ? find_widget(rail->chrome_panel, TORIRS_CHROME_W_ICONBUTTON, "Raise") : -1;
+        CHECK(raise >= 0 && strcmp(g_chrome.widgets[raise].tooltip, "Raise terrain (brush)  [3]") == 0,
+            "hotkeys: the rail tip ends with its chord (%s)", raise >= 0 ? g_chrome.widgets[raise].tooltip : "-");
+    }
+    {
+        int const level1 = menubar_item("1");
+        Editor_HotkeyDisplay(&g_ui.hotkeys, EDITOR_HK_LEVEL_PIN1, chord, (int)sizeof(chord));
+        CHECK(level1 >= 0 && strstr(g_chrome.widgets[level1].tooltip, chord) != NULL,
+            "hotkeys: the Level button names its chord (%s)", level1 >= 0 ? g_chrome.widgets[level1].tooltip : "-");
+    }
+
+    /* The actions the keys share with the panels. */
+    {
+        int const radius = g_ui.tools.brush.radius;
+        int const terrain = find_panel("Terrain");
+        int const slider = terrain >= 0 ? find_widget(terrain, TORIRS_CHROME_W_SLIDER, "Radius") : -1;
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_RADIUS_UP);
+        frame();
+        CHECK(g_ui.tools.brush.radius == radius + 1, "hotkeys: ] grows the radius (%d)", g_ui.tools.brush.radius);
+        CHECK(slider >= 0 && ToriRSChrome_SliderValue(&g_chrome, slider) == radius + 1,
+            "hotkeys: the Terrain slider follows");
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_BRUSH_RADIUS_DOWN);
+        frame();
+    }
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_RAISE);
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_LOWER);
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_TOOL_PREVIOUS);
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_RAISE, "hotkeys: ` swaps back to the previous tool");
+    (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_TOOL_PREVIOUS);
+    CHECK(g_ui.tools.tool == EDITOR_TOOL_LOWER, "hotkeys: ...and again");
+    Editor_UiSetTool(&g_ui, EDITOR_TOOL_SELECT);
+    {
+        int const terrain = find_panel("Terrain");
+        CHECK(terrain >= 0 && g_chrome.panels[terrain].visible, "hotkeys: Terrain is open before Tab");
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_HIDE_PANELS);
+        frame();
+        CHECK(!g_chrome.panels[terrain].visible && !g_chrome.panels[panel].visible
+                  && g_chrome.panels[g_ui.world_panel].visible,
+            "hotkeys: Tab hides every panel but World");
+        (void)Editor_HotkeyRun(&g_ui, EDITOR_HK_VIEW_HIDE_PANELS);
+        frame();
+        CHECK(g_chrome.panels[terrain].visible && g_chrome.panels[panel].visible,
+            "hotkeys: Tab again brings back what was open");
+    }
+    frame();
+    Editor_UiFree(&g_ui);
+}
+
 int
 main(
     int argc,
@@ -4040,6 +4299,7 @@ main(
     test_editing_feedback();
     test_areas();
     test_active_level();
+    test_hotkeys();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);
     printf("editor_panels_test: %d checks, %d failed\n", g_checks, g_failed);

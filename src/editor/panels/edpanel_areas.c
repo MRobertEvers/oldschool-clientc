@@ -509,6 +509,18 @@ areas_camera_to(
 }
 
 int
+Editor_Areas_CameraTo(
+    struct EditorUi* ui,
+    int tile_x,
+    int tile_z,
+    int level)
+{
+    assert(ui);
+    assert(ui->app);
+    return areas_camera_to(ui->app, tile_x, tile_z, level);
+}
+
+int
 Editor_Areas_GoTo(struct EditorUi* ui)
 {
     struct AreasPanel* self;

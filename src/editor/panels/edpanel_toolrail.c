@@ -31,9 +31,10 @@ static const int k_tool_icons[EDITOR_TOOL_COUNT] = {
     [EDITOR_TOOL_LOC_DELETE] = TORIRS_CHROME_SKIN_TOOL_DELETE,
 };
 
+/* Short enough that "  [<chord>]" fits a tooltip's 63 bytes. */
 static const char* const k_tool_tips[EDITOR_TOOL_COUNT] = {
-    [EDITOR_TOOL_SELECT] = "Select: click a tile, shift-click locs (minimenu picks a layer)",
-    [EDITOR_TOOL_RECT_SELECT] = "Rectangle: drag tiles to copy, paste, fill or clear",
+    [EDITOR_TOOL_SELECT] = "Select: click a tile, shift-click locs",
+    [EDITOR_TOOL_RECT_SELECT] = "Rectangle: copy, paste, fill, clear",
     [EDITOR_TOOL_RAISE] = "Raise terrain (brush)",
     [EDITOR_TOOL_LOWER] = "Lower terrain (brush)",
     [EDITOR_TOOL_FLATTEN] = "Flatten to the first tile's height",
@@ -55,7 +56,31 @@ struct ToolRailPanel
     int button_new;
     int button_squares;
     enum Editor_Tool shown;
+    /** ui->hotkeys.serial the tips were labelled from. */
+    uint32_t hint_serial;
 };
+
+/** Each tool's tip ends with its chord, from the hotkey table. */
+static void
+toolrail_hints(
+    struct EditorUi* ui,
+    struct ToolRailPanel* self)
+{
+    char tip[TORIRS_CHROME_LABEL_MAX];
+
+    for( int t = 0; t < EDITOR_TOOL_COUNT; t++ )
+    {
+        edp_hotkey_tip(ui, (enum Editor_HotkeyAction)(EDITOR_HK_TOOL_SELECT + t), k_tool_tips[t], tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, self->buttons[t], tip);
+    }
+    edp_hotkey_tip(ui, EDITOR_HK_FILE_SAVE_ALL, "Save every changed document", tip, (int)sizeof(tip));
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_save, tip);
+    edp_hotkey_tip(ui, EDITOR_HK_FILE_NEW, "New square: coordinates, storage", tip, (int)sizeof(tip));
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_new, tip);
+    edp_hotkey_tip(ui, EDITOR_HK_VIEW_SQUARES, "Show / hide the square picker", tip, (int)sizeof(tip));
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_squares, tip);
+    self->hint_serial = ui->hotkeys.serial;
+}
 
 static void
 toolrail_press(
@@ -75,6 +100,8 @@ toolrail_tick(
     struct ToolRailPanel* self = opaque;
     if( self->shown != ui->tools.tool )
         toolrail_press(ui, self);
+    if( self->hint_serial != ui->hotkeys.serial )
+        toolrail_hints(ui, self);
 }
 
 static int
@@ -172,17 +199,14 @@ Editor_ToolRail_Register(struct EditorUi* ui)
     {
         self->buttons[t] =
             ToriRSChrome_IconButton(ui->chrome, self->panel, k_tool_icons[t], Editor_ToolName(t));
-        ToriRSChrome_SetTooltip(ui->chrome, self->buttons[t], k_tool_tips[t]);
     }
     self->button_save = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_SAVE, "Save");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_save, "Save every changed document");
     /* The design's New button lives in the picker; it is here too because a
      * new square is the first thing an empty session wants. */
     self->button_new = ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_BUILD, "New square");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_new, "New square: coordinates, storage, template");
     self->button_squares =
         ToriRSChrome_IconButton(ui->chrome, self->panel, TORIRS_CHROME_SKIN_SEARCH, "Squares");
-    ToriRSChrome_SetTooltip(ui->chrome, self->button_squares, "Show / hide the square picker");
+    toolrail_hints(ui, self);
     ToriRSChrome_PanelSetVisible(ui->chrome, self->panel, 0);
 
     memset(&desc, 0, sizeof(desc));

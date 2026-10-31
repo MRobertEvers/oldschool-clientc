@@ -1035,7 +1035,48 @@ app_host_request(
     struct UITreeHostRequest* req);
 
 
+/* ---- app_editor_hotkeys.c ---- */
+/** The map editor's hotkeys for this frame: snapshot, gates, resolve,
+ *  dispatch (docs/MAPED_HOTKEYS.md). Before the developer overlay and every
+ *  manifest debug hotkey, which skip the chords it claims. */
+void
+app_editor_hotkeys_frame(
+    struct App* app,
+    struct LibToriRS_Input* input);
+
+/** The editor's table claims `key` under this frame's modifiers (bound in a
+ *  live context): app_debug_key_down / _held skip it. */
+int
+app_editor_hotkeys_claimed(
+    struct App const* app,
+    enum LibToriRS_KeyCode key);
+
+/** A held editor action (the camera flight, the click accelerators) is
+ *  active this frame. */
+int
+app_editor_hotkeys_active(
+    struct App const* app,
+    enum Editor_HotkeyAction action);
+
+/** The editor's panels are open: the arrows and W/A/S/D/Q/E are the
+ *  editor's camera actions, not the game's. */
+int
+app_editor_hotkeys_owns_camera(struct App const* app);
+
+/** Re-mark this frame's editor keys in hotkey_consumed (app_ui_hotkeys
+ *  clears the array first). */
+void
+app_editor_hotkeys_mark_consumed(struct App* app);
+
+/** Write editor_hotkeys.ini at shutdown when a binding changed. */
+void
+app_editor_hotkeys_flush(struct App* app);
+
 /* ---- app_hotkeys.c ---- */
+/** The OSRS key code (hotkey_consumed's index) of a LibToriRS key, -1. */
+int
+app_keycode_osrs(int key);
+
 int
 app_debug_key_down(
     struct App const* app,

@@ -94,6 +94,18 @@
 #define AKEY_INSERT 124
 #define AKEY_F1 131
 #define AKEY_F12 142
+#define AKEY_PERIOD 56
+#define AKEY_GRAVE 68
+#define AKEY_MINUS 69
+#define AKEY_EQUALS 70
+#define AKEY_LEFT_BRACKET 71
+#define AKEY_RIGHT_BRACKET 72
+#define AKEY_BACKSLASH 73
+#define AKEY_SEMICOLON 74
+#define AKEY_APOSTROPHE 75
+#define AKEY_SLASH 76
+#define AKEY_MOVE_HOME 122
+#define AKEY_MOVE_END 123
 
 /* ---- the shared state, and the one lock over it --------------------------
  *
@@ -423,6 +435,8 @@ android_keycode_to_torirsk(int keycode)
         return (enum LibToriRS_KeyCode)(TORIRSK_A + (keycode - AKEY_A));
     if( keycode >= AKEY_0 && keycode <= AKEY_9 )
         return (enum LibToriRS_KeyCode)(TORIRSK_0 + (keycode - AKEY_0));
+    if( keycode >= AKEY_F1 && keycode <= AKEY_F12 )
+        return (enum LibToriRS_KeyCode)(TORIRSK_F1 + (keycode - AKEY_F1));
 
     switch( keycode )
     {
@@ -447,6 +461,9 @@ android_keycode_to_torirsk(int keycode)
     case AKEY_CTRL_LEFT:
     case AKEY_CTRL_RIGHT:
         return TORIRSK_CTRL;
+    case AKEY_ALT_LEFT:
+    case AKEY_ALT_RIGHT:
+        return TORIRSK_ALT;
     case AKEY_TAB:
         return TORIRSK_TAB;
     case AKEY_SPACE:
@@ -463,8 +480,32 @@ android_keycode_to_torirsk(int keycode)
         return TORIRSK_PAGE_UP;
     case AKEY_PAGE_DOWN:
         return TORIRSK_PAGE_DOWN;
+    case AKEY_MOVE_HOME:
+        return TORIRSK_HOME;
+    case AKEY_MOVE_END:
+        return TORIRSK_END;
     case AKEY_COMMA:
         return TORIRSK_COMMA;
+    case AKEY_PERIOD:
+        return TORIRSK_PERIOD;
+    case AKEY_MINUS:
+        return TORIRSK_MINUS;
+    case AKEY_EQUALS:
+        return TORIRSK_EQUALS;
+    case AKEY_LEFT_BRACKET:
+        return TORIRSK_LBRACKET;
+    case AKEY_RIGHT_BRACKET:
+        return TORIRSK_RBRACKET;
+    case AKEY_SEMICOLON:
+        return TORIRSK_SEMICOLON;
+    case AKEY_APOSTROPHE:
+        return TORIRSK_APOSTROPHE;
+    case AKEY_GRAVE:
+        return TORIRSK_GRAVE;
+    case AKEY_SLASH:
+        return TORIRSK_SLASH;
+    case AKEY_BACKSLASH:
+        return TORIRSK_BACKSLASH;
     default:
         return TORIRSK_UNKNOWN;
     }
@@ -518,6 +559,10 @@ android_keycode_to_vk(int keycode)
         return 33;
     case AKEY_PAGE_DOWN:
         return 34;
+    case AKEY_MOVE_END:
+        return 35; /* VK_END */
+    case AKEY_MOVE_HOME:
+        return 36; /* VK_HOME */
     case AKEY_COMMA:
         return 188; /* VK_COMMA */
     default:

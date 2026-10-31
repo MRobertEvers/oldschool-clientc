@@ -1649,6 +1649,47 @@ dbg_option_label(
     return "";
 }
 
+/*
+ * A label written "left\tright" -- a menu row and its chord ("Undo\tCtrl+Z"),
+ * a hotkey row and its binding -- draws the part after the tab right-aligned
+ * in the row. No tab: the whole string is the left part. The DOM executor
+ * shows the tab as a space, which reads the same.
+ */
+static char const*
+dbg_tab_split(
+    char const* text,
+    char* left,
+    int left_size)
+{
+    char const* tab = text ? strchr(text, '\t') : NULL;
+    int n;
+
+    if( !tab )
+        return NULL;
+    n = (int)(tab - text);
+    if( n >= left_size )
+        n = left_size - 1;
+    memcpy(left, text, (size_t)n);
+    left[n] = '\0';
+    return tab + 1;
+}
+
+/** The width a tabbed label needs: both parts and a gap between them. */
+static int
+dbg_measure_tabbed(
+    int font_slot,
+    int scale,
+    char const* text,
+    int gap)
+{
+    char left[TORIRS_CHROME_INPUT_MAX];
+    char const* right = dbg_tab_split(text, left, (int)sizeof(left));
+
+    if( !right )
+        return ToriRSChrome_MeasureText(font_slot, scale, text);
+    return ToriRSChrome_MeasureText(font_slot, scale, left) + gap + ToriRSChrome_MeasureText(font_slot, scale, right);
+}
+
 static int
 dbg_option_enabled(
     struct ToriRSChrome const* ui,
@@ -3967,8 +4008,8 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * frame -- dbg_widget_width only runs on a dirty build. */
         for( int i = 0; i < w->option_count; i++ )
         {
-            int const ow = ToriRSChrome_MeasureText(
-                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i));
+            int const ow = dbg_measure_tabbed(
+                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i), DBG_PX(16));
             if( ow > box_w )
                 box_w = ow;
         }
@@ -6777,8 +6818,8 @@ dbg_dropdown_rect(struct ToriRSChrome const* ui)
         int widest = 0;
         for( int i = 0; i < w->option_count; i++ )
         {
-            int const ow = ToriRSChrome_MeasureText(
-                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i));
+            int const ow = dbg_measure_tabbed(
+                ui->theme.font_row, ui->scale, dbg_option_label(ui, w, i), DBG_PX(16));
             if( ow > widest )
                 widest = ow;
         }
@@ -6971,16 +7012,28 @@ dbg_build_dropdown_list(struct ToriRSChrome* ui)
         if( w->menu_mode )
         {
             /* The minimenu's row: left-aligned, and the cursor picks it out by
-             * turning the text yellow rather than by lighting the row. */
+             * turning the text yellow rather than by lighting the row. A
+             * chord after a tab sits at the row's right edge. */
+            char left[TORIRS_CHROME_INPUT_MAX];
+            char const* label = dbg_option_label(ui, w, index);
+            char const* right = dbg_tab_split(label, left, (int)sizeof(left));
+            uint32_t const ink = hovered ? th->menu_hover_text : th->menu_text;
+
+            /* A TEXT prim borrows its string: the left part is copied into
+             * the build's scratch, the right part is the label's own tail. */
             dbg_push_text(
-                ui,
-                text_x,
-                baseline,
-                dbg_option_label(ui, w, index),
-                hovered ? th->menu_hover_text : th->menu_text,
-                th->font_row,
-                0,
-                row_clip);
+                ui, text_x, baseline, right ? dbg_wrap_line(ui, label, (int)(right - 1 - label)) : label, ink,
+                th->font_row, 0, row_clip);
+            if( right )
+                dbg_push_text(
+                    ui,
+                    row_x + row_w - DBG_INPUT_PAD_X - ToriRSChrome_MeasureText(th->font_row, ui->scale, right),
+                    baseline,
+                    right,
+                    ink,
+                    th->font_row,
+                    0,
+                    row_clip);
             continue;
         }
 

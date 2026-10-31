@@ -975,6 +975,8 @@ app_map_editor_layout_flush(struct App* app)
     int guard = 0;
 
     assert(app);
+    /* The hotkeys file rides the same shutdown (src/app.c calls this). */
+    app_editor_hotkeys_flush(app);
     ui = app->editor_panel.ui;
     if( g_app_editor_layout.state != 2 || !ui )
         return;
@@ -1077,57 +1079,6 @@ app_map_editor_toggle_loc_at(
     if( ui->hooks.selection_changed )
         ui->hooks.selection_changed(ui->hooks_user);
     return 1;
-}
-
-/** The loc selection's keys: arrows nudge, R rotates, S reshapes, D
- *  duplicates, Delete deletes. Only with a loc selected, so the same keys
- *  still fly the camera otherwise; a key that acted consumes the frame. */
-static void
-app_map_editor_loc_keys(
-    struct App* app,
-    struct LibToriRS_Input* input)
-{
-    struct EditorUi* ui = app->editor_panel.ui;
-    int acted = 1;
-
-    if( !ui || app_text_input_focused(app) || app_modelview_focused(app) )
-        return;
-    /* No loc selected: D duplicates the spawns panel's selection instead
-     * (Duplicate [D] there), while that panel is open and holds one. */
-    if( ui->tools.loc_count == 0 )
-    {
-        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) && Editor_Spawns_SelectionCount(ui) > 0 )
-        {
-            (void)Editor_Spawns_Duplicate(ui);
-            app->input_frame_consumed = 1;
-            app->need_redraw = 1;
-        }
-        return;
-    }
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) )
-        (void)edp_locs_nudge(ui, 0, 1);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
-        (void)edp_locs_nudge(ui, 0, -1);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_LEFT) )
-        (void)edp_locs_nudge(ui, -1, 0);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_RIGHT) )
-        (void)edp_locs_nudge(ui, 1, 0);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_R) )
-        (void)edp_locs_rotate(ui);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) )
-        (void)edp_locs_reshape(ui);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
-        (void)edp_locs_duplicate(ui);
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_DELETE)
-             || LibToriRS_Input_IsKeyDown(input, TORIRSK_BACKSPACE) )
-        (void)edp_locs_delete(ui);
-    else
-        acted = 0;
-    if( acted )
-    {
-        app->input_frame_consumed = 1;
-        app->need_redraw = 1;
-    }
 }
 
 /** The world tile under the cursor, absolute: on the pinned plane when a
@@ -1260,49 +1211,6 @@ app_map_editor_pin_hover(
             }
 }
 
-/**
- * The level keys, with the editor open and no text field focused:
- * PageUp / PageDown step the pinned level (from Auto, starting at the plane
- * under the pointer) and clamp at 0 and 3; Ctrl+0..3 pin that level, and
- * the same chord again goes back to Auto. Neither key flies the camera or
- * reaches a tool (app_camera.c binds W/A/S/D/R/F, the loc keys arrows,
- * R/S/D/Delete; the manifest's debug keys 8/9 without Ctrl).
- */
-static void
-app_map_editor_level_keys(
-    struct App* app,
-    struct LibToriRS_Input* input)
-{
-    struct Editor_Panel* panel = &app->editor_panel;
-    struct EditorUi* ui = panel->ui;
-    int const before = ui ? ui->tools.edit_level : -1;
-    int level = -2;
-
-    if( !ui || app_text_input_focused(app) || app_modelview_focused(app) )
-        return;
-    if( LibToriRS_Input_IsKeyDown(input, TORIRSK_PAGE_UP) )
-        level = edp_level_step(ui, 1, Editor_PanelEditLevel(panel, app));
-    else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_PAGE_DOWN) )
-        level = edp_level_step(ui, -1, Editor_PanelEditLevel(panel, app));
-    else if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL) )
-        for( int d = 0; d < EDITOR_SQUARE_LEVELS; d++ )
-            if( LibToriRS_Input_IsKeyDown(input, (enum LibToriRS_KeyCode)(TORIRSK_0 + d)) )
-            {
-                level = before == d ? EDP_LEVEL_AUTO : d;
-                edp_level_set(ui, level);
-                break;
-            }
-    if( level == -2 )
-        return;
-    if( level != before )
-    {
-        if( level < 0 )
-            Editor_UiLog(ui, "editor: level Auto (the plane under the pointer)");
-        else
-            Editor_UiLog(ui, "editor: level %d pinned (PageUp/PageDown step, Ctrl+%d again: Auto)", level, level);
-    }
-    app->need_redraw = 1;
-}
 
 /*
  * The camera keeps the pinned plane where it was on screen: pinning level 2
@@ -1440,7 +1348,8 @@ app_map_editor_world_click(
     if( !app->editor || !panel->ui )
         return;
     ui = panel->ui;
-    ui->shift_held = LibToriRS_Input_IsKeyHeld(input, TORIRSK_SHIFT) ? 1 : 0;
+    /* ui->shift_held is set by the hotkey dispatcher (app_editor_hotkeys.c),
+     * the one reader of the editor's keys. */
     /* First: every reader below (and the previews after) takes the pinned
      * plane's tile from here. */
     app_map_editor_level_camera(app, ui);
@@ -1466,13 +1375,8 @@ app_map_editor_world_click(
     }
     if( !panel->visible )
         return;
-    app_map_editor_level_keys(app, input);
     if( app->frame_view->minimenu->visible || app->interact.swallow_left_click )
         return;
-    if( app->input_frame_consumed )
-        return;
-
-    app_map_editor_loc_keys(app, input);
     if( app->input_frame_consumed )
         return;
 
@@ -1517,32 +1421,30 @@ app_map_editor_world_click(
         return;
 
     /*
-     * Modifier accelerators: hold a key to act on a layer without changing
-     * the tool first. L places the catalog's loc, K deletes the loc under the
-     * cursor, C clears every loc on the tile. They reach the same functions
-     * the tools do. Gated on text focus: `L` typed into a search box must not
-     * place a loc.
+     * Click accelerators: hold a key to act on a layer without changing the
+     * tool first -- the hotkey table's held actions (L places the catalog's
+     * loc, K deletes the loc under the cursor, C clears every loc on the
+     * tile; rebindable, docs/MAPED_HOTKEYS.md). They reach the same functions
+     * the tools do. The dispatcher's gates apply: `L` typed into a search box
+     * is never active.
      */
-    if( !app_text_input_focused(app) )
+    if( app_editor_hotkeys_active(app, EDITOR_HK_HOLD_PLACE) )
     {
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
-        {
-            Editor_PanelPlaceLocAt(panel, app, hx, hz, level);
-            app->need_redraw = 1;
-            return;
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_K) )
-        {
-            Editor_PanelDeleteLocAt(panel, app, hx, hz, level);
-            app->need_redraw = 1;
-            return;
-        }
-        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_C) )
-        {
-            Editor_PanelClearLocsAt(panel, app, hx, hz, level);
-            app->need_redraw = 1;
-            return;
-        }
+        Editor_PanelPlaceLocAt(panel, app, hx, hz, level);
+        app->need_redraw = 1;
+        return;
+    }
+    if( app_editor_hotkeys_active(app, EDITOR_HK_HOLD_DELETE) )
+    {
+        Editor_PanelDeleteLocAt(panel, app, hx, hz, level);
+        app->need_redraw = 1;
+        return;
+    }
+    if( app_editor_hotkeys_active(app, EDITOR_HK_HOLD_CLEAR) )
+    {
+        Editor_PanelClearLocsAt(panel, app, hx, hz, level);
+        app->need_redraw = 1;
+        return;
     }
 
     if( tool == EDITOR_TOOL_SELECT )

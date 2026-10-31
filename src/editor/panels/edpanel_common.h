@@ -137,6 +137,15 @@ edp_rect_paste(
     int world_z,
     int level);
 
+/** Paste at exactly (world_x, world_z, level), whatever the rectangle (the
+ *  Paste hotkey: the hovered tile). */
+int
+edp_rect_paste_at(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level);
+
 int
 edp_rect_fill(struct EditorUi* ui);
 
@@ -173,8 +182,8 @@ edp_squares_picker(struct EditorUi* ui);
  * follows it, so the planes above are not drawn (roofs off) and the pinned
  * one is what the pointer meets. "Above" keeps the pin but draws every level
  * (vis cap -1) for context. The control is the menu bar's Level row
- * (edpanel_menubar.c); the keys are the App's (PageUp / PageDown step,
- * Ctrl+0..3 pin, src/app/app_map_editor.c). The level is shared Client state
+ * (edpanel_menubar.c); the keys are hotkey actions (PageUp / PageDown step,
+ * Ctrl+0..3 pin, Ctrl+4 Auto, Ctrl+5 Above; edpanel_hotkeys.c). The level is shared Client state
  * (STATE_EDIT_LEVEL): another window's change lands in `edit_level` through
  * Editor_UiApplyState, and the menu bar's tick makes the cap follow it.
  */
@@ -222,6 +231,44 @@ int
 edp_level_click(
     const struct EditorUi* ui,
     int hover_level);
+
+/* ---- the brush steppers and the hints (edpanel_common.c) ------------------- */
+
+enum Edp_BrushField
+{
+    EDP_BRUSH_RADIUS = 0,
+    EDP_BRUSH_STEP,
+    EDP_BRUSH_STRENGTH,
+};
+
+/** Step one brush control by `delta` notches (radius and step by 1, strength
+ *  by 5), clamped to its slider's range; the Terrain sliders follow on their
+ *  next tick. Returns the new value. */
+int
+edp_brush_step(
+    struct EditorUi* ui,
+    enum Edp_BrushField field,
+    int delta);
+
+/** A menu row: `text`, a tab, and the action's chords ("Undo\tCtrl+Z"); the
+ *  chrome draws the part after the tab right-aligned. `text` alone when
+ *  the action is unbound. */
+void
+edp_hotkey_row(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    const char* text,
+    char* out,
+    int out_size);
+
+/** A tooltip: `text` then "  [<chords>]"; `text` alone when unbound. */
+void
+edp_hotkey_tip(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    const char* text,
+    char* out,
+    int out_size);
 
 /** Release the scratch and the clipboard (Editor_UiFree). */
 void

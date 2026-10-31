@@ -100,6 +100,8 @@ struct SpawnsPanel
     int button_delete;
     int button_restore;
     int button_duplicate;
+    /** ui->hotkeys.serial the tips were labelled from. */
+    uint32_t hint_serial;
     int input_name;
     int radio_npc;
     int radio_obj;
@@ -441,6 +443,21 @@ spawns_env_step(
         }
 }
 
+/** The buttons' tips name their chords from the hotkey table. */
+static void
+spawns_hints(
+    struct EditorUi* ui,
+    struct SpawnsPanel* self)
+{
+    char tip[TORIRS_CHROME_LABEL_MAX];
+
+    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DUPLICATE, "Copy the selection one tile east", tip, (int)sizeof(tip));
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_duplicate, tip);
+    edp_hotkey_tip(ui, EDITOR_HK_EDIT_DELETE, "Delete, or suppress a generated row", tip, (int)sizeof(tip));
+    ToriRSChrome_SetTooltip(ui->chrome, self->button_delete, tip);
+    self->hint_serial = ui->hotkeys.serial;
+}
+
 static void
 spawns_tick(
     struct EditorUi* ui,
@@ -448,6 +465,8 @@ spawns_tick(
 {
     struct SpawnsPanel* self = opaque;
 
+    if( self->hint_serial != ui->hotkeys.serial )
+        spawns_hints(ui, self);
     spawns_env_step(ui, self);
     struct Editor_SpawnFile* edited;
     char line[TORIRS_CHROME_LABEL_MAX];
@@ -529,7 +548,7 @@ spawns_selected(
     return row;
 }
 
-static void
+static int
 spawns_delete(
     struct EditorUi* ui,
     struct SpawnsPanel* self)
@@ -539,23 +558,25 @@ spawns_delete(
     struct Editor_SpawnFile* edited;
 
     if( row < 0 )
-        return;
+        return 0;
     edited = spawns_edited(ui, self->map_x, self->map_z);
     if( self->rows[row].suppressed )
     {
         Editor_UiLog(ui, "editor: already suppressed; Restore brings it back");
-        return;
+        return 0;
     }
     if( !Editor_SpawnDeleteCommand(self->rows[row].edited ? edited : NULL, &self->rows[row].row, &command) )
-        return;
+        return 0;
     if( !self->rows[row].edited && !edited )
     {
         Editor_UiLog(ui, "editor: the edited spawn file is not open; suppression refused");
-        return;
+        return 0;
     }
-    if( edp_apply(ui, &command, 1, command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn") )
-        Editor_UiLog(ui, "editor: %s %s at %d,%d", command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppressed" : "deleted",
-            self->rows[row].row.name, self->rows[row].row.abs_x, self->rows[row].row.abs_z);
+    if( !edp_apply(ui, &command, 1, command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppress" : "delete spawn") )
+        return 0;
+    Editor_UiLog(ui, "editor: %s %s at %d,%d", command.kind == EDITOR_CMD_SPAWN_SUPPRESS ? "suppressed" : "deleted",
+        self->rows[row].row.name, self->rows[row].row.abs_x, self->rows[row].row.abs_z);
+    return 1;
 }
 
 static void
@@ -1284,7 +1305,7 @@ spawns_activate(
     if( widget == self->button_duplicate )
         (void)spawns_duplicate(ui, self);
     else if( widget == self->button_delete )
-        spawns_delete(ui, self);
+        (void)spawns_delete(ui, self);
     else if( widget == self->button_restore )
         spawns_restore(ui, self);
     else if( widget == self->button_pick )
@@ -1342,8 +1363,7 @@ Editor_Spawns_Register(struct EditorUi* ui)
     ToriRSChrome_SetTooltip(chrome, self->button_delete,
         "Edited rows go; generated ones are suppressed (-name x z level)");
     self->button_restore = ToriRSChrome_Button(chrome, self->panel, "Restore");
-    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate  [D]");
-    ToriRSChrome_SetTooltip(chrome, self->button_duplicate, "Copy the selection one tile east, or to the latched tile");
+    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
     ToriRSChrome_Separator(chrome, self->panel);
     {
         static const char* const tabs[] = { "Edit", "Place" };
@@ -1404,6 +1424,18 @@ Editor_Spawns_SelectionCount(struct EditorUi* ui)
     if( !self || !ui->chrome->panels[self->panel].visible )
         return 0;
     return self->selection_count;
+}
+
+int
+Editor_Spawns_DeleteSelected(struct EditorUi* ui)
+{
+    struct SpawnsPanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "spawns");
+    if( !self )
+        return 0;
+    return spawns_delete(ui, self);
 }
 
 int

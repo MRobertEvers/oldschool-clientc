@@ -18,6 +18,7 @@
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -55,7 +56,40 @@ struct LocsPanel
     int shown_valid;
     /** The selection was empty last frame: the panel follows it up and down. */
     int was_empty;
+    /** ui->hotkeys.serial the buttons' tips were labelled from. */
+    uint32_t hint_serial;
 };
+
+/** Each button's tip names its chord from the hotkey table. */
+static void
+locs_hints(
+    struct EditorUi* ui,
+    struct LocsPanel* self)
+{
+    static const struct
+    {
+        size_t offset;
+        enum Editor_HotkeyAction action;
+        const char* tip;
+    } k_hints[] = {
+        { offsetof(struct LocsPanel, button_north), EDITOR_HK_EDIT_NUDGE_N, "Nudge the selection one tile north" },
+        { offsetof(struct LocsPanel, button_south), EDITOR_HK_EDIT_NUDGE_S, "Nudge the selection one tile south" },
+        { offsetof(struct LocsPanel, button_west), EDITOR_HK_EDIT_NUDGE_W, "Nudge the selection one tile west" },
+        { offsetof(struct LocsPanel, button_east), EDITOR_HK_EDIT_NUDGE_E, "Nudge the selection one tile east" },
+        { offsetof(struct LocsPanel, button_rotate), EDITOR_HK_EDIT_ROTATE, "Rotate the selection a quarter turn" },
+        { offsetof(struct LocsPanel, button_reshape), EDITOR_HK_EDIT_RESHAPE, "Cycle the selection's shape" },
+        { offsetof(struct LocsPanel, button_duplicate), EDITOR_HK_EDIT_DUPLICATE, "Duplicate one tile east" },
+        { offsetof(struct LocsPanel, button_delete), EDITOR_HK_EDIT_DELETE, "Delete the selected locs" },
+    };
+    for( size_t i = 0; i < sizeof(k_hints) / sizeof(k_hints[0]); i++ )
+    {
+        char tip[TORIRS_CHROME_LABEL_MAX];
+        int const widget = *(const int*)((const char*)self + k_hints[i].offset);
+        edp_hotkey_tip(ui, k_hints[i].action, k_hints[i].tip, tip, (int)sizeof(tip));
+        ToriRSChrome_SetTooltip(ui->chrome, widget, tip);
+    }
+    self->hint_serial = ui->hotkeys.serial;
+}
 
 /* ---- the Place tool with an npc / obj pick ---------------------------------- */
 
@@ -128,6 +162,9 @@ locs_tick(
     int first;
     int shown;
     int const empty = ui->tools.loc_count == 0;
+
+    if( self->hint_serial != ui->hotkeys.serial )
+        locs_hints(ui, self);
 
     /* Opens when something is selected, closes when nothing is, like the
      * old Loc panel; the View menu still opens it by hand in between. */
@@ -302,11 +339,12 @@ Editor_Locs_Register(struct EditorUi* ui)
     self->button_south = ToriRSChrome_Button(chrome, self->panel, "Nudge south");
     self->button_west = ToriRSChrome_Button(chrome, self->panel, "Nudge west");
     self->button_east = ToriRSChrome_Button(chrome, self->panel, "Nudge east");
-    self->button_rotate = ToriRSChrome_Button(chrome, self->panel, "Rotate  [R]");
-    self->button_reshape = ToriRSChrome_Button(chrome, self->panel, "Reshape  [S]");
-    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate  [D]");
-    self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete  [Del]");
+    self->button_rotate = ToriRSChrome_Button(chrome, self->panel, "Rotate");
+    self->button_reshape = ToriRSChrome_Button(chrome, self->panel, "Reshape");
+    self->button_duplicate = ToriRSChrome_Button(chrome, self->panel, "Duplicate");
+    self->button_delete = ToriRSChrome_Button(chrome, self->panel, "Delete");
     self->button_swap = ToriRSChrome_Button(chrome, self->panel, "Swap to catalog pick");
+    locs_hints(ui, self);
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Place pose");
     self->dropdown_shape =

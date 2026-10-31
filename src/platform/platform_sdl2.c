@@ -487,7 +487,18 @@ sdl_keycode_to_torirs(SDL_Keycode key_code)
         return TORIRSK_SHIFT;
     case SDLK_LCTRL:
     case SDLK_RCTRL:
+#if defined(__APPLE__) && !defined(__EMSCRIPTEN__)
+    /* Command is Ctrl on Apple: every chord the editor documents as Ctrl+S is
+     * Cmd+S on a Mac, and the platform says so here rather than every table
+     * learning a fourth modifier. Only this array; the OSRS side below keeps
+     * Command unmapped, as the reference client does. */
+    case SDLK_LGUI:
+    case SDLK_RGUI:
+#endif
         return TORIRSK_CTRL;
+    case SDLK_LALT:
+    case SDLK_RALT:
+        return TORIRSK_ALT;
     case SDLK_TAB:
         return TORIRSK_TAB;
     case SDLK_SPACE:
@@ -504,8 +515,56 @@ sdl_keycode_to_torirs(SDL_Keycode key_code)
         return TORIRSK_PAGE_UP;
     case SDLK_PAGEDOWN:
         return TORIRSK_PAGE_DOWN;
+    case SDLK_HOME:
+        return TORIRSK_HOME;
+    case SDLK_END:
+        return TORIRSK_END;
     case SDLK_COMMA:
         return TORIRSK_COMMA;
+    case SDLK_PERIOD:
+        return TORIRSK_PERIOD;
+    case SDLK_MINUS:
+        return TORIRSK_MINUS;
+    case SDLK_EQUALS:
+        return TORIRSK_EQUALS;
+    case SDLK_LEFTBRACKET:
+        return TORIRSK_LBRACKET;
+    case SDLK_RIGHTBRACKET:
+        return TORIRSK_RBRACKET;
+    case SDLK_SEMICOLON:
+        return TORIRSK_SEMICOLON;
+    case SDLK_QUOTE:
+        return TORIRSK_APOSTROPHE;
+    case SDLK_BACKQUOTE:
+        return TORIRSK_GRAVE;
+    case SDLK_SLASH:
+        return TORIRSK_SLASH;
+    case SDLK_BACKSLASH:
+        return TORIRSK_BACKSLASH;
+    case SDLK_F1:
+        return TORIRSK_F1;
+    case SDLK_F2:
+        return TORIRSK_F2;
+    case SDLK_F3:
+        return TORIRSK_F3;
+    case SDLK_F4:
+        return TORIRSK_F4;
+    case SDLK_F5:
+        return TORIRSK_F5;
+    case SDLK_F6:
+        return TORIRSK_F6;
+    case SDLK_F7:
+        return TORIRSK_F7;
+    case SDLK_F8:
+        return TORIRSK_F8;
+    case SDLK_F9:
+        return TORIRSK_F9;
+    case SDLK_F10:
+        return TORIRSK_F10;
+    case SDLK_F11:
+        return TORIRSK_F11;
+    case SDLK_F12:
+        return TORIRSK_F12;
     default:
         return TORIRSK_UNKNOWN;
     }
@@ -515,10 +574,12 @@ sdl_keycode_to_torirs(SDL_Keycode key_code)
  * SDL keysym -> Java KeyEvent.VK_* / DOM keyCode, for the OSRS key table.
  *
  * Deliberately separate from sdl_keycode_to_torirs: that one feeds the
- * platform-neutral edge/held arrays and only covers the subset the camera and
- * debug paths use, while this one must cover everything OSRS_KEY_MAP maps
- * (F-keys, numpad, alt, home/end) without growing TORIRSK_COUNT, which sizes
- * two arrays inside both the prev and curr input snapshots.
+ * platform-neutral edge/held arrays (enum LibToriRS_KeyCode, which since
+ * 2026-10-31 covers every key the map editor binds: punctuation, Home/End,
+ * Alt, F1..F12), while this one feeds the cache's own keymap -- the OSRS
+ * codes CS2 and revconfig hotkeys speak, which OSRS_KEY_MAP defines and which
+ * include keys the enum never names (the numpad). Command on Apple is Ctrl in
+ * the enum only; here it stays unmapped.
  */
 static int
 sdl_keycode_to_vk(SDL_Keycode key_code)

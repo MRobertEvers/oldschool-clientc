@@ -1826,7 +1826,7 @@ dbg_ext_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
     {
     case TORIRS_CHROME_W_TREE:
         return w->iaux * DBG_TREE_INDENT + DBG_TREE_EXP + DBG_TREE_GAP +
-               ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
+               dbg_measure_tabbed(ui->theme.font_row, ui->scale, w->label, DBG_PX(16));
     case TORIRS_CHROME_W_VLIST:
     case TORIRS_CHROME_W_CODE:
     case TORIRS_CHROME_W_GRAPH:
@@ -2229,9 +2229,22 @@ dbg_ext_draw(
         }
         if( w->color )
             ink = w->color;
-        dbg_push_text(
-            ui, x + DBG_TREE_EXP + DBG_TREE_GAP, dbg_row_text_baseline(ui, row_y, row_h), w->label,
-            ink, ui->theme.font_row, 0, clip);
+        {
+            /* "name\tchord": the part after the tab at the row's right edge. */
+            char left[TORIRS_CHROME_LABEL_MAX];
+            char const* right = dbg_tab_split(w->label, left, (int)sizeof(left));
+            int const baseline = dbg_row_text_baseline(ui, row_y, row_h);
+            /* The prim borrows its string: the left part goes through the
+             * build's scratch, the right part is the label's own tail. */
+            dbg_push_text(
+                ui, x + DBG_TREE_EXP + DBG_TREE_GAP, baseline,
+                right ? dbg_wrap_line(ui, w->label, (int)(right - 1 - w->label)) : w->label, ink, ui->theme.font_row,
+                0, clip);
+            if( right )
+                dbg_push_text(
+                    ui, row_x + w->w - DBG_PX(4) - ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, right),
+                    baseline, right, ink, ui->theme.font_row, 0, clip);
+        }
         return 1;
     }
 

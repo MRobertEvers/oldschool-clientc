@@ -43,7 +43,50 @@ struct TerrainPanel
     enum Editor_Tool shown_tool;
     int shown_level;
     int shown_vis;
+    /** The brush and flags the sliders and boxes were last set from: a
+     *  hotkey ([ ] Shift+[ Ctrl+[ ...) or the eyedropper moves the shared
+     *  state and the controls follow. */
+    struct Editor_Brush shown_brush;
+    int shown_flags;
+    /** ui->hotkeys.serial the sliders' tips were labelled from. */
+    uint32_t hint_serial;
 };
+
+/** A slider's tip: `text` and its two steppers' chords, "[ / ]". */
+static void
+terrain_tip(
+    struct EditorUi* ui,
+    int widget,
+    const char* text,
+    enum Editor_HotkeyAction down,
+    enum Editor_HotkeyAction up)
+{
+    char a[24];
+    char b[24];
+    char tip[TORIRS_CHROME_LABEL_MAX];
+
+    Editor_HotkeyDisplay(&ui->hotkeys, down, a, (int)sizeof(a));
+    Editor_HotkeyDisplay(&ui->hotkeys, up, b, (int)sizeof(b));
+    if( a[0] || b[0] )
+        snprintf(tip, sizeof(tip), "%s  [%s / %s]", text, a[0] ? a : "-", b[0] ? b : "-");
+    else
+        snprintf(tip, sizeof(tip), "%s", text);
+    ToriRSChrome_SetTooltip(ui->chrome, widget, tip);
+}
+
+static void
+terrain_hints(
+    struct EditorUi* ui,
+    struct TerrainPanel* self)
+{
+    terrain_tip(ui, self->slider_radius, "Brush radius in tiles", EDITOR_HK_BRUSH_RADIUS_DOWN,
+        EDITOR_HK_BRUSH_RADIUS_UP);
+    terrain_tip(ui, self->slider_step, "Raise / lower: steps per click", EDITOR_HK_BRUSH_STEP_DOWN,
+        EDITOR_HK_BRUSH_STEP_UP);
+    terrain_tip(ui, self->slider_strength, "Smooth: toward the neighbours", EDITOR_HK_BRUSH_STRENGTH_DOWN,
+        EDITOR_HK_BRUSH_STRENGTH_UP);
+    self->hint_serial = ui->hotkeys.serial;
+}
 
 /* ---- the footprint --------------------------------------------------------- */
 
@@ -129,6 +172,25 @@ terrain_tick(
         ToriRSChrome_RadioSelect(ui->chrome, self->radio_vis[ui->tools.vis_level + 1]);
         self->shown_vis = ui->tools.vis_level;
     }
+    if( self->hint_serial != ui->hotkeys.serial )
+        terrain_hints(ui, self);
+    if( memcmp(&self->shown_brush, &ui->tools.brush, sizeof(self->shown_brush)) != 0 )
+    {
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_radius, ui->tools.brush.radius);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_step, ui->tools.brush.step);
+        ToriRSChrome_SliderSet(ui->chrome, self->slider_strength, ui->tools.brush.strength);
+        for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
+            if( i == (int)ui->tools.brush.falloff )
+                ToriRSChrome_RadioSelect(ui->chrome, self->radio_falloff[i]);
+        self->shown_brush = ui->tools.brush;
+        terrain_readout(ui, self);
+    }
+    if( self->shown_flags != ui->tools.flags_value )
+    {
+        for( int i = 0; i < 4; i++ )
+            ToriRSChrome_SetChecked(ui->chrome, self->check_flags[i], (ui->tools.flags_value >> i) & 1);
+        self->shown_flags = ui->tools.flags_value;
+    }
 }
 
 static int
@@ -141,11 +203,11 @@ terrain_activate(
     struct EditorUiTools* tools = &ui->tools;
 
     if( widget == self->slider_radius )
-        tools->brush.radius = ToriRSChrome_SliderValue(ui->chrome, widget);
+        self->shown_brush.radius = tools->brush.radius = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->slider_step )
-        tools->brush.step = ToriRSChrome_SliderValue(ui->chrome, widget);
+        self->shown_brush.step = tools->brush.step = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->slider_strength )
-        tools->brush.strength = ToriRSChrome_SliderValue(ui->chrome, widget);
+        self->shown_brush.strength = tools->brush.strength = ToriRSChrome_SliderValue(ui->chrome, widget);
     else if( widget == self->check_solo )
     {
         tools->vis_solo = ToriRSChrome_Checked(ui->chrome, widget) ? 1 : 0;
@@ -156,7 +218,7 @@ terrain_activate(
         for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
             if( widget == self->radio_falloff[i] )
             {
-                tools->brush.falloff = (enum Editor_BrushFalloff)i;
+                self->shown_brush.falloff = tools->brush.falloff = (enum Editor_BrushFalloff)i;
                 terrain_readout(ui, self);
                 return 1;
             }
@@ -182,6 +244,7 @@ terrain_activate(
                     tools->flags_value |= 1 << i;
                 else
                     tools->flags_value &= ~(1 << i);
+                self->shown_flags = tools->flags_value;
                 return 1;
             }
         return 0;
@@ -214,6 +277,8 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->shown_tool = EDITOR_TOOL_COUNT;
     self->shown_level = -2;
     self->shown_vis = -2;
+    self->shown_brush = ui->tools.brush;
+    self->shown_flags = ui->tools.flags_value;
 
     self->panel = ToriRSChrome_PanelAdd(
         chrome, TORIRS_CHROME_PANEL_WINDOW, edp_px(ui, EDP_COL_X), edp_px(ui, EDP_TOP_Y),
@@ -222,17 +287,17 @@ Editor_Terrain_Register(struct EditorUi* ui)
     self->row_tool = ToriRSChrome_Label(chrome, self->panel, "");
     self->slider_radius = ToriRSChrome_Slider(
         chrome, self->panel, "Radius", 0, EDITOR_BRUSH_RADIUS_MAX, ui->tools.brush.radius, 1);
-    ToriRSChrome_SetTooltip(chrome, self->slider_radius, "Brush radius in tiles (0 = one tile)");
+
     for( int i = 0; i < EDITOR_BRUSH_FALLOFF_COUNT; i++ )
         self->radio_falloff[i] = ToriRSChrome_Radio(
             chrome, self->panel, k_falloff_names[i], TERRAIN_GROUP_FALLOFF,
             i == (int)ui->tools.brush.falloff);
     self->slider_step =
         ToriRSChrome_Slider(chrome, self->panel, "Step", 1, 16, ui->tools.brush.step, 1);
-    ToriRSChrome_SetTooltip(chrome, self->slider_step, "Raise / lower: height steps per click (8 units)");
+
     self->slider_strength =
         ToriRSChrome_Slider(chrome, self->panel, "Strength", 0, 100, ui->tools.brush.strength, 5);
-    ToriRSChrome_SetTooltip(chrome, self->slider_strength, "Smooth: how far toward the neighbours");
+    terrain_hints(ui, self);
 
     ToriRSChrome_Separator(chrome, self->panel);
     ToriRSChrome_Label(chrome, self->panel, "Flags brush");

@@ -280,9 +280,27 @@ edp_rect_paste(
     int world_z,
     int level)
 {
+    struct Editor_TileRect r;
+
+    assert(ui);
+    if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
+    {
+        world_x = r.x0;
+        world_z = r.z0;
+        level = r.level;
+    }
+    return edp_rect_paste_at(ui, world_x, world_z, level);
+}
+
+int
+edp_rect_paste_at(
+    struct EditorUi* ui,
+    int world_x,
+    int world_z,
+    int level)
+{
     int capacity;
     struct Editor_Cmd* commands = edp_scratch(&capacity);
-    struct Editor_TileRect r;
     int count;
     int applied;
 
@@ -293,12 +311,6 @@ edp_rect_paste(
     {
         Editor_UiLog(ui, "editor: nothing copied yet");
         return 0;
-    }
-    if( Editor_TileRectNormalise(&ui->tools.rect, &r) )
-    {
-        world_x = r.x0;
-        world_z = r.z0;
-        level = r.level;
     }
     count = Editor_TileClipPaste(&ui->editor->doc, g_clip, world_x, world_z, level, commands, capacity);
     applied = edp_apply(ui, commands, count, "paste");

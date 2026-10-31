@@ -3255,6 +3255,13 @@ test-touch: $(OBJ_DIR) input/torirs_touch.c input/test/torirs_touch_test.c
 		input/test/torirs_touch_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/torirs_touch_test
 
+# enum LibToriRS_KeyCode's config names: every code round-trips, the legacy
+# aliases resolve, case is ignored, an unknown name is TORIRSK_UNKNOWN.
+test-keymap: $(OBJ_DIR) input/torirs_keymap.c input/test/torirs_keymap_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_keymap_test \
+		input/torirs_keymap.c input/test/torirs_keymap_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/torirs_keymap_test
+
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_spawn.c editor/test/editor_cmd_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test $(TORIMEM_SRCS) \
@@ -6722,7 +6729,7 @@ test-ws-frame: $(OBJ_DIR)
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test $(TORIMEM_SRCS) \
 		bootmanifest/bootmanifest.c executor_config.c features/features.c \
-		ui/torirs_chrome_exec_kind.c $(INI_SRC) \
+		ui/torirs_chrome_exec_kind.c input/torirs_keymap.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \

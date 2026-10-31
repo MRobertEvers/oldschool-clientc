@@ -5,6 +5,7 @@
 #include "torirsmaped/torirs_maped.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 static struct Editor_Cmd* g_scratch;
 
@@ -168,4 +169,91 @@ edp_level_click(
     if( level > EDITOR_SQUARE_LEVELS - 1 )
         level = EDITOR_SQUARE_LEVELS - 1;
     return level;
+}
+
+/* ---- the brush steppers and the hints --------------------------------------- */
+
+int
+edp_brush_step(
+    struct EditorUi* ui,
+    enum Edp_BrushField field,
+    int delta)
+{
+    struct Editor_Brush* brush;
+    int* value;
+    int lo;
+    int hi;
+    int notch;
+
+    assert(ui);
+    brush = &ui->tools.brush;
+    /* The Terrain panel's slider ranges (edpanel_terrain.c). */
+    if( field == EDP_BRUSH_RADIUS )
+    {
+        value = &brush->radius;
+        lo = 0;
+        hi = EDITOR_BRUSH_RADIUS_MAX;
+        notch = 1;
+    }
+    else if( field == EDP_BRUSH_STEP )
+    {
+        value = &brush->step;
+        lo = 1;
+        hi = 16;
+        notch = 1;
+    }
+    else
+    {
+        assert(field == EDP_BRUSH_STRENGTH);
+        value = &brush->strength;
+        lo = 0;
+        hi = 100;
+        notch = 5;
+    }
+    *value += delta * notch;
+    if( *value < lo )
+        *value = lo;
+    if( *value > hi )
+        *value = hi;
+    return *value;
+}
+
+void
+edp_hotkey_row(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    const char* text,
+    char* out,
+    int out_size)
+{
+    char chords[48];
+
+    assert(ui);
+    assert(text);
+    assert(out);
+    Editor_HotkeyDisplay(&ui->hotkeys, action, chords, (int)sizeof(chords));
+    if( chords[0] )
+        snprintf(out, (size_t)out_size, "%s\t%s", text, chords);
+    else
+        snprintf(out, (size_t)out_size, "%s", text);
+}
+
+void
+edp_hotkey_tip(
+    const struct EditorUi* ui,
+    enum Editor_HotkeyAction action,
+    const char* text,
+    char* out,
+    int out_size)
+{
+    char chords[48];
+
+    assert(ui);
+    assert(text);
+    assert(out);
+    Editor_HotkeyDisplay(&ui->hotkeys, action, chords, (int)sizeof(chords));
+    if( chords[0] )
+        snprintf(out, (size_t)out_size, "%s  [%s]", text, chords);
+    else
+        snprintf(out, (size_t)out_size, "%s", text);
 }

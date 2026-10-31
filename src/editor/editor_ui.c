@@ -81,6 +81,8 @@ Editor_UiInit(
     ui->view_published[0] = -1;
     ui->snap = 1;
     ui->world_panel = -1;
+    Editor_HotkeysInit(&ui->hotkeys);
+    ui->previous_tool = EDITOR_TOOL_SELECT;
 }
 
 void
@@ -224,6 +226,8 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     Editor_History_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);
+    /* The hotkey table and its editor (View > Hotkeys panel, F1). */
+    Editor_Hotkeys_Register(ui);
     ui->panel_end = ui->chrome->panel_count;
     ui->layout_scale = ToriRSChrome_Scale(ui->chrome);
 }
@@ -1230,10 +1234,60 @@ Editor_UiSetTool(
 
     if( ui->tools.tool == tool )
         return;
+    ui->previous_tool = ui->tools.tool;
     ui->tools.tool = tool;
     ui->tools.flatten_valid = 0;
     value = (int32_t)tool;
     (void)Editor_UiPublish(ui, TORIRSMAPED_STATE_TOOL, &value, 1);
+}
+
+int
+Editor_UiTogglePanel(
+    struct EditorUi* ui,
+    const char* name)
+{
+    struct EditorUiPanel* panel;
+    int open;
+
+    assert(ui);
+    assert(name);
+    panel = Editor_UiFindPanel(ui, name);
+    if( !panel || panel->chrome_panel < 0 )
+        return -1;
+    open = !ui->chrome->panels[panel->chrome_panel].visible;
+    ToriRSChrome_PanelSetVisible(ui->chrome, panel->chrome_panel, open);
+    return open;
+}
+
+int
+Editor_UiToggleAllPanels(struct EditorUi* ui)
+{
+    assert(ui);
+    if( ui->panels_hidden )
+    {
+        for( int i = 0; i < ui->panel_count; i++ )
+            if( ui->panels_hidden_open[i] && ui->panels[i].chrome_panel >= 0 )
+                ToriRSChrome_PanelSetVisible(ui->chrome, ui->panels[i].chrome_panel, 1);
+        memset(ui->panels_hidden_open, 0, sizeof(ui->panels_hidden_open));
+        ui->panels_hidden = 0;
+        return 0;
+    }
+    for( int i = 0; i < ui->panel_count; i++ )
+    {
+        struct EditorUiPanel const* panel = &ui->panels[i];
+        int const chrome_panel = panel->chrome_panel;
+        ui->panels_hidden_open[i] = 0;
+        /* The View-menu panels only: the menu bar (no title) stays, so the
+         * View menu can still bring any of them back, and so does World. */
+        if( chrome_panel < 0 || !panel->title || chrome_panel == ui->world_panel )
+            continue;
+        if( !ui->chrome->panels[chrome_panel].visible )
+            continue;
+        ui->panels_hidden_open[i] = 1;
+        ToriRSChrome_PanelSetVisible(ui->chrome, chrome_panel, 0);
+    }
+    ui->panels_hidden = 1;
+    return 1;
 }
 
 /* ---- console --------------------------------------------------------------- */

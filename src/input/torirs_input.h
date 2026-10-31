@@ -61,6 +61,37 @@ enum LibToriRS_KeyCode
     TORIRSK_PAGE_UP,
     TORIRSK_PAGE_DOWN,
     TORIRSK_COMMA,
+    /* Appended 2026-10-31 for the map editor's hotkey table (every key a
+     * full editor binds: brackets for the brush, F-keys for the panels,
+     * Home/End, the Alt chord). Each sizes three int arrays per input
+     * snapshot and nothing else; every platform's key map, the manifest's
+     * [debug:hotkeys] spelling and TORIRS_SIM_HOTKEY know them by the names
+     * LibToriRS_KeyCodeName returns. */
+    TORIRSK_PERIOD,
+    TORIRSK_MINUS,
+    TORIRSK_EQUALS,
+    TORIRSK_LBRACKET,
+    TORIRSK_RBRACKET,
+    TORIRSK_SEMICOLON,
+    TORIRSK_APOSTROPHE,
+    TORIRSK_GRAVE,
+    TORIRSK_SLASH,
+    TORIRSK_BACKSLASH,
+    TORIRSK_HOME,
+    TORIRSK_END,
+    TORIRSK_ALT,
+    TORIRSK_F1,
+    TORIRSK_F2,
+    TORIRSK_F3,
+    TORIRSK_F4,
+    TORIRSK_F5,
+    TORIRSK_F6,
+    TORIRSK_F7,
+    TORIRSK_F8,
+    TORIRSK_F9,
+    TORIRSK_F10,
+    TORIRSK_F11,
+    TORIRSK_F12,
     TORIRSK_COUNT
 };
 
@@ -223,6 +254,24 @@ LibToriRS_Input_Continue(
 
 void
 LibToriRS_Input_End(struct LibToriRS_Input* input);
+
+/**
+ * The config spelling of a key: "a".."z", "0".."9", "escape", "return",
+ * "backspace", "insert", "delete", "shift", "ctrl", "alt", "tab", "space",
+ * "left", "right", "up", "down", "pageup", "pagedown", "home", "end",
+ * "comma", "period", "minus", "equals", "lbracket", "rbracket", "semicolon",
+ * "apostrophe", "grave", "slash", "backslash", "f1".."f12". NULL for
+ * TORIRSK_UNKNOWN and anything past the enum. One vocabulary for the
+ * manifest's [debug:hotkeys], the editor's hotkeys file and
+ * TORIRS_SIM_HOTKEY.
+ */
+char const*
+LibToriRS_KeyCodeName(enum LibToriRS_KeyCode key);
+
+/** The inverse, case-insensitive; "enter" and "page_up"/"page_down" are
+ *  accepted as well. TORIRSK_UNKNOWN for an unnamed key. */
+enum LibToriRS_KeyCode
+LibToriRS_KeyCodeFromName(char const* name);
 
 void
 LibToriRS_Input_PushKeyDown(

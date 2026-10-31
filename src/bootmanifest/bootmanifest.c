@@ -1112,34 +1112,11 @@ bm_set_kv(
 
     case BM_SECTION_DEBUG_HOTKEYS:
     {
-        enum LibToriRS_KeyCode parsed = TORIRSK_UNKNOWN;
-        static struct
-        {
-            char const* name;
-            enum LibToriRS_KeyCode key;
-        } const named[] = {
-            { "escape",    TORIRSK_ESCAPE    }, { "enter",   TORIRSK_RETURN    },
-            { "return",    TORIRSK_RETURN    }, { "backspace", TORIRSK_BACKSPACE },
-            { "insert",    TORIRSK_INSERT    }, { "delete",  TORIRSK_DELETE    },
-            { "shift",     TORIRSK_SHIFT     }, { "ctrl",    TORIRSK_CTRL      },
-            { "tab",       TORIRSK_TAB       }, { "space",   TORIRSK_SPACE     },
-            { "left",      TORIRSK_LEFT      }, { "right",   TORIRSK_RIGHT     },
-            { "up",        TORIRSK_UP        }, { "down",    TORIRSK_DOWN      },
-            { "page_up",   TORIRSK_PAGE_UP   }, { "page_down", TORIRSK_PAGE_DOWN },
-            { "comma",     TORIRSK_COMMA     },
-        };
+        /* One vocabulary with the editor's hotkeys file and TORIRS_SIM_HOTKEY;
+         * the older spellings ("enter", "page_up", "page_down") are aliases
+         * LibToriRS_KeyCodeFromName accepts. */
+        enum LibToriRS_KeyCode parsed = LibToriRS_KeyCodeFromName(key);
 
-        if( key[0] && !key[1] && key[0] >= 'a' && key[0] <= 'z' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_A + key[0] - 'a');
-        else if( key[0] && !key[1] && key[0] >= '0' && key[0] <= '9' )
-            parsed = (enum LibToriRS_KeyCode)(TORIRSK_0 + key[0] - '0');
-        else
-            for( size_t i = 0; i < sizeof(named) / sizeof(named[0]); i++ )
-                if( strcmp(key, named[i].name) == 0 )
-                {
-                    parsed = named[i].key;
-                    break;
-                }
         if( parsed == TORIRSK_UNKNOWN )
         {
             TORIRS_ERR("bootmanifest: [debug:hotkeys] has unknown key '%s'\n", key);

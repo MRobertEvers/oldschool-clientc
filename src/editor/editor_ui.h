@@ -35,6 +35,7 @@
 
 #include "editor/editor_cmd.h"
 #include "editor/editor_host.h"
+#include "editor/editor_hotkeys.h"
 #include "editor/editor_layout.h"
 
 #include <stdarg.h>
@@ -418,6 +419,21 @@ struct EditorUi
      *  file's box (Editor_UiLayoutApply). */
     int layout_restore;
     struct EditorLayoutFile layout_saved;
+
+    /**
+     * The hotkey table (editor_hotkeys.h): the live bindings every hint is
+     * labelled from (menu rows, tool tips, the Level buttons, the Hotkeys
+     * panel). `hotkeys.serial` moves on every rebind; a module re-labels when
+     * it does. The App glue (src/app/app_editor_hotkeys.c) reads the keys and
+     * resolves them against this table.
+     */
+    struct Editor_Hotkeys hotkeys;
+    /** The tool armed before the current one (Previous tool swaps them). */
+    enum Editor_Tool previous_tool;
+    /** View > Hide / show panels: 1 while hidden, and which registry
+     *  panels were open when they were hidden (restored by the next press). */
+    int panels_hidden;
+    unsigned char panels_hidden_open[EDITOR_UI_PANELS_MAX];
 };
 
 /** Zero the registry over `chrome`; no panels yet. `editor` may be NULL. */
@@ -588,7 +604,22 @@ Editor_UiPublish(
     const int32_t* values,
     int count);
 
-/** Arm a tool: tools state, STATE_TOOL, console. */
+/** Show or hide the chrome panel of registry module `name` (the View menu's
+ *  toggle). Returns 1 when it is open afterwards, -1 when there is no such
+ *  module in this window. */
+int
+Editor_UiTogglePanel(
+    struct EditorUi* ui,
+    const char* name);
+
+/** View > Hide / show panels: hide every View-menu panel but World and
+ *  remember which were open; the next call opens those again. Returns 1
+ *  when the panels are hidden afterwards. */
+int
+Editor_UiToggleAllPanels(struct EditorUi* ui);
+
+/** Arm a tool: tools state, STATE_TOOL, console. The tool it replaces
+ *  becomes `previous_tool`. */
 void
 Editor_UiSetTool(
     struct EditorUi* ui,

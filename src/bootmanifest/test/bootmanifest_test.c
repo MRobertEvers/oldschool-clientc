@@ -611,6 +611,30 @@ test_backslash_manifest_path(void)
 #endif
 }
 
+/*
+ * [debug:hotkeys] keys are LibToriRS_KeyCodeFromName's names: the keys the
+ * map editor added (f1, lbracket, grave), the spellings older manifests carry
+ * (enter, page_up, page_down), any case. An unknown name fails the load.
+ */
+static void
+test_hotkey_key_names(void)
+{
+    struct BootManifest bm;
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_hotkey_names.ini") == 0);
+    CHECK(bm.debug_hotkey_count == 8);
+    CHECK(bm.debug_hotkeys[0].key == TORIRSK_F1);
+    CHECK(bm.debug_hotkeys[1].key == TORIRSK_LBRACKET);
+    CHECK(bm.debug_hotkeys[2].key == TORIRSK_GRAVE);
+    CHECK(bm.debug_hotkeys[3].key == TORIRSK_RETURN);
+    CHECK(bm.debug_hotkeys[4].key == TORIRSK_PAGE_UP);
+    CHECK(bm.debug_hotkeys[5].key == TORIRSK_PAGE_DOWN);
+    CHECK(bm.debug_hotkeys[6].key == TORIRSK_F12);
+    CHECK(bm.debug_hotkeys[7].key == TORIRSK_PAGE_UP);
+    CHECK(strcmp(bm.debug_hotkeys[0].action, "show_debug_overlay") == 0);
+
+    CHECK(BootManifest_LoadFile(&bm, "bootmanifest/test/fixture_hotkey_unknown.ini") != 0);
+}
+
 int
 main(void)
 {
@@ -625,6 +649,7 @@ main(void)
     test_migrated_spawn_actions();
     test_cache_dir_default();
     test_backslash_manifest_path();
+    test_hotkey_key_names();
 
     if( g_fail )
     {
