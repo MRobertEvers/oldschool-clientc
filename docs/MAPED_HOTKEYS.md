@@ -58,6 +58,8 @@ Context: **G** always (editor open) · **W** pointer over the World panel ·
 | Save square as new... | Ctrl+Shift+S | G |
 | Bake cache (slow) | unbound | G |
 | Close editor | unbound | G |
+| Check the scripts on disk (sscompile) | Ctrl+Shift+B | G |
+| Run: save all, build, reload live | Ctrl+Return | G |
 
 ### Edit
 | Action | Chord | Ctx |
@@ -144,6 +146,7 @@ where the editor claims no chord; Ctrl+S, Ctrl+D and Ctrl+A are claimed.
 | History | F10 | G |
 | Areas | F11 | G |
 | World | F12 | G |
+| Triggers | Ctrl+E | G |
 | Hide / show every panel but World | Tab | G |
 | Reset layout | Ctrl+Shift+R | G |
 | Snap to grid | unbound | G |
@@ -169,13 +172,13 @@ chords is skipped and named in the console (`editor: editor_hotkeys.ini: line
 N: ...`); the rest of the file still applies. The ids, in the order of the
 tables (the Hotkeys panel calls them by the name after the id):
 
-- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor
+- **File**: `file.new` New square..., `file.save_all` Save all, `file.save_as` Save square as new..., `file.bake` Bake cache (slow), `file.close` Close editor, `file.check_scripts` Check scripts, `file.run` Run (save, build, reload)
 - **Edit**: `edit.undo` Undo, `edit.redo` Redo, `edit.deselect` Deselect / cancel, `edit.delete` Delete selection, `edit.duplicate` Duplicate, `edit.rotate` Rotate, `edit.reshape` Reshape, `edit.apply` Apply tool to selection, `edit.select_square` Select the square's locs, `edit.nudge_n` Nudge north, `edit.nudge_s` Nudge south, `edit.nudge_w` Nudge west, `edit.nudge_e` Nudge east, `edit.copy` Copy tiles, `edit.paste` Paste tiles, `edit.fill` Fill tiles, `edit.clear` Clear tiles, `edit.mark_area` Mark area from rect
 - **Tools**: `tool.select` Select, `tool.rect` Rectangle, `tool.raise` Raise, `tool.lower` Lower, `tool.flatten` Flatten, `tool.smooth` Smooth, `tool.paint_underlay` Paint underlay, `tool.paint_overlay` Paint overlay, `tool.paint_flags` Paint flags, `tool.place` Place loc, `tool.move` Move loc, `tool.rotate` Rotate loc (tool), `tool.delete` Delete loc (tool), `tool.previous` Previous tool, `tool.pick_paint` Pick the tile's paint, `tool.pick_loc` Pick the hovered loc, `hold.place` Click places a loc (hold), `hold.delete` Click deletes a loc (hold), `hold.clear` Click clears the tile (hold)
 - **Brush**: `brush.radius_down` Radius -, `brush.radius_up` Radius +, `brush.strength_down` Strength -, `brush.strength_up` Strength +, `brush.step_down` Step -, `brush.step_up` Step +
 - **Level**: `level.down` Level down, `level.up` Level up, `level.pin0` Pin level 0, `level.pin1` Pin level 1, `level.pin2` Pin level 2, `level.pin3` Pin level 3, `level.auto` Level Auto, `level.above` Show above
 - **Camera**: `camera.forward` Fly forward, `camera.back` Fly back, `camera.left` Fly left, `camera.right` Fly right, `camera.down` Fly down, `camera.up` Fly up, `camera.fast` Fly faster, `camera.turn_left` Turn left, `camera.turn_right` Turn right, `camera.tilt_up` Tilt up, `camera.tilt_down` Tilt down, `camera.frame` Frame the selection, `camera.frame_square` Frame the square's centre
-- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid
+- **View**: `view.hotkeys` Hotkeys panel, `view.terrain` Terrain, `view.palette` Palette, `view.squares` Squares, `view.locs` Locs, `view.spawns` Spawns, `view.inspector` Inspector, `view.catalog` Catalog, `view.console` Console (Output), `view.history` History, `view.areas` Areas, `view.world` World, `view.toolrail` Tools (rail), `view.rect` Rectangle panel, `view.record` Record, `view.locbuilder` Loc builder, `view.npcbuilder` NPC builder, `view.shelleditor` Shell editor, `view.iface` Interface editor, `view.cs2` CS2, `view.live` Live, `view.triggers` Triggers, `view.hide_panels` Hide / show panels, `view.reset_layout` Reset layout, `view.snap` Snap to grid
 
 Example:
 
@@ -213,5 +216,11 @@ Example:
 - **Panel buttons.** The Locs and Spawns buttons keep plain captions (a
   button caption is one label column wide) and carry their chord in the
   tooltip; menu rows show it right-aligned after the label.
+- **Check and Run** (Triggers panel, docs/MAPED_STATUS.md row 7d) are File
+  rows too. Check compiles the scripts ON DISK (the user edits them in their
+  own editor; unsaved script documents are not in it) and runs synchronously:
+  the window waits for sscompile. Run is the Live panel's RUN and is refused
+  while a RUN or build is in flight. Like every chord, neither fires while a
+  text field (Subject, File, Op text) has the keyboard.
 - **Repeats are not logged**: the edge logs `editor: <action> (<chord>)`, the
   20 Hz repeats do not.

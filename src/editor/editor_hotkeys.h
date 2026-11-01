@@ -78,6 +78,10 @@ enum Editor_HotkeyAction
     EDITOR_HK_FILE_SAVE_AS,
     EDITOR_HK_FILE_BAKE,
     EDITOR_HK_FILE_CLOSE,
+    /* The Triggers panel's Check (sscompile over the scripts on disk) and the
+     * Live panel's RUN. */
+    EDITOR_HK_FILE_CHECK_SCRIPTS,
+    EDITOR_HK_FILE_RUN,
     /* Edit */
     EDITOR_HK_EDIT_UNDO,
     EDITOR_HK_EDIT_REDO,
@@ -169,6 +173,7 @@ enum Editor_HotkeyAction
     EDITOR_HK_VIEW_IFACE,
     EDITOR_HK_VIEW_CS2,
     EDITOR_HK_VIEW_LIVE,
+    EDITOR_HK_VIEW_TRIGGERS,
     EDITOR_HK_VIEW_HIDE_PANELS,
     EDITOR_HK_VIEW_RESET_LAYOUT,
     EDITOR_HK_VIEW_SNAP,

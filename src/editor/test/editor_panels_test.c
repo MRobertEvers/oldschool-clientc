@@ -15,6 +15,8 @@
 #include "editor/editor_cfg.h"
 #include "editor/editor_cmd.h"
 #include "editor/editor_doc.h"
+#include "editor/editor_script.h"
+#include "editor/builder/builder_ssc.h"
 #include "editor/editor_host.h"
 #include "editor/editor_ui.h"
 #include "editor/panels/edpanel_catalog_model.h"
@@ -38,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 static int g_checks;
 static int g_failed;
@@ -821,6 +824,12 @@ write_catalog_fixture(const char* root)
         "wiki\nparam=death_drop,bones\n\n// trailing note\n");
     write_text(root, "server/scripts/areas/test/configs/test.npc",
         "// authored\n[test_guard]\nwanderrange=2\nparam=huntrange,4\n");
+    /* Two triggers the catalog indexes (the Record panel's Scripts rows, the
+     * Script panel). */
+    snprintf(path, sizeof(path), "%s/server/scripts/areas/test/scripts", root);
+    mkdir(path, 0755);
+    write_text(root, "server/scripts/areas/test/scripts/test.rs2",
+        "// test triggers\n[oploc1,test_crate]\nmes(\"A crate.\");\n\n[opnpc1,test_guard]\nmes(\"Halt.\");\n");
     write_field_register(root);
 }
 
@@ -4244,6 +4253,300 @@ test_hotkeys(void)
     Editor_UiFree(&g_ui);
 }
 
+/* ---- the Triggers panel (edpanel_triggers.c) ------------------------------------------- */
+
+/** Row `row` of a VLIST as the chrome holds it, NULL when off screen. */
+static const char*
+cat_vrow(
+    int widget,
+    int row)
+{
+    for( int i = 0; i < TORIRS_CHROME_VROW_POOL; i++ )
+        if( g_cat_chrome.vrows[i].owner == widget && g_cat_chrome.vrows[i].index == row )
+            return g_cat_chrome.vrows[i].text;
+    return NULL;
+}
+
+static const char*
+text_of(const char* key)
+{
+    struct Editor_DocHandle handle;
+    if( !Editor_DocFind(&g_editor.doc, EDITOR_DOC_TEXT, key, &handle) || !handle.text || !handle.text->loaded )
+        return NULL;
+    return handle.text->text ? handle.text->text : "";
+}
+
+static int
+read_file_text(
+    const char* path,
+    char* out,
+    size_t out_size)
+{
+    FILE* file = fopen(path, "rb");
+    size_t n;
+    if( !file )
+        return 0;
+    n = fread(out, 1, out_size - 1, file);
+    out[n] = '\0';
+    fclose(file);
+    return 1;
+}
+
+/** The editor command runs in the background: wait (up to 3 s) until the
+ *  file holds `needle`. */
+static int
+wait_file_has(
+    const char* path,
+    const char* needle,
+    char* out,
+    size_t out_size)
+{
+    for( int i = 0; i < 300; i++ )
+    {
+        if( read_file_text(path, out, out_size) && strstr(out, needle) )
+            return 1;
+        usleep(10000);
+    }
+    return 0;
+}
+
+static void
+dump_console(int lines)
+{
+    for( int i = lines - 1; i >= 0; i-- )
+    {
+        const char* line = Editor_UiConsoleLine(&g_cat_ui, i);
+        if( line )
+            printf("    console: %s\n", line);
+    }
+}
+
+static void
+test_triggers(void)
+{
+    static const char* const k_test_rel = "areas/test/scripts/test.rs2";
+    static const char* const k_edited = "rs2:edited/test_crate/scripts/test_crate.rs2";
+    struct Editor_ScriptRef rows[16];
+    char opened_log[2048];
+    char open_cmd[2300];
+    char got[2048];
+    int panel;
+    int list;
+    int n;
+
+    /* Open in editor writes to a file here, never starts an editor. */
+    snprintf(opened_log, sizeof(opened_log), "%s/opened.txt", g_tmp_root);
+    remove(opened_log);
+    snprintf(open_cmd, sizeof(open_cmd), "printf '%%s\\n' {path}:{line} >> '%s'", opened_log);
+    setenv("TORIRS_EDITOR_OPEN_CMD", open_cmd, 1);
+
+    cat_ui_open();
+    Editor_Triggers_Register(&g_cat_ui);
+    CHECK(Editor_Triggers_SetPaths(&g_cat_ui, g_tmp_root, NULL, NULL) == 0, "triggers: no compiler, no Check");
+    cat_frame();
+    panel = cat_panel("Triggers");
+    CHECK(panel >= 0 && !g_cat_chrome.panels[panel].visible, "triggers: registered, hidden until asked for");
+    if( panel < 0 )
+    {
+        Editor_UiFree(&g_cat_ui);
+        return;
+    }
+    list = cat_widget(panel, TORIRS_CHROME_W_VLIST, "");
+
+    /* A subject by name: the catalog's rows, the type found. */
+    n = Editor_Triggers_ShowSubject(&g_cat_ui, NULL, "test_crate");
+    cat_frame();
+    {
+        const char* type = NULL;
+        const char* subject = Editor_Triggers_Subject(&g_cat_ui, &type);
+        CHECK(n == 1 && g_cat_chrome.panels[panel].visible && strcmp(subject, "test_crate") == 0
+                  && strcmp(type, "loc") == 0,
+            "triggers: test_crate is a loc with one trigger (%d, %s)", n, type ? type : "-");
+    }
+    n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
+    CHECK(n == 1 && strcmp(rows[0].kind, "oploc1") == 0 && strcmp(rows[0].rel, k_test_rel) == 0 && rows[0].line == 2,
+        "triggers: oploc1 at test.rs2:2");
+    CHECK(list >= 0 && cat_vrow(list, 0) && strstr(cat_vrow(list, 0), "oploc1")
+              && strstr(cat_vrow(list, 0), "test.rs2:2") && strstr(cat_vrow(list, 0), "areas/test/scripts"),
+        "triggers: the row reads kind, file:line, directory (%s)", list >= 0 && cat_vrow(list, 0) ? cat_vrow(list, 0) : "-");
+    {
+        int const kinds = cat_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Trigger");
+        CHECK(kinds >= 0 && ToriRSChrome_DropdownOptionValue(&g_cat_chrome, kinds, 2)
+                  && strcmp(ToriRSChrome_DropdownOptionValue(&g_cat_chrome, kinds, 2), "oploc3") == 0,
+            "triggers: Add offers the loc kinds");
+    }
+
+    /* Open in editor: the command, the path absolute, the line. */
+    ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 0);
+    cat_activate(list);
+    cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open in editor"));
+    {
+        char expect[2300];
+        char root_abs[2048];
+        if( !realpath(g_tmp_root, root_abs) )
+            snprintf(root_abs, sizeof(root_abs), "%s", g_tmp_root);
+        snprintf(expect, sizeof(expect), "%s/server/scripts/areas/test/scripts/test.rs2:2\n", root_abs);
+        CHECK(wait_file_has(opened_log, "test.rs2:2", got, sizeof(got)) && strcmp(got, expect) == 0,
+            "triggers: Open in editor ran TORIRS_EDITOR_OPEN_CMD with the path and line (%s)", got);
+        CHECK(cat_console_has("open in editor: printf"), "triggers: the command line is in the Console");
+    }
+
+    /* File mode: every trigger of one file. */
+    n = Editor_Triggers_ShowFile(&g_cat_ui, k_test_rel);
+    cat_frame();
+    n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
+    CHECK(n == 2 && strcmp(rows[1].kind, "opnpc1") == 0 && strcmp(rows[1].subject, "test_guard") == 0
+              && rows[1].line == 5,
+        "triggers: file mode lists both headers of test.rs2 (%d)", n);
+    CHECK(cat_vrow(list, 1) && strstr(cat_vrow(list, 1), "[opnpc1,test_guard]"),
+        "triggers: a file row names its subject");
+    CHECK(Editor_Triggers_ShowFile(&g_cat_ui, "../x.rs2") == 0, "triggers: a path out of server/scripts is refused");
+
+    /* Follow: the Record panel's record. */
+    CHECK(Editor_Record_Open(&g_cat_ui, TORIRSMAPED_CATALOG_LOC, "test_crate") == 1, "triggers: record test_crate");
+    Editor_Triggers_Follow(&g_cat_ui);
+    cat_frame();
+    CHECK(strcmp(Editor_Triggers_Subject(&g_cat_ui, NULL), "test_crate") == 0, "triggers: follows the Record panel");
+    {
+        int const record = cat_panel("Record");
+        int const button = cat_widget(record, TORIRS_CHROME_W_BUTTON, "Triggers...");
+        CHECK(button >= 0, "triggers: the Record panel has Triggers...");
+    }
+
+    /* Add trigger oploc3 + Op text Search: op3 and the template, one step. */
+    {
+        int const kinds = cat_widget(panel, TORIRS_CHROME_W_DROPDOWN, "Trigger");
+        int const op = cat_widget(panel, TORIRS_CHROME_W_TEXTINPUT, "Op text");
+        int const add = cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Add trigger...");
+        const struct Editor_CfgRecord* rec;
+        int row;
+
+        ToriRSChrome_DropdownSetSelected(&g_cat_chrome, kinds, 2);
+        ToriRSChrome_SetText(&g_cat_chrome, op, "");
+        cat_activate(add);
+        CHECK(cat_console_has("type its text") && (!text_of(k_edited) || !text_of(k_edited)[0]),
+            "triggers: no op3 and no Op text: refused, nothing written");
+        ToriRSChrome_SetText(&g_cat_chrome, op, "Search");
+        cat_activate(add);
+        cat_frame();
+        rec = Editor_Record_Current(&g_cat_ui);
+        row = rec ? Editor_CfgRecordFindRow(rec, "op3", "", 0) : -1;
+        CHECK(row >= 0 && rec->rows[row].layer >= 0 && strcmp(rec->rows[row].value, "Search") == 0,
+            "triggers: op3=Search written through the Record panel");
+        if( row < 0 || rec->rows[row].layer < 0 )
+            dump_console(8);
+        CHECK(text_of(k_edited)
+                  && strcmp(text_of(k_edited),
+                         "// test_crate: triggers written by hand, started from the ToriRSEd Record panel.\n"
+                         "\n[oploc3,test_crate]\nmes(\"Nothing interesting happens.\");\n")
+                         == 0,
+            "triggers: the template appended to the subject's new edited script");
+        CHECK(newest_group_named("Add [oploc3,test_crate] (op3=Search)")
+                  && newest_group()->kinds[EDITOR_CMD_CFG_FIELD] == 1 && newest_group()->kinds[EDITOR_CMD_TEXT_SPLICE] == 1,
+            "triggers: ONE History row holding the field and the trigger");
+        n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
+        CHECK(n == 2 && strcmp(rows[1].kind, "oploc3") == 0
+                  && strcmp(rows[1].rel, "edited/test_crate/scripts/test_crate.rs2") == 0 && rows[1].line == 3
+                  && rows[1].unsaved && ToriRSChrome_VListSelected(&g_cat_chrome, list) == 1,
+            "triggers: the new trigger is a row (unsaved), selected (%d)", n);
+
+        /* A trigger the tree already declares is refused. */
+        ToriRSChrome_DropdownSetSelected(&g_cat_chrome, kinds, 0);
+        cat_activate(add);
+        CHECK(cat_console_has("already declared in areas/test/scripts/test.rs2:2"),
+            "triggers: oploc1 exists in test.rs2: refused");
+
+        /* Open in editor on the unsaved row saves it first. */
+        ToriRSChrome_VListSetSelected(&g_cat_chrome, list, 1);
+        cat_activate(list);
+        cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open in editor"));
+        {
+            char disk[2048];
+            snprintf(disk, sizeof(disk), "%s/server/scripts/edited/test_crate/scripts/test_crate.rs2", g_tmp_root);
+            CHECK(read_file_text(disk, got, sizeof(got)) && strcmp(got, text_of(k_edited)) == 0
+                      && cat_console_has("saved edited/test_crate/scripts/test_crate.rs2 first"),
+                "triggers: Open in editor saved the edited script before handing it over");
+            CHECK(wait_file_has(opened_log, "test_crate.rs2:3\n", got, sizeof(got)),
+                "triggers: and handed over line 3");
+
+            /* Edited outside: the disk changes under the open document. */
+            {
+                FILE* file = fopen(disk, "ab");
+                if( file )
+                {
+                    fputs("\n[oploc4,test_crate]\nmes(\"Kick.\");\n", file);
+                    fclose(file);
+                }
+            }
+            CHECK(Editor_Triggers_Refresh(&g_cat_ui) == 1 && !g_cat_chrome.widgets[cat_widget(panel,
+                                                                  TORIRS_CHROME_W_BUTTON, "Reload from disk")].hidden,
+                "triggers: Refresh finds the document edited outside, offers Reload from disk");
+            CHECK(Editor_Triggers_AddTrigger(&g_cat_ui, "oploc5", "Climb") == 0 && cat_console_has("edited outside"),
+                "triggers: Add refuses to write over a copy edited outside");
+            CHECK(Editor_Triggers_ReloadFromDisk(&g_cat_ui) == 1 && read_file_text(disk, got, sizeof(got))
+                      && strcmp(got, text_of(k_edited)) == 0 && newest_group_named("Reload edited/test_crate"),
+                "triggers: Reload from disk makes the document the disk's text, one undo step");
+            n = Editor_Triggers_Rows(&g_cat_ui, rows, 16);
+            CHECK(n == 3 && strcmp(rows[2].kind, "oploc4") == 0 && rows[2].line == 6,
+                "triggers: the trigger written outside is a row (%d)", n);
+        }
+        /* Back: the reload, then the add. */
+        CHECK(Editor_Undo(&g_editor) >= 1 && Editor_Undo(&g_editor) == 2, "triggers: undo the reload, then the add");
+        rec = Editor_Record_Current(&g_cat_ui);
+        row = rec ? Editor_CfgRecordFindRow(rec, "op3", "", 0) : -1;
+        CHECK((row < 0 || rec->rows[row].layer < 0) && text_of(k_edited) && text_of(k_edited)[0] == '\0',
+            "triggers: op3 unstated and the edited script empty again");
+    }
+
+    /* An npc with its op1 stated: the trigger only. */
+    Editor_Triggers_ShowSubject(&g_cat_ui, "npc", "test_guard");
+    CHECK(Editor_Triggers_AddTrigger(&g_cat_ui, "apnpc1", NULL) == 1 && newest_group_named("Add [apnpc1,test_guard]")
+              && newest_group()->kinds[EDITOR_CMD_CFG_FIELD] == 0,
+        "triggers: apnpc1 on test_guard (op1 Talk-to stated): the trigger only");
+    CHECK(Editor_Triggers_AddTrigger(&g_cat_ui, "oploc1", NULL) == 0 && cat_console_has("not one this record type"),
+        "triggers: a loc kind on an npc is refused");
+    CHECK(Editor_Undo(&g_editor) == 1, "triggers: undo");
+
+    /* Check: a result's rows; no compiler here, and the hotkeys reach it. */
+    {
+        static const char k_out[] = "/stage/areas/x/scripts/y.rs2:7: warning: unused local $a\n"
+                                    "/stage/areas/test/scripts/test.rs2:3: unknown command 'mess'\n"
+                                    "sscompile: 1 compiled, 0 reused, 1 failed\n";
+        struct Builder_SscResult* result = ToriMem_Calloc(ToriMem_Editor(), 1, sizeof(*result));
+        int diags;
+        assert(result);
+        result->status = BUILDER_SSC_FAILED;
+        Builder_SscParseOutput("/stage", k_out, strlen(k_out), result);
+        Editor_Triggers_ShowResult(&g_cat_ui, result);
+        ToriMem_Free(ToriMem_Editor(), result);
+        cat_frame();
+        diags = cat_widget(panel, TORIRS_CHROME_W_VLIST, "Problems");
+        CHECK(diags >= 0 && cat_vrow(diags, 0)
+                  && strcmp(cat_vrow(diags, 0), "test.rs2:3: unknown command 'mess'   areas/test/scripts") == 0,
+            "triggers: the Problems row is file:line: message, directory (%s)",
+            diags >= 0 && cat_vrow(diags, 0) ? cat_vrow(diags, 0) : "-");
+        ToriRSChrome_VListSetSelected(&g_cat_chrome, diags, 0);
+        cat_activate(diags);
+        cat_activate(cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Open problem"));
+        CHECK(wait_file_has(opened_log, "areas/test/scripts/test.rs2:3\n", got, sizeof(got)),
+            "triggers: Open problem hands over its file and line (errors listed before warnings)");
+        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_CHECK_SCRIPTS) == 1 && cat_console_has("no compile paths"),
+            "triggers: the Check hotkey reaches the panel (no compile paths here)");
+        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_FILE_RUN) == 1 && cat_console_has("no Live panel"),
+            "triggers: the Run hotkey says why it cannot");
+        CHECK(ToriRSChrome_Disabled(&g_cat_chrome, cat_widget(panel, TORIRS_CHROME_W_BUTTON, "Run")),
+            "triggers: Run disabled without a Live panel");
+    }
+    {
+        int const shown = g_cat_chrome.panels[panel].visible;
+        CHECK(Editor_HotkeyRun(&g_cat_ui, EDITOR_HK_VIEW_TRIGGERS) == 1, "triggers: the View action runs");
+        cat_frame();
+        CHECK(g_cat_chrome.panels[panel].visible == !shown, "triggers: Ctrl+E's action toggles the panel");
+    }
+    unsetenv("TORIRS_EDITOR_OPEN_CMD");
+    Editor_UiFree(&g_cat_ui);
+}
+
 int
 main(
     int argc,
@@ -4300,6 +4603,7 @@ main(
     test_areas();
     test_active_level();
     test_hotkeys();
+    test_triggers();
     Editor_PickerFree(&g_picker);
     Editor_Close(&g_editor);
     printf("editor_panels_test: %d checks, %d failed\n", g_checks, g_failed);

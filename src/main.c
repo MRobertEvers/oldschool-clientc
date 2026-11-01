@@ -8046,6 +8046,14 @@ main(
 #endif
     ToriRS_BootTelemetry_Mark("app_init");
     App_Init(&app, &cfg);
+#if !defined(TORIRS_PLATFORM_WEB)
+    /* A live reload's CACHE_INVALIDATE reaches the IO below the provider: the
+     * decompressed-archive LRU and the JS5 client's reference table
+     * (docs/serverpack.md "The hot-reload contract", clients). */
+    if( app.provider )
+        CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
+                                               app.runner.px);
+#endif
     ToriRS_BootTelemetry_Mark("app_init:done");
     if( getenv("TORIRS_PREVIEW_BMP") )
     {

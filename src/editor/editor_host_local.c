@@ -10,6 +10,7 @@
 #include "editor_cfg.h"
 #include "editor_doc.h"
 #include "editor_if.h"
+#include "editor_open_cmd.h"
 #include "mem/torirs_mem.h"
 
 #include <assert.h>
@@ -799,3 +800,95 @@ Editor_HostOpenLocal(
     host->user_data = local;
     return 1;
 }
+
+/* ---- open in the user's editor ---------------------------------------------- */
+
+#if defined(_WIN32) || defined(__EMSCRIPTEN__)
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    assert(path);
+    (void)line;
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    return EDITOR_HOST_UNSUPPORTED;
+}
+
+#else
+
+#include <spawn.h>
+#include <sys/wait.h>
+extern char** environ;
+
+/** `name` is an executable in a PATH directory. */
+static int
+on_path(const char* name)
+{
+    const char* path = getenv("PATH");
+    char candidate[1200];
+
+    while( path && *path )
+    {
+        const char* colon = strchr(path, ':');
+        size_t const length = colon ? (size_t)(colon - path) : strlen(path);
+        if( length > 0 && length < 1000 )
+        {
+            snprintf(candidate, sizeof(candidate), "%.*s/%s", (int)length, path, name);
+            if( access(candidate, X_OK) == 0 )
+                return 1;
+        }
+        path = colon ? colon + 1 : NULL;
+    }
+    return 0;
+}
+
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size)
+{
+    const char* tmpl = getenv("TORIRS_EDITOR_OPEN_CMD");
+    char command[2048];
+    char shell_line[2100];
+    char* argv[4];
+    pid_t pid;
+    int status = 0;
+
+    assert(path);
+    if( out_cmdline && out_size > 0 )
+        out_cmdline[0] = '\0';
+    if( !tmpl || !tmpl[0] )
+#if defined(__APPLE__)
+        tmpl = Editor_OpenCommandDefault(on_path("code"), 1);
+#else
+        tmpl = Editor_OpenCommandDefault(on_path("code"), 0);
+#endif
+    if( Editor_OpenCommandLine(tmpl, path, line, command, sizeof(command)) == 0 )
+        return EDITOR_HOST_REFUSED;
+    if( out_cmdline && out_size > 0 )
+        snprintf(out_cmdline, out_size, "%s", command);
+    /* Backgrounded inside the shell, which exits at once: waiting on it is
+     * waiting on nothing, and the editor is never this process's child. */
+    snprintf(shell_line, sizeof(shell_line), "( %s ) >/dev/null 2>&1 &", command);
+    argv[0] = "/bin/sh";
+    argv[1] = "-c";
+    argv[2] = shell_line;
+    argv[3] = NULL;
+    if( posix_spawn(&pid, "/bin/sh", NULL, NULL, argv, environ) != 0 )
+        return EDITOR_HOST_IO_ERROR;
+    while( waitpid(pid, &status, 0) < 0 )
+    {
+        if( errno != EINTR )
+            break;
+    }
+    return EDITOR_HOST_OK;
+}
+
+#endif

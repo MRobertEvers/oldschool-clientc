@@ -292,9 +292,7 @@ live_activate(
     }
     if( widget == self->button_run )
     {
-        type = Editor_LiveEncodeRun(&payload);
-        if( live_send(ui, self, type, &payload) )
-            Editor_UiLog(ui, "RUN: save, build packs, build the client cache, reload the live server");
+        (void)Editor_Live_Run(ui);
         return 1;
     }
     if( widget == self->button_packs || widget == self->button_client )
@@ -500,4 +498,43 @@ Editor_LivePanelModel(struct EditorUi* ui)
     assert(ui);
     self = Editor_UiPanelSelf(ui, "live");
     return self ? &self->model : NULL;
+}
+
+int
+Editor_Live_Busy(struct EditorUi* ui)
+{
+    struct LivePanel* self;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+        return -1;
+    return self->model.run_step != TORIRSMAPED_RUN_STEP_IDLE || self->model.building;
+}
+
+int
+Editor_Live_Run(struct EditorUi* ui)
+{
+    struct LivePanel* self;
+    struct ToriRSMapEdBuf payload;
+    uint32_t type;
+
+    assert(ui);
+    self = Editor_UiPanelSelf(ui, "live");
+    if( !self )
+    {
+        Editor_UiLog(ui, "RUN: this window has no Live panel (no editor server)");
+        return -1;
+    }
+    if( self->model.run_step != TORIRSMAPED_RUN_STEP_IDLE || self->model.building )
+    {
+        Editor_UiLog(ui, "RUN: a %s is in flight; wait for it", self->model.building ? "build" : "RUN");
+        return 0;
+    }
+    memset(&payload, 0, sizeof(payload));
+    type = Editor_LiveEncodeRun(&payload);
+    if( !live_send(ui, self, type, &payload) )
+        return 0;
+    Editor_UiLog(ui, "RUN: save, build packs, build the client cache, reload the live server");
+    return 1;
 }

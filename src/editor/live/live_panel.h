@@ -33,4 +33,17 @@ Editor_Live_RegisterWith(
 const struct Editor_LiveModel*
 Editor_LivePanelModel(struct EditorUi* ui);
 
+/** RUN (the Live panel's button, the Script panel's Run, the File > Run
+ *  hotkey): SAVE_ALL -> packs -> client cache -> reload, through the editor
+ *  server's live link. 1 sent, 0 refused (a RUN or build in flight, or the
+ *  connection is gone; the console says which), -1 when this window has no
+ *  Live panel. */
+int
+Editor_Live_Run(struct EditorUi* ui);
+
+/** 1 while a RUN or a build is in flight (RUN is disabled), 0 when idle,
+ *  -1 without a Live panel. */
+int
+Editor_Live_Busy(struct EditorUi* ui);
+
 #endif

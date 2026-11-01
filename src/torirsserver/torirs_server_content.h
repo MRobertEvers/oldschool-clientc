@@ -1,6 +1,8 @@
 #ifndef SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
 #define SRC_TORIRSSERVER_TORIRS_SERVER_CONTENT_H
 
+#include <stddef.h>
+
 struct RSCache_ServerPack;
 
 /*
@@ -983,6 +985,46 @@ ToriRSServer_ContentLoadPack(struct RSCache_ServerPack* pack);
 
 void
 ToriRSServer_ContentFree(void);
+
+/**
+ * Live reload of one config kind (docs/serverpack.md "The hot-reload contract"
+ * section 5), from a pack the caller opened and holds under its shared lock.
+ * Each checks the whole kind first -- every client record decodes, every band
+ * (and npc's `[default]`) decodes whole -- and touches nothing when it does not:
+ * 0 with the reason in `why`. Then the kind's records AND bands are replaced the
+ * way the boot loads them, and 1 is returned (`why` set to a note when a band
+ * reported a content error while being applied; the table is replaced anyway).
+ *
+ *   loc: ToriRSServer_LocInfo*, the scene's raw records, the loc defs, their
+ *        categories and the scene's op overlays.
+ *   npc: ToriRSServer_NpcInfo*, `[default]` (in place) and the npc defs. The
+ *        old def array is RETIRED: the caller re-points every npc's `def` and
+ *        then calls ToriRSServer_ContentNpcRetiredFree.
+ *   obj: ToriRSServer_ObjInfo* and the requirement rows the obj bands write.
+ *
+ * Call only at a tick boundary (no script is mid-instruction).
+ */
+int
+ToriRSServer_ContentReloadLocs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size);
+
+int
+ToriRSServer_ContentReloadNpcs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size);
+
+void
+ToriRSServer_ContentNpcRetiredFree(void);
+
+int
+ToriRSServer_ContentReloadObjs(
+    struct RSCache_ServerPack* pack,
+    char* why,
+    size_t why_size);
+
 
 /**
  * Merge every `.spawn` under `scripts_dir` into the spawn tables, then apply

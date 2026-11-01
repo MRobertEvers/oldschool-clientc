@@ -455,6 +455,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         CACHE_PROVIDER_WORLDMAP_GEOGRAPHY_CAPACITY);
 }
 
+static void cache_provider_retired_free(struct CacheProvider* provider);
+
 void
 CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
 {
@@ -491,6 +493,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_DbRowsCleanup(provider);
     CacheProvider_DbTablesCleanup(provider);
     CacheProvider_DbTableIndexesCleanup(provider);
+    cache_provider_retired_free(provider);
 
     ToriRS_WorldMapAreasFree(provider->worldmap_areas);
     provider->worldmap_areas = NULL;
@@ -1793,6 +1796,145 @@ CacheProvider_ComponentPackHas(
     return CacheProvider_ComponentPackGet(provider, iface_id) != NULL;
 }
 
+/* Append `record` to a retired list (see CacheProvider.retired_locations). */
+static void
+cache_provider_retire(
+    void*** list,
+    int* count,
+    int* capacity,
+    void* record)
+{
+    if( *count == *capacity )
+    {
+        int grown = *capacity ? *capacity * 2 : 256;
+        *list = ToriMem_Realloc(ToriMem_Assets(), *list, (size_t)grown * sizeof(**list));
+        assert(*list);
+        *capacity = grown;
+    }
+    (*list)[(*count)++] = record;
+}
+
+/* Every resident loctype goes to the retired list and the map starts empty.
+ * Returns how many were resident. */
+static int
+cache_provider_evict_locations(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderLocation* entry;
+    int evicted = 0;
+
+    if( !provider->location_cache )
+        return 0;
+    iter = hmap_iter_new(provider->location_cache);
+    while( (entry = (struct MapEntry_ProviderLocation*)hmap_iter_next(iter)) )
+    {
+        if( !entry->location )
+            continue;
+        cache_provider_retire((void***)&provider->retired_locations,
+                              &provider->retired_location_count,
+                              &provider->retired_location_capacity, entry->location);
+        evicted++;
+    }
+    hmap_iter_free(iter);
+    cache_provider_hmap_free(provider->location_cache);
+    provider->location_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderLocation), CACHE_PROVIDER_LOCATION_CAPACITY);
+    return evicted;
+}
+
+static int
+cache_provider_evict_npctypes(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderNpctype* entry;
+    int evicted = 0;
+
+    if( !provider->npctype_cache )
+        return 0;
+    iter = hmap_iter_new(provider->npctype_cache);
+    while( (entry = (struct MapEntry_ProviderNpctype*)hmap_iter_next(iter)) )
+    {
+        if( !entry->npctype )
+            continue;
+        cache_provider_retire((void***)&provider->retired_npctypes,
+                              &provider->retired_npctype_count,
+                              &provider->retired_npctype_capacity, entry->npctype);
+        evicted++;
+    }
+    hmap_iter_free(iter);
+    cache_provider_hmap_free(provider->npctype_cache);
+    provider->npctype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderNpctype), CACHE_PROVIDER_NPCTYPE_CAPACITY);
+    return evicted;
+}
+
+static int
+cache_provider_evict_objtypes(struct CacheProvider* provider)
+{
+    struct HMapIter* iter;
+    struct MapEntry_ProviderObjtype* entry;
+    int evicted = 0;
+
+    if( !provider->objtype_cache )
+        return 0;
+    iter = hmap_iter_new(provider->objtype_cache);
+    while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
+    {
+        if( !entry->objtype )
+            continue;
+        cache_provider_retire((void***)&provider->retired_objtypes,
+                              &provider->retired_objtype_count,
+                              &provider->retired_objtype_capacity, entry->objtype);
+        evicted++;
+    }
+    hmap_iter_free(iter);
+    cache_provider_hmap_free(provider->objtype_cache);
+    provider->objtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderObjtype), CACHE_PROVIDER_OBJTYPE_CAPACITY);
+    /* The name index holds ids into objtype_cache: reset in lockstep, as
+     * CacheProvider_ObjtypesCleanup does. */
+    if( provider->objtype_name_cache )
+    {
+        cache_provider_hmap_free(provider->objtype_name_cache);
+        provider->objtype_name_cache = cache_provider_hmap_new(
+            sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
+    }
+    provider->objtypes_all_loaded = false;
+    cache_provider_ui_assets_changed(provider);
+    return evicted;
+}
+
+static void
+cache_provider_retired_free(struct CacheProvider* provider)
+{
+    for( int i = 0; i < provider->retired_location_count; i++ )
+        ToriRS_LocationFree(provider->retired_locations[i]);
+    ToriMem_Free(ToriMem_Assets(), provider->retired_locations);
+    provider->retired_locations = NULL;
+    provider->retired_location_count = provider->retired_location_capacity = 0;
+    for( int i = 0; i < provider->retired_npctype_count; i++ )
+        ToriRS_NpctypeFree(provider->retired_npctypes[i]);
+    ToriMem_Free(ToriMem_Assets(), provider->retired_npctypes);
+    provider->retired_npctypes = NULL;
+    provider->retired_npctype_count = provider->retired_npctype_capacity = 0;
+    for( int i = 0; i < provider->retired_objtype_count; i++ )
+        ToriRS_ObjtypeFree(provider->retired_objtypes[i]);
+    ToriMem_Free(ToriMem_Assets(), provider->retired_objtypes);
+    provider->retired_objtypes = NULL;
+    provider->retired_objtype_count = provider->retired_objtype_capacity = 0;
+}
+
+void
+CacheProvider_SetArchiveInvalidateHook(
+    struct CacheProvider* provider,
+    void (*hook)(void* user, int index, int archive),
+    void* user)
+{
+    assert(provider);
+    provider->archive_invalidate_hook = hook;
+    provider->archive_invalidate_user = hook ? user : NULL;
+}
+
 enum CacheProviderInvalidate
 CacheProvider_InvalidateArchive(
     struct CacheProvider* provider,
@@ -1816,6 +1958,29 @@ CacheProvider_InvalidateArchive(
         if( entry->pack )
             ToriRS_ComponentPackFree(entry->pack);
         entry->pack = NULL;
+        return CACHE_PROVIDER_INVALIDATE_EVICTED;
+    }
+    /* Index 2: the loc, npc and obj config groups. Each group holds every
+     * record of its kind, so every resident record of the kind goes. */
+    if( index == RSCACHE_DAT2_TABLE_CONFIGS &&
+        (archive == RSCACHE_DAT2_CONFIG_KIND_LOCS || archive == RSCACHE_DAT2_CONFIG_KIND_NPC ||
+         archive == RSCACHE_DAT2_CONFIG_KIND_OBJECT) )
+    {
+        int evicted;
+
+        if( archive == RSCACHE_DAT2_CONFIG_KIND_LOCS )
+            evicted = cache_provider_evict_locations(provider);
+        else if( archive == RSCACHE_DAT2_CONFIG_KIND_NPC )
+            evicted = cache_provider_evict_npctypes(provider);
+        else
+            evicted = cache_provider_evict_objtypes(provider);
+        /* What the provider's loaders and the IO layer keep of the archive
+         * itself, so the re-decode reads the rebuilt bytes. */
+        if( provider->vtable && provider->vtable->InvalidateArchive )
+            provider->vtable->InvalidateArchive(provider, index, archive);
+        if( provider->archive_invalidate_hook )
+            provider->archive_invalidate_hook(provider->archive_invalidate_user, index, archive);
+        (void)evicted;
         return CACHE_PROVIDER_INVALIDATE_EVICTED;
     }
     return CACHE_PROVIDER_INVALIDATE_DEFERRED;

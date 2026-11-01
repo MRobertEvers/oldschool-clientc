@@ -427,6 +427,34 @@ main(
             item = cache_item(RSCACHE_DAT2_TABLE_MODELS, 0, TORIRS_IO_CACHE_DAT2);
             check_round_trip(px, &item, "dat2 model 0");
         }
+        /* A live reload's CACHE_INVALIDATE (CacheProvider's archive hook):
+         * the decompressed-archive LRU lends one archive to every reader of
+         * a group until PlatformX_IO_InvalidateArchive drops it, after which
+         * the next read is a fresh one off the disk. */
+        printf("io_wire: archive invalidation\n");
+        {
+            struct ToriRS_IOItem a = cache_item(RSCACHE_DAT2_TABLE_CONFIGS, 10, TORIRS_IO_CACHE_DAT2);
+            struct ToriRS_IOItem b = a;
+            struct ToriRS_IOItem c = a;
+            struct ToriRS_IOItem d = a;
+
+            CHECK(PlatformX_IO_LoadItem(px, &a) == 0 && a.data, "invalidate: config group 10 loads");
+            CHECK(PlatformX_IO_LoadItem(px, &b) == 0 && b.data == a.data,
+                  "invalidate: a second read is the LRU's lent copy");
+            PlatformX_IO_InvalidateArchive(px, 2, 9);
+            CHECK(PlatformX_IO_LoadItem(px, &c) == 0 && c.data == a.data,
+                  "invalidate: another archive's invalidation leaves it");
+            PlatformX_IO_ArchiveInvalidateHook(px, 2, 10);
+            CHECK(PlatformX_IO_LoadItem(px, &d) == 0 && d.data && d.data != a.data,
+                  "invalidate: after 2/10 is invalidated the read is a fresh archive");
+            CHECK(((struct RSCache_Dat2DiskArchive*)a.data)->data_size ==
+                      ((struct RSCache_Dat2DiskArchive*)d.data)->data_size,
+                  "invalidate: holders of the dropped copy can still read it");
+            ToriRS_IO_ClearItem(&a);
+            ToriRS_IO_ClearItem(&b);
+            ToriRS_IO_ClearItem(&c);
+            ToriRS_IO_ClearItem(&d);
+        }
         RSCache_Dat2DiskFree(dat2);
     }
 

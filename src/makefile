@@ -2180,6 +2180,22 @@ test-worldmap-drag: $(OBJ_DIR) $(OBJ_DIR)/hmap.o
 		$(OBJ_DIR)/hmap.o $(LDFLAGS)
 	./$(OBJ_DIR)/worldmap_drag_test$(PLATFORM_EXE_SUFFIX)
 
+# CACHE_INVALIDATE for the loc/npc/obj config groups: the provider drops the
+# kind's records (retired, not freed), tells the IO layer's hook, and the dat2
+# split-group LRU drops the group (docs/serverpack.md "The hot-reload contract").
+.PHONY: test-cache-provider-invalidate
+test-cache-provider-invalidate: $(OBJ_DIR) $(OBJ_DIR)/hmap.o $(OBJ_DIR)/rscache_unity.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX) $(TORIMEM_SRCS) \
+		engine/test/cache_provider_invalidate_test.c engine/cache_provider.c \
+		engine/torirs_types.c engine/torirs_location_from_rscache.c \
+		engine/torirs_npctype_from_rscache.c engine/torirs_worldmap_from_rscache.c \
+		engine/dat2/dat2_group_cache.c engine/torirs_db.c engine/torirs_component_hook.c \
+		cs2vm2/cs2vm2_script.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(OBJ_DIR)/hmap.o $(LDFLAGS)
+	./$(OBJ_DIR)/cache_provider_invalidate_test$(PLATFORM_EXE_SUFFIX)
+
 # The server's IF_SETEVENTS store: the arming gate for every click. Its failure
 # mode always looks like a different bug -- the interface renders, the
 # right-click row is there (it comes from the cache), and the click does

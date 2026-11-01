@@ -4,6 +4,8 @@
 #include "torirs_server_control.h"
 #include "torirs_server_packcheck.h"
 
+#include <datatypes/dat2_configs.h>
+
 #include <assert.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -393,6 +395,64 @@ servpack_group_kind(
     return -1;
 }
 
+/* A line for the reload's answer, written directly for the reason above. */
+static void
+servpack_line(
+    struct ToriRSServerReloadResult* result,
+    const char* fmt,
+    ...)
+{
+    char line[TORIRSSERVER_RELOAD_LINE_MAX];
+    va_list args;
+
+    va_start(args, fmt);
+    vsnprintf(line, sizeof(line), fmt, args);
+    va_end(args);
+    fprintf(stderr, "torirsserver: reload: %s\n", line);
+    if( result && result->line_count < TORIRSSERVER_RELOAD_LINES_MAX )
+        snprintf(result->lines[result->line_count++], TORIRSSERVER_RELOAD_LINE_MAX, "%s", line);
+}
+
+/* The kind's name in a reload line: the config type's extension. */
+static const char*
+servpack_kind_name(
+    int kind,
+    char* scratch,
+    size_t scratch_size)
+{
+    static const struct
+    {
+        int kind;
+        const char* name;
+    } k_names[] = {
+        { RSCACHE_DAT2_CONFIG_KIND_UNDERLAY, "underlay" },
+        { RSCACHE_DAT2_CONFIG_KIND_IDENTKIT, "idk" },
+        { RSCACHE_DAT2_CONFIG_KIND_OVERLAY, "overlay" },
+        { RSCACHE_DAT2_CONFIG_KIND_INV, "inv" },
+        { RSCACHE_DAT2_CONFIG_KIND_LOCS, "loc" },
+        { RSCACHE_DAT2_CONFIG_KIND_ENUM, "enum" },
+        { RSCACHE_DAT2_CONFIG_KIND_NPC, "npc" },
+        { RSCACHE_DAT2_CONFIG_KIND_OBJECT, "obj" },
+        { RSCACHE_DAT2_CONFIG_KIND_PARAMS, "param" },
+        { RSCACHE_DAT2_CONFIG_KIND_SEQUENCE, "seq" },
+        { RSCACHE_DAT2_CONFIG_KIND_SPOTANIM, "spotanim" },
+        { RSCACHE_DAT2_CONFIG_KIND_VARBIT, "varbit" },
+        { RSCACHE_DAT2_CONFIG_KIND_VARPLAYER, "varp" },
+        { RSCACHE_DAT2_CONFIG_KIND_VARCLIENT, "varc" },
+        { RSCACHE_DAT2_CONFIG_KIND_HITSPLAT, "hitsplat" },
+        { RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR, "healthbar" },
+        { RSCACHE_DAT2_CONFIG_KIND_STRUCT, "struct" },
+        { RSCACHE_DAT2_CONFIG_KIND_DBROW, "dbrow" },
+        { RSCACHE_DAT2_CONFIG_KIND_DBTABLE, "dbtable" },
+    };
+
+    for( size_t i = 0; i < sizeof(k_names) / sizeof(k_names[0]); i++ )
+        if( k_names[i].kind == kind )
+            return k_names[i].name;
+    snprintf(scratch, scratch_size, "kind %d", kind);
+    return scratch;
+}
+
 int
 ToriRSServer_ServPackReloadGroups(
     const char* pack_dir,
@@ -400,19 +460,39 @@ ToriRSServer_ServPackReloadGroups(
     int group_count,
     ToriRSServerServPackKindReload reload,
     void* context,
-    struct ToriRSServerReloadResult* result)
+    struct ToriRSServerReloadResult* result,
+    int* out_refused)
 {
     struct RSCache_ServerPack pack;
-    uint8_t done[RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET];
+    /* Groups named per kind; a kind is reloaded once however many of its
+     * groups changed. */
+    int named[RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET];
     int replaced = 0;
+    int refused = 0;
     long lock;
 
     assert(pack_dir);
     assert(reload);
+    assert(out_refused);
+    *out_refused = 0;
     if( group_count <= 0 )
         return 0;
     assert(groups);
-    memset(done, 0, sizeof(done));
+    memset(named, 0, sizeof(named));
+    /* Pairs: group, archive. */
+    for( int i = 0; i < group_count; i++ )
+    {
+        int group = groups[2 * i];
+        int kind = servpack_group_kind(group, groups[2 * i + 1]);
+
+        if( kind < 0 )
+        {
+            servpack_restart(result, "server pack group %d (a name table: the content loader's "
+                                     "symbols)", group);
+            continue;
+        }
+        named[kind]++;
+    }
     /* Shared for the whole read, as at boot (ToriRSServer_BootLoad): every
      * archive below comes from one build. */
     lock = ToriRSServer_PackLockShared(pack_dir);
@@ -422,42 +502,38 @@ ToriRSServer_ServPackReloadGroups(
         fprintf(stderr, "torirsserver: reload: no server pack at %s\n", pack_dir);
         return -1;
     }
-    /* Pairs: group, archive. */
-    for( int i = 0; i < group_count; i++ )
+    for( int kind = 0; kind < RSCACHE_SERVERPACK_RECORDS_GROUP_OFFSET; kind++ )
     {
-        int group = groups[2 * i];
-        int archive = groups[2 * i + 1];
-        int kind = servpack_group_kind(group, archive);
+        char why[TORIRSSERVER_RELOAD_LINE_MAX - 96];
+        char scratch[32];
+        const char* name;
         int answer;
 
-        if( kind < 0 )
-        {
-            servpack_restart(result, "server pack group %d (a name table: the content loader's "
-                                     "symbols)", group);
+        if( !named[kind] )
             continue;
-        }
-        if( done[kind] )
-        {
-            replaced += done[kind] == 1;
-            continue;
-        }
-        answer = reload(context, &pack, kind);
+        name = servpack_kind_name(kind, scratch, sizeof(scratch));
+        answer = reload(context, &pack, kind, why, sizeof(why));
         if( answer > 0 )
         {
-            done[kind] = 1;
-            replaced++;
+            replaced += named[kind];
+            servpack_line(result, "config: %s %d of %d group(s) replaced%s%s", name, named[kind],
+                          named[kind], why[0] ? ": " : "", why);
             continue;
         }
-        done[kind] = 2;
         if( answer == 0 )
-            servpack_restart(result, "config kind %d records (held by the world as copies or "
-                                     "pointers, read at boot)", kind);
-        else
-            servpack_restart(result, "config kind %d: the server pack refused it (rebuild the "
-                                     "pack)", kind);
+        {
+            servpack_restart(result, "config %s records: %s", name,
+                             why[0] ? why : "held by the world as copies or pointers");
+            continue;
+        }
+        refused++;
+        servpack_line(result, "config: %s 0 of %d group(s) replaced: %s; the running table is "
+                              "kept (rebuild the pack)",
+                      name, named[kind], why[0] ? why : "the server pack refused it");
     }
     RSCache_ServerPackClose(&pack);
     ToriRSServer_PackUnlock(lock);
+    *out_refused = refused;
     return replaced;
 }
 

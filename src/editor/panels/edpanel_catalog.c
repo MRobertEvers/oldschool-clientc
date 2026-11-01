@@ -35,11 +35,13 @@
 #include "edpanel_common.h"
 #include "edpanels.h"
 #include "editor/editor_cfg.h"
+#include "editor/editor_script.h"
 #include "editor/map_editor_ghost.h"
 #include "mem/torirs_mem.h"
 #include "torirsmaped/torirs_maped.h"
 #include "torirsmaped/torirs_maped_catalog.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,6 +78,7 @@ struct CatalogPanel
     int input_new_name;
     int button_copy;
     int button_edit_record;
+    int button_open_script;
     int row_multi;
     int dropdown_variant;
     int view;
@@ -627,6 +630,35 @@ catalog_activate(
         (void)Editor_Record_Open(ui, r->kind, r->name);
         return 1;
     }
+    if( widget == self->button_open_script )
+    {
+        const struct EditorHost_CatalogRow* r = self->selected >= 0
+                                                        && self->selected < Editor_CatalogModelRowCount(&self->model)
+                                                    ? Editor_CatalogModelRow(&self->model, self->selected)
+                                                    : NULL;
+        const char* file = NULL;
+        const char* line = NULL;
+        char rel[EDITOR_SCRIPT_PATH_MAX];
+        if( !r || r->kind != TORIRSMAPED_CATALOG_TRIGGER )
+        {
+            Editor_UiLog(ui, "editor: Open in editor: pick a trigger row (Kind: trigger)");
+            return 1;
+        }
+        for( int f = 0; f < r->field_count; f++ )
+        {
+            if( strcmp(r->fields[f].key, "file") == 0 )
+                file = r->fields[f].value;
+            else if( strcmp(r->fields[f].key, "line") == 0 )
+                line = r->fields[f].value;
+        }
+        if( !file || !Editor_ScriptRelFromContentPath(file, rel, sizeof(rel)) || !Editor_UiPanelSelf(ui, "triggers") )
+        {
+            Editor_UiLog(ui, "editor: Open in editor: %s is not a script this window can open", file ? file : "?");
+            return 1;
+        }
+        (void)Editor_Triggers_OpenInEditor(ui, rel, line ? atoi(line) : 0);
+        return 1;
+    }
     if( widget == self->dropdown_variant )
     {
         int const choice = ToriRSChrome_DropdownSelected(ui->chrome, widget);
@@ -752,6 +784,8 @@ Editor_Catalog_Register(struct EditorUi* ui)
     self->button_edit_record = ToriRSChrome_Button(chrome, self->panel, "Edit record...");
     ToriRSChrome_SetTooltip(chrome, self->button_edit_record,
         "every field of the picked loc/npc/obj");
+    self->button_open_script = ToriRSChrome_Button(chrome, self->panel, "Open in editor");
+    ToriRSChrome_SetTooltip(chrome, self->button_open_script, "the picked trigger's file at its line, in your editor");
     self->input_new_name = ToriRSChrome_TextInput(chrome, self->panel, "New name", "");
     self->button_copy = ToriRSChrome_Button(chrome, self->panel, "Copy to new...");
     ToriRSChrome_SetTooltip(chrome, self->button_copy,
@@ -836,6 +870,8 @@ struct RecordPanel
     int button_set;
     int button_remove;
     int row_hint;
+    /* The Triggers panel on this record. */
+    int button_triggers;
 
     int open;
     uint32_t kind;
@@ -1131,6 +1167,14 @@ record_activate(
         (void)record_set(ui, self, key, sub, occurrence, value ? value : "", choice > 0 ? choice - 1 : -1);
         return 1;
     }
+    if( widget == self->button_triggers )
+    {
+        if( Editor_UiPanelSelf(ui, "triggers") )
+            Editor_Triggers_Follow(ui);
+        else
+            Editor_UiLog(ui, "editor: this window has no Triggers panel");
+        return 1;
+    }
     return widget == self->input_field || widget == self->input_value || widget == self->dropdown_layer;
 }
 
@@ -1181,6 +1225,8 @@ Editor_Record_Register(struct EditorUi* ui)
     self->button_set = ToriRSChrome_Button(chrome, self->panel, "Set field");
     self->button_remove = ToriRSChrome_Button(chrome, self->panel, "Remove field");
     self->row_hint = ToriRSChrome_Label(chrome, self->panel, "");
+    self->button_triggers = ToriRSChrome_Button(chrome, self->panel, "Triggers...");
+    ToriRSChrome_SetTooltip(chrome, self->button_triggers, "this record's script triggers; add one (Ctrl+E)");
     ToriRSChrome_PanelSetResizable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetScrollable(chrome, self->panel, 1);
     ToriRSChrome_PanelSetVisible(chrome, self->panel, 0);

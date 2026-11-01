@@ -21473,6 +21473,30 @@ ToriRSServer_WorldReloadSquares(
     return reloaded;
 }
 
+int
+ToriRSServer_WorldReloadOweRebuild(struct ToriRSServer* srv)
+{
+    int owed = 0;
+
+    assert(srv);
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        world_player_scene_build(srv, player);
+        player->rebuild_pending = 1;
+        player->place_dirty = 1;
+        ToriRSServer_ZonePlayerReset(player);
+        player->move_count = 0;
+        g_rebuild_reload[i] = 1;
+        owed++;
+    }
+    ToriRSServer_WorldSetActive(srv, srv->active_player);
+    return owed;
+}
+
 struct SpawnKey
 {
     int id;

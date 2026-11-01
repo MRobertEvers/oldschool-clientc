@@ -204,7 +204,10 @@ struct ToriRSMapEdBuildSink
     /** One unit the tool rebuilt ("compiled server/scripts/...", "repacked
      *  varp"): what FACT_BUILD_DONE lists. */
     void (*unit)(void* user, const char* unit);
-    /** One client-cache archive the build wrote: what RUN's reload names. */
+    /** One archive the build wrote: what RUN's reload names. A client cache
+     *  build names (index, archive) of the client cache; a packs build names
+     *  (TORIRSMAPED_RELOAD_SERVPACK_INDEX, group) per server-pack group its
+     *  manifest diff found changed (ToriRSMapEd_BuildServPackDiff). */
     void (*archive)(void* user, uint32_t index, uint32_t archive);
 };
 
@@ -294,6 +297,38 @@ ToriRSMapEd_BuildParseChanged(
     const char* text,
     size_t length,
     const struct ToriRSMapEdBuildSink* sink);
+
+/** The reload row index that names a SERVER-PACK group, as the game server
+ *  reads it (TORIRSSERVER_RELOAD_SERVPACK_INDEX, torirs_server_control.h). */
+#define TORIRSMAPED_RELOAD_SERVPACK_INDEX 255u
+
+/** The server-pack group a reload row names for a changed manifest archive
+ *  (index, archive): the index itself, except the per-kind defaults (192)
+ *  and client-id (193) groups, whose archive is the config kind -- those name
+ *  the kind (its band group), since the server replaces a kind whole. */
+uint32_t
+ToriRSMapEd_BuildServPackReloadGroup(
+    uint32_t index,
+    uint32_t archive);
+
+/**
+ * Diff two `server/pack/pack.manifest` texts (docs/serverpack.md "The
+ * manifests"): every `archive <index> <archive> <hash> ...` line whose hash
+ * changed, appeared or went is a changed archive, and each distinct group
+ * among them (ToriRSMapEd_BuildServPackReloadGroup) goes to sink->archive once
+ * as (TORIRSMAPED_RELOAD_SERVPACK_INDEX, group) -- the rows RUN's reload sends
+ * so the game server re-reads those groups (hot-reload contract section 1).
+ * `*out_groups` gets the row count. Returns the changed-archive count, or -1
+ * when either text is not a server-pack manifest.
+ */
+int
+ToriRSMapEd_BuildServPackDiff(
+    const char* before,
+    size_t before_length,
+    const char* after,
+    size_t after_length,
+    const struct ToriRSMapEdBuildSink* sink,
+    int* out_groups);
 
 /** A tool line that names a rebuilt unit ("compiled  <path> — why",
  *  "cachepack: repacked <type> — why"): copies the unit into `out` and

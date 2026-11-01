@@ -24,6 +24,7 @@
 #include "edpanel_common.h"
 #include "edpanel_ops.h"
 #include "edpanels.h"
+#include "editor/live/live_panel.h"
 #include "mem/torirs_mem.h"
 
 #include <ctype.h>
@@ -128,6 +129,10 @@ hk_run_file(
         else
             Editor_UiLog(ui, "editor: this window cannot bake");
     }
+    else if( action == EDITOR_HK_FILE_CHECK_SCRIPTS )
+        (void)Editor_Triggers_Check(ui);
+    else if( action == EDITOR_HK_FILE_RUN )
+        (void)Editor_Live_Run(ui);
     else
     {
         struct EditorUiGuard guard;
@@ -238,7 +243,7 @@ Editor_HotkeyRun(
 
     assert(ui);
     info = Editor_HotkeyInfo(action);
-    if( action <= EDITOR_HK_FILE_CLOSE )
+    if( action <= EDITOR_HK_FILE_RUN )
     {
         hk_run_file(ui, action);
         return 1;

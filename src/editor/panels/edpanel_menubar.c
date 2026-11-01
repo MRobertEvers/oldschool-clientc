@@ -30,7 +30,8 @@
  * row's label is regenerated from the table (the chord right-aligned after a
  * tab) whenever a binding changes. */
 static const enum Editor_HotkeyAction k_file_actions[] = {
-    EDITOR_HK_FILE_NEW, EDITOR_HK_FILE_SAVE_ALL, EDITOR_HK_FILE_SAVE_AS, EDITOR_HK_FILE_BAKE, EDITOR_HK_FILE_CLOSE,
+    EDITOR_HK_FILE_NEW, EDITOR_HK_FILE_SAVE_ALL,     EDITOR_HK_FILE_SAVE_AS, EDITOR_HK_FILE_BAKE,
+    EDITOR_HK_FILE_CHECK_SCRIPTS, EDITOR_HK_FILE_RUN, EDITOR_HK_FILE_CLOSE,
 };
 #define FILE_COUNT ((int)(sizeof(k_file_actions) / sizeof(k_file_actions[0])))
 

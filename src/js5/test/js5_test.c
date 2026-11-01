@@ -12,7 +12,11 @@
 #include "js5/js5_rscache.h"
 #include "js5/server/js5_server_cache.h"
 
+#include "mem/torimem_rscache.h"
+#include <archive.h>
+#include <checksum.h>
 #include <dat2disk.h>
+#include <reference_table.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -62,6 +66,16 @@ struct FakeJs5Transport
         uint16_t group;
     } requests[64];
     unsigned request_count;
+    /* The server's copy after a rewrite: these containers answer in place of
+     * the canonical cache's (the live-invalidation case). */
+    struct
+    {
+        uint8_t archive;
+        uint16_t group;
+        uint8_t* container;
+        size_t size;
+    } overrides[3];
+    unsigned override_count;
 };
 
 static uint32_t
@@ -128,9 +142,44 @@ fake_handle_frame(struct FakeJs5Transport* fake)
 
     uint8_t* response = NULL;
     size_t response_size = 0u;
-    if( Js5ServerCacheBuildResponse(
-            fake->server, archive, group, &response, &response_size) !=
-        JS5_SERVER_CACHE_OK )
+    bool overridden = false;
+    for( unsigned index = 0u; index < fake->override_count; index++ )
+    {
+        if( fake->overrides[index].archive != archive || fake->overrides[index].group != group )
+            continue;
+        /* Js5ServerCacheBuildResponse's framing: archive, group, then the
+         * container with a 0xff marker opening every later 512-byte block. */
+        const uint8_t* data = fake->overrides[index].container;
+        size_t size = fake->overrides[index].size;
+        size_t position = 0u;
+        size_t offset = 0u;
+        response = (uint8_t*)ToriMem_Alloc(ToriMem_ServerNet(), 3u + size + size / 511u + 2u);
+        assert(response);
+        response[position++] = archive;
+        response[position++] = (uint8_t)(group >> 8u);
+        response[position++] = (uint8_t)group;
+        while( offset < size )
+        {
+            size_t block_remaining = 512u - (position % 512u);
+            if( block_remaining == 512u )
+            {
+                response[position++] = 0xffu;
+                block_remaining--;
+            }
+            size_t take = size - offset;
+            if( take > block_remaining )
+                take = block_remaining;
+            memcpy(response + position, data + offset, take);
+            position += take;
+            offset += take;
+        }
+        response_size = position;
+        overridden = true;
+        break;
+    }
+    if( !overridden &&
+        Js5ServerCacheBuildResponse(fake->server, archive, group, &response, &response_size) !=
+            JS5_SERVER_CACHE_OK )
         return false;
     if( response_size > 512 && response[512] == 0xffu )
         fake->saw_512_marker = true;
@@ -732,6 +781,128 @@ main(int argc, char** argv)
     CHECK(promoted.bytes_persisted == persisted_after_first_response);
     CHECK(!Js5ClientNextCompletion(client, &completion));
     CHECK(!fake.failed);
+
+    /* A live reload rewrote 7/0 on the server (CACHE_INVALIDATE). The
+     * server's reference table for 7 and its master entry move with it;
+     * Js5ClientInvalidateArchive re-primes both, the stored copy of 7/0 stops
+     * validating and is fetched again and overwritten, and 7/1 -- unchanged --
+     * still reads from disk. */
+    {
+        static const uint8_t payload[] = "live reload: group 7/0 rewritten by the editor";
+        struct Js5ServerBlob reference_blob;
+        struct Js5ServerBlob master_blob;
+        struct RSCache_Dat2DiskArchive packed;
+        struct RSCache_ReferenceTable* table = NULL;
+        uint8_t group_container[256];
+        uint32_t group_size;
+        uint8_t* encoded;
+        uint32_t encoded_size;
+        uint8_t* reference_container;
+        uint32_t reference_size;
+        uint32_t reference_crc;
+        unsigned before_invalidate;
+        bool refetched = false;
+
+        memset(&reference_blob, 0, sizeof(reference_blob));
+        memset(&master_blob, 0, sizeof(master_blob));
+        CHECK(Js5ServerCacheLoad(server, 255, 7, &reference_blob) == JS5_SERVER_CACHE_OK);
+        CHECK(Js5ServerCacheLoad(server, 255, 255, &master_blob) == JS5_SERVER_CACHE_OK);
+        memset(&packed, 0, sizeof(packed));
+        packed.data = (char*)RSCACHE_MALLOC(reference_blob.size);
+        memcpy(packed.data, reference_blob.data, reference_blob.size);
+        packed.data_size = (int)reference_blob.size;
+        CHECK(RSCache_ArchiveDecryptDecompress(&packed, NULL));
+        table = RSCache_ReferenceTableNewDecode(packed.data, packed.data_size);
+        RSCACHE_FREE(packed.data);
+        CHECK(table != NULL);
+
+        group_size = RSCache_ArchiveEncode(group_container, sizeof(group_container), payload,
+                                           sizeof(payload), RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
+        CHECK(group_size > 0u);
+        table->archives[0].crc = (int)RSCache_Crc32Buffer(group_container, group_size);
+        table->archives[0].version++;
+        table->version++;
+        encoded = (uint8_t*)malloc(RSCache_ReferenceTableEncodeBound(table));
+        assert(encoded);
+        encoded_size = RSCache_ReferenceTableEncode(table, encoded,
+                                                    RSCache_ReferenceTableEncodeBound(table));
+        CHECK(encoded_size > 0u);
+        reference_container = (uint8_t*)malloc(
+            RSCache_ArchiveEncodeBound(encoded_size, RSCACHE_ARCHIVE_COMPRESSION_NONE));
+        assert(reference_container);
+        reference_size = RSCache_ArchiveEncode(
+            reference_container,
+            RSCache_ArchiveEncodeBound(encoded_size, RSCACHE_ARCHIVE_COMPRESSION_NONE), encoded,
+            encoded_size, RSCACHE_ARCHIVE_COMPRESSION_NONE, NULL);
+        free(encoded);
+        CHECK(reference_size > 0u);
+        reference_crc = RSCache_Crc32Buffer(reference_container, reference_size);
+        /* master entry 7: crc, version (after the 5-byte container header) */
+        master_blob.data[5u + 7u * 8u] = (uint8_t)(reference_crc >> 24u);
+        master_blob.data[6u + 7u * 8u] = (uint8_t)(reference_crc >> 16u);
+        master_blob.data[7u + 7u * 8u] = (uint8_t)(reference_crc >> 8u);
+        master_blob.data[8u + 7u * 8u] = (uint8_t)reference_crc;
+        master_blob.data[9u + 7u * 8u] = (uint8_t)((uint32_t)table->version >> 24u);
+        master_blob.data[10u + 7u * 8u] = (uint8_t)((uint32_t)table->version >> 16u);
+        master_blob.data[11u + 7u * 8u] = (uint8_t)((uint32_t)table->version >> 8u);
+        master_blob.data[12u + 7u * 8u] = (uint8_t)table->version;
+        RSCache_ReferenceTableFree(table);
+
+        fake.overrides[0].archive = 255u;
+        fake.overrides[0].group = 255u;
+        fake.overrides[0].container = master_blob.data;
+        fake.overrides[0].size = master_blob.size;
+        fake.overrides[1].archive = 255u;
+        fake.overrides[1].group = 7u;
+        fake.overrides[1].container = reference_container;
+        fake.overrides[1].size = reference_size;
+        fake.overrides[2].archive = 7u;
+        fake.overrides[2].group = 0u;
+        fake.overrides[2].container = group_container;
+        fake.overrides[2].size = group_size;
+        fake.override_count = 3u;
+
+        before_invalidate = fake.request_count;
+        CHECK(Js5ClientGroupReady(client, 7, 0));
+        CHECK(Js5ClientInvalidateArchive(client, 7));
+        CHECK(!Js5ClientGroupReady(client, 7, 0));
+        CHECK(!Js5ClientMetadataReady(client));
+        CHECK(Js5ClientRequestGroup(client, 7, 0, JS5_PRIORITY_URGENT) == JS5_REQUEST_DEFERRED);
+        for( unsigned tick = 0u; tick < 200000u; tick++ )
+        {
+            CHECK(Js5ClientTick(client, now++) == 0);
+            if( Js5ClientMetadataReady(client) && Js5ClientGroupReady(client, 7, 0) )
+            {
+                refetched = true;
+                break;
+            }
+        }
+        CHECK(refetched);
+        CHECK(fake.request_count == before_invalidate + 3u);
+        CHECK(fake.requests[before_invalidate].archive == 255u &&
+              fake.requests[before_invalidate].group == 255u);
+        CHECK(fake.requests[before_invalidate + 1u].archive == 255u &&
+              fake.requests[before_invalidate + 1u].group == 7u);
+        CHECK(fake.requests[before_invalidate + 2u].archive == 7u &&
+              fake.requests[before_invalidate + 2u].group == 0u);
+        {
+            struct RSCache_Dat2DiskArchive* stored =
+                RSCache_Dat2DiskArchiveNewLoadRaw(disk, 7, 0);
+            bool same = stored && stored->data_size == (int)group_size + 4 &&
+                        memcmp(stored->data, group_container, group_size) == 0;
+            RSCache_Dat2DiskArchiveFree(stored);
+            CHECK(same); /* the sparse copy now holds the rewritten group */
+        }
+        /* 7/1 did not change: it validates against the new table from disk. */
+        CHECK(Js5ClientRequestGroup(client, 7, 1, JS5_PRIORITY_URGENT) ==
+              JS5_REQUEST_ALREADY_READY);
+        CHECK(fake.request_count == before_invalidate + 3u);
+        CHECK(!fake.failed);
+        fake.override_count = 0u;
+        Js5ServerBlobFree(&master_blob);
+        free(reference_container);
+        Js5ServerBlobFree(&reference_blob);
+    }
     result = 0;
 
 cleanup:

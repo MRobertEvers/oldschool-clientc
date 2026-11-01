@@ -88,6 +88,15 @@ Dat2Group_IndexOf(
 void
 Dat2GroupCache_Clear(struct Dat2GroupCache* cache);
 
+/* Drop one group (a live reload rewrote its archive). Safe for the same reason
+ * Clear is: no task keeps a Dat2Group across a suspension. Returns 1 when it
+ * was resident. */
+int
+Dat2GroupCache_Evict(
+    struct Dat2GroupCache* cache,
+    int table,
+    int group);
+
 size_t
 Dat2GroupCache_Bytes(struct Dat2GroupCache const* cache);
 

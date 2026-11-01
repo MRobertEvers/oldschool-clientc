@@ -17,6 +17,7 @@
 #include "torirs_server.h"
 #include "torirs_server_auth.h"
 #include "torirs_server_boot.h"
+#include "torirs_server_content.h"
 #include "torirs_server_control.h"
 #include "torirs_server_servpack.h"
 #include "torirs_server_varps.h"
@@ -330,24 +331,101 @@ ToriRSServer_SendCacheInvalidate(
 /* ------------------------------------------------------------------ */
 
 /* The config kinds a reload replaces live (ToriRSServer_ServPackReloadGroups'
- * callback). Each of these tables is looked up by id at every use and its
- * loader frees the old table first. Everything else -- npc, loc and obj
- * definitions (live npcs point at their def, content.c's ContentLoadPack), the
- * param/enum/varp/inv tables content reads as text, varbits (the bank's
- * ranges are derived from them at boot) -- answers 0: restart. */
-static int
-ctl_kind_reload(
+ * callback), docs/serverpack.md "The hot-reload contract" section 5.
+ *
+ * seq, healthbar, struct: looked up by id at every use; the loader frees the
+ * old table first.
+ * loc, npc, obj: torirs_server_content.c checks the whole kind against the
+ * open pack before touching anything, then replaces records and bands the way
+ * the boot loads them (ToriRSServer_ContentReload*). Entities hold type ids;
+ * the one pointer the world keeps into these tables is `npc->def`, re-pointed
+ * below before the old def array is freed.
+ *
+ * Everything else answers 0 (restart), with why:
+ *   param, enum, varp, inv, idk: ToriRSServer_ContentLoad reads them at boot
+ *     into tables the symbol loader and the varp/inv layouts are built from;
+ *   varbit: the bank's container sizes and varbit ranges are derived from it
+ *     at boot (ToriRSServer_BankLoad), and player varp storage is laid out by
+ *     it;
+ *   dbrow, dbtable: the db is one table set loaded with the content symbols;
+ *   any other kind: the server keeps no table of it, or nothing reloads it. */
+int
+ToriRSServer_ReloadConfigKind(
     void* context,
     struct RSCache_ServerPack* pack,
-    int config_kind)
+    int config_kind,
+    char* why,
+    size_t why_size)
 {
-    (void)context;
+    struct ToriRSServer* srv = (struct ToriRSServer*)context;
+
+    assert(srv);
+    assert(pack);
+    assert(why);
+    why[0] = '\0';
     if( config_kind == RSCACHE_DAT2_CONFIG_KIND_SEQUENCE )
         return ToriRSServer_SeqInfoLoad(pack) < 0 ? -1 : 1;
     if( config_kind == RSCACHE_DAT2_CONFIG_KIND_HEALTHBAR )
         return ToriRSServer_HealthbarInfoLoad(pack) < 0 ? -1 : 1;
     if( config_kind == RSCACHE_DAT2_CONFIG_KIND_STRUCT )
         return ToriRSServer_StructInfoLoad(pack) < 0 ? -1 : 1;
+    if( config_kind == RSCACHE_DAT2_CONFIG_KIND_LOCS )
+    {
+        int owed;
+        size_t used;
+
+        if( !ToriRSServer_ContentReloadLocs(pack, why, why_size) )
+            return -1;
+        /* A client's placed scenery carries its loc's ops and name from the
+         * record at placement: re-place it (the square reload's barrier). */
+        owed = ToriRSServer_WorldReloadOweRebuild(srv);
+        used = strlen(why);
+        snprintf(why + used, why_size - used, "%s%d player(s) owed a REBUILD", used ? "; " : "",
+                 owed);
+        return 1;
+    }
+    if( config_kind == RSCACHE_DAT2_CONFIG_KIND_OBJECT )
+        return ToriRSServer_ContentReloadObjs(pack, why, why_size) ? 1 : -1;
+    if( config_kind == RSCACHE_DAT2_CONFIG_KIND_NPC )
+    {
+        int repointed = 0;
+
+        if( !ToriRSServer_ContentReloadNpcs(pack, why, why_size) )
+            return -1;
+        /* Every npc slot whose `def` points into the retired array, in the
+         * same tick and before it is freed. Bounded by TORIRSSERVER_NPC_MAX
+         * (4096 slots) and run once per reload, never per tick: this is not a
+         * frame-loop walk. One world per process (main, embed, scriptrun,
+         * botrun and host each run one ToriRSServer), so `srv` holds every
+         * npc that can point into the content tables. */
+        for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[i];
+            const struct ToriRSServerNpcDef* def;
+
+            if( !npc->def )
+                continue;
+            def = ToriRSServer_ContentNpc(npc->type);
+            npc->def = def ? def : ToriRSServer_ContentNpcDefault();
+            repointed++;
+        }
+        ToriRSServer_ContentNpcRetiredFree();
+        fprintf(stderr, "torirsserver: reload: %d npc(s) re-pointed at the new defs\n", repointed);
+        return 1;
+    }
+    if( config_kind == RSCACHE_DAT2_CONFIG_KIND_VARBIT )
+        snprintf(why, why_size, "the bank's ranges and the varp layout are derived from it at boot");
+    else if( config_kind == RSCACHE_DAT2_CONFIG_KIND_PARAMS ||
+             config_kind == RSCACHE_DAT2_CONFIG_KIND_ENUM ||
+             config_kind == RSCACHE_DAT2_CONFIG_KIND_VARPLAYER ||
+             config_kind == RSCACHE_DAT2_CONFIG_KIND_INV ||
+             config_kind == RSCACHE_DAT2_CONFIG_KIND_IDENTKIT )
+        snprintf(why, why_size, "read at boot with the content symbols (ToriRSServer_ContentLoad)");
+    else if( config_kind == RSCACHE_DAT2_CONFIG_KIND_DBROW ||
+             config_kind == RSCACHE_DAT2_CONFIG_KIND_DBTABLE )
+        snprintf(why, why_size, "the db is loaded once with the content symbols");
+    else
+        snprintf(why, why_size, "no live reload for this kind");
     return 0;
 }
 
@@ -439,11 +517,13 @@ ToriRSServer_Reload(
         {
             char pack_dir[1024];
             int replaced;
+            int refused = 0;
 
             ToriRSServer_ServPackDir(ToriRSServer_BootContentDir(), ToriRSServer_WorldCacheDir(),
                                      pack_dir, sizeof(pack_dir));
             replaced = ToriRSServer_ServPackReloadGroups(pack_dir, groups, group_count,
-                                                         ctl_kind_reload, srv, result);
+                                                         ToriRSServer_ReloadConfigKind, srv,
+                                                         result, &refused);
             if( replaced < 0 )
             {
                 failed = 1;
@@ -453,6 +533,7 @@ ToriRSServer_Reload(
             else
             {
                 result->groups_replaced = replaced;
+                failed |= refused > 0;
                 ToriRSServer_ReloadLine(result, "config: %d of %d server-pack group(s) replaced",
                                         replaced, group_count);
             }

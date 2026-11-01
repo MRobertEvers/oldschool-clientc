@@ -69,6 +69,26 @@ PlatformX_IO_InitCacheId(
 void
 PlatformX_IO_Free(struct PlatformX_IO* px);
 
+/*
+ * A live reload rewrote (index, archive) on the server (CACHE_INVALIDATE, by
+ * way of CacheProvider_InvalidateArchive's hook): drop the decompressed copy
+ * from the archive LRU and re-prime the JS5 client's reference table for the
+ * index, so the next read fetches the rebuilt archive instead of re-serving
+ * the stored one. PlatformX_IO_ArchiveInvalidateHook is the same call in the
+ * shape CacheProvider_SetArchiveInvalidateHook takes (`user` is the IO).
+ */
+void
+PlatformX_IO_InvalidateArchive(
+    struct PlatformX_IO* px,
+    int index,
+    int archive);
+
+void
+PlatformX_IO_ArchiveInvalidateHook(
+    void* user,
+    int index,
+    int archive);
+
 int
 PlatformX_IO_LoadItem(
     struct PlatformX_IO* px,

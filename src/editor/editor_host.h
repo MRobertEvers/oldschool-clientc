@@ -240,6 +240,27 @@ struct EditorHost
     void* user_data;
 };
 
+/* ---- open in the user's editor ------------------------------------------- */
+
+/**
+ * Hand `path` (absolute, on this machine) and its 1-based `line` to the
+ * user's own editor: TORIRS_EDITOR_OPEN_CMD (`{path}` / `{line}` placeholders,
+ * editor_open_cmd.h), else `code --goto {path}:{line}` when `code` is on
+ * PATH, else `open {path}` (macOS) / `xdg-open {path}`. Spawned as
+ * `/bin/sh -c '( <cmd> ) >/dev/null 2>&1 &'` and that shell reaped at once: the
+ * editor outlives it and the UI thread never waits on the editor. The
+ * command line goes to `out_cmdline` (may be NULL) for the Console.
+ * OK when the shell ran; UNSUPPORTED on the web and Windows (show the path
+ * instead); REFUSED for a command that does not fit; IO_ERROR when the shell
+ * could not be started.
+ */
+enum EditorHost_Status
+Editor_HostLocalOpenInEditor(
+    const char* path,
+    int line,
+    char* out_cmdline,
+    size_t out_size);
+
 /* ---- local binding ------------------------------------------------------- */
 
 /**

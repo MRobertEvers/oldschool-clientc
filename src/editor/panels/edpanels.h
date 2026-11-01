@@ -516,6 +516,145 @@ Editor_SquarePicker_SetCollection(
 const char*
 Editor_SquarePicker_Collection(struct EditorUi* ui);
 
+/* ---- the Triggers panel (edpanel_triggers.c) --------------------------------- */
+
+struct Builder_SscResult;
+
+/** The script hooks of a loc / npc / obj (or of one file): the catalog's
+ *  TRIGGER rows, Add trigger, Open in editor, Refresh, Check, Run. Scripts
+ *  are edited in the user's own editor, not here. Hidden until asked for
+ *  (View > Triggers, Ctrl+E, the Record panel's Triggers...). "triggers" */
+void
+Editor_Triggers_Register(struct EditorUi* ui);
+
+/** Where the files are: the content root (Open in editor's absolute paths,
+ *  Refresh's disk reads) and, for Check, sscompile and a work dir outside
+ *  the tree (NULL: whatever TORIRS_BUILDER_* set up at registration stays).
+ *  Returns 1 when Check can run. */
+int
+Editor_Triggers_SetPaths(
+    struct EditorUi* ui,
+    const char* content_root,
+    const char* sscompile,
+    const char* work_dir);
+
+/** The panel's modes ("Show"). */
+enum Editor_TriggersMode
+{
+    /** The Record panel's record, else the selected loc / spawn, else the
+     *  catalog's pick. */
+    EDITOR_TRIGGERS_FOLLOW = 0,
+    /** A record name typed in Subject. */
+    EDITOR_TRIGGERS_NAME,
+    /** Every trigger in one file (File, under server/scripts). */
+    EDITOR_TRIGGERS_FILE,
+};
+
+/** Show the triggers of record `name` (type found through the catalog when
+ *  `type` is NULL or ""). Shows the panel. Returns the row count. */
+int
+Editor_Triggers_ShowSubject(
+    struct EditorUi* ui,
+    const char* type,
+    const char* name);
+
+/** Show every trigger declared in `rel_path` (under server/scripts). */
+int
+Editor_Triggers_ShowFile(
+    struct EditorUi* ui,
+    const char* rel_path);
+
+/** Follow the Record panel / the selection again, and show the panel. */
+void
+Editor_Triggers_Follow(struct EditorUi* ui);
+
+/** One trigger: where it is declared. */
+struct Editor_ScriptRef
+{
+    char kind[24];
+    char subject[128];
+    /** Under server/scripts. */
+    char rel[124];
+    /** 1-based. */
+    int line;
+    /** Read from this window's unsaved document, not the disk. */
+    int unsaved;
+};
+
+/** The rows the panel shows now. */
+int
+Editor_Triggers_Rows(
+    struct EditorUi* ui,
+    struct Editor_ScriptRef* out,
+    int max);
+
+/** The subject shown ("" in file mode or none), and its type. */
+const char*
+Editor_Triggers_Subject(
+    struct EditorUi* ui,
+    const char** out_type);
+
+/**
+ * Every trigger whose subject is `subject`: the catalog's TRIGGER rows (as
+ * the tree was last indexed: it re-stats changed files at most every 2 s),
+ * with the subject's edited script read from this window's document instead
+ * when it is open (so a trigger added and not saved shows).
+ */
+int
+Editor_Triggers_ForSubject(
+    struct EditorUi* ui,
+    const char* subject,
+    struct Editor_ScriptRef* out,
+    int max);
+
+/**
+ * Add trigger `kind` to the subject shown: when the kind answers a menu
+ * entry the record lacks, the field (op<N> / ifop<N> = `op_label`, through
+ * the Record panel, written where it would write it) and the template
+ * appended to server/scripts/edited/<s>/scripts/<s>.rs2 (opened empty when
+ * it has no file), ONE undo step, one History row "Add [kind,s] (op3=X)".
+ * A trigger the tree already declares is refused (Open in editor shows it).
+ * Returns 1 when added.
+ */
+int
+Editor_Triggers_AddTrigger(
+    struct EditorUi* ui,
+    const char* kind,
+    const char* op_label);
+
+/** Hand server/scripts/`rel_path` at `line` to the user's editor
+ *  (Editor_HostLocalOpenInEditor). A document of that file with unsaved
+ *  edits here is saved first, so the editor opens what the session holds.
+ *  Returns 1 when handed over; 0 when it could not be (the panel shows the
+ *  path to copy). */
+int
+Editor_Triggers_OpenInEditor(
+    struct EditorUi* ui,
+    const char* rel_path,
+    int line);
+
+/** Re-read the shown files from disk and ask the catalog again; a document
+ *  of one of them open here whose text differs from the disk is marked
+ *  "edited outside". Returns how many are. */
+int
+Editor_Triggers_Refresh(struct EditorUi* ui);
+
+/** Make every "edited outside" document hold the disk's text again (one
+ *  undo step per file). Returns the files reloaded. */
+int
+Editor_Triggers_ReloadFromDisk(struct EditorUi* ui);
+
+/** sscompile over the scripts ON DISK (synchronous; unsaved documents are
+ *  not in it). Returns the errors, -1 when it could not run. */
+int
+Editor_Triggers_Check(struct EditorUi* ui);
+
+/** Show a compile result as Check does (the Problems rows, the status). */
+void
+Editor_Triggers_ShowResult(
+    struct EditorUi* ui,
+    const struct Builder_SscResult* result);
+
 /* ---- hotkeys (edpanel_hotkeys.c, docs/MAPED_HOTKEYS.md) -------------------- */
 
 /** The Hotkeys panel: every action's group, name, context and chord, a

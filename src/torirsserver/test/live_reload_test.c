@@ -27,6 +27,8 @@
 #include "torirsserver/torirs_server_boot.h"
 #include "torirsserver/torirs_server_content.h"
 #include "torirsserver/torirs_server_control.h"
+#include "torirsserver/torirs_server_scene.h"
+#include "torirsserver/torirs_server_servpack.h"
 #include "torirsserver/torirs_server_shop.h"
 #include "torirsserver/torirs_server_varps.h"
 #include "torirsserver/torirs_server_wire.h"
@@ -38,6 +40,8 @@
 #include "net/rev/gameproto_revisions.h"
 #include "net/rev/rev_list.h"
 #include "net/rev/revpacket.h"
+
+#include <datatypes/dat2_configs.h>
 
 #include <arpa/inet.h>
 #include <dirent.h>
@@ -893,6 +897,137 @@ test_cache_invalidate_codec(void)
     }
 }
 
+/* Does any line of the reload's answer contain `text`? */
+static int
+reload_said(
+    const struct ToriRSServerReloadResult* result,
+    const char* text)
+{
+    for( int i = 0; i < result->line_count; i++ )
+        if( strstr(result->lines[i], text) )
+            return 1;
+    return 0;
+}
+
+/* Every npc slot with a def points at the def the content table holds NOW
+ * for its type (or the engine default): the re-point pass ran. */
+static int
+npc_defs_current(const struct ToriRSServer* srv, int* out_with_def)
+{
+    *out_with_def = 0;
+    for( int i = 0; i < TORIRSSERVER_NPC_MAX; i++ )
+    {
+        const struct ToriRSServerNpc* npc = &srv->npcs[i];
+        const struct ToriRSServerNpcDef* want;
+
+        if( !npc->def )
+            continue;
+        (*out_with_def)++;
+        want = ToriRSServer_ContentNpc(npc->type);
+        if( npc->def != (want ? want : ToriRSServer_ContentNpcDefault()) )
+            return 0;
+    }
+    return 1;
+}
+
+/*
+ * The server-pack config reload (docs/serverpack.md "The hot-reload contract"
+ * section 5): loc, npc and obj records replaced at the tick boundary from the
+ * pack the server booted on (the same bytes, so every answer must be what it
+ * was), every npc's def re-pointed into the new table, a name-table group
+ * answered restart-needed; then a pack whose loc records are missing is
+ * refused and the running tables are kept.
+ */
+static void
+test_config_reload(
+    struct ToriRSServer* srv,
+    const char* content_dir,
+    const char* work_dir)
+{
+    struct ToriRSServerReloadRequest* request = calloc(1, sizeof(*request));
+    struct ToriRSServerReloadResult* result = calloc(1, sizeof(*result));
+    char pack_dir[1200];
+    char broken[1200];
+    char op_before[64];
+    char name_before[64];
+    const char* op;
+    int locs_before;
+    int npcs_before;
+    int with_def = 0;
+    int stairs;
+    int replaced;
+    int refused = -1;
+
+    check(request && result, "config reload: request and result allocated");
+    stairs = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "spiralstairsbottom_3");
+    check(stairs >= 0, "config reload: the loc `spiralstairsbottom_3` resolves");
+    op = stairs >= 0 ? ToriRSServer_SceneLocOp(stairs, 1) : NULL;
+    snprintf(op_before, sizeof(op_before), "%s", op ? op : "");
+    check(op_before[0] != '\0', "config reload: the stairs offer op1 before the reload");
+    snprintf(name_before, sizeof(name_before), "%s",
+             ToriRSServer_ObjInfo(995)->name ? ToriRSServer_ObjInfo(995)->name : "");
+    locs_before = ToriRSServer_LocInfoCount();
+    npcs_before = ToriRSServer_NpcInfoCount();
+    check(npc_defs_current(srv, &with_def) && with_def > 0,
+          "config reload: npcs are standing, each on its current def");
+
+    request->group_count = 4;
+    request->groups[0].index = TORIRSSERVER_RELOAD_SERVPACK_INDEX;
+    request->groups[0].archive = 64 + RSCACHE_DAT2_CONFIG_KIND_LOCS;
+    request->groups[1].index = TORIRSSERVER_RELOAD_SERVPACK_INDEX;
+    request->groups[1].archive = 64 + RSCACHE_DAT2_CONFIG_KIND_NPC;
+    request->groups[2].index = TORIRSSERVER_RELOAD_SERVPACK_INDEX;
+    request->groups[2].archive = RSCACHE_DAT2_CONFIG_KIND_OBJECT;
+    request->groups[3].index = TORIRSSERVER_RELOAD_SERVPACK_INDEX;
+    request->groups[3].archive = 128;
+    ToriRSServer_Reload(srv, request, result);
+    check(result->status == TORIRSSERVER_RELOAD_RESTART_NEEDED,
+          "config reload: answers RESTART_NEEDED (the name table)");
+    check(result->groups_replaced == 3, "config reload: the loc, npc and obj groups are replaced");
+    check(reload_said(result, "config: loc 1 of 1 group(s) replaced"), "config reload: says loc replaced");
+    check(reload_said(result, "player(s) owed a REBUILD") && srv->players[0].rebuild_pending,
+          "config reload: the player is owed a REBUILD (its scenery re-reads the loc records)");
+    check(reload_said(result, "config: npc 1 of 1 group(s) replaced"), "config reload: says npc replaced");
+    check(reload_said(result, "config: obj 1 of 1 group(s) replaced"), "config reload: says obj replaced");
+    check(result->restart_count == 1 && strstr(result->restart[0], "name table"),
+          "config reload: the name table is the one restart row");
+    check(ToriRSServer_LocInfoCount() == locs_before, "config reload: the same loc record count");
+    check(ToriRSServer_NpcInfoCount() == npcs_before, "config reload: the same npc record count");
+    op = stairs >= 0 ? ToriRSServer_SceneLocOp(stairs, 1) : NULL;
+    check(op && strcmp(op, op_before) == 0, "config reload: the stairs' op1 reads the same off the new table");
+    check(ToriRSServer_ObjInfo(995)->name && strcmp(ToriRSServer_ObjInfo(995)->name, name_before) == 0,
+          "config reload: obj 995's name reads the same off the new table");
+    check(npc_defs_current(srv, &with_def) && with_def > 0,
+          "config reload: every npc's def was re-pointed into the new table");
+
+    /* A pack that opens but holds no loc records: refused whole, nothing
+     * swapped. Symlinks to the booted pack's files, all but idx70. */
+    ToriRSServer_ServPackDir(content_dir, ToriRSServer_WorldCacheDir(), pack_dir, sizeof(pack_dir));
+    snprintf(broken, sizeof(broken), "%s/broken_servpack", work_dir);
+    {
+        char cmd[3000];
+        snprintf(cmd, sizeof(cmd),
+                 "rm -rf '%s' && mkdir -p '%s' && for f in '%s'/main_file_cache.*; do "
+                 "case \"$f\" in *.idx70) ;; *) ln -s \"$f\" '%s'/ ;; esac; done",
+                 broken, broken, pack_dir, broken);
+        check(system(cmd) == 0, "config reload: a pack without loc records is staged");
+    }
+    memset(result, 0, sizeof(*result));
+    {
+        int groups[2] = { 64 + RSCACHE_DAT2_CONFIG_KIND_LOCS, 0 };
+
+        replaced = ToriRSServer_ServPackReloadGroups(broken, groups, 1, ToriRSServer_ReloadConfigKind,
+                                                     srv, result, &refused);
+    }
+    check(replaced == 0 && refused == 1, "config reload: a pack without loc records is refused");
+    check(reload_said(result, "the running table is kept"), "config reload: and says the table is kept");
+    check(ToriRSServer_LocInfoCount() == locs_before, "config reload: the loc table was not touched");
+    op = stairs >= 0 ? ToriRSServer_SceneLocOp(stairs, 1) : NULL;
+    check(op && strcmp(op, op_before) == 0, "config reload: the stairs still offer op1");
+    free(request);
+    free(result);
+}
+
 int
 main(
     int argc,
@@ -945,6 +1080,7 @@ main(
     test_pausebutton_across_reload(srv, player, pack_a, pack_b);
     test_square_reload(srv, player);
     test_spawn_reload(srv, player, argv[4]);
+    test_config_reload(srv, argv[1], argv[4]);
     test_control_link(srv, player);
 
     ToriRSServer_ControlCloseAll();

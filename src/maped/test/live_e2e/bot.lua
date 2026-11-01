@@ -7,9 +7,21 @@
 -- half of run.sh edits a tile height there and RUNs again; the REBUILD that
 -- reload owes the bot is counted from the wire log, not here.
 --
--- Rows are the protocol run.sh reads: live_e2e.first, live_e2e.second.
+-- Then (run.sh RUN (c) and (d)) it keeps pressing an op the records do not
+-- have yet: op3 on the blue flower beside the castle (a loc with no ops at
+-- all) and op4 on Hans (empty). The editor adds `op3=Search` / `op4=Wave` to
+-- the records and the [oploc3,blueflower] / [opnpc4,hans] scripts, RUNs, and
+-- the same session -- never relogged -- presses the new row and reads the
+-- script's message. The loc row is the bot's own decode of the loc record,
+-- dropped on the CACHE_INVALIDATE for config group 2/6; the npc row is the
+-- server's npc table (ToriRSServer_NpcInfoRecord), replaced by the reload.
+--
+-- Rows are the protocol run.sh reads: live_e2e.first, live_e2e.second,
+-- live_e2e.loc_op, live_e2e.npc_op.
 local OLD = "Hello. What are you doing here?"
 local NEW = "Hello. What are you doing here, editor?"
+local LOC_MES = "editor op3"
+local NPC_MES = "editor op4"
 
 return {
     id = "live_e2e",
@@ -60,10 +72,75 @@ return {
         t.check("live_e2e.second", second ~= nil,
             tostring(second) .. " after " .. tostring(tries) .. " talk(s)")
 
-        -- Stand in m50_50 for the tile edit; run.sh detaches (which stops
-        -- this process) when it has counted the REBUILD.
+        -- Did a chat line newer than `since` say `text`?
+        local function heard(since, text)
+            local result, rows = t.chat.lines(since)
+            if result ~= "ok" then
+                return false
+            end
+            for _, row in ipairs(rows) do
+                if row.text and string.find(row.text, text, 1, true) then
+                    return true
+                end
+            end
+            return false
+        end
+        local function serial()
+            local result, rows = t.chat.lines(0)
+            local newest = 0
+            if result == "ok" then
+                for _, row in ipairs(rows) do
+                    if row.serial > newest then newest = row.serial end
+                end
+            end
+            return newest
+        end
+
+        -- Stay in m50_50 (the tile edit's REBUILD is counted from the wire
+        -- log) pressing the op rows the editor will add; run.sh detaches
+        -- (which stops this process) when it is done.
+        local loc_done, npc_done = false, false
+        local loc_tries, npc_tries = 0, 0
+        local loc_last, npc_last = "", ""
         for _ = 1, 4000 do
-            t.ticks(10)
+            t.ticks(5)
+            if not loc_done then
+                loc_tries = loc_tries + 1
+                local since = serial()
+                local r, d = t.player.click_loc("blueflower", 3)
+                loc_last = tostring(r) .. " " .. tostring(d)
+                if r == "ok" then
+                    for _ = 1, 20 do
+                        t.ticks(1)
+                        if heard(since, LOC_MES) then loc_done = true break end
+                    end
+                    t.chat.close()
+                    if loc_done then
+                        t.check("live_e2e.loc_op", true, "op3 on blueflower read '" .. LOC_MES
+                            .. "' after " .. loc_tries .. " press(es), no relog")
+                    end
+                end
+            elseif not npc_done then
+                npc_tries = npc_tries + 1
+                local since = serial()
+                local r, d = t.player.talk_to("hans", 4)
+                npc_last = tostring(r) .. " " .. tostring(d)
+                for _ = 1, 20 do
+                    if heard(since, NPC_MES) then npc_done = true break end
+                    t.ticks(1)
+                end
+                t.chat.close()
+                if npc_done then
+                    t.check("live_e2e.npc_op", true, "op4 on hans read '" .. NPC_MES
+                        .. "' after " .. npc_tries .. " press(es), no relog")
+                end
+            end
+        end
+        if not loc_done then
+            t.check("live_e2e.loc_op", false, "never read '" .. LOC_MES .. "': " .. loc_last)
+        end
+        if not npc_done then
+            t.check("live_e2e.npc_op", false, "never read '" .. NPC_MES .. "': " .. npc_last)
         end
         t.finish(0)
     end,

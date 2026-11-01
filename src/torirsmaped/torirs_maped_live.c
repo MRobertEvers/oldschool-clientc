@@ -411,7 +411,11 @@ live_fact(
             return 1;
         }
         jobs->reload_waiting = 0;
-        if( status == 0 )
+        /* 0 OK; 1 RESTART_NEEDED (torirs_server_control.h): everything that can
+         * be taken live was, and the restart rows name the rest -- re-sending
+         * them would only be refused again, so that is a finished RUN too. A 1
+         * that names nothing to restart is a failed reload, as 2 is. */
+        if( status == 0 || (status == 1 && restart_count > 0) )
         {
             char message[160];
             snprintf(message, sizeof(message),

@@ -441,6 +441,230 @@ ToriRSMapEd_BuildParseChanged(
     return rows;
 }
 
+/* ---- the server pack's manifest diff -------------------------------------- */
+
+/* One `archive <index> <archive> <hash> <rev> <type>` line of a server-pack
+ * manifest (docs/serverpack.md "The manifests"). */
+struct build_servpack_row
+{
+    uint32_t index;
+    uint32_t archive;
+    unsigned long long hash;
+};
+
+static int
+build_servpack_row_compare(
+    const void* a,
+    const void* b)
+{
+    const struct build_servpack_row* left = a;
+    const struct build_servpack_row* right = b;
+
+    if( left->index != right->index )
+        return left->index < right->index ? -1 : 1;
+    if( left->archive != right->archive )
+        return left->archive < right->archive ? -1 : 1;
+    return 0;
+}
+
+/* Every archive line of `text`, sorted. Returns the row count (*out owned by
+ * the caller, NULL for none), or -1 when the text is not a server-pack
+ * manifest. */
+static int
+build_servpack_rows(
+    const char* text,
+    size_t length,
+    struct build_servpack_row** out)
+{
+    struct build_servpack_row* rows = NULL;
+    int count = 0;
+    int capacity = 0;
+    size_t at = 0;
+    int header = 0;
+
+    assert(text || length == 0);
+    assert(out);
+    *out = NULL;
+    while( at < length )
+    {
+        char line[512];
+        size_t end = at;
+        unsigned index;
+        unsigned archive;
+        unsigned long long hash;
+
+        while( end < length && text[end] != '\n' )
+            end++;
+        if( end - at < sizeof(line) )
+        {
+            memcpy(line, text + at, end - at);
+            line[end - at] = '\0';
+        }
+        else
+            line[0] = '\0'; /* an input path that long is no archive line */
+        at = end + 1;
+        if( strncmp(line, "torirs-server-pack ", 19) == 0 )
+            header = 1;
+        if( strncmp(line, "archive ", 8) != 0 )
+            continue;
+        if( sscanf(line, "archive %u %u %llx", &index, &archive, &hash) != 3 )
+        {
+            free(rows);
+            return -1;
+        }
+        if( count == capacity )
+        {
+            capacity = capacity ? capacity * 2 : 4096;
+            rows = realloc(rows, (size_t)capacity * sizeof(*rows));
+            assert(rows);
+        }
+        rows[count].index = index;
+        rows[count].archive = archive;
+        rows[count].hash = hash;
+        count++;
+    }
+    if( !header )
+    {
+        free(rows);
+        return -1;
+    }
+    if( count > 1 )
+        qsort(rows, (size_t)count, sizeof(*rows), build_servpack_row_compare);
+    *out = rows;
+    return count;
+}
+
+uint32_t
+ToriRSMapEd_BuildServPackReloadGroup(
+    uint32_t index,
+    uint32_t archive)
+{
+    /* The defaults (192) and client-id (193) groups hold one archive per
+     * config kind, at archive = kind: the server reloads a kind whole, so the
+     * row names the kind's band group, which it reads as that kind. */
+    if( (index == 192u || index == 193u) && archive < 64u )
+        return archive;
+    return index;
+}
+
+int
+ToriRSMapEd_BuildServPackDiff(
+    const char* before,
+    size_t before_length,
+    const char* after,
+    size_t after_length,
+    const struct ToriRSMapEdBuildSink* sink,
+    int* out_groups)
+{
+    struct build_servpack_row* old_rows;
+    struct build_servpack_row* new_rows;
+    int old_count;
+    int new_count;
+    int i = 0;
+    int j = 0;
+    int changed = 0;
+    /* One reload row per group: a kind is replaced whole, so 400 changed
+     * archives of loc are still one row. */
+    uint8_t named[256];
+
+    assert(sink);
+    assert(out_groups);
+    *out_groups = 0;
+    old_count = build_servpack_rows(before, before_length, &old_rows);
+    if( old_count < 0 )
+        return -1;
+    new_count = build_servpack_rows(after, after_length, &new_rows);
+    if( new_count < 0 )
+    {
+        free(old_rows);
+        return -1;
+    }
+    memset(named, 0, sizeof(named));
+    while( i < old_count || j < new_count )
+    {
+        int order;
+        uint32_t index;
+        uint32_t archive;
+        uint32_t group;
+
+        if( i >= old_count )
+            order = 1;
+        else if( j >= new_count )
+            order = -1;
+        else
+            order = build_servpack_row_compare(&old_rows[i], &new_rows[j]);
+        if( order == 0 )
+        {
+            int same = old_rows[i].hash == new_rows[j].hash;
+            index = new_rows[j].index;
+            archive = new_rows[j].archive;
+            i++;
+            j++;
+            if( same )
+                continue;
+        }
+        else if( order < 0 )
+        {
+            /* gone from the new pack */
+            index = old_rows[i].index;
+            archive = old_rows[i].archive;
+            i++;
+        }
+        else
+        {
+            /* new in the new pack */
+            index = new_rows[j].index;
+            archive = new_rows[j].archive;
+            j++;
+        }
+        changed++;
+        group = ToriRSMapEd_BuildServPackReloadGroup(index, archive);
+        if( group > 254u || named[group] )
+            continue;
+        named[group] = 1;
+        (*out_groups)++;
+        if( sink->archive )
+            sink->archive(sink->user, TORIRSMAPED_RELOAD_SERVPACK_INDEX, group);
+    }
+    free(old_rows);
+    free(new_rows);
+    return changed;
+}
+
+#if TORIRSMAPED_JOBS_NATIVE
+/* `path` read whole into a malloc'd buffer (NUL-terminated), or NULL. */
+static char*
+build_read_whole(
+    const char* path,
+    size_t* out_length)
+{
+    FILE* file = fopen(path, "rb");
+    char* text;
+    long size;
+
+    *out_length = 0;
+    if( !file )
+        return NULL;
+    if( fseek(file, 0, SEEK_END) != 0 || (size = ftell(file)) < 0 || fseek(file, 0, SEEK_SET) != 0 )
+    {
+        fclose(file);
+        return NULL;
+    }
+    text = malloc((size_t)size + 1);
+    assert(text);
+    if( fread(text, 1, (size_t)size, file) != (size_t)size )
+    {
+        free(text);
+        fclose(file);
+        return NULL;
+    }
+    fclose(file);
+    text[size] = '\0';
+    *out_length = (size_t)size;
+    return text;
+}
+#endif /* TORIRSMAPED_JOBS_NATIVE */
+
 int
 ToriRSMapEd_BuildLineUnit(
     const char* line,
@@ -612,6 +836,10 @@ struct build_native
     int exit_ok;
     char partial[TORIRSMAPED_BUILD_LINE_MAX];
     size_t partial_length;
+    /** A packs build: `<live>/servpack/pack.manifest` as it was before the
+     *  build (NULL when there was none), diffed against the one it wrote. */
+    char* servpack_before;
+    size_t servpack_before_length;
 };
 
 static enum EditorHost_Status
@@ -638,6 +866,15 @@ build_native_start(
     native->job.squares = native->squares;
 
     mkdir(native->lane.live_dir, 0755);
+    free(native->servpack_before);
+    native->servpack_before = NULL;
+    native->servpack_before_length = 0;
+    if( job->what == TORIRSMAPED_BUILD_PACKS )
+    {
+        char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+        snprintf(path, sizeof(path), "%s/servpack/pack.manifest", native->lane.live_dir);
+        native->servpack_before = build_read_whole(path, &native->servpack_before_length);
+    }
     if( job->what == TORIRSMAPED_BUILD_CLIENT_CACHE && native->job.square_count > 0
         && !ToriRSMapEd_BuildWriteMapList(&native->lane, &native->job) )
     {
@@ -674,6 +911,48 @@ build_native_line(
     if( sink->unit && ToriRSMapEd_BuildLineUnit(line, unit, sizeof(unit)) )
         sink->unit(sink->user, unit);
     (void)native;
+}
+
+/* After a packs build: every server-pack archive whose manifest line moved
+ * becomes a reload row (TORIRSMAPED_RELOAD_SERVPACK_INDEX, group), and one
+ * line says how many. */
+static void
+build_native_servpack_diff(
+    struct build_native* native,
+    const struct ToriRSMapEdBuildSink* sink)
+{
+    char path[TORIRSMAPED_LANE_PATH_MAX + 32];
+    char line[256];
+    char* after;
+    size_t after_length;
+    int groups = 0;
+    int changed;
+
+    snprintf(path, sizeof(path), "%s/servpack/pack.manifest", native->lane.live_dir);
+    after = build_read_whole(path, &after_length);
+    if( !native->servpack_before || !after )
+    {
+        snprintf(line, sizeof(line), "servpack: no manifest %s the build; no server-pack group "
+                                     "is reloaded",
+            native->servpack_before ? "after" : "before");
+        changed = -2;
+    }
+    else
+    {
+        changed = ToriRSMapEd_BuildServPackDiff(native->servpack_before, native->servpack_before_length,
+            after, after_length, sink, &groups);
+        if( changed < 0 )
+            snprintf(line, sizeof(line), "servpack: %s is not a server-pack manifest", path);
+        else
+            snprintf(line, sizeof(line), "servpack: %d archive(s) changed in %d group(s)", changed,
+                groups);
+    }
+    if( sink->line )
+        sink->line(sink->user, line);
+    free(after);
+    free(native->servpack_before);
+    native->servpack_before = NULL;
+    native->servpack_before_length = 0;
 }
 
 static int
@@ -748,6 +1027,8 @@ build_native_poll(
         *out_status = EDITOR_HOST_BAKE_FAILED;
         return 0;
     }
+    if( native->job.what == TORIRSMAPED_BUILD_PACKS )
+        build_native_servpack_diff(native, sink);
     if( native->job.what == TORIRSMAPED_BUILD_CLIENT_CACHE )
     {
         char path[TORIRSMAPED_LANE_PATH_MAX + 32];
@@ -795,6 +1076,7 @@ build_native_free(void* ctx)
     if( !native )
         return;
     build_native_cancel(native);
+    free(native->servpack_before);
     free(native);
 }
 
@@ -1225,7 +1507,11 @@ jobs_build_finished(
 
     jobs->building = 0;
     jobs_build_send_done(maped, what, status, 1);
-    if( status == EDITOR_HOST_OK && what == TORIRSMAPED_BUILD_CLIENT_CACHE )
+    /* Both builds name archives: the client cache's (index, archive) rows and
+     * the packs build's server-pack groups (index 255, from the manifest
+     * diff). Every one is owed to the next reload. */
+    if( status == EDITOR_HOST_OK
+        && (what == TORIRSMAPED_BUILD_CLIENT_CACHE || what == TORIRSMAPED_BUILD_PACKS) )
     {
         for( int i = 0; i < jobs->build_archive_count; i++ )
         {

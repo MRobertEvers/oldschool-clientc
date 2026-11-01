@@ -40,6 +40,14 @@ PlatformXIOJs5Cache_GroupFailed(
     int archive,
     int group);
 
+/* A live reload rewrote `archive` on the server: re-prime its reference table
+ * (Js5ClientInvalidateArchive); a rewritten group is then fetched again on its
+ * next request. */
+bool
+PlatformXIOJs5Cache_Invalidate(
+    struct PlatformXIOJs5Cache* cache,
+    int archive);
+
 bool
 PlatformXIOJs5Cache_MetadataReady(const struct PlatformXIOJs5Cache* cache);
 

@@ -66,6 +66,21 @@ other panel.
   level once at boot, optionally with the free camera on absolute tile x,z of
   that level; same file),
   `TORIRSMAPED_LIVE_DIR` (the live lane, below).
+- `TORIRS_EDITOR_OPEN_CMD` -- the Triggers panel's and the catalog's "Open
+  in editor" command, `{path}` (the absolute path, shell-quoted) and
+  `{line}` placeholders, e.g. `code --goto {path}:{line}` or
+  `subl {path}:{line}`. Unset: `code --goto {path}:{line}` when `code` is on
+  PATH, else `open {path}` (macOS) / `xdg-open {path}`. Run through
+  `/bin/sh -c '<cmd> &'` (src/editor/editor_host_local.c
+  `Editor_HostLocalOpenInEditor`), never waited on; the command line is
+  logged to the console. An environment variable rather than a manifest key
+  (`[editor:boot] open_cmd=`) because src/bootmanifest is not the editor's.
+- `TORIRS_EDITOR_TRIGGERS=<subject>[,file][,record][,add=<kind>[:<op
+  text>]][,check]` -- for a photograph: once the layout ran, dock the
+  Triggers panel over the right half of the world on record `<subject>`
+  (with `file`, `<subject>` is a path under server/scripts and the panel
+  lists that file); `record` opens the Record panel beside it, `add=` runs
+  Add trigger, `check` runs Check (src/editor/panels/edpanel_triggers.c).
 
 **The saved layout.** Every panel's box, whether it is open, whether the user
 placed it, and View > Snap to grid persist across launches in
@@ -198,12 +213,13 @@ The whole loop, scripted, is `make -C src maped-live-e2e`
 | 13 | Varp and varbit editor | editor_vars bit map, overlap check, naming; editor_alloc mirrors ss_allocate.py | allocator and vars not wired to the protocol or a panel; constants; live ::getvar/::setvar |
 | 14 | CS2 and the interface editor | `.if`/`.compack` codec (982 interfaces byte exact), component tree, inspector, hooks, CS2 run/trace/watch, CODE editor with `cs2 compile`, App mount/pick/refill | IF1 type 8 not mountable; IF_FIELD values over 190 bytes read only; cs2 compile synchronous |
 | 15 | Save, save as new, export, pack | atomic text saves, FACT_SAVED; SAVE_AS of a loc/npc/obj record (fresh id in pack/<type>.alloc, .client line, every field; one undo step; catalog and shell editor "Copy to new...", `torirsmapedctl cfg-copy`); BUILD packs (`make torirsserver-packs` into the live dir); BUILD client cache (`cachepack pack --incremental`, only changed archives written, reference table bumped, plus saved squares by archive) | Save as new for squares (DOC_CREATE copy covers it), interfaces and builder subjects; export/import lane; incremental repack of interfaces, CS2 and other assets in BUILD client cache; scripts lint and cs2 compile as BUILD kinds |
-| 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` | client cache eviction beyond interface packs; player list and position in the control protocol; Restart offer; stale list (always 0) |
+| 16 | RUN and the live lane | RUN = SAVE_ALL -> packs -> client cache -> CTL_RELOAD -> FACT_RUN_DONE/LIVE_STATUS, stop at first failure, pending set kept on a failed reload; control link (0xED) with gate ticket; script hot reload (shadow table, swap at the tick boundary, old table freed when no frame holds it); sequence/healthbar/struct config groups live; square reload with one REBUILD per covering player and reload=1 on REBUILD_REGION; edited-lane spawn reload; CACHE_INVALIDATE (our opcode 237) sent at 239/241 before the REBUILD; Live panel; launch and attach; scriptrun `--control-port` **Config groups go live (phase 9, 2026-11-01):** the editor snapshots `servpack/pack.manifest` before the packs build and diffs its `archive` lines after it (`ToriRSMapEd_BuildServPackDiff`), sending one reload row `(255, group)` per changed group beside the script pack and client rows (build log `servpack: N archive(s) changed in M group(s)`). The server (`ToriRSServer_ReloadConfigKind`, `ToriRSServer_ContentReload{Locs,Npcs,Objs}`) checks the whole kind against the open pack first and keeps the running table on refusal; loc replaces the info tables, scene records, defs, categories and op overlays and owes every logged-in player one REBUILD; npc re-points every live `npc->def` by type in one bounded pass while the old array is held; obj replaces the info table and requirement rows; seq, healthbar and struct as before. A RESTART_NEEDED answer finishes the RUN with restart rows instead of failing every later RUN. **Client:** CACHE_INVALIDATE on 2/6, 2/9, 2/10 evicts the decoded loc/npc/obj records (retired, never freed under a holder) and the dat2 group cache, then the provider's archive hook (registered in main.c, native) drops the platform's decompressed copy and re-primes JS5 -- 255/255, 255/<index>, the rewritten group (`Js5ClientInvalidateArchive`; js5_server re-checks its cache on every master request); the owed REBUILD is forced past the same-zone early-out so placed scenery re-decodes. Proven: e2e RUN (c) loc op3 and (d) npc op4 pressed by the never-relogged bot (16 s / 13 s); a real client logged into a real torirsserver lane re-decoded blueflower's op3 as the new text after one RUN, no relog (`TORIRS_CACHE_INVALIDATE_DEBUG=1`, `TORIRS_LOC_CFG=<id>`). | web client cache eviction (no hook on the web IO); player list and position in the control protocol; Restart offer; stale list (always 0) |
 | 17 | The web | wasm editor client, viewer tab boot, capabilities gate the menus | browser BuildRunner/LiveLink (answer UNSUPPORTED); content tree host binding |
 | 3c | Areas and Collections | **AREAS document** (kind 5, key `areas`, `<content_dir>/editor/areas.txt`: in the content tree so the team shares and reviews it, outside every pack input so naming an area never changes a build; header comment in src/editor/editor_areas.h): one record per line, `area <name> \| level <0..3\|all> \| rects <x0> <z0> <x1> <z1>[, ...] [\| colour <0..7>] [\| note <text>]` and `collection <name> \| squares <key> ... [\| note <text>]`, names unique per kind; line-preserving codec (src/editor/editor_areas.c: comments, blank lines, CRLF, no final newline byte-identical; the first record brings a 3-line header comment, the last removed takes it back, an emptied document's save removes the file); opened by every session at `Editor_OpenHost`, so every window mirrors it; held as text, applied by parse -> edit -> emit; **commands** AREA_SET 10, AREA_REMOVE 11, COLLECTION_SET 12, COLLECTION_REMOVE 13 (`u.area`: `int line`, the record line before and after, each <= 511 bytes; wire `i32 line, string before, string after`; a SET with a before replaces by name, a rename when the names differ; a REMOVE's undo re-inserts at its old line; refused when the bytes do not match or a name is taken), History rows from the codec ("Mark area Lumbridge castle", "Rename area A to B", "Set level of area A to 1", "Add rect to area A", "New collection C", "Add 1 square to collection C", "Delete area A"); **Areas panel** (module "areas", View menu, dock order after "squares", admitted when the column has room): Areas tab (list name/level/rects, rect status, Name, New from rect -- the Rect tool's rectangle on its level, "no rectangle" said in the panel --, Add rect (to the selected), Rename, Level + Set level, Delete, Go to -- the free camera to the area's centre, opening its square first when it is not loaded --, Show outlines (on), Hide others) and Collections tab (list name/squares, current square = the picker's focus else the latched tile's square, From open (squares), From picker (the shift-click set), Add / Remove current, Rename, Delete, Open all -- each as a document, into the world one load at a time, a confirm past 16); the Rect panel's "Mark area from rect"; the Squares picker's **Collection** dropdown (`all` + every collection: only its squares, on any Area page, Fit frames them; follows edits; off when the collection goes); **world overlay** (app_overlay.c `app_overlay_build_editor_areas` from `Editor_Areas_Overlay`: each rect washed in its colour on its level, outlined along the ground, the name in the overlay's TEXT at the NW corner of the first rect, the selected area brighter; through `world_emit_desc`, so it follows the World panel); ctl `areas`, `area-set`, `area-remove`, `collection-set`, `collection-remove`; tests editor_areas_test, editor_panels_test `test_areas`, maped_embed_test, maped_daemon_test.sh (9) | see open issues (Areas and collections) |
 | 3b | History panel | `Editor_History` (editor_cmd.c) rebuilt from the FACT_CMD stream + own undo/redo; rows newest first with names ("Raise 21 tiles m50_50 L0", "New square m1_1 (copy of m50_50)"), undone prefix, current marker, filter by key, click-to-jump; rebuilds only on serial change | a late-joining window lists only steps since it connected; another window's long drag may show as several rows until an undo re-cuts them |
 | 5b | Default layout | `Editor_UiLayout` (editor_ui.c) at boot/resize/scale/Reset: menu bar full width, tool rail wraps to 2+ columns, one right column 22% (200..400 px at 1x; order terrain, palette, locs, spawns, rect, inspector, squares, areas, catalog, history), panels admitted while >= 160 px, spare height shared, console strip under the world when <= 1/4 height, the World panel docked over what is left; a saved layout (`editor_layout.ini`) applied before the first pass; panels that do not fit are hidden (View menu); dragged panels keep their place until View > Reset layout; View > Snap to grid | tested 1280x800..2560x1440 at scale 1 and 2 headless + photographed at 1280/1530/1920 |
-| 7c | Hotkeys | docs/MAPED_HOTKEYS.md is the user's reference. **One table** (src/editor/editor_hotkeys.{h,c}): 93 actions (File, Edit, Tools, Brush, Level, Camera, View -- one per View-menu panel module, the unbound ones included), each with an ini id, group, name, doc row, context mask (G, W, L, R, S, N = no loc; L excludes S and N) and kind (edge, repeat after 300 ms at 20 Hz, held); two chords per action at most; chord parse/format (`ctrl+shift+z` <-> "Ctrl+Shift+Z", "Cmd" on Apple); `editor_hotkeys.ini` codec (non-default bindings only, `<action> =` unbound, a bad line skipped and reported); conflicts per context; `Editor_HotkeysResolve` over a plain snapshot (edges, held keys, live contexts) -> fired actions, active held actions, CLAIMED keys; the later binding wins a clash. **One dispatcher** (src/app/app_editor_hotkeys.c, called first in the frame, before the developer overlay): snapshot from LibToriRS_Input, gates (editor open, no text field / model view / menu drop / minimenu), Hotkeys-panel capture, resolve, dispatch through `Editor_HotkeyRun` (src/editor/panels/edpanel_hotkeys.c: the one entry point the File / Edit / View rows also call) or the App-bound actions (camera flight and turn read in app_camera.c, eyedropper I / Shift+I, Ctrl+A select the hovered square's locs on the edit level, Return apply to selection, Ctrl+V paste at the hovered tile, Home / Ctrl+Home framing through the Areas panel's camera move, Escape ending a drag, PageUp/Down from the plane under the pointer); a fired chord sets `input_frame_consumed`, marks `hotkey_consumed` (re-marked after app_ui_hotkeys clears it) and logs `editor: <action> (<chord>)`; claimed chords are skipped by `app_debug_key_down/held` and the world debug keys. Previous tool (`EditorUi.previous_tool`), Tab hide/show every panel but World (`Editor_UiToggleAllPanels`, remembers what was open), brush radius/step/strength steppers that move the Terrain sliders (`edp_brush_step`), Ctrl+4 Auto, Ctrl+5 Above, Shift flies 4x. **Hints** from the table, re-labelled on every rebind (`hotkeys.serial`): menu rows `Name\tChord` drawn right-aligned by the chrome (menu-mode dropdown rows and TREE rows split at a tab), tool rail / Level / Locs / Spawns / Terrain slider tips end with the chord; the old `[D]/[R]/[S]/[Del]` literals are gone. **Hotkeys panel** (module "hotkeys", View, F1): search, capture (Esc cancels, Backspace unbinds, a lone modifier only for Fly faster), clashes red on both rows, Reset to defaults. **Persistence** `editor_hotkeys.ini` / `TORIRS_EDITOR_HOTKEYS` through task_editor_hotkeys_io.c (the layout's IO pattern). Tests: editor_hotkeys_test (786 checks, incl. every action's id and row in the doc), editor_panels_test `test_hotkeys`. Photographed 2026-10-31 (F1 panel, `3` arming Raise, F12 hiding World, Ctrl+Z undoing a `torirsmapedctl tile-height` edit with the console line) | see open issues (Hotkeys) |
+| 7c | Hotkeys | docs/MAPED_HOTKEYS.md is the user's reference. **One table** (src/editor/editor_hotkeys.{h,c}): 96 actions (File, Edit, Tools, Brush, Level, Camera, View -- one per View-menu panel module, the unbound ones included), each with an ini id, group, name, doc row, context mask (G, W, L, R, S, N = no loc; L excludes S and N) and kind (edge, repeat after 300 ms at 20 Hz, held); two chords per action at most; chord parse/format (`ctrl+shift+z` <-> "Ctrl+Shift+Z", "Cmd" on Apple); `editor_hotkeys.ini` codec (non-default bindings only, `<action> =` unbound, a bad line skipped and reported); conflicts per context; `Editor_HotkeysResolve` over a plain snapshot (edges, held keys, live contexts) -> fired actions, active held actions, CLAIMED keys; the later binding wins a clash. **One dispatcher** (src/app/app_editor_hotkeys.c, called first in the frame, before the developer overlay): snapshot from LibToriRS_Input, gates (editor open, no text field / model view / menu drop / minimenu), Hotkeys-panel capture, resolve, dispatch through `Editor_HotkeyRun` (src/editor/panels/edpanel_hotkeys.c: the one entry point the File / Edit / View rows also call) or the App-bound actions (camera flight and turn read in app_camera.c, eyedropper I / Shift+I, Ctrl+A select the hovered square's locs on the edit level, Return apply to selection, Ctrl+V paste at the hovered tile, Home / Ctrl+Home framing through the Areas panel's camera move, Escape ending a drag, PageUp/Down from the plane under the pointer); a fired chord sets `input_frame_consumed`, marks `hotkey_consumed` (re-marked after app_ui_hotkeys clears it) and logs `editor: <action> (<chord>)`; claimed chords are skipped by `app_debug_key_down/held` and the world debug keys. Previous tool (`EditorUi.previous_tool`), Tab hide/show every panel but World (`Editor_UiToggleAllPanels`, remembers what was open), brush radius/step/strength steppers that move the Terrain sliders (`edp_brush_step`), Ctrl+4 Auto, Ctrl+5 Above, Shift flies 4x. **Hints** from the table, re-labelled on every rebind (`hotkeys.serial`): menu rows `Name\tChord` drawn right-aligned by the chrome (menu-mode dropdown rows and TREE rows split at a tab), tool rail / Level / Locs / Spawns / Terrain slider tips end with the chord; the old `[D]/[R]/[S]/[Del]` literals are gone. **Hotkeys panel** (module "hotkeys", View, F1): search, capture (Esc cancels, Backspace unbinds, a lone modifier only for Fly faster), clashes red on both rows, Reset to defaults. **Persistence** `editor_hotkeys.ini` / `TORIRS_EDITOR_HOTKEYS` through task_editor_hotkeys_io.c (the layout's IO pattern). Tests: editor_hotkeys_test (786 checks, incl. every action's id and row in the doc), editor_panels_test `test_hotkeys`. Photographed 2026-10-31 (F1 panel, `3` arming Raise, F12 hiding World, Ctrl+Z undoing a `torirsmapedctl tile-height` edit with the console line) | see open issues (Hotkeys) |
+| 7d | Triggers panel | **Triggers panel** (module "triggers", View > Triggers, Ctrl+E; src/editor/panels/edpanel_triggers.c): helps with script triggers, the scripts are edited in the user's own editor. Show: *Record / selection* (the Record panel's record, else the selected loc, else the Spawns panel's npc / obj, else the catalog's pick; a name looked up once per id), *Name* (Subject field), *File* (every header of one file under server/scripts: its open document, else the disk, else the catalog). Rows are the catalog's TRIGGER contributions (`trigger`, `subject`, `file`, `line`; `subject=<name>` then an exact match, since the filter also matches `<name>_*`), the subject's edited script read from this window's document when it is open ("(unsaved)"). **Open in editor** on a row, on a Problems row and on a catalog TRIGGER row (Catalog's "Open in editor"): `Editor_HostLocalOpenInEditor` (editor_host_local.c) runs `TORIRS_EDITOR_OPEN_CMD` (editor_open_cmd.h: `{path}` shell-quoted, `{line}`) or the default (`code --goto`, else open / xdg-open) through `/bin/sh -c '... &'`, the command in the console; a document of that file with unsaved edits is saved first; web / Windows answer UNSUPPORTED and the panel shows the path to copy. **Add trigger...**: a kind from the type's list (editor_script.c: oploc1..5/u, aploc1..5/u; opnpc/apnpc; opobj/apobj + opheld1..5/u -- the builders' names), Op text; when the kind answers a menu entry the record lacks (`op<N>`, `ifop<N>` for opheld; "", `default`, `null` count as none) the field is written through the Record panel's `Editor_CfgRecordFieldCommands` (the layer it would choose) and the template (`mes("Nothing interesting happens.");`, `~displaymessage(^dm_default);` for a use-on kind) is appended to `server/scripts/edited/<s>/scripts/<s>.rs2` (opened empty when absent; a header comment starts a new file) as a TEXT_SPLICE from the panel -- one stroke, one History row "Add [oploc3,crate] (op3=Search)"; refused: a kind of another type, a trigger the tree already declares (sscompile refuses duplicates), a builder-generated script, a missing menu text, an edited script that changed on disk. **Refresh** asks the catalog again (it re-stats changed files at most every 2 s) and reads every shown file from disk; a document open here whose bytes differ from the disk (and that has no unsaved edits) is "edited outside" -> **Reload from disk** splices it to the disk's text (`Builder_TextSplices`, one undo step "Reload <file> from disk"). **Check** (Ctrl+Shift+B, File > Check scripts) = sscompile over a stage of the scripts ON DISK (`Builder_SscStage`/`Run`, its own work dir `src/build_opt/tmp/triggers_check`, native only, synchronous; unsaved script documents are not in it and the console says so) -> Problems (`file:line: message`) with Open problem in editor. **Run** (Ctrl+Return, File > Run) = the Live panel's RUN (`Editor_Live_Run`; disabled while `Editor_Live_Busy`). Record panel: "Triggers..." opens the panel following that record. Tests: editor_script_test (pure: parsing, kinds and fields, every template, the add plan, the open command's quoting and defaults, diag lines; plus every template of every kind compiled by sscompile against a stage), editor_panels_test `test_triggers` (subject and file rows, Open in editor through a recording command, Add trigger with op3=Search as one undo step, duplicate / wrong-type refusals, edited outside -> Reload from disk, Problems rows, the hotkeys), editor_hotkeys_test (the three chords and the doc) | see open issues (Triggers panel) |
 | 18–19 | Build order, risks | phases 0–5 done in order | see open issues |
 
 ## The live lane end to end (phase 4)
@@ -420,6 +436,35 @@ Every issue the phase reports left open, by area, with where to start.
   open one headless); the right-aligned rows are covered by the chrome change
   and editor_panels_test's label checks.
 
+### Triggers panel
+
+- Refresh re-indexes through the catalog's own sweep, which a query runs at
+  most every 2 s (torirs_maped_catalog.c `refresh_interval_s`): a Refresh
+  within 2 s of the last query lists the old rows until the next one. An
+  exact refresh needs a CATALOG_REFRESH request (force, or one path) in
+  src/torirsmaped, which the editor side does not own. The panel's own file
+  mode and the "edited outside" test read the disk directly and are exact.
+- "Reload from disk" is splices from the panel (the authority keeps a closed
+  document loaded, so a close + open would return its stale copy): the
+  document ends up holding the disk's bytes but marked dirty, and Save
+  writes the same bytes back. A DOC_RELOAD request in the authority would
+  clear it properly.
+- Open in editor assumes the content root is on this machine (embedded
+  server, or a daemon on localhost); against a remote daemon the path is
+  the daemon's. Windows has no launcher yet (UNSUPPORTED, the path shown).
+  src/editor/editor_host_local.c `Editor_HostLocalOpenInEditor`.
+- The open command is an environment variable, not `[editor:boot]
+  open_cmd=`: the boot manifest parser (src/bootmanifest) is not the
+  editor's. Moving it is a one-line read there plus a setter.
+- Check compiles the whole tree on disk synchronously (about a second warm,
+  the first stage copies ~40 MB); the window waits. Unsaved script documents
+  are not in it (the owner's rule: scripts are edited outside).
+- Follow mode does not follow the hovered loc, only a selection, the
+  Spawns selection or the catalog pick: the hover is App state and the panel
+  stays App-free (headless-testable).
+- Add trigger appends to the subject's edited script only; a trigger meant
+  for an existing area file is added there by hand (Open in editor).
+
 ### Live lane: editor side
 
 - The control protocol has no player list and no player position (CTL_STATUS
@@ -427,15 +472,10 @@ Every issue the phase reports left open, by area, with where to start.
   typed by name, and STATE_LIVE_FOCUS x/z/level are -1. Needs a CTL_PLAYERS
   frame: src/torirsserver/torirs_server_control.c:857 `ctl_send_status`,
   src/torirsmaped/torirs_maped_live.c.
-- RUN does not tell the game server which SERVER-PACK groups the packs build
-  rewrote: the editor sends only client-cache rows `(2, kind)` and
-  `(5, (x << 8) | z)`, while the server re-reads a server-pack group only for
-  an index-255 row (torirs_server_control.c `ctl_kind_reload`, :339). So no
-  server-side config table is replaced by a RUN today; scripts, squares and
-  spawns are. Either the editor diffs the servpack's `pack.manifest` and sends
-  255 rows (src/torirsmaped/torirs_maped_build.c `jobs_build_finished`), or
-  the server diffs its own manifest on RELOAD (docs/serverpack.md hot-reload
-  contract §1).
+- RUN sends a `(255, group)` row for every server-pack archive whose manifest
+  hash changed (resolved 2026-11-01). The diff is taken from the lane's
+  `servpack/pack.manifest`; a build that rewrites the manifest without changing
+  an archive's hash sends nothing, by design.
 - BUILD "scripts lint" (3) and "cs2 compile" (4) answer UNSUPPORTED:
   src/torirsmaped/torirs_maped_build.c:151.
 - The client cache build is incremental for config types only
@@ -471,22 +511,32 @@ Every issue the phase reports left open, by area, with where to start.
 
 ### Live lane: game server and client
 
-- The client's CACHE_INVALIDATE handler drops only interface packs (index 3):
-  src/engine/cache_provider.c:1797 `CacheProvider_InvalidateArchive`. Config
-  records (2) and client scripts (12) wait for the next login (live state
-  holds them; scripts cannot be freed under a running CS2VM2_Frame,
-  cache_provider.c:1903). Not built: evicting archives from the sparse dat2
-  (src/js5/js5_rscache.c) and IndexedDB (src/web/torirs_idb.js plus a C-to-JS
-  bridge), re-priming the reference table from JS5, re-opening mounted
-  interfaces, re-resolving on-screen loc/npc/obj records. Maps rely on the
-  REBUILD that follows, but the provider's decoded terrain and scenery are not
-  evicted, so a real client can rebuild from stale decoded squares until those
-  are dropped (needs the dat2 name-hash to square mapping).
-- Only SEQUENCE, HEALTHBAR and STRUCT config tables are replaced live; npc,
-  loc, obj (live npcs hold `npc->def`; scene.c loads loc collision configs
-  once), param, enum, varp, inv and varbit report restart-needed:
-  src/torirsserver/torirs_server_control.c:339 `ctl_kind_reload`,
-  src/torirsserver/torirs_server_servpack.c:397.
+- Web client: no archive-invalidate hook yet. `src/platform/platform_web_io.js`
+  needs a `PlatformWeb_IO_InvalidateArchive` dropping its decoded-archive LRU
+  entry, resident container and reference-table memo, and `src/web/torirs_js5.js`
+  the same master/reference re-prime against IndexedDB; until then a web client
+  re-reads stale config bytes until the next login. Native is done (row 16).
+- Client scripts (12) and mounted interfaces still wait for the next login
+  (scripts cannot be freed under a running CS2VM2_Frame, cache_provider.c
+  `CacheProvider_ClientScriptAdd`). Decoded terrain and scenery rely on the
+  forced REBUILD.
+- On-screen npc and ground-stack action rows are copies made when the type is
+  applied; they refresh on respawn or transform, or at the next login.
+- Collision stamped into loaded squares from old loc records is not re-stamped
+  by a loc reload; squares loaded afterwards, or a square reload, pick up a
+  changed blockwalk or footprint. Per-npc state taken from the def at spawn
+  (hitpoints, wander radius) holds until the npc respawns.
+- Evicted client records are retired until shutdown (grows a little per RUN in
+  a dev lane). A second invalidate while a re-prime's reference fetch is still
+  in flight against an older master can fail CRC checks.
+- param, enum, varp, inv, idk, varbit, dbrow, dbtable and the name-table groups
+  (128 and up) still answer restart-needed, each with its reason in the restart
+  row: they are read at boot with the content symbols or derived into the bank
+  and varp layout (src/torirsserver/torirs_server_control.c
+  `ToriRSServer_ReloadConfigKind`).
+- The main torirsserver builds no world, and so answers no control link, until
+  its first login; attaching an editor to an empty real server times out. The
+  e2e has no real-client step; the real-client proof was run by hand.
 - A login now swaps in a rebuilt script pack (shadow, then swap; the same
   script.dat is a no-op), so a long-running server picks up a pack another
   session rebuilt at the next login; the renumbering check refuses a pack built

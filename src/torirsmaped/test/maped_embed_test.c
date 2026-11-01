@@ -27,6 +27,7 @@
 #include "editor/editor_jm2.h"
 #include "editor/editor_spawn.h"
 #include "torirsmaped/torirs_maped.h"
+#include "torirsmaped/torirs_maped_build.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -515,6 +516,102 @@ test_v1_peer(char const* scratch)
     free(v2);
 }
 
+/* The server pack's manifest diff RUN uses to name the server-pack groups a
+ * packs build rewrote (ToriRSMapEd_BuildServPackDiff). */
+struct servpack_rows
+{
+    uint32_t rows[16][2];
+    int count;
+};
+
+static void
+servpack_rows_archive(
+    void* user,
+    uint32_t index,
+    uint32_t archive)
+{
+    struct servpack_rows* rows = user;
+    if( rows->count < 16 )
+    {
+        rows->rows[rows->count][0] = index;
+        rows->rows[rows->count][1] = archive;
+    }
+    rows->count++;
+}
+
+static int
+servpack_rows_has(
+    const struct servpack_rows* rows,
+    uint32_t group)
+{
+    for( int i = 0; i < rows->count && i < 16; i++ )
+        if( rows->rows[i][0] == TORIRSMAPED_RELOAD_SERVPACK_INDEX && rows->rows[i][1] == group )
+            return 1;
+    return 0;
+}
+
+static void
+test_servpack_diff(void)
+{
+    static const char before[] =
+        "torirs-server-pack 1\n"
+        "config 4b7387697f9b9abb\n"
+        "input 4561257 1792535173408192663 fd05f3bfb89d53c3 configs/all.loc\n"
+        "unit loc ba6fafb47e0f0266 1 62393\n"
+        "archive 6 1187 1111111111111111 1 loc\n"
+        "archive 70 4 2222222222222222 1 loc\n"
+        "archive 70 5 3333333333333333 1 loc\n"
+        "archive 73 12 4444444444444444 1 npc\n"
+        "archive 128 0 5555555555555555 1 names\n"
+        "archive 192 9 6666666666666666 1 npc\n"
+        "archive 16 99 7777777777777777 1 varp\n";
+    /* loc: two records archives changed (one row, group 70); npc: its
+     * [default] band changed (192/9 -> the npc band group 9); varp 16/99
+     * gone; obj 74/1 new; the name table unchanged; the band 6/1187 the same. */
+    static const char after[] =
+        "torirs-server-pack 1\n"
+        "config 4b7387697f9b9abb\n"
+        "input 4561300 1792535173408199999 0d05f3bfb89d53c3 configs/all.loc\n"
+        "unit loc 0a6fafb47e0f0266 2 62393\n"
+        "archive 6 1187 1111111111111111 1 loc\n"
+        "archive 70 4 2222222222222299 2 loc\n"
+        "archive 70 5 3333333333333399 2 loc\n"
+        "archive 73 12 4444444444444444 1 npc\n"
+        "archive 74 1 8888888888888888 1 obj\n"
+        "archive 128 0 5555555555555555 1 names\n"
+        "archive 192 9 6666666666666699 2 npc\n";
+    struct ToriRSMapEdBuildSink sink;
+    struct servpack_rows rows;
+    int groups = -1;
+    int changed;
+
+    memset(&rows, 0, sizeof(rows));
+    memset(&sink, 0, sizeof(sink));
+    sink.user = &rows;
+    sink.archive = servpack_rows_archive;
+    changed = ToriRSMapEd_BuildServPackDiff(before, sizeof(before) - 1, after, sizeof(after) - 1,
+        &sink, &groups);
+    check(changed == 5, "servpack diff: 5 archives changed (2 loc records, npc default, varp gone, obj new)");
+    check(groups == 4 && rows.count == 4, "servpack diff: one reload row per group (4)");
+    check(servpack_rows_has(&rows, 70), "servpack diff: (255, 70) for the loc records group");
+    check(servpack_rows_has(&rows, 9), "servpack diff: the npc [default] band names the npc kind (255, 9)");
+    check(servpack_rows_has(&rows, 16), "servpack diff: a vanished archive is a change (255, 16)");
+    check(servpack_rows_has(&rows, 74), "servpack diff: a new archive is a change (255, 74)");
+    check(!servpack_rows_has(&rows, 6) && !servpack_rows_has(&rows, 73) && !servpack_rows_has(&rows, 128),
+        "servpack diff: unchanged groups are not named");
+
+    memset(&rows, 0, sizeof(rows));
+    changed = ToriRSMapEd_BuildServPackDiff(after, sizeof(after) - 1, after, sizeof(after) - 1, &sink,
+        &groups);
+    check(changed == 0 && groups == 0 && rows.count == 0, "servpack diff: the same manifest names nothing");
+    changed = ToriRSMapEd_BuildServPackDiff("archive 2 6 1 1 loc\n", 20, after, sizeof(after) - 1, &sink,
+        &groups);
+    check(changed == -1, "servpack diff: a text with no server-pack header is refused");
+    check(ToriRSMapEd_BuildServPackReloadGroup(193, 10) == 10
+              && ToriRSMapEd_BuildServPackReloadGroup(74, 3) == 74,
+        "servpack diff: the client-id group names its kind; a records group names itself");
+}
+
 int
 main(
     int argc,
@@ -547,6 +644,8 @@ main(
         return 2;
     }
     scratch = argv[1];
+
+    test_servpack_diff();
 
     snprintf(jm2_path, sizeof(jm2_path), "%s/maps/m50_50.jm2", scratch);
     snprintf(jl2_path, sizeof(jl2_path), "%s/maps/m50_50.jl2", scratch);

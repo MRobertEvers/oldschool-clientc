@@ -223,6 +223,9 @@ Editor_UiRegisterToolsPanels(struct EditorUi* ui)
     /* Phase 4: the Live panel (editor/live/), hidden until the View menu
      * opens it; it talks to the editor server's live link. */
     Editor_Live_Register(ui);
+    /* The script triggers of a record or a file (View > Triggers, Ctrl+E):
+     * Add trigger, Open in editor, Refresh, Check, Run. */
+    Editor_Triggers_Register(ui);
     Editor_History_Register(ui);
     /* Named areas and square collections (the AREAS document). */
     Editor_Areas_Register(ui);

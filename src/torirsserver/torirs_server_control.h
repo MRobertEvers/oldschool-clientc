@@ -242,20 +242,38 @@ ToriRSServer_ScriptsStampText(
 /**
  * Re-load one config kind's table from an open server pack. Returns 1 when
  * replaced, 0 when that kind cannot be replaced live (its records are copied
- * into, or pointed at by, state the world holds), -1 when the pack refused.
+ * into, or pointed at by, state the world holds), -1 when the pack refused it
+ * (the running table is kept). `why` says which, or carries a note on a 1.
  */
 typedef int (*ToriRSServerServPackKindReload)(
     void* context,
     struct RSCache_ServerPack* pack,
-    int config_kind);
+    int config_kind,
+    char* why,
+    size_t why_size);
+
+/**
+ * The game server's answer (`context` is the ToriRSServer): seq, healthbar,
+ * struct, loc, npc and obj are replaced; the rest answer 0 with the reason
+ * (torirs_server_control.c). Public for the tests, which hand it a pack of
+ * their own.
+ */
+int
+ToriRSServer_ReloadConfigKind(
+    void* context,
+    struct RSCache_ServerPack* pack,
+    int config_kind,
+    char* why,
+    size_t why_size);
 
 /**
  * Re-read the server pack at `pack_dir` (under its shared lock) for the
  * changed server-pack groups, and hand every config kind they hold to
- * `reload` once. A group that names no config kind (a name table) is added
- * to `result`'s restart list, as is every kind `reload` answers 0 for.
- * Returns the number of groups whose kind was replaced, or -1 when the pack
- * does not open.
+ * `reload` once. One line per kind goes into `result` ("config: loc 2 of 2
+ * group(s) replaced"); a group that names no config kind (a name table) is
+ * added to `result`'s restart list, as is every kind `reload` answers 0 for.
+ * `*out_refused` counts the kinds `reload` refused (-1). Returns the number of
+ * groups whose kind was replaced, or -1 when the pack does not open.
  */
 int
 ToriRSServer_ServPackReloadGroups(
@@ -264,7 +282,8 @@ ToriRSServer_ServPackReloadGroups(
     int group_count,
     ToriRSServerServPackKindReload reload,
     void* context,
-    struct ToriRSServerReloadResult* result);
+    struct ToriRSServerReloadResult* result,
+    int* out_refused);
 
 /** The pack's fingerprint as text, for CTL_FACT_STATUS. */
 void
@@ -286,6 +305,17 @@ ToriRSServer_WorldReloadSquares(
     const int* map_x,
     const int* map_z,
     int count);
+
+/**
+ * The loc records were replaced (ToriRSServer_ContentReloadLocs): owe every
+ * logged-in player one REBUILD, through the same barrier a square reload uses,
+ * so a client re-places its scenery and re-reads each placed loc's record --
+ * its menu ops, name and footprint come from the record at placement, and the
+ * CACHE_INVALIDATE sent before the REBUILD has dropped its copies. Returns the
+ * players owed.
+ */
+int
+ToriRSServer_WorldReloadOweRebuild(struct ToriRSServer* srv);
 
 /**
  * The edited lane's spawn files changed: re-read them, diff the roster, take
