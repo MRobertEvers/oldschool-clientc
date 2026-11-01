@@ -17521,13 +17521,25 @@ login_shows_welcome(struct ToriRSServerPlayer const* player)
 
 /*
  * The welcome screen, as the login burst sends it (identical in indexes 4339,
- * 4396 and 4367): the message-of-the-week models, welcome_screen modal in
- * displaymodal, the update-broadcast link and the CRM banner with its Play
- * button. Jagex sends the two model scripts just before IF_OPENTOP; here they
- * follow the mount, so the components they address exist when they run.
+ * 4396 and 4367): the message of the week -- its text and its two models --,
+ * welcome_screen modal in displaymodal, the update-broadcast link and the CRM
+ * banner with its Play button. Jagex sends the text and the two model scripts
+ * just before IF_OPENTOP; here they follow the mount, so the components they
+ * address exist when they arrive.
+ *
+ * welcome_screen:motw is an empty text component in the cache, and no client
+ * script writes it: without this IF_SETTEXT the bottom scroll is bare
+ * parchment. The text belongs with the models -- the same week's message
+ * (The Fractured Archive, its guardian in model1); a later week changes all
+ * three together (index 4447: Halloween, models 38921 and 2388).
  */
-static void
-login_open_welcome_screen(struct ToriRSServerPlayer* player)
+static const char k_welcome_motw_text[] =
+    "<col=006000>The Fractured Archive</col> is finally here. Find the entrance near the "
+    "<col=004000>Guthixian Temple</col> if you think you're strong enough to take on "
+    "<col=731d1d>Old School's fourth raid.</col>";
+
+void
+ToriRSServer_WorldOpenWelcomeScreen(struct ToriRSServerPlayer* player)
 {
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
     int model1[9] = { ids->com_welcome_screen_model1, 62570, 0, 80, 2023, 1954, 0, 2000, 14746 };
@@ -17536,11 +17548,14 @@ login_open_welcome_screen(struct ToriRSServerPlayer* player)
     int const banner_intv[6] = { 781, 1, 1104, 0, -1, -1 };
     const char* banner_strv[6] = { NULL, NULL, NULL, "Play", NULL, NULL };
 
+    assert(player);
+    assert(ids->com_welcome_screen_motw > 0);
     ToriRSServer_SendIfOpensub(player,
                                TORIRSSERVER_COM_GROUP(ids->com_toplevel_display_displaymodal),
                                TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_displaymodal),
                                ids->iface_welcome_screen,
                                0);
+    ToriRSServer_SendIfSettext(player, ids->com_welcome_screen_motw, k_welcome_motw_text);
     ToriRSServer_SendRunClientscript(player, 233, model1, 9);
     ToriRSServer_SendRunClientscript(player, 233, model2, 9);
     ToriRSServer_SendRunClientscriptMixed(player, 1080, "ss", NULL, broadcast_strv, 2);
@@ -17633,7 +17648,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
                                        TORIRSSERVER_COM_CHILD(ids->com_toplevel_display_orbs),
                                        mobile ? ids->iface_orbs_osm : ids->iface_orbs,
                                        1);
-            login_open_welcome_screen(player);
+            ToriRSServer_WorldOpenWelcomeScreen(player);
         }
         else
             ToriRSServer_GameframeOpentop(player, iface);

@@ -6994,6 +6994,14 @@ ToriRSServer_WorldInputRoom(
 void
 ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player);
 
+/** The welcome screen as the login burst mounts it on a real client's
+ *  toplevel_display (RSProx index 4339): welcome_screen in displaymodal, then
+ *  the message of the week's text and models, the update link and the CRM
+ *  banner. ToriRSServer_WorldLogin calls it when the login shows the screen;
+ *  public so a selftest can capture the burst without a session. */
+void
+ToriRSServer_WorldOpenWelcomeScreen(struct ToriRSServerPlayer* player);
+
 /**
  * Put `loc_id` on (x, z, level) with this shape, or remove what is there when
  * `loc_id < 0`. Returns 0 when the id is not in the cache or the tile is outside
