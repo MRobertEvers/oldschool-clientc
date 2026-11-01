@@ -358,6 +358,14 @@ mergeInto(LibraryManager.library, {
       let pending = inst.refTablesOwned.get(table);
       if (!pending) {
         pending = this.refTableDecode(inst, table).then(ptr => {
+          /* A live reload dropped this memo while the decode was out
+           * (invalidate): the table is the old one, and installing it
+           * would hand the old metadata to every later group. Retired,
+           * never freed -- the caller awaiting this promise still reads it. */
+          if (inst.refTablesOwned.get(table) !== pending) {
+            if (ptr) { inst.retiredRefTables.push(ptr); }
+            return ptr || null;
+          }
           inst.refTablesReady.set(table, ptr || null);
           return ptr || null;
         });
@@ -535,6 +543,11 @@ mergeInto(LibraryManager.library, {
      * by at most one request per dat2 group at a time (see the CACHE branch).
      */
     cacheReadDecode: async function (inst, req) {
+      /* A live reload (invalidate) bumps the table's generation. Bytes or a
+       * table read across one may be the old ones: none of them is kept, and
+       * the caller reads again (STALE). */
+      const gen = this.tableGen(inst, req.table);
+      const stale = () => !this.isDat1(req.flags) && this.tableGen(inst, req.table) !== gen;
       /*
        * A group the cache does not list is a failed read, as on disk -- and it
        * must be decided before asking, because a JS5 server answers a request
@@ -544,6 +557,7 @@ mergeInto(LibraryManager.library, {
        */
       if (!this.isDat1(req.flags) && req.table !== 255) {
         const listing = await this.refTableForMetadata(inst, req.table);
+        if (stale()) { return this.STALE; }
         if (listing && !_ToriRS_WebApi_ReferenceTableHasArchive(listing, req.archive)) { return null; }
       }
 
@@ -558,6 +572,7 @@ mergeInto(LibraryManager.library, {
         inst.host.readArchive(req.table, req.archive, req.flags),
         inst.host.xteaKey(req.table, req.archive),
       ]);
+      if (stale()) { return this.STALE; }
       if (!bytes) { return null; }
       if (!this.isDat1(req.flags)) {
         this.residentKeep(inst, `${req.flags}|${req.table}|${req.archive}`, bytes);
@@ -603,10 +618,117 @@ mergeInto(LibraryManager.library, {
        * judgement the desktop makes. The executor's own table, never the
        * client's: see refTableForMetadata. */
       const table = await this.refTableForMetadata(inst, req.table);
+      if (stale()) {
+        _ToriRS_WebApi_ArchiveFree(ptr);
+        return this.STALE;
+      }
       if (table) { _ToriRS_WebApi_ArchiveApplyMetadata(ptr, table); }
 
       this.decodedArchiveKeep(inst, req.flags, req.table, req.archive, ptr);
       return { ptr: ptr, size: _ToriRS_WebApi_ArchiveStructSize() };
+    },
+
+    /* cacheReadDecode's answer when a live reload landed during its awaits. */
+    STALE: { stale: true },
+
+    tableGen: function (inst, table) {
+      return inst.tableGen.get(table) || 0;
+    },
+
+    /*
+     * A live reload rewrote (index, archive): CACHE_INVALIDATE, through the
+     * provider's archive hook (PlatformWeb_IO_InvalidateArchive). The web
+     * half of PlatformX_IO_InvalidateArchive.
+     *
+     * Dropped here, synchronously, before the frame that handled the packet
+     * reads again: the decoded copy (the LRU's reference released -- a
+     * consumer holding one keeps it until its own Free), the resident
+     * container, and the index's reference-table memo, whose owned decode is
+     * retired rather than freed because a read parked on its promise may
+     * still apply it. The table's generation moves, so a read already out
+     * keeps nothing it fetched (cacheReadDecode, STALE). The host then
+     * re-primes the index against the JS5 server and IndexedDB
+     * (torirs_hostio.js / torirs_js5.js invalidateArchive), and the reads
+     * after this one wait for that.
+     */
+    invalidate: function (inst, index, archive) {
+      const table = this.dat2DiskTable(inst, index);
+      const debug = typeof ENV !== 'undefined' && !!ENV.TORIRS_CACHE_INVALIDATE_DEBUG;
+      if (table < 0) {
+        if (debug) { console.log(`cache invalidate: io ${index}/${archive}: no such table on this cache`); }
+        return;
+      }
+      inst.tableGen.set(table, this.tableGen(inst, table) + 1);
+
+      let dropped = 0;
+      const suffix = `|${table}|${archive}`;
+      for (const [key, hit] of Array.from(inst.decoded)) {
+        if (!key.endsWith(suffix) || this.isDat1(parseInt(key, 10))) { continue; }
+        inst.decoded.delete(key);
+        inst.decodedBytes -= hit.bytes;
+        _ToriRS_WebApi_ArchiveFree(hit.ptr);
+        dropped++;
+      }
+      for (const [key, bytes] of Array.from(inst.resident)) {
+        if (!key.endsWith(suffix) || this.isDat1(parseInt(key, 10))) { continue; }
+        inst.resident.delete(key);
+        inst.residentBytes -= bytes.length;
+      }
+      const owned = inst.refTablesReady.get(table);
+      if (owned) { inst.retiredRefTables.push(owned); }
+      inst.refTablesReady.delete(table);
+      inst.refTablesOwned.delete(table);
+      inst.refTableBytes.delete(table);
+
+      let js5Note = '';
+      if (inst.host && typeof inst.host.invalidateArchive === 'function') {
+        js5Note = "; js5 re-prime of 255/255 and the index's reference table queued";
+        Promise.resolve(inst.host.invalidateArchive(table, archive, {
+          decodeReference: bytes => this.referenceListing(table, bytes),
+          log: debug ? line => console.log(line) : null,
+        })).catch(err => {
+          if (err && err.torirsUnreachable) { inst.transportDown = true; }
+          console.error(`torirs io: cache invalidate ${index}/${archive}: ${err && err.message}`);
+        });
+      }
+      if (debug) {
+        console.log(`cache invalidate: io ${index}/${archive}: ${dropped} decompressed ` +
+          `cop${dropped === 1 ? 'y' : 'ies'} dropped${js5Note}`);
+      }
+    },
+
+    /*
+     * A reference table's listing as the re-prime reads it: id -> {crc,
+     * version}, both unsigned. Decoded by rscache (the container may be
+     * compressed any way the cache allows) and freed here: this copy is
+     * never handed to the queue. Null when the bytes do not decode, which
+     * the re-prime takes as "every stored group is suspect".
+     */
+    referenceListing: function (table, bytes) {
+      const scratch = _malloc(bytes.length);
+      if (!scratch) { throw new Error(`torirs: out of memory for a ${bytes.length} byte reference table`); }
+      let ptr = 0;
+      try {
+        HEAPU8.set(bytes, scratch);
+        ptr = _ToriRS_WebApi_ReferenceTableFromContainer(scratch, bytes.length, table);
+      } finally {
+        _free(scratch);
+      }
+      if (!ptr) { return null; }
+      const listing = new Map();
+      try {
+        const span = _ToriRS_WebApi_ReferenceTableArchiveCount(ptr);
+        for (let id = 0; id < span; id++) {
+          if (!_ToriRS_WebApi_ReferenceTableHasArchive(ptr, id)) { continue; }
+          listing.set(id, {
+            crc: _ToriRS_WebApi_ReferenceTableArchiveCrc(ptr, id) >>> 0,
+            version: _ToriRS_WebApi_ReferenceTableArchiveVersion(ptr, id) >>> 0,
+          });
+        }
+      } finally {
+        _ToriRS_WebApi_ReferenceTableFree(ptr);
+      }
+      return listing;
     },
 
     /*
@@ -811,7 +933,12 @@ mergeInto(LibraryManager.library, {
           inst.decoding.set(key, new Promise(resolve => { settle = resolve; }));
         }
         try {
-          return await this.cacheReadDecode(inst, req);
+          /* Read again across a live reload until a read lands on one side
+           * of it (cacheReadDecode keeps nothing it read across one). */
+          for (;;) {
+            const result = await this.cacheReadDecode(inst, req);
+            if (result !== this.STALE) { return result; }
+          }
         } finally {
           if (settle) { inst.decoding.delete(key); settle(); }
         }
@@ -827,6 +954,7 @@ mergeInto(LibraryManager.library, {
          */
         if (req.table < 0) { return { prefetched: 0 }; }
         const dat1 = this.isDat1(req.flags);
+        const gen = this.tableGen(inst, req.table);
         if (!dat1) { this.refTableForMetadata(inst, req.table).catch(() => null); }
         /* The host's many-at-once read when it has one (one database
          * transaction for the wave); one read per id otherwise. */
@@ -837,7 +965,11 @@ mergeInto(LibraryManager.library, {
         for (let i = 0; i < req.ids.length; i++) {
           const bytes = answers[i];
           if (!bytes) { continue; }
-          if (!dat1) { this.residentKeep(inst, `${req.flags}|${req.table}|${req.ids[i]}`, bytes); }
+          /* Read across a live reload: possibly the old bytes, so not kept
+           * (the next read of the group goes back to the host). */
+          if (!dat1 && this.tableGen(inst, req.table) === gen) {
+            this.residentKeep(inst, `${req.flags}|${req.table}|${req.ids[i]}`, bytes);
+          }
           n++;
         }
         this.telemetry.prefetched += n;
@@ -961,6 +1093,13 @@ mergeInto(LibraryManager.library, {
        * none), filled when refTableForMetadata settles. What lets a later
        * group be decoded without awaiting anything. */
       refTablesReady: new Map(),
+      /* Owned reference tables a live reload replaced (invalidate). Never
+       * freed: a read parked on the old promise may still apply one; a dev
+       * lane's cost, a few per RUN, as the client's retired records are. */
+      retiredRefTables: [],
+      /* disk table id -> how many live reloads have touched it. A read that
+       * sees it move under its awaits keeps nothing (cacheReadDecode). */
+      tableGen: new Map(),
       decoded: new Map(),
       decodedBytes: 0,
       /* key -> Promise for a dat2 group being read and decoded right now (see
@@ -992,6 +1131,21 @@ mergeInto(LibraryManager.library, {
       host: Module.torirsHostIO,
     });
     return handle;
+  },
+
+  /*
+   * CACHE_INVALIDATE reached the IO (main.c registers the provider's archive
+   * hook, PlatformWeb_IO_ArchiveInvalidateHook in platform_web_api.c). See
+   * TORIRS_WEB_IO.invalidate. Never a silent no-op on a handle this
+   * executor did not make.
+   */
+  PlatformWeb_IO_InvalidateArchive__deps: ['$TORIRS_WEB_IO'],
+  PlatformWeb_IO_InvalidateArchive: function (px, index, archive) {
+    const inst = TORIRS_WEB_IO.instances.get(px);
+    if (!inst) { throw new Error(`torirs: cache invalidate on unknown IO handle ${px}`); }
+    if (index < 0 || index >= 255) { throw new Error(`torirs: cache invalidate of index ${index}`); }
+    if (archive < 0) { throw new Error(`torirs: cache invalidate of archive ${archive}`); }
+    TORIRS_WEB_IO.invalidate(inst, index, archive);
   },
 
   PlatformWeb_IO_Free__deps: ['$TORIRS_WEB_IO'],

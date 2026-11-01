@@ -53,6 +53,74 @@
    *  is the index OF those tables. */
   const MASTER_ARCHIVE = 255;
 
+  /*
+   * CRC-32 (the zlib polynomial), for the one check this file makes of a
+   * stored container: does it still match its reference table? The same
+   * check, over the same span, as the native client's (js5.c,
+   * RSCache_Crc32Buffer over the container without its version trailer).
+   */
+  const CRC_TABLE = (() => {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) { c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); }
+      table[n] = c >>> 0;
+    }
+    return table;
+  })();
+
+  function crc32(bytes, length) {
+    let c = 0xFFFFFFFF;
+    for (let i = 0; i < length; i++) { c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); }
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* The container's own length -- [compression][compressed:u32]
+   * ([uncompressed:u32])[payload] -- without any version trailer a store
+   * may carry; -1 when the bytes are too short to say. */
+  function containerLength(bytes) {
+    if (!bytes || bytes.length < 5) { return -1; }
+    const compressed = ((bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4]) >>> 0;
+    const total = (bytes[0] === COMPRESSION_NONE ? 5 : 9) + compressed;
+    return total <= bytes.length ? total : -1;
+  }
+
+  /* The CRC a reference table lists for these bytes, or -1 (unreadable). */
+  function containerCrc(bytes) {
+    const length = containerLength(bytes);
+    return length < 0 ? -1 : crc32(bytes, length);
+  }
+
+  /* One table's (CRC, version) out of the master index, or null when the
+   * master does not list it. The layout #tablesPresent reads. */
+  function masterEntry(master, table) {
+    if (!master || master[0] !== COMPRESSION_NONE || master.length < 5) { return null; }
+    const at = 5 + table * 8;
+    if (at + 8 > master.length) { return null; }
+    const u32 = i => ((master[i] << 24) | (master[i + 1] << 16) | (master[i + 2] << 8) | master[i + 3]) >>> 0;
+    const crc = u32(at);
+    const version = u32(at + 4);
+    return crc === 0 && version === 0 ? null : { crc, version };
+  }
+
+  /* Which tables a master index lists, as a Set; null when it does not read
+   * as a master (see #tablesPresent). */
+  function parseTablesPresent(master) {
+    if (!master || master[0] !== COMPRESSION_NONE || master.length < 5) {
+      return null;
+    }
+    const payload = master.subarray(5);
+    const present = new Set();
+    for (let i = 0; i + 8 <= payload.length; i += 8) {
+      let empty = true;
+      for (let b = 0; b < 8; b++) {
+        if (payload[i + b] !== 0) { empty = false; break; }
+      }
+      if (!empty) { present.add(i / 8); }
+    }
+    return present;
+  }
+
   /* A clock for the wire stats. `performance` is the page's; a test harness
    * evaluating this file in a bare context has only Date. */
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -188,6 +256,20 @@
       this.maxPending = 0;
       this.firstByteAt = 0;
       this.lastByteAt = 0;
+
+      /*
+       * Live reloads (invalidateArchive). One re-prime runs at a time, in
+       * the order asked: `reprimeChain` is the last one queued. `reprimeGates`
+       * names, per index, the latest re-prime queued for it; a request for
+       * that index (its groups or 255/<index>) waits until no gate is left,
+       * and a request for the master waits while any re-prime is queued
+       * (`reprimesActive`), so nothing outside the re-prime is answered from
+       * the expectation it is replacing.
+       */
+      this.reprimeChain = Promise.resolve();
+      this.reprimeGates = new Map();
+      this.reprimesActive = 0;
+      this.reprimes = 0;
 
       /*
        * A test knob: hold every answer for this many milliseconds before it
@@ -347,22 +429,49 @@
      */
     async group(archive, group, urgent = true) {
       if (this.failed) { throw this.failed; }
-      await this.ready();
+      for (;;) {
+        /* A live reload of this index is re-priming: wait for it, so the
+         * answer is read against the new master and reference table. */
+        for (let gate = this.#gateFor(archive, group); gate; gate = this.#gateFor(archive, group)) {
+          await gate.catch(() => null);
+        }
+        await this.ready();
 
-      /*
-       * Anything belonging to a table the master index does not list is
-       * answered here, because the protocol cannot answer it at all -- see
-       * #tablesPresent. That is the reference table 255/<table> and equally
-       * any group inside it: the client addresses some groups without having
-       * read a reference table first, so gating only the table would move the
-       * hang one request along rather than remove it.
-       */
-      if (archive !== MASTER_ARCHIVE || group !== MASTER_ARCHIVE) {
-        const table = archive === MASTER_ARCHIVE ? group : archive;
-        const present = await this.#tablesPresent();
-        if (present && !present.has(table)) { return null; }
+        /*
+         * Anything belonging to a table the master index does not list is
+         * answered here, because the protocol cannot answer it at all -- see
+         * #tablesPresent. That is the reference table 255/<table> and equally
+         * any group inside it: the client addresses some groups without
+         * having read a reference table first, so gating only the table
+         * would move the hang one request along rather than remove it.
+         */
+        if (archive !== MASTER_ARCHIVE || group !== MASTER_ARCHIVE) {
+          const table = archive === MASTER_ARCHIVE ? group : archive;
+          const present = await this.#tablesPresent();
+          if (present && !present.has(table)) { return null; }
+        }
+        /* Asked again after the awaits above: a live reload queued while
+         * they ran must see this request wait, not slip in ahead of its
+         * master. #request registers before it awaits anything. */
+        if (!this.#gateFor(archive, group)) { break; }
       }
+      return await this.#request(archive, group, urgent);
+    }
 
+    /* What a request for (archive, group) waits on, or null. */
+    #gateFor(archive, group) {
+      const table = archive === MASTER_ARCHIVE ? group : archive;
+      if (table === MASTER_ARCHIVE) { return this.reprimesActive > 0 ? this.reprimeChain : null; }
+      return this.reprimeGates.get(table) || null;
+    }
+
+    /*
+     * One request on the wire, shared with any identical one outstanding.
+     * No gate and no master check: group() makes those, and the re-prime
+     * calls this directly because it is what the gates are waiting for.
+     */
+    async #request(archive, group, urgent = true) {
+      if (this.failed) { throw this.failed; }
       const key = (archive << 16) | group;
       const existing = this.pending.get(key);
       if (existing) { return await existing.promise; }
@@ -416,22 +525,7 @@
      */
     async #tablesPresent() {
       if (!this.tablesPromise) {
-        this.tablesPromise = (async () => {
-          const master = await this.masterIndex();
-          if (!master || master[0] !== COMPRESSION_NONE || master.length < 5) {
-            return null;
-          }
-          const payload = master.subarray(5);
-          const present = new Set();
-          for (let i = 0; i + 8 <= payload.length; i += 8) {
-            let empty = true;
-            for (let b = 0; b < 8; b++) {
-              if (payload[i + b] !== 0) { empty = false; break; }
-            }
-            if (!empty) { present.add(i / 8); }
-          }
-          return present;
-        })();
+        this.tablesPromise = (async () => parseTablesPresent(await this.masterIndex()))();
       }
       return await this.tablesPromise;
     }
@@ -439,6 +533,157 @@
     /** One table's reference table. */
     async referenceTable(table) {
       return await this.group(MASTER_ARCHIVE, table);
+    }
+
+    /**
+     * The server rewrote archive `archive` of index `index` (a live reload's
+     * CACHE_INVALIDATE): re-prime the index. The web half of
+     * Js5ClientInvalidateArchive (src/js5/js5.c), step for step:
+     *
+     *   1. Requests of the index already outstanding (and the master) carry
+     *      the old expectation: they are taken out of the pending table and
+     *      parked, and when one of them was already on the wire the socket
+     *      is dropped and reopened, so no old answer can land against a
+     *      re-asked key. Everything else outstanding is re-sent on the new
+     *      socket, as after any drop.
+     *   2. A fresh 255/255. The server re-checks its cache on every master
+     *      request (js5_server Js5ServerCacheLoad), so it is asked first.
+     *   3. 255/<index> when the stored reference table no longer matches the
+     *      master's entry for it (or there is none stored).
+     *   4. Every stored group of the index checked against the new table by
+     *      its container's CRC; a group whose CRC moved is fetched and
+     *      overwritten in the store, the rest stay. A group the new table
+     *      does not list is left alone (the executor never reads one).
+     *   5. The new reference table stored, the parked requests answered from
+     *      the new state, the gate lifted.
+     *
+     * `opts.store` is the host's database for this index ({ids, get, put,
+     * getReference, putReference}); `opts.decodeReference(bytes)` gives the
+     * listing id -> {crc, version} (null: every stored group is re-fetched);
+     * `opts.log(line)` prints each fetch under TORIRS_CACHE_INVALIDATE_DEBUG,
+     * in the native client's words. Re-primes are serialised: one asked
+     * while another runs starts when it is done, so the second always reads
+     * a master asked after the first finished. Resolves to {master,
+     * reference, refetched}.
+     */
+    invalidateArchive(index, opts) {
+      if (!(index >= 0 && index < MASTER_ARCHIVE)) {
+        throw new Error(`js5: invalidateArchive of index ${index}`);
+      }
+      if (this.failed) { return Promise.reject(this.failed); }
+      const options = opts || {};
+      this.reprimesActive++;
+      const run = this.reprimeChain.catch(() => null).then(() => this.#reprime(index, options));
+      this.reprimeChain = run;
+      this.reprimeGates.set(index, run);
+      const settle = () => {
+        this.reprimesActive--;
+        if (this.reprimeGates.get(index) === run) { this.reprimeGates.delete(index); }
+      };
+      run.then(settle, settle);
+      return run;
+    }
+
+    async #reprime(index, opts) {
+      const log = opts.log || null;
+      const store = opts.store || null;
+      this.reprimes++;
+
+      /* 1. Park what was asked against the old expectation. */
+      const parked = [];
+      for (const [key, waiter] of Array.from(this.pending)) {
+        const archive = key >>> 16;
+        const group = key & 0xFFFF;
+        const table = archive === MASTER_ARCHIVE ? group : archive;
+        if (table !== index && table !== MASTER_ARCHIVE) { continue; }
+        this.pending.delete(key);
+        parked.push({ archive, group, waiter });
+      }
+      if (parked.length > 0 && this.online) { this.#reopen(); }
+
+      let master = null;
+      let reference = null;
+      const refetched = [];
+      try {
+        /* 2. The master, asked after the rewrite. */
+        master = await this.#request(MASTER_ARCHIVE, MASTER_ARCHIVE);
+        if (log) { log(`cache invalidate: js5 fetched 255/255 (${master ? master.length : 0} bytes)`); }
+        this.tablesPromise = Promise.resolve(parseTablesPresent(master));
+
+        /* 3. The reference table, when the stored one is not the master's. */
+        const entry = masterEntry(master, index);
+        if (entry) {
+          const held = store ? await store.getReference() : null;
+          if (held && containerCrc(held) === entry.crc) {
+            reference = held;
+          } else {
+            reference = await this.#request(MASTER_ARCHIVE, index);
+            if (log) { log(`cache invalidate: js5 fetched 255/${index} (${reference ? reference.length : 0} bytes)`); }
+          }
+        }
+
+        /* 4. Every stored group against the new table. */
+        if (reference && store) {
+          const listing = opts.decodeReference ? opts.decodeReference(reference) : null;
+          const ids = await store.ids();
+          await Promise.all(ids.map(async id => {
+            const held = await store.get(id);
+            if (!held) { return; }
+            const want = listing ? listing.get(id) : null;
+            if (listing && !want) { return; }
+            if (want && containerCrc(held) === want.crc) { return; }
+            const fresh = await this.#request(index, id);
+            if (!fresh) { return; }
+            if (want && containerCrc(fresh) !== want.crc) {
+              console.warn(`js5: ${index}/${id} does not match its new reference table ` +
+                `(crc ${containerCrc(fresh)} != ${want.crc}); stored anyway, as served`);
+            }
+            if (log) { log(`cache invalidate: js5 fetched ${index}/${id} (${fresh.length} bytes)`); }
+            await store.put(id, fresh);
+            refetched.push(id);
+          }));
+          /* 5. The table last: a tab closed mid-way keeps the old table
+           * beside the groups it describes rather than the reverse. */
+          await store.putReference(reference);
+        }
+      } catch (err) {
+        for (const p of parked) { p.waiter.reject(err); }
+        throw err;
+      }
+
+      /* 5. The parked requests, answered from the new state. */
+      for (const p of parked) {
+        if (p.archive === MASTER_ARCHIVE && p.group === MASTER_ARCHIVE) {
+          p.waiter.resolve(master);
+        } else if (p.archive === MASTER_ARCHIVE && p.group === index && reference) {
+          p.waiter.resolve(reference);
+        } else {
+          this.#request(p.archive, p.group).then(p.waiter.resolve, p.waiter.reject);
+        }
+      }
+      refetched.sort((a, b) => a - b);
+      return { master, reference, refetched };
+    }
+
+    /*
+     * Drop the socket on purpose and let the next request reconnect: what a
+     * drop does (#dropped), without counting one or warning. The old
+     * socket's handlers are detached first, so a partial answer still
+     * arriving on it is never read.
+     */
+    #reopen() {
+      const old = this.socket;
+      this.online = false;
+      this.socket = null;
+      this.readyPromise = null;
+      this.reader.reset();
+      if (old) {
+        old.onmessage = null;
+        old.onclose = null;
+        old.onerror = null;
+        try { old.close(); } catch (err) { /* already closing */ }
+      }
+      if (this.pending.size) { this.ready().catch(() => {}); }
     }
 
     stats() {
@@ -454,6 +699,7 @@
         wireBytesPerSec: this.lastByteAt > this.firstByteAt
           ? this.bytesReceived * 1000 / (this.lastByteAt - this.firstByteAt) : 0,
         drops: this.drops,
+        reprimes: this.reprimes,
         failed: this.failed ? this.failed.message : null,
       };
     }

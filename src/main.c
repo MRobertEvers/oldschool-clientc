@@ -8053,6 +8053,13 @@ main(
     if( app.provider )
         CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformX_IO_ArchiveInvalidateHook,
                                                app.runner.px);
+#else
+    /* The browser's half: platform_web_io.js drops its decoded copy, resident
+     * container and reference-table memo, and the page's JS5 client re-primes
+     * the index against IndexedDB (src/web/torirs_js5.js invalidateArchive). */
+    if( app.provider )
+        CacheProvider_SetArchiveInvalidateHook(app.provider, PlatformWeb_IO_ArchiveInvalidateHook,
+                                               app.runner.px);
 #endif
     ToriRS_BootTelemetry_Mark("app_init:done");
     if( getenv("TORIRS_PREVIEW_BMP") )

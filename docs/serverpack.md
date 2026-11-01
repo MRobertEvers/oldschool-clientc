@@ -320,11 +320,30 @@ CACHE_INVALIDATE and, where placed state carries a record, a REBUILD.
    `TORIRS_CACHE_INVALIDATE_DEBUG=1` prints each step (`cache invalidate: index
    2, …`, `io 2/6: …`, `js5 fetched 255/255 / 255/2 / 2/6`), and
    `TORIRS_LOC_CFG=<id>` prints the loc's decoded ops (`loc_cfg 1187 decoded: …
-   ops [] [] [Smell] [] []`), both surviving an optimized build. The web
-   executor registers no hook yet (its decoded-archive LRU, resident containers
-   and reference-table memo in `platform_web_io.js`, and the host's JS5/IndexedDB
-   in `src/web/torirs_js5.js`, need the same re-prime). The scriptrun bot drops
-   its decoded loc configs on the 2/6 row (`ScriptrunCore_LocConfigsInvalidate`).
+   ops [] [] [Smell] [] []`), both surviving an optimized build. The scriptrun
+   bot drops its decoded loc configs on the 2/6 row
+   (`ScriptrunCore_LocConfigsInvalidate`).
+
+   *The web client* takes the same chain from the provider down; only the
+   hook's half differs. `src/main.c` registers
+   `PlatformWeb_IO_ArchiveInvalidateHook` (`src/platform/platform_web_api.c`) on
+   the emscripten build, which calls the JS library's
+   `PlatformWeb_IO_InvalidateArchive` (`src/platform/platform_web_io.js`): the
+   decoded-archive LRU entry is released, the resident container and the
+   index's reference-table memo dropped (the owned decode retired, not freed),
+   and the table's generation moved so a read already in flight keeps nothing it
+   fetched and reads again. The page's host then re-primes
+   (`torirs_hostio.js` `invalidateArchive` -> `torirs_js5.js`
+   `invalidateArchive`): the index's outstanding JS5 requests and the master are
+   parked (the socket reopened when one was on the wire, so no old answer lands
+   on a re-asked key), a fresh 255/255, 255/<index> when the IndexedDB copy no
+   longer matches the master, then every stored group of the index checked by
+   its container CRC against the new table (decoded by rscache,
+   `ToriRS_WebApi_ReferenceTableArchiveCrc`) and only the rewritten ones fetched
+   and overwritten; the new table is stored last. Reads of the index wait for
+   the re-prime, and re-primes run one at a time. The same debug lines print to
+   the browser console with `?env=TORIRS_CACHE_INVALIDATE_DEBUG%3D1` (and
+   `&env=TORIRS_LOC_CFG%3D<id>`).
 6. **Not reloadable**: `.spawn` files, `.constant` values the server reads as text
    at boot (`torirs_server_content.c`), map squares (read from the cache), and the
    symbol tables of the content loader — those need a boot. Spawns are text read

@@ -1591,7 +1591,7 @@ IO_SERVER_SRCS = $(TORIMEM_SRCS) ioserver/io_server_main.c ioserver/http_server.
 	platform/io_wire.c platform/platform_x_io.c \
 	platform/platform_x_io_ondemand.c \
 	platform/platform_x_http.c platform/sockstream.c platform/platform_mdns.c \
-	bootmanifest/bootmanifest.c features/features.c \
+	bootmanifest/bootmanifest.c input/torirs_keymap.c features/features.c \
 	ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 	ioserver/io_gate.c ioserver/io_gate_links.c ioserver/io_site.c torirsserver/torirs_server_auth.c torirsserver/torirs_server_oauth.c \
 	accountserver/account_client.c accountserver/account_proto.c \
@@ -4012,7 +4012,19 @@ test-web-channel:
 	node web/test/hostio_read_file_test.js
 	node web/test/js5_reconnect_test.js
 	node web/test/session_resume_test.js
+	$(MAKE) test-web-cache-invalidate
 	$(MAKE) test-chrome-web-skin
+
+# The web client's half of a live reload (CACHE_INVALIDATE): the IO executor
+# drops its decoded, resident and reference-table copies of the archive
+# (platform/platform_web_io.js), and the JS5 client re-primes the index
+# against IndexedDB -- 255/255, 255/<index>, only the rewritten groups
+# (web/torirs_js5.js invalidateArchive, through web/torirs_hostio.js). Node
+# only; part of test-web-channel.
+.PHONY: test-web-cache-invalidate
+test-web-cache-invalidate:
+	node web/test/web_io_invalidate_test.js
+	node web/test/js5_invalidate_test.js
 
 test-debug-overlay-visual: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) \
 		$(OBJ_DIR)/toridraw_model_sprite.o
